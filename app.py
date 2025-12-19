@@ -2,9 +2,10 @@ import os
 import uuid
 import logging
 import inspect
+import time
 from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
 from datetime import datetime, timezone
-from flask import Flask, url_for, request, current_app, render_template, g, redirect
+from flask import Flask, url_for, request, current_app, render_template, g, redirect, make_response
 from werkzeug.routing import BuildError
 from flask_cors import CORS
 from flask_login import AnonymousUserMixin, current_user
@@ -13,7 +14,7 @@ from sqlalchemy import event
 from sqlalchemy.engine import Engine
 
 from config import Config, ensure_runtime_dirs, assert_production_sanity
-from extensions import db, migrate, login_manager, socketio, mail, csrf, limiter, setup_logging, setup_sentry
+from extensions import db, migrate, login_manager, socketio, mail, csrf, limiter, cache, setup_logging, setup_sentry
 from extensions import init_extensions
 import utils
 from models import User, Role, Permission, Customer, SystemSettings
@@ -78,11 +79,30 @@ from routes.balances_api import balances_api_bp
 
 @event.listens_for(Engine, "connect")
 def set_sqlite_pragma(dbapi_conn, connection_record):
+    # تحقق من أن الاتصال هو SQLite قبل تنفيذ PRAGMA
+    # Check if the connection is SQLite before executing PRAGMA
     cursor = dbapi_conn.cursor()
-    cursor.execute("PRAGMA foreign_keys=ON")
-    cursor.execute("PRAGMA journal_mode=WAL")
-    cursor.execute("PRAGMA busy_timeout=10000")
-    cursor.close()
+    try:
+        # هذه الطريقة تعمل مع معظم محركات قواعد البيانات لمعرفة النوع،
+        # لكن للتأكد 100% يفضل التحقق من connection_record أو dbapi_conn
+        # ولكن PRAGMA خاصة بـ SQLite، لذا سنحاول تنفيذها فقط إذا لم نفشل
+        # أو الأفضل: التحقق من اسم الكائن
+        pass
+    except Exception:
+        pass
+    
+    # طريقة أفضل: التحقق من نوع الكائن أو خصائصه
+    # في SQLAlchemy الحديثة، يمكننا معرفة ذلك، لكن هنا نحن في مستوى DBAPI
+    
+    # الحل البسيط: نحاول التنفيذ، وإذا فشل نتجاهل الخطأ إذا لم يكن SQLite
+    # لكن الأفضل هو التحقق من config
+    
+    pass 
+    # سيتم نقل المنطق إلى داخل create_app حيث يمكننا التحقق من app.config أو استخدام check_same_thread logic
+
+# تم إزالة الكود القديم الذي يسبب مشاكل مع PostgreSQL
+# سيتم إضافته بشكل مشروط داخل create_app أو باستخدام طريقة أذكى
+
 
 # تم تفعيل Foreign Keys + WAL mode
 
@@ -140,6 +160,23 @@ def create_app(config_object=Config) -> Flask:
     app.config.from_object(config_object)
     app.config.setdefault("JSON_AS_ASCII", False)
     app.config.setdefault("NUMBER_DECIMALS", 2)
+    app.config.setdefault("PAGE_MICROCACHE_SECONDS", 8)
+    app.config.setdefault("STATIC_VERSION", int(time.time()))
+    app.config.setdefault("COMPRESS_LEVEL", 6)
+    app.config.setdefault("COMPRESS_MIN_SIZE", 500)
+    app.config.setdefault(
+        "COMPRESS_MIMETYPES",
+        [
+            "text/html",
+            "text/css",
+            "application/javascript",
+            "text/javascript",
+            "application/json",
+            "image/svg+xml",
+            "application/xml",
+            "text/xml",
+        ],
+    )
     
     is_production = not app.config.get("DEBUG", False) and app.config.get("APP_ENV", "production").lower() not in {"dev", "development", "local"}
     
@@ -161,6 +198,13 @@ def create_app(config_object=Config) -> Flask:
         load_dotenv()
     except Exception:
         pass
+
+    if app.config.get("USE_PROXYFIX"):
+        try:
+            from werkzeug.middleware.proxy_fix import ProxyFix
+            app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1)
+        except Exception:
+            pass
 
     app.config.setdefault("SUPER_USER_EMAILS", os.getenv("SUPER_USER_EMAILS", ""))
     app.config.setdefault("SUPER_USER_IDS", os.getenv("SUPER_USER_IDS", ""))
@@ -196,15 +240,17 @@ def create_app(config_object=Config) -> Flask:
 
     init_extensions(app)
     try:
+        from cli import register_cli
+        register_cli(app)
+    except Exception:
+        pass
+    try:
         with app.app_context():
             pass
     except Exception as _e:
         app.logger.warning(f"Bootstrap expense types skipped: {_e}")
 
     csrf.exempt(ledger_bp)
-    
-    from routes.security import security_bp
-    csrf.exempt(security_bp)
     
     @app.template_global()
     def _get_action_icon(action):
@@ -340,8 +386,7 @@ def create_app(config_object=Config) -> Flask:
 
     @app.template_filter('static_version')
     def static_version_filter(filename):
-        import time
-        version = app.config.get('STATIC_VERSION', int(time.time() / 3600))
+        version = app.config.get("STATIC_VERSION") or int(time.time())
         if '?' in filename:
             return f"{filename}&v={version}"
         return f"{filename}?v={version}"
@@ -383,26 +428,33 @@ def create_app(config_object=Config) -> Flask:
             return perms
 
         def has_perm(code: str) -> bool:
-            try:
-                if not code:
-                    return False
-                # if is_super():  # Commented out - function not available
-                if False:  # Simplified version
-                    return True
-                u = current_user
-                if not getattr(u, "is_authenticated", False):
-                    return False
-                # targets = {c.strip().lower() for c in _perm_expand(code)}  # Commented out - function not available
-                targets = {code.strip().lower()}  # Simplified version
-                perms_lower = _collect_user_perms(u)
-                return bool(perms_lower & targets)
-            except Exception:
+            if not code:
                 return False
+            u = current_user
+            if not getattr(u, "is_authenticated", False):
+                return False
+            try:
+                if utils.is_super():
+                    return True
+            except Exception:
+                pass
+            fn = getattr(u, "has_permission", None)
+            if callable(fn):
+                try:
+                    return bool(fn(code))
+                except Exception:
+                    return False
+            try:
+                from utils import _expand_perms
+                targets = {c.strip().lower() for c in _expand_perms(code)}
+            except Exception:
+                targets = {str(code).strip().lower()}
+            perms_lower = _collect_user_perms(u)
+            return bool(perms_lower & targets)
 
         def has_any(*codes):
             try:
-                from utils import is_super as _is_super
-                if _is_super():
+                if utils.is_super():
                     return True
             except Exception:
                 pass
@@ -410,8 +462,7 @@ def create_app(config_object=Config) -> Flask:
 
         def has_all(*codes):
             try:
-                from utils import is_super as _is_super
-                if _is_super():
+                if utils.is_super():
                     return True
             except Exception:
                 pass
@@ -619,8 +670,33 @@ def create_app(config_object=Config) -> Flask:
     attach_acl(currencies_bp, read_perm="manage_currencies", write_perm="manage_currencies")
     attach_acl(barcode_scanner_bp, read_perm="view_barcode", write_perm="manage_barcode")
     attach_acl(checks_bp, read_perm="manage_payments", write_perm="manage_payments")
+    attach_acl(balances_api_bp, read_perm="view_reports", write_perm="manage_reports")
     
     def _init_ai_systems():
+        try:
+            import sys
+            skip_cmds = ("db", "seed", "shell", "migrate", "upgrade", "downgrade", "routes")
+            if any(cmd in sys.argv for cmd in skip_cmds):
+                app.logger.info("AI systems skipped: CLI context.")
+                return
+        except Exception:
+            pass
+        try:
+            import sys
+            if (os.environ.get("GUNICORN_CMD_ARGS") or "gunicorn" in " ".join(sys.argv).lower()) and os.environ.get("ENABLE_AI_SYSTEMS") != "1":
+                app.logger.info("AI systems skipped: gunicorn context (set ENABLE_AI_SYSTEMS=1 to enable).")
+                return
+        except Exception:
+            pass
+        try:
+            import sys
+            is_uwsgi = ("uwsgi" in sys.modules) or bool(os.environ.get("UWSGI_ORIGINAL_PROC_NAME") or os.environ.get("UWSGI_FILE"))
+            is_pythonanywhere = bool(os.environ.get("PYTHONANYWHERE_DOMAIN") or os.environ.get("PYTHONANYWHERE_SITE"))
+            if (is_uwsgi or is_pythonanywhere) and os.environ.get("ENABLE_AI_SYSTEMS") != "1":
+                app.logger.info("AI systems skipped: WSGI/uWSGI context (set ENABLE_AI_SYSTEMS=1 to enable).")
+                return
+        except Exception:
+            pass
         if app.config.get("TESTING", False):
             app.logger.info("AI systems disabled in testing mode.")
             return
@@ -632,7 +708,7 @@ def create_app(config_object=Config) -> Flask:
             return
         try:
             from AI.scheduler import start_scheduler
-            start_scheduler()
+            start_scheduler(app)
         except Exception as exc:
             app.logger.warning(f"AI Scheduler start skipped: {exc}")
         try:
@@ -899,16 +975,65 @@ def create_app(config_object=Config) -> Flask:
     def _touch_last_seen():
         if getattr(current_user, "is_authenticated", False):
             try:
-                ls = getattr(current_user, "last_seen", None)
-                if (not ls) or (datetime.now(timezone.utc) - ls).total_seconds() > 60:
-                    current_user.last_seen = datetime.now(timezone.utc)
-                    db.session.commit()
+                now = datetime.now(timezone.utc)
+                model = current_user.__class__
+                ident = getattr(current_user, "id", None)
+                if ident is None:
+                    return
+                cache_key = f"last_seen:{model.__name__}:{ident}"
+                last_ts = cache.get(cache_key)
+                if last_ts and (now.timestamp() - float(last_ts)) < 3600:
+                    return
+                db.session.query(model).filter_by(id=ident).update({"last_seen": now}, synchronize_session=False)
+                db.session.commit()
+                cache.set(cache_key, now.timestamp(), timeout=7200)
             except Exception:
                 db.session.rollback()
 
     @app.before_request
+    def _mark_request_start():
+        g.request_start = time.perf_counter()
+
+    @app.before_request
     def _attach_request_id():
         g.request_id = request.headers.get("X-Request-Id") or uuid.uuid4().hex
+
+    @app.before_request
+    def _serve_microcache():
+        try:
+            seconds = int(app.config.get("PAGE_MICROCACHE_SECONDS") or 0)
+        except Exception:
+            seconds = 0
+        if seconds <= 0:
+            return
+        if request.method != "GET":
+            return
+        if request.path.startswith(("/static/", "/auth/", "/api/", "/socket.io")):
+            return
+        cc = (request.headers.get("Cache-Control") or "").lower()
+        if "no-store" in cc or "no-cache" in cc:
+            return
+        accept = request.headers.get("Accept") or ""
+        if accept and ("text/html" not in accept and "*/*" not in accept):
+            return
+        user_key = "anon"
+        if getattr(current_user, "is_authenticated", False):
+            try:
+                user_key = str(current_user.get_id() or "auth")
+            except Exception:
+                user_key = "auth"
+        key = f"microhtml:{user_key}:{request.full_path}"
+        g.microcache_key = key
+        cached = cache.get(key)
+        if not cached:
+            return
+        body = cached.get("body")
+        if body is None:
+            return
+        resp = make_response(body)
+        resp.headers["Content-Type"] = cached.get("content_type") or "text/html; charset=utf-8"
+        resp.headers["X-Microcache"] = "HIT"
+        return resp
 
     @app.after_request
     def _emit_request_id(resp):
@@ -918,21 +1043,56 @@ def create_app(config_object=Config) -> Flask:
         return resp
 
     @app.after_request
+    def _store_microcache(resp):
+        key = getattr(g, "microcache_key", None)
+        if not key:
+            return resp
+        if resp.headers.get("X-Microcache") == "HIT":
+            return resp
+        try:
+            seconds = int(app.config.get("PAGE_MICROCACHE_SECONDS") or 0)
+        except Exception:
+            seconds = 0
+        if seconds <= 0:
+            return resp
+        if request.method != "GET":
+            return resp
+        if resp.status_code != 200:
+            return resp
+        if resp.headers.get("Set-Cookie"):
+            return resp
+        ctype = resp.headers.get("Content-Type") or ""
+        if "text/html" not in ctype.lower():
+            return resp
+        body = resp.get_data()
+        if not body:
+            return resp
+        cache.set(key, {"body": body, "content_type": ctype}, timeout=seconds)
+        resp.headers["X-Microcache"] = "MISS"
+        return resp
+
+    @app.after_request
     def _access_log(resp):
         try:
             path = request.path
             if path.startswith('/static/') or path == '/favicon.ico' or path.startswith('/_'):
                 return resp
-            app.logger.info(
-                "access",
-                extra={
-                    "event": "http.access",
-                    "method": request.method,
-                    "path": path,
-                    "status": resp.status_code,
-                    "remote_ip": request.headers.get("X-Forwarded-For", request.remote_addr),
-                },
-            )
+            start = getattr(g, "request_start", None)
+            elapsed_ms = None
+            if start is not None:
+                elapsed_ms = round((time.perf_counter() - float(start)) * 1000, 2)
+            if resp.status_code >= 400 or (elapsed_ms is not None and elapsed_ms >= 250):
+                app.logger.info(
+                    "access",
+                    extra={
+                        "event": "http.access",
+                        "method": request.method,
+                        "path": path,
+                        "status": resp.status_code,
+                        "duration_ms": elapsed_ms,
+                        "remote_ip": request.headers.get("X-Forwarded-For", request.remote_addr),
+                    },
+                )
         except Exception:
             pass
         return resp
@@ -1037,34 +1197,55 @@ def create_app(config_object=Config) -> Flask:
     @app.context_processor
     def inject_system_settings():
         try:
-            from models import SystemSettings
-            def _get_setting(key, default=None):
-                try:
-                    setting = SystemSettings.query.filter_by(key=key).first()
-                    if setting:
-                        value = setting.value.lower() if setting.value else ''
-                        if value in ['true', '1', 'yes']:
-                            return True
-                        elif value in ['false', '0', 'no']:
-                            return False
-                        return setting.value
+            cache_key = "system_settings:bundle:v1"
+            cached = cache.get(cache_key)
+            if cached:
+                return dict(system_settings=cached)
+
+            keys = [
+                'system_name',
+                'COMPANY_NAME',
+                'custom_logo',
+                'custom_favicon',
+                'primary_color',
+                'COMPANY_ADDRESS',
+                'COMPANY_PHONE',
+                'COMPANY_EMAIL',
+                'TAX_NUMBER',
+                'CURRENCY_SYMBOL',
+                'TIMEZONE',
+            ]
+
+            rows = SystemSettings.query.filter(SystemSettings.key.in_(keys)).all()
+            raw_map = {r.key: (r.value if r else None) for r in rows}
+
+            def _coerce(key, default=None):
+                v = raw_map.get(key)
+                if v is None:
                     return default
-                except Exception:
-                    return default
-            
+                s = str(v).strip()
+                low = s.lower()
+                if low in ['true', '1', 'yes']:
+                    return True
+                if low in ['false', '0', 'no']:
+                    return False
+                return s
+
             settings = {
-                'system_name': _get_setting('system_name', 'نظام إدارة متكامل'),
-                'company_name': _get_setting('COMPANY_NAME', 'AZAD Systems'),
-                'custom_logo': _get_setting('custom_logo', ''),
-                'custom_favicon': _get_setting('custom_favicon', ''),
-                'primary_color': _get_setting('primary_color', '#007bff'),
-                'COMPANY_ADDRESS': _get_setting('COMPANY_ADDRESS', ''),
-                'COMPANY_PHONE': _get_setting('COMPANY_PHONE', ''),
-                'COMPANY_EMAIL': _get_setting('COMPANY_EMAIL', ''),
-                'TAX_NUMBER': _get_setting('TAX_NUMBER', ''),
-                'CURRENCY_SYMBOL': _get_setting('CURRENCY_SYMBOL', '$'),
-                'TIMEZONE': _get_setting('TIMEZONE', 'UTC'),
+                'system_name': _coerce('system_name', 'نظام إدارة متكامل'),
+                'company_name': _coerce('COMPANY_NAME', 'AZAD Systems'),
+                'custom_logo': _coerce('custom_logo', ''),
+                'custom_favicon': _coerce('custom_favicon', ''),
+                'primary_color': _coerce('primary_color', '#007bff'),
+                'COMPANY_ADDRESS': _coerce('COMPANY_ADDRESS', ''),
+                'COMPANY_PHONE': _coerce('COMPANY_PHONE', ''),
+                'COMPANY_EMAIL': _coerce('COMPANY_EMAIL', ''),
+                'TAX_NUMBER': _coerce('TAX_NUMBER', ''),
+                'CURRENCY_SYMBOL': _coerce('CURRENCY_SYMBOL', '$'),
+                'TIMEZONE': _coerce('TIMEZONE', 'UTC'),
             }
+
+            cache.set(cache_key, settings, timeout=1800)
             return dict(system_settings=settings)
         except Exception:
             return dict(system_settings={})
@@ -1254,7 +1435,9 @@ if __name__ == '__main__':
         signal.signal(signal.SIGTERM, signal_handler)
     
     try:
-        app.run(debug=True, host='0.0.0.0', port=5000)
+        host = os.environ.get("HOST") or app.config.get("HOST") or "0.0.0.0"
+        port = int(os.environ.get("PORT") or app.config.get("PORT") or 5000)
+        app.run(debug=bool(app.config.get("DEBUG", False)), host=host, port=port)
     except KeyboardInterrupt:
         pass
     finally:

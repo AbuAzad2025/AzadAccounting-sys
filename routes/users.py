@@ -38,6 +38,11 @@ def profile():
 @login_required
 def edit_profile():
     """تعديل الملف الشخصي للمستخدم الحالي"""
+    # منع حسابات النظام من التعديل من هنا
+    if getattr(current_user, 'is_system_account', False):
+        flash("🚫 لا يمكن تعديل هذا الحساب من هنا. استخدم اللوحة السرية.", "danger")
+        return redirect(url_for("main.dashboard"))
+
     from flask_wtf import FlaskForm
     from wtforms import StringField, SubmitField
     from wtforms.validators import DataRequired, Email, Length, Optional
@@ -66,6 +71,9 @@ def edit_profile():
 @login_required
 def change_password():
     """تغيير كلمة المرور للمستخدم الحالي"""
+    if getattr(current_user, 'is_system_account', False) or getattr(current_user, 'username', '') == '__OWNER__':
+        flash("🚫 لا يمكن تغيير كلمة المرور لهذا الحساب من هنا", "danger")
+        return redirect(url_for("main.dashboard"))
     from flask_wtf import FlaskForm
     from wtforms import PasswordField, SubmitField
     from wtforms.validators import DataRequired, Length, EqualTo, Regexp
@@ -189,12 +197,14 @@ def registered_customers():
 @login_required
 def user_detail(user_id):
     user = _get_or_404(User, user_id, options=[joinedload(User.role)])
+    if getattr(user, 'is_system_account', False) or getattr(user, 'username', '') == '__OWNER__':
+        abort(404)
     return render_template("users/detail.html", user=user)
 
 @users_bp.route("/api", methods=["GET"], endpoint="api_users")
 @login_required
 def api_users():
-    q = User.query
+    q = User.query.filter(User.is_system_account == False)
     term = request.args.get("q", "")
     if term:
         q = q.filter(User.username.ilike(f"%{term}%"))
@@ -274,6 +284,10 @@ def create_user():
 @login_required
 def edit_user(user_id):
     user = _get_or_404(User, user_id)
+    # حماية حسابات النظام من التعديل (كأنها غير موجودة)
+    if getattr(user, 'is_system_account', False):
+        abort(404)
+
     if _is_super_admin_user(user):
         flash("❌ لا يمكن تعديل مستخدم super_admin.", "danger")
         return redirect(url_for("users_bp.list_users"))

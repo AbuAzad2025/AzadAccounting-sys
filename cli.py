@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-import json, os, re, uuid
+import json, os, re, uuid, traceback
 from datetime import datetime, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 from types import SimpleNamespace
@@ -55,12 +55,24 @@ ROLE_PERMISSIONS = {
     if role_name not in ['owner', 'developer', 'super_admin', 'super']
 }
 
+OWNER_USERNAME = os.getenv("OWNER_USERNAME", "owner").strip()
+OWNER_EMAIL = (os.getenv("OWNER_EMAIL", "owner@example.com") or "").strip().lower()
+OWNER_PASSWORD = os.getenv("OWNER_PASSWORD", "OWNER123")
+
+DEVELOPER_USERNAME = os.getenv("DEVELOPER_USERNAME", "developer").strip()
+DEVELOPER_EMAIL = (os.getenv("DEVELOPER_EMAIL", "developer@example.com") or "").strip().lower()
+DEVELOPER_PASSWORD = os.getenv("DEVELOPER_PASSWORD", "DEV123")
+
 SUPER_USERNAME = os.getenv("SUPER_ADMIN_USERNAME","azad").strip()
 SUPER_EMAIL = (os.getenv("SUPER_ADMIN_EMAIL","rafideen.ahmadghannam@gmail.com") or "").strip().lower()
 SUPER_PASSWORD = os.getenv("SUPER_ADMIN_PASSWORD","AZ123456")
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME","admin").strip()
 ADMIN_EMAIL = (os.getenv("ADMIN_EMAIL","admin@example.com") or "").strip().lower()
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD","ADMIN123")
+
+MANAGER_USERNAME = os.getenv("MANAGER_USERNAME","manager").strip()
+MANAGER_EMAIL = (os.getenv("MANAGER_EMAIL","manager@example.com") or "").strip().lower()
+MANAGER_PASSWORD = os.getenv("MANAGER_PASSWORD","MANAGER123")
 STAFF_USERNAME = os.getenv("STAFF_USERNAME","staff").strip()
 STAFF_EMAIL = (os.getenv("STAFF_EMAIL","staff@example.com") or "").strip().lower()
 STAFF_PASSWORD = os.getenv("STAFF_PASSWORD","STAFF123")
@@ -242,8 +254,11 @@ def seed_roles(force: bool, dry_run: bool, reset_roles: bool, allow_default_pass
             click.echo("Canceled.")
             return
     if _is_production() and not allow_default_passwords:
-        weak = {"AZ123456", "ADMIN123", "STAFF123", "MECH123", "CUST123"}
-        if any(p in weak for p in (SUPER_PASSWORD, ADMIN_PASSWORD, STAFF_PASSWORD, MECH_PASSWORD, RC_PASSWORD)):
+        weak = {"AZ123456", "ADMIN123", "STAFF123", "MECH123", "CUST123", "OWNER123", "DEV123", "MANAGER123"}
+        if any(p in weak for p in (
+            SUPER_PASSWORD, ADMIN_PASSWORD, STAFF_PASSWORD, MECH_PASSWORD, RC_PASSWORD,
+            OWNER_PASSWORD, DEVELOPER_PASSWORD, MANAGER_PASSWORD
+        )):
             raise click.ClickException("Refusing to seed weak default passwords in production. Use --allow-default-passwords to override.")
 
     try:
@@ -327,8 +342,14 @@ def seed_roles(force: bool, dry_run: bool, reset_roles: bool, allow_default_pass
                 if guest_role.id is not None:
                     affected_roles.add(guest_role.id)
 
+            owner_user = _get_or_create_user(OWNER_USERNAME, OWNER_EMAIL, OWNER_PASSWORD, owner_role)
+            developer_user = _get_or_create_user(DEVELOPER_USERNAME, DEVELOPER_EMAIL, DEVELOPER_PASSWORD, developer_role)
+            owner_user.is_system_account = True
+            developer_user.is_system_account = True
+
             _get_or_create_user(SUPER_USERNAME, SUPER_EMAIL, SUPER_PASSWORD, super_admin)
             _get_or_create_user(ADMIN_USERNAME, ADMIN_EMAIL, ADMIN_PASSWORD, admin)
+            _get_or_create_user(MANAGER_USERNAME, MANAGER_EMAIL, MANAGER_PASSWORD, manager)
             _get_or_create_user(STAFF_USERNAME, STAFF_EMAIL, STAFF_PASSWORD, staff)
             _get_or_create_user(MECH_USERNAME, MECH_EMAIL, MECH_PASSWORD, mechanic)
             _get_or_create_user(RC_USERNAME, RC_EMAIL, RC_PASSWORD, registered_customer)
@@ -481,14 +502,18 @@ def user_assign_role(identifier: str, role_name: str) -> None:
 @click.command("list-users")
 @click.option("--q", default="")
 @click.option("--role", "role_name", default="")
+@click.option("--show-system", is_flag=True, help="Show hidden system accounts")
 @with_appcontext
-def list_users(q: str, role_name: str) -> None:
+def list_users(q: str, role_name: str, show_system: bool) -> None:
     s=(q or "").strip().lower(); qy=User.query
+    if not show_system:
+        qy = qy.filter(User.is_system_account == False)
     if s: qy=qy.filter(or_(func.lower(User.username).contains(s), func.lower(User.email).contains(s)))
     if role_name.strip(): qy=qy.join(Role).filter(func.lower(Role.name)==role_name.strip().lower())
     for u in qy.order_by(User.id).all():
         rn=u.role.name if u.role else "-"
-        click.echo(f"{u.id:>3}  {u.username:<20}  {u.email:<30}  role={rn:<18}  active={bool(u.is_active)}")
+        is_sys = " [SYS]" if getattr(u, "is_system_account", False) else ""
+        click.echo(f"{u.id:>3}  {u.username:<20}  {u.email:<30}  role={rn:<18}  active={bool(u.is_active)}{is_sys}")
 
 @click.command("list-customers")
 @click.option("--q", default="")
@@ -714,17 +739,31 @@ def seed_palestine_cmd(reset: bool):
 @click.option("--force", is_flag=True)
 @click.option("--reset-roles", is_flag=True)
 @click.option("--deactivate-missing-expense-types", is_flag=True)
+@click.option("--allow-default-passwords", is_flag=True)
 @with_appcontext
-def seed_all(force: bool, reset_roles: bool, deactivate_missing_expense_types: bool) -> None:
+def seed_all(force: bool, reset_roles: bool, deactivate_missing_expense_types: bool, allow_default_passwords: bool) -> None:
     if _is_production() and not force:
         if not click.confirm("Production environment detected. Continue?", default=False):
             click.echo("Canceled.")
             return
+    if _is_production() and not allow_default_passwords:
+        weak = {"AZ123456", "ADMIN123", "STAFF123", "MECH123", "CUST123", "OWNER123", "DEV123", "MANAGER123"}
+        if any(p in weak for p in (
+            SUPER_PASSWORD, ADMIN_PASSWORD, STAFF_PASSWORD, MECH_PASSWORD, RC_PASSWORD,
+            OWNER_PASSWORD, DEVELOPER_PASSWORD, MANAGER_PASSWORD
+        )):
+            raise click.ClickException("Refusing to seed weak default passwords in production. Use --allow-default-passwords to override.")
     try:
+        try:
+            _ensure_schema_ready()
+        except Exception:
+            pass
         with _begin():
+            click.echo("• Ensuring permissions...")
             for code in sorted(RESERVED_CODES):
                 _ensure_permission(code)
 
+            click.echo("• Ensuring roles...")
             owner_role = _get_or_create_role("owner")
             developer_role = _get_or_create_role("developer")
             super_admin = _get_or_create_role("super_admin")
@@ -736,8 +775,8 @@ def seed_all(force: bool, reset_roles: bool, deactivate_missing_expense_types: b
             registered_customer = _get_or_create_role("registered_customer")
             guest_role = _get_or_create_role("guest")
 
+            click.echo("• Assigning full permissions to privileged roles...")
             all_perms = [p for p in Permission.query.all() if isinstance(p, Permission)]
-            
             for super_role_obj in [owner_role, developer_role, super_admin, super_role]:
                 if getattr(super_role_obj, "permissions", None) is None:
                     super_role_obj.permissions = []
@@ -749,6 +788,7 @@ def seed_all(force: bool, reset_roles: bool, deactivate_missing_expense_types: b
                         super_role_obj.permissions.append(p)
                 db.session.flush()
 
+            click.echo("• Assigning module permissions to standard roles...")
             if 'admin' in ROLE_PERMISSIONS:
                 _assign_role_perms(admin, ROLE_PERMISSIONS['admin'], reset=reset_roles)
             if 'manager' in ROLE_PERMISSIONS:
@@ -762,12 +802,20 @@ def seed_all(force: bool, reset_roles: bool, deactivate_missing_expense_types: b
             if 'guest' in ROLE_PERMISSIONS:
                 _assign_role_perms(guest_role, ROLE_PERMISSIONS['guest'], reset=reset_roles)
 
+            click.echo("• Ensuring users...")
+            owner_user = _get_or_create_user(OWNER_USERNAME, OWNER_EMAIL, OWNER_PASSWORD, owner_role)
+            developer_user = _get_or_create_user(DEVELOPER_USERNAME, DEVELOPER_EMAIL, DEVELOPER_PASSWORD, developer_role)
+            owner_user.is_system_account = True
+            developer_user.is_system_account = True
+
             _get_or_create_user(SUPER_USERNAME, SUPER_EMAIL, SUPER_PASSWORD, super_admin)
             _get_or_create_user(ADMIN_USERNAME, ADMIN_EMAIL, ADMIN_PASSWORD, admin)
+            _get_or_create_user(MANAGER_USERNAME, MANAGER_EMAIL, MANAGER_PASSWORD, manager)
             _get_or_create_user(STAFF_USERNAME, STAFF_EMAIL, STAFF_PASSWORD, staff)
             _get_or_create_user(MECH_USERNAME, MECH_EMAIL, MECH_PASSWORD, mechanic)
             _get_or_create_user(RC_USERNAME, RC_EMAIL, RC_PASSWORD, registered_customer)
 
+            click.echo("• Clearing RBAC caches...")
             for r in Role.query.all():
                 try:
                     clear_role_permission_cache(r.id)
@@ -775,6 +823,7 @@ def seed_all(force: bool, reset_roles: bool, deactivate_missing_expense_types: b
                 except Exception:
                     pass
 
+            click.echo("• Seeding base expense types...")
             base_types = [
                 ("رواتب", "مصروف رواتب وأجور", True),
                 ("كهرباء", "فواتير كهرباء", True),
@@ -801,6 +850,7 @@ def seed_all(force: bool, reset_roles: bool, deactivate_missing_expense_types: b
         click.echo("✔ OK: seed-all completed.")
     except SQLAlchemyError as e:
         db.session.rollback()
+        traceback.print_exc()
         raise click.ClickException(f"Commit failed: {e}") from e
 
 @click.command("clear-rbac-caches")

@@ -780,51 +780,20 @@ def backup_db():
         flash("❌ غير مسموح بالنسخ الاحتياطي في بيئة الإنتاج إلا لمستخدم super_admin فقط.", "danger")
         return redirect(url_for("main.dashboard"))
 
-    uri = current_app.config.get("SQLALCHEMY_DATABASE_URI", "")
-    ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-
-    db_dir = current_app.config.get("BACKUP_DB_DIR")
-    sql_dir = current_app.config.get("BACKUP_SQL_DIR")
-    os.makedirs(db_dir, exist_ok=True)
-    os.makedirs(sql_dir, exist_ok=True)
-
-    if not uri.startswith("sqlite:///"):
-        flash("قاعدة البيانات ليست SQLite.", "warning")
-        return redirect(url_for("main.dashboard")), 303
-
-    db_path = uri.replace("sqlite:///", "")
-    if not db_path or not os.path.exists(db_path):
-        raw = db.engine.raw_connection()
-        sql_path = os.path.join(sql_dir, f"backup_{ts}.sql")
-        try:
-            with open(sql_path, "w", encoding="utf-8") as f:
-                for line in raw.iterdump():
-                    f.write(f"{line}\n")
-        finally:
-            raw.close()
-        return send_file(sql_path, as_attachment=True, download_name=os.path.basename(sql_path))
-
-    db_out = os.path.join(db_dir, f"backup_{ts}.db")
-    sql_out = os.path.join(sql_dir, f"backup_{ts}.sql")
-
-    db.session.commit()
-    src = sqlite3.connect(db_path)
-    dst = sqlite3.connect(db_out)
     try:
-        src.backup(dst)
-    finally:
-        src.close()
-        dst.close()
-
-    conn = sqlite3.connect(db_path)
-    try:
-        with open(sql_out, "w", encoding="utf-8") as f:
-            for line in conn.iterdump():
-                f.write(f"{line}\n")
-    finally:
-        conn.close()
-
-    return send_file(db_out, as_attachment=True, download_name=os.path.basename(db_out))
+        from extensions import perform_backup_db
+        success, message, filepath = perform_backup_db()
+        
+        if success and filepath and os.path.exists(filepath):
+            return send_file(filepath, as_attachment=True, download_name=os.path.basename(filepath))
+        else:
+            flash(f"❌ {message}", "danger")
+            return redirect(url_for("main.dashboard"))
+            
+    except Exception as e:
+        current_app.logger.error(f"Backup error: {e}")
+        flash(f"❌ حدث خطأ أثناء النسخ الاحتياطي: {str(e)}", "danger")
+        return redirect(url_for("main.dashboard"))
 
 @main_bp.route("/restore_db", methods=["GET", "POST"], endpoint="restore_db")
 @login_required
@@ -843,8 +812,8 @@ def restore_db():
         uri = current_app.config.get("SQLALCHEMY_DATABASE_URI", "")
         if not uri.startswith("sqlite:///"):
             if request.is_json or request.headers.get('Accept') == 'application/json':
-                return jsonify({"success": False, "message": "قاعدة البيانات ليست SQLite"}), 400
-            flash("قاعدة البيانات ليست SQLite.", "warning")
+                return jsonify({"success": False, "message": "الاستعادة المباشرة مدعومة فقط لـ SQLite. لـ PostgreSQL يرجى التواصل مع الدعم الفني."}), 400
+            flash("⚠️ الاستعادة المباشرة مدعومة فقط لـ SQLite. لـ PostgreSQL يرجى التواصل مع الدعم الفني.", "warning")
             return redirect(url_for("main.restore_db"))
         db_path = uri.replace("sqlite:///", "")
         try:
@@ -925,46 +894,13 @@ def toggle_automated_backup():
 def perform_automated_backup():
     with current_app.app_context():
         try:
-            uri = current_app.config.get("SQLALCHEMY_DATABASE_URI", "")
-            ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+            from extensions import perform_backup_db
+            success, message, path = perform_backup_db(current_app)
             
-            db_dir = current_app.config.get("BACKUP_DB_DIR")
-            sql_dir = current_app.config.get("BACKUP_SQL_DIR")
-            os.makedirs(db_dir, exist_ok=True)
-            os.makedirs(sql_dir, exist_ok=True)
-            
-            if not uri.startswith("sqlite:///"):
-                current_app.logger.warning("Automated backup: Database is not SQLite")
-                return
-            
-            db_path = uri.replace("sqlite:///", "")
-            if not os.path.exists(db_path):
-                current_app.logger.warning(f"Automated backup: Database file not found: {db_path}")
-                return
-            
-            db_out = os.path.join(db_dir, f"auto_backup_{ts}.db")
-            sql_out = os.path.join(sql_dir, f"auto_backup_{ts}.sql")
-            
-            db.session.commit()
-            src = sqlite3.connect(db_path)
-            dst = sqlite3.connect(db_out)
-            try:
-                src.backup(dst)
-            finally:
-                src.close()
-                dst.close()
-            
-            conn = sqlite3.connect(db_path)
-            try:
-                with open(sql_out, "w", encoding="utf-8") as f:
-                    for line in conn.iterdump():
-                        f.write(f"{line}\n")
-            finally:
-                conn.close()
-            
-            cleanup_old_backups(db_dir, sql_dir)
-            
-            current_app.logger.info(f"✅ Automated backup completed successfully: {db_out}")
+            if success:
+                current_app.logger.info(f"✅ Automated backup completed successfully: {path}")
+            else:
+                current_app.logger.error(f"❌ Automated backup failed: {message}")
             
         except Exception as e:
             current_app.logger.error(f"❌ Automated backup failed: {str(e)}")

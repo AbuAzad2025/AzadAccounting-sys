@@ -1,5 +1,6 @@
 import os
 import logging
+import secrets
 from base64 import urlsafe_b64decode
 from datetime import timedelta
 from dotenv import load_dotenv
@@ -52,7 +53,7 @@ def _csv_str(env_name: str, default_list: list[str] | tuple[str, ...]) -> list[s
 
 
 class Config:
-    FLASK_APP = os.environ.get("FLASK_APP", "garage_manager.app:create_app")
+    FLASK_APP = os.environ.get("FLASK_APP", "app:create_app")
 
     APP_ENV = os.environ.get("APP_ENV", os.environ.get("FLASK_ENV", "production"))
     DEBUG = _bool(os.environ.get("DEBUG"), False)
@@ -60,11 +61,27 @@ class Config:
     _IS_DEV = DEBUG or (_APP_ENV_LOWER in {"dev", "development", "local"})
 
     # SECURITY: SECRET_KEY يجب أن يكون قوي في الإنتاج
-    SECRET_KEY = os.environ.get("SECRET_KEY") or "dev-secret-key-change-in-production-12345"
-    if not os.environ.get("SECRET_KEY"):
-        import secrets
-        # توليد مفتاح قوي تلقائياً إذا لم يكن موجود
-        SECRET_KEY = secrets.token_hex(32)
+    _secret_env = os.environ.get("SECRET_KEY")
+    if _secret_env:
+        SECRET_KEY = _secret_env
+    else:
+        _secret_path = os.path.join(instance_dir, "secret_key")
+        _persisted = None
+        try:
+            if os.path.exists(_secret_path):
+                with open(_secret_path, "r", encoding="utf-8") as f:
+                    _persisted = (f.read() or "").strip()
+        except Exception:
+            _persisted = None
+        if _persisted:
+            SECRET_KEY = _persisted
+        else:
+            SECRET_KEY = secrets.token_hex(32)
+            try:
+                with open(_secret_path, "w", encoding="utf-8") as f:
+                    f.write(SECRET_KEY)
+            except Exception:
+                pass
 
     HOST = os.environ.get("HOST", "127.0.0.1")
     PORT = _int("PORT", 5000)
@@ -91,24 +108,41 @@ class Config:
         _default_pool_size = 50
         _default_max_overflow = 100
     
-    SQLALCHEMY_ENGINE_OPTIONS = {
-        "connect_args": {
-            "timeout": 30,
-            "check_same_thread": False if _is_sqlite else True,
-        },
-        "pool_pre_ping": True,
-        "pool_recycle": 3600,
-        "pool_size": _int("SQLALCHEMY_POOL_SIZE", _default_pool_size),
-        "max_overflow": _int("SQLALCHEMY_MAX_OVERFLOW", _default_max_overflow),
-        "pool_timeout": _int("SQLALCHEMY_POOL_TIMEOUT", 30),
-        "echo": False,
-        "echo_pool": False,
-    }
+    if _is_sqlite:
+        SQLALCHEMY_ENGINE_OPTIONS = {
+            "connect_args": {
+                "timeout": 30,
+                "check_same_thread": False,
+            },
+            "pool_pre_ping": True,
+            "pool_recycle": 3600,
+            "pool_size": _int("SQLALCHEMY_POOL_SIZE", _default_pool_size),
+            "max_overflow": _int("SQLALCHEMY_MAX_OVERFLOW", _default_max_overflow),
+            "pool_timeout": _int("SQLALCHEMY_POOL_TIMEOUT", 30),
+            "echo": False,
+            "echo_pool": False,
+        }
+    else:
+        SQLALCHEMY_ENGINE_OPTIONS = {
+            "connect_args": {},
+            "pool_pre_ping": True,
+            "pool_recycle": 3600,
+            "pool_size": _int("SQLALCHEMY_POOL_SIZE", _default_pool_size),
+            "max_overflow": _int("SQLALCHEMY_MAX_OVERFLOW", _default_max_overflow),
+            "pool_timeout": _int("SQLALCHEMY_POOL_TIMEOUT", 30),
+            "echo": False,
+            "echo_pool": False,
+        }
     
     if _is_postgresql:
         SQLALCHEMY_ENGINE_OPTIONS["connect_args"].update({
             "connect_timeout": 10,
             "application_name": "garage_manager",
+            # Performance & Stability Tuning
+            "keepalives": 1,
+            "keepalives_idle": 30,
+            "keepalives_interval": 10,
+            "keepalives_count": 5,
         })
     
     SQLALCHEMY_ECHO = False

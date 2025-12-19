@@ -241,14 +241,16 @@ class IntensiveTrainer:
         }
         
         try:
-            from app import app
+            from flask import current_app, has_app_context
+            if not has_app_context():
+                raise RuntimeError("No app context")
             from AI.engine.ai_deep_memory import get_deep_memory
             
             memory = get_deep_memory()
             
             routes_by_blueprint = {}
             
-            for rule in app.url_map.iter_rules():
+            for rule in current_app.url_map.iter_rules():
                 if rule.endpoint != 'static':
                     endpoint_parts = rule.endpoint.split('.')
                     blueprint = endpoint_parts[0] if len(endpoint_parts) > 1 else 'main'

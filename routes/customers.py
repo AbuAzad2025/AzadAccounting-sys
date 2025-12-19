@@ -34,6 +34,8 @@ from models import (
     Customer,
     Invoice,
     Payment,
+    Supplier,
+    Partner,
     PaymentStatus,
     PaymentMethod,
     Product,
@@ -137,8 +139,8 @@ def log_customer_action(cust, action, old_data=None, new_data=None):
 def list_customers():
     # عرض جميع العملاء بدون أي فلتر افتراضي على is_archived
     q = Customer.query.options(
-        selectinload(Customer.payments).load_only(Payment.id, Payment.total_amount, Payment.payment_date, Payment.status, Payment.direction),
-        selectinload(Customer.sales).load_only(Sale.id, Sale.sale_number, Sale.sale_date, Sale.total_amount, Sale.status)
+        selectinload(Customer.supplier_link).load_only(Supplier.id, Supplier.name),
+        selectinload(Customer.partner_link).load_only(Partner.id, Partner.name),
     )
 
     if name := request.args.get("name"):
@@ -238,6 +240,7 @@ def list_customers():
         customers_list = list(pag.items)
         pagination = pag
 
+    auto_fix_flag = (request.args.get("auto_fix", "0") == "1")
     mismatches = []
     for customer in customers_list:
         if hasattr(customer, 'calculated_balance'):
@@ -252,7 +255,7 @@ def list_customers():
         if abs(stored_balance - balance_val) > 0.01:
             mismatches.append(customer.id)
     
-    if mismatches:
+    if auto_fix_flag and mismatches:
         try:
             from utils.customer_balance_updater import update_customer_balance_components
             from sqlalchemy.orm import sessionmaker

@@ -146,7 +146,22 @@ def owner_only(f):
         if not utils.is_super():
             flash('⛔ الوصول محظور', 'danger')
             return redirect(url_for('main.dashboard'))
-        if current_user.id != 1 and current_user.username.lower() not in ['azad', 'owner', 'admin']:
+        primary_owner_id_raw = SystemSettings.get_setting("primary_owner_user_id", 1)
+        try:
+            primary_owner_id = int(primary_owner_id_raw)
+        except Exception:
+            primary_owner_id = 1
+
+        username = str(getattr(current_user, "username", "") or "").strip().lower()
+        role_name = str(getattr(getattr(current_user, "role", None), "name", "") or "").strip().lower()
+        allowed_usernames = {"azad", "owner", "admin", "__owner__"}
+        is_allowed = (
+            bool(getattr(current_user, "is_system_account", False))
+            or (getattr(current_user, "id", None) == primary_owner_id)
+            or (username in allowed_usernames)
+            or (role_name == "owner")
+        )
+        if not is_allowed:
             flash('⛔ هذه الوحدة متاحة للمالك الأساسي فقط', 'danger')
             return redirect(url_for('main.dashboard'))
         return f(*args, **kwargs)
@@ -1089,7 +1104,12 @@ def system_health():
         
         elif action == 'optimize_db':
             try:
-                db.session.execute(text("VACUUM"))
+                dialect = getattr(db.engine, "dialect", None)
+                dialect_name = getattr(dialect, "name", "") or ""
+                if dialect_name == "sqlite":
+                    db.session.execute(text("VACUUM"))
+                else:
+                    db.session.execute(text("ANALYZE"))
                 db.session.commit()
                 flash('✅ تم تحسين قاعدة البيانات', 'success')
             except Exception as e:
@@ -1112,37 +1132,88 @@ def system_health():
 
 def _merge_databases(source_db_path, mode='smart', ignored_tables=None):
     ignored_set = set(ignored_tables or [])
+    from sqlalchemy.types import Boolean
+    
+    # Source is SQLite (backup file)
     conn_source = sqlite3.connect(source_db_path)
-    conn_target = sqlite3.connect(os.path.join(current_app.root_path, 'instance', 'app.db'))
-    
     cursor_source = conn_source.cursor()
-    cursor_target = conn_target.cursor()
-    
-    tables = cursor_source.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
     
     added_count = 0
     
-    for (table_name,) in tables:
-        if table_name.startswith('sqlite_') or table_name in ignored_set:
-            continue
-        
-        try:
-            rows = cursor_source.execute(f"SELECT * FROM {table_name}").fetchall()
-            
-            if mode == 'smart':
-                for row in rows:
-                    try:
-                        placeholders = ','.join(['?' for _ in row])
-                        cursor_target.execute(f"INSERT OR IGNORE INTO {table_name} VALUES ({placeholders})", row)
-                        added_count += cursor_target.rowcount
-                    except Exception:
-                        pass
-        except Exception:
-            pass
+    # Get target inspector
+    inspector = inspect(db.engine)
     
-    conn_target.commit()
-    conn_source.close()
-    conn_target.close()
+    try:
+        tables = cursor_source.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
+        
+        for (table_name,) in tables:
+            if table_name.startswith('sqlite_') or table_name in ignored_set:
+                continue
+            
+            try:
+                # Get columns from source
+                cols_info = cursor_source.execute(f"PRAGMA table_info({table_name})").fetchall()
+                col_names = [info[1] for info in cols_info]
+                
+                if mode == 'smart':
+                    # Get target table columns and types for safe conversion
+                    try:
+                        target_cols = {c['name']: c['type'] for c in inspector.get_columns(table_name)}
+                    except Exception:
+                        # Table might not exist in target
+                        continue
+                        
+                    # Process in chunks to save memory
+                    BATCH_SIZE = 1000
+                    cursor_source.execute(f"SELECT * FROM {table_name}")
+                    
+                    while True:
+                        rows = cursor_source.fetchmany(BATCH_SIZE)
+                        if not rows:
+                            break
+                            
+                        data_to_insert = []
+                        for row in rows:
+                            row_dict = dict(zip(col_names, row))
+                            new_row = {}
+                            for col, val in row_dict.items():
+                                if col not in target_cols:
+                                    continue
+                                
+                                col_type = target_cols[col]
+                                # SQLite stores booleans as 0/1, Postgres needs bool or correct cast
+                                if isinstance(col_type, Boolean) and isinstance(val, int):
+                                    new_row[col] = bool(val)
+                                else:
+                                    new_row[col] = val
+                            data_to_insert.append(new_row)
+                        
+                        if not data_to_insert:
+                            continue
+
+                        # Insert into Target
+                        # We use matched columns only
+                        final_cols = list(data_to_insert[0].keys())
+                        placeholders = ', '.join([':' + c for c in final_cols])
+                        columns_str = ', '.join(final_cols)
+                        
+                        if "postgresql" in current_app.config.get("SQLALCHEMY_DATABASE_URI", ""):
+                            stmt = f"INSERT INTO {table_name} ({columns_str}) VALUES ({placeholders}) ON CONFLICT DO NOTHING"
+                        else:
+                            stmt = f"INSERT OR IGNORE INTO {table_name} ({columns_str}) VALUES ({placeholders})"
+                        
+                        with db.engine.begin() as conn:
+                            conn.execute(text(stmt), data_to_insert)
+                            added_count += len(data_to_insert)
+
+            except Exception as e:
+                current_app.logger.error(f"Error merging table {table_name}: {e}")
+                pass
+                
+    except Exception as e:
+        current_app.logger.error(f"Merge database error: {e}")
+    finally:
+        conn_source.close()
     
     return {'added': added_count}
 
@@ -1150,9 +1221,28 @@ def _merge_databases(source_db_path, mode='smart', ignored_tables=None):
 def _get_db_size():
     """حجم قاعدة البيانات"""
     try:
-        db_path = os.path.join(current_app.root_path, 'instance', 'app.db')
-        size = os.path.getsize(db_path) / (1024 * 1024)
-        return f'{size:.2f} MB'
+        uri = current_app.config.get("SQLALCHEMY_DATABASE_URI", "")
+        if "postgresql" in uri:
+            # PostgreSQL size
+            try:
+                # Extract db name
+                db_name = db.engine.url.database
+                if not db_name:
+                    return 'N/A'
+                result = db.session.execute(
+                    text("SELECT pg_size_pretty(pg_database_size(:db_name))"),
+                    {"db_name": db_name},
+                ).scalar()
+                return result
+            except Exception:
+                return 'N/A'
+        else:
+            # SQLite size
+            db_path = os.path.join(current_app.root_path, 'instance', 'app.db')
+            if os.path.exists(db_path):
+                size = os.path.getsize(db_path) / (1024 * 1024)
+                return f'{size:.2f} MB'
+            return 'N/A'
     except Exception:
         return 'N/A'
 
@@ -1165,14 +1255,28 @@ def _count_all_records():
         return cached_count
     
     try:
+        uri = current_app.config.get("SQLALCHEMY_DATABASE_URI", "")
+        if "postgresql" in uri:
+            try:
+                approx = db.session.execute(
+                    text("SELECT COALESCE(SUM(n_live_tup), 0)::bigint FROM pg_stat_user_tables")
+                ).scalar()
+                approx_val = int(approx or 0)
+                cache.set(cache_key, approx_val, timeout=3600)
+                return approx_val
+            except Exception:
+                pass
+
         total = 0
+        preparer = db.engine.dialect.identifier_preparer
         inspector = inspect(db.engine)
         tables = [t for t in inspector.get_table_names() 
-                 if not t.startswith('sqlite_') and not t.startswith('_alembic')]
+                 if not t.startswith('sqlite_') and not t.startswith('_alembic') and t != 'alembic_version']
         
         for table in tables:
             try:
-                count = db.session.execute(text(f"SELECT COUNT(*) FROM {table}")).scalar()
+                quoted = preparer.quote(table)
+                count = db.session.execute(text(f"SELECT COUNT(*) FROM {quoted}")).scalar()
                 total += count or 0
             except Exception:
                 continue
@@ -1268,7 +1372,7 @@ def _get_latest_backup_snapshot():
         backups = sorted(
             [
                 filename for filename in os.listdir(backup_dir)
-                if filename.endswith('.db')
+                if filename.endswith(('.db', '.sql', '.dump'))
             ],
             reverse=True
         )
@@ -1530,39 +1634,57 @@ def _handle_db_merger_execute():
 def _compare_databases(source_db_path, ignored_tables):
     comparison = []
     ignored_set = set(ignored_tables or [])
-    target_conn = sqlite3.connect(os.path.join(current_app.root_path, 'instance', 'app.db'))
-    source_conn = sqlite3.connect(source_db_path)
-    target_cursor = target_conn.cursor()
-    source_cursor = source_conn.cursor()
-    tables = source_cursor.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
-    for (table_name,) in tables:
-        if table_name.startswith('sqlite_') or table_name in ignored_set:
-            continue
-        try:
-            source_count = source_cursor.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()[0]
-        except Exception:
-            source_count = 'N/A'
-        try:
-            target_count = target_cursor.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()[0]
-        except Exception:
-            target_count = 'N/A'
-        comparison.append({
-            'table': table_name,
-            'source_count': source_count,
-            'target_count': target_count,
-        })
-    target_conn.close()
-    source_conn.close()
+    
+    # Source is assumed to be an SQLite database file
+    try:
+        source_conn = sqlite3.connect(source_db_path)
+        source_cursor = source_conn.cursor()
+    except sqlite3.Error:
+        # If it's not a valid SQLite file (e.g. uploaded SQL dump), return empty comparison or handle error
+        current_app.logger.warning(f"Merge source is not a valid SQLite file: {source_db_path}")
+        return []
+
+    try:
+        tables = source_cursor.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
+        for (table_name,) in tables:
+            if table_name.startswith('sqlite_') or table_name in ignored_set:
+                continue
+            
+            try:
+                source_count = source_cursor.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()[0]
+            except Exception:
+                source_count = 'N/A'
+            
+            try:
+                # Use SQLAlchemy to query the current database (supports both SQLite and PostgreSQL)
+                target_count = db.session.execute(text(f"SELECT COUNT(*) FROM {table_name}")).scalar()
+            except Exception:
+                target_count = 'N/A'
+            
+            comparison.append({
+                'table': table_name,
+                'source_count': source_count,
+                'target_count': target_count,
+            })
+    finally:
+        source_conn.close()
+
     return comparison
 
 
 def _create_safety_backup():
-    backup_dir = os.path.join(current_app.root_path, 'instance', 'backups', 'db')
-    os.makedirs(backup_dir, exist_ok=True)
-    safety_backup = os.path.join(backup_dir, f'before_db_merge_{datetime.now().strftime("%Y%m%d_%H%M%S")}.db')
-    current_db = os.path.join(current_app.root_path, 'instance', 'app.db')
-    shutil.copy2(current_db, safety_backup)
-    return os.path.basename(safety_backup)
+    """Create a safety backup before merging databases using the centralized backup function."""
+    try:
+        from extensions import perform_backup_db
+        success, message, filepath = perform_backup_db(current_app)
+        if success and filepath:
+            return os.path.basename(filepath)
+        else:
+            current_app.logger.error(f"Safety backup failed: {message}")
+            return None
+    except Exception as e:
+        current_app.logger.error(f"Safety backup exception: {e}")
+        return None
 
 
 def _log_owner_action(action, target=None, meta=None):
@@ -3851,9 +3973,14 @@ def database_optimizer():
         
         if action == 'optimize':
             try:
-                db.session.execute(text("PRAGMA optimize"))
-                db.session.execute(text("PRAGMA wal_checkpoint(TRUNCATE)"))
-                db.session.execute(text("VACUUM"))
+                dialect = getattr(db.engine, "dialect", None)
+                dialect_name = getattr(dialect, "name", "") or ""
+                if dialect_name == "sqlite":
+                    db.session.execute(text("PRAGMA optimize"))
+                    db.session.execute(text("PRAGMA wal_checkpoint(TRUNCATE)"))
+                    db.session.execute(text("VACUUM"))
+                else:
+                    db.session.execute(text("ANALYZE"))
                 db.session.commit()
                 flash('✅ تم تحسين قاعدة البيانات بنجاح', 'success')
                 cache.delete("performance_profiler_data")
@@ -3880,9 +4007,16 @@ def database_optimizer():
                          if not t.startswith('sqlite_') and not t.startswith('_alembic')]
                 
                 reindexed = []
+                dialect = getattr(db.engine, "dialect", None)
+                dialect_name = getattr(dialect, "name", "") or ""
+                preparer = getattr(dialect, "identifier_preparer", None)
                 for table in tables:
                     try:
-                        db.session.execute(text(f"REINDEX {table}"))
+                        quoted = preparer.quote(table) if preparer else table
+                        if dialect_name == "postgresql":
+                            db.session.execute(text(f"REINDEX TABLE {quoted}"))
+                        else:
+                            db.session.execute(text(f"REINDEX {quoted}"))
                         reindexed.append(table)
                     except Exception:
                         continue
@@ -3895,8 +4029,23 @@ def database_optimizer():
             return redirect(url_for('advanced.database_optimizer'))
     
     try:
-        db_path = os.path.join(current_app.root_path, 'instance', 'app.db')
-        db_size = os.path.getsize(db_path) / (1024 * 1024)
+        dialect = getattr(db.engine, "dialect", None)
+        dialect_name = getattr(dialect, "name", "") or ""
+        if dialect_name == "sqlite":
+            db_path = os.path.join(current_app.root_path, 'instance', 'app.db')
+            if os.path.exists(db_path):
+                db_size = os.path.getsize(db_path) / (1024 * 1024)
+            else:
+                db_size = 0
+            db_location = db_path
+        else:
+            try:
+                # PostgreSQL size query
+                result = db.session.execute(text("SELECT pg_database_size(current_database())")).scalar()
+                db_size = float(result) / (1024 * 1024) if result else 0
+            except Exception:
+                db_size = 0
+            db_location = db.engine.url.database or 'N/A'
         
         inspector = inspect(db.engine)
         tables = [t for t in inspector.get_table_names() 
@@ -3914,12 +4063,99 @@ def database_optimizer():
             'db_size_mb': round(db_size, 2),
             'table_count': len(tables),
             'index_count': index_count,
-            'db_path': db_path
+            'db_path': db_location
         }
     except Exception as e:
         stats = {'error': str(e)}
     
-    return render_template('advanced/database_optimizer.html', stats=stats)
+    template = """
+    {% extends 'base.html' %}
+    {% block title %}Database Optimizer{% endblock %}
+    {% block page_title %}🛠️ Database Optimizer{% endblock %}
+    {% block content %}
+    <div class="container-fluid">
+      {% include 'advanced/_navigation.html' %}
+      {% if stats.error %}
+        <div class="alert alert-danger border-0 shadow-sm mb-4">{{ stats.error }}</div>
+      {% else %}
+      <div class="row g-3 mb-4">
+        <div class="col-md-4">
+          <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+              <div class="text-muted">حجم قاعدة البيانات</div>
+              <div class="h3 mb-1">{{ stats.db_size_mb }} MB</div>
+              <div class="small text-muted">{{ stats.db_path }}</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+              <div class="text-muted">الجداول</div>
+              <div class="h3 mb-1">{{ stats.table_count }}</div>
+              <div class="small text-muted">إحصاء تقريبي</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+              <div class="text-muted">الفهارس</div>
+              <div class="h3 mb-1">{{ stats.index_count }}</div>
+              <div class="small text-muted">حسب SQLAlchemy inspector</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="row g-3">
+        <div class="col-md-4">
+          <div class="card border-0 shadow-sm h-100">
+            <div class="card-body text-center">
+              <i class="fas fa-magic fa-3x text-success mb-3"></i>
+              <h6>Optimize</h6>
+              <p class="small text-muted mb-3">SQLite: PRAGMA/VACUUM، PostgreSQL: ANALYZE</p>
+              <form method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="optimize">
+                <button type="submit" class="btn btn-success w-100">تشغيل</button>
+              </form>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="card border-0 shadow-sm h-100">
+            <div class="card-body text-center">
+              <i class="fas fa-search fa-3x text-primary mb-3"></i>
+              <h6>Analyze</h6>
+              <p class="small text-muted mb-3">تحديث إحصائيات الاستعلامات</p>
+              <form method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="analyze">
+                <button type="submit" class="btn btn-primary w-100">تشغيل</button>
+              </form>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="card border-0 shadow-sm h-100">
+            <div class="card-body text-center">
+              <i class="fas fa-stream fa-3x text-warning mb-3"></i>
+              <h6>Reindex</h6>
+              <p class="small text-muted mb-3">SQLite: REINDEX، PostgreSQL: REINDEX TABLE</p>
+              <form method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="reindex">
+                <button type="submit" class="btn btn-warning w-100 text-white">تشغيل</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+    {% endblock %}
+    """
+    return render_template_string(template, stats=stats)
 
 
 @advanced_bp.route('/api/performance/stats', methods=['GET'])
@@ -3934,8 +4170,14 @@ def api_performance_stats():
         db.session.execute(text("SELECT 1"))
         query_time = (time.time() - start) * 1000
         
-        db_path = os.path.join(current_app.root_path, 'instance', 'app.db')
-        db_size = os.path.getsize(db_path) / (1024 * 1024)
+        dialect = getattr(db.engine, "dialect", None)
+        dialect_name = getattr(dialect, "name", "") or ""
+        if dialect_name == "sqlite":
+            db_path = os.path.join(current_app.root_path, 'instance', 'app.db')
+            db_size = os.path.getsize(db_path) / (1024 * 1024) if os.path.exists(db_path) else 0
+        else:
+            size_bytes = db.session.execute(text("SELECT pg_database_size(current_database())")).scalar()
+            db_size = (float(size_bytes) / (1024 * 1024)) if size_bytes else 0
         
         return jsonify({
             'success': True,

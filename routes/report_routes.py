@@ -1042,6 +1042,8 @@ def ar_aging():
 def inventory_report():
     from models import Warehouse, StockLevel, Product
     from sqlalchemy.orm import joinedload
+    from sqlalchemy import func
+    from extensions import cache
     import csv
     import io
 
@@ -1049,6 +1051,11 @@ def inventory_report():
     selected_warehouse_id = request.args.get("warehouse_id", type=int)
     low_only = request.args.get("low_only") == "1"
     export_format = (request.args.get("format") or "").lower()
+    try:
+        limit_rows = int(request.args.get("limit") or 1000)
+    except Exception:
+        limit_rows = 1000
+    limit_rows = max(100, min(limit_rows, 5000))
 
     whs = Warehouse.query.order_by(Warehouse.name).all()
     if not whs:
@@ -1093,7 +1100,10 @@ def inventory_report():
             )
         )
 
-    rows = q.all()
+    if export_format == "csv":
+        rows = q.all()
+    else:
+        rows = q.limit(limit_rows).all()
     pivot = {}
     stock_levels_by_product = {}
     for sl in rows:
@@ -1125,18 +1135,97 @@ def inventory_report():
             )
         ]
 
-    stats = {
-        "products": len(rows_data),
-        "on_hand": sum(row["total"] for row in rows_data),
-        "reserved": sum(row["reserved_total"] for row in rows_data),
-        "available": sum((row["total"] - row["reserved_total"]) for row in rows_data),
-        "low_count": sum(
-            1 for row in rows_data
-            if any(
-                sl.min_stock is not None and sl.quantity < sl.min_stock
-                for sl in stock_levels_by_product.get(row["product"].id, [])
+    filters = [StockLevel.warehouse_id.in_(wh_ids)]
+    if selected_warehouse_id:
+        filters.append(StockLevel.warehouse_id == selected_warehouse_id)
+    if search:
+        like = f"%{search}%"
+        product_like = or_(
+            Product.name.ilike(like),
+            Product.sku.ilike(like),
+            Product.part_number.ilike(like),
+            Product.barcode.ilike(like),
+        )
+        filters.append(product_like)
+    cache_key = f"inv_stats:{selected_warehouse_id or 'all'}:{(search or '').strip()[:50]}"
+    cached_stats = cache.get(cache_key)
+    if cached_stats is None:
+        products_count = (
+            db.session.query(func.count(func.distinct(StockLevel.product_id)))
+            .join(Product, StockLevel.product_id == Product.id)
+            .filter(*filters)
+            .scalar()
+            or 0
+        )
+        on_hand_total = (
+            db.session.query(func.sum(StockLevel.quantity))
+            .join(Product, StockLevel.product_id == Product.id)
+            .filter(*filters)
+            .scalar()
+            or 0
+        )
+        reserved_total = (
+            db.session.query(func.sum(getattr(StockLevel, "reserved_quantity")))
+            .join(Product, StockLevel.product_id == Product.id)
+            .filter(*filters)
+            .scalar()
+            or 0
+        )
+        low_filters = [StockLevel.warehouse_id.in_(wh_ids), StockLevel.min_stock.isnot(None), StockLevel.quantity < StockLevel.min_stock]
+        if selected_warehouse_id:
+            low_filters.append(StockLevel.warehouse_id == selected_warehouse_id)
+        if search:
+            like = f"%{search}%"
+            low_filters.append(
+                or_(
+                    Product.name.ilike(like),
+                    Product.sku.ilike(like),
+                    Product.part_number.ilike(like),
+                    Product.barcode.ilike(like),
+                )
             )
-        ),
+        low_count_cached = (
+            db.session.query(func.count(func.distinct(StockLevel.product_id)))
+            .join(Product, StockLevel.product_id == Product.id)
+            .filter(*low_filters)
+            .scalar()
+            or 0
+        )
+        cache.set(cache_key, {"products_count": int(products_count), "on_hand_total": int(on_hand_total), "reserved_total": int(reserved_total), "low_count": int(low_count_cached)}, timeout=300)
+        products_count = int(products_count)
+        on_hand_total = int(on_hand_total)
+        reserved_total = int(reserved_total)
+    else:
+        products_count = int(cached_stats.get("products_count", 0))
+        on_hand_total = int(cached_stats.get("on_hand_total", 0))
+        reserved_total = int(cached_stats.get("reserved_total", 0))
+        low_count_cached = int(cached_stats.get("low_count", 0))
+    low_filters = [StockLevel.warehouse_id.in_(wh_ids), StockLevel.min_stock.isnot(None), StockLevel.quantity < StockLevel.min_stock]
+    if selected_warehouse_id:
+        low_filters.append(StockLevel.warehouse_id == selected_warehouse_id)
+    if search:
+        like = f"%{search}%"
+        low_filters.append(
+            or_(
+                Product.name.ilike(like),
+                Product.sku.ilike(like),
+                Product.part_number.ilike(like),
+                Product.barcode.ilike(like),
+            )
+        )
+    low_count_val = low_count_cached if cached_stats is not None else (
+        db.session.query(func.count(func.distinct(StockLevel.product_id)))
+        .join(Product, StockLevel.product_id == Product.id)
+        .filter(*low_filters)
+        .scalar()
+        or 0
+    )
+    stats = {
+        "products": int(products_count),
+        "on_hand": int(on_hand_total),
+        "reserved": int(reserved_total),
+        "available": int((on_hand_total or 0) - (reserved_total or 0)),
+        "low_count": int(low_count_val),
     }
 
     if export_format == "csv":
@@ -1172,6 +1261,7 @@ def inventory_report():
         warehouses=display_warehouses,
         all_warehouses=whs,
         rows=rows_data,
+        limit=limit_rows,
         search=search,
         selected_warehouse_id=selected_warehouse_id,
         low_only=low_only,
@@ -1505,14 +1595,22 @@ def sales_advanced_report():
     from decimal import Decimal
     from collections import defaultdict
     from sqlalchemy.orm import joinedload
+    from datetime import datetime, timedelta
     
     sd = _parse_date(request.args.get("start_date"))
     ed = _parse_date(request.args.get("end_date"))
     customer_id = request.args.get("customer_id")
     status_filter = request.args.get("status")
+    try:
+        limit_rows = int(request.args.get("limit") or 1000)
+    except Exception:
+        limit_rows = 1000
+    limit_rows = max(100, min(limit_rows, 5000))
     
     if sd and ed and ed < sd:
         sd, ed = ed, sd
+    if not sd and not ed:
+        sd = (datetime.now().date() - timedelta(days=90))
     
     query = Sale.query.options(
         joinedload(Sale.customer),
@@ -1547,7 +1645,7 @@ def sales_advanced_report():
         except Exception:
             pass
     
-    sales = query.order_by(Sale.sale_date.desc()).all()
+    sales = query.order_by(Sale.sale_date.desc()).limit(limit_rows).all()
     
     total_revenue = Decimal('0.00')
     total_items = 0
@@ -1722,8 +1820,8 @@ def expenses_report():
         if agg:
             uids = [r.uid for r in agg if r.uid]
             if uids:
-                users = db.session.query(User.id, User.username).filter(User.id.in_(uids)).all()
-                uid_to_name = {u.id: u.username for u in users}
+                users = db.session.query(User.id, User.username, User.is_system_account).filter(User.id.in_(uids)).all()
+                uid_to_name = {u.id: (u.username if not u.is_system_account else "System") for u in users}
         receipts_rows = [
             {
                 "user_id": r.uid or 0,

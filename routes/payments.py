@@ -565,8 +565,35 @@ def index():
         Payment.query.filter(Payment.is_archived == False)
         .filter(*filters)
         .options(
-            joinedload(Payment.service).joinedload(ServiceRequest.customer),
-            joinedload(Payment.service).joinedload(ServiceRequest.vehicle_type),
+            load_only(
+                Payment.id,
+                Payment.payment_date,
+                Payment.total_amount,
+                Payment.currency,
+                Payment.fx_rate_used,
+                Payment.method,
+                Payment.direction,
+                Payment.status,
+                Payment.entity_type,
+                Payment.deliverer_name,
+                Payment.receiver_name,
+                Payment.reference,
+                Payment.notes,
+                Payment.payment_number,
+                Payment.receipt_number,
+                Payment.customer_id,
+                Payment.supplier_id,
+                Payment.partner_id,
+                Payment.sale_id,
+                Payment.invoice_id,
+                Payment.service_id,
+                Payment.preorder_id,
+                Payment.shipment_id,
+                Payment.loan_settlement_id,
+            ),
+            joinedload(Payment.customer),
+            joinedload(Payment.supplier),
+            joinedload(Payment.partner),
             joinedload(Payment.splits),
         )
     )
@@ -847,28 +874,51 @@ def index():
         query_args.pop(key, None)
     
     # حساب الملخصات بالشيكل - فلترة الدفعات غير المؤرشفة
-    payments_for_summary = ordered_query.all()
-    total_incoming_ils = 0.0
-    total_outgoing_ils = 0.0
-    grand_total_ils = 0.0
+    agg_row = db.session.query(
+        func.coalesce(
+            func.sum(
+                case(
+                    (
+                        and_(Payment.status == PaymentStatus.COMPLETED.value, Payment.direction == PaymentDirection.IN.value),
+                        case(
+                            (Payment.currency == 'ILS', Payment.total_amount),
+                            else_=Payment.total_amount * func.coalesce(Payment.fx_rate_used, 0)
+                        ),
+                    ),
+                    else_=0,
+                )
+            ),
+            0,
+        ).label("incoming_ils"),
+        func.coalesce(
+            func.sum(
+                case(
+                    (
+                        and_(Payment.status == PaymentStatus.COMPLETED.value, Payment.direction == PaymentDirection.OUT.value),
+                        case(
+                            (Payment.currency == 'ILS', Payment.total_amount),
+                            else_=Payment.total_amount * func.coalesce(Payment.fx_rate_used, 0)
+                        ),
+                    ),
+                    else_=0,
+                )
+            ),
+            0,
+        ).label("outgoing_ils"),
+        func.coalesce(
+            func.sum(
+                case(
+                    (Payment.currency == 'ILS', Payment.total_amount),
+                    else_=Payment.total_amount * func.coalesce(Payment.fx_rate_used, 0)
+                )
+            ),
+            0,
+        ).label("grand_ils"),
+    ).filter(Payment.is_archived == False).filter(*filters).first()
     
-    for payment in payments_for_summary:
-        try:
-            from models import convert_amount
-            if payment.currency == 'ILS':
-                converted_amount = float(payment.total_amount)
-            else:
-                converted_amount = float(convert_amount(payment.total_amount, payment.currency, 'ILS', payment.payment_date))
-            
-            grand_total_ils += converted_amount
-            if payment.direction == PaymentDirection.IN.value:
-                total_incoming_ils += converted_amount
-            else:
-                total_outgoing_ils += converted_amount
-        except Exception as e:
-            # في حالة فشل التحويل، سجل الخطأ ولا تضف المبلغ بعملة مختلفة
-            current_app.logger.error(f"❌ خطأ في تحويل العملة للدفعة #{payment.id}: {str(e)} - تجاهل المبلغ من الإحصائيات")
-            # لا نضيف المبلغ لأنه بعملة مختلفة ولا يمكن تحويله
+    total_incoming_ils = float(agg_row.incoming_ils or 0)
+    total_outgoing_ils = float(agg_row.outgoing_ils or 0)
+    grand_total_ils = float(agg_row.grand_ils or 0)
     
     # ✅ إضافة الشيكات اليدوية (بدون payment_id) للإحصائيات
     manual_checks_filters = []
@@ -885,26 +935,58 @@ def index():
             manual_checks_filters.append(Check.check_date >= datetime.combine(sd, time.min))
         if ed:
             manual_checks_filters.append(Check.check_date <= datetime.combine(ed, time.max))
+        manual_checks_filters.append(~Check.status.in_([
+            CheckStatus.RETURNED.value,
+            CheckStatus.BOUNCED.value,
+            CheckStatus.CANCELLED.value,
+            CheckStatus.ARCHIVED.value,
+        ]))
         
-        manual_checks = db.session.query(Check).filter(*manual_checks_filters).all()
+        checks_agg = db.session.query(
+            func.coalesce(
+                func.sum(
+                    case(
+                        (
+                            Check.direction == PaymentDirection.IN.value,
+                            case(
+                                (Check.currency == 'ILS', Check.amount),
+                                else_=Check.amount * func.coalesce(Check.fx_rate_cash, Check.fx_rate_issue, 0)
+                            ),
+                        ),
+                        else_=0,
+                    )
+                ),
+                0,
+            ).label("incoming_ils"),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (
+                            Check.direction == PaymentDirection.OUT.value,
+                            case(
+                                (Check.currency == 'ILS', Check.amount),
+                                else_=Check.amount * func.coalesce(Check.fx_rate_cash, Check.fx_rate_issue, 0)
+                            ),
+                        ),
+                        else_=0,
+                    )
+                ),
+                0,
+            ).label("outgoing_ils"),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (Check.currency == 'ILS', Check.amount),
+                        else_=Check.amount * func.coalesce(Check.fx_rate_cash, Check.fx_rate_issue, 0)
+                    )
+                ),
+                0,
+            ).label("grand_ils"),
+        ).filter(*manual_checks_filters).first()
         
-        for check in manual_checks:
-            try:
-                from models import convert_amount
-                if check.currency == 'ILS':
-                    converted_amount = float(check.amount or 0)
-                else:
-                    converted_amount = float(convert_amount(Decimal(str(check.amount or 0)), check.currency, 'ILS', check.check_date or datetime.utcnow()))
-                
-                grand_total_ils += converted_amount
-                if check.direction == PaymentDirection.IN.value:
-                    if check.status not in [CheckStatus.RETURNED.value, CheckStatus.BOUNCED.value, CheckStatus.CANCELLED.value, CheckStatus.ARCHIVED.value]:
-                        total_incoming_ils += converted_amount
-                elif check.direction == PaymentDirection.OUT.value:
-                    if check.status not in [CheckStatus.RETURNED.value, CheckStatus.BOUNCED.value, CheckStatus.CANCELLED.value, CheckStatus.ARCHIVED.value]:
-                        total_outgoing_ils += converted_amount
-            except Exception as e:
-                current_app.logger.error(f"❌ خطأ في تحويل العملة للشيك اليدوي #{check.id}: {str(e)}")
+        total_incoming_ils += float(getattr(checks_agg, "incoming_ils", 0) or 0)
+        total_outgoing_ils += float(getattr(checks_agg, "outgoing_ils", 0) or 0)
+        grand_total_ils += float(getattr(checks_agg, "grand_ils", 0) or 0)
     
     net_total_ils = total_incoming_ils - total_outgoing_ils
     

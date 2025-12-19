@@ -30,6 +30,7 @@ instance/
 .env
 .env.local
 .venv
+.venv/
 env/
 venv/
 ENV/
@@ -75,10 +76,14 @@ temp/
 uploads/temp/
 static/uploads/temp/
 AI/data/daily_reports/
+AI/data/
+AI/data/**
 AI/data/auto_learning_log.json
 AI/data/code_issues.json
 AI/data/discovered_changes.json
 AI/data/last_scan.json
+static/adminlte/
+static/adminlte/**
 tests/
 **/tests/
 test_*.py

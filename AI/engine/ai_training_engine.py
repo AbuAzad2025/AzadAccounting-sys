@@ -720,8 +720,10 @@ class AITrainingEngine:
             # 5. Owner Module
             try:
                 owner_routes = []
-                from app import app
-                for rule in app.url_map.iter_rules():
+                from flask import current_app, has_app_context
+                if not has_app_context():
+                    raise RuntimeError("No app context")
+                for rule in current_app.url_map.iter_rules():
                     if 'owner' in rule.endpoint.lower() or 'advanced' in rule.endpoint.lower():
                         owner_routes.append({
                             'path': rule.rule,

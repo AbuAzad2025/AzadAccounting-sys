@@ -163,14 +163,29 @@ def login():
 
     if identifier:
         ident_l = identifier.lower()
-        stmt = select(User).where((func.lower(User.username) == ident_l) | (func.lower(User.email) == ident_l))
-        user = db.session.execute(stmt).scalars().first()
+        user = None
+        if "@" in ident_l:
+            stmt = select(User).where(func.lower(User.email) == ident_l)
+            user = db.session.execute(stmt).scalars().first()
+            if not user:
+                stmt = select(User).where(func.lower(User.username) == ident_l)
+                user = db.session.execute(stmt).scalars().first()
+        else:
+            stmt = select(User).where(func.lower(User.username) == ident_l)
+            user = db.session.execute(stmt).scalars().first()
+            if not user:
+                stmt = select(User).where(func.lower(User.email) == ident_l)
+                user = db.session.execute(stmt).scalars().first()
         if not user:
-            customer = Customer.query.filter(
-                (func.lower(Customer.email) == ident_l) | (Customer.phone == identifier) | (Customer.name == identifier)
-            ).first()
-            # Support alias login: AZAD@<phone> maps to phone-based login even if email differs
-            if not customer and ident_l.startswith("azad@"): 
+            customer = None
+            phone_ident = "".join(ch for ch in identifier if ch.isdigit() or ch == "+")
+            if phone_ident:
+                customer = Customer.query.filter(Customer.phone == phone_ident).first()
+            if not customer:
+                customer = Customer.query.filter(func.lower(Customer.email) == ident_l).first()
+            if not customer:
+                customer = Customer.query.filter(Customer.name == identifier).first()
+            if not customer and ident_l.startswith("azad@"):
                 try:
                     phone_alias = identifier.split("@", 1)[1]
                 except Exception:

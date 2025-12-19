@@ -1,3 +1,11 @@
+{% extends 'base.html' %}
+{% block title %}لوحة المالك{% endblock %}
+{% block page_title %}👑 لوحة المالك الشاملة{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  {% include 'advanced/_navigation.html' %}
+
   {% if license_info %}
   <div class="alert alert-{{ 'danger' if license_info.status == 'expired' else 'warning' if license_info.status == 'warning' else 'info' }} border-0 shadow-sm mb-4">
     <i class="fas fa-certificate"></i>
@@ -11,13 +19,6 @@
     <a href="{{ url_for('advanced.licensing') }}" class="btn btn-sm btn-light ms-3">إدارة الترخيص</a>
   </div>
   {% endif %}
-{% extends 'base.html' %}
-{% block title %}لوحة المالك{% endblock %}
-{% block page_title %}👑 لوحة المالك الشاملة{% endblock %}
-
-{% block content %}
-<div class="container-fluid">
-  {% include 'advanced/_navigation.html' %}
 
   <div class="row g-3 mb-4">
     <div class="col-md-3">
@@ -236,7 +237,7 @@
   <div class="card border-0 shadow-sm mb-4">
     <div class="card-header bg-light d-flex justify-content-between align-items-center">
       <span><i class="fas fa-user-shield"></i> آخر محاولة وصول مرفوضة</span>
-      <small class="text-muted">{{ last_denied_access.time[:16] }}</small>
+      <small class="text-muted">{{ (last_denied_access.time or '')[:16] }}</small>
     </div>
     <div class="card-body">
       <p class="mb-2"><strong>IP:</strong> <code>{{ last_denied_access.ip }}</code></p>

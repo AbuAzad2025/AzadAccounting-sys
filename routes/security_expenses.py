@@ -127,7 +127,29 @@ def _save_templates(templates):
 
 
 def _normalize_meta(meta):
-    snapshot = dict(meta or {})
+    m = meta
+    if m in (None, "", "None"):
+        snapshot = {}
+    elif isinstance(m, dict):
+        snapshot = dict(m)
+    elif isinstance(m, str):
+        try:
+            import json
+            snapshot = dict(json.loads(m))
+        except Exception:
+            snapshot = {}
+    elif isinstance(m, (list, tuple)):
+        snapshot = {}
+        for item in m:
+            if isinstance(item, dict):
+                snapshot.update(item)
+            elif isinstance(item, (list, tuple)) and len(item) == 2:
+                k, v = item
+                snapshot[str(k)] = v
+            else:
+                snapshot[str(item)] = None
+    else:
+        snapshot = {}
     required = snapshot.get("required") or []
     optional = snapshot.get("optional") or []
     snapshot["required"] = sorted(set(required))

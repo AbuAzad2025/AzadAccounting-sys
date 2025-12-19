@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app, abort
 from flask_login import login_required, current_user
 from sqlalchemy import text, func, and_
 from sqlalchemy.exc import SAWarning
@@ -11,6 +11,8 @@ import json
 import os
 import warnings
 from collections import defaultdict, Counter
+from routes.advanced_control import _log_owner_action
+import re
 
 from AI.engine.ai_service import (
     ai_chat_with_search,
@@ -74,6 +76,90 @@ def _get_action_color(action):
     return 'secondary'
 
 
+def _is_safe_identifier(name: str) -> bool:
+    return bool(re.match(r'^[A-Za-z_][A-Za-z0-9_]*$', str(name or '')))
+
+
+def _is_safe_qualified_identifier(name: str) -> bool:
+    return bool(re.match(r'^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)?$', str(name or '')))
+
+
+def _is_postgresql() -> bool:
+    uri = current_app.config.get("SQLALCHEMY_DATABASE_URI", "") or ""
+    return "postgresql" in uri
+
+
+def _normalize_column_type(raw: str) -> str | None:
+    raw = str(raw or '').strip()
+    if not raw:
+        return None
+    ct = re.sub(r"\s+", " ", raw).strip().upper()
+    m = re.match(r"^([A-Z]+(?: [A-Z]+)*)\s*(\(\s*\d+\s*(,\s*\d+\s*)?\))?$", ct)
+    if not m:
+        return None
+    base = m.group(1).strip()
+    params = m.group(2) or ""
+    allowed = {
+        "TEXT",
+        "INTEGER",
+        "BIGINT",
+        "SMALLINT",
+        "NUMERIC",
+        "DECIMAL",
+        "REAL",
+        "FLOAT",
+        "DOUBLE PRECISION",
+        "BOOLEAN",
+        "DATE",
+        "DATETIME",
+        "TIMESTAMP",
+        "TIME",
+        "UUID",
+        "JSON",
+        "JSONB",
+        "BYTEA",
+        "BLOB",
+        "VARCHAR",
+        "CHAR",
+    }
+    if base not in allowed:
+        return None
+    return f"{base}{params}"
+
+
+def _get_primary_key_column(table_name: str) -> str | None:
+    try:
+        from sqlalchemy import inspect
+        inspector = inspect(db.engine)
+        cols = [c.get('name') for c in (inspector.get_columns(table_name) or []) if c.get('name')]
+        pk = (inspector.get_pk_constraint(table_name) or {}).get('constrained_columns') or []
+        if pk:
+            return pk[0] if pk[0] in cols else None
+        if 'id' in cols:
+            return 'id'
+        return cols[0] if cols else None
+    except Exception:
+        return None
+
+
+def _get_table_columns_safe(table_name: str) -> list[str]:
+    try:
+        from sqlalchemy import inspect
+        inspector = inspect(db.engine)
+        return [c['name'] for c in inspector.get_columns(table_name)]
+    except Exception:
+        try:
+            result = db.session.execute(text(f"PRAGMA table_info({table_name})")).fetchall()
+            return [row[1] for row in result]
+        except Exception:
+            return []
+
+
+def _assert_valid_table(table_name: str):
+    tables = _get_all_tables()
+    if not _is_safe_identifier(table_name) or table_name not in tables:
+        abort(400)
+
 def owner_only(f):
     @wraps(f)
     @login_required
@@ -97,6 +183,36 @@ def owner_only(f):
 
 
 super_admin_only = owner_only
+
+
+@security_bp.route('/api/system-accounts/change-password', methods=['POST'])
+@owner_only
+def api_system_account_change_password():
+    """API: تغيير كلمة مرور حساب نظام (Owner/Developer)"""
+    try:
+        data = request.get_json(silent=True) or {}
+        target_username = data.get('username')
+        new_password = data.get('new_password')
+        
+        if not target_username or not new_password:
+            return jsonify({'success': False, 'error': 'اسم المستخدم وكلمة المرور الجديدة مطلوبان'}), 400
+            
+        user = User.query.filter(func.lower(User.username) == target_username.strip().lower()).first()
+        if not user:
+            return jsonify({'success': False, 'error': 'المستخدم غير موجود'}), 404
+            
+        if not user.is_system_account and user.username != '__OWNER__':
+            return jsonify({'success': False, 'error': 'هذا ليس حساب نظام محمي'}), 400
+            
+        user.set_password(new_password)
+        db.session.commit()
+        
+        _log_owner_action('system_account_password_change', target=user.id, meta={'username': user.username})
+        return jsonify({'success': True, 'message': 'تم تغيير كلمة المرور بنجاح'})
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 400
 
 
 @security_bp.route('/saas-manager')
@@ -177,21 +293,44 @@ def api_saas_create_plan():
     from models import SaaSPlan
     
     try:
-        data = request.get_json()
+        data = request.get_json(silent=True) or {}
+        name = str(data.get('name') or '').strip()
+        if not name or len(name) < 2:
+            return jsonify({'success': False, 'error': 'الاسم مطلوب'}), 400
+        try:
+            price_monthly = float(data.get('price_monthly'))
+        except Exception:
+            return jsonify({'success': False, 'error': 'سعر شهري غير صالح'}), 400
+        if price_monthly <= 0:
+            return jsonify({'success': False, 'error': 'السعر الشهري يجب أن يكون أكبر من 0'}), 400
+        currency = (data.get('currency') or 'USD').strip().upper()
+        if currency not in {'USD', 'ILS', 'EUR'}:
+            return jsonify({'success': False, 'error': 'عملة غير مدعومة'}), 400
+        price_yearly = data.get('price_yearly')
+        price_yearly = float(price_yearly) if price_yearly not in (None, '',) else None
+        max_users = data.get('max_users')
+        max_users = int(max_users) if max_users not in (None, '',) else None
+        max_invoices = data.get('max_invoices')
+        max_invoices = int(max_invoices) if max_invoices not in (None, '',) else None
+        storage_gb = data.get('storage_gb')
+        storage_gb = int(storage_gb) if storage_gb not in (None, '',) else None
+        features = str(data.get('features') or '').strip() or None
+        is_popular = bool(data.get('is_popular', False))
         plan = SaaSPlan(
-            name=data.get('name'),
-            description=data.get('description'),
-            price_monthly=data.get('price_monthly'),
-            price_yearly=data.get('price_yearly'),
-            currency=data.get('currency', 'USD'),
-            max_users=data.get('max_users'),
-            max_invoices=data.get('max_invoices'),
-            storage_gb=data.get('storage_gb'),
-            features=data.get('features'),
-            is_popular=data.get('is_popular', False)
+            name=name,
+            description=str(data.get('description') or '').strip() or None,
+            price_monthly=price_monthly,
+            price_yearly=price_yearly,
+            currency=currency,
+            max_users=max_users,
+            max_invoices=max_invoices,
+            storage_gb=storage_gb,
+            features=features,
+            is_popular=is_popular
         )
         db.session.add(plan)
         db.session.commit()
+        _log_owner_action('saas_plan_create', target=plan.id, meta={'name': plan.name, 'price_monthly': float(plan.price_monthly), 'currency': plan.currency})
         return jsonify({'success': True, 'plan_id': plan.id})
     except Exception as e:
         db.session.rollback()
@@ -202,22 +341,33 @@ def api_saas_create_plan():
 @owner_only
 def api_saas_create_subscription():
     """API: إنشاء اشتراك جديد"""
-    from models import SaaSSubscription
+    from models import SaaSSubscription, Customer, SaaSPlan
     from datetime import datetime, timedelta, timezone
     
     try:
-        data = request.get_json()
-        start_date = datetime.strptime(data.get('start_date'), '%Y-%m-%d')
-        
+        data = request.get_json(silent=True) or {}
+        customer_id = data.get('customer_id')
+        plan_id = data.get('plan_id')
+        start_date_str = data.get('start_date')
+        if not customer_id or not plan_id or not start_date_str:
+            return jsonify({'success': False, 'error': 'حقول مطلوبة ناقصة'}), 400
+        customer = Customer.query.get(customer_id)
+        if not customer:
+            return jsonify({'success': False, 'error': 'العميل غير موجود'}), 404
+        plan = SaaSPlan.query.get(plan_id)
+        if not plan:
+            return jsonify({'success': False, 'error': 'الباقة غير موجودة'}), 404
+        start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
         sub = SaaSSubscription(
-            customer_id=data.get('customer_id'),
-            plan_id=data.get('plan_id'),
+            customer_id=customer.id,
+            plan_id=plan.id,
             status=data.get('status', 'trial'),
             start_date=start_date,
             end_date=start_date + timedelta(days=30)
         )
         db.session.add(sub)
         db.session.commit()
+        _log_owner_action('saas_subscription_create', target=sub.id, meta={'customer_id': sub.customer_id, 'plan_id': sub.plan_id, 'status': sub.status})
         return jsonify({'success': True, 'subscription_id': sub.id})
     except Exception as e:
         db.session.rollback()
@@ -235,6 +385,7 @@ def api_saas_mark_paid(invoice_id):
         invoice.status = 'paid'
         invoice.paid_at = datetime.now(timezone.utc)
         db.session.commit()
+        _log_owner_action('saas_invoice_mark_paid', target=invoice.id, meta={'subscription_id': invoice.subscription_id, 'amount': float(invoice.amount)})
         return jsonify({'success': True})
     except Exception as e:
         db.session.rollback()
@@ -254,6 +405,7 @@ def api_saas_cancel_subscription(sub_id):
         sub.cancelled_by = current_user.id
         sub.cancellation_reason = request.get_json().get('reason', 'إلغاء من المالك')
         db.session.commit()
+        _log_owner_action('saas_subscription_cancel', target=sub.id, meta={'reason': sub.cancellation_reason})
         return jsonify({'success': True})
     except Exception as e:
         db.session.rollback()
@@ -277,6 +429,7 @@ def api_saas_renew_subscription(sub_id):
         sub.status = 'active'
         db.session.commit()
         
+        _log_owner_action('saas_subscription_renew', target=sub.id, meta={'new_end_date': sub.end_date.strftime('%Y-%m-%d') if sub.end_date else None})
         return jsonify({'success': True, 'new_end_date': sub.end_date.strftime('%Y-%m-%d')})
     except Exception as e:
         db.session.rollback()
@@ -291,7 +444,7 @@ def api_saas_update_plan(plan_id):
     
     try:
         plan = SaaSPlan.query.get_or_404(plan_id)
-        data = request.get_json()
+        data = request.get_json(silent=True) or {}
         
         if 'name' in data:
             plan.name = data['name']
@@ -301,6 +454,11 @@ def api_saas_update_plan(plan_id):
             plan.price_monthly = float(data['price_monthly'])
         if 'price_yearly' in data:
             plan.price_yearly = float(data['price_yearly']) if data['price_yearly'] else None
+        if 'currency' in data and data['currency']:
+            cur = str(data['currency']).strip().upper()
+            if cur not in {'USD', 'ILS', 'EUR'}:
+                return jsonify({'success': False, 'error': 'عملة غير مدعومة'}), 400
+            plan.currency = cur
         if 'max_users' in data:
             plan.max_users = int(data['max_users']) if data['max_users'] else None
         if 'max_invoices' in data:
@@ -308,11 +466,12 @@ def api_saas_update_plan(plan_id):
         if 'storage_gb' in data:
             plan.storage_gb = int(data['storage_gb']) if data['storage_gb'] else None
         if 'features' in data:
-            plan.features = data['features']
+            plan.features = str(data['features'] or '').strip() or None
         if 'is_popular' in data:
             plan.is_popular = bool(data['is_popular'])
         
         db.session.commit()
+        _log_owner_action('saas_plan_update', target=plan.id, meta={'name': plan.name})
         return jsonify({'success': True})
     except Exception as e:
         db.session.rollback()
@@ -323,23 +482,42 @@ def api_saas_update_plan(plan_id):
 @owner_only
 def api_saas_create_invoice():
     """API: إنشاء فاتورة"""
-    from models import SaaSInvoice
+    from models import SaaSInvoice, SaaSSubscription
     from decimal import Decimal
     
     try:
-        data = request.get_json()
-        
+        data = request.get_json(silent=True) or {}
+        subscription_id = data.get('subscription_id')
+        if not subscription_id:
+            return jsonify({'success': False, 'error': 'الاشتراك مطلوب'}), 400
+        sub = SaaSSubscription.query.get(subscription_id)
+        if not sub:
+            return jsonify({'success': False, 'error': 'اشتراك غير موجود'}), 404
+        try:
+            amount = Decimal(str(data.get('amount')))
+        except Exception:
+            return jsonify({'success': False, 'error': 'المبلغ غير صالح'}), 400
+        if amount <= 0:
+            return jsonify({'success': False, 'error': 'المبلغ يجب أن يكون أكبر من 0'}), 400
+        currency = (data.get('currency') or 'USD').strip().upper()
+        if currency not in {'USD', 'ILS', 'EUR'}:
+            return jsonify({'success': False, 'error': 'عملة غير مدعومة'}), 400
+        due_date_str = data.get('due_date')
+        due_dt = datetime.strptime(due_date_str, '%Y-%m-%d') if due_date_str else datetime.now(timezone.utc) + timedelta(days=7)
+        from time import time
+        suffix = int(time() * 1000) % 1000000
+        inv_number = f"SINV-{datetime.now().strftime('%Y%m%d')}-{suffix:06d}"
         invoice = SaaSInvoice(
-            subscription_id=data.get('subscription_id'),
-            amount=Decimal(str(data.get('amount'))),
-            currency=data.get('currency', 'USD'),
+            invoice_number=inv_number,
+            subscription_id=sub.id,
+            amount=amount,
+            currency=currency,
             status='pending',
-            due_date=datetime.strptime(data.get('due_date'), '%Y-%m-%d') if data.get('due_date') else datetime.now(timezone.utc) + timedelta(days=7)
+            due_date=due_dt
         )
-        
         db.session.add(invoice)
         db.session.commit()
-        
+        _log_owner_action('saas_invoice_create', target=invoice.id, meta={'subscription_id': sub.id, 'amount': float(invoice.amount), 'currency': invoice.currency})
         return jsonify({'success': True, 'invoice_id': invoice.id})
     except Exception as e:
         db.session.rollback()
@@ -351,6 +529,7 @@ def api_saas_create_invoice():
 def api_saas_send_reminder(invoice_id):
     """API: إرسال تذكير دفع"""
     from models import SaaSInvoice, SaaSSubscription, Customer
+    from utils import send_notification_email
     
     try:
         invoice = SaaSInvoice.query.get_or_404(invoice_id)
@@ -365,14 +544,21 @@ def api_saas_send_reminder(invoice_id):
         customer = Customer.query.get(subscription.customer_id)
         if not customer or not customer.email:
             return jsonify({'success': False, 'error': 'لا يوجد بريد إلكتروني للعميل'}), 400
-        
-        # حالياً: محاكاة إرسال ناجح
-        flash(f'تم إرسال تذكير للعميل {customer.name} على {customer.email}', 'success')
-        
-        return jsonify({
-            'success': True, 
-            'message': f'تم إرسال التذكير إلى {customer.email}'
-        })
+        html_body = f"""
+        <h3>تذكير بالدفع</h3>
+        <p>عزيزنا {customer.name}</p>
+        <p>الرجاء تسديد فاتورة الاشتراك رقم {invoice.invoice_number} بمبلغ {invoice.currency} {float(invoice.amount):,.2f} قبل {invoice.due_date.strftime('%Y-%m-%d') if invoice.due_date else ''}.</p>
+        """
+        result = send_notification_email(
+            to=customer.email,
+            subject=f'تذكير دفع فاتورة الاشتراك #{invoice.invoice_number}',
+            body_html=html_body,
+            body_text=f'تذكير دفع فاتورة الاشتراك #{invoice.invoice_number} بمبلغ {float(invoice.amount)} {invoice.currency}'
+        )
+        if not result.get('success'):
+            return jsonify({'success': False, 'error': result.get('error', 'فشل الإرسال')}), 400
+        _log_owner_action('saas_invoice_reminder', target=invoice.id, meta={'customer_email': customer.email})
+        return jsonify({'success': True, 'message': f'تم إرسال التذكير إلى {customer.email}'})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400
 
@@ -409,8 +595,9 @@ def api_saas_get_subscription(sub_id):
         # حساب الأيام المتبقية
         days_left = 0
         if sub.end_date:
-            delta = sub.end_date - datetime.now(timezone.utc).date()
-            days_left = delta.days if delta.days > 0 else 0
+            end_dt = make_aware(sub.end_date)
+            delta_days = int((end_dt - datetime.now(timezone.utc)).days)
+            days_left = delta_days if delta_days > 0 else 0
         
         return jsonify({
             'success': True,
@@ -439,16 +626,17 @@ def api_saas_update_subscription(sub_id):
     
     try:
         sub = SaaSSubscription.query.get_or_404(sub_id)
-        data = request.get_json()
+        data = request.get_json(silent=True) or {}
         
         if 'status' in data:
             sub.status = data['status']
         
         if 'end_date' in data and data['end_date']:
-            sub.end_date = datetime.strptime(data['end_date'], '%Y-%m-%d').date()
+            sub.end_date = datetime.strptime(data['end_date'], '%Y-%m-%d')
         
         db.session.commit()
         
+        _log_owner_action('saas_subscription_update', target=sub.id, meta={'status': sub.status, 'end_date': sub.end_date.strftime('%Y-%m-%d') if sub.end_date else None})
         return jsonify({'success': True})
     except Exception as e:
         db.session.rollback()
@@ -521,12 +709,19 @@ def api_saas_invoice_pdf(invoice_id):
         </body>
         </html>
         """
-        
-        response = make_response(html_content)
-        response.headers['Content-Type'] = 'text/html; charset=utf-8'
-        response.headers['Content-Disposition'] = f'attachment; filename=invoice_{invoice.id}.html'
-        
-        return response
+        try:
+            from weasyprint import HTML
+            pdf_bytes = HTML(string=html_content, base_url=request.url_root).write_pdf()
+            filename = f"saas_invoice_{invoice.invoice_number or invoice.id}.pdf"
+            return make_response((pdf_bytes, 200, {
+                'Content-Type': 'application/pdf',
+                'Content-Disposition': f'inline; filename="{filename}"'
+            }))
+        except Exception:
+            response = make_response(html_content)
+            response.headers['Content-Type'] = 'text/html; charset=utf-8'
+            response.headers['Content-Disposition'] = f'attachment; filename=invoice_{invoice.id}.html'
+            return response
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400
 
@@ -4512,21 +4707,28 @@ def system_branding():
 @owner_only
 def db_add_column(table_name):
     """إضافة عمود جديد"""
+    _assert_valid_table(table_name)
     column_name = request.form.get('column_name', '').strip()
-    column_type = request.form.get('column_type', 'TEXT')
+    column_type = request.form.get('column_type', 'TEXT').strip()
     default_value = request.form.get('default_value', '')
     
-    if not column_name:
+    if not column_name or not _is_safe_identifier(column_name):
         flash('اسم العمود مطلوب', 'danger')
+        return redirect(url_for('security.database_manager', tab='edit', table=table_name))
+
+    normalized_type = _normalize_column_type(column_type)
+    if not normalized_type:
+        flash('نوع العمود غير صالح', 'danger')
         return redirect(url_for('security.database_manager', tab='edit', table=table_name))
     
     try:
-        # بناء استعلام ALTER TABLE
-        sql = f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}"
+        params = {}
         if default_value:
-            sql += f" DEFAULT '{default_value}'"
-        
-        db.session.execute(text(sql))
+            sql = text(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {normalized_type} DEFAULT :default_value")
+            params['default_value'] = default_value
+        else:
+            sql = text(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {normalized_type}")
+        db.session.execute(sql, params)
         db.session.commit()
         
         flash(f'تم إضافة العمود {column_name} بنجاح', 'success')
@@ -4542,7 +4744,8 @@ def db_add_column(table_name):
 def db_update_cell(table_name):
     """تحديث خلية واحدة مباشرة - للتعديل السريع"""
     try:
-        data = request.get_json()
+        _assert_valid_table(table_name)
+        data = request.get_json() or {}
         row_id = data.get('row_id')
         column = data.get('column')
         value = data.get('value')
@@ -4550,22 +4753,16 @@ def db_update_cell(table_name):
         if not all([row_id, column]):
             return jsonify({'success': False, 'error': 'معلومات ناقصة'}), 400
         
-        # تحديد المفتاح الأساسي للجدول
-        primary_key = 'id'  # افتراضياً
-        
-        # فحص إذا كان الجدول له عمود id
-        table_info = db.session.execute(text(f"PRAGMA table_info({table_name})")).fetchall()
-        has_id_column = any(col[1] == 'id' for col in table_info)
-        
-        if not has_id_column:
-            # إذا لم يكن هناك عمود id، نستخدم أول عمود كمفتاح أساسي
-            primary_key = table_info[0][1] if table_info else 'code'
+        if not _is_safe_identifier(column):
+            return jsonify({'success': False, 'error': 'اسم عمود غير صالح'}), 400
+
+        primary_key = _get_primary_key_column(table_name) or 'id'
         
         # تحديث الخلية
-        if primary_key == 'id':
-            sql = text(f"UPDATE {table_name} SET {column} = :value WHERE id = :row_id")
-        else:
-            sql = text(f"UPDATE {table_name} SET {column} = :value WHERE {primary_key} = :row_id")
+        if not _is_safe_identifier(primary_key):
+            return jsonify({'success': False, 'error': 'مفتاح أساسي غير صالح'}), 400
+
+        sql = text(f"UPDATE {table_name} SET {column} = :value WHERE {primary_key} = :row_id")
         
         result = db.session.execute(sql, {'value': value, 'row_id': row_id})
         db.session.commit()
@@ -4584,15 +4781,23 @@ def db_update_cell(table_name):
 def db_edit_row(table_name, row_id):
     """تعديل صف في الجدول"""
     try:
+        _assert_valid_table(table_name)
+        allowed_columns = set(_get_table_columns_safe(table_name))
         # الحصول على جميع الحقول من الفورم
         updates = []
         for key, value in request.form.items():
-            if key not in ['csrf_token', 'id']:
-                updates.append(f"{key} = '{value}'")
+            if key in ['csrf_token', 'id']:
+                continue
+            if key not in allowed_columns or not _is_safe_identifier(key):
+                continue
+            updates.append((key, value))
         
         if updates:
-            sql = f"UPDATE {table_name} SET {', '.join(updates)} WHERE id = {row_id}"
-            db.session.execute(text(sql))
+            set_parts = [f"{col} = :val_{i}" for i, (col, _) in enumerate(updates)]
+            params = {f"val_{i}": v for i, (_, v) in enumerate(updates)}
+            params['row_id'] = row_id
+            sql = text(f"UPDATE {table_name} SET {', '.join(set_parts)} WHERE id = :row_id")
+            db.session.execute(sql, params)
             db.session.commit()
             flash('تم التحديث بنجاح', 'success')
         else:
@@ -4610,22 +4815,14 @@ def db_edit_row(table_name, row_id):
 def db_delete_row(table_name, row_id):
     """حذف صف من الجدول"""
     try:
-        # تحديد المفتاح الأساسي للجدول
-        primary_key = 'id'  # افتراضياً
-        
-        # فحص إذا كان الجدول له عمود id
-        table_info = db.session.execute(text(f"PRAGMA table_info({table_name})")).fetchall()
-        has_id_column = any(col[1] == 'id' for col in table_info)
-        
-        if not has_id_column:
-            # إذا لم يكن هناك عمود id، نستخدم أول عمود كمفتاح أساسي
-            primary_key = table_info[0][1] if table_info else 'code'
+        _assert_valid_table(table_name)
+        primary_key = _get_primary_key_column(table_name) or 'id'
         
         # حذف الصف
-        if primary_key == 'id':
-            sql = text(f"DELETE FROM {table_name} WHERE id = :row_id")
-        else:
-            sql = text(f"DELETE FROM {table_name} WHERE {primary_key} = :row_id")
+        if not _is_safe_identifier(primary_key):
+            flash('❌ مفتاح أساسي غير صالح', 'danger')
+            return redirect(url_for('security.database_manager', tab='edit', table=table_name))
+        sql = text(f"DELETE FROM {table_name} WHERE {primary_key} = :row_id")
         
         result = db.session.execute(sql, {'row_id': row_id})
         db.session.commit()
@@ -4640,6 +4837,7 @@ def db_delete_row(table_name, row_id):
 @owner_only
 def db_delete_column(table_name):
     """حذف عمود كامل من الجدول"""
+    _assert_valid_table(table_name)
     column_name = request.form.get('column_name', '').strip()
     
     if not column_name:
@@ -4648,13 +4846,16 @@ def db_delete_column(table_name):
     
     # حماية من حذف الأعمدة الحرجة
     protected_columns = ['id', 'created_at', 'updated_at']
-    if column_name.lower() in protected_columns:
+    if (column_name.lower() in protected_columns) or (not _is_safe_identifier(column_name)):
         flash(f'❌ لا يمكن حذف العمود {column_name} (محمي)', 'danger')
         return redirect(url_for('security.database_manager', tab='edit', table=table_name))
     
     try:
-        sql = f"ALTER TABLE {table_name} DROP COLUMN {column_name}"
-        db.session.execute(text(sql))
+        cols = _get_table_columns_safe(table_name)
+        if column_name not in cols:
+            flash('❌ عمود غير موجود', 'danger')
+            return redirect(url_for('security.database_manager', tab='edit', table=table_name))
+        db.session.execute(text(f"ALTER TABLE {table_name} DROP COLUMN {column_name}"))
         db.session.commit()
         flash(f'✅ تم حذف العمود {column_name} بنجاح', 'success')
     except Exception as e:
@@ -4669,18 +4870,25 @@ def db_delete_column(table_name):
 def db_add_row(table_name):
     """إضافة صف جديد"""
     try:
-        # الحصول على الأعمدة والقيم
-        columns = []
-        values = []
-        
+        _assert_valid_table(table_name)
+        allowed_columns = set(_get_table_columns_safe(table_name))
+        cols = []
+        params = {}
+        placeholders = []
+        idx = 0
         for key, value in request.form.items():
-            if key != 'csrf_token':
-                columns.append(key)
-                values.append(f"'{value}'")
-        
-        if columns:
-            sql = f"INSERT INTO {table_name} ({', '.join(columns)}) VALUES ({', '.join(values)})"
-            db.session.execute(text(sql))
+            if key == 'csrf_token':
+                continue
+            if key not in allowed_columns or not _is_safe_identifier(key):
+                continue
+            bind = f"v_{idx}"
+            cols.append(key)
+            placeholders.append(f":{bind}")
+            params[bind] = value
+            idx += 1
+        if cols:
+            sql = text(f"INSERT INTO {table_name} ({', '.join(cols)}) VALUES ({', '.join(placeholders)})")
+            db.session.execute(sql, params)
             db.session.commit()
             flash('تم الإضافة بنجاح', 'success')
         else:
@@ -4697,6 +4905,7 @@ def db_add_row(table_name):
 @owner_only
 def db_bulk_update(table_name):
     """تحديث جماعي للبيانات"""
+    _assert_valid_table(table_name)
     column = request.form.get('column', '')
     old_value = request.form.get('old_value', '')
     new_value = request.form.get('new_value', '')
@@ -4706,12 +4915,15 @@ def db_bulk_update(table_name):
         return redirect(url_for('security.database_manager', tab='edit', table=table_name))
     
     try:
+        if not _is_safe_identifier(column) or column not in _get_table_columns_safe(table_name):
+            flash('اسم عمود غير صالح', 'danger')
+            return redirect(url_for('security.database_manager', tab='edit', table=table_name))
         if old_value:
-            sql = f"UPDATE {table_name} SET {column} = '{new_value}' WHERE {column} = '{old_value}'"
+            sql = text(f"UPDATE {table_name} SET {column} = :new_value WHERE {column} = :old_value")
+            result = db.session.execute(sql, {"new_value": new_value, "old_value": old_value})
         else:
-            sql = f"UPDATE {table_name} SET {column} = '{new_value}' WHERE {column} IS NULL OR {column} = ''"
-        
-        result = db.session.execute(text(sql))
+            sql = text(f"UPDATE {table_name} SET {column} = :new_value WHERE {column} IS NULL OR {column} = ''")
+            result = db.session.execute(sql, {"new_value": new_value})
         db.session.commit()
         
         flash(f'تم تحديث {result.rowcount} صف بنجاح', 'success')
@@ -4726,6 +4938,7 @@ def db_bulk_update(table_name):
 @owner_only
 def db_fill_missing(table_name):
     """ملء البيانات الناقصة"""
+    _assert_valid_table(table_name)
     column = request.form.get('column', '')
     fill_value = request.form.get('fill_value', '')
     
@@ -4734,8 +4947,11 @@ def db_fill_missing(table_name):
         return redirect(url_for('security.database_manager', tab='edit', table=table_name))
     
     try:
-        sql = f"UPDATE {table_name} SET {column} = '{fill_value}' WHERE {column} IS NULL OR {column} = ''"
-        result = db.session.execute(text(sql))
+        if not _is_safe_identifier(column) or column not in _get_table_columns_safe(table_name):
+            flash('اسم عمود غير صالح', 'danger')
+            return redirect(url_for('security.database_manager', tab='edit', table=table_name))
+        sql = text(f"UPDATE {table_name} SET {column} = :fill_value WHERE {column} IS NULL OR {column} = ''")
+        result = db.session.execute(sql, {"fill_value": fill_value})
         db.session.commit()
         
         flash(f'تم ملء {result.rowcount} حقل ناقص بنجاح', 'success')
@@ -5168,21 +5384,35 @@ def _get_ai_suggestions():
 
 def _get_all_tables():
     """الحصول على جميع جداول قاعدة البيانات"""
-    result = db.session.execute(text("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"))
-    return [row[0] for row in result if not row[0].startswith('sqlite_')]
+    try:
+        from sqlalchemy import inspect
+        inspector = inspect(db.engine)
+        return [t for t in inspector.get_table_names()]
+    except Exception:
+        try:
+            uri = current_app.config.get("SQLALCHEMY_DATABASE_URI", "")
+            if "postgresql" in uri:
+                rows = db.session.execute(text("SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname NOT IN ('pg_catalog','information_schema') ORDER BY tablename")).fetchall()
+                return [r[0] for r in rows]
+            else:
+                rows = db.session.execute(text("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")).fetchall()
+                return [r[0] for r in rows if not str(r[0]).startswith("sqlite_")]
+        except Exception:
+            return []
 
 
 def _browse_table(table_name, limit=100):
     """تصفح جدول معين"""
     try:
-        # الحصول على الأعمدة
-        result = db.session.execute(text(f"PRAGMA table_info({table_name})"))
-        columns = [row[1] for row in result]
-        
-        # الحصول على البيانات
+        _assert_valid_table(table_name)
+        try:
+            limit = int(limit)
+        except Exception:
+            limit = 100
+        limit = max(1, min(limit, 10000))
         result = db.session.execute(text(f"SELECT * FROM {table_name} LIMIT {limit}"))
-        data = [dict(zip(columns, row)) for row in result]
-        
+        columns = list(result.keys()) if hasattr(result, "keys") else []
+        data = [dict(row) for row in result.mappings().all()]
         return data, columns
     except Exception:
         return [], []
@@ -5191,19 +5421,25 @@ def _browse_table(table_name, limit=100):
 def _get_table_info(table_name):
     """الحصول على معلومات الجدول (الأعمدة والأنواع)"""
     try:
-        result = db.session.execute(text(f"PRAGMA table_info({table_name})"))
+        from sqlalchemy import inspect
+        inspector = inspect(db.engine)
+        columns = inspector.get_columns(table_name)
+        pk_constraint = inspector.get_pk_constraint(table_name)
+        pk_cols = pk_constraint.get('constrained_columns', [])
+        
         info = []
-        for row in result:
+        for i, col in enumerate(columns):
             info.append({
-                'cid': row[0],
-                'name': row[1],
-                'type': row[2],
-                'notnull': row[3],
-                'default': row[4],
-                'pk': row[5]
+                'cid': i,
+                'name': col['name'],
+                'type': str(col['type']),
+                'notnull': 1 if not col['nullable'] else 0,
+                'default': str(col['default']) if col['default'] else None,
+                'pk': 1 if col['name'] in pk_cols else 0
             })
         return info
-    except Exception:
+    except Exception as e:
+        current_app.logger.error(f"Error getting table info: {e}")
         return []
 
 
@@ -5940,6 +6176,7 @@ def api_create_index():
         index_name = data.get('index_name')
         columns = data.get('columns')
         unique = data.get('unique', False)
+        method = str(data.get('method') or data.get('index_method') or '').strip().upper() or None
         
         if not all([table_name, index_name, columns]):
             return jsonify({'success': False, 'message': 'بيانات ناقصة'}), 400
@@ -5947,10 +6184,49 @@ def api_create_index():
         if isinstance(columns, str):
             columns = [columns]
         
+        _assert_valid_table(table_name)
+        if not _is_safe_identifier(index_name):
+            return jsonify({'success': False, 'message': 'اسم فهرس غير صالح'}), 400
+        allowed_columns = set(_get_table_columns_safe(table_name))
+
+        safe_cols_parts: list[str] = []
+        if isinstance(columns, list) and columns and isinstance(columns[0], dict):
+            for item in columns:
+                col = (item or {}).get('name')
+                opclass = (item or {}).get('opclass')
+                if not col or not _is_safe_identifier(col) or col not in allowed_columns:
+                    continue
+                if opclass:
+                    opclass = str(opclass).strip()
+                    if not _is_safe_qualified_identifier(opclass):
+                        continue
+                    safe_cols_parts.append(f"{col} {opclass}")
+                else:
+                    safe_cols_parts.append(col)
+        else:
+            safe_cols_parts = [c for c in columns if _is_safe_identifier(c) and c in allowed_columns]
+
+        if not safe_cols_parts:
+            return jsonify({'success': False, 'message': 'أعمدة غير صالحة'}), 400
+
         unique_str = "UNIQUE" if unique else ""
-        cols_str = ", ".join(columns)
-        sql = f"CREATE {unique_str} INDEX {index_name} ON {table_name} ({cols_str})"
-        
+        cols_str = ", ".join(safe_cols_parts)
+
+        if method:
+            allowed_pg_methods = {"BTREE", "GIN", "GIST", "HASH", "BRIN", "SPGIST"}
+            if not _is_postgresql():
+                return jsonify({'success': False, 'message': 'نوع الفهرس مدعوم فقط على PostgreSQL'}), 400
+            if method not in allowed_pg_methods:
+                return jsonify({'success': False, 'message': 'نوع فهرس غير مدعوم'}), 400
+            if unique and method != "BTREE":
+                return jsonify({'success': False, 'message': 'UNIQUE مدعوم فقط مع B-TREE'}), 400
+            if method == "BTREE":
+                sql = f"CREATE {unique_str} INDEX {index_name} ON {table_name} ({cols_str})"
+            else:
+                sql = f"CREATE {unique_str} INDEX {index_name} ON {table_name} USING {method} ({cols_str})"
+        else:
+            sql = f"CREATE {unique_str} INDEX {index_name} ON {table_name} ({cols_str})"
+
         db.session.execute(text(sql))
         db.session.commit()
         
@@ -5978,8 +6254,9 @@ def api_drop_index():
         if not index_name:
             return jsonify({'success': False, 'message': 'اسم الفهرس مطلوب'}), 400
         
-        sql = f"DROP INDEX {index_name}"
-        db.session.execute(text(sql))
+        if not _is_safe_identifier(index_name):
+            return jsonify({'success': False, 'message': 'اسم فهرس غير صالح'}), 400
+        db.session.execute(text(f"DROP INDEX IF EXISTS {index_name}"))
         db.session.commit()
         
         return jsonify({
@@ -6316,8 +6593,15 @@ def api_batch_create_indexes():
                 columns = [columns]
             
             try:
+                _assert_valid_table(table_name)
+                if not _is_safe_identifier(index_name):
+                    raise ValueError('اسم فهرس غير صالح')
+                allowed_columns = set(_get_table_columns_safe(table_name))
+                safe_cols = [c for c in columns if _is_safe_identifier(c) and c in allowed_columns]
+                if not safe_cols:
+                    raise ValueError('أعمدة غير صالحة')
                 unique_str = "UNIQUE" if unique else ""
-                cols_str = ", ".join(columns)
+                cols_str = ", ".join(safe_cols)
                 sql = f"CREATE {unique_str} INDEX {index_name} ON {table_name} ({cols_str})"
                 db.session.execute(text(sql))
                 db.session.commit()
@@ -6383,12 +6667,14 @@ def api_maintenance_analyze():
 def api_maintenance_checkpoint():
     """تنفيذ Checkpoint لدمج WAL"""
     try:
+        if _is_postgresql():
+            db.session.execute(text('CHECKPOINT'))
+            db.session.commit()
+            return jsonify({'success': True, 'message': '✅ تم تنفيذ CHECKPOINT بنجاح'})
+
         db.session.execute(text('PRAGMA wal_checkpoint(TRUNCATE)'))
         db.session.commit()
-        return jsonify({
-            'success': True,
-            'message': '✅ تم تنفيذ Checkpoint بنجاح - تم دمج WAL files'
-        })
+        return jsonify({'success': True, 'message': '✅ تم تنفيذ Checkpoint بنجاح - تم دمج WAL files'})
     except Exception as e:
         db.session.rollback()
         return jsonify({
@@ -6403,26 +6689,31 @@ def api_maintenance_db_info():
     """الحصول على معلومات قاعدة البيانات"""
     try:
         import os
-        db_uri = current_app.config.get('SQLALCHEMY_DATABASE_URI', '')
+        db_uri = current_app.config.get('SQLALCHEMY_DATABASE_URI', '') or ''
+
+        if _is_postgresql():
+            size_row = db.session.execute(text("SELECT pg_size_pretty(pg_database_size(current_database()))")).fetchone()
+            block_row = db.session.execute(text("SHOW block_size")).fetchone()
+            return jsonify({
+                'success': True,
+                'db_size': size_row[0] if size_row else 'N/A',
+                'wal_mode': None,
+                'page_size': f"{block_row[0]} bytes" if block_row else 'N/A'
+            })
+
         db_path = db_uri.replace('sqlite:///', '')
-        
         db_size = 'N/A'
         if os.path.exists(db_path):
             size_bytes = os.path.getsize(db_path)
             db_size = f'{size_bytes / (1024*1024):.2f} MB'
-        
+
         wal_result = db.session.execute(text('PRAGMA journal_mode')).fetchone()
         wal_mode = wal_result[0].upper() == 'WAL' if wal_result else False
-        
+
         page_result = db.session.execute(text('PRAGMA page_size')).fetchone()
         page_size = f'{page_result[0]} bytes' if page_result else 'N/A'
-        
-        return jsonify({
-            'success': True,
-            'db_size': db_size,
-            'wal_mode': wal_mode,
-            'page_size': page_size
-        })
+
+        return jsonify({'success': True, 'db_size': db_size, 'wal_mode': wal_mode, 'page_size': page_size})
     except Exception as e:
         return jsonify({
             'success': False,

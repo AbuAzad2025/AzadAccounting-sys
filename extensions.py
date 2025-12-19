@@ -145,6 +145,17 @@ def setup_logging(app):
         lg.addHandler(err_handler)
         lg.propagate = False
 
+    if not app.config.get("SQLALCHEMY_ECHO", False):
+        for name in (
+            "sqlalchemy.engine",
+            "sqlalchemy.engine.Engine",
+            "sqlalchemy.orm",
+            "sqlalchemy.pool",
+        ):
+            logging.getLogger(name).setLevel(logging.WARNING)
+    for name in ("werkzeug", "engineio", "socketio"):
+        logging.getLogger(name).setLevel(logging.WARNING)
+
 
 def setup_sentry(app):
     dsn = (app.config.get("SENTRY_DSN") or "").strip()
@@ -292,7 +303,8 @@ scheduler = BackgroundScheduler()
 
 
 @event.listens_for(Engine, "connect")
-def _sqlite_pragmas_on_connect(dbapi_connection, connection_record):
+def _configure_db_connection(dbapi_connection, connection_record):
+    """Configure database connection based on dialect (SQLite/PostgreSQL)"""
     try:
         if isinstance(dbapi_connection, sqlite3.Connection):
             cur = dbapi_connection.cursor()
@@ -310,6 +322,8 @@ def _sqlite_pragmas_on_connect(dbapi_connection, connection_record):
             cur.execute("PRAGMA optimize")
             cur.execute("PRAGMA query_only=0")
             cur.close()
+        # PostgreSQL optimization/configuration could be added here if needed
+        # e.g., setting application_name or specific session variables
     except Exception:
         pass
 
@@ -365,100 +379,166 @@ def perform_vacuum_optimize(app):
     """تنفيذ VACUUM دوري لتنظيف وتحسين قاعدة البيانات"""
     try:
         uri = app.config.get("SQLALCHEMY_DATABASE_URI", "")
-        if not uri.startswith("sqlite:///"):
-            return
         
         with app.app_context():
             try:
                 from sqlalchemy import text
-                db.session.execute(text("PRAGMA optimize"))
-                db.session.execute(text("PRAGMA incremental_vacuum"))
-                db.session.commit()
+                if uri.startswith("sqlite:///"):
+                    db.session.execute(text("PRAGMA optimize"))
+                    db.session.execute(text("PRAGMA incremental_vacuum"))
+                    db.session.commit()
+                elif "postgresql" in uri:
+                    # PostgreSQL VACUUM cannot run inside a transaction block
+                    # We need to use a raw connection with autocommit
+                    conn = db.engine.raw_connection()
+                    try:
+                        conn.set_isolation_level(0) # ISOLATION_LEVEL_AUTOCOMMIT
+                        cursor = conn.cursor()
+                        cursor.execute("VACUUM ANALYZE")
+                        cursor.close()
+                    finally:
+                        conn.close()
+                
                 app.logger.debug("✅ Database optimization completed")
             except Exception as e:
-                db.session.rollback()
+                # db.session.rollback() # Not needed for raw connection or if commit failed
                 app.logger.warning(f"⚠️ Database optimization failed: {e}")
     except Exception as e:
         app.logger.warning(f"⚠️ Database optimization error: {e}")
 
 
-def perform_backup_db(app):
-    """Database backup utility"""
+def perform_backup_db(app=None):
+    """نسخ احتياطي ذكي لقاعدة البيانات - يدعم SQLite و PostgreSQL"""
     try:
+        # إذا تم استدعاء الدالة بدون app (مثلاً من قبل المستخدم)
+        if app is None:
+            from flask import current_app
+            app = current_app
+        
         uri = app.config.get("SQLALCHEMY_DATABASE_URI", "")
-        if not uri.startswith("sqlite:///"):
-            app.logger.warning("Backup skipped: Database is not SQLite")
-            return
-        
-        db_path = uri.replace("sqlite:///", "")
-        if not os.path.exists(db_path):
-            app.logger.error(f"Database file not found: {db_path}")
-            return
-        
         backup_dir = app.config.get("BACKUP_DB_DIR")
         os.makedirs(backup_dir, exist_ok=True)
         
-        # إضافة معلومات إضافية للنسخة الاحتياطية
         ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-        backup_path = os.path.join(backup_dir, f"backup_{ts}.db")
         
-        # نسخ احتياطي مع التحقق من التكامل
-        src = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=60)
-        dst = sqlite3.connect(backup_path, timeout=60)
-        
-        try:
-            # نسخ احتياطي مع التحقق
-            backup_pages = int(app.config.get("BACKUP_DB_PAGES") or 1024)
-            if backup_pages <= 0:
-                backup_pages = 1024
-            backup_sleep = float(app.config.get("BACKUP_DB_SLEEP") or 0.1)
-            if backup_sleep <= 0:
-                backup_sleep = 0.1
-            src.execute("PRAGMA busy_timeout=60000")
-            dst.execute("PRAGMA busy_timeout=60000")
-            src.backup(dst, pages=backup_pages, sleep=backup_sleep)
+        # PostgreSQL Backup (dump file format for restore)
+        if "postgresql" in uri:
+            backup_path = os.path.join(backup_dir, f"backup_{ts}.dump")
+            try:
+                import subprocess
+                from sqlalchemy.engine.url import make_url
+                
+                u = make_url(uri)
+                env = os.environ.copy()
+                if u.password:
+                    env["PGPASSWORD"] = u.password
+                
+                # Construct command: pg_dump -h host -p port -U user -d dbname -Fc -f file
+                # -Fc means Custom format (compressed, suitable for pg_restore)
+                cmd = ["pg_dump", "-h", u.host or "localhost", "-p", str(u.port or 5432), "-U", u.username or "postgres", "-d", u.database, "-Fc", "-f", backup_path]
+                
+                app.logger.info(f"Starting PostgreSQL backup to {backup_path}")
+                process = subprocess.run(cmd, env=env, capture_output=True, text=True)
+                
+                if process.returncode == 0:
+                    backup_info = {
+                        "timestamp": ts,
+                        "type": "postgresql",
+                        "format": "custom",
+                        "size": os.path.getsize(backup_path),
+                        "version": app.config.get("APP_VERSION", "unknown")
+                    }
+                    info_path = os.path.join(backup_dir, f"backup_{ts}.info")
+                    with open(info_path, "w") as f:
+                        import json
+                        json.dump(backup_info, f, indent=2)
+                    app.logger.info(f"PostgreSQL backup completed successfully")
+                    return True, "تم النسخ الاحتياطي بنجاح", backup_path
+                else:
+                    app.logger.error(f"PostgreSQL backup failed: {process.stderr}")
+                    if os.path.exists(backup_path):
+                        os.remove(backup_path)
+                    return False, f"فشل النسخ الاحتياطي: {process.stderr}", None
+            except Exception as e:
+                app.logger.error(f"PostgreSQL backup exception: {e}")
+                return False, f"خطأ في النسخ الاحتياطي: {str(e)}", None
+                
+        # SQLite Backup
+        elif uri.startswith("sqlite:///"):
+            db_path = uri.replace("sqlite:///", "")
+            if not os.path.exists(db_path):
+                app.logger.error(f"Database file not found: {db_path}")
+                return False, "ملف قاعدة البيانات غير موجود", None
             
-            # التحقق من صحة النسخة الاحتياطية
-            result = dst.execute("PRAGMA integrity_check").fetchone()
-            if result[0] != "ok":
-                app.logger.error(f"Backup integrity check failed: {result[0]}")
+            backup_path = os.path.join(backup_dir, f"backup_{ts}.db")
+            
+            # نسخ احتياطي مع التحقق من التكامل
+            src = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=60)
+            dst = sqlite3.connect(backup_path, timeout=60)
+            
+            try:
+                # نسخ احتياطي مع التحقق
+                backup_pages = int(app.config.get("BACKUP_DB_PAGES") or 1024)
+                if backup_pages <= 0:
+                    backup_pages = 1024
+                backup_sleep = float(app.config.get("BACKUP_DB_SLEEP") or 0.1)
+                if backup_sleep <= 0:
+                    backup_sleep = 0.1
+                src.execute("PRAGMA busy_timeout=60000")
+                dst.execute("PRAGMA busy_timeout=60000")
+                src.backup(dst, pages=backup_pages, sleep=backup_sleep)
+                
+                # التحقق من صحة النسخة الاحتياطية
+                result = dst.execute("PRAGMA integrity_check").fetchone()
+                if result[0] != "ok":
+                    app.logger.error(f"Backup integrity check failed: {result[0]}")
+                    dst.close()
+                    os.remove(backup_path)
+                    return False, f"فشل التحقق من صحة النسخة: {result[0]}", None
+                
+                # إضافة معلومات النسخة الاحتياطية
+                backup_info = {
+                    "timestamp": ts,
+                    "original_size": os.path.getsize(db_path),
+                    "backup_size": os.path.getsize(backup_path),
+                    "version": app.config.get("APP_VERSION", "unknown")
+                }
+                
+                # حفظ معلومات النسخة الاحتياطية
+                info_path = os.path.join(backup_dir, f"backup_{ts}.info")
+                with open(info_path, "w") as f:
+                    import json
+                    json.dump(backup_info, f, indent=2)
+                
+                app.logger.info(f"Database backup completed: {backup_path}")
+                return True, "تم النسخ الاحتياطي بنجاح", backup_path
+                
+            except Exception as e:
+                app.logger.error(f"Backup failed: {e}")
+                if os.path.exists(backup_path):
+                    os.remove(backup_path)
+                return False, f"فشل النسخ الاحتياطي: {str(e)}", None
+            finally:
+                src.close()
                 dst.close()
-                os.remove(backup_path)
-                return
-            
-            # إضافة معلومات النسخة الاحتياطية
-            backup_info = {
-                "timestamp": ts,
-                "original_size": os.path.getsize(db_path),
-                "backup_size": os.path.getsize(backup_path),
-                "version": app.config.get("APP_VERSION", "unknown")
-            }
-            
-            # حفظ معلومات النسخة الاحتياطية
-            info_path = os.path.join(backup_dir, f"backup_{ts}.info")
-            with open(info_path, "w") as f:
-                import json
-                json.dump(backup_info, f, indent=2)
-            
-            app.logger.info(f"Database backup completed: {backup_path}")
-            
-        except Exception as e:
-            app.logger.error(f"Backup failed: {e}")
-            if os.path.exists(backup_path):
-                os.remove(backup_path)
-        finally:
-            src.close()
-            dst.close()
         
+        else:
+            app.logger.warning("Backup skipped: Database type not supported for auto-backup")
+            return False, "نوع قاعدة البيانات غير مدعوم للنسخ التلقائي", None
+
         # تنظيف النسخ القديمة
         keep_last = app.config.get("BACKUP_KEEP_LAST", 5)
-        backups = sorted(glob.glob(os.path.join(backup_dir, "backup_*.db")))
-        if len(backups) > keep_last:
-            for old in backups[:-keep_last]:
+        # Match both .db, .sql and .dump files
+        backups = sorted(glob.glob(os.path.join(backup_dir, "backup_*.*"))) 
+        
+        backup_files = sorted([f for f in backups if f.endswith(('.db', '.sql', '.dump'))])
+        
+        if len(backup_files) > keep_last:
+            for old in backup_files[:-keep_last]:
                 try:
                     os.remove(old)
                     # حذف ملف المعلومات أيضاً
-                    info_file = old.replace(".db", ".info")
+                    info_file = os.path.splitext(old)[0] + ".info"
                     if os.path.exists(info_file):
                         os.remove(info_file)
                 except Exception as e:
@@ -466,6 +546,7 @@ def perform_backup_db(app):
                     
     except Exception as e:
         app.logger.error(f"Backup process failed: {e}")
+        return False, f"خطأ غير متوقع: {str(e)}", None
 
 
 def process_asset_depreciation(app):
@@ -751,46 +832,75 @@ def process_check_reminders(app):
 
 
 def perform_backup_sql(app):
-    """نسخ احتياطي SQL محسن"""
+    """نسخ احتياطي SQL محسن - يدعم SQLite و PostgreSQL"""
     try:
         uri = app.config.get("SQLALCHEMY_DATABASE_URI", "")
-        if not uri.startswith("sqlite:///"):
-            app.logger.warning("SQL backup skipped: Database is not SQLite")
-            return
-        
-        db_path = uri.replace("sqlite:///", "")
-        if not os.path.exists(db_path):
-            app.logger.error(f"Database file not found: {db_path}")
-            return
-        
         backup_dir = app.config.get("BACKUP_SQL_DIR")
         os.makedirs(backup_dir, exist_ok=True)
-        
         ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-        backup_path = os.path.join(backup_dir, f"backup_{ts}.sql")
-        
-        conn = sqlite3.connect(db_path)
-        try:
-            with open(backup_path, "w", encoding="utf-8") as f:
-                # إضافة معلومات النسخة الاحتياطية
-                f.write(f"-- Database Backup\n")
-                f.write(f"-- Timestamp: {ts}\n")
-                f.write(f"-- Version: {app.config.get('APP_VERSION', 'unknown')}\n")
-                f.write(f"-- Original Size: {os.path.getsize(db_path)} bytes\n\n")
+
+        if uri.startswith("sqlite:///"):
+            db_path = uri.replace("sqlite:///", "")
+            if not os.path.exists(db_path):
+                app.logger.error(f"Database file not found: {db_path}")
+                return
+            
+            backup_path = os.path.join(backup_dir, f"backup_{ts}.sql")
+            
+            conn = sqlite3.connect(db_path)
+            try:
+                with open(backup_path, "w", encoding="utf-8") as f:
+                    f.write(f"-- Database Backup\n")
+                    f.write(f"-- Timestamp: {ts}\n")
+                    f.write(f"-- Version: {app.config.get('APP_VERSION', 'unknown')}\n")
+                    f.write(f"-- Original Size: {os.path.getsize(db_path)} bytes\n\n")
+                    
+                    for line in conn.iterdump():
+                        f.write(f"{line}\n")
                 
-                # نسخ البيانات
-                for line in conn.iterdump():
-                    f.write(f"{line}\n")
+                app.logger.info(f"SQL backup completed: {backup_path}")
+            finally:
+                conn.close()
+
+        elif uri.startswith("postgresql"):
+            backup_path = os.path.join(backup_dir, f"backup_pg_{ts}.sql")
             
-            app.logger.info(f"SQL backup completed: {backup_path}")
+            # Extract connection details
+            from urllib.parse import urlparse
+            import subprocess
             
-        except Exception as e:
-            app.logger.error(f"SQL backup failed: {e}")
-            if os.path.exists(backup_path):
-                os.remove(backup_path)
-        finally:
-            conn.close()
+            parsed = urlparse(uri)
+            db_name = parsed.path[1:]
+            user = parsed.username
+            password = parsed.password
+            host = parsed.hostname
+            port = parsed.port or 5432
+            
+            env = os.environ.copy()
+            if password:
+                env["PGPASSWORD"] = password
+            
+            cmd = [
+                "pg_dump",
+                "-h", host,
+                "-p", str(port),
+                "-U", user,
+                "-F", "p",
+                "-f", backup_path,
+                db_name
+            ]
+            
+            try:
+                subprocess.run(cmd, env=env, check=True)
+                app.logger.info(f"PostgreSQL backup completed: {backup_path}")
+            except subprocess.CalledProcessError as e:
+                app.logger.error(f"PostgreSQL backup failed: {e}")
+            except FileNotFoundError:
+                app.logger.error("pg_dump not found. Please install PostgreSQL client tools.")
         
+        else:
+            app.logger.warning("SQL backup skipped: Unsupported database type")
+
         # تنظيف النسخ القديمة
         keep_last = app.config.get("BACKUP_KEEP_LAST", 5)
         backups = sorted(glob.glob(os.path.join(backup_dir, "backup_*.sql")))
@@ -800,9 +910,89 @@ def perform_backup_sql(app):
                     os.remove(old)
                 except Exception as e:
                     app.logger.warning(f"Failed to remove old SQL backup {old}: {e}")
-                    
+
     except Exception as e:
-        app.logger.error(f"SQL backup process failed: {e}")
+        app.logger.error(f"Backup process failed: {e}")
+
+
+def restore_database(app, backup_path):
+    """استعادة قاعدة البيانات من نسخة احتياطية - يدعم SQLite و PostgreSQL"""
+    try:
+        uri = app.config.get("SQLALCHEMY_DATABASE_URI", "")
+        
+        # PostgreSQL Restore
+        if "postgresql" in uri:
+            try:
+                import subprocess
+                from sqlalchemy.engine.url import make_url
+                
+                u = make_url(uri)
+                env = os.environ.copy()
+                if u.password:
+                    env["PGPASSWORD"] = u.password
+                
+                # Construct command: pg_restore -h host -p port -U user -d dbname --clean --if-exists backup_file
+                # --clean: drop database objects before creating them
+                # --if-exists: used with --clean to prevent errors if objects don't exist
+                cmd = [
+                    "pg_restore", 
+                    "-h", u.host or "localhost", 
+                    "-p", str(u.port or 5432), 
+                    "-U", u.username or "postgres", 
+                    "-d", u.database, 
+                    "--clean", 
+                    "--if-exists", 
+                    "--no-owner",  # Skip ownership restoration
+                    "--no-privileges",  # Skip privilege restoration
+                    backup_path
+                ]
+                
+                app.logger.info(f"Starting PostgreSQL restore from {backup_path}")
+                process = subprocess.run(cmd, env=env, capture_output=True, text=True)
+                
+                if process.returncode == 0:
+                    app.logger.info(f"PostgreSQL restore completed successfully")
+                    return True, "تمت استعادة قاعدة البيانات بنجاح"
+                else:
+                    # pg_restore might return non-zero even on success with warnings
+                    # Check if the error is fatal or just warnings
+                    if "fatal" in process.stderr.lower() or "error" in process.stderr.lower():
+                         app.logger.error(f"PostgreSQL restore failed: {process.stderr}")
+                         return False, f"فشل الاستعادة: {process.stderr}"
+                    else:
+                        app.logger.warning(f"PostgreSQL restore finished with warnings: {process.stderr}")
+                        return True, "تمت الاستعادة (مع بعض التحذيرات)"
+                        
+            except Exception as e:
+                app.logger.error(f"PostgreSQL restore exception: {e}")
+                return False, f"خطأ في الاستعادة: {str(e)}"
+
+        # SQLite Restore
+        elif uri.startswith("sqlite:///"):
+            db_path = uri.replace("sqlite:///", "")
+            
+            try:
+                # إغلاق الاتصالات الحالية
+                db.session.remove()
+                db.engine.dispose()
+                
+                # نسخ الملف
+                import shutil
+                shutil.copy2(backup_path, db_path)
+                
+                app.logger.info(f"SQLite restore completed: {db_path}")
+                return True, "تمت استعادة قاعدة البيانات بنجاح"
+                
+            except Exception as e:
+                app.logger.error(f"SQLite restore failed: {e}")
+                return False, f"فشل الاستعادة: {str(e)}"
+        
+        else:
+            return False, "نوع قاعدة البيانات غير مدعوم للاستعادة التلقائية"
+            
+    except Exception as e:
+        app.logger.error(f"Restore process failed: {e}")
+        return False, f"خطأ غير متوقع: {str(e)}"
 
 
 def register_fonts(app=None):
@@ -829,6 +1019,20 @@ def _safe_start_scheduler(app):
     if any(cmd in sys.argv for cmd in skip_cmds):
         app.logger.info("Scheduler skipped: CLI context.")
         return
+    try:
+        if (os.environ.get("GUNICORN_CMD_ARGS") or "gunicorn" in " ".join(sys.argv).lower()) and os.environ.get("ENABLE_SCHEDULER") != "1":
+            app.logger.info("Scheduler skipped: gunicorn context (set ENABLE_SCHEDULER=1 to enable).")
+            return
+    except Exception:
+        pass
+    try:
+        is_uwsgi = ("uwsgi" in sys.modules) or bool(os.environ.get("UWSGI_ORIGINAL_PROC_NAME") or os.environ.get("UWSGI_FILE"))
+        is_pythonanywhere = bool(os.environ.get("PYTHONANYWHERE_DOMAIN") or os.environ.get("PYTHONANYWHERE_SITE"))
+        if (is_uwsgi or is_pythonanywhere) and os.environ.get("ENABLE_SCHEDULER") != "1":
+            app.logger.info("Scheduler skipped: WSGI/uWSGI context (set ENABLE_SCHEDULER=1 to enable).")
+            return
+    except Exception:
+        pass
     if os.environ.get("DISABLE_SCHEDULER"):
         app.logger.info("Scheduler disabled by environment variable.")
         return
@@ -1019,3 +1223,162 @@ def init_extensions(app):
 
     _safe_start_scheduler(app)
     register_fonts(app)
+    
+    try:
+        skip_cmds = ("db", "seed", "shell", "migrate", "upgrade", "downgrade", "init")
+        if not any(cmd in sys.argv for cmd in skip_cmds):
+            ensure_performance_indexes(app)
+    except Exception:
+        pass
+
+def ensure_performance_indexes(app):
+    try:
+        from sqlalchemy import text
+        with app.app_context():
+            uri = app.config.get("SQLALCHEMY_DATABASE_URI", "")
+            base_stmts = [
+                "CREATE INDEX IF NOT EXISTS ix_users_is_active ON users (is_active)",
+                "CREATE INDEX IF NOT EXISTS ix_users_lower_username ON users (lower(username))",
+                "CREATE INDEX IF NOT EXISTS ix_users_lower_email ON users (lower(email))",
+                "CREATE INDEX IF NOT EXISTS ix_users_last_login ON users (last_login)",
+                "CREATE INDEX IF NOT EXISTS ix_users_last_seen ON users (last_seen)",
+                "CREATE INDEX IF NOT EXISTS ix_products_name ON products (name)",
+                "CREATE INDEX IF NOT EXISTS ix_products_part_number ON products (part_number)",
+                "CREATE INDEX IF NOT EXISTS ix_products_brand ON products (brand)",
+                "CREATE INDEX IF NOT EXISTS ix_stock_levels_wh ON stock_levels (warehouse_id)",
+                "CREATE INDEX IF NOT EXISTS ix_stock_levels_prod ON stock_levels (product_id)",
+                "CREATE INDEX IF NOT EXISTS ix_stock_levels_wh_prod ON stock_levels (warehouse_id, product_id)",
+                "CREATE INDEX IF NOT EXISTS ix_sales_date ON sales (sale_date)",
+                "CREATE INDEX IF NOT EXISTS ix_sales_customer_id ON sales (customer_id)",
+                "CREATE INDEX IF NOT EXISTS ix_sales_customer_date ON sales (customer_id, sale_date)",
+                "CREATE INDEX IF NOT EXISTS ix_sales_status ON sales (status)",
+                "CREATE INDEX IF NOT EXISTS ix_payments_date ON payments (payment_date)",
+                "CREATE INDEX IF NOT EXISTS ix_payments_is_archived ON payments (is_archived)",
+                "CREATE INDEX IF NOT EXISTS ix_customers_created_at ON customers (created_at)",
+                "CREATE INDEX IF NOT EXISTS ix_customers_name ON customers (name)",
+                "CREATE INDEX IF NOT EXISTS ix_customers_phone ON customers (phone)",
+                "CREATE INDEX IF NOT EXISTS ix_customers_lower_email ON customers (lower(email))",
+                "CREATE INDEX IF NOT EXISTS ix_customers_category ON customers (category)",
+                "CREATE INDEX IF NOT EXISTS ix_customers_current_balance ON customers (current_balance)",
+                "CREATE INDEX IF NOT EXISTS ix_customers_is_active ON customers (is_active)",
+                "CREATE INDEX IF NOT EXISTS ix_customers_is_online ON customers (is_online)",
+                "CREATE INDEX IF NOT EXISTS ix_customers_is_archived ON customers (is_archived)",
+                "CREATE INDEX IF NOT EXISTS ix_payments_status ON payments (status)",
+                "CREATE INDEX IF NOT EXISTS ix_payments_direction ON payments (direction)",
+                "CREATE INDEX IF NOT EXISTS ix_payments_entity_type ON payments (entity_type)",
+                "CREATE INDEX IF NOT EXISTS ix_payments_method ON payments (method)",
+                "CREATE INDEX IF NOT EXISTS ix_payments_currency ON payments (currency)",
+                "CREATE INDEX IF NOT EXISTS ix_payments_customer_id ON payments (customer_id)",
+                "CREATE INDEX IF NOT EXISTS ix_payments_supplier_id ON payments (supplier_id)",
+                "CREATE INDEX IF NOT EXISTS ix_payments_partner_id ON payments (partner_id)",
+                "CREATE INDEX IF NOT EXISTS ix_payments_invoice_id ON payments (invoice_id)",
+                "CREATE INDEX IF NOT EXISTS ix_payments_sale_id ON payments (sale_id)",
+                "CREATE INDEX IF NOT EXISTS ix_payments_service_id ON payments (service_id)",
+                "CREATE INDEX IF NOT EXISTS ix_payments_customer_date ON payments (customer_id, payment_date)",
+                "CREATE INDEX IF NOT EXISTS ix_payments_supplier_date ON payments (supplier_id, payment_date)",
+                "CREATE INDEX IF NOT EXISTS ix_payments_partner_date ON payments (partner_id, payment_date)",
+                "CREATE INDEX IF NOT EXISTS ix_payments_payment_number ON payments (payment_number)",
+                "CREATE INDEX IF NOT EXISTS ix_payments_receipt_number ON payments (receipt_number)",
+                "CREATE INDEX IF NOT EXISTS ix_invoices_invoice_number ON invoices (invoice_number)",
+                "CREATE INDEX IF NOT EXISTS ix_invoices_invoice_date ON invoices (invoice_date)",
+                "CREATE INDEX IF NOT EXISTS ix_invoices_status ON invoices (status)",
+                "CREATE INDEX IF NOT EXISTS ix_invoices_customer_id ON invoices (customer_id)",
+                "CREATE INDEX IF NOT EXISTS ix_invoices_customer_date ON invoices (customer_id, invoice_date)",
+                "CREATE INDEX IF NOT EXISTS ix_service_requests_customer_id ON service_requests (customer_id)",
+                "CREATE INDEX IF NOT EXISTS ix_service_requests_mechanic_id ON service_requests (mechanic_id)",
+                "CREATE INDEX IF NOT EXISTS ix_service_requests_status ON service_requests (status)",
+                "CREATE INDEX IF NOT EXISTS ix_service_requests_priority ON service_requests (priority)",
+                "CREATE INDEX IF NOT EXISTS ix_service_requests_received_at ON service_requests (received_at)",
+                "CREATE INDEX IF NOT EXISTS ix_service_requests_customer_status_date ON service_requests (customer_id, status, received_at)",
+                "CREATE INDEX IF NOT EXISTS ix_service_requests_customer_date ON service_requests (customer_id, received_at)",
+                "CREATE INDEX IF NOT EXISTS ix_service_requests_status_created_at ON service_requests (status, created_at)",
+                "CREATE INDEX IF NOT EXISTS ix_service_requests_mechanic_status ON service_requests (mechanic_id, status)",
+                "CREATE INDEX IF NOT EXISTS ix_service_requests_status_priority ON service_requests (status, priority)",
+                "CREATE INDEX IF NOT EXISTS ix_service_requests_received_status ON service_requests (received_at, status)",
+                "CREATE INDEX IF NOT EXISTS ix_checks_status_due_date_direction ON checks (status, check_due_date, direction)",
+                "CREATE INDEX IF NOT EXISTS ix_checks_customer_id_date ON checks (customer_id, check_date)",
+                "CREATE INDEX IF NOT EXISTS ix_checks_supplier_id_date ON checks (supplier_id, check_date)",
+                "CREATE INDEX IF NOT EXISTS ix_checks_partner_id_date ON checks (partner_id, check_date)",
+                "CREATE INDEX IF NOT EXISTS ix_checks_payment_id_status ON checks (payment_id, status)",
+                "CREATE INDEX IF NOT EXISTS ix_checks_is_archived_status ON checks (is_archived, status)",
+                "CREATE INDEX IF NOT EXISTS ix_checks_check_date_status ON checks (check_date, status)",
+                "CREATE INDEX IF NOT EXISTS ix_checks_payment_id ON checks (payment_id)",
+                "CREATE INDEX IF NOT EXISTS ix_checks_check_date ON checks (check_date)",
+                "CREATE INDEX IF NOT EXISTS ix_checks_direction ON checks (direction)",
+                "CREATE INDEX IF NOT EXISTS ix_checks_status ON checks (status)",
+                "CREATE INDEX IF NOT EXISTS ix_partners_is_archived_balance ON partners (is_archived, current_balance)",
+                "CREATE INDEX IF NOT EXISTS ix_partners_name_phone ON partners (name, phone_number)",
+                "CREATE INDEX IF NOT EXISTS ix_partners_customer_id ON partners (customer_id)",
+                "CREATE INDEX IF NOT EXISTS ix_partners_currency_balance ON partners (currency, current_balance)",
+                "CREATE INDEX IF NOT EXISTS ix_partners_share_percentage ON partners (share_percentage)",
+                "CREATE INDEX IF NOT EXISTS ix_suppliers_name ON suppliers (name)",
+                "CREATE INDEX IF NOT EXISTS ix_suppliers_phone ON suppliers (phone_number)",
+                "CREATE INDEX IF NOT EXISTS ix_suppliers_lower_email ON suppliers (lower(email))",
+                "CREATE INDEX IF NOT EXISTS ix_suppliers_is_archived ON suppliers (is_archived)",
+                "CREATE INDEX IF NOT EXISTS ix_suppliers_currency ON suppliers (currency)",
+                "CREATE INDEX IF NOT EXISTS ix_suppliers_current_balance ON suppliers (current_balance)",
+                "CREATE INDEX IF NOT EXISTS ix_gl_batches_posted_at ON gl_batches (posted_at)",
+                "CREATE INDEX IF NOT EXISTS ix_gl_batches_status ON gl_batches (status)"
+            ]
+            pg_trgm_stmts = [
+                "CREATE INDEX IF NOT EXISTS gin_customers_name_trgm ON customers USING gin (name gin_trgm_ops)",
+                "CREATE INDEX IF NOT EXISTS gin_suppliers_name_trgm ON suppliers USING gin (name gin_trgm_ops)",
+                "CREATE INDEX IF NOT EXISTS gin_partners_name_trgm ON partners USING gin (name gin_trgm_ops)",
+                "CREATE INDEX IF NOT EXISTS gin_payments_reference_trgm ON payments USING gin (reference gin_trgm_ops)",
+                "CREATE INDEX IF NOT EXISTS gin_payments_notes_trgm ON payments USING gin (notes gin_trgm_ops)",
+                "CREATE INDEX IF NOT EXISTS gin_checks_check_number_trgm ON checks USING gin (check_number gin_trgm_ops)",
+            ]
+            pg_partial_stmts = [
+                "CREATE INDEX IF NOT EXISTS ix_payments_date_active ON payments (payment_date) WHERE is_archived = false",
+                "CREATE INDEX IF NOT EXISTS ix_payments_customer_date_completed ON payments (customer_id, payment_date) WHERE is_archived = false AND status = 'COMPLETED'",
+                "CREATE INDEX IF NOT EXISTS ix_checks_date_pending ON checks (check_date) WHERE status = 'PENDING'",
+                "CREATE INDEX IF NOT EXISTS ix_service_received_active ON service_requests (received_at) WHERE status IN ('PENDING','IN_PROGRESS','DIAGNOSIS')",
+            ]
+            sqlite_partial_stmts = [
+                "CREATE INDEX IF NOT EXISTS ix_payments_date_active ON payments (payment_date) WHERE is_archived = 0",
+                "CREATE INDEX IF NOT EXISTS ix_payments_customer_date_completed ON payments (customer_id, payment_date) WHERE is_archived = 0 AND status = 'COMPLETED'",
+                "CREATE INDEX IF NOT EXISTS ix_checks_date_pending ON checks (check_date) WHERE status = 'PENDING'",
+            ]
+
+            if "postgresql" in uri:
+                with db.engine.connect() as conn:
+                    ac = conn.execution_options(isolation_level="AUTOCOMMIT")
+
+                    def _exec(sql: str) -> bool:
+                        try:
+                            ac.execute(text(sql))
+                            return True
+                        except Exception:
+                            return False
+
+                    for sql in base_stmts:
+                        _exec(sql)
+
+                    pg_trgm_ready = _exec("CREATE EXTENSION IF NOT EXISTS pg_trgm")
+                    if not pg_trgm_ready:
+                        try:
+                            pg_trgm_ready = bool(
+                                ac.execute(text("SELECT 1 FROM pg_extension WHERE extname = 'pg_trgm' LIMIT 1")).scalar()
+                            )
+                        except Exception:
+                            pg_trgm_ready = False
+                    if pg_trgm_ready:
+                        for sql in pg_trgm_stmts:
+                            _exec(sql)
+                    for sql in pg_partial_stmts:
+                        _exec(sql)
+            else:
+                stmts = list(base_stmts)
+                if uri.startswith("sqlite"):
+                    stmts += sqlite_partial_stmts
+                for sql in stmts:
+                    try:
+                        db.session.execute(text(sql))
+                        db.session.commit()
+                    except Exception:
+                        try:
+                            db.session.rollback()
+                        except Exception:
+                            pass
+    except Exception:
+        pass

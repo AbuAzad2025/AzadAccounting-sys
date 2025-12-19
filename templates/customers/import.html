@@ -23,7 +23,7 @@
         {% if messages %}
           {% for cat, msg in messages %}
             <div class="alert alert-{{ 'warning' if cat == 'warning' else cat }} alert-dismissible fade show" role="alert">
-              {{ msg|safe }}
+              {{ msg }}
               <button type="button" class="close" data-dismiss="alert" aria-label="إغلاق"></button>
             </div>
           {% endfor %}

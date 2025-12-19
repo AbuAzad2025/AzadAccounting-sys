@@ -28,6 +28,21 @@ logger = logging.getLogger('AI_Scheduler')
 # Scheduler
 scheduler = BackgroundScheduler()
 _scheduler_started = False
+_flask_app = None
+
+
+def _call_in_app_context(fn):
+    def _wrapped(*args, **kwargs):
+        app = _flask_app
+        if app is None:
+            return fn(*args, **kwargs)
+        try:
+            ctx = app.app_context()
+        except Exception:
+            return fn(*args, **kwargs)
+        with ctx:
+            return fn(*args, **kwargs)
+    return _wrapped
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -121,21 +136,24 @@ def run_daily_code_scan():
 # 🚀 SCHEDULER INITIALIZATION
 # ═══════════════════════════════════════════════════════════════════════════
 
-def start_scheduler():
+def start_scheduler(app=None):
     """
     تشغيل الجدولة
     
     يجب استدعاؤها عند بدء التطبيق
     """
     
-    global _scheduler_started
+    global _scheduler_started, _flask_app
     if _scheduler_started:
         logger.info("AI Scheduler already running; skipping re-initialization")
         return
 
+    if app is not None:
+        _flask_app = app
+
     # مهمة 1: Code Quality Scan - يومياً الساعة 2:00 ص
     scheduler.add_job(
-        func=run_daily_code_scan,
+        func=_call_in_app_context(run_daily_code_scan),
         trigger=CronTrigger(hour=2, minute=0),  # 2:00 AM
         id='daily_code_scan',
         name='Daily Code Quality Scan',
@@ -144,7 +162,7 @@ def start_scheduler():
     
     # مهمة 2: Auto-Learning Scan - يومياً الساعة 3:00 ص
     scheduler.add_job(
-        func=run_auto_learning_scan,
+        func=_call_in_app_context(run_auto_learning_scan),
         trigger=CronTrigger(hour=3, minute=0),  # 3:00 AM
         id='auto_learning_scan',
         name='Auto-Learning Daily Scan',
@@ -153,7 +171,7 @@ def start_scheduler():
     
     # مهمة 3: Cleanup - كل أسبوع
     scheduler.add_job(
-        func=cleanup_old_logs,
+        func=_call_in_app_context(cleanup_old_logs),
         trigger=CronTrigger(day_of_week='sun', hour=1, minute=0),  # كل أحد 1:00 AM
         id='cleanup_logs',
         name='Weekly Logs Cleanup',
@@ -191,7 +209,7 @@ def run_manual_scan():
     
     يمكن استدعاؤها من أي مكان
     """
-    run_auto_learning_scan()
+    _call_in_app_context(run_auto_learning_scan)()
 
 
 __all__ = [
@@ -199,4 +217,3 @@ __all__ = [
     'stop_scheduler',
     'run_manual_scan'
 ]
-

@@ -112,13 +112,13 @@
 {% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/reporting.css') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/report-print-core.css') }}">
+<link rel="stylesheet" href="{{ static_url('css/reporting.css') }}">
+<link rel="stylesheet" href="{{ static_url('css/report-print-core.css') }}">
 {% endblock %}
 
 {% block scripts %}
 {{ super() }}
-<script src="{{ url_for('static', filename='js/export-helpers.js') }}"></script>
+<script src="{{ static_url('js/export-helpers.js') }}"></script>
 <script>
 (function() {
   if (typeof Chart === 'undefined') {
@@ -133,7 +133,7 @@
   }
 })();
 </script>
-<script src="{{ url_for('static', filename='js/reporting.js') }}"></script>
+<script src="{{ static_url('js/reporting.js') }}"></script>
 {% block report_print_modal %}
 <div class="modal fade" id="reportPrintModal" tabindex="-1" role="dialog" aria-labelledby="reportPrintModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-lg" role="document">

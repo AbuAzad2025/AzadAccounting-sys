@@ -9,9 +9,7 @@
 {% block styles %}
   {{ super() }}
   <meta name="csrf-token" content="{{ csrf_token() }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/warehouses.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='adminlte/plugins/select2/css/select2.min.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='adminlte/plugins/select2-bootstrap4-theme/select2-bootstrap4.min.css') }}">
+  <link rel="stylesheet" href="{{ static_url('css/warehouses.css') }}">
   <style>
     /* إصلاح ألوان أزرار navbar المستودعات - إلغاء تأثير style.css */
     .warehouse-nav-buttons .btn {
@@ -160,7 +158,6 @@
 
 {% block scripts %}
   {{ super() }}
-  <script src="{{ url_for('static', filename='adminlte/plugins/select2/js/select2.full.min.js') }}"></script>
-  <script src="{{ url_for('static', filename='js/warehouses.js') }}"></script>
+  <script src="{{ static_url('js/warehouses.js') }}"></script>
   {% block dt_scripts %}{% endblock %}
 {% endblock %}

@@ -129,11 +129,13 @@ class ContinuousLearner:
         }
         
         try:
-            from app import app
+            from flask import current_app, has_app_context
+            if not has_app_context():
+                raise RuntimeError("No app context")
             
             routes_info = {}
             
-            for rule in app.url_map.iter_rules():
+            for rule in current_app.url_map.iter_rules():
                 if rule.endpoint != 'static':
                     route_key = f'route_{rule.endpoint}'
                     

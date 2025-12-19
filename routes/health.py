@@ -10,6 +10,7 @@ from decimal import Decimal
 from typing import Dict, Any
 
 from flask import Blueprint, jsonify, current_app
+from flask_login import login_required
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -30,7 +31,7 @@ def _check_database() -> Dict[str, Any]:
             stats = {
                 "status": "healthy",
                 "response_time_ms": round(duration * 1000, 2),
-                "type": "SQLite" if "sqlite" in current_app.config.get("SQLALCHEMY_DATABASE_URI", "") else "PostgreSQL",
+                "type": "PostgreSQL" if "postgresql" in current_app.config.get("SQLALCHEMY_DATABASE_URI", "") else "SQLite",
             }
 
             try:
@@ -197,6 +198,7 @@ def _get_system_info() -> Dict[str, Any]:
 
 @health_bp.route("/", methods=["GET"])
 @health_bp.route("/status", methods=["GET"])
+@login_required
 def health_check():
     """
     نقطة نهاية فحص الصحة الشاملة
