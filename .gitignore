@@ -82,8 +82,6 @@ AI/data/auto_learning_log.json
 AI/data/code_issues.json
 AI/data/discovered_changes.json
 AI/data/last_scan.json
-static/adminlte/
-static/adminlte/**
 tests/
 **/tests/
 test_*.py

@@ -161,7 +161,7 @@ function printTable(tableId) {
 
     const cssAdmin = doc.createElement('link');
     cssAdmin.rel = 'stylesheet';
-    cssAdmin.href = '/static/adminlte/dist/css/adminlte.min.css';
+    cssAdmin.href = '/static/adminlte/css/adminlte.min.css';
     doc.head.appendChild(cssAdmin);
 
     const style = doc.createElement('style');
