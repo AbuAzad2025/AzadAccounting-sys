@@ -2500,7 +2500,7 @@ def get_cached_security_stats():
     # المتصلين الآن (آخر 15 دقيقة)
     threshold = datetime.now(timezone.utc) - timedelta(minutes=15)
     all_users = User.query.filter(User.last_seen.isnot(None)).all()
-    online_users = sum(1 for u in all_users if make_aware(u.last_seen) >= threshold)
+    online_users = sum(1 for u in all_users if (seen := make_aware(u.last_seen)) and seen >= threshold)
     
     # محاولات فشل الدخول (آخر 24 ساعة)
     day_ago = datetime.now(timezone.utc) - timedelta(hours=24)

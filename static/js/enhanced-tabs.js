@@ -31,7 +31,10 @@
       const icon = tab.querySelector('i');
       if (!icon && !tab.dataset.noIcon) {
         const defaultIcon = this.getDefaultIcon(tab.textContent);
-        tab.innerHTML = `<i class="fas ${defaultIcon}"></i> ${tab.innerHTML}`;
+        const iconEl = document.createElement('i');
+        iconEl.className = `fas ${defaultIcon}`;
+        tab.insertBefore(iconEl, tab.firstChild);
+        tab.insertBefore(document.createTextNode(' '), iconEl.nextSibling);
       }
       
       tab.dataset.tabIndex = index;

@@ -228,7 +228,16 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     const sanitize = function (v) {
       if (v == null) return '';
-      return String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      return String(v)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    };
+    const sanitizeAttr = sanitize;
+    const safePath = function (segment) {
+      return encodeURIComponent(String(segment == null ? '' : segment));
     };
     const sorted = list.slice().sort(function (a, b) {
       const db = b.payment_date ? Date.parse(b.payment_date) : 0;
@@ -244,25 +253,28 @@ document.addEventListener('DOMContentLoaded', function() {
       const splitsHtml = (p.splits || []).map(function (s) {
         const splitCurrency = (s.currency || p.currency || '').toUpperCase();
         const convertedCurrency = (p.currency || '').toUpperCase();
-        let text = String((s.method || '')).toUpperCase() + ': ' + fmtAmount(s.amount) + ' ' + splitCurrency;
+        const methodTxt = sanitize(String((s.method || '')).toUpperCase());
+        const splitCurTxt = sanitize(splitCurrency);
+        const convCurTxt = sanitize(convertedCurrency);
+        let text = methodTxt + ': ' + fmtAmount(s.amount) + ' ' + splitCurTxt;
         if (splitCurrency && convertedCurrency && splitCurrency !== convertedCurrency && s.converted_amount != null) {
-          text += '<span class="text-light text-opacity-75 ms-1">≈ ' + fmtAmount(s.converted_amount) + ' ' + convertedCurrency + '</span>';
+          text += '<span class="text-light text-opacity-75 ms-1">≈ ' + fmtAmount(s.converted_amount) + ' ' + convCurTxt + '</span>';
         }
         return '<span class="badge bg-secondary me-1 text-light">' + text + '</span>';
       }).join(' ');
       const dateOnly = (p.payment_date || '').split('T')[0] || '';
-      var viewLink = '/payments/' + p.id;
+      var viewLink = '/payments/' + safePath(p.id);
       if (p && typeof p.payment_id === 'number' && typeof p.split_id === 'number') {
-        viewLink = '/payments/' + p.payment_id + '/split/' + p.split_id;
+        viewLink = '/payments/' + safePath(p.payment_id) + '/split/' + safePath(p.split_id);
       } else if (p && typeof p.id === 'string' && p.id.indexOf('check_') === 0) {
         var cid = p.id.replace('check_', '');
         if (cid && String(cid).trim()) {
-          viewLink = '/checks/detail/' + cid;
+          viewLink = '/checks/detail/' + safePath(cid);
         }
       }
       var actionsHtml = '<div class="btn-group btn-group-sm" role="group">' +
         '<a href="' + viewLink + '" class="btn btn-info">عرض</a>' +
-        '<button type="button" class="btn btn-warning btn-archive" data-id="' + p.id + '" title="أرشفة الدفعة">أرشفة</button>';
+        '<button type="button" class="btn btn-warning btn-archive" data-id="' + sanitizeAttr(p.id) + '" title="أرشفة الدفعة">أرشفة</button>';
 
       var st = String(p.status || '').toUpperCase();
       var isSplit = false;
@@ -324,19 +336,20 @@ document.addEventListener('DOMContentLoaded', function() {
         notesHtml += '</span></div>';
       }
       if (p.notes && p.notes.trim()) {
-        notesHtml += '<div class="mt-1"><small class="text-muted"><i class="fas fa-sticky-note"></i> ' + p.notes.substring(0, 80) + (p.notes.length > 80 ? '...' : '') + '</small></div>';
+        const note = p.notes.substring(0, 80);
+        notesHtml += '<div class="mt-1"><small class="text-muted"><i class="fas fa-sticky-note"></i> ' + sanitize(note) + (p.notes.length > 80 ? '...' : '') + '</small></div>';
       }
       var delivererText = p.deliverer_name && p.deliverer_name.trim() ? sanitize(p.deliverer_name.trim()) : '-';
       var receiverText = p.receiver_name && p.receiver_name.trim() ? sanitize(p.receiver_name.trim()) : '-';
       
       tr.innerHTML =
-        '<td class="text-center" data-sort-value="' + (p.id || 0) + '"><strong>' + p.id + '</strong></td>' +
+        '<td class="text-center" data-sort-value="' + sanitizeAttr(p.id || 0) + '"><strong>' + sanitize(p.id) + '</strong></td>' +
         '<td data-sort-value="' + (p.payment_date || '') + '">' + dateOnly + '</td>' +
         '<td class="text-end" data-sort-value="' + (amountNumeric || 0) + '"><strong>' + fmtAmount(p.total_amount) + '</strong></td>' +
-        '<td class="text-center"><span class="badge badge-secondary">' + (p.currency || '') + '</span></td>' +
+        '<td class="text-center"><span class="badge badge-secondary">' + sanitize(p.currency || '') + '</span></td>' +
         '<td class="text-center"><small>' + fxRateDisplay + '</small></td>' +
         '<td class="text-end" data-sort-value="' + (amountIlsNumeric || 0) + '"><strong style="color: #0056b3;">' + fmtAmount(amountInILS) + ' ₪</strong></td>' +
-        '<td>' + (p.is_manual_check ? '<span class="badge bg-warning text-dark"><i class="fas fa-file-invoice"></i> شيك يدوي</span>' : (splitsHtml || '<span class="badge badge-info">' + (p.method || '') + '</span>')) + '</td>' +
+        '<td>' + (p.is_manual_check ? '<span class="badge bg-warning text-dark"><i class="fas fa-file-invoice"></i> شيك يدوي</span>' : (splitsHtml || '<span class="badge badge-info">' + sanitize(p.method || '') + '</span>')) + '</td>' +
         '<td class="text-center">' + badgeForDirection(p.direction) + '</td>' +
         '<td class="text-center">' + badgeForStatus(p.status) + '</td>' +
         '<td>' + delivererText + '</td>' +
@@ -469,10 +482,11 @@ document.addEventListener('DOMContentLoaded', function() {
   function exportCsv() {
     try {
       const headers = Array.from(document.querySelectorAll('#paymentsTable thead th')).map(function (th) { return th.textContent.trim(); }).slice(0, 8);
+      const stripTags = (s) => String(s || '').replace(/<[^>]*>/g, '');
       const rows = _lastList.map(function (p) {
         const dateOnly = (p.payment_date || '').split('T')[0] || '';
         const method = (p.splits && p.splits.length) ? p.splits.map(function (s) { return String((s.method || '')).toUpperCase() + ': ' + fmtAmount(s.amount); }).join(' | ') : (p.method || '');
-        return [String(p.id || ''), dateOnly, fmtAmount(p.total_amount), String(p.currency || ''), method, (p.direction || ''), (AR_STATUS[p.status] || p.status || ''), String(deriveEntityLabel(p) || '')];
+        return [String(p.id || ''), dateOnly, fmtAmount(p.total_amount), String(p.currency || ''), method, (p.direction || ''), (AR_STATUS[p.status] || p.status || ''), stripTags(deriveEntityLabel(p) || '')];
       });
       const csv = [headers].concat(rows).map(function (r) { return r.map(function (cell) { return '"' + String(cell).replace(/"/g, '""') + '"'; }).join(','); }).join('\n');
       const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
@@ -559,20 +573,28 @@ function initSmartSearch() {
         hideResults();
         return;
       }
-      
-      resultsList.innerHTML = results.map((result, index) => `
-        <div class="smart-search-item p-2 border-bottom cursor-pointer" data-index="${index}">
-          <div class="fw-bold">${result.display}</div>
-          ${result.phone ? `<small class="text-muted">${result.phone}</small>` : ''}
-        </div>
-      `).join('');
-      
-      resultsList.style.display = 'block';
-      
-      resultsList.querySelectorAll('.smart-search-item').forEach((item, index) => {
+
+      resultsList.textContent = '';
+      results.forEach((result, index) => {
+        const item = document.createElement('div');
+        item.className = 'smart-search-item p-2 border-bottom cursor-pointer';
+        item.dataset.index = String(index);
+        const title = document.createElement('div');
+        title.className = 'fw-bold';
+        title.textContent = result?.display || '';
+        item.appendChild(title);
+        if (result && result.phone) {
+          const phone = document.createElement('small');
+          phone.className = 'text-muted';
+          phone.textContent = String(result.phone);
+          item.appendChild(phone);
+        }
         item.addEventListener('click', () => selectResult(index));
         item.addEventListener('mouseenter', () => highlightItem(index));
+        resultsList.appendChild(item);
       });
+
+      resultsList.style.display = 'block';
     }
     
     function hideResults() {
@@ -657,37 +679,5 @@ document.addEventListener('change', function(e) {
     setTimeout(function() {
       initializeSmartSearchOnce();
     }, 200);
-  }
-});
-
-document.addEventListener('click', async function (e) {
-  const btn = e.target.closest('.btn-archive');
-  if (!btn) return;
-  
-  const id = btn.dataset.id;
-  if (!id) return;
-  
-  const reason = prompt('أدخل سبب أرشفة هذه الدفعة:');
-  if (!reason) return;
-  
-  try {
-    const response = await fetch(`/payments/archive/${id}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || document.getElementById('csrf_token')?.value || ''
-      },
-      body: `reason=${encodeURIComponent(reason)}`
-    });
-    
-    if (response.ok) {
-      alert('تم أرشفة الدفعة بنجاح');
-      loadPayments(1);
-    } else {
-      alert('خطأ في أرشفة الدفعة');
-    }
-  } catch (error) {
-    console.error('Archive error:', error);
-    alert('خطأ في أرشفة الدفعة');
   }
 });

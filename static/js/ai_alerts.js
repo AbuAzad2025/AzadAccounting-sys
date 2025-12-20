@@ -7,10 +7,16 @@ document.addEventListener('DOMContentLoaded', function() {
         const alertDiv = document.createElement('div');
         alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
         alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
-        alertDiv.innerHTML = `
-            <strong>${type === 'success' ? '✅' : type === 'warning' ? '⚠️' : type === 'info' ? 'ℹ️' : '❌'}</strong> ${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        `;
+        const icon = document.createElement('strong');
+        icon.textContent = type === 'success' ? '✅' : type === 'warning' ? '⚠️' : type === 'info' ? 'ℹ️' : '❌';
+        const text = document.createTextNode(' ' + String(message || ''));
+        const closeBtn = document.createElement('button');
+        closeBtn.type = 'button';
+        closeBtn.className = 'btn-close';
+        closeBtn.setAttribute('data-bs-dismiss', 'alert');
+        alertDiv.appendChild(icon);
+        alertDiv.appendChild(text);
+        alertDiv.appendChild(closeBtn);
         document.body.appendChild(alertDiv);
         
         setTimeout(() => {
@@ -71,10 +77,14 @@ document.addEventListener('DOMContentLoaded', function() {
         if (trainingLogs && job.logs) {
             const logEntry = document.createElement('div');
             logEntry.className = 'log-entry';
-            logEntry.innerHTML = `
-                <small class="text-muted">${new Date().toLocaleTimeString('ar-SA')}</small>
-                <span class="ms-2">${getStatusText(job.status)} - ${job.progress}%</span>
-            `;
+            const ts = document.createElement('small');
+            ts.className = 'text-muted';
+            ts.textContent = new Date().toLocaleTimeString('ar-SA');
+            const msg = document.createElement('span');
+            msg.className = 'ms-2';
+            msg.textContent = `${getStatusText(job.status)} - ${job.progress}%`;
+            logEntry.appendChild(ts);
+            logEntry.appendChild(msg);
             trainingLogs.appendChild(logEntry);
             trainingLogs.scrollTop = trainingLogs.scrollHeight;
         }

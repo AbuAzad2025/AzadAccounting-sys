@@ -19,7 +19,7 @@
     box.id = 'notifyBox';
     box.className = `alert alert-${type} shadow-sm position-fixed top-0 end-0 m-3`;
     box.style.zIndex = 2000;
-    box.innerHTML = message;
+    box.textContent = message;
 
     document.body.appendChild(box);
     setTimeout(() => box.remove(), 4000);

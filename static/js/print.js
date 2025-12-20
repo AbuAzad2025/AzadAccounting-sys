@@ -7,6 +7,15 @@ function initPrint() {
     });
 }
 
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 function printReport(targetSelector = 'body') {
     const printContent = document.querySelector(targetSelector);
     
@@ -49,7 +58,7 @@ function generatePrintHeader() {
         <div class="print-header">
             <img src="/static/img/azad_logo.png" alt="Logo" class="company-logo" style="max-height: 60px;">
             <h1>AZAD Garage Manager</h1>
-            <h2>${currentPage}</h2>
+            <h2>${escapeHtml(currentPage)}</h2>
             <div class="subtitle">المهندس الفلسطيني للمعدات الثقيلة</div>
         </div>
     `;
@@ -71,21 +80,21 @@ function generatePrintInfo() {
             <div class="print-info-section">
                 <div class="print-info-row">
                     <span class="print-info-label">📅 التاريخ:</span>
-                    <span>${dateStr}</span>
+                    <span>${escapeHtml(dateStr)}</span>
                 </div>
                 <div class="print-info-row">
                     <span class="print-info-label">⏰ الوقت:</span>
-                    <span>${timeStr}</span>
+                    <span>${escapeHtml(timeStr)}</span>
                 </div>
             </div>
             <div class="print-info-section">
                 <div class="print-info-row">
                     <span class="print-info-label">👤 المستخدم:</span>
-                    <span>${currentUser}</span>
+                    <span>${escapeHtml(currentUser)}</span>
                 </div>
                 <div class="print-info-row">
                     <span class="print-info-label">📄 رقم التقرير:</span>
-                    <span>RPT-${Date.now()}</span>
+                    <span>${escapeHtml('RPT-' + String(Date.now()))}</span>
                 </div>
             </div>
         </div>
@@ -101,7 +110,7 @@ function generatePrintFooter() {
         <div class="print-footer">
             <p>
                 AZAD Garage Manager © 2025 | 
-                تاريخ الطباعة: ${dateStr} ${timeStr} |
+                تاريخ الطباعة: ${escapeHtml(dateStr)} ${escapeHtml(timeStr)} |
                 رام الله - فلسطين
             </p>
         </div>
@@ -118,55 +127,97 @@ function printTable(tableId) {
     const clone = table.cloneNode(true);
     
     clone.querySelectorAll('.no-print, .action-column, .btn').forEach(el => el.remove());
+    clone.querySelectorAll('script').forEach(el => el.remove());
     
     const printWindow = window.open('', '_blank');
     
-    printWindow.document.write(`
-        <!DOCTYPE html>
-        <html dir="rtl" lang="ar">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>${document.title}</title>
-            <link rel="stylesheet" href="/static/css/print.css">
-            <link rel="stylesheet" href="/static/adminlte/dist/css/adminlte.min.css">
-            <style>
-                body {
-                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                    padding: 20px;
-                    direction: rtl;
-                }
-                table {
-                    width: 100%;
-                    border-collapse: collapse;
-                    margin: 20px 0;
-                }
-                th, td {
-                    border: 1px solid #000;
-                    padding: 8px;
-                    text-align: right;
-                }
-                th {
-                    background: #e9ecef;
-                    font-weight: bold;
-                }
-            </style>
-        </head>
-        <body>
-            ${generatePrintHeader()}
-            ${generatePrintInfo()}
-            ${clone.outerHTML}
-            ${generatePrintFooter()}
-        </body>
-        </html>
-    `);
+    if (!printWindow || !printWindow.document) {
+        return;
+    }
+
+    const doc = printWindow.document;
+    doc.documentElement.setAttribute('dir', 'rtl');
+    doc.documentElement.setAttribute('lang', 'ar');
+    doc.head.textContent = '';
+    doc.body.textContent = '';
+
+    const metaCharset = doc.createElement('meta');
+    metaCharset.setAttribute('charset', 'UTF-8');
+    doc.head.appendChild(metaCharset);
+
+    const metaViewport = doc.createElement('meta');
+    metaViewport.name = 'viewport';
+    metaViewport.content = 'width=device-width, initial-scale=1.0';
+    doc.head.appendChild(metaViewport);
+
+    const titleEl = doc.createElement('title');
+    titleEl.textContent = String(document.title || '');
+    doc.head.appendChild(titleEl);
+
+    const cssPrint = doc.createElement('link');
+    cssPrint.rel = 'stylesheet';
+    cssPrint.href = '/static/css/print.css';
+    doc.head.appendChild(cssPrint);
+
+    const cssAdmin = doc.createElement('link');
+    cssAdmin.rel = 'stylesheet';
+    cssAdmin.href = '/static/adminlte/dist/css/adminlte.min.css';
+    doc.head.appendChild(cssAdmin);
+
+    const style = doc.createElement('style');
+    style.textContent = `
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 20px;
+            direction: rtl;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #000;
+            padding: 8px;
+            text-align: right;
+        }
+        th {
+            background: #e9ecef;
+            font-weight: bold;
+        }
+    `;
+    doc.head.appendChild(style);
+
+    const range = doc.createRange();
+    range.selectNode(doc.body);
+    const headerFrag = range.createContextualFragment(String(generatePrintHeader() || ''));
+    const infoFrag = range.createContextualFragment(String(generatePrintInfo() || ''));
+    const footerFrag = range.createContextualFragment(String(generatePrintFooter() || ''));
+    doc.body.appendChild(headerFrag);
+    doc.body.appendChild(infoFrag);
+    doc.body.appendChild(doc.importNode(clone, true));
+    doc.body.appendChild(footerFrag);
     
-    printWindow.document.close();
-    
-    printWindow.onload = function() {
-        printWindow.print();
-        printWindow.close();
+    let printed = false;
+    const doPrint = () => {
+        if (printed) return;
+        printed = true;
+        try { printWindow.focus(); } catch (_) {}
+        try { printWindow.print(); } catch (_) {}
+        setTimeout(() => { try { printWindow.close(); } catch (_) {} }, 300);
     };
+    try {
+        if (doc.readyState === 'complete') {
+            setTimeout(doPrint, 50);
+        } else if (typeof printWindow.addEventListener === 'function') {
+            printWindow.addEventListener('load', () => setTimeout(doPrint, 50), { once: true });
+            setTimeout(doPrint, 400);
+        } else {
+            setTimeout(doPrint, 50);
+        }
+    } catch (_) {
+        setTimeout(doPrint, 50);
+    }
 }
 
 function exportToCSV(tableId, filename = 'report.csv') {

@@ -709,19 +709,31 @@ class UserForm(FlaskForm):
         
         all_roles = Role.query.order_by(Role.name).all()
         
-        current_username = str(getattr(current_user, 'username', '')).upper()
-        current_role_name = str(getattr(getattr(current_user, 'role', None), 'name', '')).upper()
-        
-        is_owner = (
-            getattr(current_user, 'is_system_account', False) or 
-            current_username == '__OWNER__' or
-            current_role_name == 'OWNER'
-        )
-        
+        current_username = str(getattr(current_user, "username", "") or "").strip()
+        current_role_name = str(getattr(getattr(current_user, "role", None), "name", "") or "").strip().lower()
+
+        def _role_level(role_name: str) -> int:
+            try:
+                from permissions_config.permissions import PermissionsRegistry
+                info = PermissionsRegistry.ROLES.get((role_name or "").strip().lower())
+                if isinstance(info, dict):
+                    return int(info.get("level", 999))
+            except Exception:
+                pass
+            return 999
+
+        actor_level = _role_level(current_role_name)
+        is_owner = bool(getattr(current_user, "is_system_account", False)) or current_username.upper() == "__OWNER__" or actor_level == 0
+
         if is_owner:
             self.role_id.choices = [(r.id, r.name) for r in all_roles]
         else:
-            self.role_id.choices = [(r.id, r.name) for r in all_roles if r.name.upper() not in ['OWNER']]
+            allowed = []
+            for r in all_roles:
+                role_name = str(getattr(r, "name", "") or "").strip().lower()
+                if _role_level(role_name) > actor_level:
+                    allowed.append((r.id, r.name))
+            self.role_id.choices = allowed
         
         try:
             from flask import request

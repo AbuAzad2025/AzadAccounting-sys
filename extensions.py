@@ -1227,6 +1227,10 @@ def init_extensions(app):
     try:
         skip_cmds = ("db", "seed", "shell", "migrate", "upgrade", "downgrade", "init")
         if not any(cmd in sys.argv for cmd in skip_cmds):
+            if os.environ.get("DISABLE_PERFORMANCE_INDEXES"):
+                return
+            if not app.config.get("AUTO_CREATE_PERFORMANCE_INDEXES", True):
+                return
             ensure_performance_indexes(app)
     except Exception:
         pass

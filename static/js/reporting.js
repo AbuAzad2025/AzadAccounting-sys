@@ -459,39 +459,69 @@
     const stamp = new Date().toLocaleString('ar-EG');
     const orient = orientation === 'landscape' ? 'landscape' : 'portrait';
     const styles = `
-      <style>
-        @page { size: A4 ${orient}; margin: 12mm; }
-        * { box-sizing: border-box; }
-        body { font-family: "Tajawal", "Cairo", "Arial", sans-serif; direction: rtl; padding: 16px; color: #000; }
-        h3 { margin: 0 0 8px 0; font-size: 18px; }
-        p { margin: 0 0 16px 0; font-size: 12px; color: #555; }
-        table { width: 100%; border-collapse: collapse; font-size: 13px; }
-        th, td { border: 1px solid #333; padding: 6px 8px; text-align: right; vertical-align: middle; }
-        thead th { background: #f1f1f1; }
-        tbody tr:nth-child(even) { background: #fafafa; }
-      </style>
-    `;
+@page { size: A4 ${orient}; margin: 12mm; }
+* { box-sizing: border-box; }
+body { font-family: "Tajawal", "Cairo", "Arial", sans-serif; direction: rtl; padding: 16px; color: #000; }
+h3 { margin: 0 0 8px 0; font-size: 18px; }
+p { margin: 0 0 16px 0; font-size: 12px; color: #555; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { border: 1px solid #333; padding: 6px 8px; text-align: right; vertical-align: middle; }
+thead th { background: #f1f1f1; }
+tbody tr:nth-child(even) { background: #fafafa; }
+    `.trim();
     const win = window.open('about:blank', '_blank', 'width=1000,height=800');
     if (!win) {
       alert('لم يتم فتح نافذة الطباعة. يرجى السماح بالنوافذ المنبثقة أو إعادة المحاولة.');
       return;
     }
-    win.document.write(`<!DOCTYPE html>
-      <html lang="ar" dir="rtl">
-      <head>
-        <meta charset="utf-8">
-        <title>${title}</title>
-        ${styles}
-      </head>
-      <body>
-        <h3>${title}</h3>
-        <p>${stamp}</p>
-        ${clone.outerHTML}
-      </body>
-      </html>`);
-    win.document.close();
-    win.focus();
-    win.onload = () => win.print();
+    clone.querySelectorAll('script').forEach((node) => node.remove());
+    const doc = win.document;
+    doc.documentElement.setAttribute('dir', 'rtl');
+    doc.documentElement.setAttribute('lang', 'ar');
+    doc.title = String(title || '');
+    doc.head.textContent = '';
+    doc.body.textContent = '';
+
+    const meta = doc.createElement('meta');
+    meta.setAttribute('charset', 'utf-8');
+    doc.head.appendChild(meta);
+
+    const style = doc.createElement('style');
+    style.textContent = styles;
+    doc.head.appendChild(style);
+
+    const titleEl = doc.createElement('h3');
+    titleEl.textContent = String(title || '');
+    doc.body.appendChild(titleEl);
+
+    const stampEl = doc.createElement('p');
+    stampEl.textContent = String(stamp || '');
+    doc.body.appendChild(stampEl);
+
+    const host = doc.createElement('div');
+    host.textContent = '';
+    host.appendChild(doc.importNode(clone, true));
+    doc.body.appendChild(host);
+
+    let printed = false;
+    const doPrint = () => {
+      if (printed) return;
+      printed = true;
+      try { win.focus(); } catch (_) {}
+      try { win.print(); } catch (_) {}
+    };
+    try {
+      if (doc.readyState === 'complete') {
+        setTimeout(doPrint, 50);
+      } else if (typeof win.addEventListener === 'function') {
+        win.addEventListener('load', () => setTimeout(doPrint, 50), { once: true });
+        setTimeout(doPrint, 400);
+      } else {
+        setTimeout(doPrint, 50);
+      }
+    } catch (_) {
+      setTimeout(doPrint, 50);
+    }
   }
 
   function handlePrintSubmit(event) {

@@ -77,11 +77,19 @@
     const isFavorite = favorites.some(f => f.url === currentPage.url);
     
     const btn = document.createElement('button');
-    btn.className = `btn btn-sm ${isFavorite ? 'btn-warning' : 'btn-outline-warning'}`;
-    btn.innerHTML = `<i class="fas fa-star"></i> ${isFavorite ? 'مفضل' : 'إضافة للمفضلة'}`;
+    updateFavoriteButton(btn, isFavorite);
     btn.onclick = () => toggleFavorite(currentPage, btn);
     
     nav.querySelector('div').appendChild(btn);
+  }
+
+  function updateFavoriteButton(btn, isFavorite) {
+    btn.className = `btn btn-sm ${isFavorite ? 'btn-warning' : 'btn-outline-warning'}`;
+    btn.textContent = '';
+    const icon = document.createElement('i');
+    icon.className = 'fas fa-star';
+    btn.appendChild(icon);
+    btn.appendChild(document.createTextNode(' ' + (isFavorite ? 'مفضل' : 'إضافة للمفضلة')));
   }
   
   function toggleFavorite(page, btn) {
@@ -90,12 +98,10 @@
     
     if (index >= 0) {
       favorites.splice(index, 1);
-      btn.className = 'btn btn-sm btn-outline-warning';
-      btn.innerHTML = '<i class="fas fa-star"></i> إضافة للمفضلة';
+      updateFavoriteButton(btn, false);
     } else {
       favorites.push(page);
-      btn.className = 'btn btn-sm btn-warning';
-      btn.innerHTML = '<i class="fas fa-star"></i> مفضل';
+      updateFavoriteButton(btn, true);
     }
     
     localStorage.setItem('security_favorites', JSON.stringify(favorites));
@@ -107,27 +113,59 @@
     
     const widget = document.createElement('div');
     widget.className = 'card border-warning mb-4';
-    widget.innerHTML = `
-      <div class="card-header bg-warning text-dark">
-        <h6 class="mb-0"><i class="fas fa-star"></i> المفضلة (${favorites.length})</h6>
-      </div>
-      <div class="card-body">
-        <div class="list-group">
-          ${favorites.slice(0, 5).map(fav => `
-            <a href="${fav.url}" class="list-group-item list-group-item-action">
-              <div class="d-flex justify-content-between">
-                <span><i class="fas fa-bookmark text-warning"></i> ${fav.title.replace(' - وحدة الأمان المتقدمة', '')}</span>
-                <small class="text-muted">${new Date(fav.timestamp).toLocaleDateString('ar-EG')}</small>
-              </div>
-            </a>
-          `).join('')}
-        </div>
-        ${favorites.length > 5 ? `<small class="text-muted d-block mt-2">... و ${favorites.length - 5} أخرى</small>` : ''}
-      </div>
-    `;
+    const header = document.createElement('div');
+    header.className = 'card-header bg-warning text-dark';
+    const h6 = document.createElement('h6');
+    h6.className = 'mb-0';
+    const star = document.createElement('i');
+    star.className = 'fas fa-star';
+    h6.appendChild(star);
+    h6.appendChild(document.createTextNode(' المفضلة (' + favorites.length + ')'));
+    header.appendChild(h6);
+    widget.appendChild(header);
+
+    const body = document.createElement('div');
+    body.className = 'card-body';
+    const listGroup = document.createElement('div');
+    listGroup.className = 'list-group';
+
+    favorites.slice(0, 5).forEach(fav => {
+      const a = document.createElement('a');
+      a.className = 'list-group-item list-group-item-action';
+      a.href = String(fav?.url || '#');
+      const row = document.createElement('div');
+      row.className = 'd-flex justify-content-between';
+
+      const left = document.createElement('span');
+      const bm = document.createElement('i');
+      bm.className = 'fas fa-bookmark text-warning';
+      left.appendChild(bm);
+      const t = String(fav?.title || '').replace(' - وحدة الأمان المتقدمة', '');
+      left.appendChild(document.createTextNode(' ' + t));
+
+      const right = document.createElement('small');
+      right.className = 'text-muted';
+      const ts = fav?.timestamp ? new Date(fav.timestamp) : null;
+      right.textContent = ts && !Number.isNaN(ts.getTime()) ? ts.toLocaleDateString('ar-EG') : '';
+
+      row.appendChild(left);
+      row.appendChild(right);
+      a.appendChild(row);
+      listGroup.appendChild(a);
+    });
+
+    body.appendChild(listGroup);
+    if (favorites.length > 5) {
+      const more = document.createElement('small');
+      more.className = 'text-muted d-block mt-2';
+      more.textContent = '... و ' + (favorites.length - 5) + ' أخرى';
+      body.appendChild(more);
+    }
+    widget.appendChild(body);
     
     // إضافة في أول container-fluid
     const container = document.querySelector('.container-fluid');
+    if (!container) return;
     const firstAlert = container.querySelector('.alert');
     container.insertBefore(widget, firstAlert);
   }
@@ -164,52 +202,86 @@
     
     const modal = document.createElement('div');
     modal.className = 'quick-actions-modal';
-    modal.innerHTML = `
-      <div style="
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        background: white;
-        border-radius: 15px;
-        padding: 25px;
-        max-width: 600px;
-        width: 90%;
-        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-        z-index: 99999;
-      ">
-        <div class="text-center mb-3">
-          <h4><i class="fas fa-bolt text-warning"></i> إجراءات سريعة</h4>
-          <input type="text" id="quickActionsSearch" class="form-control mt-2" 
-                 placeholder="🔍 ابحث عن إجراء..." autofocus>
-        </div>
-        
-        <div id="quickActionsList" style="max-height: 400px; overflow-y: auto;">
-          ${actions.map((action, index) => `
-            <div class="quick-action-item p-2 rounded mb-1" style="cursor: pointer; transition: all 0.2s;"
-                 data-name="${action.name.toLowerCase()}"
-                 data-index="${index}"
-                 onmouseover="this.style.background='#f0f0f0'"
-                 onmouseout="this.style.background=''"
-                 onclick="window.location.href='${action.url}'; this.closest('.quick-actions-modal').remove();">
-              <div class="d-flex justify-content-between align-items-center">
-                <div>
-                  <span style="font-size: 1.5rem;">${action.icon}</span>
-                  <strong class="ms-2">${action.name}</strong>
-                </div>
-                ${action.shortcut ? `<kbd style="font-size: 0.75rem;">${action.shortcut}</kbd>` : ''}
-              </div>
-            </div>
-          `).join('')}
-        </div>
-        
-        <div class="text-center mt-3">
-          <small class="text-muted">
-            <kbd>↑↓</kbd> التنقل | <kbd>Enter</kbd> اختيار | <kbd>Esc</kbd> إغلاق
-          </small>
-        </div>
-      </div>
-    `;
+    const panel = document.createElement('div');
+    panel.style.cssText = [
+      'position: fixed',
+      'top: 50%',
+      'left: 50%',
+      'transform: translate(-50%, -50%)',
+      'background: white',
+      'border-radius: 15px',
+      'padding: 25px',
+      'max-width: 600px',
+      'width: 90%',
+      'box-shadow: 0 20px 60px rgba(0,0,0,0.3)',
+      'z-index: 99999'
+    ].join(';');
+
+    const head = document.createElement('div');
+    head.className = 'text-center mb-3';
+    const title = document.createElement('h4');
+    const bolt = document.createElement('i');
+    bolt.className = 'fas fa-bolt text-warning';
+    title.appendChild(bolt);
+    title.appendChild(document.createTextNode(' إجراءات سريعة'));
+    head.appendChild(title);
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.id = 'quickActionsSearch';
+    input.className = 'form-control mt-2';
+    input.placeholder = '🔍 ابحث عن إجراء...';
+    input.autofocus = true;
+    head.appendChild(input);
+
+    const list = document.createElement('div');
+    list.id = 'quickActionsList';
+    list.style.cssText = 'max-height: 400px; overflow-y: auto;';
+    actions.forEach((action, index) => {
+      const item = document.createElement('div');
+      item.className = 'quick-action-item p-2 rounded mb-1';
+      item.style.cssText = 'cursor: pointer; transition: all 0.2s;';
+      item.dataset.name = String(action.name || '').toLowerCase();
+      item.dataset.index = String(index);
+      item.addEventListener('mouseenter', () => { item.style.background = '#f0f0f0'; });
+      item.addEventListener('mouseleave', () => { item.style.background = ''; });
+      item.addEventListener('click', () => {
+        window.location.href = action.url;
+        modal.remove();
+      });
+
+      const row = document.createElement('div');
+      row.className = 'd-flex justify-content-between align-items-center';
+      const left = document.createElement('div');
+      const icon = document.createElement('span');
+      icon.style.fontSize = '1.5rem';
+      icon.textContent = action.icon;
+      const name = document.createElement('strong');
+      name.className = 'ms-2';
+      name.textContent = action.name;
+      left.appendChild(icon);
+      left.appendChild(name);
+      row.appendChild(left);
+      if (action.shortcut) {
+        const kbd = document.createElement('kbd');
+        kbd.style.fontSize = '0.75rem';
+        kbd.textContent = action.shortcut;
+        row.appendChild(kbd);
+      }
+      item.appendChild(row);
+      list.appendChild(item);
+    });
+
+    const foot = document.createElement('div');
+    foot.className = 'text-center mt-3';
+    const hint = document.createElement('small');
+    hint.className = 'text-muted';
+    hint.appendChild(document.createTextNode('↑↓ التنقل | Enter اختيار | Esc إغلاق'));
+    foot.appendChild(hint);
+
+    panel.appendChild(head);
+    panel.appendChild(list);
+    panel.appendChild(foot);
+    modal.appendChild(panel);
     
     modal.style.cssText = `
       position: fixed;
@@ -284,10 +356,15 @@
     
     const bell = document.createElement('button');
     bell.className = 'btn btn-sm btn-outline-primary position-relative';
-    bell.innerHTML = `
-      <i class="fas fa-bell"></i>
-      ${unreadCount > 0 ? `<span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">${unreadCount}</span>` : ''}
-    `;
+    const icon = document.createElement('i');
+    icon.className = 'fas fa-bell';
+    bell.appendChild(icon);
+    if (unreadCount > 0) {
+      const badge = document.createElement('span');
+      badge.className = 'position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger';
+      badge.textContent = String(unreadCount);
+      bell.appendChild(badge);
+    }
     bell.onclick = showNotificationCenter;
     
     nav.querySelector('div').appendChild(bell);
@@ -303,51 +380,106 @@
     
     const modal = document.createElement('div');
     modal.className = 'notification-center-modal';
-    modal.innerHTML = `
-      <div style="
-        position: fixed;
-        top: 70px;
-        left: 50%;
-        transform: translateX(-50%);
-        background: white;
-        border-radius: 10px;
-        padding: 20px;
-        max-width: 500px;
-        width: 90%;
-        max-height: 500px;
-        overflow-y: auto;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.3);
-        z-index: 99999;
-      ">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-          <h5 class="mb-0"><i class="fas fa-bell"></i> الإشعارات</h5>
-          <div>
-            <button class="btn btn-sm btn-outline-secondary me-2" onclick="markAllAsRead()">
-              <i class="fas fa-check"></i> تحديد الكل كمقروء
-            </button>
-            <button class="close" onclick="this.closest('.notification-center-modal').remove()"><span aria-hidden="true">&times;</span></button>
-          </div>
-        </div>
-        
-        ${notifications.length === 0 ? `
-          <div class="alert alert-info text-center">
-            <i class="fas fa-inbox"></i><br>
-            لا توجد إشعارات
-          </div>
-        ` : notifications.map(notif => `
-          <div class="alert alert-${notif.type || 'info'} ${notif.read ? 'opacity-50' : ''} mb-2">
-            <div class="d-flex justify-content-between">
-              <div>
-                <strong>${notif.title}</strong>
-                <br><small>${notif.message}</small>
-                <br><small class="text-muted">${new Date(notif.timestamp).toLocaleString('ar-EG')}</small>
-              </div>
-              ${!notif.read ? '<span class="badge bg-primary">جديد</span>' : ''}
-            </div>
-          </div>
-        `).join('')}
-      </div>
-    `;
+    const panel = document.createElement('div');
+    panel.style.cssText = [
+      'position: fixed',
+      'top: 70px',
+      'left: 50%',
+      'transform: translateX(-50%)',
+      'background: white',
+      'border-radius: 10px',
+      'padding: 20px',
+      'max-width: 500px',
+      'width: 90%',
+      'max-height: 500px',
+      'overflow-y: auto',
+      'box-shadow: 0 10px 40px rgba(0,0,0,0.3)',
+      'z-index: 99999'
+    ].join(';');
+
+    const header = document.createElement('div');
+    header.className = 'd-flex justify-content-between align-items-center mb-3';
+    const h5 = document.createElement('h5');
+    h5.className = 'mb-0';
+    const bell = document.createElement('i');
+    bell.className = 'fas fa-bell';
+    h5.appendChild(bell);
+    h5.appendChild(document.createTextNode(' الإشعارات'));
+    header.appendChild(h5);
+
+    const headerActions = document.createElement('div');
+    const readAll = document.createElement('button');
+    readAll.className = 'btn btn-sm btn-outline-secondary me-2';
+    const chk = document.createElement('i');
+    chk.className = 'fas fa-check';
+    readAll.appendChild(chk);
+    readAll.appendChild(document.createTextNode(' تحديد الكل كمقروء'));
+    readAll.addEventListener('click', () => {
+      if (typeof window.markAllAsRead === 'function') window.markAllAsRead();
+    });
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'close';
+    close.textContent = '';
+    const closeSpan = document.createElement('span');
+    closeSpan.setAttribute('aria-hidden', 'true');
+    closeSpan.textContent = '×';
+    close.appendChild(closeSpan);
+    close.addEventListener('click', () => modal.remove());
+    headerActions.appendChild(readAll);
+    headerActions.appendChild(close);
+    header.appendChild(headerActions);
+
+    panel.appendChild(header);
+
+    const allowedTypes = new Set(['primary','secondary','success','danger','warning','info','light','dark']);
+
+    if (!notifications.length) {
+      const empty = document.createElement('div');
+      empty.className = 'alert alert-info text-center';
+      const inbox = document.createElement('i');
+      inbox.className = 'fas fa-inbox';
+      empty.appendChild(inbox);
+      empty.appendChild(document.createElement('br'));
+      empty.appendChild(document.createTextNode('لا توجد إشعارات'));
+      panel.appendChild(empty);
+    } else {
+      notifications.forEach(notif => {
+        const typeRaw = String(notif?.type || 'info').toLowerCase();
+        const type = allowedTypes.has(typeRaw) ? typeRaw : 'info';
+        const alert = document.createElement('div');
+        alert.className = `alert alert-${type} ${notif?.read ? 'opacity-50' : ''} mb-2`;
+        const row = document.createElement('div');
+        row.className = 'd-flex justify-content-between';
+
+        const left = document.createElement('div');
+        const strong = document.createElement('strong');
+        strong.textContent = String(notif?.title || '');
+        left.appendChild(strong);
+        left.appendChild(document.createElement('br'));
+        const msg = document.createElement('small');
+        msg.textContent = String(notif?.message || '');
+        left.appendChild(msg);
+        left.appendChild(document.createElement('br'));
+        const ts = document.createElement('small');
+        ts.className = 'text-muted';
+        const dt = notif?.timestamp ? new Date(notif.timestamp) : null;
+        ts.textContent = dt && !Number.isNaN(dt.getTime()) ? dt.toLocaleString('ar-EG') : '';
+        left.appendChild(ts);
+
+        row.appendChild(left);
+        if (!notif?.read) {
+          const b = document.createElement('span');
+          b.className = 'badge bg-primary';
+          b.textContent = 'جديد';
+          row.appendChild(b);
+        }
+        alert.appendChild(row);
+        panel.appendChild(alert);
+      });
+    }
+
+    modal.appendChild(panel);
     
     modal.style.cssText = `
       position: fixed;
@@ -388,15 +520,21 @@
     
     const searchBox = document.createElement('div');
     searchBox.className = 'mb-3';
-    searchBox.innerHTML = `
-      <div class="input-group">
-        <span class="input-group-text bg-primary text-white">
-          <i class="fas fa-search"></i>
-        </span>
-        <input type="text" id="settingsSearch" class="form-control" 
-               placeholder="🔍 ابحث في الإعدادات...">
-      </div>
-    `;
+    const inputGroup = document.createElement('div');
+    inputGroup.className = 'input-group';
+    const prefix = document.createElement('span');
+    prefix.className = 'input-group-text bg-primary text-white';
+    const searchIcon = document.createElement('i');
+    searchIcon.className = 'fas fa-search';
+    prefix.appendChild(searchIcon);
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.id = 'settingsSearch';
+    input.className = 'form-control';
+    input.placeholder = '🔍 ابحث في الإعدادات...';
+    inputGroup.appendChild(prefix);
+    inputGroup.appendChild(input);
+    searchBox.appendChild(inputGroup);
     
     const firstCard = container.querySelector('.card');
     if (firstCard) {
@@ -472,7 +610,11 @@
     const btn = document.createElement('button');
     btn.className = 'btn btn-sm btn-outline-success table-export-btn mb-2';
     btn.classList.add('no-print');
-    btn.innerHTML = '<i class="fas fa-file-excel"></i> Export CSV';
+    btn.textContent = '';
+    const icon = document.createElement('i');
+    icon.className = 'fas fa-file-excel';
+    btn.appendChild(icon);
+    btn.appendChild(document.createTextNode(' Export CSV'));
     btn.onclick = () => exportTableToCSV(table);
     
     wrapper.insertBefore(btn, table);
@@ -523,7 +665,11 @@
         const submitBtn = this.querySelector('button[type="submit"]');
         if (submitBtn && !submitBtn.dataset.noLoading) {
           submitBtn.disabled = true;
-          submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> جاري المعالجة...';
+          submitBtn.textContent = '';
+          const spinner = document.createElement('span');
+          spinner.className = 'spinner-border spinner-border-sm';
+          submitBtn.appendChild(spinner);
+          submitBtn.appendChild(document.createTextNode(' جاري المعالجة...'));
         }
       });
     });
@@ -534,17 +680,24 @@
       if (element.textContent.trim().length > 20) {
         const btn = document.createElement('button');
         btn.className = 'btn btn-sm btn-outline-secondary position-absolute top-0 end-0 m-1';
-        btn.innerHTML = '<i class="fas fa-copy"></i>';
+        setCopyButtonIcon(btn, false);
         btn.onclick = () => {
           navigator.clipboard.writeText(element.textContent);
-          btn.innerHTML = '<i class="fas fa-check text-success"></i>';
-          setTimeout(() => btn.innerHTML = '<i class="fas fa-copy"></i>', 2000);
+          setCopyButtonIcon(btn, true);
+          setTimeout(() => setCopyButtonIcon(btn, false), 2000);
         };
         
         element.style.position = 'relative';
         element.appendChild(btn);
       }
     });
+  }
+
+  function setCopyButtonIcon(btn, isCopied) {
+    btn.textContent = '';
+    const icon = document.createElement('i');
+    icon.className = isCopied ? 'fas fa-check text-success' : 'fas fa-copy';
+    btn.appendChild(icon);
   }
   
   function addCollapseButtons() {

@@ -11,6 +11,83 @@ import utils
 
 users_bp = Blueprint("users_bp", __name__, url_prefix="/users", template_folder="templates/users")
 
+def _actor_role_name() -> str:
+    try:
+        return str(getattr(getattr(current_user, "role", None), "name", "") or "").strip().lower()
+    except Exception:
+        return ""
+
+def _role_level_by_name(role_name: str) -> int:
+    try:
+        from permissions_config.permissions import PermissionsRegistry
+        info = PermissionsRegistry.ROLES.get((role_name or "").strip().lower())
+        if isinstance(info, dict):
+            return int(info.get("level", 999))
+    except Exception:
+        pass
+    return 999
+
+def _actor_level() -> int:
+    return _role_level_by_name(_actor_role_name())
+
+def _actor_can_manage_users() -> bool:
+    lvl = _actor_level()
+    return lvl <= 1
+
+def _actor_can_manage_super_level() -> bool:
+    try:
+        from permissions_config.permissions import PermissionsRegistry
+        info = PermissionsRegistry.ROLES.get(_actor_role_name(), {}) or {}
+        caps = info.get("capabilities") or {}
+        return bool(caps.get("can_manage_super_admins")) or _actor_level() == 0
+    except Exception:
+        return _actor_level() == 0
+
+def _role_is_assignable_by_actor(role: Role | None) -> bool:
+    if not role:
+        return False
+    try:
+        from permissions_config.permissions import PermissionsRegistry
+        name = (role.name or "").strip().lower()
+        if _actor_level() == 0:
+            return True
+        if name not in PermissionsRegistry.ROLES:
+            return False
+        tgt_level = _role_level_by_name(name)
+        return tgt_level > _actor_level()
+    except Exception:
+        return False
+
+def _filter_permissions_assignable_by_actor(perms: list[Permission]) -> list[Permission]:
+    try:
+        if _actor_level() == 0:
+            return perms
+        actor_perms = utils._get_user_permissions(current_user) or set()
+        actor_perms = {str(x).strip().lower() for x in actor_perms}
+        out: list[Permission] = []
+        for p in perms:
+            k = str(p.key() if hasattr(p, "key") else (p.code or p.name or "")).strip().lower()
+            if k and k in actor_perms:
+                out.append(p)
+        return out
+    except Exception:
+        return []
+
+def _selected_permissions_allowed(selected_perm_ids: list[int]) -> bool:
+    if not selected_perm_ids:
+        return True
+    try:
+        if _actor_level() == 0:
+            return True
+        actor_perms = utils._get_user_permissions(current_user) or set()
+        actor_perms = {str(x).strip().lower() for x in actor_perms}
+        selected = Permission.query.filter(Permission.id.in_(selected_perm_ids)).all()
+        selected_keys = {str(p.key() if hasattr(p, "key") else (p.code or p.name or "")).strip().lower() for p in selected}
+        selected_keys.discard("")
+        return selected_keys.issubset(actor_perms)
+    except Exception:
+        return False
+
 def _get_or_404(model, ident, options=None):
     q = db.session.query(model)
     if options:
@@ -32,7 +109,17 @@ def _is_super_admin_user(user: User) -> bool:
 @users_bp.route("/profile", methods=["GET"], endpoint="profile")
 @login_required
 def profile():
-    return render_template("users/profile.html", user=current_user)
+    try:
+        raw = current_user.extra_permissions
+        perms = list(raw.all() if hasattr(raw, "all") else (raw or []))
+    except Exception:
+        perms = []
+    visible_extra_permissions = _filter_permissions_assignable_by_actor(perms)
+    return render_template(
+        "users/profile.html",
+        user=current_user,
+        visible_extra_permissions=visible_extra_permissions,
+    )
 
 @users_bp.route("/edit-profile", methods=["GET", "POST"], endpoint="edit_profile")
 @login_required
@@ -106,6 +193,7 @@ def change_password():
 
 @users_bp.route("/", methods=["GET"], endpoint="list_users")
 @login_required
+@utils.super_only
 def list_users():
     # استثناء حسابات النظام المخفية
     q = User.query.filter(User.is_system_account == False).options(joinedload(User.role))
@@ -117,6 +205,14 @@ def list_users():
     per_page = request.args.get("per_page", 20, type=int)
     pagination = q.order_by(User.username).paginate(page=page, per_page=per_page, error_out=False)
     users = pagination.items
+    visible_extra_permissions_by_user: dict[int, list[Permission]] = {}
+    for u in users:
+        try:
+            raw = u.extra_permissions
+            perms = list(raw.all() if hasattr(raw, "all") else (raw or []))
+        except Exception:
+            perms = []
+        visible_extra_permissions_by_user[u.id] = _filter_permissions_assignable_by_actor(perms)
     if request.args.get("format") == "json" or request.is_json:
         return jsonify({
             "data": [
@@ -131,7 +227,7 @@ def list_users():
                     "last_seen": (u.last_seen.isoformat() if getattr(u, "last_seen", None) else None),
                     "last_login_ip": getattr(u, "last_login_ip", None),
                     "login_count": getattr(u, "login_count", None),
-                    "extra_permissions": [p.name for p in u.extra_permissions.all()]
+                    "extra_permissions": [p.name for p in (visible_extra_permissions_by_user.get(u.id) or [])]
                 }
                 for u in users
             ],
@@ -146,7 +242,14 @@ def list_users():
         })
     args = request.args.to_dict(flat=True)
     args.pop("page", None)
-    return render_template("users/list.html", users=users, pagination=pagination, search=term, args=args)
+    return render_template(
+        "users/list.html",
+        users=users,
+        pagination=pagination,
+        search=term,
+        args=args,
+        visible_extra_permissions_by_user=visible_extra_permissions_by_user,
+    )
 
 
 @users_bp.route("/registered-customers", methods=["GET"], endpoint="registered_customers")
@@ -195,14 +298,26 @@ def registered_customers():
 
 @users_bp.route("/<int:user_id>", methods=["GET"], endpoint="user_detail")
 @login_required
+@utils.super_only
 def user_detail(user_id):
     user = _get_or_404(User, user_id, options=[joinedload(User.role)])
     if getattr(user, 'is_system_account', False) or getattr(user, 'username', '') == '__OWNER__':
         abort(404)
-    return render_template("users/detail.html", user=user)
+    try:
+        raw = user.extra_permissions
+        perms = list(raw.all() if hasattr(raw, "all") else (raw or []))
+    except Exception:
+        perms = []
+    visible_extra_permissions = _filter_permissions_assignable_by_actor(perms)
+    return render_template(
+        "users/detail.html",
+        user=user,
+        visible_extra_permissions=visible_extra_permissions,
+    )
 
 @users_bp.route("/api", methods=["GET"], endpoint="api_users")
 @login_required
+@utils.super_only
 def api_users():
     q = User.query.filter(User.is_system_account == False)
     term = request.args.get("q", "")
@@ -218,15 +333,40 @@ def api_users():
 
 @users_bp.route("/create", methods=["GET", "POST"], endpoint="create_user")
 @login_required
+@utils.super_only
 def create_user():
     form = UserForm()
-    all_permissions = Permission.query.order_by(Permission.name).all()
+    all_permissions = _filter_permissions_assignable_by_actor(Permission.query.order_by(Permission.name).all())
     selected_perm_ids = []
+    if request.method == "POST":
+        role_id_raw = request.form.get("role_id")
+        if role_id_raw and str(role_id_raw).isdigit():
+            posted_role = db.session.get(Role, int(role_id_raw))
+            if posted_role is not None and (not _role_is_assignable_by_actor(posted_role)):
+                if request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest":
+                    return jsonify(error="forbidden_role"), 403
+                flash("❌ لا يمكنك إنشاء مستخدم بدور أعلى أو مساوٍ لصلاحياتك.", "danger")
+                return redirect(url_for("users_bp.list_users"))
     if form.validate_on_submit():
         try:
             selected_perm_ids = [
                 int(x) for x in request.form.getlist("extra_permissions") if str(x).isdigit()
             ]
+            if not _actor_can_manage_users():
+                abort(403)
+
+            role = db.session.get(Role, form.role_id.data)
+            if not _role_is_assignable_by_actor(role):
+                if request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest":
+                    return jsonify(error="forbidden_role"), 403
+                flash("❌ لا يمكنك إنشاء مستخدم بدور أعلى أو مساوٍ لصلاحياتك.", "danger")
+                return redirect(url_for("users_bp.list_users"))
+
+            if not _selected_permissions_allowed(selected_perm_ids):
+                if request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest":
+                    return jsonify(error="forbidden_permissions"), 403
+                flash("❌ لا يمكنك منح صلاحيات إضافية لا تملكها.", "danger")
+                return redirect(url_for("users_bp.list_users"))
 
             user = User(
                 username=form.username.data,
@@ -234,8 +374,11 @@ def create_user():
                 role_id=form.role_id.data,
                 is_active=bool(form.is_active.data),
             )
-            if form.password.data:
-                user.set_password(form.password.data)
+            raw_pwd = (form.password.data or "").strip()
+            if raw_pwd:
+                user.set_password(raw_pwd)
+            else:
+                user.set_password("123456")
 
             db.session.add(user)
             db.session.flush()
@@ -282,18 +425,31 @@ def create_user():
 
 @users_bp.route("/<int:user_id>/edit", methods=["GET", "POST"], endpoint="edit_user")
 @login_required
+@utils.super_only
 def edit_user(user_id):
     user = _get_or_404(User, user_id)
     # حماية حسابات النظام من التعديل (كأنها غير موجودة)
     if getattr(user, 'is_system_account', False):
         abort(404)
 
-    if _is_super_admin_user(user):
-        flash("❌ لا يمكن تعديل مستخدم super_admin.", "danger")
-        return redirect(url_for("users_bp.list_users"))
+    actor_level = _actor_level()
+    target_role_name = str(getattr(getattr(user, "role", None), "name", "") or "").strip().lower()
+    target_level = _role_level_by_name(target_role_name)
+    if actor_level != 0 and target_level <= actor_level:
+        abort(403)
+    if not _actor_can_manage_super_level() and target_role_name in {"super_admin", "super"}:
+        abort(403)
+
+    if request.method == "POST":
+        role_id_raw = request.form.get("role_id")
+        if role_id_raw and str(role_id_raw).isdigit():
+            posted_role = db.session.get(Role, int(role_id_raw))
+            if posted_role is not None and (not _role_is_assignable_by_actor(posted_role)):
+                flash("❌ لا يمكنك تعيين دور أعلى أو مساوٍ لصلاحياتك.", "danger")
+                return redirect(url_for("users_bp.list_users"))
 
     form = UserForm(obj=user)
-    all_permissions = Permission.query.order_by(Permission.name).all()
+    all_permissions = _filter_permissions_assignable_by_actor(Permission.query.order_by(Permission.name).all())
     selected_perm_ids = [p.id for p in user.extra_permissions.all()]
 
     if request.method == "GET":
@@ -305,6 +461,16 @@ def edit_user(user_id):
             selected_perm_ids = [
                 int(x) for x in request.form.getlist("extra_permissions") if str(x).isdigit()
             ]
+
+            role = db.session.get(Role, form.role_id.data)
+            if not _role_is_assignable_by_actor(role):
+                flash("❌ لا يمكنك تعيين دور أعلى أو مساوٍ لصلاحياتك.", "danger")
+                return redirect(url_for("users_bp.list_users"))
+
+            if not _selected_permissions_allowed(selected_perm_ids):
+                flash("❌ لا يمكنك منح صلاحيات إضافية لا تملكها.", "danger")
+                return redirect(url_for("users_bp.list_users"))
+
             old_data = f"{user.username},{user.email}"
 
             user.username = form.username.data
@@ -352,6 +518,7 @@ def edit_user(user_id):
 
 @users_bp.route("/<int:user_id>/delete", methods=["POST"], endpoint="delete_user")
 @login_required
+@utils.super_only
 def delete_user(user_id):
     user = _get_or_404(User, user_id)
     
@@ -359,9 +526,13 @@ def delete_user(user_id):
     if getattr(user, 'is_system_account', False) or user.username == '__OWNER__':
         flash("❌ لا يمكن حذف حساب النظام المحمي!", "danger")
         return redirect(url_for("users_bp.list_users"))
-    if _is_super_admin_user(user):
-        flash("❌ لا يمكن حذف مستخدم super_admin.", "danger")
-        return redirect(url_for("users_bp.list_users"))
+    actor_level = _actor_level()
+    target_role_name = str(getattr(getattr(user, "role", None), "name", "") or "").strip().lower()
+    target_level = _role_level_by_name(target_role_name)
+    if actor_level != 0 and target_level <= actor_level:
+        abort(403)
+    if not _actor_can_manage_super_level() and target_role_name in {"super_admin", "super"}:
+        abort(403)
     if user.id == current_user.id:
         flash("❌ لا يمكن حذف حسابك الحالي.", "danger")
         return redirect(url_for("users_bp.list_users"))

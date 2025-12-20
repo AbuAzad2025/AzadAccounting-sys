@@ -113,7 +113,7 @@ var partnersRequestSeq = 0;
         .then(function (data) {
           if (requestId !== suppliersRequestSeq) return;
           if (typeof data.table_html === "string") {
-            tableWrapper.innerHTML = data.table_html;
+            tableWrapper.innerHTML = stripScripts(data.table_html);
           } else {
             tableWrapper.innerHTML = previous;
           }
@@ -245,7 +245,7 @@ var partnersRequestSeq = 0;
         .then(function (data) {
           if (requestId !== partnersRequestSeq) return;
           if (typeof data.table_html === "string") {
-            tableWrapper.innerHTML = data.table_html;
+            tableWrapper.innerHTML = stripScripts(data.table_html);
           } else {
             tableWrapper.innerHTML = previous;
           }
@@ -346,7 +346,7 @@ var partnersRequestSeq = 0;
     var dir = balance > 0 ? "OUT" : (balance < 0 ? "IN" : "OUT");
 
     dom.name.textContent = payload.name || "";
-    dom.balance.innerHTML = fmt(balance) + " " + (payload.currency || "");
+    dom.balance.textContent = fmt(balance) + " " + (payload.currency || "");
     dom.amount.value = amount ? (Number.isInteger(amount) ? String(amount) : amount.toFixed(2)) : "";
     dom.amount.setAttribute("inputmode", "numeric");
     dom.amount.setAttribute("autocomplete", "off");
@@ -429,26 +429,77 @@ var partnersRequestSeq = 0;
 
     dom.print.onclick = function () {
       var w = window.open("", "printWin");
+      if (!w || !w.document) return;
       var now = new Date().toLocaleString('en-US');
-      var methodText = dom.method.options[dom.method.selectedIndex].text;
+      var methodText = (dom.method && dom.method.options && dom.method.selectedIndex >= 0)
+        ? dom.method.options[dom.method.selectedIndex].text
+        : "";
       var dirText = (dom.direction.dataset.dir || dir) === "IN" ? "وارد" : "صادر";
-      var html =
-        '<html dir="rtl"><head><meta charset="utf-8"><title>كشف تسوية</title>' +
-        '<style>body{font-family:sans-serif;padding:20px} .row{margin:6px 0} .h{color:#666}</style>' +
-        "</head><body>" +
-        "<h3>كشف تسوية مختصر</h3>" +
-        '<div class="row"><span class="h">الجهة:</span> ' + (payload.name || "") + "</div>" +
-        '<div class="row"><span class="h">النوع:</span> ' + (dom.entityType.value === "PARTNER" ? "شريك" : "مورد") + "</div>" +
-        '<div class="row"><span class="h">الرصيد الحالي:</span> ' + fmt(payload.balance) + " " + (payload.currency || "") + "</div>" +
-        '<div class="row"><span class="h">المبلغ للتسوية:</span> ' + (dom.amount.value || "0") + " " + dom.currency.value + "</div>" +
-        '<div class="row"><span class="h">الاتجاه:</span> ' + dirText + "</div>" +
-        '<div class="row"><span class="h">الطريقة:</span> ' + methodText + "</div>" +
-        "<hr><small>" + now + "</small>" +
-        '<script>window.onload=function(){window.print();setTimeout(function(){window.close()},300)}</' + "script>" +
-        "</body></html>";
-      if (w && w.document) {
-        w.document.write(html);
-        w.document.close();
+      var d = w.document;
+      d.documentElement.setAttribute("dir", "rtl");
+      d.documentElement.setAttribute("lang", "ar");
+      d.title = "كشف تسوية";
+      d.head.textContent = "";
+      d.body.textContent = "";
+
+      var meta = d.createElement("meta");
+      meta.setAttribute("charset", "utf-8");
+      d.head.appendChild(meta);
+
+      var style = d.createElement("style");
+      style.textContent = "body{font-family:sans-serif;padding:20px} .row{margin:6px 0} .h{color:#666}";
+      d.head.appendChild(style);
+
+      var h3 = d.createElement("h3");
+      h3.textContent = "كشف تسوية مختصر";
+      d.body.appendChild(h3);
+
+      function addRow(labelText, valueText) {
+        var row = d.createElement("div");
+        row.className = "row";
+        var label = d.createElement("span");
+        label.className = "h";
+        label.textContent = String(labelText || "");
+        var value = d.createElement("span");
+        value.textContent = String(valueText || "");
+        row.appendChild(label);
+        row.appendChild(d.createTextNode(" "));
+        row.appendChild(value);
+        d.body.appendChild(row);
+      }
+
+      addRow("الجهة:", String(payload && payload.name || ""));
+      addRow("النوع:", dom.entityType.value === "PARTNER" ? "شريك" : "مورد");
+      addRow("الرصيد الحالي:", fmt(payload && payload.balance) + " " + String(payload && payload.currency || ""));
+      addRow("المبلغ للتسوية:", String(dom.amount.value || "0") + " " + String(dom.currency.value || ""));
+      addRow("الاتجاه:", dirText);
+      addRow("الطريقة:", String(methodText || ""));
+
+      var hr = d.createElement("hr");
+      d.body.appendChild(hr);
+      var small = d.createElement("small");
+      small.textContent = String(now || "");
+      d.body.appendChild(small);
+
+      var printed = false;
+      var doPrint = function () {
+        if (printed) return;
+        printed = true;
+        try { w.focus(); } catch (_) {}
+        try { w.print(); } catch (_) {}
+        setTimeout(function () { try { w.close(); } catch (_) {} }, 300);
+      };
+      try {
+        if (w.document && w.document.readyState === "complete") {
+          setTimeout(doPrint, 50);
+        } else if (typeof w.addEventListener === "function") {
+          w.addEventListener("load", function () { setTimeout(doPrint, 50); }, { once: true });
+          setTimeout(doPrint, 400);
+        } else {
+          setTimeout(doPrint, 50);
+        }
+      } catch (_) {
+        setTimeout(doPrint, 50);
       }
     };
 
@@ -467,6 +518,11 @@ var partnersRequestSeq = 0;
         });
       });
     });
+  }
+
+  function stripScripts(html) {
+    var s = String(html || "");
+    return s.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "");
   }
 
   function getCsrfToken() {

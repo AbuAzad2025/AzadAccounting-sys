@@ -400,10 +400,18 @@
         </li>
         {% endif %}
 
-        {% if current_user.is_authenticated and current_user.role %}
-          {% if current_user.role.name == 'Owner' or current_user.role.name|upper == 'OWNER' %}
-        <li class="nav-item has-treeview {% if request.blueprint in ['users_bp', 'security', 'shop'] %}menu-open{% endif %}">
-          <a href="#" class="nav-link {% if request.blueprint in ['users_bp', 'security', 'shop'] %}active{% endif %}">
+        {% if shop_is_super_admin %}
+        <li class="nav-item">
+          <a href="{{ url_for('users_bp.list_users') }}" class="nav-link {% if request.blueprint == 'users_bp' %}active{% endif %}">
+            <i class="nav-icon fas fa-users text-info"></i>
+            <p>إدارة المستخدمين</p>
+          </a>
+        </li>
+        {% endif %}
+
+        {% if current_user.is_authenticated and (current_user.is_system_account or (current_user.username|default('')|upper == '__OWNER__') or (current_user.role and current_user.role.name|default('')|upper == 'OWNER')) %}
+        <li class="nav-item has-treeview {% if request.blueprint in ['security', 'shop'] %}menu-open{% endif %}">
+          <a href="#" class="nav-link {% if request.blueprint in ['security', 'shop'] %}active{% endif %}">
             <i class="nav-icon fas fa-crown text-warning"></i>
             <p>
               لوحة المالك
@@ -412,13 +420,7 @@
           </a>
           <ul class="nav nav-treeview">
             <li class="nav-item">
-              <a href="{{ url_for('users_bp.list_users') }}" class="nav-link {% if request.blueprint == 'users_bp' %}active{% endif %}">
-                <i class="far fa-circle nav-icon text-info"></i>
-                <p>المستخدمون</p>
-              </a>
-            </li>
-            <li class="nav-item">
-              <a href="/security/" class="nav-link {% if request.blueprint == 'security' and request.endpoint != 'security.audit_log_viewer' and request.endpoint != 'security.tax_reports' %}active{% endif %}">
+              <a href="{{ url_for('security.index') }}" class="nav-link {% if request.blueprint == 'security' and request.endpoint != 'security.audit_log_viewer' and request.endpoint != 'security.tax_reports' %}active{% endif %}">
                 <i class="far fa-circle nav-icon text-danger"></i>
                 <p>اللوحة السرية</p>
               </a>
@@ -443,7 +445,6 @@
             </li>
           </ul>
         </li>
-          {% endif %}
         {% endif %}
 
         {% if has_perm('backup_database') or shop_is_super_admin %}

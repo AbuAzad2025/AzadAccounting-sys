@@ -115,18 +115,44 @@ function showAlert(type, message, duration = 0) {
     };
     
     const alertClass = alertTypes[type] || 'alert-info';
-    const alertHtml = `
-        <div class="alert ${alertClass} alert-dismissible fade show position-fixed" 
-             style="top: 80px; left: 50%; transform: translateX(-50%); z-index: 9999; min-width: 300px; max-width: 600px;" 
-             role="alert">
-            ${message}
-            <button type="button" class="close" data-dismiss="alert"><span aria-hidden="true">&times;</span></button>
-        </div>
-    `;
-    
-    const alertDiv = document.createElement('div');
-    alertDiv.innerHTML = alertHtml;
-    document.body.appendChild(alertDiv);
+    const wrapper = document.createElement('div');
+    const alertEl = document.createElement('div');
+    alertEl.className = `alert ${alertClass} alert-dismissible fade show position-fixed`;
+    alertEl.setAttribute('role', 'alert');
+    alertEl.style.top = '80px';
+    alertEl.style.left = '50%';
+    alertEl.style.transform = 'translateX(-50%)';
+    alertEl.style.zIndex = '9999';
+    alertEl.style.minWidth = '300px';
+    alertEl.style.maxWidth = '600px';
+    const text = document.createElement('span');
+    text.style.whiteSpace = 'pre-line';
+    text.textContent = String(message ?? '');
+    alertEl.appendChild(text);
+
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'close';
+    closeBtn.setAttribute('data-dismiss', 'alert');
+    const closeSpan = document.createElement('span');
+    closeSpan.setAttribute('aria-hidden', 'true');
+    closeSpan.textContent = '×';
+    closeBtn.appendChild(closeSpan);
+    closeBtn.addEventListener('click', () => {
+        try { alertEl.remove(); } catch (_) {}
+        try { wrapper.remove(); } catch (_) {}
+    });
+    alertEl.appendChild(closeBtn);
+
+    wrapper.appendChild(alertEl);
+    document.body.appendChild(wrapper);
+
+    if (duration && duration > 0) {
+        setTimeout(() => {
+            try { alertEl.remove(); } catch (_) {}
+            try { wrapper.remove(); } catch (_) {}
+        }, duration);
+    }
 }
 
 function setLoading(selector, isLoading) {
@@ -190,14 +216,19 @@ function formatDateTime(dateString) {
 }
 
 function deriveEntityLabel(p) {
-    const esc = (val) => String(val ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const esc = (val) => String(val ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
     if (p.service_id) {
         const icon = '<i class="fas fa-wrench text-danger"></i>';
         const vehicle = esc(p.service_vehicle || 'غير محدد');
         const customer = esc(p.service_customer_name || 'غير معروف');
         return `${icon} صيانة المركبة (${vehicle}) للعميل: ${customer}`;
     }
-    if (p.entity_display) return p.entity_display;
+    if (p.entity_display) return esc(p.entity_display);
     
     const entityConfig = {
         customer_id: {icon: 'fas fa-user text-primary', label: 'عميل', badge: 'badge-primary'},
@@ -214,14 +245,14 @@ function deriveEntityLabel(p) {
     for (const [key, config] of Object.entries(entityConfig)) {
         if (p[key]) {
             const icon = `<i class="${config.icon}"></i>`;
-            const label = `${config.label} #${p[key]}`;
+            const label = `${config.label} #${esc(p[key])}`;
             const badge = `<span class="badge ${config.badge}">${label}</span>`;
-            const details = p.reference ? `<br><small class="text-muted">${p.reference}</small>` : '';
+            const details = p.reference ? `<br><small class="text-muted">${esc(p.reference)}</small>` : '';
             return icon + ' ' + badge + details;
         }
     }
     
-    return p.entity_type || '';
+    return esc(p.entity_type || '');
 }
 
 function normalizeEntity(val) {

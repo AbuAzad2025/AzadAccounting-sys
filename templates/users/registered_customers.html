@@ -3,7 +3,9 @@
 
 {% block breadcrumb %}
 <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">الرئيسية</a></li>
-<li class="breadcrumb-item"><a href="{{ url_for('users_bp.list_users') }}">المستخدمون</a></li>
+{% if shop_is_super_admin %}
+  <li class="breadcrumb-item"><a href="{{ url_for('users_bp.list_users') }}">المستخدمون</a></li>
+{% endif %}
 <li class="breadcrumb-item active">العملاء المسجلون</li>
 {% endblock %}
 

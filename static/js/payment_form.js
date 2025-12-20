@@ -25,7 +25,24 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!filtersRow || document.getElementById('btnExportCsv')) return;
     const wrap = document.createElement('div');
     wrap.className = 'col-auto d-flex gap-2';
-    wrap.innerHTML = '<button id="btnPrint" class="btn btn-outline-secondary"><i class="fas fa-print me-1"></i> طباعة كشف</button><button id="btnExportCsv" class="btn btn-outline-success"><i class="fas fa-file-csv me-1"></i> تصدير CSV</button>';
+    const btnPrint = document.createElement('button');
+    btnPrint.id = 'btnPrint';
+    btnPrint.className = 'btn btn-outline-secondary';
+    const printIcon = document.createElement('i');
+    printIcon.className = 'fas fa-print me-1';
+    btnPrint.appendChild(printIcon);
+    btnPrint.appendChild(document.createTextNode(' طباعة كشف'));
+
+    const btnExportCsv = document.createElement('button');
+    btnExportCsv.id = 'btnExportCsv';
+    btnExportCsv.className = 'btn btn-outline-success';
+    const csvIcon = document.createElement('i');
+    csvIcon.className = 'fas fa-file-csv me-1';
+    btnExportCsv.appendChild(csvIcon);
+    btnExportCsv.appendChild(document.createTextNode(' تصدير CSV'));
+
+    wrap.appendChild(btnPrint);
+    wrap.appendChild(btnExportCsv);
     filtersRow.appendChild(wrap);
     document.getElementById('btnPrint').addEventListener('click', printStatement);
     document.getElementById('btnExportCsv').addEventListener('click', exportCsv);
@@ -135,19 +152,37 @@ document.addEventListener('DOMContentLoaded', function () {
   function setLoading(is) {
     const tbody = document.querySelector('#paymentsTable tbody');
     if (!tbody) return;
-    if (is) tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm me-2"></div>جارِ التحميل…</td></tr>';
+    if (!is) return;
+    tbody.textContent = '';
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 9;
+    td.className = 'text-center text-muted py-4';
+    const spinner = document.createElement('div');
+    spinner.className = 'spinner-border spinner-border-sm me-2';
+    td.appendChild(spinner);
+    td.appendChild(document.createTextNode('جارِ التحميل…'));
+    tr.appendChild(td);
+    tbody.appendChild(tr);
   }
 
   function badgeForDirection(dir) {
     const v = String(dir || '').toUpperCase();
-    return (v === 'IN' || v === 'INCOMING') ? '<span class="badge bg-success">وارد</span>' : '<span class="badge bg-danger">صادر</span>';
+    const span = document.createElement('span');
+    const isIncoming = (v === 'IN' || v === 'INCOMING');
+    span.className = 'badge ' + (isIncoming ? 'bg-success' : 'bg-danger');
+    span.textContent = isIncoming ? 'وارد' : 'صادر';
+    return span;
   }
 
   function badgeForStatus(st) {
     const s = String(st || '');
     const cls = s === 'COMPLETED' ? 'bg-success' : s === 'PENDING' ? 'bg-warning text-dark' : s === 'FAILED' ? 'bg-danger' : 'bg-secondary';
     const txt = AR_STATUS[s] || s || '';
-    return '<span class="badge ' + cls + '">' + txt + '</span>';
+    const span = document.createElement('span');
+    span.className = 'badge ' + cls;
+    span.textContent = txt;
+    return span;
   }
 
   function toNumber(s) {
@@ -183,10 +218,14 @@ document.addEventListener('DOMContentLoaded', function () {
     _lastList = list.slice();
     const tbody = document.querySelector('#paymentsTable tbody');
     if (!tbody) return;
-    tbody.innerHTML = '';
+    tbody.textContent = '';
     if (!list.length) {
       const tr = document.createElement('tr');
-      tr.innerHTML = '<td colspan="9" class="text-center text-muted py-4">لا توجد بيانات</td>';
+      const td = document.createElement('td');
+      td.colSpan = 9;
+      td.className = 'text-center text-muted py-4';
+      td.textContent = 'لا توجد بيانات';
+      tr.appendChild(td);
       tbody.appendChild(tr);
       return;
     }
@@ -197,27 +236,65 @@ document.addEventListener('DOMContentLoaded', function () {
       if (!currencies[curr]) currencies[curr] = 0;
       currencies[curr] += toNumber(p.total_amount);
       
-      const splitsHtml = (p.splits || []).map(function (s) {
-        const baseCurrency = (s.currency || p.currency || '').toUpperCase();
-        const convertedCurrency = (s.converted_currency || p.currency || '').toUpperCase();
-        let text = String((s.method || '')).toUpperCase() + ': ' + fmtAmount(s.amount) + ' ' + baseCurrency;
-        if (baseCurrency && convertedCurrency && baseCurrency !== convertedCurrency && s.converted_amount != null) {
-          text += ' (≈ ' + fmtAmount(s.converted_amount) + ' ' + convertedCurrency + ')';
-        }
-        return '<span class="badge bg-secondary me-1">' + text + '</span>';
-      }).join(' ');
       const dateOnly = (p.payment_date || '').split('T')[0] || '';
       const tr = document.createElement('tr');
-      tr.innerHTML =
-        '<td>' + p.id + '</td>' +
-        '<td>' + dateOnly + '</td>' +
-        '<td>' + fmtAmount(p.total_amount) + '</td>' +
-        '<td>' + (p.currency || '') + '</td>' +
-        '<td>' + (splitsHtml || (p.method || '')) + '</td>' +
-        '<td>' + badgeForDirection(p.direction) + '</td>' +
-        '<td>' + badgeForStatus(p.status) + '</td>' +
-        '<td>' + deriveEntityLabel(p) + '</td>' +
-        '<td><a href="/payments/' + p.id + '" class="btn btn-info btn-sm">عرض</a></td>';
+
+      const tdId = document.createElement('td');
+      tdId.textContent = String(p.id ?? '');
+      tr.appendChild(tdId);
+
+      const tdDate = document.createElement('td');
+      tdDate.textContent = dateOnly;
+      tr.appendChild(tdDate);
+
+      const tdAmt = document.createElement('td');
+      tdAmt.textContent = fmtAmount(p.total_amount);
+      tr.appendChild(tdAmt);
+
+      const tdCurr = document.createElement('td');
+      tdCurr.textContent = String(p.currency || '');
+      tr.appendChild(tdCurr);
+
+      const tdMethod = document.createElement('td');
+      const splits = Array.isArray(p.splits) ? p.splits : [];
+      if (splits.length) {
+        splits.forEach(function (s) {
+          const baseCurrency = (s.currency || p.currency || '').toUpperCase();
+          const convertedCurrency = (s.converted_currency || p.currency || '').toUpperCase();
+          let text = String((s.method || '')).toUpperCase() + ': ' + fmtAmount(s.amount) + ' ' + baseCurrency;
+          if (baseCurrency && convertedCurrency && baseCurrency !== convertedCurrency && s.converted_amount != null) {
+            text += ' (≈ ' + fmtAmount(s.converted_amount) + ' ' + convertedCurrency + ')';
+          }
+          const span = document.createElement('span');
+          span.className = 'badge bg-secondary me-1';
+          span.textContent = text;
+          tdMethod.appendChild(span);
+        });
+      } else {
+        tdMethod.textContent = String(p.method || '');
+      }
+      tr.appendChild(tdMethod);
+
+      const tdDir = document.createElement('td');
+      tdDir.appendChild(badgeForDirection(p.direction));
+      tr.appendChild(tdDir);
+
+      const tdSt = document.createElement('td');
+      tdSt.appendChild(badgeForStatus(p.status));
+      tr.appendChild(tdSt);
+
+      const tdEnt = document.createElement('td');
+      tdEnt.textContent = String(deriveEntityLabel(p) || '');
+      tr.appendChild(tdEnt);
+
+      const tdAction = document.createElement('td');
+      const a = document.createElement('a');
+      a.className = 'btn btn-info btn-sm';
+      a.href = '/payments/' + encodeURIComponent(String(p.id ?? ''));
+      a.textContent = 'عرض';
+      tdAction.appendChild(a);
+      tr.appendChild(tdAction);
+
       tbody.appendChild(tr);
     });
     
@@ -225,12 +302,37 @@ document.addEventListener('DOMContentLoaded', function () {
     if (currKeys.length === 1) {
       const curr = currKeys[0];
       const t = document.createElement('tr');
-      t.innerHTML = '<td></td><td class="text-end fw-bold">إجمالي الصفحة</td><td class="fw-bold">' + fmtAmount(currencies[curr]) + '</td><td>' + curr + '</td><td colspan="5"></td>';
+      const td1 = document.createElement('td');
+      const td2 = document.createElement('td');
+      td2.className = 'text-end fw-bold';
+      td2.textContent = 'إجمالي الصفحة';
+      const td3 = document.createElement('td');
+      td3.className = 'fw-bold';
+      td3.textContent = fmtAmount(currencies[curr]);
+      const td4 = document.createElement('td');
+      td4.textContent = curr;
+      const td5 = document.createElement('td');
+      td5.colSpan = 5;
+      t.appendChild(td1);
+      t.appendChild(td2);
+      t.appendChild(td3);
+      t.appendChild(td4);
+      t.appendChild(td5);
       tbody.appendChild(t);
     } else if (currKeys.length > 1) {
       const t = document.createElement('tr');
-      const totalsHtml = currKeys.map(c => fmtAmount(currencies[c]) + ' ' + c).join(' + ');
-      t.innerHTML = '<td></td><td class="text-end fw-bold">إجمالي الصفحة</td><td colspan="7" class="fw-bold text-warning">عملات متعددة: ' + totalsHtml + '</td>';
+      const totalsText = currKeys.map(c => fmtAmount(currencies[c]) + ' ' + c).join(' + ');
+      const td1 = document.createElement('td');
+      const td2 = document.createElement('td');
+      td2.className = 'text-end fw-bold';
+      td2.textContent = 'إجمالي الصفحة';
+      const td3 = document.createElement('td');
+      td3.colSpan = 7;
+      td3.className = 'fw-bold text-warning';
+      td3.textContent = 'عملات متعددة: ' + totalsText;
+      t.appendChild(td1);
+      t.appendChild(td2);
+      t.appendChild(td3);
       tbody.appendChild(t);
     }
   }
@@ -238,14 +340,24 @@ document.addEventListener('DOMContentLoaded', function () {
   function renderPagination(totalPages, currentPage) {
     const ul = document.querySelector('#pagination');
     if (!ul) return;
-    ul.innerHTML = '';
+    ul.textContent = '';
     totalPages = Math.max(1, totalPages || 1);
     currentPage = Math.min(Math.max(1, currentPage || 1), totalPages);
 
     function add(page, label, disabled, active, isEllipsis=false) {
       const li = document.createElement('li');
       li.className = 'page-item ' + (disabled ? 'disabled' : '') + ' ' + (active ? 'active' : '');
-      li.innerHTML = '<a class="page-link" href="#" ' + (isEllipsis ? 'tabindex="-1" aria-disabled="true"' : 'data-page="' + page + '"') + '>' + label + '</a>';
+      const a = document.createElement('a');
+      a.className = 'page-link';
+      a.href = '#';
+      a.textContent = label;
+      if (isEllipsis) {
+        a.tabIndex = -1;
+        a.setAttribute('aria-disabled', 'true');
+      } else {
+        a.dataset.page = String(page);
+      }
+      li.appendChild(a);
       ul.appendChild(li);
     }
 
@@ -283,11 +395,43 @@ document.addEventListener('DOMContentLoaded', function () {
   function printStatement() {
     try {
       const table = document.getElementById('paymentsTable');
-      const htmlTable = table.outerHTML;
       const title = 'كشف حساب - ' + (ctx.entity_type || '') + ' #' + (ctx.entity_id || '');
       const w = window.open('', 'stmt');
-      w.document.write('<html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>' + title + '</title><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css"><style>body{padding:24px}h3{margin-bottom:16px}table{font-size:12px}</style></head><body><h3>' + title + '</h3>' + htmlTable + '<script>window.onload=function(){window.print();}</script></body></html>');
-      w.document.close();
+      if (!w || !w.document) throw new Error('Popup blocked');
+      const doc = w.document;
+      doc.documentElement.setAttribute('dir', 'rtl');
+      doc.documentElement.setAttribute('lang', 'ar');
+      doc.title = title;
+      doc.head.textContent = '';
+      doc.body.textContent = '';
+
+      const meta = doc.createElement('meta');
+      meta.setAttribute('charset', 'utf-8');
+      doc.head.appendChild(meta);
+
+      const link = doc.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = 'https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css';
+      doc.head.appendChild(link);
+
+      const style = doc.createElement('style');
+      style.textContent = 'body{padding:24px}h3{margin-bottom:16px}table{font-size:12px}';
+      doc.head.appendChild(style);
+
+      const h3 = doc.createElement('h3');
+      h3.textContent = title;
+      doc.body.appendChild(h3);
+
+      if (table) {
+        const cloned = table.cloneNode(true);
+        cloned.removeAttribute('id');
+        doc.body.appendChild(cloned);
+      }
+
+      w.focus();
+      setTimeout(function () {
+        try { w.print(); } catch (e) {}
+      }, 250);
     } catch (e) {
       alert('تعذر الطباعة الآن.');
     }
@@ -395,11 +539,18 @@ function initSmartSearch() {
         hideResults();
         return;
       }
-      resultsList.innerHTML = '';
+      resultsList.textContent = '';
       results.forEach((item, index) => {
         const itemDiv = document.createElement('div');
         itemDiv.className = `smart-search-item p-2 border-bottom ${index === selectedIndex ? 'bg-light' : ''}`;
-        itemDiv.innerHTML = `<span class="fw-bold">${item.name}</span> <small class="text-muted">(${item.id})</small>`;
+        const name = document.createElement('span');
+        name.className = 'fw-bold';
+        name.textContent = String(item?.name || '');
+        const meta = document.createElement('small');
+        meta.className = 'text-muted';
+        meta.textContent = ' (' + String(item?.id ?? '') + ')';
+        itemDiv.appendChild(name);
+        itemDiv.appendChild(meta);
         itemDiv.addEventListener('click', () => selectItem(item));
         resultsList.appendChild(itemDiv);
       });
@@ -408,7 +559,7 @@ function initSmartSearch() {
 
     // إخفاء النتائج
     function hideResults() {
-      resultsList.innerHTML = '';
+      resultsList.textContent = '';
       resultsList.style.display = 'none';
     }
 
@@ -459,7 +610,7 @@ function initSmartSearch() {
     });
 
     input.addEventListener('focus', function() {
-      if (currentResults.length > 0 && resultsList.innerHTML !== '') {
+      if (currentResults.length > 0 && resultsList.childNodes.length > 0) {
         resultsList.style.display = 'block';
       }
     });

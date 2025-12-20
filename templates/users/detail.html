@@ -52,7 +52,7 @@
           </div>
 
           <div class="d-flex justify-content-center">
-            {% if has_perm('manage_users') %}
+            {% if shop_is_super_admin %}
               <a href="{{ url_for('users_bp.edit_user', user_id=user.id) }}" class="btn btn-primary btn-sm mx-1">
                 <i class="fas fa-edit"></i> تعديل
               </a>
@@ -83,8 +83,7 @@
       <div class="card shadow-sm mt-3">
         <div class="card-header"><h3 class="card-title mb-0">الصلاحيات الإضافية</h3></div>
         <div class="card-body">
-          {% set _q = user.extra_permissions %}
-          {% set perms = (_q.all() if _q.__class__.__name__ in ['AppenderQuery','AppenderBaseQuery'] else _q) | list %}
+          {% set perms = (visible_extra_permissions if visible_extra_permissions is defined else []) | list %}
           {% if perms|length %}
             <div class="d-flex flex-wrap perm-wrap" data-max="12">
               {% for p in perms %}

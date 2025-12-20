@@ -7,14 +7,6 @@
   const qs = (sel, root = document) => root.querySelector(sel);
   const qsa = (sel, root = document) => Array.from(root.querySelectorAll(sel));
   const isEmail = v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
-  const __isDebugCustomers = (() => {
-    try {
-      const p = new URLSearchParams(window.location.search);
-      if (p.get('debug') === '1' || p.get('debug') === 'customers') return true;
-      return localStorage.getItem('debug_customers') === '1';
-    } catch (_) { return false; }
-  })();
-  const dbg = (...args) => { if (__isDebugCustomers) { try { console.log('[customers]', ...args); } catch (_) {} } };
   const FIELD_LABELS = {
     name: 'اسم العميل',
     phone: 'رقم الهاتف',
@@ -47,8 +39,22 @@
       return { k, txt };
     });
     const head = message || 'يرجى تصحيح الحقول التالية:';
-    const listHtml = msgs.slice(0, 6).map(it => `<li><strong>${labelFor(it.k)}</strong>: ${it.txt}</li>`).join('');
-    el.innerHTML = `<div class="mb-1">${head}</div><ul class="mb-0 pl-3">${listHtml}</ul>`;
+    el.textContent = '';
+    const headDiv = document.createElement('div');
+    headDiv.className = 'mb-1';
+    headDiv.textContent = head;
+    const ul = document.createElement('ul');
+    ul.className = 'mb-0 pl-3';
+    msgs.slice(0, 6).forEach(it => {
+      const li = document.createElement('li');
+      const strong = document.createElement('strong');
+      strong.textContent = labelFor(it.k);
+      li.appendChild(strong);
+      li.appendChild(document.createTextNode(': ' + it.txt));
+      ul.appendChild(li);
+    });
+    el.appendChild(headDiv);
+    el.appendChild(ul);
     try { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (_) {}
   };
   const setSubmitBtnState = (btn, loading) => {
@@ -73,6 +79,56 @@
     if (meta && meta.content) return meta.content;
     const inp = root.querySelector('input[name="csrf_token"]');
     return inp && inp.value ? inp.value : null;
+  };
+  const appendNodesPreservingScripts = (target, source) => {
+    if (!target || !source) return;
+    Array.from(source.childNodes || []).forEach((node) => {
+      const name = node && node.nodeName ? String(node.nodeName).toLowerCase() : '';
+      if (name === 'script') {
+        const s = document.createElement('script');
+        try {
+          Array.from(node.attributes || []).forEach((attr) => {
+            try { s.setAttribute(attr.name, attr.value); } catch (_) {}
+          });
+        } catch (_) {}
+        const srcAttr = (node && typeof node.getAttribute === 'function') ? node.getAttribute('src') : '';
+        if (srcAttr) {
+          try { s.setAttribute('src', srcAttr); } catch (_) {}
+        } else {
+          s.textContent = node.textContent || '';
+        }
+        target.appendChild(s);
+        return;
+      }
+      try {
+        target.appendChild(document.importNode(node, true));
+      } catch (_) {}
+    });
+  };
+  const replaceDocumentFromHtml = (htmlText) => {
+    const parsed = new DOMParser().parseFromString(String(htmlText || ''), 'text/html');
+    if (!parsed || !parsed.documentElement) return false;
+    const attrs = ['dir', 'lang'];
+    attrs.forEach((k) => {
+      try {
+        const v = parsed.documentElement.getAttribute(k);
+        if (v) document.documentElement.setAttribute(k, v);
+      } catch (_) {}
+    });
+    try { if (parsed.title) document.title = parsed.title; } catch (_) {}
+    try {
+      if (document.head && parsed.head) {
+        document.head.textContent = '';
+        appendNodesPreservingScripts(document.head, parsed.head);
+      }
+    } catch (_) {}
+    try {
+      if (document.body && parsed.body) {
+        document.body.textContent = '';
+        appendNodesPreservingScripts(document.body, parsed.body);
+      }
+    } catch (_) {}
+    return true;
   };
   const showToast = (msg, level = "info") => {
     if (typeof window.showNotification === "function") return window.showNotification(msg, level);
@@ -264,14 +320,6 @@
       if (oldSummary) { try { oldSummary.remove(); } catch (_) {} }
       const csrf = getCsrf(form);
       try {
-        const snap = {};
-        ['name','phone','email','address','whatsapp','category','currency'].forEach(function(k){
-          const el = form.querySelector('[name="'+k+'"]');
-          if (el) snap[k] = String(el.value||'').slice(0,120);
-        });
-        dbg('submit', { ajaxEnabled, action: form.action, snap });
-      } catch (_) {}
-      try {
         setSubmitBtnState(submitBtn, true);
         const res = await fetch(form.action, {
           method: "POST",
@@ -290,7 +338,6 @@
         } else {
           try { html = await res.text(); } catch (_) { html = null; }
         }
-        dbg('response', { status: res.status, ok: res.ok, isJson });
         if (!res.ok || (isJson && data && data.ok === false)) {
           setSubmitBtnState(submitBtn, false);
           let message = (isJson && data && data.message) ? data.message : null;
@@ -301,7 +348,6 @@
               try { firstInvalid.focus(); } catch (_) {}
             }
             showFormErrorSummary(form, data.errors, message || 'تحقق من الحقول');
-            try { dbg('errors', data.errors); } catch (_) {}
             message = null; // تم عرض ملخص أخطاء واضح؛ لا حاجة لتوست عام
           }
           if (message) showToast(message, 'warning');
@@ -309,12 +355,11 @@
         }
         if (!isJson) {
           setSubmitBtnState(submitBtn, false);
-          try { dbg('html_return', { length: html ? html.length : 0 }); } catch (_) {}
           if (html) {
             try { window.__CUSTOMERS_INIT__ = false; } catch (_) {}
-            document.open();
-            document.write(html);
-            document.close();
+            try {
+              replaceDocumentFromHtml(html);
+            } catch (_) {}
           }
           return;
         }
@@ -336,7 +381,6 @@
         // عدم التحويل التلقائي: يُعرض شريط نجاح مع روابط للعمل بوضوح
       } catch (err) {
         setSubmitBtnState(submitBtn, false);
-        try { dbg('network_error', String((err && err.message) || err)); } catch (_) {}
         showToast('تعذر الاتصال بالخادم.', 'warning');
       }
     });

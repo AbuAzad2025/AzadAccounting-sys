@@ -53,7 +53,7 @@
         box-shadow: 0 10px 40px rgba(0,0,0,0.3);
         z-index: 99999;
       ">
-        <h5><i class="fas fa-bolt"></i> تحليل الفهرس: ${indexName}</h5>
+        <h5><i class="fas fa-bolt"></i> تحليل الفهرس: <span id="indexNameText"></span></h5>
         <div class="mt-3">
           <div class="row g-2">
             <div class="col-md-6">
@@ -124,6 +124,8 @@
     };
     
     document.body.appendChild(modal);
+    const el = modal.querySelector('#indexNameText');
+    if (el) el.textContent = String(indexName || '');
   };
   
   // ═══════════════════════════════════════════════════════════════════
@@ -516,7 +518,7 @@ window.bulkDeleteUsers = function() {
         box-shadow: 0 10px 40px rgba(0,0,0,0.3);
         z-index: 99999;
       ">
-        <h5><i class="fas fa-vial"></i> اختبار التكامل: ${integrationType}</h5>
+        <h5><i class="fas fa-vial"></i> اختبار التكامل: <span id="integrationTypeText"></span></h5>
         
         <div class="mt-3" id="testResults">
           <div class="text-center">
@@ -542,6 +544,8 @@ window.bulkDeleteUsers = function() {
     `;
     
     document.body.appendChild(modal);
+    const it = modal.querySelector('#integrationTypeText');
+    if (it) it.textContent = String(integrationType || '');
     
     // محاكاة الاختبار
     setTimeout(() => {
@@ -594,7 +598,6 @@ window.bulkDeleteUsers = function() {
         </button>
         
         <div class="mt-3" id="webhooksList">
-          ${generateWebhooksList()}
         </div>
         
         <button class="btn btn-secondary mt-3" onclick="this.closest('.modal-overlay').remove()">
@@ -614,37 +617,73 @@ window.bulkDeleteUsers = function() {
     `;
     
     document.body.appendChild(modal);
+    const host = modal.querySelector('#webhooksList');
+    if (host) renderWebhooksList(host);
   };
   
-  function generateWebhooksList() {
+  function renderWebhooksList(host) {
     const webhooks = [
       {name: 'Order Created', url: 'https://api.example.com/webhook', event: 'sale.created', active: true},
       {name: 'Payment Received', url: 'https://api.example.com/payment', event: 'payment.completed', active: true},
       {name: 'User Registered', url: 'https://api.example.com/user', event: 'user.created', active: false}
     ];
-    
-    return webhooks.map(wh => `
-      <div class="card mb-2">
-        <div class="card-body p-2">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <strong>${wh.name}</strong>
-              <br><small class="text-muted">${wh.url}</small>
-              <br><span class="badge bg-secondary">${wh.event}</span>
-              <span class="badge bg-${wh.active ? 'success' : 'secondary'}">${wh.active ? 'نشط' : 'معطل'}</span>
-            </div>
-            <div class="btn-group-vertical">
-              <button class="btn btn-sm btn-outline-primary" onclick="testWebhook('${wh.name}')">
-                <i class="fas fa-vial"></i> اختبار
-              </button>
-              <button class="btn btn-sm btn-outline-danger">
-                <i class="fas fa-trash"></i> حذف
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    `).join('');
+    if (!host) return;
+    host.textContent = '';
+
+    webhooks.forEach(wh => {
+      const card = document.createElement('div');
+      card.className = 'card mb-2';
+      const body = document.createElement('div');
+      body.className = 'card-body p-2';
+      const row = document.createElement('div');
+      row.className = 'd-flex justify-content-between align-items-center';
+
+      const left = document.createElement('div');
+      const strong = document.createElement('strong');
+      strong.textContent = String(wh?.name || '');
+      left.appendChild(strong);
+      left.appendChild(document.createElement('br'));
+      const url = document.createElement('small');
+      url.className = 'text-muted';
+      url.textContent = String(wh?.url || '');
+      left.appendChild(url);
+      left.appendChild(document.createElement('br'));
+      const ev = document.createElement('span');
+      ev.className = 'badge bg-secondary';
+      ev.textContent = String(wh?.event || '');
+      left.appendChild(ev);
+      left.appendChild(document.createTextNode(' '));
+      const active = document.createElement('span');
+      active.className = 'badge bg-' + (wh?.active ? 'success' : 'secondary');
+      active.textContent = wh?.active ? 'نشط' : 'معطل';
+      left.appendChild(active);
+
+      const right = document.createElement('div');
+      right.className = 'btn-group-vertical';
+      const testBtn = document.createElement('button');
+      testBtn.className = 'btn btn-sm btn-outline-primary';
+      const vial = document.createElement('i');
+      vial.className = 'fas fa-vial';
+      testBtn.appendChild(vial);
+      testBtn.appendChild(document.createTextNode(' اختبار'));
+      testBtn.addEventListener('click', () => {
+        if (typeof window.testWebhook === 'function') window.testWebhook(String(wh?.name || ''));
+      });
+      const delBtn = document.createElement('button');
+      delBtn.className = 'btn btn-sm btn-outline-danger';
+      const trash = document.createElement('i');
+      trash.className = 'fas fa-trash';
+      delBtn.appendChild(trash);
+      delBtn.appendChild(document.createTextNode(' حذف'));
+      right.appendChild(testBtn);
+      right.appendChild(delBtn);
+
+      row.appendChild(left);
+      row.appendChild(right);
+      body.appendChild(row);
+      card.appendChild(body);
+      host.appendChild(card);
+    });
   }
   
   window.testWebhook = function(name) {
@@ -792,22 +831,40 @@ window.bulkDeleteUsers = function() {
     const body = document.getElementById('emailBody').value;
     
     const preview = window.open('', 'Email Preview', 'width=600,height=400');
-    preview.document.write(`
-      <html dir="rtl">
-      <head>
-        <title>معاينة البريد</title>
-        <style>
-          body { font-family: Arial; padding: 20px; }
-          .subject { font-size: 18px; font-weight: bold; margin-bottom: 20px; }
-          .body { white-space: pre-wrap; }
-        </style>
-      </head>
-      <body>
-        <div class="subject">الموضوع: ${subject}</div>
-        <div class="body">${body}</div>
-      </body>
-      </html>
-    `);
+    if (!preview || !preview.document) return;
+    const doc = preview.document;
+    doc.documentElement.setAttribute('dir', 'rtl');
+    doc.documentElement.setAttribute('lang', 'ar');
+    doc.title = 'معاينة البريد';
+    doc.head.textContent = '';
+    doc.body.textContent = '';
+
+    const meta = doc.createElement('meta');
+    meta.setAttribute('charset', 'utf-8');
+    doc.head.appendChild(meta);
+
+    const style = doc.createElement('style');
+    style.textContent = `
+      body { font-family: Arial; padding: 20px; }
+      .subject { font-size: 18px; font-weight: bold; margin-bottom: 20px; }
+      .body { white-space: pre-wrap; }
+    `;
+    doc.head.appendChild(style);
+
+    const subjectRow = doc.createElement('div');
+    subjectRow.className = 'subject';
+    subjectRow.appendChild(doc.createTextNode('الموضوع: '));
+    const subjSpan = doc.createElement('span');
+    subjSpan.id = 'previewSubject';
+    subjSpan.textContent = String(subject || '');
+    subjectRow.appendChild(subjSpan);
+    doc.body.appendChild(subjectRow);
+
+    const bodyDiv = doc.createElement('div');
+    bodyDiv.className = 'body';
+    bodyDiv.id = 'previewBody';
+    bodyDiv.textContent = String(body || '');
+    doc.body.appendChild(bodyDiv);
   };
   
   window.sendTestEmail = function() {

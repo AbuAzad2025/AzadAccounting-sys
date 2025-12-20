@@ -124,6 +124,11 @@
    */
   function highlightSQL(sql) {
     if (!sql) return '';
+
+    const esc = (value) => String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
     
     // كلمات SQL الأساسية
     const keywords = /\b(SELECT|FROM|WHERE|JOIN|LEFT|RIGHT|INNER|OUTER|ON|AND|OR|NOT|IN|LIKE|ORDER BY|GROUP BY|HAVING|LIMIT|OFFSET|INSERT|INTO|VALUES|UPDATE|SET|DELETE|CREATE|TABLE|INDEX|DROP|ALTER|AS|DISTINCT|COUNT|SUM|AVG|MAX|MIN)\b/gi;
@@ -137,19 +142,19 @@
     // التعليقات
     const comments = /--[^\n]*/g;
     
-    let highlighted = sql;
+    let highlighted = esc(sql);
     
     // Highlight keywords
-    highlighted = highlighted.replace(keywords, '<span style="color: #0000ff; font-weight: bold;">$&</span>');
+    highlighted = highlighted.replace(keywords, '<span style="color: blue; font-weight: bold;">$&</span>');
     
     // Highlight numbers
-    highlighted = highlighted.replace(numbers, '<span style="color: #098658;">$&</span>');
+    highlighted = highlighted.replace(numbers, '<span style="color: teal;">$&</span>');
     
     // Highlight strings
-    highlighted = highlighted.replace(strings, '<span style="color: #a31515;">$&</span>');
+    highlighted = highlighted.replace(strings, '<span style="color: brown;">$&</span>');
     
     // Highlight comments
-    highlighted = highlighted.replace(comments, '<span style="color: #008000; font-style: italic;">$&</span>');
+    highlighted = highlighted.replace(comments, '<span style="color: green; font-style: italic;">$&</span>');
     
     return highlighted;
   }
@@ -207,61 +212,135 @@
     
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
-    modal.innerHTML = `
-      <div class="modal-dialog modal-lg" style="
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        background: white;
-        border-radius: 10px;
-        padding: 20px;
-        max-height: 80vh;
-        overflow-y: auto;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.3);
-        z-index: 99999;
-        width: 90%;
-        max-width: 800px;
-      ">
-        <div class="modal-header border-bottom pb-3">
-          <h5 class="modal-title">
-            <i class="fas fa-history"></i> سجل الاستعلامات
-            <span class="badge bg-primary">${history.length}</span>
-          </h5>
-          <button type="button" class="close" onclick="this.closest('.modal-overlay').remove()"><span aria-hidden="true">&times;</span></button>
-        </div>
-        <div class="modal-body mt-3">
-          ${history.length === 0 ? '<div class="alert alert-info">لا يوجد سجل حتى الآن</div>' : ''}
-          ${history.map((item, index) => `
-            <div class="card mb-2 history-item" style="cursor: pointer;" 
-                 onclick='document.querySelector("textarea[name=\\'sql_query\\']").value = \`${item.query.replace(/`/g, '\\`')}\`; this.closest(".modal-overlay").remove();'>
-              <div class="card-body p-2">
-                <div class="d-flex justify-content-between align-items-start">
-                  <div class="flex-grow-1">
-                    <small class="text-muted">
-                      <i class="fas fa-clock"></i> ${new Date(item.timestamp).toLocaleString('ar-EG')}
-                    </small>
-                    <pre class="mb-0 mt-1" style="font-size: 12px; background: #f8f9fa; padding: 8px; border-radius: 4px; overflow-x: auto;">${item.query}</pre>
-                  </div>
-                  <button class="btn btn-sm btn-outline-danger ms-2" 
-                          onclick="event.stopPropagation(); deleteHistoryItem(${item.id}); this.closest('.history-item').remove();">
-                    <i class="fas fa-trash"></i>
-                  </button>
-                </div>
-              </div>
-            </div>
-          `).join('')}
-        </div>
-        <div class="modal-footer border-top pt-3">
-          <button class="btn btn-danger btn-sm" onclick="clearAllHistory(); this.closest('.modal-overlay').remove();">
-            <i class="fas fa-trash"></i> مسح الكل
-          </button>
-          <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove();">
-            إغلاق
-          </button>
-        </div>
-      </div>
-    `;
+
+    const dialog = document.createElement('div');
+    dialog.className = 'modal-dialog modal-lg';
+    dialog.style.position = 'fixed';
+    dialog.style.top = '50%';
+    dialog.style.left = '50%';
+    dialog.style.transform = 'translate(-50%, -50%)';
+    dialog.style.background = 'white';
+    dialog.style.borderRadius = '10px';
+    dialog.style.padding = '20px';
+    dialog.style.maxHeight = '80vh';
+    dialog.style.overflowY = 'auto';
+    dialog.style.boxShadow = '0 10px 40px rgba(0,0,0,0.3)';
+    dialog.style.zIndex = '99999';
+    dialog.style.width = '90%';
+    dialog.style.maxWidth = '800px';
+
+    const header = document.createElement('div');
+    header.className = 'modal-header border-bottom pb-3';
+
+    const h5 = document.createElement('h5');
+    h5.className = 'modal-title';
+    const icon = document.createElement('i');
+    icon.className = 'fas fa-history';
+    h5.appendChild(icon);
+    h5.appendChild(document.createTextNode(' سجل الاستعلامات '));
+    const badge = document.createElement('span');
+    badge.className = 'badge bg-primary';
+    badge.textContent = String(history.length);
+    h5.appendChild(badge);
+    header.appendChild(h5);
+
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'close';
+    const closeSpan = document.createElement('span');
+    closeSpan.setAttribute('aria-hidden', 'true');
+    closeSpan.textContent = '×';
+    closeBtn.appendChild(closeSpan);
+    closeBtn.addEventListener('click', () => modal.remove());
+    header.appendChild(closeBtn);
+    dialog.appendChild(header);
+
+    const body = document.createElement('div');
+    body.className = 'modal-body mt-3';
+    if (!history.length) {
+      const empty = document.createElement('div');
+      empty.className = 'alert alert-info';
+      empty.textContent = 'لا يوجد سجل حتى الآن';
+      body.appendChild(empty);
+    } else {
+      history.forEach((item) => {
+        const card = document.createElement('div');
+        card.className = 'card mb-2 history-item';
+        card.style.cursor = 'pointer';
+        card.addEventListener('click', () => {
+          textarea.value = String(item && item.query || '');
+          modal.remove();
+        });
+
+        const cardBody = document.createElement('div');
+        cardBody.className = 'card-body p-2';
+        const row = document.createElement('div');
+        row.className = 'd-flex justify-content-between align-items-start';
+        const left = document.createElement('div');
+        left.className = 'flex-grow-1';
+
+        const small = document.createElement('small');
+        small.className = 'text-muted';
+        const clock = document.createElement('i');
+        clock.className = 'fas fa-clock';
+        small.appendChild(clock);
+        const ts = item && item.timestamp ? new Date(item.timestamp).toLocaleString('ar-EG') : '';
+        small.appendChild(document.createTextNode(' ' + String(ts || '')));
+        left.appendChild(small);
+
+        const pre = document.createElement('pre');
+        pre.className = 'mb-0 mt-1';
+        pre.style.fontSize = '12px';
+        pre.style.background = '#f8f9fa';
+        pre.style.padding = '8px';
+        pre.style.borderRadius = '4px';
+        pre.style.overflowX = 'auto';
+        pre.textContent = String(item && item.query || '');
+        left.appendChild(pre);
+
+        const delBtn = document.createElement('button');
+        delBtn.type = 'button';
+        delBtn.className = 'btn btn-sm btn-outline-danger ms-2';
+        const trash = document.createElement('i');
+        trash.className = 'fas fa-trash';
+        delBtn.appendChild(trash);
+        delBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          window.deleteHistoryItem(item && item.id);
+          card.remove();
+        });
+
+        row.appendChild(left);
+        row.appendChild(delBtn);
+        cardBody.appendChild(row);
+        card.appendChild(cardBody);
+        body.appendChild(card);
+      });
+    }
+    dialog.appendChild(body);
+
+    const footer = document.createElement('div');
+    footer.className = 'modal-footer border-top pt-3';
+    const clearBtn = document.createElement('button');
+    clearBtn.type = 'button';
+    clearBtn.className = 'btn btn-danger btn-sm';
+    const clearIcon = document.createElement('i');
+    clearIcon.className = 'fas fa-trash';
+    clearBtn.appendChild(clearIcon);
+    clearBtn.appendChild(document.createTextNode(' مسح الكل'));
+    clearBtn.addEventListener('click', () => {
+      window.clearAllHistory();
+      modal.remove();
+    });
+    const closeBtn2 = document.createElement('button');
+    closeBtn2.type = 'button';
+    closeBtn2.className = 'btn btn-secondary';
+    closeBtn2.textContent = 'إغلاق';
+    closeBtn2.addEventListener('click', () => modal.remove());
+    footer.appendChild(clearBtn);
+    footer.appendChild(closeBtn2);
+    dialog.appendChild(footer);
     
     // Overlay
     modal.style.cssText = `
@@ -278,6 +357,7 @@
       if (e.target === modal) modal.remove();
     };
     
+    modal.appendChild(dialog);
     document.body.appendChild(modal);
   }
   
@@ -358,59 +438,134 @@
     
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
-    modal.innerHTML = `
-      <div class="modal-dialog modal-lg" style="
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        background: white;
-        border-radius: 10px;
-        padding: 20px;
-        max-height: 80vh;
-        overflow-y: auto;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.3);
-        z-index: 99999;
-        width: 90%;
-        max-width: 800px;
-      ">
-        <div class="modal-header border-bottom pb-3">
-          <h5 class="modal-title">
-            <i class="fas fa-folder-open"></i> الاستعلامات المحفوظة
-            <span class="badge bg-success">${saved.length}</span>
-          </h5>
-          <button type="button" class="close" onclick="this.closest('.modal-overlay').remove()"><span aria-hidden="true">&times;</span></button>
-        </div>
-        <div class="modal-body mt-3">
-          ${saved.length === 0 ? '<div class="alert alert-info">لا توجد استعلامات محفوظة</div>' : ''}
-          ${saved.map(item => `
-            <div class="card mb-2 saved-query-item">
-              <div class="card-body p-2">
-                <div class="d-flex justify-content-between align-items-start">
-                  <div class="flex-grow-1">
-                    <strong><i class="fas fa-bookmark text-success"></i> ${item.name}</strong>
-                    <br><small class="text-muted">
-                      <i class="fas fa-clock"></i> ${new Date(item.created).toLocaleString('ar-EG')}
-                    </small>
-                    <pre class="mb-0 mt-2" style="font-size: 12px; background: #f8f9fa; padding: 8px; border-radius: 4px; max-height: 100px; overflow-y: auto;">${item.query}</pre>
-                  </div>
-                  <div class="btn-group-vertical ms-2">
-                    <button class="btn btn-sm btn-primary" 
-                            onclick='document.querySelector("textarea[name=\\'sql_query\\']").value = \`${item.query.replace(/`/g, '\\`')}\`; this.closest(".modal-overlay").remove();'>
-                      <i class="fas fa-upload"></i> تحميل
-                    </button>
-                    <button class="btn btn-sm btn-danger" 
-                            onclick="deleteSavedQuery(${item.id}); this.closest('.saved-query-item').remove();">
-                      <i class="fas fa-trash"></i> حذف
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          `).join('')}
-        </div>
-      </div>
-    `;
+
+    const dialog = document.createElement('div');
+    dialog.className = 'modal-dialog modal-lg';
+    dialog.style.position = 'fixed';
+    dialog.style.top = '50%';
+    dialog.style.left = '50%';
+    dialog.style.transform = 'translate(-50%, -50%)';
+    dialog.style.background = 'white';
+    dialog.style.borderRadius = '10px';
+    dialog.style.padding = '20px';
+    dialog.style.maxHeight = '80vh';
+    dialog.style.overflowY = 'auto';
+    dialog.style.boxShadow = '0 10px 40px rgba(0,0,0,0.3)';
+    dialog.style.zIndex = '99999';
+    dialog.style.width = '90%';
+    dialog.style.maxWidth = '800px';
+
+    const header = document.createElement('div');
+    header.className = 'modal-header border-bottom pb-3';
+    const h5 = document.createElement('h5');
+    h5.className = 'modal-title';
+    const icon = document.createElement('i');
+    icon.className = 'fas fa-folder-open';
+    h5.appendChild(icon);
+    h5.appendChild(document.createTextNode(' الاستعلامات المحفوظة '));
+    const badge = document.createElement('span');
+    badge.className = 'badge bg-success';
+    badge.textContent = String(saved.length);
+    h5.appendChild(badge);
+    header.appendChild(h5);
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'close';
+    const closeSpan = document.createElement('span');
+    closeSpan.setAttribute('aria-hidden', 'true');
+    closeSpan.textContent = '×';
+    closeBtn.appendChild(closeSpan);
+    closeBtn.addEventListener('click', () => modal.remove());
+    header.appendChild(closeBtn);
+    dialog.appendChild(header);
+
+    const body = document.createElement('div');
+    body.className = 'modal-body mt-3';
+    if (!saved.length) {
+      const empty = document.createElement('div');
+      empty.className = 'alert alert-info';
+      empty.textContent = 'لا توجد استعلامات محفوظة';
+      body.appendChild(empty);
+    } else {
+      saved.forEach((item) => {
+        const card = document.createElement('div');
+        card.className = 'card mb-2 saved-query-item';
+        const cardBody = document.createElement('div');
+        cardBody.className = 'card-body p-2';
+        const row = document.createElement('div');
+        row.className = 'd-flex justify-content-between align-items-start';
+
+        const left = document.createElement('div');
+        left.className = 'flex-grow-1';
+        const strong = document.createElement('strong');
+        const bm = document.createElement('i');
+        bm.className = 'fas fa-bookmark text-success';
+        strong.appendChild(bm);
+        strong.appendChild(document.createTextNode(' ' + String(item && item.name || '')));
+        left.appendChild(strong);
+        left.appendChild(document.createElement('br'));
+
+        const small = document.createElement('small');
+        small.className = 'text-muted';
+        const clock = document.createElement('i');
+        clock.className = 'fas fa-clock';
+        small.appendChild(clock);
+        const created = item && item.created ? new Date(item.created).toLocaleString('ar-EG') : '';
+        small.appendChild(document.createTextNode(' ' + String(created || '')));
+        left.appendChild(small);
+
+        const pre = document.createElement('pre');
+        pre.className = 'mb-0 mt-2';
+        pre.style.fontSize = '12px';
+        pre.style.background = '#f8f9fa';
+        pre.style.padding = '8px';
+        pre.style.borderRadius = '4px';
+        pre.style.maxHeight = '100px';
+        pre.style.overflowY = 'auto';
+        pre.textContent = String(item && item.query || '');
+        left.appendChild(pre);
+
+        const actions = document.createElement('div');
+        actions.className = 'btn-group-vertical ms-2';
+        const loadBtn = document.createElement('button');
+        loadBtn.type = 'button';
+        loadBtn.className = 'btn btn-sm btn-primary';
+        const up = document.createElement('i');
+        up.className = 'fas fa-upload';
+        loadBtn.appendChild(up);
+        loadBtn.appendChild(document.createTextNode(' تحميل'));
+        loadBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          textarea.value = String(item && item.query || '');
+          modal.remove();
+        });
+
+        const delBtn = document.createElement('button');
+        delBtn.type = 'button';
+        delBtn.className = 'btn btn-sm btn-danger';
+        const trash = document.createElement('i');
+        trash.className = 'fas fa-trash';
+        delBtn.appendChild(trash);
+        delBtn.appendChild(document.createTextNode(' حذف'));
+        delBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          window.deleteSavedQuery(item && item.id);
+          card.remove();
+        });
+
+        actions.appendChild(loadBtn);
+        actions.appendChild(delBtn);
+
+        row.appendChild(left);
+        row.appendChild(actions);
+        cardBody.appendChild(row);
+        card.appendChild(cardBody);
+        body.appendChild(card);
+      });
+    }
+    dialog.appendChild(body);
     
     modal.style.cssText = `
       position: fixed;
@@ -426,6 +581,7 @@
       if (e.target === modal) modal.remove();
     };
     
+    modal.appendChild(dialog);
     document.body.appendChild(modal);
   }
   

@@ -3,6 +3,7 @@ import logging
 import secrets
 from base64 import urlsafe_b64decode
 from datetime import timedelta
+from urllib.parse import quote_plus
 from dotenv import load_dotenv
 
 basedir = os.path.abspath(os.path.dirname(__file__))
@@ -52,11 +53,38 @@ def _csv_str(env_name: str, default_list: list[str] | tuple[str, ...]) -> list[s
     return vals or list(default_list)
 
 
+def _build_pg_uri_from_env() -> str | None:
+    host = os.environ.get("PGHOST") or os.environ.get("POSTGRES_HOST") or os.environ.get("POSTGRESQL_HOST")
+    database = os.environ.get("PGDATABASE") or os.environ.get("POSTGRES_DB") or os.environ.get("POSTGRESQL_DATABASE")
+    username = os.environ.get("PGUSER") or os.environ.get("POSTGRES_USER") or os.environ.get("POSTGRESQL_USER")
+    password = os.environ.get("PGPASSWORD") or os.environ.get("POSTGRES_PASSWORD") or os.environ.get("POSTGRESQL_PASSWORD")
+    port_raw = os.environ.get("PGPORT") or os.environ.get("POSTGRES_PORT") or os.environ.get("POSTGRESQL_PORT") or ""
+
+    if not host or not database or not username:
+        return None
+
+    try:
+        port = int(port_raw) if port_raw else 5432
+    except Exception:
+        port = 5432
+
+    user_enc = quote_plus(str(username))
+    if password:
+        auth = f"{user_enc}:{quote_plus(str(password))}"
+    else:
+        auth = user_enc
+
+    return f"postgresql://{auth}@{host}:{port}/{database}"
+
+
 class Config:
     FLASK_APP = os.environ.get("FLASK_APP", "app:create_app")
 
     APP_ENV = os.environ.get("APP_ENV", os.environ.get("FLASK_ENV", "production"))
     DEBUG = _bool(os.environ.get("DEBUG"), False)
+    AI_SYSTEMS_ENABLED = _bool(os.environ.get("AI_SYSTEMS_ENABLED"), True)
+    ENABLE_AUTOMATED_BACKUPS = _bool(os.environ.get("ENABLE_AUTOMATED_BACKUPS"), True)
+    AUTO_CREATE_PERFORMANCE_INDEXES = _bool(os.environ.get("AUTO_CREATE_PERFORMANCE_INDEXES"), True)
     _APP_ENV_LOWER = str(APP_ENV).lower()
     _IS_DEV = DEBUG or (_APP_ENV_LOWER in {"dev", "development", "local"})
 
@@ -86,7 +114,7 @@ class Config:
     HOST = os.environ.get("HOST", "127.0.0.1")
     PORT = _int("PORT", 5000)
 
-    _db_uri = os.environ.get("DATABASE_URL") or f"sqlite:///{os.path.join(instance_dir, 'app.db')}"
+    _db_uri = os.environ.get("DATABASE_URL") or _build_pg_uri_from_env() or f"sqlite:///{os.path.join(instance_dir, 'app.db')}"
     if _db_uri.startswith("postgres://"):
         _db_uri = _db_uri.replace("postgres://", "postgresql://", 1)
     if _db_uri.startswith("postgresql://") and _bool(os.environ.get("DB_SSLMODE_REQUIRE"), False):
@@ -156,7 +184,7 @@ class Config:
     REMEMBER_COOKIE_HTTPONLY = True
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = os.environ.get("SESSION_COOKIE_SAMESITE", "Lax")
-    SESSION_COOKIE_SECURE = _bool(os.environ.get("SESSION_COOKIE_SECURE"), not DEBUG)
+    SESSION_COOKIE_SECURE = False if _IS_DEV else _bool(os.environ.get("SESSION_COOKIE_SECURE"), not DEBUG)
     REMEMBER_COOKIE_DURATION = timedelta(days=_int("REMEMBER_DAYS", 14))
     PERMANENT_SESSION_LIFETIME = timedelta(hours=_int("SESSION_HOURS", 12))
     SESSION_COOKIE_NAME = os.environ.get("SESSION_COOKIE_NAME", "gm_session")

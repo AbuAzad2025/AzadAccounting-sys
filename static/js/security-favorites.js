@@ -163,7 +163,7 @@
         }
       }
       
-      widgetsContainer.innerHTML = '';
+      widgetsContainer.textContent = '';
       
       if (this.favorites.length > 0) {
         const favCard = this.createFavoritesCard();
@@ -179,62 +179,194 @@
     createFavoritesCard: function() {
       const col = document.createElement('div');
       col.className = 'col-lg-6';
-      
-      col.innerHTML = `
-        <div class="card border-0 shadow-sm">
-          <div class="card-header bg-warning text-dark">
-            <div class="d-flex justify-content-between align-items-center">
-              <h6 class="mb-0"><i class="fas fa-star"></i> المفضلة (${this.favorites.length})</h6>
-              ${this.favorites.length > 0 ? '<button class="btn btn-sm btn-outline-dark" onclick="SecurityFavorites.clearFavorites()"><i class="fas fa-trash"></i></button>' : ''}
-            </div>
-          </div>
-          <div class="card-body p-2" style="max-height: 300px; overflow-y: auto;">
-            ${this.favorites.slice(0, 5).map(fav => `
-              <div class="d-flex justify-content-between align-items-center p-2 border-bottom hover-bg">
-                <a href="${fav.url}" class="text-decoration-none flex-grow-1">
-                  <i class="fas ${fav.icon} text-warning mr-2"></i>
-                  <strong>${fav.title}</strong>
-                </a>
-                <button class="btn btn-sm btn-link text-danger" onclick="SecurityFavorites.removeFavorite('${fav.url}')">
-                  <i class="fas fa-times"></i>
-                </button>
-              </div>
-            `).join('')}
-            ${this.favorites.length > 5 ? `<small class="text-muted d-block p-2">و ${this.favorites.length - 5} أخرى...</small>` : ''}
-          </div>
-        </div>
-      `;
-      
+
+      const safeUrl = (rawUrl) => {
+        const url = String(rawUrl || '');
+        return url.startsWith('/') ? url : '#';
+      };
+
+      const safeIcon = (rawIcon) => {
+        const icon = String(rawIcon || '').trim();
+        if (/^fa-[a-z0-9-]+$/i.test(icon)) return icon;
+        if (/^[a-z0-9-]+$/i.test(icon)) return icon;
+        return 'fa-file';
+      };
+
+      const card = document.createElement('div');
+      card.className = 'card border-0 shadow-sm';
+
+      const header = document.createElement('div');
+      header.className = 'card-header bg-warning text-dark';
+      const headerRow = document.createElement('div');
+      headerRow.className = 'd-flex justify-content-between align-items-center';
+
+      const title = document.createElement('h6');
+      title.className = 'mb-0';
+      const star = document.createElement('i');
+      star.className = 'fas fa-star';
+      title.appendChild(star);
+      title.appendChild(document.createTextNode(' المفضلة (' + String(this.favorites.length) + ')'));
+      headerRow.appendChild(title);
+
+      if (this.favorites.length > 0) {
+        const clearBtn = document.createElement('button');
+        clearBtn.type = 'button';
+        clearBtn.className = 'btn btn-sm btn-outline-dark';
+        const trash = document.createElement('i');
+        trash.className = 'fas fa-trash';
+        clearBtn.appendChild(trash);
+        clearBtn.addEventListener('click', () => this.clearFavorites());
+        headerRow.appendChild(clearBtn);
+      }
+
+      header.appendChild(headerRow);
+      card.appendChild(header);
+
+      const body = document.createElement('div');
+      body.className = 'card-body p-2';
+      body.style.maxHeight = '300px';
+      body.style.overflowY = 'auto';
+
+      this.favorites.slice(0, 5).forEach((fav) => {
+        const row = document.createElement('div');
+        row.className = 'd-flex justify-content-between align-items-center p-2 border-bottom hover-bg';
+
+        const link = document.createElement('a');
+        link.href = safeUrl(fav && fav.url);
+        link.className = 'text-decoration-none flex-grow-1';
+
+        const icon = document.createElement('i');
+        icon.className = 'fas ' + safeIcon(fav && fav.icon) + ' text-warning mr-2';
+        link.appendChild(icon);
+
+        const strong = document.createElement('strong');
+        strong.textContent = String((fav && fav.title) || '');
+        link.appendChild(strong);
+
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'btn btn-sm btn-link text-danger';
+        const times = document.createElement('i');
+        times.className = 'fas fa-times';
+        removeBtn.appendChild(times);
+        removeBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          this.removeFavorite(String((fav && fav.url) || ''));
+        });
+
+        row.appendChild(link);
+        row.appendChild(removeBtn);
+        body.appendChild(row);
+      });
+
+      if (this.favorites.length > 5) {
+        const more = document.createElement('small');
+        more.className = 'text-muted d-block p-2';
+        more.textContent = 'و ' + String(this.favorites.length - 5) + ' أخرى...';
+        body.appendChild(more);
+      }
+
+      card.appendChild(body);
+      col.appendChild(card);
       return col;
     },
     
     createRecentPagesCard: function() {
       const col = document.createElement('div');
       col.className = 'col-lg-6';
-      
-      col.innerHTML = `
-        <div class="card border-0 shadow-sm">
-          <div class="card-header bg-info text-white">
-            <div class="d-flex justify-content-between align-items-center">
-              <h6 class="mb-0"><i class="fas fa-history"></i> آخر الصفحات (${this.recentPages.length})</h6>
-              ${this.recentPages.length > 0 ? '<button class="btn btn-sm btn-outline-light" onclick="SecurityFavorites.clearRecentPages()"><i class="fas fa-trash"></i></button>' : ''}
-            </div>
-          </div>
-          <div class="card-body p-2" style="max-height: 300px; overflow-y: auto;">
-            ${this.recentPages.slice(0, 5).map((page, index) => `
-              <div class="d-flex justify-content-between align-items-center p-2 border-bottom hover-bg">
-                <a href="${page.url}" class="text-decoration-none flex-grow-1">
-                  <i class="fas ${page.icon} text-info mr-2"></i>
-                  <strong>${page.title}</strong>
-                  <br><small class="text-muted">${this.formatTime(page.timestamp)}</small>
-                </a>
-                ${index > 0 ? `<button class="btn btn-sm btn-link text-warning" onclick="SecurityFavorites.addFavorite('${page.url}')"><i class="fas fa-star"></i></button>` : ''}
-              </div>
-            `).join('')}
-          </div>
-        </div>
-      `;
-      
+
+      const safeUrl = (rawUrl) => {
+        const url = String(rawUrl || '');
+        return url.startsWith('/') ? url : '#';
+      };
+
+      const safeIcon = (rawIcon) => {
+        const icon = String(rawIcon || '').trim();
+        if (/^fa-[a-z0-9-]+$/i.test(icon)) return icon;
+        if (/^[a-z0-9-]+$/i.test(icon)) return icon;
+        return 'fa-file';
+      };
+
+      const card = document.createElement('div');
+      card.className = 'card border-0 shadow-sm';
+
+      const header = document.createElement('div');
+      header.className = 'card-header bg-info text-white';
+      const headerRow = document.createElement('div');
+      headerRow.className = 'd-flex justify-content-between align-items-center';
+
+      const title = document.createElement('h6');
+      title.className = 'mb-0';
+      const history = document.createElement('i');
+      history.className = 'fas fa-history';
+      title.appendChild(history);
+      title.appendChild(document.createTextNode(' آخر الصفحات (' + String(this.recentPages.length) + ')'));
+      headerRow.appendChild(title);
+
+      if (this.recentPages.length > 0) {
+        const clearBtn = document.createElement('button');
+        clearBtn.type = 'button';
+        clearBtn.className = 'btn btn-sm btn-outline-light';
+        const trash = document.createElement('i');
+        trash.className = 'fas fa-trash';
+        clearBtn.appendChild(trash);
+        clearBtn.addEventListener('click', () => this.clearRecentPages());
+        headerRow.appendChild(clearBtn);
+      }
+
+      header.appendChild(headerRow);
+      card.appendChild(header);
+
+      const body = document.createElement('div');
+      body.className = 'card-body p-2';
+      body.style.maxHeight = '300px';
+      body.style.overflowY = 'auto';
+
+      this.recentPages.slice(0, 5).forEach((page, index) => {
+        const row = document.createElement('div');
+        row.className = 'd-flex justify-content-between align-items-center p-2 border-bottom hover-bg';
+
+        const link = document.createElement('a');
+        link.href = safeUrl(page && page.url);
+        link.className = 'text-decoration-none flex-grow-1';
+
+        const icon = document.createElement('i');
+        icon.className = 'fas ' + safeIcon(page && page.icon) + ' text-info mr-2';
+        link.appendChild(icon);
+
+        const strong = document.createElement('strong');
+        strong.textContent = String((page && page.title) || '');
+        link.appendChild(strong);
+
+        link.appendChild(document.createElement('br'));
+        const time = document.createElement('small');
+        time.className = 'text-muted';
+        time.textContent = this.formatTime(page && page.timestamp);
+        link.appendChild(time);
+
+        row.appendChild(link);
+
+        if (index > 0) {
+          const favBtn = document.createElement('button');
+          favBtn.type = 'button';
+          favBtn.className = 'btn btn-sm btn-link text-warning';
+          const star = document.createElement('i');
+          star.className = 'fas fa-star';
+          favBtn.appendChild(star);
+          favBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.addFavorite(String((page && page.url) || ''));
+          });
+          row.appendChild(favBtn);
+        }
+
+        body.appendChild(row);
+      });
+
+      card.appendChild(body);
+      col.appendChild(card);
       return col;
     },
     
