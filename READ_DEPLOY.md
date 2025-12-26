@@ -45,14 +45,34 @@ git push -u origin main
 
 3.  **إعداد ملف `.env`:**
     *   أنشئ ملف `.env` في مجلد المشروع (`mysite`).
-    *   ضع فيه المتغيرات الضرورية (مثل `SECRET_KEY`).
-    *   للاتصال بقاعدة البيانات (MySQL)، أضف:
+    *   ضع فيه المتغيرات التالية (مع استبدال `YOUR_PASSWORD` بكلمة مرور قاعدة البيانات التي عينتها):
         ```
-        DATABASE_URL=mysql+pymysql://USERNAME:PASSWORD@USERNAME.mysql.pythonanywhere-services.com/USERNAME$DBNAME
+        # Secret Key (مفتاح التشفير)
+        SECRET_KEY=AxK0bNomy6FLt4VzYx3qhk8BybPl3NKJDI6rt6taq2Og08N7FQOCOH4aeu5pZrTkWPg
+        
+        # Database Settings (PostgreSQL on PythonAnywhere)
+        # استبدل YOUR_PASSWORD بكلمة المرور الخاصة بقاعدة البيانات
+        DATABASE_URL=postgresql://super:YOUR_PASSWORD@NASERALLAH-4986.postgres.pythonanywhere-services.com:14986/NASERALLAH$default
+        
+        # Email Settings
+        MAIL_SERVER=smtp.gmail.com
+        MAIL_PORT=587
+        MAIL_USE_TLS=True
+        MAIL_USERNAME=rafideen.ahmadghannam@gmail.com
+        MAIL_PASSWORD=your-app-password
+        MAIL_DEFAULT_SENDER=rafideen.ahmadghannam@gmail.com
         ```
-        *(استبدل `USERNAME`, `PASSWORD`, `DBNAME` ببياناتك من تبويب Databases)*
+    *   **هام:** اسم قاعدة البيانات الافتراضي عادة يكون `NASERALLAH$default`. تأكد من الاسم الصحيح من تبويب **Databases** (قد يكون `NASERALLAH$garage_db` إذا قمت بتسميتها هكذا).
 
-4.  **إعداد WSGI:**
+4.  **إنشاء جداول قاعدة البيانات:**
+    *   بعد إعداد الملفات، نفذ الأمر التالي في التيرمينال لإنشاء الجداول:
+        ```bash
+        cd ~/mysite
+        flask db upgrade
+        ```
+        *(إذا ظهر خطأ، تأكد من صحة رابط الاتصال في ملف .env)*
+
+5.  **إعداد WSGI:**
     *   في تبويب **Web**، اذهب إلى قسم **WSGI configuration file**.
     *   امسح المحتوى الموجود وضع التالي:
         ```python
