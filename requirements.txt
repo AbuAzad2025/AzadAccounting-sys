@@ -40,13 +40,6 @@ curl_cffi==0.14.0
 CurrencyConverter==0.17.10
 Deprecated==1.2.18
 distro==1.9.0
-dj-database-url==3.0.1
-Django==6.0
-django-filter==25.2
-django-jazzmin==3.0.1
-django-leaflet==0.33.0
-djangorestframework==3.16.1
-djangorestframework-gis==1.2.0
 dnspython==2.7.0
 docstring_parser==0.17.0
 email-validator==2.1.0.post1
@@ -54,7 +47,6 @@ et_xmlfile==2.0.0
 eventlet==0.40.2
 ezdxf==1.4.3
 Faker==20.1.0
-fastapi==0.122.1
 flake8==7.3.0
 Flask==3.0.0
 Flask-Admin==2.0.2
@@ -74,9 +66,6 @@ fonttools==4.55.0
 forex-python==1.0.0
 frozendict==2.4.7
 frozenlist==1.7.0
-graphene==3.4.3
-graphql-core==3.2.6
-graphql-relay==3.2.0
 greenlet==3.2.4
 gunicorn==21.2.0
 h11==0.16.0
@@ -106,7 +95,6 @@ ordered-set==4.1.0
 packaging==25.0
 pandas==2.3.3
 passlib==1.7.4
-peewee==3.18.3
 pillow==10.4.0
 platformdirs==4.5.1
 pluggy==1.6.0
@@ -157,7 +145,6 @@ sniffio==1.3.1
 soupsieve==2.8
 SQLAlchemy==2.0.44
 sqlparse==0.5.4
-starlette==0.50.0
 tabulate==0.9.0
 threadpoolctl==3.6.0
 tinycss2==1.4.0
@@ -168,7 +155,6 @@ typing_extensions==4.15.0
 tzdata==2025.2
 tzlocal==5.3.1
 urllib3==2.5.0
-uvicorn==0.38.0
 validators==0.28.3
 vine==5.1.0
 waitress==3.0.2
