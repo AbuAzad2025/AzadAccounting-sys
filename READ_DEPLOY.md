@@ -31,17 +31,26 @@ git push -u origin main
 
 ## 2. الإعداد على PythonAnywhere
 
-1.  **سحب الكود:**
-    *   افتح `Bash` console في PythonAnywhere.
-    *   انسخ الكود: `git clone https://github.com/YOUR_USERNAME/YOUR_REPO.git mysite`
+### 1. إعداد المشروع على PythonAnywhere
 
-2.  **إنشاء البيئة الافتراضية (Virtualenv):**
-    ```bash
-    cd mysite
-    mkvirtualenv --python=/usr/bin/python3.10 myenv
-    pip install -r requirements.txt
-    ```
-    *(تأكد من اختيار Python 3.10)*
+1. افتح **Console** (Bash) جديد في PythonAnywhere.
+2. قم بإنشاء مجلد `ramallah` واستنساخ المشروع بداخله:
+
+```bash
+# استنساخ المستودع إلى مجلد ramallah
+git clone https://github.com/AbuAzad2025/NaserCompany.git ramallah
+
+# الدخول للمجلد
+cd ramallah
+```
+
+### 2. إعداد البيئة الافتراضية (Virtual Environment)
+
+```bash
+mkvirtualenv --python=/usr/bin/python3.10 myenv
+pip install -r requirements.txt
+```
+*(تأكد من اختيار Python 3.10)*
 
 3.  **إعداد ملف `.env`:**
     *   أنشئ ملف `.env` في مجلد المشروع (`mysite`).
