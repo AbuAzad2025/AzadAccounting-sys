@@ -1,4 +1,6 @@
 (function() {
+  if (window.__UX_ENHANCEMENTS_INIT__) return;
+  window.__UX_ENHANCEMENTS_INIT__ = true;
   'use strict';
 
   const UXEnhancements = {
@@ -107,17 +109,20 @@
     initLoadingStates() {
       document.querySelectorAll('form').forEach(form => {
         form.addEventListener('submit', function(e) {
-          const submitBtn = this.querySelector('button[type="submit"]');
-          if (submitBtn && !submitBtn.classList.contains('no-loading')) {
-            submitBtn.classList.add('loading');
-            
-            if (!submitBtn.querySelector('.btn-spinner')) {
-              const spinner = document.createElement('span');
-              spinner.className = 'btn-spinner';
-              spinner.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-              submitBtn.appendChild(spinner);
+          setTimeout(() => {
+            if (e && e.defaultPrevented) return;
+            try { if (typeof this.checkValidity === 'function' && !this.checkValidity()) return; } catch (_) {}
+            const submitBtn = this.querySelector('button[type="submit"]');
+            if (submitBtn && !submitBtn.classList.contains('no-loading')) {
+              submitBtn.classList.add('loading');
+              if (!submitBtn.querySelector('.btn-spinner')) {
+                const spinner = document.createElement('span');
+                spinner.className = 'btn-spinner';
+                spinner.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                submitBtn.appendChild(spinner);
+              }
             }
-          }
+          }, 0);
         });
       });
     },

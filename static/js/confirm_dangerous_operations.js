@@ -7,6 +7,9 @@
  */
 
 (function() {
+  if (window.__CONFIRM_DANGEROUS_INIT__) return;
+  window.__CONFIRM_DANGEROUS_INIT__ = true;
+
   'use strict';
   
   /**

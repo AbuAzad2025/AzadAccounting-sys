@@ -1,5 +1,8 @@
 /* global jQuery */
 (() => {
+  if (window.__SALES_INIT__) return;
+  window.__SALES_INIT__ = true;
+
   'use strict';
   const qs=(s,el=document)=>el.querySelector(s);
   const qsa=(s,el=document)=>Array.from(el.querySelectorAll(s));
@@ -145,6 +148,9 @@
         if(el.name) el.name = el.name.replace(/lines-\d+-/,'lines-'+i+'-');
         if(el.id)   el.id   = el.id.replace(/lines-\d+-/,'lines-'+i+'-');
       });
+      qsa('label',row).forEach(el=>{
+        if(el.htmlFor) el.htmlFor = el.htmlFor.replace(/lines-\d+-/,'lines-'+i+'-');
+      });
     }
 
     function clearRow(row){
@@ -287,7 +293,8 @@
       
       if(isSelect2($el)){
         try{
-          $el.off().select2('destroy');
+          // استخدام destroy فقط دون off() للحفاظ على الأحداث الأخرى
+          $el.select2('destroy');
         }catch(_){}
       }
       
@@ -299,6 +306,8 @@
       }
       
       $el.select2(build());
+      $el.data('s2-initialized', 1); // Prevent app.js from re-initializing
+
       
       // تعيين القيمة مرة أخرى
       if(currentVal){
@@ -329,14 +338,7 @@
           });
           
           // عرض رقم المستودع بدلاً من الاسم بعد الاختيار
-          $wh.off('select2:select.warehouseNumber').on('select2:select.warehouseNumber', function(e) {
-            const whId = $(this).val();
-            if(whId){
-              // استبدال النص المعروض برقم المستودع
-              $(this).find('option:selected').text('#' + whId);
-              $(this).next('.select2-container').find('.select2-selection__rendered').text('#' + whId);
-            }
-          });
+          // (Removed cosmetic code that caused selection issues)
         }
 
         const initProducts = () => {
@@ -348,10 +350,13 @@
             placeholder: $pd.data('placeholder') || 'اختر الصنف'
           });
           $pd.off('select2:select').on('select2:select', async (e) => {
+            // عند اختيار صنف جديد، نلغي وضع السعر اليدوي ليتم جلب السعر الجديد
+            if(priceInp) row.dataset.priceManual = '';
+
             const data = e.params?.data || {};
             const pid = +$pd.val(); const widNow = +$wh.val();
             const saleCurrency = qs('select[name="currency"]')?.value || 'ILS';
-            if (priceInp && row.dataset.priceManual!=='1') {
+            if (priceInp) {
               const info=await fetchProductInfo(pid,widNow,saleCurrency);
               if(info && toNum(info.price)>0){
                 priceInp.value=toNum(info.price).toFixed(2);

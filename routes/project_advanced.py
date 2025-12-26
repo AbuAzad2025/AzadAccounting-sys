@@ -6,27 +6,14 @@ from models import (Project, ProjectTask, ProjectResource, ProjectMilestone, Pro
 from sqlalchemy import func, and_, or_, desc, case
 from datetime import datetime, date, timedelta
 from decimal import Decimal
-from functools import wraps
+from utils import permission_required
 
 project_advanced_bp = Blueprint('project_advanced', __name__, url_prefix='/projects')
 
 
-def owner_only(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if not current_user.is_authenticated:
-            flash('يجب تسجيل الدخول أولاً', 'warning')
-            return redirect(url_for('auth.login'))
-        if not (current_user.role and current_user.role.name == 'Owner'):
-            flash('هذه الصفحة للمالك فقط', 'danger')
-            return redirect(url_for('main.dashboard'))
-        return f(*args, **kwargs)
-    return decorated_function
-
-
 @project_advanced_bp.route('/<int:project_id>/tasks')
 @login_required
-@owner_only
+@permission_required('manage_projects')
 def tasks(project_id):
     project = Project.query.get_or_404(project_id)
     
@@ -73,7 +60,7 @@ def tasks(project_id):
 
 @project_advanced_bp.route('/<int:project_id>/tasks/add', methods=['POST'])
 @login_required
-@owner_only
+@permission_required('manage_projects')
 def add_task(project_id):
     try:
         project = Project.query.get_or_404(project_id)
@@ -112,7 +99,7 @@ def add_task(project_id):
 
 @project_advanced_bp.route('/<int:project_id>/resources')
 @login_required
-@owner_only
+@permission_required('manage_projects')
 def resources(project_id):
     project = Project.query.get_or_404(project_id)
     
@@ -154,7 +141,7 @@ def resources(project_id):
 
 @project_advanced_bp.route('/<int:project_id>/resources/add', methods=['POST'])
 @login_required
-@owner_only
+@permission_required('manage_projects')
 def add_resource(project_id):
     try:
         resource_type = request.form.get('resource_type')
@@ -191,7 +178,7 @@ def add_resource(project_id):
 
 @project_advanced_bp.route('/<int:project_id>/milestones')
 @login_required
-@owner_only
+@permission_required('manage_projects')
 def milestones(project_id):
     project = Project.query.get_or_404(project_id)
     
@@ -227,7 +214,7 @@ def milestones(project_id):
 
 @project_advanced_bp.route('/<int:project_id>/milestones/add', methods=['POST'])
 @login_required
-@owner_only
+@permission_required('manage_projects')
 def add_milestone(project_id):
     try:
         project = Project.query.get_or_404(project_id)
@@ -267,7 +254,7 @@ def add_milestone(project_id):
 
 @project_advanced_bp.route('/<int:project_id>/milestones/<int:milestone_id>/complete', methods=['POST'])
 @login_required
-@owner_only
+@permission_required('manage_projects')
 def complete_milestone(project_id, milestone_id):
     try:
         milestone = ProjectMilestone.query.get_or_404(milestone_id)
@@ -293,7 +280,7 @@ def complete_milestone(project_id, milestone_id):
 
 @project_advanced_bp.route('/<int:project_id>/risks')
 @login_required
-@owner_only
+@permission_required('manage_projects')
 def risks(project_id):
     project = Project.query.get_or_404(project_id)
     
@@ -324,7 +311,7 @@ def risks(project_id):
 
 @project_advanced_bp.route('/<int:project_id>/risks/add', methods=['POST'])
 @login_required
-@owner_only
+@permission_required('manage_projects')
 def add_risk(project_id):
     try:
         project = Project.query.get_or_404(project_id)
@@ -368,7 +355,7 @@ def add_risk(project_id):
 
 @project_advanced_bp.route('/<int:project_id>/change-orders')
 @login_required
-@owner_only
+@permission_required('manage_projects')
 def change_orders(project_id):
     project = Project.query.get_or_404(project_id)
     
@@ -397,7 +384,7 @@ def change_orders(project_id):
 
 @project_advanced_bp.route('/<int:project_id>/change-orders/add', methods=['POST'])
 @login_required
-@owner_only
+@permission_required('manage_projects')
 def add_change_order(project_id):
     try:
         project = Project.query.get_or_404(project_id)
@@ -432,7 +419,7 @@ def add_change_order(project_id):
 
 @project_advanced_bp.route('/<int:project_id>/change-orders/<int:co_id>/approve', methods=['POST'])
 @login_required
-@owner_only
+@permission_required('manage_projects')
 def approve_change_order(project_id, co_id):
     try:
         co = ProjectChangeOrder.query.get_or_404(co_id)
@@ -460,7 +447,7 @@ def approve_change_order(project_id, co_id):
 
 @project_advanced_bp.route('/<int:project_id>/evm')
 @login_required
-@owner_only
+@permission_required('manage_projects')
 def earned_value_analysis(project_id):
     project = Project.query.get_or_404(project_id)
     
@@ -517,7 +504,7 @@ def earned_value_analysis(project_id):
 
 @project_advanced_bp.route('/<int:project_id>/dashboard')
 @login_required
-@owner_only
+@permission_required('manage_projects')
 def dashboard(project_id):
     project = Project.query.get_or_404(project_id)
     

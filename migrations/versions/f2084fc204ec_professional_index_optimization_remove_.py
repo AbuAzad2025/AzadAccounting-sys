@@ -147,8 +147,7 @@ def upgrade():
     print(f"Added {added} expression-based indexes")
     
     try:
-        conn.execute(sa.text("PRAGMA optimize"))
-        print("\nDatabase optimized successfully")
+        conn.execute(sa.text("ANALYZE"))
     except Exception:
         pass
     

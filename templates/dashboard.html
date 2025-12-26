@@ -9,20 +9,22 @@
 
   <div class="row mb-3">
     <div class="col-12 d-flex flex-wrap gap-2 justify-content-end">
-      {% if shop_is_super_admin %}
+      {% if has_perm('manage_shop') %}
       <a href="{{ url_for('shop.catalog') }}" target="_blank" class="btn btn-sm text-white fw-bold shadow-sm px-3" style="background:linear-gradient(45deg,#667eea,#764ba2)">
         <i class="fas fa-store ml-1"></i> المتجر
       </a>
       {% endif %}
-      {% if shop_is_super_admin or has_perm('backup_database') %}
+      {% if has_perm('backup_database') %}
       <a href="{{ url_for('main.backup_db') }}" class="btn btn-sm text-white fw-bold shadow-sm px-3" style="background:linear-gradient(45deg,#43cea2,#185a9d)">
         <i class="fas fa-database ml-1"></i> النسخ الاحتياطي
       </a>
       {% endif %}
-      {% if shop_is_super_admin %}
+      {% if has_perm('restore_database') %}
       <a href="{{ url_for('main.restore_db') }}" class="btn btn-sm text-dark fw-bold shadow-sm px-3" style="background:linear-gradient(45deg,#f7971e,#ffd200)">
         <i class="fas fa-upload ml-1"></i> استعادة النسخ
       </a>
+      {% endif %}
+      {% if has_perm('backup_database') %}
       <button type="button" class="btn btn-sm text-white fw-bold shadow-sm px-3" style="background:linear-gradient(45deg,#11998e,#38ef7d)" onclick="toggleAutomatedBackup()">
         <i class="fas fa-clock ml-1"></i> <span id="backup-toggle-text">نسخ تلقائي</span>
       </button>

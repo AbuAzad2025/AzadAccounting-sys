@@ -12,6 +12,7 @@ Created: 2025-11-01
 
 import json
 from typing import Dict, List, Any, Optional
+from flask_login import current_user
 from flask import current_app
 from models import SystemSettings
 
@@ -123,59 +124,99 @@ def is_ai_visible_to_role(role_name: str) -> bool:
     هل المساعد ظاهر لهذا الدور؟
     
     Args:
-        role_name: اسم الدور (owner, manager, admin, staff, etc.)
+        role_name: اسم الدور (deprecated - ignored in favor of permissions)
     
     Returns:
         True/False
     """
-    # المالك دائماً يرى
-    if role_name in ['owner', '__OWNER__']:
-        return True
-    
-    # فحص الإعدادات
-    if role_name in ['manager', 'مدير', 'admin']:
-        return get_ai_permission_setting('ai_visible_to_managers', True)
-    
-    if role_name in ['staff', 'موظف']:
-        return get_ai_permission_setting('ai_visible_to_staff', False)
-    
-    # افتراضياً: ممنوع
+    # استخدام نظام الصلاحيات الحديث
+    if hasattr(current_user, 'is_authenticated') and current_user.is_authenticated:
+        # إذا كان لديه صلاحية صريحة
+        if hasattr(current_user, 'has_permission') and current_user.has_permission('access_ai_assistant'):
+            return True
+            
+        # المالك دائماً يرى
+        if hasattr(current_user, 'has_permission') and current_user.has_permission('access_owner_dashboard'):
+            return True
+
+    # Fallback for compatibility if needed, but prefer permissions
     return False
 
 
 def can_ai_execute_action(action_type: str, user_role: str) -> bool:
     """
     هل المساعد يستطيع تنفيذ هذا الإجراء لهذا المستخدم؟
+    يعتمد الآن على الصلاحيات بدلاً من الأدوار الصلبة
     
     Args:
         action_type: نوع الإجراء (add_customer, create_payment, etc.)
-        user_role: دور المستخدم
+        user_role: دور المستخدم (deprecated)
     
     Returns:
         True/False
     """
-    # المالك: كل شيء
-    if user_role in ['owner', '__OWNER__']:
-        return True
-    
-    # المدراء: معظم الأشياء
-    if user_role in ['manager', 'مدير', 'admin']:
-        # ممنوع: تعديل GL، حذف، تعديل دفعات
-        forbidden = ['update_gl', 'delete_', 'update_payment']
+    if not hasattr(current_user, 'is_authenticated') or not current_user.is_authenticated:
+        return False
+
+    # خريطة الصلاحيات المطلوبة لكل إجراء
+    ACTION_PERMISSIONS = {
+        # Customers
+        'add_customer': 'add_customer',
+        'create_customer': 'add_customer',
+        'update_customer': 'manage_customers',
+        'read_customers': 'view_customers',
         
-        if any(f in action_type for f in forbidden):
-            return False
+        # Suppliers
+        'create_supplier': 'add_supplier',
+        'update_supplier': 'manage_vendors',
+        'read_suppliers': 'manage_vendors',
         
-        return True
-    
-    # الموظفين: محدود
-    if user_role in ['staff', 'موظف']:
-        # مسموح فقط: قراءة + إضافة بسيطة
-        allowed = ['add_customer', 'create_service', 'add_product']
+        # Products & Inventory
+        'create_product': 'manage_inventory',
+        'update_product': 'manage_inventory',
+        'read_products': 'view_parts',
+        'adjust_stock': 'manage_inventory',
+        'transfer_stock': 'warehouse_transfer',
+        'create_warehouse': 'manage_warehouses',
         
-        return action_type in allowed
+        # Sales
+        'create_sale': 'manage_sales',
+        'create_invoice': 'manage_sales',
+        'update_sale': 'manage_sales',
+        'read_sales': 'view_sales',
+        
+        # Service
+        'create_service': 'manage_service',
+        'read_services': 'view_service',
+        
+        # Payments & Expenses
+        'create_payment': 'manage_payments',
+        'update_payment': 'manage_payments',
+        'read_payments': 'manage_payments',
+        'create_expense': 'manage_expenses',
+        'read_expenses': 'manage_expenses',
+        
+        # Reports
+        'read_reports': 'view_reports',
+        
+        # System
+        'update_gl': 'manage_ledger',
+        'read_gl': 'manage_ledger',
+        'read_audit': 'view_audit_logs',
+        'read_users': 'manage_users',
+        'read_settings': 'access_owner_dashboard',
+        
+        # AI Specific
+        'training': 'train_ai',
+    }
     
-    # افتراضياً: ممنوع
+    # تحديد الصلاحية المطلوبة
+    required_perm = ACTION_PERMISSIONS.get(action_type)
+    
+    if required_perm:
+        return current_user.has_permission(required_perm)
+        
+    # إذا لم يكن الإجراء معروفاً، نمنعه افتراضياً للأمان
     return False
 
 
@@ -193,18 +234,24 @@ def get_ai_access_level(user) -> str:
     if user.is_system_account or user.username == '__OWNER__':
         return 'full'
     
+    # التحقق باستخدام الصلاحيات بدلاً من الأدوار
+    if user.has_permission('manage_ai') or user.has_permission('access_owner_dashboard'):
+        return 'full'
+    
     # فحص إذا كان المساعد مخفي
     if not is_ai_enabled():
         return 'none'
     
-    # حسب الدور
-    role_name = user.role.name if user.role else 'guest'
-    
-    if is_ai_visible_to_role(role_name):
-        if role_name in ['manager', 'مدير', 'admin']:
-            return 'limited'  # قراءة + بعض الكتابة
-        else:
-            return 'readonly'  # قراءة فقط
+    # التحقق من صلاحية الوصول الأساسية
+    if user.has_permission('access_ai_assistant'):
+        # تحديد مستوى الوصول بناءً على صلاحيات التعديل
+        has_write_access = (
+            user.has_permission('manage_sales') or 
+            user.has_permission('manage_inventory') or 
+            user.has_permission('manage_customers') or
+            user.has_permission('manage_service')
+        )
+        return 'limited' if has_write_access else 'readonly'
     
     return 'none'
 

@@ -932,7 +932,7 @@ def _check_manual_gl_on_update(mapper, connection, target):
             notes=target.notes or 'شيك يدوي',
             entity_type=entity_type,
             entity_id=entity_id,
-            connection=connection
+            connection=None
         )
     except Exception as e:
         current_app.logger.warning(f"⚠️ خطأ في ترحيل الشيك اليدوي #{getattr(target, 'id', '?')} لدفتر الأستاذ عند التحديث: {e}")
@@ -975,9 +975,6 @@ def ensure_check_accounts():
 
 def _create_gl_batch(connection, batch_code, check_type, check_id, currency, entity_name, notes, entity_type, entity_id, check_type_label):
     from sqlalchemy import text as sa_text
-    uri = current_app.config.get("SQLALCHEMY_DATABASE_URI", "")
-    is_sqlite = uri.startswith("sqlite")
-    
     batch_data = {
         "code": batch_code,
         "source_type": f'check_{check_type}',
@@ -990,26 +987,15 @@ def _create_gl_batch(connection, batch_code, check_type, check_id, currency, ent
         "created_at": datetime.utcnow(),
         "updated_at": datetime.utcnow()
     }
-    
-    if is_sqlite:
-        connection.execute(
-            sa_text("""
-                INSERT INTO gl_batches (code, source_type, source_id, currency, status, memo, entity_type, entity_id, created_at, updated_at)
-                VALUES (:code, :source_type, :source_id, :currency, :status, :memo, :entity_type, :entity_id, :created_at, :updated_at)
-            """),
-            batch_data
-        )
-        return connection.execute(sa_text("SELECT last_insert_rowid()")).scalar()
-    else:
-        result = connection.execute(
-            sa_text("""
-                INSERT INTO gl_batches (code, source_type, source_id, currency, status, memo, entity_type, entity_id, created_at, updated_at)
-                VALUES (:code, :source_type, :source_id, :currency, :status, :memo, :entity_type, :entity_id, :created_at, :updated_at)
-                RETURNING id
-            """),
-            batch_data
-        )
-        return result.scalar()
+    result = connection.execute(
+        sa_text("""
+            INSERT INTO gl_batches (code, source_type, source_id, currency, status, memo, entity_type, entity_id, created_at, updated_at)
+            VALUES (:code, :source_type, :source_id, :currency, :status, :memo, :entity_type, :entity_id, :created_at, :updated_at)
+            RETURNING id
+        """),
+        batch_data
+    )
+    return result.scalar()
 
 
 def _create_gl_entries_for_pending(amount_decimal, currency, batch_id, check_type_label, entity_name, is_incoming):
@@ -1923,9 +1909,46 @@ class CheckActionService:
             details['check_note'] = note_text
         split.details = details
         
-        check = Check.query.filter(
-            Check.reference_number == f"PMT-SPLIT-{split.id}"
-        ).first()
+        def _safe_get_split_check(split_id):
+            ref_exact = f"PMT-SPLIT-{split_id}"
+            ref_like = f"PMT-SPLIT-{split_id}-%"
+            from sqlalchemy.exc import SQLAlchemyError
+            
+            try:
+                # Attempt 1: Try with savepoint protection to avoid aborting the main transaction
+                with db.session.begin_nested():
+                    chk = Check.query.filter(Check.reference_number == ref_exact).first()
+                    if chk:
+                        return chk
+                    return Check.query.filter(Check.reference_number.like(ref_like)).first()
+            except SQLAlchemyError as e:
+                current_app.logger.warning(f"⚠️ Transaction error in _safe_get_split_check (nested attempt): {e}")
+                # Savepoint is rolled back automatically by the context manager
+                
+                # Attempt 2: Retry directly
+                try:
+                    chk = Check.query.filter(Check.reference_number == ref_exact).first()
+                    if chk:
+                        return chk
+                    return Check.query.filter(Check.reference_number.like(ref_like)).first()
+                except Exception as retry_e:
+                    current_app.logger.error(f"❌ Failed to get split check after retry: {retry_e}")
+                    
+                    # Attempt 3: Last resort - full rollback and retry
+                    try:
+                        db.session.rollback()
+                        chk = Check.query.filter(Check.reference_number == ref_exact).first()
+                        if chk:
+                            return chk
+                        return Check.query.filter(Check.reference_number.like(ref_like)).first()
+                    except Exception as final_e:
+                        current_app.logger.error(f"❌ Failed to get split check after full rollback: {final_e}")
+                        return None
+            except Exception as e:
+                current_app.logger.error(f"❌ Unexpected error in _safe_get_split_check: {e}")
+                return None
+
+        check = _safe_get_split_check(split.id)
         if check:
             check.status = status
             if note_text:

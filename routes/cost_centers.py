@@ -7,26 +7,14 @@ from sqlalchemy import func, and_, or_, desc
 from datetime import datetime, date, timedelta
 from decimal import Decimal
 from functools import wraps
+from utils import permission_required
 
 cost_centers_bp = Blueprint('cost_centers', __name__, url_prefix='/cost-centers')
 
 
-def owner_only(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if not current_user.is_authenticated:
-            flash('يجب تسجيل الدخول أولاً', 'warning')
-            return redirect(url_for('auth.login'))
-        if not (current_user.role and current_user.role.name == 'Owner'):
-            flash('هذه الصفحة للمالك فقط', 'danger')
-            return redirect(url_for('main.dashboard'))
-        return f(*args, **kwargs)
-    return decorated_function
-
-
 @cost_centers_bp.route('/')
 @login_required
-@owner_only
+@permission_required('manage_cost_centers')
 def index():
     parent_id = request.args.get('parent', type=int)
     
@@ -62,7 +50,7 @@ def index():
 
 @cost_centers_bp.route('/add', methods=['GET', 'POST'])
 @login_required
-@owner_only
+@permission_required('manage_cost_centers')
 def add():
     if request.method == 'POST':
         try:
@@ -111,7 +99,7 @@ def add():
 
 @cost_centers_bp.route('/edit/<int:id>', methods=['GET', 'POST'])
 @login_required
-@owner_only
+@permission_required('manage_cost_centers')
 def edit(id):
     center = CostCenter.query.get_or_404(id)
     
@@ -150,7 +138,7 @@ def edit(id):
 
 @cost_centers_bp.route('/<int:id>')
 @login_required
-@owner_only
+@permission_required('manage_cost_centers')
 def view(id):
     center = CostCenter.query.get_or_404(id)
     
@@ -200,7 +188,7 @@ def view(id):
 
 @cost_centers_bp.route('/<int:id>/allocate', methods=['POST'])
 @login_required
-@owner_only
+@permission_required('manage_cost_centers')
 def allocate(id):
     try:
         center = CostCenter.query.get_or_404(id)
@@ -234,7 +222,7 @@ def allocate(id):
 
 @cost_centers_bp.route('/reports/summary')
 @login_required
-@owner_only
+@permission_required('manage_cost_centers')
 def report_summary():
     date_from = request.args.get('date_from')
     date_to = request.args.get('date_to')
@@ -294,7 +282,7 @@ def report_summary():
 
 @cost_centers_bp.route('/reports/comparison')
 @login_required
-@owner_only
+@permission_required('manage_cost_centers')
 def report_comparison():
     period1_from = request.args.get('period1_from')
     period1_to = request.args.get('period1_to')
@@ -355,7 +343,7 @@ def report_comparison():
 
 @cost_centers_bp.route('/reports/budget-variance')
 @login_required
-@owner_only
+@permission_required('manage_cost_centers')
 def report_budget_variance():
     date_from = request.args.get('date_from')
     date_to = request.args.get('date_to')
@@ -412,7 +400,7 @@ def report_budget_variance():
 
 @cost_centers_bp.route('/api/hierarchy')
 @login_required
-@owner_only
+@permission_required('manage_cost_centers')
 def api_hierarchy():
     def build_tree(parent_id=None):
         centers = CostCenter.query.filter_by(parent_id=parent_id, is_active=True).order_by(CostCenter.code).all()

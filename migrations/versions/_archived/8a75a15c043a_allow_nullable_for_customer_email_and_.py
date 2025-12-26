@@ -20,31 +20,26 @@ def upgrade():
     """
     السماح بـ NULL في email و whatsapp للعملاء
     لحل مشكلة UNIQUE constraint مع السلاسل الفارغة
-    
-    SQLite لا يدعم ALTER COLUMN مباشرة، لذلك نستخدم recreate table
     """
     conn = op.get_bind()
     
-    # تعطيل foreign keys مؤقتاً
-    conn.execute(sa.text("PRAGMA foreign_keys = OFF"))
-    
-    # إعادة إنشاء الجدول مع nullable=True
-    with op.batch_alter_table('customers', schema=None, recreate='always') as batch_op:
-        batch_op.alter_column('email',
-                              existing_type=sa.String(length=120),
-                              nullable=True,
-                              existing_nullable=False)
-        batch_op.alter_column('whatsapp',
-                              existing_type=sa.String(length=20),
-                              nullable=True,
-                              existing_nullable=False)
+    with op.batch_alter_table('customers', schema=None) as batch_op:
+        batch_op.alter_column(
+            'email',
+            existing_type=sa.String(length=120),
+            nullable=True,
+            existing_nullable=False
+        )
+        batch_op.alter_column(
+            'whatsapp',
+            existing_type=sa.String(length=20),
+            nullable=True,
+            existing_nullable=False
+        )
     
     # تحويل السلاسل الفارغة إلى NULL
     conn.execute(sa.text("UPDATE customers SET email = NULL WHERE email = ''"))
     conn.execute(sa.text("UPDATE customers SET whatsapp = NULL WHERE whatsapp = ''"))
-    
-    # إعادة تفعيل foreign keys
-    conn.execute(sa.text("PRAGMA foreign_keys = ON"))
 
 
 def downgrade():

@@ -1,4 +1,6 @@
 (function () {
+  if (window.__IMPORT_PREVIEW_INIT__) return;
+  window.__IMPORT_PREVIEW_INIT__ = true;
   const rows = window.__IMPORT_ROWS__ || [];
   const table = document.getElementById('previewTable');
   const extra = document.getElementById('extraTable');

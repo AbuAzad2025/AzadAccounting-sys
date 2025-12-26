@@ -5,6 +5,8 @@
  */
 
 (function() {
+  if (window.__REALTIME_LOGS_INIT__) return;
+  window.__REALTIME_LOGS_INIT__ = true;
   'use strict';
   
   let logsAutoRefresh = null;

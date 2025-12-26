@@ -8,7 +8,6 @@ Create Date: 2025-01-03
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy import inspect
-from sqlalchemy.dialects import sqlite
 
 revision = '20250103_partner_hybrid'
 down_revision = '20251102_add_audit_to_all'
@@ -51,12 +50,7 @@ def upgrade():
         op.create_index('ix_partner_settlements_previous_settlement_id', 'partner_settlements', ['previous_settlement_id'], unique=False)
     if 'ix_partner_settlements_is_approved' not in existing_indexes:
         op.create_index('ix_partner_settlements_is_approved', 'partner_settlements', ['is_approved'], unique=False)
-    # في SQLite لا يمكن إضافة مفاتيح أجنبية مباشرة على جداول موجودة دون إعادة إنشاء الجدول.
-    # بما أن قاعدة البيانات التي جلبناها من الإنتاج تحتوي هذه القيود مسبقاً، نتجنب إعادة إنشائها هنا.
-
-
 def downgrade():
-    # لا نحاول إزالة القيود لأن SQLite لا يدعم ذلك بدون إعادة بناء الجدول.
     op.drop_index('ix_partner_settlements_is_approved', table_name='partner_settlements')
     op.drop_index('ix_partner_settlements_previous_settlement_id', table_name='partner_settlements')
     op.drop_column('partner_settlements', 'approved_at')

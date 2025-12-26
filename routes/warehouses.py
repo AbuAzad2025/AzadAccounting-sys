@@ -25,7 +25,7 @@ from flask import (
 )
 from flask_login import current_user, login_required
 from werkzeug.utils import secure_filename
-from sqlalchemy import func, or_, delete as sa_delete
+from sqlalchemy import func, or_, delete as sa_delete, text
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.orm import joinedload
 
@@ -1490,7 +1490,33 @@ def add_product(id):
         except (InvalidOperation, ValueError):
             return None
 
+    def _sync_products_id_sequence():
+        with db.engine.begin() as conn:
+            conn.execute(
+                text(
+                    """
+SELECT setval(
+  pg_get_serial_sequence('products','id'),
+  COALESCE((SELECT MAX(id) FROM products), 1),
+  (SELECT MAX(id) FROM products) IS NOT NULL
+);
+"""
+                )
+            )
+
     if request.method == "POST":
+        incoming_name = (product_form.name.data or "").strip()
+        existing_product = (
+            Product.query.filter(func.lower(Product.name) == incoming_name.lower()).order_by(Product.id.asc()).first()
+            if incoming_name
+            else None
+        )
+        if existing_product:
+            try:
+                product_form.id.process(None, existing_product.id)
+            except Exception:
+                product_form.id.data = existing_product.id
+
         if product_form.category_id.data:
             cat = db.session.get(ProductCategory, int(product_form.category_id.data))
             if not cat:
@@ -1519,167 +1545,229 @@ def add_product(id):
                 is_online=is_online,
             ), 400
 
-        try:
-            with db.session.begin_nested():
-                product = product_form.apply_to(Product())
-                if not product.category_id and product.category_name:
-                    product.category_id = _ensure_category_id(product.category_name)
-                
-                # التأكد من حفظ نوع المركبة
-                if product_form.vehicle_type_id.data:
-                    try:
-                        product.vehicle_type_id = int(product_form.vehicle_type_id.data)
-                    except (ValueError, TypeError):
-                        product.vehicle_type_id = None
-                
-                db.session.add(product)
-                db.session.flush()
+        def _attempt_create():
+            def _is_blank(v):
+                if v is None:
+                    return True
+                if isinstance(v, str):
+                    return not v.strip()
+                return False
 
-                if is_online:
-                    upfile = request.files.get("online_image_file") or request.files.get("image_file") or request.files.get("image")
-                    if upfile and getattr(upfile, "filename", "") and _allowed_image(upfile.filename):
-                        url, thumb = _save_image_file(upfile)
-                        product.online_image = url or product.online_image or None
-                        if not product.image:
-                            product.image = url
-                    elif product.online_image in (None, "", "None") and (product_form.online_image.data or "").strip():
-                        product.online_image = (product_form.online_image.data or "").strip()
-                else:
-                    upfile = request.files.get("image_file") or request.files.get("image")
-                    if upfile and getattr(upfile, "filename", "") and _allowed_image(upfile.filename):
-                        url, thumb = _save_image_file(upfile)
-                        product.image = url or product.image or None
+            product = existing_product or Product()
+            preserve_if_blank = {}
+            if existing_product:
+                for k in (
+                    "sku",
+                    "serial_no",
+                    "barcode",
+                    "description",
+                    "part_number",
+                    "brand",
+                    "commercial_name",
+                    "chassis_number",
+                    "unit",
+                    "origin_country",
+                    "dimensions",
+                    "image",
+                    "online_name",
+                    "online_image",
+                    "notes",
+                    "supplier_id",
+                    "supplier_international_id",
+                    "supplier_local_id",
+                    "vehicle_type_id",
+                    "reorder_point",
+                    "warranty_period",
+                    "weight",
+                    "min_price",
+                    "max_price",
+                    "online_price",
+                ):
+                    preserve_if_blank[k] = getattr(product, k, None)
 
+            product_form.apply_to(product)
+            product.warehouse_id = warehouse.id
+            if existing_product:
+                for field_name, old_val in preserve_if_blank.items():
+                    if hasattr(product_form, field_name):
+                        if _is_blank(getattr(product_form, field_name).data):
+                            setattr(product, field_name, old_val)
+
+            if not product.category_id and product.category_name:
+                product.category_id = _ensure_category_id(product.category_name)
+
+            if product_form.vehicle_type_id.data:
                 try:
-                    stock_form.product_id.process(None, product.id)
+                    product.vehicle_type_id = int(product_form.vehicle_type_id.data)
+                except (ValueError, TypeError):
+                    product.vehicle_type_id = None
+
+            db.session.add(product)
+            db.session.flush()
+
+            if is_online:
+                upfile = request.files.get("online_image_file") or request.files.get("image_file") or request.files.get("image")
+                if upfile and getattr(upfile, "filename", "") and _allowed_image(upfile.filename):
+                    url, thumb = _save_image_file(upfile)
+                    product.online_image = url or product.online_image or None
+                    if not product.image:
+                        product.image = url
+                elif product.online_image in (None, "", "None") and (product_form.online_image.data or "").strip():
+                    product.online_image = (product_form.online_image.data or "").strip()
+            else:
+                upfile = request.files.get("image_file") or request.files.get("image")
+                if upfile and getattr(upfile, "filename", "") and _allowed_image(upfile.filename):
+                    url, thumb = _save_image_file(upfile)
+                    product.image = url or product.image or None
+
+            try:
+                stock_form.product_id.process(None, product.id)
+            except Exception:
+                stock_form.product_id.data = product.id
+            if hasattr(stock_form, "warehouse_id") and not stock_form.warehouse_id.data:
+                try:
+                    stock_form.warehouse_id.process(None, warehouse.id)
                 except Exception:
-                    stock_form.product_id.data = product.id
-                if hasattr(stock_form, "warehouse_id") and not stock_form.warehouse_id.data:
-                    try:
-                        stock_form.warehouse_id.process(None, warehouse.id)
-                    except Exception:
-                        stock_form.warehouse_id.data = warehouse.id
+                    stock_form.warehouse_id.data = warehouse.id
 
-                if not stock_form.validate():
-                    raise ValueError(f"Stock form invalid: {stock_form.errors}")
+            if not stock_form.validate():
+                raise ValueError(f"Stock form invalid: {stock_form.errors}")
 
-                init_qty = max(int(stock_form.quantity.data or 0), 0)
-                init_res = max(int(stock_form.reserved_quantity.data or 0), 0)
+            init_qty = max(int(stock_form.quantity.data or 0), 0)
+            init_res = max(int(stock_form.reserved_quantity.data or 0), 0)
 
-                sl = StockLevel.query.filter_by(
-                    warehouse_id=stock_form.warehouse_id.data, product_id=product.id
-                ).first()
-                if not sl:
-                    sl = StockLevel(
-                        warehouse_id=stock_form.warehouse_id.data,
-                        product=product,
-                        quantity=0,
-                        reserved_quantity=0,
-                    )
-                    db.session.add(sl)
+            sl = StockLevel.query.filter_by(
+                warehouse_id=stock_form.warehouse_id.data, product_id=product.id
+            ).first()
+            if not sl:
+                sl = StockLevel(
+                    warehouse_id=stock_form.warehouse_id.data,
+                    product=product,
+                    quantity=0,
+                    reserved_quantity=0,
+                )
+                db.session.add(sl)
 
-                sl.quantity = (sl.quantity or 0) + init_qty
-                sl.reserved_quantity = init_res
-                sl.min_stock = stock_form.min_stock.data or None
-                sl.max_stock = stock_form.max_stock.data or None
+            sl.quantity = (sl.quantity or 0) + init_qty
+            sl.reserved_quantity = init_res
+            sl.min_stock = stock_form.min_stock.data or None
+            sl.max_stock = stock_form.max_stock.data or None
 
-                if is_partner:
-                    p_ids  = request.form.getlist("partner_id")
-                    p_perc = request.form.getlist("share_percentage")
-                    p_amt  = request.form.getlist("share_amount")
-                    p_note = request.form.getlist("notes")
+            if is_partner:
+                p_ids = request.form.getlist("partner_id")
+                p_perc = request.form.getlist("share_percentage")
+                p_amt = request.form.getlist("share_amount")
+                p_note = request.form.getlist("notes")
 
-                    rows = []
-                    for pid, perc, amt, note in zip(p_ids, p_perc, p_amt, p_note):
-                        pid_i = _to_int(pid)
-                        perc_d = _to_dec(perc) or Decimal("0.00")
-                        amt_d = _to_dec(amt) or Decimal("0.00")
-                        if pid_i and (perc_d > 0 or amt_d > 0):
-                            rows.append((pid_i, perc_d, amt_d, (note or "").strip() or None))
+                rows = []
+                for pid, perc, amt, note in zip(p_ids, p_perc, p_amt, p_note):
+                    pid_i = _to_int(pid)
+                    perc_d = _to_dec(perc) or Decimal("0.00")
+                    amt_d = _to_dec(amt) or Decimal("0.00")
+                    if pid_i and (perc_d > 0 or amt_d > 0):
+                        rows.append((pid_i, perc_d, amt_d, (note or "").strip() or None))
 
-                    if not rows:
-                        raise ValueError("يرجى إضافة شريك واحد على الأقل مع نسبة أو قيمة مساهمة.")
+                if not rows:
+                    raise ValueError("يرجى إضافة شريك واحد على الأقل مع نسبة أو قيمة مساهمة.")
 
-                    if all(r[1] > 0 and r[2] == 0 for r in rows):
-                        total_perc = sum((r[1] for r in rows), Decimal("0.00"))
-                        if total_perc > Decimal("100.00") + Decimal("0.0001"):
-                            raise ValueError("مجموع نسب الشركاء يتجاوز 100%.")
+                if all(r[1] > 0 and r[2] == 0 for r in rows):
+                    total_perc = sum((r[1] for r in rows), Decimal("0.00"))
+                    if total_perc > Decimal("100.00") + Decimal("0.0001"):
+                        raise ValueError("مجموع نسب الشركاء يتجاوز 100%.")
 
-                    for pid_i, perc_d, amt_d, note in rows:
+                for pid_i, perc_d, amt_d, note in rows:
+                    share_percentage = float(perc_d) if perc_d > 0 else 0.0
+                    share_amount = float(amt_d) if amt_d > 0 else 0.0
+                    existing_share = WarehousePartnerShare.query.filter_by(
+                        warehouse_id=warehouse.id,
+                        product_id=product.id,
+                        partner_id=pid_i,
+                    ).first()
+                    if existing_share:
+                        existing_share.share_percentage = share_percentage
+                        existing_share.share_amount = share_amount
+                        existing_share.notes = note
+                    else:
                         db.session.add(
-                            ProductPartnerShare(
-                                product=product,
+                            WarehousePartnerShare(
+                                warehouse_id=warehouse.id,
+                                product_id=product.id,
                                 partner_id=pid_i,
-                                share_percentage=float(perc_d) if perc_d > 0 else 0.0,
-                                share_amount=float(amt_d) if amt_d > 0 else 0.0,
+                                share_percentage=share_percentage,
+                                share_amount=share_amount,
                                 notes=note,
                             )
                         )
 
-                elif is_exchange:
-                    s_ids  = request.form.getlist("supplier_id")
-                    v_phone = request.form.getlist("vendor_phone")
-                    v_paid  = request.form.getlist("vendor_paid")
-                    v_price = request.form.getlist("vendor_price")
+            elif is_exchange:
+                s_ids = request.form.getlist("supplier_id")
+                v_phone = request.form.getlist("vendor_phone")
+                v_paid = request.form.getlist("vendor_paid")
+                v_price = request.form.getlist("vendor_price")
 
-                    rows = []
-                    for sid, phone, paid, price in zip(s_ids, v_phone, v_paid, v_price):
-                        sid_i = _to_int(sid) if sid and str(sid).strip() else None
-                        paid_d = _to_dec(paid)
-                        price_d = _to_dec(price)
-                        # إضافة الصف فقط إذا كان هناك معلومات
-                        if sid_i or phone or paid_d or price_d:
-                            rows.append((sid_i, (phone or "").strip() or None, paid_d, price_d))
+                rows = []
+                for sid, phone, paid, price in zip(s_ids, v_phone, v_paid, v_price):
+                    sid_i = _to_int(sid) if sid and str(sid).strip() else None
+                    paid_d = _to_dec(paid)
+                    price_d = _to_dec(price)
+                    if sid_i or phone or paid_d or price_d:
+                        rows.append((sid_i, (phone or "").strip() or None, paid_d, price_d))
 
-                    # إذا لم يتم إضافة أي صفوف، نضيف معاملة افتراضية بدون مورد
-                    if not rows:
-                        rows.append((None, None, None, None))
+                if not rows:
+                    rows.append((None, None, None, None))
 
-                    for sid_i, phone, paid_d, price_d in rows:
-                        note_parts = []
-                        if sid_i:
-                            sup = db.session.get(Supplier, sid_i)
-                            note_parts.append(f"SupplierID:{sid_i}({sup.name if sup else ''})")
-                        if phone: note_parts.append(f"phone:{phone}")
-                        if paid_d is not None: note_parts.append(f"paid:{paid_d}")
-                        if price_d is not None: note_parts.append(f"price:{price_d}")
+                for sid_i, phone, paid_d, price_d in rows:
+                    note_parts = []
+                    if sid_i:
+                        sup = db.session.get(Supplier, sid_i)
+                        note_parts.append(f"SupplierID:{sid_i}({sup.name if sup else ''})")
+                    if phone:
+                        note_parts.append(f"phone:{phone}")
+                    if paid_d is not None:
+                        note_parts.append(f"paid:{paid_d}")
+                    if price_d is not None:
+                        note_parts.append(f"price:{price_d}")
 
-                        db.session.add(
-                            ExchangeTransaction(
-                                product=product,
-                                warehouse_id=warehouse.id,
-                                supplier_id=sid_i,  # ✅ صحّحت من partner_id إلى supplier_id
-                                partner_id=None,
-                                quantity=init_qty,
-                                unit_cost=float(price_d) if price_d is not None else None,
-                                is_priced=bool(price_d is not None and price_d > 0),
-                                direction="IN",
-                                notes=" | ".join(note_parts) if note_parts else None,
-                            )
+                    db.session.add(
+                        ExchangeTransaction(
+                            product=product,
+                            warehouse_id=warehouse.id,
+                            supplier_id=sid_i,
+                            partner_id=None,
+                            quantity=init_qty,
+                            unit_cost=float(price_d) if price_d is not None else None,
+                            is_priced=bool(price_d is not None and price_d > 0),
+                            direction="IN",
+                            notes=" | ".join(note_parts) if note_parts else None,
                         )
-                        
-                        # إنشاء دفعة تلقائية إذا كان هناك مبلغ مدفوع
-                        if sid_i and paid_d and paid_d > 0:
-                            from models import Payment, PaymentDirection, PaymentStatus, PaymentEntityType
-                            from datetime import datetime as dt
-                            
-                            # حساب إجمالي الدفعة = الكمية × المبلغ المدفوع للقطعة الواحدة
-                            total_payment = init_qty * paid_d
-                            
-                            payment = Payment(
-                                supplier_id=sid_i,
-                                entity_type=PaymentEntityType.SUPPLIER,
-                                direction=PaymentDirection.OUT,
-                                status=PaymentStatus.COMPLETED,
-                                total_amount=float(total_payment),
-                                currency='ILS',
-                                payment_date=dt.now(),
-                                method='cash',  # ✅ lowercase
-                                notes=f"دفعة مقدمة عند استلام {init_qty} قطعة - {product.name}"
-                            )
-                            db.session.add(payment)
+                    )
+
+                    if sid_i and paid_d and paid_d > 0:
+                        from models import Payment, PaymentDirection, PaymentStatus, PaymentEntityType
+                        from datetime import datetime as dt
+
+                        total_payment = init_qty * paid_d
+
+                        payment = Payment(
+                            supplier_id=sid_i,
+                            entity_type=PaymentEntityType.SUPPLIER,
+                            direction=PaymentDirection.OUT,
+                            status=PaymentStatus.COMPLETED,
+                            total_amount=float(total_payment),
+                            currency="ILS",
+                            payment_date=dt.now(),
+                            method="cash",
+                            notes=f"دفعة مقدمة عند استلام {init_qty} قطعة - {product.name}",
+                        )
+                        db.session.add(payment)
 
             db.session.commit()
+            return product, (existing_product is None)
+
+        def _flash_success(product, created):
+            if not created:
+                flash("✅ تم تحديث القطعة وإضافة الكمية للمخزون", "success")
+                return redirect(url_for("warehouse_bp.products", id=warehouse.id))
             if is_online and (product.online_price is None or product.online_price == 0):
                 flash("تمت إضافة القطعة، تنبيه: سعر المتجر الإلكتروني غير محدد.", "warning")
             elif is_online and not (product.online_image or product.image):
@@ -1688,13 +1776,34 @@ def add_product(id):
                 flash("تمت إضافة القطعة بنجاح", "success")
             return redirect(url_for("warehouse_bp.products", id=warehouse.id))
 
+        try:
+            product, created = _attempt_create()
+            return _flash_success(product, created)
+
         except ValueError as ve:
             db.session.rollback()
             flash(str(ve), "danger")
+        except IntegrityError as ie:
+            db.session.rollback()
+            orig = getattr(ie, "orig", None)
+            constraint = getattr(getattr(orig, "diag", None), "constraint_name", None)
+            msg = str(orig or ie)
+            if constraint == "products_pkey" or "products_pkey" in msg or "Key (id)=" in msg:
+                try:
+                    _sync_products_id_sequence()
+                    product = _attempt_create()
+                    return _flash_success(product)
+                except Exception as e2:
+                    db.session.rollback()
+                    log.exception("add_product:retry_after_sequence_sync_failed")
+                    flash("تعذّر حفظ المنتج بسبب مشكلة في الترقيم التلقائي. حاول مرة أخرى.", "danger")
+            else:
+                log.exception("add_product:integrity_error")
+                flash("تعذّر حفظ المنتج بسبب تعارض في البيانات. تأكد من عدم تكرار الباركود/الرمز.", "danger")
         except Exception as e:
             db.session.rollback()
             log.exception("add_product:exception")
-            flash(f"فشل حفظ المنتج: {e}", "danger")
+            flash("تعذّر حفظ المنتج بسبب خطأ غير متوقع. حاول مرة أخرى.", "danger")
 
     return render_template(
         "warehouses/add_product.html",
@@ -1996,6 +2105,13 @@ def import_commit(id):
             .filter(Product.serial_no.isnot(None))
             .all()
         }
+        existing_names = {
+            (n or "").strip().casefold(): pid
+            for pid, n in db.session.query(Product.id, Product.name)
+            .filter(Product.name.isnot(None))
+            .all()
+            if (n or "").strip()
+        }
 
         for item in rows:
             data = dict(item.get("data") or {})
@@ -2050,6 +2166,9 @@ def import_commit(id):
 
             pid = item.get("match", {}).get("product_id")
             p = db.session.get(Product, pid) if pid else None
+            if p is None:
+                pid_by_name = existing_names.get(name.casefold())
+                p = db.session.get(Product, pid_by_name) if pid_by_name else None
 
             effective_action = None
             before_qty = after_qty = 0
@@ -2122,6 +2241,13 @@ def import_commit(id):
                 )
                 db.session.add(p)
                 db.session.flush()
+                existing_names[name.casefold()] = p.id
+                if sku:
+                    existing_skus[sku] = p.id
+                if p.barcode:
+                    existing_barcodes[p.barcode] = p.id
+                if p.serial_no:
+                    existing_serials[(p.serial_no or "").upper()] = p.id
                 if not p.category_id and p.category_name:
                     p.category_id = _ensure_category_id(p.category_name)
                 inserted += 1

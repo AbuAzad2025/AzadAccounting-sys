@@ -1,4 +1,7 @@
 (function() {
+  if (window.__ENHANCED_TABS_INIT__) return;
+  window.__ENHANCED_TABS_INIT__ = true;
+
   'use strict';
 
   window.EnhancedTabs = {

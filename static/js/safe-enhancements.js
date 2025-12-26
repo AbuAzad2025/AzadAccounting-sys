@@ -1,4 +1,6 @@
 (function() {
+  if (window.__SAFE_ENHANCEMENTS_INIT__) return;
+  window.__SAFE_ENHANCEMENTS_INIT__ = true;
   'use strict';
   
   if (!window.EventUtils || !window.PerfUtils) return;
@@ -300,14 +302,21 @@
     const forms = document.querySelectorAll('form');
     forms.forEach(form => {
       form.addEventListener('submit', function(e) {
+        // FIX: Don't disable button if form is invalid or submission prevented
+        if (e.defaultPrevented || !this.checkValidity()) return;
+
         const submitBtn = this.querySelector('button[type="submit"], input[type="submit"]');
-        if (submitBtn && !submitBtn.dataset.noLoading) {
+        if (submitBtn && !submitBtn.dataset.noLoading && !submitBtn.classList.contains('no-loading')) {
+          submitBtn.dataset.originalHtml = submitBtn.innerHTML;
           submitBtn.disabled = true;
-          const originalContent = submitBtn.innerHTML;
           submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الحفظ...';
+          
+          // Re-enable after 10 seconds just in case server hangs
           setTimeout(() => {
             submitBtn.disabled = false;
-            submitBtn.innerHTML = originalContent;
+            if (submitBtn.dataset.originalHtml) {
+              submitBtn.innerHTML = submitBtn.dataset.originalHtml;
+            }
           }, 10000);
         }
       });

@@ -21,6 +21,8 @@
  */
 
 (function() {
+  if (window.__MODULE_SPECIFIC_INIT__) return;
+  window.__MODULE_SPECIFIC_INIT__ = true;
   'use strict';
   
   // ═══════════════════════════════════════════════════════════════════
@@ -438,7 +440,7 @@ window.bulkDeleteUsers = function() {
               <tr>
                 <th>الصلاحية</th>
                 <th>Owner</th>
-                <th>Super Admin</th>
+                <th>مدير النظام</th>
                 <th>Admin</th>
                 <th>Staff</th>
                 <th>Mechanic</th>

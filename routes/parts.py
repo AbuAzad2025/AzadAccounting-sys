@@ -3,7 +3,7 @@ from decimal import Decimal, InvalidOperation
 from flask import Blueprint, request, jsonify, redirect, url_for, flash
 from flask_login import login_required
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 from extensions import db
 from models import Product, StockLevel
 import utils
@@ -21,6 +21,14 @@ def _wants_json() -> bool:
     accept = (request.headers.get("Accept") or "").lower()
     fmt = (request.args.get("format") or "").lower()
     return ("application/json" in accept and "text/html" not in accept) or fmt == "json"
+
+def _to_optional_decimal(val):
+    try:
+        if val in (None, ""):
+            return None
+        return Decimal(str(val))
+    except (InvalidOperation, ValueError, TypeError):
+        return None
 
 @parts_bp.get("/", endpoint="parts_list")
 @login_required
@@ -43,6 +51,7 @@ def parts_create():
             return jsonify({"ok": False, "error": "name_required"}), 400
         flash("الاسم مطلوب", "warning")
         return redirect(url_for("parts_bp.parts_list"))
+    existing_by_name = Product.query.filter(func.lower(Product.name) == name.lower()).first()
     raw_barcode = (request.form.get("barcode") or "").strip() or None
     barcode = normalize_barcode(raw_barcode) if raw_barcode else None
     if barcode and not is_valid_ean13(barcode):
@@ -50,10 +59,59 @@ def parts_create():
             return jsonify({"ok": False, "error": "invalid_barcode"}), 400
         flash("الباركود غير صالح", "danger")
         return redirect(url_for("parts_bp.parts_list"))
-    if barcode and db.session.query(Product.id).filter_by(barcode=barcode).first():
+    if barcode:
+        q = db.session.query(Product.id).filter(Product.barcode == barcode)
+        if existing_by_name:
+            q = q.filter(Product.id != existing_by_name.id)
+        if q.first():
+            if _wants_json():
+                return jsonify({"ok": False, "error": "barcode_exists"}), 409
+            flash("الباركود مستخدم بالفعل", "danger")
+            return redirect(url_for("parts_bp.parts_list"))
+    if existing_by_name:
+        p = existing_by_name
+        sku = (request.form.get("sku") or "").strip() or None
+        unit = (request.form.get("unit") or "").strip() or None
+        category_name = (request.form.get("category_name") or request.form.get("category") or "").strip() or None
+        purchase_price = _to_optional_decimal(request.form.get("purchase_price"))
+        selling_price = _to_optional_decimal(request.form.get("selling_price"))
+        price = _to_optional_decimal(request.form.get("price") or request.form.get("selling_price"))
+        notes = (request.form.get("notes") or "").strip() or None
+        min_qty_raw = request.form.get("min_qty")
+
+        p.name = name
+        if sku is not None:
+            p.sku = sku
+        if barcode is not None:
+            p.barcode = barcode
+        if unit is not None:
+            p.unit = unit
+        if category_name is not None:
+            p.category_name = category_name
+        if purchase_price is not None:
+            p.purchase_price = purchase_price
+        if selling_price is not None:
+            p.selling_price = selling_price
+        if price is not None:
+            p.price = price
+        if notes is not None:
+            p.notes = notes
+        if min_qty_raw not in (None, ""):
+            p.min_qty = int(min_qty_raw or 0)
         if _wants_json():
-            return jsonify({"ok": False, "error": "barcode_exists"}), 409
-        flash("الباركود مستخدم بالفعل", "danger")
+            ok_payload = {"ok": True, "id": p.id, "updated": True}
+        else:
+            ok_payload = None
+        try:
+            db.session.commit()
+            if _wants_json():
+                return jsonify(ok_payload)
+            flash("تم تحديث القطعة بنجاح", "success")
+        except SQLAlchemyError as e:
+            db.session.rollback()
+            if _wants_json():
+                return jsonify({"ok": False, "error": "db_error", "detail": str(e)}), 500
+            flash(f"فشل تحديث القطعة: {e}", "danger")
         return redirect(url_for("parts_bp.parts_list"))
     product = Product(
         name=name,

@@ -1,3 +1,8 @@
+/* global jQuery */
+(function() {
+  if (window.__PAYMENTS_INIT__) return;
+  window.__PAYMENTS_INIT__ = true;
+
 let smartSearchInitialized = false;
 
 function initializeSmartSearchOnce() {
@@ -47,6 +52,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   function debounce(fn, ms) { let t; return function () { clearTimeout(t); t = setTimeout(() => fn.apply(this, arguments), ms); }; }
   const debouncedReload = debounce(function () { updateUrlQuery(); loadPayments(1); }, 250);
+})();
   
   const applyFilters = function() {
     updateUrlQuery();

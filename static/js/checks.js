@@ -1,5 +1,8 @@
 // 🔥 Checks Module - External JS File v5.0
 (function() {
+    if (window.__CHECKS_INIT__) return;
+    window.__CHECKS_INIT__ = true;
+
     'use strict';
     
     const IS_OWNER = Boolean(typeof window !== 'undefined' && (window.CHECKS_IS_OWNER === true || window.CHECKS_IS_OWNER === 'true'));

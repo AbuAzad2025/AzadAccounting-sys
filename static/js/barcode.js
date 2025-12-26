@@ -1,4 +1,7 @@
 (function () {
+  if (window.__BARCODE_INIT__) return;
+  window.__BARCODE_INIT__ = true;
+
   const input = document.getElementById('barcode');
   const help = document.getElementById('barcodeHelp');
   if (!input) return;

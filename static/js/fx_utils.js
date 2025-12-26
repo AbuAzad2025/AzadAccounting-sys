@@ -1,3 +1,7 @@
+(function() {
+    if (window.__FX_UTILS_INIT__) return;
+    window.__FX_UTILS_INIT__ = true;
+
 window.FXUtils = {
     formatFxRate: function(rate, source, decimals = 4) {
         if (!rate || rate <= 0) return '<span class="text-muted">-</span>';
@@ -88,3 +92,5 @@ window.FXUtils = {
 
 // Make it available globally
 window.FX = window.FXUtils;
+
+})();

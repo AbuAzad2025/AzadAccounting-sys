@@ -1889,7 +1889,7 @@ function buildLedgerActions(entry) {
     const buttons = [];
     const entryId = Number(entry.id);
     buttons.push(`
-        <button class="btn btn-info btn-sm" onclick="viewTransaction('${entry.type}', ${entryId})" title="عرض التفاصيل">
+        <button class="btn btn-info btn-sm" onclick="viewTransaction('${entry.type}', ${entryId}, ${entry.batch_id || 'undefined'})" title="عرض التفاصيل">
             <i class="fas fa-eye"></i>
         </button>
     `);
@@ -2650,7 +2650,7 @@ function forceShowPricingAlert() {
     }
 }
 
-function viewTransaction(type, id) {
+function viewTransaction(type, id, batchId) {
     // توجيه لصفحة التفاصيل حسب نوع العملية
     let url = '';
     
@@ -2677,8 +2677,13 @@ function viewTransaction(type, id) {
             url = '{{ url_for("service.view_request", rid=0) }}'.replace('0', id);
             break;
         case 'manual':
-            // القيود اليدوية - عرض تفاصيل القيد
-            url = '/ledger/batch/' + id.split('-')[1]; // استخراج batch_id من MANUAL-{batch_id}-{entry_id}
+            // القيود اليدوية - عرض تفاصيل القيد عبر batch_id مباشرة
+            if (batchId) {
+                url = '/ledger/batch/' + batchId;
+            } else {
+                showAlert('لا يمكن عرض تفاصيل القيد اليدوي (batch_id مفقود)', 'error');
+                return;
+            }
             break;
         default:
             showAlert('لا يمكن عرض تفاصيل هذه العملية', 'error');
@@ -3096,8 +3101,8 @@ function printLedgerEnhanced() {
     });
     
     // إضافة معلومات الفترة إلى العنوان
-    const fromDate = document.getElementById('from_date')?.value || '';
-    const toDate = document.getElementById('to_date')?.value || '';
+    const fromDate = document.getElementById('from-date')?.value || '';
+    const toDate = document.getElementById('to-date')?.value || '';
     const periodInfo = fromDate && toDate ? 
         `الفترة: من ${fromDate} إلى ${toDate}` : 
         'كامل الفترة';
@@ -3105,6 +3110,10 @@ function printLedgerEnhanced() {
     // تحديث عنوان الصفحة للطباعة
     const originalTitle = document.title;
     document.title = `دفتر الأستاذ - ${periodInfo} - ${printDate}`;
+    
+    document.querySelectorAll('.card-header').forEach(el => {
+        try { el.setAttribute('data-print-date', printDate); } catch(e) {}
+    });
     
     // إظهار رسالة تحضيرية محسّنة
     Swal.fire({

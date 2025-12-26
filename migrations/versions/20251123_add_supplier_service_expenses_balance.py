@@ -20,22 +20,18 @@ def upgrade():
     bind = op.get_bind()
     inspector = inspect(bind)
     columns = {col["name"] for col in inspector.get_columns("suppliers")}
-    is_sqlite = bind.dialect.name == "sqlite"
     
     if "service_expenses_balance" not in columns:
-        if is_sqlite:
-            op.execute('ALTER TABLE suppliers ADD COLUMN service_expenses_balance NUMERIC(12, 2) NOT NULL DEFAULT 0')
-        else:
-            op.add_column(
-                "suppliers",
-                sa.Column(
-                    "service_expenses_balance",
-                    sa.Numeric(12, 2),
-                    nullable=False,
-                    server_default=sa_text("0"),
-                    comment="رصيد مصروفات توريد الخدمة (تُضاف)"
-                )
+        op.add_column(
+            "suppliers",
+            sa.Column(
+                "service_expenses_balance",
+                sa.Numeric(12, 2),
+                nullable=False,
+                server_default=sa_text("0"),
+                comment="رصيد مصروفات توريد الخدمة (تُضاف)"
             )
+        )
         
         _calculate_service_expenses_balances(bind)
 
@@ -104,12 +100,7 @@ def downgrade():
     bind = op.get_bind()
     inspector = inspect(bind)
     columns = {col["name"] for col in inspector.get_columns("suppliers")}
-    is_sqlite = bind.dialect.name == "sqlite"
     
     if "service_expenses_balance" in columns:
-        if is_sqlite:
-            with op.batch_alter_table("suppliers") as batch_op:
-                batch_op.drop_column("service_expenses_balance")
-        else:
-            op.drop_column("suppliers", "service_expenses_balance")
+        op.drop_column("suppliers", "service_expenses_balance")
 

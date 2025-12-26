@@ -69,18 +69,33 @@
     }
 
     /* بنود الفاتورة */
-    .sale-line{
-      display:grid;
-      grid-template-columns: 1.2fr 2.5fr 1.2fr 1.2fr 1.8fr 2.2fr 1fr; /* مستودع | منتج | كمية | سعر | مستلم | ملاحظات | إجراءات */
-      grid-gap:8px; align-items:end;
+    .sale-line {
+      display: grid;
+      /* تم تعديل الشبكة لتناسب 8 عناصر: مستودع، منتج، كمية، سعر، خصم، مستلم، ملاحظات، إجراءات */
+      grid-template-columns: 140px minmax(200px, 3fr) 90px 110px 90px 130px minmax(150px, 2fr) 50px;
+      grid-gap: 8px;
+      align-items: end;
     }
-    @media(max-width:992px){
-      .sale-line{grid-template-columns: 1fr 1fr 1fr 1fr;}
-      .sale-line > div:nth-child(n+5){grid-column:1/-1}
+
+    /* إخفاء التسميات في الشاشات الكبيرة لتقليل التزاحم */
+    @media (min-width: 992px) {
+      .sale-line label { display: none; }
+      .sale-lines-header {
+        display: grid;
+        grid-template-columns: 140px minmax(200px, 3fr) 90px 110px 90px 130px minmax(150px, 2fr) 50px;
+        grid-gap: 8px;
+        font-weight: 700;
+        color: #495057;
+        margin-bottom: 0.5rem;
+        padding: 0 1rem;
+        font-size: 0.9rem;
+      }
     }
-    @media(max-width:576px){
-      .sale-line{grid-template-columns:1fr 1fr;}
-      .sale-line > div:nth-child(n+3){grid-column:1/-1}
+    @media (max-width: 991.98px) {
+      .sale-lines-header { display: none; }
+      .sale-line { grid-template-columns: 1fr 1fr; }
+      .sale-line > div:nth-child(n+7) { grid-column: span 2; } /* Note takes full width */
+      .sale-line > div:last-child { grid-column: span 2; text-align: left; } /* Actions */
     }
     .sale-line .form-control{border-radius:8px; font-size:0.95rem}
     .sale-line .product-select{font-size:0.9rem !important}
@@ -172,6 +187,18 @@
               </div>
 
               <div class="card-body lines-wrap">
+                <!-- ترويسة الجدول (تظهر فقط في الشاشات الكبيرة) -->
+                <div class="sale-lines-header">
+                  <div>المستودع <span class="text-danger">*</span></div>
+                  <div>الصنف <span class="text-danger">*</span></div>
+                  <div>الكمية <span class="text-danger">*</span></div>
+                  <div>السعر <span class="text-danger">*</span></div>
+                  <div>الخصم %</div>
+                  <div>المستلم</div>
+                  <div>ملاحظات</div>
+                  <div></div> <!-- Actions -->
+                </div>
+
                 <div id="saleLines">
                   {% for line in form.lines %}
                   <div class="sale-line mb-3 p-3 border rounded bg-white" data-index="{{ loop.index0 }}">
@@ -185,10 +212,13 @@
                               data-endpoint="{{ url_for('api.warehouses') }}"
                               data-placeholder="اختر المستودع"
                               data-allow-clear="1">
-                        {% if line.warehouse_id.data and sale is defined and sale.lines[loop.index0] is defined %}
-                          <option value="{{ sale.lines[loop.index0].warehouse_id }}" selected>
-                            #{{ sale.lines[loop.index0].warehouse_id }}
-                          </option>
+                        {% if line.warehouse_id.data %}
+                          {% set wh_val = line.warehouse_id.data %}
+                          {% set wh_text = '#' ~ wh_val %}
+                          {% if sale is defined and sale.lines[loop.index0] is defined and sale.lines[loop.index0].warehouse_id == wh_val %}
+                             {% set wh_text = '#' ~ sale.lines[loop.index0].warehouse_id %}
+                          {% endif %}
+                          <option value="{{ wh_val }}" selected>{{ wh_text }}</option>
                         {% endif %}
                       </select>
                     </div>
@@ -202,10 +232,13 @@
                               data-endpoint="{{ url_for('api.products') }}"
                               data-placeholder="اختر الصنف"
                               data-allow-clear="1">
-                        {% if line.product_id.data and sale is defined and sale.lines[loop.index0] is defined %}
-                          <option value="{{ sale.lines[loop.index0].product_id }}" selected>
-                            {{ sale.lines[loop.index0].product.name if sale.lines[loop.index0].product else 'منتج' }}
-                          </option>
+                        {% if line.product_id.data %}
+                          {% set p_val = line.product_id.data %}
+                          {% set p_text = 'Product #' ~ p_val %}
+                          {% if sale is defined and sale.lines[loop.index0] is defined and sale.lines[loop.index0].product_id == p_val %}
+                             {% set p_text = sale.lines[loop.index0].product.name %}
+                          {% endif %}
+                          <option value="{{ p_val }}" selected>{{ p_text }}</option>
                         {% endif %}
                       </select>
                     </div>
@@ -319,5 +352,5 @@
 {% block scripts %}
   {{ super() }}
   <script src="{{ url_for('static', filename='adminlte/plugins/select2/js/select2.full.min.js') }}"></script>
-  <script src="{{ url_for('static', filename='js/sales.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/sales.js', v=3) }}"></script>
 {% endblock %}

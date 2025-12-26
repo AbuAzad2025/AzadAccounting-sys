@@ -4,28 +4,15 @@ from extensions import db
 from models import SystemSettings
 import json
 from datetime import datetime, timezone
-from functools import wraps
 from routes.advanced_control import _log_owner_action
+from utils import permission_required
 
 security_control_bp = Blueprint('security_control', __name__, url_prefix='/advanced')
 
 
-def owner_only(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if not current_user.is_authenticated:
-            flash('يجب تسجيل الدخول أولاً', 'warning')
-            return redirect(url_for('auth.login'))
-        if not (current_user.role and current_user.role.name == 'Owner'):
-            flash('هذه الصفحة مخصصة للمالك فقط', 'danger')
-            return redirect(url_for('main.dashboard'))
-        return f(*args, **kwargs)
-    return decorated_function
-
-
 @security_control_bp.route('/security-control', methods=['GET', 'POST'])
 @login_required
-@owner_only
+@permission_required('access_owner_dashboard')
 def security_control():
     if request.method == 'POST':
         action = request.form.get('action')
@@ -136,7 +123,7 @@ def security_control():
 
 @security_control_bp.route('/api/check-ip/<ip>')
 @login_required
-@owner_only
+@permission_required('access_owner_dashboard')
 def api_check_ip(ip):
     from utils import check_ip_allowed
     result = check_ip_allowed(ip)

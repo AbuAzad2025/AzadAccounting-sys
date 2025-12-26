@@ -12,7 +12,7 @@
     ✅ تقارير المراجعة الدورية
     
 🔒 الأمان:
-    - Owner only (@owner_only)
+    - صلاحيات محددة عبر PBAC
 """
 
 from flask import Blueprint, render_template, request, jsonify, current_app
@@ -26,19 +26,19 @@ from models import (
     db, Account, GLBatch, GLEntry, Customer, Supplier, Partner,
     Sale, Payment, Expense, Invoice, ServiceRequest, Check
 )
-from routes.security import owner_only
+from utils import permission_required
 
 # إنشاء Blueprint
 accounting_validation_bp = Blueprint('accounting_validation', __name__, url_prefix='/validation/accounting')
 
 @accounting_validation_bp.route('/')
-@owner_only
+@permission_required('validate_accounting')
 def index():
     """لوحة التحقق المحاسبي الرئيسية"""
     return render_template('validation/accounting/index.html')
 
 @accounting_validation_bp.route('/balance-check')
-@owner_only
+@permission_required('validate_accounting')
 def balance_check():
     """فحص توازن القيود المحاسبية"""
     try:
@@ -83,7 +83,7 @@ def balance_check():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @accounting_validation_bp.route('/account-consistency')
-@owner_only
+@permission_required('validate_accounting')
 def account_consistency():
     """فحص اتساق الحسابات"""
     try:
@@ -130,7 +130,7 @@ def account_consistency():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @accounting_validation_bp.route('/entity-balance-verification')
-@owner_only
+@permission_required('validate_accounting')
 def entity_balance_verification():
     """التحقق من صحة أرصدة الكيانات"""
     try:
@@ -194,7 +194,7 @@ def entity_balance_verification():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @accounting_validation_bp.route('/transaction-integrity')
-@owner_only
+@permission_required('validate_accounting')
 def transaction_integrity():
     """فحص تكامل المعاملات"""
     try:
@@ -268,7 +268,7 @@ def transaction_integrity():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @accounting_validation_bp.route('/periodic-audit')
-@owner_only
+@permission_required('validate_accounting')
 def periodic_audit():
     """مراجعة دورية شاملة"""
     try:
@@ -348,7 +348,7 @@ def periodic_audit():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @accounting_validation_bp.route('/fix-unbalanced-batches')
-@owner_only
+@permission_required('validate_accounting')
 def fix_unbalanced_batches():
     """إصلاح القيود غير المتوازنة"""
     try:

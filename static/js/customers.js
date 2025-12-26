@@ -283,6 +283,7 @@
       const pw2 = form.querySelector('input[name="confirm"]');
       if (email && email.value && !isEmail(email.value)) {
         e.preventDefault();
+        setSubmitBtnState(submitBtn, false);
         email.classList.add("is-invalid");
         if (email.nextElementSibling) {
           if (!email.nextElementSibling.classList.contains("invalid-feedback")) {
@@ -296,6 +297,7 @@
       }
       if (pw1 && pw2 && pw1.value !== pw2.value) {
         e.preventDefault();
+        setSubmitBtnState(submitBtn, false);
         pw2.classList.add("is-invalid");
         if (pw2.nextElementSibling) {
           if (!pw2.nextElementSibling.classList.contains("invalid-feedback")) {
@@ -321,14 +323,23 @@
       const csrf = getCsrf(form);
       try {
         setSubmitBtnState(submitBtn, true);
-        const res = await fetch(form.action, {
-          method: "POST",
-          body: new FormData(form),
-          headers: Object.assign(
-            { "X-Requested-With": "XMLHttpRequest", "Accept": "application/json", "Cache-Control": "no-cache" },
-            csrf ? { "X-CSRFToken": csrf } : {}
-          )
-        });
+        const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+        const timeoutMs = Math.max(5000, Number(form.dataset.timeoutMs || 20000));
+        const timeoutId = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+        let res;
+        try {
+          res = await fetch(form.action, {
+            method: "POST",
+            body: new FormData(form),
+            signal: controller ? controller.signal : undefined,
+            headers: Object.assign(
+              { "X-Requested-With": "XMLHttpRequest", "Accept": "application/json", "Cache-Control": "no-cache" },
+              csrf ? { "X-CSRFToken": csrf } : {}
+            )
+          });
+        } finally {
+          if (timeoutId) clearTimeout(timeoutId);
+        }
         const ct = res.headers.get("content-type") || "";
         const isJson = ct.includes("application/json");
         let data = null;
@@ -381,7 +392,11 @@
         // عدم التحويل التلقائي: يُعرض شريط نجاح مع روابط للعمل بوضوح
       } catch (err) {
         setSubmitBtnState(submitBtn, false);
-        showToast('تعذر الاتصال بالخادم.', 'warning');
+        if (err && err.name === "AbortError") {
+          showToast('انتهت مهلة الطلب، حاول مرة أخرى.', 'warning');
+        } else {
+          showToast('تعذر الاتصال بالخادم.', 'warning');
+        }
       }
     });
   });

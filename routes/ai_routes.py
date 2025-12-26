@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import List, Dict
 import json
 import os
+from utils import permission_required
 
 from AI.engine.ai_service import (
     ai_chat_with_search,
@@ -31,18 +32,6 @@ ai_bp = Blueprint('ai', __name__, url_prefix='/ai')
 # Decorators - للتحكم بالصلاحيات
 # ============================================================
 
-def owner_only(f):
-    """المالك فقط"""
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if not (current_user.is_authenticated and 
-                (current_user.is_system_account or current_user.username == '__OWNER__')):
-            flash('⛔ هذه الصفحة للمالك فقط', 'danger')
-            return redirect(url_for('main.index'))
-        return f(*args, **kwargs)
-    return decorated_function
-
-
 def ai_access(f):
     """وصول للمساعد - حسب الإعدادات"""
     @wraps(f)
@@ -51,25 +40,19 @@ def ai_access(f):
             flash('⛔ يجب تسجيل الدخول', 'danger')
             return redirect(url_for('auth.login'))
         
-        # المالك دائماً لديه وصول
-        if current_user.is_system_account or current_user.username == '__OWNER__':
-            return f(*args, **kwargs)
-        
         # فحص إذا كان المساعد مفعّل
-        from AI.engine.ai_permissions import is_ai_enabled, is_ai_visible_to_role
+        from AI.engine.ai_permissions import is_ai_enabled
         
-        if not is_ai_enabled():
+        if not is_ai_enabled() and not current_user.has_permission('access_owner_dashboard'):
             flash('⛔ المساعد الذكي معطّل حالياً', 'warning')
-            return redirect(url_for('main.index'))
+            return redirect(url_for('main.dashboard'))
         
-        # فحص الدور
-        role_name = current_user.role.name if current_user.role else 'guest'
-        
-        if is_ai_visible_to_role(role_name):
+        # التحقق من الصلاحية
+        if current_user.has_permission('access_ai_assistant'):
             return f(*args, **kwargs)
         
         flash('⛔ غير مصرح لك بالوصول للمساعد الذكي', 'danger')
-        return redirect(url_for('main.index'))
+        return redirect(url_for('main.dashboard'))
     
     return decorated_function
 
@@ -208,7 +191,7 @@ def chat():
 # ============================================================
 
 @ai_bp.route('/system-map', methods=['GET', 'POST'])
-@owner_only
+@permission_required('manage_ai')
 def system_map():
     """
     🗺️ خريطة النظام - Auto Discovery
@@ -259,7 +242,7 @@ def system_map():
 # ============================================================
 
 @ai_bp.route('/training/start', methods=['POST'])
-@owner_only
+@permission_required('train_ai')
 def start_training():
     """
     🎓 بدء تدريب نموذج
@@ -286,7 +269,7 @@ def start_training():
 
 
 @ai_bp.route('/training/status/<training_id>')
-@owner_only
+@permission_required('manage_ai')
 def training_status(training_id):
     """
     📊 حالة التدريب
@@ -332,7 +315,7 @@ def models_status():
 # ============================================================
 
 @ai_bp.route('/api-keys/save', methods=['POST'])
-@owner_only
+@permission_required('manage_ai')
 def save_api_key():
     """
     💾 حفظ مفتاح API مشفر
@@ -370,7 +353,7 @@ def save_api_key():
 
 
 @ai_bp.route('/api-keys/test', methods=['POST'])
-@owner_only
+@permission_required('manage_ai')
 def test_api_key_route():
     """
     🔍 اختبار مفتاح API
@@ -416,7 +399,7 @@ def live_stats():
 
 
 @ai_bp.route('/analytics/queries')
-@owner_only
+@permission_required('manage_ai')
 def analytics_queries():
     """
     📈 تحليلات الاستعلامات

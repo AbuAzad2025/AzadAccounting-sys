@@ -1,5 +1,5 @@
 """
-Blueprint لإدارة الفروع والمواقع (Owner Panel)
+Blueprint لإدارة الفروع والمواقع (PBAC Protected)
 مزايا متطورة: CRUD، بحث، فلاتر، أرشفة، نقل جماعي، استيراد/تصدير
 """
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, send_file
@@ -12,26 +12,11 @@ import io
 
 from extensions import db
 from models import Branch, Site, Employee, Expense, Warehouse, User
-from utils import _get_or_404
+from utils import _get_or_404, permission_required
+import utils
 
 
 branches_bp = Blueprint('branches_bp', __name__, url_prefix='/branches')
-
-
-def owner_required(f):
-    """ديكوريتور للتأكد من أن المستخدم هو المالك"""
-    from functools import wraps
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        if not current_user.is_authenticated:
-            flash("❌ يجب تسجيل الدخول", "danger")
-            return redirect(url_for('auth.login'))
-        # المالك فقط أو Super Admin
-        if not (getattr(current_user, 'is_system_account', False) or current_user.has_permission('owner_panel')):
-            flash("❌ غير مسموح: لوحة المالك فقط", "danger")
-            return redirect(url_for('dashboard'))
-        return f(*args, **kwargs)
-    return decorated
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -40,7 +25,7 @@ def owner_required(f):
 
 @branches_bp.route('/', methods=['GET'], endpoint='list_branches')
 @login_required
-@owner_required
+@permission_required('manage_branches')
 def list_branches():
     """قائمة الفروع مع فلاتر وإحصائيات"""
     search = request.args.get('q', '').strip()
@@ -76,7 +61,7 @@ def list_branches():
 
 @branches_bp.route('/create', methods=['GET', 'POST'], endpoint='create_branch')
 @login_required
-@owner_required
+@permission_required('manage_branches')
 def create_branch():
     """إنشاء فرع جديد"""
     if request.method == 'POST':
@@ -125,7 +110,7 @@ def create_branch():
 
 @branches_bp.route('/<int:branch_id>/edit', methods=['GET', 'POST'], endpoint='edit_branch')
 @login_required
-@owner_required
+@permission_required('manage_branches')
 def edit_branch(branch_id):
     """تعديل فرع"""
     b = _get_or_404(Branch, branch_id)
@@ -179,7 +164,7 @@ def edit_branch(branch_id):
 
 @branches_bp.route('/<int:branch_id>/archive', methods=['POST'], endpoint='archive_branch')
 @login_required
-@owner_required
+@permission_required('manage_branches')
 def archive_branch(branch_id):
     """أرشفة فرع (soft delete)"""
     b = _get_or_404(Branch, branch_id)
@@ -206,7 +191,7 @@ def archive_branch(branch_id):
 
 @branches_bp.route('/<int:branch_id>/restore', methods=['POST'], endpoint='restore_branch')
 @login_required
-@owner_required
+@permission_required('manage_branches')
 def restore_branch(branch_id):
     """استعادة فرع من الأرشيف"""
     b = _get_or_404(Branch, branch_id)
@@ -228,7 +213,7 @@ def restore_branch(branch_id):
 
 @branches_bp.route('/<int:branch_id>/dashboard', methods=['GET'], endpoint='branch_dashboard')
 @login_required
-@owner_required
+@permission_required('manage_branches')
 def branch_dashboard(branch_id):
     """لوحة تحكم متقدمة للفرع"""
     branch = _get_or_404(Branch, branch_id)
@@ -282,7 +267,7 @@ def branch_dashboard(branch_id):
 
 @branches_bp.route('/<int:branch_id>/sites', methods=['GET'], endpoint='list_sites')
 @login_required
-@owner_required
+@permission_required('manage_branches')
 def list_sites(branch_id):
     """قائمة المواقع لفرع معين"""
     branch = _get_or_404(Branch, branch_id)
@@ -297,7 +282,7 @@ def list_sites(branch_id):
 
 @branches_bp.route('/<int:branch_id>/sites/create', methods=['GET', 'POST'], endpoint='create_site')
 @login_required
-@owner_required
+@permission_required('manage_branches')
 def create_site(branch_id):
     """إنشاء موقع جديد"""
     branch = _get_or_404(Branch, branch_id)
@@ -344,7 +329,7 @@ def create_site(branch_id):
 
 @branches_bp.route('/sites/<int:site_id>/edit', methods=['GET', 'POST'], endpoint='edit_site')
 @login_required
-@owner_required
+@permission_required('manage_branches')
 def edit_site(site_id):
     """تعديل موقع"""
     s = _get_or_404(Site, site_id, joinedload(Site.branch))
@@ -393,7 +378,7 @@ def edit_site(site_id):
 
 @branches_bp.route('/sites/<int:site_id>/archive', methods=['POST'], endpoint='archive_site')
 @login_required
-@owner_required
+@permission_required('manage_branches')
 def archive_site(site_id):
     """أرشفة موقع"""
     s = _get_or_404(Site, site_id)
@@ -419,7 +404,7 @@ def archive_site(site_id):
 
 @branches_bp.route('/<int:branch_id>/report', methods=['GET'], endpoint='branch_report')
 @login_required
-@owner_required
+@permission_required('manage_branches')
 def branch_report(branch_id):
     """تقرير مفصل لفرع: نفقات، موظفين، مستودعات، مواقع"""
     from sqlalchemy import func
@@ -498,7 +483,7 @@ def branch_report(branch_id):
 
 @branches_bp.route('/export', methods=['GET'], endpoint='export_branches')
 @login_required
-@owner_required
+@permission_required('manage_branches')
 def export_branches():
     """تصدير الفروع إلى CSV"""
     branches = Branch.query.order_by(Branch.name).all()

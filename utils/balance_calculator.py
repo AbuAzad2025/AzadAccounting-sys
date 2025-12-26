@@ -69,7 +69,10 @@ def calculate_customer_balance_components(customer_id, session=None):
             try:
                 result['sales_balance'] += convert_amount(amt, s.currency, "ILS", s.sale_date)
             except Exception:
-                pass
+                try:
+                    session.rollback()
+                except Exception:
+                    pass
         
         ils_returns_sum = session.query(func.coalesce(func.sum(SaleReturn.total_amount), 0)).filter(
             SaleReturn.customer_id == customer_id,
@@ -88,7 +91,10 @@ def calculate_customer_balance_components(customer_id, session=None):
             try:
                 result['returns_balance'] += convert_amount(amt, r.currency, "ILS", r.created_at)
             except Exception:
-                pass
+                try:
+                    session.rollback()
+                except Exception:
+                    pass
         
         ils_invoices_sum = session.query(func.coalesce(func.sum(Invoice.total_amount), 0)).filter(
             Invoice.customer_id == customer_id,
@@ -107,7 +113,10 @@ def calculate_customer_balance_components(customer_id, session=None):
             try:
                 result['invoices_balance'] += convert_amount(amt, inv.currency, "ILS", inv.invoice_date)
             except Exception:
-                pass
+                try:
+                    session.rollback()
+                except Exception:
+                    pass
         
         ils_services = session.query(ServiceRequest).filter(
             ServiceRequest.customer_id == customer_id,
@@ -140,7 +149,10 @@ def calculate_customer_balance_components(customer_id, session=None):
             try:
                 result['services_balance'] += convert_amount(total, srv.currency, "ILS", srv.received_at)
             except Exception:
-                pass
+                try:
+                    session.rollback()
+                except Exception:
+                    pass
         
         result['preorders_balance'] = Decimal('0.00')
         
@@ -161,7 +173,10 @@ def calculate_customer_balance_components(customer_id, session=None):
             try:
                 result['online_orders_balance'] += convert_amount(amt, oo.currency, "ILS", oo.created_at)
             except Exception:
-                pass
+                try:
+                    session.rollback()
+                except Exception:
+                    pass
         
         payments_in_direct = session.query(Payment).outerjoin(
             Check, Check.payment_id == Payment.id
@@ -282,7 +297,10 @@ def calculate_customer_balance_components(customer_id, session=None):
                         try:
                             total_splits += convert_amount(split_amt, split.currency, "ILS", p.payment_date)
                         except Exception:
-                            pass
+                            try:
+                                session.rollback()
+                            except Exception:
+                                pass
                 
                 amt = total_splits
             else:
@@ -294,7 +312,10 @@ def calculate_customer_balance_components(customer_id, session=None):
                 try:
                     result['payments_in_balance'] += convert_amount(amt, p.currency, "ILS", p.payment_date)
                 except Exception:
-                    pass
+                    try:
+                        session.rollback()
+                    except Exception:
+                        pass
         
         active_preorders = session.query(PreOrder).filter(
             PreOrder.customer_id == customer_id,
@@ -317,7 +338,10 @@ def calculate_customer_balance_components(customer_id, session=None):
                     try:
                         result['payments_in_balance'] += convert_amount(prepaid_amt, po.currency, "ILS", po.preorder_date or po.created_at)
                     except Exception:
-                        pass
+                        try:
+                            session.rollback()
+                        except Exception:
+                            pass
         
         ils_manual_checks_in_sum = session.query(func.coalesce(func.sum(Check.amount), 0)).filter(
             Check.customer_id == customer_id,
@@ -340,7 +364,10 @@ def calculate_customer_balance_components(customer_id, session=None):
             try:
                 checks_in_manual += convert_amount(amt, check.currency, "ILS", check.check_date)
             except Exception:
-                pass
+                try:
+                    session.rollback()
+                except Exception:
+                    pass
         
         result['checks_in_balance'] = checks_in_manual
         result['payments_in_balance'] += checks_in_manual
@@ -454,7 +481,10 @@ def calculate_customer_balance_components(customer_id, session=None):
                         try:
                             total_splits += convert_amount(split_amt, split.currency, "ILS", p.payment_date)
                         except Exception:
-                            pass
+                            try:
+                                session.rollback()
+                            except Exception:
+                                pass
                 
                 amt = total_splits
             else:
@@ -466,7 +496,10 @@ def calculate_customer_balance_components(customer_id, session=None):
                 try:
                     result['payments_out_balance'] += convert_amount(amt, p.currency, "ILS", p.payment_date)
                 except Exception:
-                    pass
+                    try:
+                        session.rollback()
+                    except Exception:
+                        pass
         
         ils_manual_checks_out_sum = session.query(func.coalesce(func.sum(Check.amount), 0)).filter(
             Check.customer_id == customer_id,
@@ -489,7 +522,10 @@ def calculate_customer_balance_components(customer_id, session=None):
             try:
                 checks_out_manual += convert_amount(amt, check.currency, "ILS", check.check_date)
             except Exception:
-                pass
+                try:
+                    session.rollback()
+                except Exception:
+                    pass
         
         result['checks_out_balance'] = checks_out_manual
         result['payments_out_balance'] += checks_out_manual
@@ -629,7 +665,10 @@ def calculate_customer_balance_components(customer_id, session=None):
                                         check_date = check.check_date if check else p.payment_date
                                         result['returned_checks_in_balance'] += convert_amount(amt, check_currency, "ILS", check_date)
                                     except Exception:
-                                        pass
+                                        try:
+                                            session.rollback()
+                                        except Exception:
+                                            pass
                         else:
                             split_details = split.details or {}
                             if isinstance(split_details, str):
@@ -655,6 +694,10 @@ def calculate_customer_balance_components(customer_id, session=None):
                                     try:
                                         amt = convert_amount(split_amt, split_currency, "ILS", p.payment_date)
                                     except Exception:
+                                        try:
+                                            session.rollback()
+                                        except Exception:
+                                            pass
                                         amt = split_amt
                                 
                                 result['returned_checks_in_balance'] += amt
@@ -675,7 +718,10 @@ def calculate_customer_balance_components(customer_id, session=None):
                             check_date = check.check_date if check else p.payment_date
                             result['returned_checks_in_balance'] += convert_amount(amt, check_currency, "ILS", check_date)
                         except Exception:
-                            pass
+                            try:
+                                session.rollback()
+                            except Exception:
+                                pass
                 
                 if not splits and not returned_checks and p.status == 'FAILED' and p.method == PaymentMethod.CHEQUE.value:
                     amt = Decimal(str(p.total_amount or 0))
@@ -686,7 +732,10 @@ def calculate_customer_balance_components(customer_id, session=None):
                         try:
                             result['returned_checks_in_balance'] += convert_amount(amt, check_currency, "ILS", p.payment_date)
                         except Exception:
-                            pass
+                            try:
+                                session.rollback()
+                            except Exception:
+                                pass
         
         ils_manual_returned_checks_in_sum = session.query(func.coalesce(func.sum(Check.amount), 0)).filter(
             Check.customer_id == customer_id,
@@ -719,7 +768,10 @@ def calculate_customer_balance_components(customer_id, session=None):
             try:
                 result['returned_checks_in_balance'] += convert_amount(amt, check.currency, "ILS", check.check_date)
             except Exception:
-                pass
+                try:
+                    session.rollback()
+                except Exception:
+                    pass
         
         returned_out_direct = session.query(Payment).outerjoin(
             Check, Check.payment_id == Payment.id
@@ -856,7 +908,10 @@ def calculate_customer_balance_components(customer_id, session=None):
                                         check_date = check.check_date if check else p.payment_date
                                         result['returned_checks_out_balance'] += convert_amount(amt, check_currency, "ILS", check_date)
                                     except Exception:
-                                        pass
+                                        try:
+                                            session.rollback()
+                                        except Exception:
+                                            pass
                         else:
                             split_details = split.details or {}
                             if isinstance(split_details, str):
@@ -882,6 +937,10 @@ def calculate_customer_balance_components(customer_id, session=None):
                                     try:
                                         amt = convert_amount(split_amt, split_currency, "ILS", p.payment_date)
                                     except Exception:
+                                        try:
+                                            session.rollback()
+                                        except Exception:
+                                            pass
                                         amt = split_amt
                                 
                                 result['returned_checks_out_balance'] += amt
@@ -902,7 +961,10 @@ def calculate_customer_balance_components(customer_id, session=None):
                             check_date = check.check_date if check else p.payment_date
                             result['returned_checks_out_balance'] += convert_amount(amt, check_currency, "ILS", check_date)
                         except Exception:
-                            pass
+                            try:
+                                session.rollback()
+                            except Exception:
+                                pass
                 
                 if not returned_checks and p.status == 'FAILED' and p.method == PaymentMethod.CHEQUE.value:
                     amt = Decimal(str(p.total_amount or 0))
@@ -913,7 +975,10 @@ def calculate_customer_balance_components(customer_id, session=None):
                         try:
                             result['returned_checks_out_balance'] += convert_amount(amt, check_currency, "ILS", p.payment_date)
                         except Exception:
-                            pass
+                            try:
+                                session.rollback()
+                            except Exception:
+                                pass
         
         ils_manual_returned_checks_out_sum = session.query(func.coalesce(func.sum(Check.amount), 0)).filter(
             Check.customer_id == customer_id,
@@ -938,7 +1003,10 @@ def calculate_customer_balance_components(customer_id, session=None):
             try:
                 result['returned_checks_out_balance'] += convert_amount(amt, check.currency, "ILS", check.check_date)
             except Exception:
-                pass
+                try:
+                    session.rollback()
+                except Exception:
+                    pass
         
         expenses = session.query(Expense).filter(
             Expense.customer_id == customer_id
@@ -951,7 +1019,10 @@ def calculate_customer_balance_components(customer_id, session=None):
                 try:
                     amt_ils = convert_amount(amt, exp.currency, "ILS", exp.date)
                 except Exception:
-                    pass
+                    try:
+                        session.rollback()
+                    except Exception:
+                        pass
             
             exp_type_code = None
             if exp.type_id:
@@ -973,6 +1044,11 @@ def calculate_customer_balance_components(customer_id, session=None):
     except Exception as e:
         from flask import current_app
         try:
+            if session is not None and hasattr(session, "rollback"):
+                session.rollback()
+        except Exception:
+            pass
+        try:
             current_app.logger.error(f"خطأ في حساب مكونات رصيد العميل #{customer_id}: {e}")
         except:
             pass
@@ -990,6 +1066,11 @@ def build_customer_balance_view(customer_id, session=None):
         return {"success": False, "error": "Customer not found"}
     components = calculate_customer_balance_components(customer_id, session)
     if not components:
+        try:
+            if session is not None and hasattr(session, "rollback"):
+                session.rollback()
+        except Exception:
+            pass
         return {"success": False, "error": "Unable to calculate customer balance"}
 
     def _dec(value):
@@ -1003,7 +1084,10 @@ def build_customer_balance_view(customer_id, session=None):
         try:
             opening_balance = convert_amount(opening_balance, customer.currency, "ILS")
         except Exception:
-            pass
+            try:
+                session.rollback()
+            except Exception:
+                pass
 
     rights_rows = [
         {"key": "payments_in_balance", "label": "دفعات واردة", "flow": "IN", "amount": _component("payments_in_balance")},
@@ -1098,3 +1182,229 @@ def build_customer_balance_view(customer_id, session=None):
         },
         "components": {key: float(_dec(val)) for key, val in components.items()},
     }
+
+
+def calculate_balance_before_date(customer_id, before_date, session=None):
+    """
+    حساب رصيد العميل المتراكم قبل تاريخ معين (للرصيد الافتتاحي في كشف الحساب)
+    """
+    if not session:
+        session = db.session
+        
+    try:
+        from sqlalchemy.orm import Session
+        from sqlalchemy import text as sa_text
+        if isinstance(session, Session):
+            try:
+                session.execute(sa_text("SELECT 1"))
+            except Exception:
+                from sqlalchemy.orm import sessionmaker
+                session = sessionmaker(bind=db.engine)()
+    except Exception:
+        pass
+        
+    customer = session.get(Customer, customer_id)
+    if not customer:
+        return Decimal('0.00')
+
+    # 1. Opening Balance (Static)
+    opening_balance = Decimal(str(customer.opening_balance or 0))
+    if customer.currency and customer.currency != "ILS":
+        try:
+            opening_balance = convert_amount(opening_balance, customer.currency, "ILS", customer.created_at)
+        except:
+            pass
+        
+    # Helper for summing with date filter and currency conversion
+    def sum_model(model, date_field, amount_field='total_amount', extra_filters=None):
+        total = Decimal('0.00')
+        
+        # ILS
+        filters = [
+            getattr(model, 'customer_id') == customer_id,
+            getattr(model, 'currency') == 'ILS',
+            getattr(model, date_field) < before_date
+        ]
+        if extra_filters:
+            filters.extend(extra_filters)
+            
+        val = session.query(func.coalesce(func.sum(getattr(model, amount_field)), 0)).filter(*filters).scalar() or 0
+        total += Decimal(str(val))
+        
+        # Other Currencies
+        filters_other = [
+            getattr(model, 'customer_id') == customer_id,
+            getattr(model, 'currency') != 'ILS',
+            getattr(model, date_field) < before_date
+        ]
+        if extra_filters:
+            filters_other.extend(extra_filters)
+            
+        others = session.query(model).filter(*filters_other).all()
+        for item in others:
+            amt = Decimal(str(getattr(item, amount_field) or 0))
+            try:
+                d_val = getattr(item, date_field) or before_date
+                total += convert_amount(amt, item.currency, "ILS", d_val)
+            except:
+                pass
+        return total
+
+    # 2. Rights (Flow IN - Increases what we owe him or decreases what he owes us)
+    # Payments IN
+    payments_in = Decimal('0.00')
+    p_filters = [
+        Payment.direction == 'IN',
+        Payment.status.in_(['COMPLETED', 'PENDING']),
+        Payment.expense_id.is_(None)
+    ]
+    
+    p_in_all = session.query(Payment).filter(
+        Payment.customer_id == customer_id,
+        Payment.payment_date < before_date,
+        *p_filters
+    ).all()
+    
+    for p in p_in_all:
+        amt = Decimal(str(p.total_amount or 0))
+        if p.currency != 'ILS':
+             try:
+                amt = convert_amount(amt, p.currency, "ILS", p.payment_date)
+             except:
+                pass
+        payments_in += amt
+
+    # Sale Returns
+    returns_balance = sum_model(SaleReturn, 'created_at', 'total_amount', [SaleReturn.status == 'CONFIRMED'])
+    
+    # Manual Checks IN
+    checks_in = Decimal('0.00')
+    c_filters = [
+        Check.payment_id.is_(None),
+        Check.direction == 'IN',
+        ~Check.status.in_(['RETURNED', 'BOUNCED', 'CANCELLED', 'ARCHIVED'])
+    ]
+    checks_in_all = session.query(Check).filter(
+        Check.customer_id == customer_id,
+        Check.check_date < before_date,
+        *c_filters
+    ).all()
+    for c in checks_in_all:
+        amt = Decimal(str(c.amount or 0))
+        if c.currency and c.currency != 'ILS':
+            try:
+                amt = convert_amount(amt, c.currency, "ILS", c.check_date)
+            except:
+                pass
+        checks_in += amt
+    
+    # Service Expenses
+    service_expenses = Decimal('0.00')
+    exp_all = session.query(Expense).filter(
+        Expense.customer_id == customer_id,
+        Expense.date < before_date
+    ).all()
+    
+    for exp in exp_all:
+        amt = Decimal(str(exp.amount or 0))
+        if exp.currency and exp.currency != "ILS":
+            try:
+                amt = convert_amount(amt, exp.currency, "ILS", exp.date)
+            except:
+                pass
+        
+        exp_type_code = None
+        if exp.type_id:
+            et = session.query(ExpenseType).filter_by(id=exp.type_id).first()
+            if et:
+                exp_type_code = (et.code or "").strip().upper()
+                
+        is_service_expense = (
+            exp_type_code in ('PARTNER_EXPENSE', 'SERVICE_EXPENSE') or
+            (exp.partner_id and exp.payee_type and exp.payee_type.upper() == "PARTNER") or
+            (exp.supplier_id and exp.payee_type and exp.payee_type.upper() == "SUPPLIER")
+        )
+        
+        if is_service_expense:
+            service_expenses += amt
+            
+    rights_total = payments_in + returns_balance + checks_in + service_expenses
+    
+    # 3. Obligations (Flow OUT - Increases what he owes us)
+    sales_balance = sum_model(Sale, 'sale_date', 'total_amount', [Sale.status == 'CONFIRMED'])
+    invoices_balance = sum_model(Invoice, 'invoice_date', 'total_amount', [Invoice.cancelled_at.is_(None)])
+    
+    # Services
+    services_balance = Decimal('0.00')
+    srv_all = session.query(ServiceRequest).filter(
+        ServiceRequest.customer_id == customer_id,
+        ServiceRequest.received_at < before_date
+    ).all()
+    for srv in srv_all:
+        subtotal = Decimal(str(srv.parts_total or 0)) + Decimal(str(srv.labor_total or 0))
+        discount = Decimal(str(srv.discount_total or 0))
+        base = subtotal - discount
+        if base < 0: base = Decimal('0.00')
+        tax = base * (Decimal(str(srv.tax_rate or 0)) / Decimal('100'))
+        total = base + tax
+        if srv.currency and srv.currency != 'ILS':
+            try:
+                total = convert_amount(total, srv.currency, "ILS", srv.received_at)
+            except:
+                pass
+        services_balance += total
+
+    # Online Orders
+    online_orders_balance = sum_model(OnlinePreOrder, 'created_at', 'total_amount', [OnlinePreOrder.payment_status != 'CANCELLED'])
+    
+    # Payments OUT
+    payments_out = Decimal('0.00')
+    p_out_filters = [
+        Payment.direction == 'OUT',
+        Payment.status.in_(['COMPLETED', 'PENDING']),
+        Payment.expense_id.is_(None)
+    ]
+    p_out_all = session.query(Payment).filter(
+        Payment.customer_id == customer_id,
+        Payment.payment_date < before_date,
+        *p_out_filters
+    ).all()
+    for p in p_out_all:
+        amt = Decimal(str(p.total_amount or 0))
+        if p.currency != 'ILS':
+             try:
+                amt = convert_amount(amt, p.currency, "ILS", p.payment_date)
+             except:
+                pass
+        payments_out += amt
+
+    # Expenses (Normal expenses, not service ones)
+    expenses_balance = Decimal('0.00')
+    # Reuse exp_all from above
+    for exp in exp_all:
+        amt = Decimal(str(exp.amount or 0))
+        if exp.currency and exp.currency != "ILS":
+            try:
+                amt = convert_amount(amt, exp.currency, "ILS", exp.date)
+            except:
+                pass
+        
+        exp_type_code = None
+        if exp.type_id:
+            et = session.query(ExpenseType).filter_by(id=exp.type_id).first()
+            if et:
+                exp_type_code = (et.code or "").strip().upper()
+                
+        is_service_expense = (
+            exp_type_code in ('PARTNER_EXPENSE', 'SERVICE_EXPENSE') or
+            (exp.partner_id and exp.payee_type and exp.payee_type.upper() == "PARTNER") or
+            (exp.supplier_id and exp.payee_type and exp.payee_type.upper() == "SUPPLIER")
+        )
+        
+        if not is_service_expense:
+            expenses_balance += amt
+    
+    obligations_total = sales_balance + invoices_balance + services_balance + online_orders_balance + payments_out + expenses_balance
+    
+    return opening_balance + rights_total - obligations_total
+

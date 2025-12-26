@@ -318,6 +318,8 @@ def shipments_data():
             Shipment.destination_warehouse.has(Warehouse.name.ilike(like))
         ))
 
+    filtered_count = q.with_entities(func.count(Shipment.id)).scalar()
+
     order_col_index = int(request.args.get("order[0][column]", 3) or 3)
     order_dir = (request.args.get("order[0][dir]") or "desc").lower()
     col_map = {
@@ -326,12 +328,12 @@ def shipments_data():
         2: Shipment.destination,
         3: Shipment.expected_arrival,
         4: Shipment.status,
-        5: Shipment.value_before
+        5: Shipment.currency,
+        7: Shipment.total_cost  # أو Shipment.value_before حسب الرغبة، ولكن العمود هو الإجمالي
     }
     order_col = col_map.get(order_col_index, Shipment.expected_arrival)
     q = q.order_by(desc(order_col) if order_dir == "desc" else asc(order_col))
 
-    filtered_count = q.with_entities(func.count(Shipment.id)).scalar()
     rows = q.offset(start).limit(length).all()
 
     csrf_token = generate_csrf()
@@ -343,7 +345,11 @@ def shipments_data():
             "IN_TRANSIT": "في الطريق",
             "ARRIVED": "واصل",
             "CANCELLED": "ملغاة",
-            "CREATED": "مُنشأة"
+            "CREATED": "مُنشأة",
+            "PENDING": "قيد الانتظار",
+            "IN_CUSTOMS": "في الجمارك",
+            "DELIVERED": "تم التسليم",
+            "RETURNED": "مرتجعة"
         }.get(st, st)
 
     data = []
@@ -366,6 +372,9 @@ def shipments_data():
             "origin": s.origin,
             "destination": (s.destination_warehouse.name if s.destination_warehouse else (s.destination or None)),
             "expected_arrival": s.expected_arrival.isoformat() if s.expected_arrival else None,
+            "currency": s.currency,
+            "fx_rate_used": float(s.fx_rate_used) if s.fx_rate_used else None,
+            "fx_rate_source": s.fx_rate_source,
             "total_value": float(s.total_value or 0),
             "actions": actions_html,
         })

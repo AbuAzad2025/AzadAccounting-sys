@@ -5,6 +5,8 @@
  */
 
 (function() {
+  if (window.__SECURITY_CHARTS_INIT__) return;
+  window.__SECURITY_CHARTS_INIT__ = true;
   'use strict';
   
   document.addEventListener('DOMContentLoaded', function() {

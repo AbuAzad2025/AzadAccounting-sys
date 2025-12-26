@@ -198,8 +198,8 @@
                 <i class="fas fa-database"></i> قاعدة البيانات
               </label>
               <input type="text" name="tenant_db" class="form-control" 
-                     placeholder="sqlite:///instance/tenants/ramallah.db" required>
-              <small class="text-muted">سيتم إنشاؤها تلقائياً إذا كانت SQLite</small>
+                     placeholder="postgresql://user:password@host:5432/tenant_db" required>
+              <small class="text-muted">يجب أن تكون PostgreSQL (postgresql://...)</small>
             </div>
             
             <div class="mb-3">

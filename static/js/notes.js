@@ -1,4 +1,6 @@
 (function () {
+  if (window.__NOTES_INIT__) return;
+  window.__NOTES_INIT__ = true;
   const alertBox = document.getElementById('alertBox');
   const modal = document.getElementById('noteModal');
   const modalBody = document.getElementById('noteModalBody');

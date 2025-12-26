@@ -39,7 +39,8 @@
         <li class="nav-item">
           <a class="nav-link {{ 'active' if active_catalog }}" href="{{ url_for('shop.catalog') }}" {% if active_catalog %}aria-current="page"{% endif %}>المنتجات</a>
         </li>
-        {% if current_user.is_authenticated %}
+        {% set can_view_my_orders = has_perm('view_preorders') %}
+        {% if can_view_my_orders %}
         {% set active_orders = request.endpoint and request.endpoint.startswith('shop.preorder_') %}
         <li class="nav-item">
           <a class="nav-link {{ 'active' if active_orders }}" href="{{ url_for('shop.preorder_list') }}" {% if active_orders %}aria-current="page"{% endif %}>طلباتي</a>
@@ -68,17 +69,21 @@
         {% endif %}
       </ul>
       <div class="d-flex align-items-center gap-3">
+        {% if has_perm('place_online_order') %}
         <a href="{{ url_for('shop.cart') }}" class="btn btn-light position-relative" title="سلة المشتريات">
           <i class="fas fa-shopping-cart"></i>
           <span id="cart-counter" class="quantity-badge badge bg-danger rounded-circle">{{ cart_count|default(0)|int }}</span>
         </a>
+        {% endif %}
         {% if current_user.is_authenticated %}
         <div class="dropdown">
           <button class="btn btn-outline-light dropdown-toggle" type="button" data-toggle="dropdown">
             <i class="fas fa-user ml-2"></i> {{ current_user.name or current_user.username }}
           </button>
           <ul class="dropdown-menu dropdown-menu-end">
+            {% if can_view_my_orders %}
             <li><a class="dropdown-item" href="{{ url_for('shop.preorder_list') }}">طلباتي</a></li>
+            {% endif %}
             <li><hr class="dropdown-divider"></li>
             <li><a href="#" class="dropdown-item text-danger" onclick="event.preventDefault();document.getElementById('logout-form-shop').submit();">تسجيل الخروج</a></li>
           </ul>
@@ -170,7 +175,7 @@
             </div>
             <div class="contact-item">
               <i class="fas fa-envelope ml-2"></i>
-              <span>info@azad-systems.com</span>
+              <span>rafideen.ahmadghannam@gmail.com</span>
             </div>
             <div class="contact-item">
               <i class="fas fa-map-marker-alt ml-2"></i>

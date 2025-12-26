@@ -1,4 +1,6 @@
 (function () {
+  if (window.__VENDORS_INIT__) return;
+  window.__VENDORS_INIT__ = true;
   "use strict";
 
   function fmt(n) {
@@ -105,7 +107,7 @@ var partnersRequestSeq = 0;
       tableWrapper.innerHTML = '<div class="text-center py-4 text-muted"><div class="spinner-border spinner-border-sm me-2"></div>جارِ التحميل…</div>';
       var fetchUrl = new URL(url);
       fetchUrl.searchParams.set("ajax", "1");
-      fetch(fetchUrl.toString(), { headers: { "X-Requested-With": "XMLHttpRequest", "Accept": "application/json" } })
+      fetchWithTimeout(fetchUrl.toString(), { headers: { "X-Requested-With": "XMLHttpRequest", "Accept": "application/json" } }, 20000)
         .then(function (res) {
           if (!res.ok) throw res;
           return res.json();
@@ -128,10 +130,13 @@ var partnersRequestSeq = 0;
             window.jQuery('[data-toggle="tooltip"]').tooltip();
           }
         })
-        .catch(function () {
+        .catch(function (err) {
           if (requestId !== suppliersRequestSeq) return;
           tableWrapper.innerHTML = previous;
           attachSupplierServiceButtons();
+          if (err && err.name === "AbortError") {
+            notify("انتهت مهلة الاتصال بالخادم.", "warning");
+          }
         });
     }
 
@@ -237,7 +242,7 @@ var partnersRequestSeq = 0;
       tableWrapper.innerHTML = '<div class="text-center py-4 text-muted"><div class="spinner-border spinner-border-sm me-2"></div>جارِ التحميل…</div>';
       var urlObj = target instanceof URL ? target : new URL(target, window.location.origin);
       urlObj.searchParams.set("ajax", "1");
-      fetch(urlObj.toString(), { headers: { "X-Requested-With": "XMLHttpRequest", "Accept": "application/json" } })
+      fetchWithTimeout(urlObj.toString(), { headers: { "X-Requested-With": "XMLHttpRequest", "Accept": "application/json" } }, 20000)
         .then(function (res) {
           if (!res.ok) throw res;
           return res.json();
@@ -269,7 +274,7 @@ var partnersRequestSeq = 0;
           var nextUrl = urlObj.pathname + (nextSearch ? "?" + nextSearch : "");
           window.history.replaceState(null, "", nextUrl);
         })
-        .catch(function () {
+        .catch(function (err) {
           if (requestId !== partnersRequestSeq) return;
           tableWrapper.innerHTML = previous;
           if (typeof window !== "undefined" && typeof window.enableTableSorting === "function") {
@@ -277,6 +282,9 @@ var partnersRequestSeq = 0;
           }
           attachSettleButtons();
           attachSupplierServiceButtons();
+          if (err && err.name === "AbortError") {
+            notify("انتهت مهلة الاتصال بالخادم.", "warning");
+          }
         });
     }
 
@@ -530,6 +538,17 @@ var partnersRequestSeq = 0;
     return el ? el.value : "";
   }
 
+  function fetchWithTimeout(url, options, timeoutMs) {
+    var ms = Number(timeoutMs || 20000);
+    if (!(ms > 0)) ms = 20000;
+    if (typeof AbortController === "undefined") return fetch(url, options);
+    var controller = new AbortController();
+    var timer = setTimeout(function () { try { controller.abort(); } catch (_) {} }, ms);
+    var opts = options ? Object.assign({}, options) : {};
+    opts.signal = controller.signal;
+    return fetch(url, opts).finally(function () { clearTimeout(timer); });
+  }
+
   function notify(msg, level) {
     if (typeof window.showNotification === "function") {
       window.showNotification(msg, level || "info");
@@ -675,7 +694,7 @@ var partnersRequestSeq = 0;
       date: partnerCfg.today
     };
     togglePartnerServiceSubmit(true);
-    fetch(partnerCfg.createUrl, {
+    fetchWithTimeout(partnerCfg.createUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -683,7 +702,7 @@ var partnersRequestSeq = 0;
         "X-Requested-With": "XMLHttpRequest"
       },
       body: JSON.stringify(payload)
-    })
+    }, 20000)
       .then(function (res) {
         if (!res.ok) throw res;
         return res.json();
@@ -700,6 +719,10 @@ var partnersRequestSeq = 0;
       })
       .catch(function (err) {
         togglePartnerServiceSubmit(false);
+        if (err && err.name === "AbortError") {
+          showPartnerServiceError("انتهت مهلة الاتصال بالخادم.");
+          return;
+        }
         if (err && typeof err.json === "function") {
           err.json().then(function (payload) {
             showPartnerServiceError((payload && payload.message) || "تعذر إنشاء الفاتورة.");
@@ -760,7 +783,7 @@ var partnersRequestSeq = 0;
       return;
     }
     togglePartnerPaySubmit(true);
-    fetch(partnerCfg.payUrl, {
+    fetchWithTimeout(partnerCfg.payUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -768,7 +791,7 @@ var partnersRequestSeq = 0;
         "X-Requested-With": "XMLHttpRequest"
       },
       body: JSON.stringify(payload)
-    })
+    }, 20000)
       .then(function (res) {
         if (!res.ok) throw res;
         return res.json();
@@ -787,6 +810,10 @@ var partnersRequestSeq = 0;
       })
       .catch(function (err) {
         togglePartnerPaySubmit(false);
+        if (err && err.name === "AbortError") {
+          showPartnerPayError("انتهت مهلة الاتصال بالخادم.");
+          return;
+        }
         if (err && typeof err.json === "function") {
           err.json().then(function (payload) {
             showPartnerPayError((payload && payload.message) || "تعذر حفظ الدفعة.");
@@ -861,7 +888,7 @@ var partnersRequestSeq = 0;
       date: quickServiceCfg.today
     };
     toggleServiceSubmit(true);
-    fetch(quickServiceCfg.createUrl, {
+    fetchWithTimeout(quickServiceCfg.createUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -869,7 +896,7 @@ var partnersRequestSeq = 0;
         "X-Requested-With": "XMLHttpRequest"
       },
       body: JSON.stringify(payload)
-    })
+    }, 20000)
       .then(function (res) {
         if (!res.ok) throw res;
         return res.json();
@@ -887,6 +914,10 @@ var partnersRequestSeq = 0;
       })
       .catch(function (err) {
         toggleServiceSubmit(false);
+        if (err && err.name === "AbortError") {
+          showServiceError("انتهت مهلة الاتصال بالخادم.");
+          return;
+        }
         if (err && typeof err.json === "function") {
           err.json().then(function (payload) {
             showServiceError((payload && payload.message) || "تعذر إنشاء الفاتورة.");
@@ -975,6 +1006,10 @@ var partnersRequestSeq = 0;
       })
       .catch(function (err) {
         togglePaySubmit(false);
+        if (err && err.name === "AbortError") {
+          showPayError("انتهت مهلة الاتصال بالخادم.");
+          return;
+        }
         if (err && typeof err.json === "function") {
           err.json().then(function (payload) {
             showPayError((payload && payload.message) || "تعذر حفظ الدفعة.");

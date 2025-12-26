@@ -7,25 +7,14 @@ from models import (EngineeringTeam, EngineeringTeamMember, EngineeringSkill,
 from sqlalchemy import func, and_, or_, desc
 from datetime import datetime, date, timedelta, time as dt_time
 from decimal import Decimal
-from functools import wraps
+from utils import permission_required
 
 engineering_bp = Blueprint('engineering', __name__, url_prefix='/engineering')
 
-def owner_only(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if not current_user.is_authenticated:
-            flash('يجب تسجيل الدخول أولاً', 'warning')
-            return redirect(url_for('auth.login'))
-        if not (current_user.role and current_user.role.name == 'Owner'):
-            flash('هذه الصفحة للمالك فقط', 'danger')
-            return redirect(url_for('main.dashboard'))
-        return f(*args, **kwargs)
-    return decorated_function
 
 @engineering_bp.route('/')
 @login_required
-@owner_only
+@permission_required('manage_engineering')
 def dashboard():
     total_teams = EngineeringTeam.query.filter_by(is_active=True).count()
     total_engineers = db.session.query(func.count(func.distinct(EngineeringTeamMember.employee_id))).filter_by(is_active=True).scalar() or 0
@@ -95,7 +84,7 @@ def dashboard():
 
 @engineering_bp.route('/teams')
 @login_required
-@owner_only
+@permission_required('manage_engineering')
 def teams():
     teams = EngineeringTeam.query.order_by(EngineeringTeam.is_active.desc(), EngineeringTeam.code).all()
     
@@ -116,7 +105,7 @@ def teams():
 
 @engineering_bp.route('/teams/add', methods=['GET', 'POST'])
 @login_required
-@owner_only
+@permission_required('manage_engineering')
 def add_team():
     if request.method == 'POST':
         try:
@@ -169,7 +158,7 @@ def add_team():
 
 @engineering_bp.route('/tasks')
 @login_required
-@owner_only
+@permission_required('manage_engineering')
 def tasks():
     status_filter = request.args.get('status')
     team_filter = request.args.get('team', type=int)
@@ -210,7 +199,7 @@ def tasks():
 
 @engineering_bp.route('/tasks/add', methods=['GET', 'POST'])
 @login_required
-@owner_only
+@permission_required('manage_engineering')
 def add_task():
     if request.method == 'POST':
         try:
@@ -278,7 +267,7 @@ def add_task():
 
 @engineering_bp.route('/timesheets')
 @login_required
-@owner_only
+@permission_required('manage_engineering')
 def timesheets():
     employee_filter = request.args.get('employee', type=int)
     date_from = request.args.get('date_from')
@@ -320,7 +309,7 @@ def timesheets():
 
 @engineering_bp.route('/timesheets/add', methods=['GET', 'POST'])
 @login_required
-@owner_only
+@permission_required('manage_engineering')
 def add_timesheet():
     if request.method == 'POST':
         try:
@@ -384,7 +373,7 @@ def add_timesheet():
 
 @engineering_bp.route('/skills')
 @login_required
-@owner_only
+@permission_required('manage_engineering')
 def skills():
     skills = EngineeringSkill.query.order_by(EngineeringSkill.category, EngineeringSkill.name).all()
     
@@ -392,7 +381,7 @@ def skills():
 
 @engineering_bp.route('/reports/productivity')
 @login_required
-@owner_only
+@permission_required('manage_engineering')
 def report_productivity():
     date_from = request.args.get('date_from')
     date_to = request.args.get('date_to')

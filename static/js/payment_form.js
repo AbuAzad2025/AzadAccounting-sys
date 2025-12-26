@@ -1,4 +1,6 @@
 document.addEventListener('DOMContentLoaded', function () {
+  if (window.__PAYMENT_FORM_INIT__) return;
+  window.__PAYMENT_FORM_INIT__ = true;
   'use strict';
 
   const filterSelectors = ['#filterEntity', '#filterStatus', '#filterDirection', '#filterMethod', '#startDate', '#endDate', '#filterCurrency'];

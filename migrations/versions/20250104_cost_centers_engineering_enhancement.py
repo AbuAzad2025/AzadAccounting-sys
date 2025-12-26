@@ -7,7 +7,6 @@ Create Date: 2025-11-04 15:45:00.000000
 """
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects import sqlite
 
 revision = '20250104_cc_eng'
 down_revision = '20250104_pmp_tables'

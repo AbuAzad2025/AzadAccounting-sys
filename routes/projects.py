@@ -7,26 +7,14 @@ from sqlalchemy import func, and_, or_, desc, case
 from datetime import datetime, date, timedelta
 from decimal import Decimal
 from functools import wraps
+from utils import permission_required
 
 projects_bp = Blueprint('projects', __name__, url_prefix='/projects')
 
 
-def owner_only(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if not current_user.is_authenticated:
-            flash('يجب تسجيل الدخول أولاً', 'warning')
-            return redirect(url_for('auth.login'))
-        if not (current_user.role and current_user.role.name == 'Owner'):
-            flash('هذه الصفحة للمالك فقط', 'danger')
-            return redirect(url_for('main.dashboard'))
-        return f(*args, **kwargs)
-    return decorated_function
-
-
 @projects_bp.route('/')
 @login_required
-@owner_only
+@permission_required('manage_projects')
 def index():
     status = request.args.get('status')
     customer_id = request.args.get('customer', type=int)
@@ -79,7 +67,7 @@ def index():
 
 @projects_bp.route('/add', methods=['GET', 'POST'])
 @login_required
-@owner_only
+@permission_required('manage_projects')
 def add_project():
     if request.method == 'POST':
         try:
@@ -144,7 +132,7 @@ def add_project():
 
 @projects_bp.route('/edit/<int:id>', methods=['GET', 'POST'])
 @login_required
-@owner_only
+@permission_required('manage_projects')
 def edit_project(id):
     project = Project.query.get_or_404(id)
     
@@ -190,7 +178,7 @@ def edit_project(id):
 
 @projects_bp.route('/<int:id>')
 @login_required
-@owner_only
+@permission_required('manage_projects')
 def view_project(id):
     project = Project.query.get_or_404(id)
     
@@ -248,7 +236,7 @@ def view_project(id):
 
 @projects_bp.route('/<int:id>/add-phase', methods=['POST'])
 @login_required
-@owner_only
+@permission_required('manage_projects')
 def add_phase(id):
     try:
         project = Project.query.get_or_404(id)
@@ -292,7 +280,7 @@ def add_phase(id):
 
 @projects_bp.route('/<int:id>/add-cost', methods=['POST'])
 @login_required
-@owner_only
+@permission_required('manage_projects')
 def add_cost(id):
     try:
         project = Project.query.get_or_404(id)
@@ -367,7 +355,7 @@ def add_cost(id):
 
 @projects_bp.route('/<int:id>/add-revenue', methods=['POST'])
 @login_required
-@owner_only
+@permission_required('manage_projects')
 def add_revenue(id):
     try:
         project = Project.query.get_or_404(id)
@@ -425,7 +413,7 @@ def add_revenue(id):
 
 @projects_bp.route('/reports/pnl')
 @login_required
-@owner_only
+@permission_required('manage_projects')
 def report_pnl():
     project_id = request.args.get('project', type=int)
     date_from = request.args.get('date_from')
@@ -495,7 +483,7 @@ def report_pnl():
 
 @projects_bp.route('/reports/profitability')
 @login_required
-@owner_only
+@permission_required('manage_projects')
 def report_profitability():
     projects = Project.query.order_by(Project.code).all()
     
@@ -534,7 +522,7 @@ def report_profitability():
 
 @projects_bp.route('/reports/budget-tracking')
 @login_required
-@owner_only
+@permission_required('manage_projects')
 def report_budget_tracking():
     project_id = request.args.get('project', type=int)
     
@@ -591,7 +579,7 @@ def report_budget_tracking():
 
 @projects_bp.route('/reports/variance')
 @login_required
-@owner_only
+@permission_required('manage_projects')
 def report_variance():
     projects = Project.query.filter(
         Project.budget_amount > 0,
@@ -625,7 +613,7 @@ def report_variance():
 
 @projects_bp.route('/api/dashboard-stats')
 @login_required
-@owner_only
+@permission_required('manage_projects')
 def api_dashboard_stats():
     total_projects = Project.query.count()
     active_projects = Project.query.filter(Project.status.in_(['IN_PROGRESS', 'PLANNING'])).count()

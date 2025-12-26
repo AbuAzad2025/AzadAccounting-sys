@@ -1,4 +1,6 @@
 (function(window) {
+  if (window.__PERFORMANCE_UTILS_INIT__) return;
+  window.__PERFORMANCE_UTILS_INIT__ = true;
   'use strict';
 
   function initLazyLoading() {

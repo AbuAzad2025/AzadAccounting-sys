@@ -1,4 +1,6 @@
 (function () {
+  if (window.__SHOP_INIT__) return;
+  window.__SHOP_INIT__ = true;
   'use strict';
 
   const LANG = (document.documentElement.lang || 'ar').toLowerCase();

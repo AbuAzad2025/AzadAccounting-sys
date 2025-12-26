@@ -97,8 +97,6 @@ def upgrade():
 
     return
 
-    # قيود وحقول bank_reconciliations والبقية متوفرة مسبقاً في قاعدة الإنتاج؛ نتجنب تعديلها على SQLite
-
     if 'ix_branches_code' in existing_indexes('branches'):
         op.drop_index('ix_branches_code', table_name='branches')
     if 'manager_user_id' in existing_columns('branches'):

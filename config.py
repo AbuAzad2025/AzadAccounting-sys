@@ -114,55 +114,45 @@ class Config:
     HOST = os.environ.get("HOST", "127.0.0.1")
     PORT = _int("PORT", 5000)
 
-    _db_uri = os.environ.get("DATABASE_URL") or _build_pg_uri_from_env() or f"sqlite:///{os.path.join(instance_dir, 'app.db')}"
+    _db_uri = os.environ.get("DATABASE_URL") or _build_pg_uri_from_env()
+    
+    # Fallback to SQLite if no DB configured (Useful for simple deployments/testing)
+    if not _db_uri:
+        # Default to SQLite in instance folder
+        sqlite_db_path = os.path.join(instance_dir, "garage.db")
+        _db_uri = f"sqlite:///{sqlite_db_path}"
+        # print(f"WARNING: No DATABASE_URL found. Using SQLite: {_db_uri}")
+
     if _db_uri.startswith("postgres://"):
         _db_uri = _db_uri.replace("postgres://", "postgresql://", 1)
+    
+    # Allow PostgreSQL, MySQL, and SQLite
+    if not _db_uri.startswith(("postgresql://", "mysql://", "mysql+pymysql://", "sqlite://")):
+        # If it doesn't match known schemes, we warn but allow it (could be other drivers)
+        pass 
+
     if _db_uri.startswith("postgresql://") and _bool(os.environ.get("DB_SSLMODE_REQUIRE"), False):
         _db_uri += ("&" if "?" in _db_uri else "?") + "sslmode=require"
+        
     SQLALCHEMY_DATABASE_URI = _db_uri
 
     SQLALCHEMY_TRACK_MODIFICATIONS = _bool(os.environ.get("SQLALCHEMY_TRACK_MODIFICATIONS"), False)
     
-    _is_sqlite = _db_uri.startswith("sqlite:")
-    _is_postgresql = _db_uri.startswith(("postgresql://", "postgres://"))
-    
-    if _is_postgresql:
-        _default_pool_size = 100
-        _default_max_overflow = 200
-    elif _is_sqlite:
-        _default_pool_size = 5
-        _default_max_overflow = 10
-    else:
-        _default_pool_size = 50
-        _default_max_overflow = 100
-    
-    if _is_sqlite:
-        SQLALCHEMY_ENGINE_OPTIONS = {
-            "connect_args": {
-                "timeout": 30,
-                "check_same_thread": False,
-            },
-            "pool_pre_ping": True,
-            "pool_recycle": 3600,
-            "pool_size": _int("SQLALCHEMY_POOL_SIZE", _default_pool_size),
-            "max_overflow": _int("SQLALCHEMY_MAX_OVERFLOW", _default_max_overflow),
-            "pool_timeout": _int("SQLALCHEMY_POOL_TIMEOUT", 30),
-            "echo": False,
-            "echo_pool": False,
-        }
-    else:
-        SQLALCHEMY_ENGINE_OPTIONS = {
-            "connect_args": {},
-            "pool_pre_ping": True,
-            "pool_recycle": 3600,
-            "pool_size": _int("SQLALCHEMY_POOL_SIZE", _default_pool_size),
-            "max_overflow": _int("SQLALCHEMY_MAX_OVERFLOW", _default_max_overflow),
-            "pool_timeout": _int("SQLALCHEMY_POOL_TIMEOUT", 30),
-            "echo": False,
-            "echo_pool": False,
-        }
-    
-    if _is_postgresql:
+    _default_pool_size = 100
+    _default_max_overflow = 200
+
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        "connect_args": {},
+        "pool_pre_ping": True,
+        "pool_recycle": 3600,
+        "pool_size": _int("SQLALCHEMY_POOL_SIZE", _default_pool_size),
+        "max_overflow": _int("SQLALCHEMY_MAX_OVERFLOW", _default_max_overflow),
+        "pool_timeout": _int("SQLALCHEMY_POOL_TIMEOUT", 30),
+        "echo": False,
+        "echo_pool": False,
+    }
+
+    if _db_uri.startswith(("postgresql://", "postgres://")):
         SQLALCHEMY_ENGINE_OPTIONS["connect_args"].update({
             "connect_timeout": 10,
             "application_name": "garage_manager",
@@ -237,6 +227,13 @@ class Config:
     WTF_CSRF_ENABLED = _bool(os.environ.get("WTF_CSRF_ENABLED"), True)
     WTF_CSRF_TIME_LIMIT = None
     WTF_CSRF_CHECK_DEFAULT = True
+    WTF_CSRF_SSL_STRICT = False if _IS_DEV else _bool(os.environ.get("WTF_CSRF_SSL_STRICT"), True)
+
+    if str(APP_ENV).lower() == 'local':
+            WTF_CSRF_SKIP_REFERER_VERIFICATION = True
+            WTF_CSRF_ENABLED = False # Disable CSRF for local testing to avoid 400 Bad Request
+            WTF_CSRF_CHECK_DEFAULT = False # Explicitly disable default check
+
     # استثناء blueprint المخازن من CSRF إذا لزم
     # csrf.exempt(warehouse_bp)
 
@@ -283,13 +280,10 @@ class Config:
     PERMISSIONS_REQUIRE_ALL = _bool(os.environ.get("PERMISSIONS_REQUIRE_ALL"), False)
 
     BACKUP_DIR = os.environ.get("BACKUP_DIR", os.path.join(instance_dir, "backups"))
-    BACKUP_DB_DIR = os.path.join(BACKUP_DIR, "db")
-    BACKUP_SQL_DIR = os.path.join(BACKUP_DIR, "sql")
+    BACKUP_DB_DIR = BACKUP_DIR
     os.makedirs(BACKUP_DB_DIR, exist_ok=True)
-    os.makedirs(BACKUP_SQL_DIR, exist_ok=True)
     BACKUP_KEEP_LAST = _int("BACKUP_KEEP_LAST", 5)
     BACKUP_DB_INTERVAL = timedelta(hours=1)
-    BACKUP_SQL_INTERVAL = timedelta(hours=24)
 
     LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
     JSON_LOGS = _bool(os.environ.get("JSON_LOGS"), False)
@@ -343,9 +337,6 @@ def assert_production_sanity(cfg) -> None:
     db_uri = getattr(cfg, "SQLALCHEMY_DATABASE_URI", "")
     if is_prod and not db_uri:
         raise RuntimeError("DATABASE_URL/SQLALCHEMY_DATABASE_URI missing")
-    # SQLite مقبول في بيئة التطوير والاختبار
-    # if is_prod and db_uri.startswith("sqlite:"):
-    #     logging.warning("CONFIG WARNING: sqlite in production")
     if is_prod and getattr(cfg, "MAIL_SERVER", "") and (not getattr(cfg, "MAIL_USERNAME", "") or not getattr(cfg, "MAIL_PASSWORD", "")):
         logging.warning("CONFIG WARNING: mail credentials missing")
     if getattr(cfg, "RATELIMIT_HEADERS_ENABLED", True) and not getattr(cfg, "RATELIMIT_STORAGE_URI", ""):

@@ -10,26 +10,14 @@ from functools import wraps
 import csv
 import io
 from werkzeug.utils import secure_filename
+from utils import permission_required
 
 bank_bp = Blueprint('bank', __name__, url_prefix='/bank')
 
 
-def owner_only(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if not current_user.is_authenticated:
-            flash('يجب تسجيل الدخول أولاً', 'warning')
-            return redirect(url_for('auth.login'))
-        if not (current_user.role and current_user.role.name == 'Owner'):
-            flash('هذه الصفحة للمالك فقط', 'danger')
-            return redirect(url_for('main.dashboard'))
-        return f(*args, **kwargs)
-    return decorated_function
-
-
 @bank_bp.route('/accounts')
 @login_required
-@owner_only
+@permission_required('manage_bank')
 def accounts():
     bank_accounts = BankAccount.query.order_by(BankAccount.code).all()
     
@@ -62,7 +50,7 @@ def accounts():
 
 @bank_bp.route('/accounts/add', methods=['GET', 'POST'])
 @login_required
-@owner_only
+@permission_required('manage_bank')
 def add_account():
     if request.method == 'POST':
         try:
@@ -154,7 +142,7 @@ def add_account():
 
 @bank_bp.route('/accounts/edit/<int:id>', methods=['GET', 'POST'])
 @login_required
-@owner_only
+@permission_required('manage_bank')
 def edit_account(id):
     account = BankAccount.query.get_or_404(id)
     
@@ -192,7 +180,7 @@ def edit_account(id):
 
 @bank_bp.route('/accounts/<int:id>')
 @login_required
-@owner_only
+@permission_required('manage_bank')
 def view_account(id):
     account = BankAccount.query.get_or_404(id)
     
@@ -239,7 +227,7 @@ def view_account(id):
 
 @bank_bp.route('/statements')
 @login_required
-@owner_only
+@permission_required('manage_bank')
 def statements():
     bank_account_id = request.args.get('account', type=int)
     
@@ -259,7 +247,7 @@ def statements():
 
 @bank_bp.route('/statements/upload', methods=['GET', 'POST'])
 @login_required
-@owner_only
+@permission_required('manage_bank')
 def upload_statement():
     if request.method == 'POST':
         try:
@@ -428,7 +416,7 @@ def upload_statement():
 
 @bank_bp.route('/statements/<int:id>')
 @login_required
-@owner_only
+@permission_required('manage_bank')
 def view_statement(id):
     statement = BankStatement.query.get_or_404(id)
     
@@ -460,7 +448,7 @@ def view_statement(id):
 
 @bank_bp.route('/reconciliation')
 @login_required
-@owner_only
+@permission_required('manage_bank')
 def reconciliations():
     bank_account_id = request.args.get('account', type=int)
     status = request.args.get('status')
@@ -483,7 +471,7 @@ def reconciliations():
 
 @bank_bp.route('/reconciliation/new', methods=['GET', 'POST'])
 @login_required
-@owner_only
+@permission_required('manage_bank')
 def new_reconciliation():
     if request.method == 'POST':
         try:
@@ -531,7 +519,7 @@ def new_reconciliation():
 
 @bank_bp.route('/reconciliation/<int:id>')
 @login_required
-@owner_only
+@permission_required('manage_bank')
 def view_reconciliation(id):
     reconciliation = BankReconciliation.query.get_or_404(id)
     
@@ -572,7 +560,7 @@ def view_reconciliation(id):
 
 @bank_bp.route('/reconciliation/<int:id>/complete', methods=['POST'])
 @login_required
-@owner_only
+@permission_required('manage_bank')
 def complete_reconciliation(id):
     try:
         reconciliation = BankReconciliation.query.get_or_404(id)
@@ -606,7 +594,7 @@ def complete_reconciliation(id):
 
 @bank_bp.route('/reports/unmatched')
 @login_required
-@owner_only
+@permission_required('manage_bank')
 def report_unmatched():
     bank_account_id = request.args.get('account', type=int)
     date_from = request.args.get('date_from')
@@ -653,7 +641,7 @@ def report_unmatched():
 
 @bank_bp.route('/reports/aged')
 @login_required
-@owner_only
+@permission_required('manage_bank')
 def report_aged():
     bank_account_id = request.args.get('account', type=int)
     
@@ -707,7 +695,7 @@ def report_aged():
 
 @bank_bp.route('/reports/summary')
 @login_required
-@owner_only
+@permission_required('manage_bank')
 def report_summary():
     date_from = request.args.get('date_from')
     date_to = request.args.get('date_to')
@@ -759,7 +747,7 @@ def report_summary():
 
 @bank_bp.route('/api/auto-match/<int:bank_account_id>', methods=['POST'])
 @login_required
-@owner_only
+@permission_required('manage_bank')
 def auto_match(bank_account_id):
     try:
         bank_account = BankAccount.query.get_or_404(bank_account_id)

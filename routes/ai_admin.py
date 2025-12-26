@@ -12,9 +12,9 @@ Created: 2025-11-01
 
 from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for
 from flask_login import login_required, current_user
-from functools import wraps
 from models import SystemSettings
 from extensions import db
+from utils import permission_required
 import os
 from pathlib import Path
 from werkzeug.utils import secure_filename
@@ -25,27 +25,11 @@ ai_admin_bp = Blueprint('ai_admin', __name__, url_prefix='/ai-admin')
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# 🔒 OWNER ONLY DECORATOR
-# ═══════════════════════════════════════════════════════════════════════════
-
-def owner_only(f):
-    """المالك فقط"""
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if not (current_user.is_authenticated and 
-                (current_user.is_system_account or current_user.username == '__OWNER__')):
-            flash('⛔ هذه الصفحة للمالك فقط', 'danger')
-            return redirect(url_for('main.index'))
-        return f(*args, **kwargs)
-    return decorated_function
-
-
-# ═══════════════════════════════════════════════════════════════════════════
 # 📋 ROUTES
 # ═══════════════════════════════════════════════════════════════════════════
 
 @ai_admin_bp.route('/settings', methods=['GET', 'POST'])
-@owner_only
+@permission_required('manage_ai')
 def ai_settings():
     """
     إعدادات المساعد الذكي (للمالك فقط)
@@ -109,7 +93,7 @@ def ai_settings():
 
 
 @ai_admin_bp.route('/toggle-visibility', methods=['POST'])
-@owner_only
+@permission_required('manage_ai')
 def toggle_visibility():
     """
     تبديل إظهار/إخفاء المساعد (API)
@@ -140,7 +124,7 @@ def toggle_visibility():
 
 
 @ai_admin_bp.route('/reset-knowledge', methods=['POST'])
-@owner_only
+@permission_required('train_ai')
 def reset_knowledge():
     """
     إعادة بناء قاعدة المعرفة بالكامل - تدريب حقيقي
@@ -191,7 +175,7 @@ def reset_knowledge():
 
 
 @ai_admin_bp.route('/training-status', methods=['GET'])
-@owner_only
+@permission_required('train_ai')
 def training_status():
     """الحصول على حالة التدريب"""
     try:
@@ -213,7 +197,7 @@ def training_status():
 
 
 @ai_admin_bp.route('/training-log', methods=['GET'])
-@owner_only
+@permission_required('train_ai')
 def training_log():
     """الحصول على سجل التدريب"""
     try:
@@ -236,7 +220,7 @@ def training_log():
 
 
 @ai_admin_bp.route('/daily-reports', methods=['GET'])
-@owner_only
+@permission_required('manage_ai')
 def daily_reports():
     """عرض التقارير اليومية"""
     try:
@@ -267,7 +251,7 @@ def daily_reports():
 
 
 @ai_admin_bp.route('/evolution-report', methods=['GET'])
-@owner_only
+@permission_required('manage_ai')
 def evolution_report():
     """تقرير التطور الذاتي"""
     try:
@@ -289,7 +273,7 @@ def evolution_report():
 
 
 @ai_admin_bp.route('/run-code-scan', methods=['POST'])
-@owner_only
+@permission_required('manage_ai')
 def run_code_scan():
     try:
         from AI.engine.ai_code_quality_monitor import get_code_monitor
@@ -315,7 +299,7 @@ def run_code_scan():
 
 
 @ai_admin_bp.route('/performance', methods=['GET'])
-@owner_only
+@permission_required('manage_ai')
 def performance_report():
     try:
         from AI.engine.ai_performance_tracker import get_performance_tracker
@@ -343,7 +327,7 @@ def performance_report():
 
 
 @ai_admin_bp.route('/stats-api', methods=['GET'])
-@owner_only
+@permission_required('manage_ai')
 def stats_api():
     try:
         from AI.engine.ai_performance_tracker import get_performance_tracker
@@ -369,14 +353,14 @@ def stats_api():
 
 
 @ai_admin_bp.route('/advanced-training', methods=['GET'])
-@owner_only
+@permission_required('train_ai')
 def advanced_training():
     """صفحة التدريب المتقدم"""
     return render_template('ai/advanced_training.html')
 
 
 @ai_admin_bp.route('/command/<command_name>', methods=['POST'])
-@owner_only
+@permission_required('manage_ai')
 def execute_command(command_name):
     """تنفيذ أوامر النظام"""
     try:
@@ -402,7 +386,7 @@ def execute_command(command_name):
 
 
 @ai_admin_bp.route('/upload_book', methods=['POST'])
-@owner_only
+@permission_required('train_ai')
 def upload_book():
     """رفع وقراءة كتاب"""
     try:
@@ -451,7 +435,7 @@ def upload_book():
 
 
 @ai_admin_bp.route('/memory_stats', methods=['GET'])
-@owner_only
+@permission_required('manage_ai')
 def memory_stats():
     """إحصائيات الذاكرة"""
     try:
@@ -473,7 +457,7 @@ def memory_stats():
 
 
 @ai_admin_bp.route('/system_status', methods=['GET'])
-@owner_only
+@permission_required('manage_ai')
 def system_status():
     """حالة النظام"""
     try:
@@ -495,7 +479,7 @@ def system_status():
 
 
 @ai_admin_bp.route('/train-package', methods=['POST'])
-@owner_only
+@permission_required('train_ai')
 def train_package():
     """تدريب باقة متخصصة"""
     try:
@@ -524,7 +508,7 @@ def train_package():
 
 
 @ai_admin_bp.route('/train-all-packages', methods=['POST'])
-@owner_only
+@permission_required('train_ai')
 def train_all_packages():
     """تدريب جميع الباقات"""
     try:
@@ -543,7 +527,7 @@ def train_all_packages():
 
 
 @ai_admin_bp.route('/marathon-training', methods=['POST'])
-@owner_only
+@permission_required('train_ai')
 def marathon_training():
     """تدريب ماراثوني شامل"""
     try:

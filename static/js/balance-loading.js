@@ -1,4 +1,7 @@
 (function() {
+    if (window.__BALANCE_LOADING_INIT__) return;
+    window.__BALANCE_LOADING_INIT__ = true;
+
     const style = document.createElement('style');
     style.textContent = `
         .balance-loading {

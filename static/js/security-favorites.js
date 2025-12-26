@@ -1,4 +1,6 @@
 (function() {
+  if (window.__SECURITY_FAVORITES_INIT__) return;
+  window.__SECURITY_FAVORITES_INIT__ = true;
   'use strict';
 
   const STORAGE_KEY = 'security_favorites';

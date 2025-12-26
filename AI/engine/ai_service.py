@@ -83,13 +83,7 @@ def gather_system_context():
             result = db.session.execute(text("SELECT pg_database_size(current_database())")).scalar()
             db_size = f"{result / (1024**2):.2f} MB"
         except Exception:
-            try:
-                # SQLite
-                db_path = 'instance/app.db'
-                if os.path.exists(db_path):
-                    db_size = f"{os.path.getsize(db_path) / (1024**2):.2f} MB"
-            except Exception:
-                pass
+            pass
         
         # Counts
         today = datetime.now(timezone.utc).date()
@@ -860,10 +854,10 @@ def build_system_message(system_context):
    - مخفي من جميع القوائم
    - محمي من الحذف 100%
    - الوصول الوحيد للوحة السرية (/security)
-   - Super Admin لا يستطيع الدخول للوحة السرية!
+   - مدير النظام لا يستطيع الدخول للوحة السرية!
    - صلاحيات لا نهائية (41 صلاحية)
 
-2. Super Admin - كل شيء (عدا اللوحة السرية)
+2. مدير النظام - كل شيء (عدا اللوحة السرية)
 3. Admin - إدارة عامة
 4. Mechanic - الصيانة فقط
 5. Staff - المبيعات والمحاسبة
@@ -1490,7 +1484,7 @@ def search_database_for_query(query):
                 
                 # حالة الدفع
                 unpaid_invoices = Invoice.query.filter(
-                    Invoice.status.in_(['UNPAID', 'PARTIALLY_PAID'])
+                    Invoice.status.in_(['UNPAID', 'PARTIAL'])
                 ).all()
                 
                 paid_invoices = Invoice.query.filter(

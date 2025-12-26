@@ -578,7 +578,7 @@ class TransferImportForm(FlaskForm):
 
 
 class RestoreForm(FlaskForm):
-    db_file = FileField("نسخة .db", validators=[DataRequired(message="اختر ملف .db"), FileAllowed(["db"], "ملف db فقط")])
+    db_file = FileField("نسخة .dump", validators=[DataRequired(message="اختر ملف .dump"), FileAllowed(["dump"], "ملف dump فقط")])
     submit = SubmitField("استعادة النسخة")
 
 
@@ -748,7 +748,7 @@ class UserForm(FlaskForm):
 
     def validate_username(self, field):
         name = (field.data or '').strip()
-        qry = User.query.filter(User.username == name)
+        qry = User.query.filter(func.lower(User.username) == func.lower(name))
         if getattr(self, "_editing_user_id", None):
             qry = qry.filter(User.id != self._editing_user_id)
         if qry.first():
@@ -756,7 +756,7 @@ class UserForm(FlaskForm):
 
     def validate_email(self, field):
         email_l = (field.data or '').strip().lower()
-        qry = User.query.filter(User.email == email_l)
+        qry = User.query.filter(func.lower(User.email) == email_l)
         if getattr(self, "_editing_user_id", None):
             qry = qry.filter(User.id != self._editing_user_id)
         if qry.first():
@@ -3784,7 +3784,7 @@ class WarehouseOnlineDefaultForm(FlaskForm):
 class ProductForm(FlaskForm):
     id = HiddenField()
     sku = StrippedStringField('SKU', validators=[Optional(), Length(max=50), Unique(Product, 'sku', message='SKU مستخدم بالفعل.', case_insensitive=True, normalizer=lambda v: (v or '').strip().upper())])
-    name = StrippedStringField('الاسم', validators=[DataRequired(), Length(max=255)])
+    name = StrippedStringField('الاسم', validators=[DataRequired(), Length(max=255), Unique(Product, 'name', message='اسم القطعة مستخدم بالفعل.', case_insensitive=True, normalizer=lambda v: (v or '').strip())])
     description = TextAreaField('الوصف', validators=[Optional()])
     part_number = StrippedStringField('رقم القطعة', validators=[Optional(), Length(max=100)])
     brand = StrippedStringField('الماركة', validators=[Optional(), Length(max=100)])
@@ -3817,6 +3817,7 @@ class ProductForm(FlaskForm):
     is_active   = BooleanField('نشط', default=True)
     is_digital  = BooleanField('منتج رقمي', default=False)
     is_exchange = BooleanField('قابل للتبادل', default=False)
+    warehouse_id = AjaxSelectField('المستودع', endpoint='api.search_warehouses', get_label='name', validators=[Optional()], coerce=int, render_kw={'data-placeholder': 'المستودع الرئيسي (اختياري)'})
     vehicle_type_id = AjaxSelectField('نوع المركبة', endpoint='api.search_equipment_types', get_label='name', validators=[Optional()], allow_blank=True, coerce=int, render_kw={'data-placeholder': 'بلا'})
     category_id = AjaxSelectField('الفئة', endpoint='api.search_categories', get_label='name', coerce=int, validators=[DataRequired(message="يجب اختيار فئة للمنتج")], render_kw={'required': True})
     category_name = StrippedStringField('اسم الفئة (نصي)', validators=[Optional(), Length(max=100)])

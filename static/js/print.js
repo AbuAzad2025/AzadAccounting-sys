@@ -1,3 +1,6 @@
+if (window.__PRINT_JS_INIT__) return;
+window.__PRINT_JS_INIT__ = true;
+
 function initPrint() {
     document.querySelectorAll('.btn-print').forEach(function(btn) {
         btn.addEventListener('click', function(e) {

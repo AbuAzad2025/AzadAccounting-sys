@@ -8,7 +8,7 @@ from flask_wtf.csrf import generate_csrf
 from sqlalchemy import func, or_, and_
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.orm import joinedload
-from extensions import db, quick_wal_checkpoint
+from extensions import db
 from forms import PartnerForm, SupplierForm, CURRENCY_CHOICES
 import utils
 from utils import D, q2, archive_record, restore_record
@@ -132,8 +132,6 @@ def suppliers_list():
         'average_balance': total_balance / len(suppliers) if suppliers else 0
     }
     
-    quick_wal_checkpoint()
-
     default_branch = (
         Branch.query.filter(Branch.is_active.is_(True))
         .order_by(Branch.id.asc())
@@ -2024,8 +2022,6 @@ def partners_list():
         'partners_with_credit': partners_with_credit,
         'average_balance': total_balance / len(partners) if partners else 0,
     }
-    
-    quick_wal_checkpoint()
     
     is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest" or request.args.get("ajax") == "1"
     if is_ajax:

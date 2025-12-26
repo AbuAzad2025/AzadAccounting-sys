@@ -7,7 +7,6 @@ Create Date: 2025-01-06 00:00:00.000000
 """
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects import sqlite
 
 revision = 'workflow_bpm_001'
 down_revision = None

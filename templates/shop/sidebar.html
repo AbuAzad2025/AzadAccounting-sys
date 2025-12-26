@@ -26,6 +26,7 @@
             <i class="fas fa-chevron-left ms-auto"></i>
           </a>
         </li>
+        {% if has_perm('place_online_order') %}
         <li>
           <a href="{{ url_for('shop.cart') }}" class="sidebar-link {% if request.endpoint == 'shop.cart' %}active{% endif %}">
             <i class="fas fa-shopping-cart"></i>
@@ -33,7 +34,8 @@
             <span class="badge bg-danger ms-auto" id="sidebar-cart-count">{{ cart_count|default(0)|int }}</span>
           </a>
         </li>
-        {% if current_user.is_authenticated %}
+        {% endif %}
+        {% if has_perm('view_preorders') %}
         <li>
           <a href="{{ url_for('shop.preorder_list') }}" class="sidebar-link {% if request.endpoint == 'shop.preorder_list' %}active{% endif %}">
             <i class="fas fa-clipboard-list"></i>
@@ -93,7 +95,7 @@
       </h6>
       <ul class="sidebar-menu">
         {% if current_user.is_authenticated %}
-        {% if is_customer_actor(current_user) %}
+        {% if has_perm('view_own_account') %}
         <li>
           <a href="{{ url_for('customers_bp.account_statement', customer_id=current_user.id) }}" class="sidebar-link {% if request.endpoint == 'customers_bp.account_statement' %}active{% endif %}">
             <i class="fas fa-file-invoice"></i>
@@ -134,7 +136,7 @@
     </div>
 
     <!-- العودة للنظام الرئيسي -->
-    {% if current_user.is_authenticated and (shop_is_super_admin or has_any('manage_customers', 'manage_service')) %}
+    {% if current_user.is_authenticated and has_perm('access_dashboard') %}
     <div class="sidebar-section">
       <h6 class="sidebar-section-title">
         <i class="fas fa-cog ml-2"></i>

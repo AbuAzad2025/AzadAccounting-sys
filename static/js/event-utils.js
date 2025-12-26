@@ -1,4 +1,7 @@
 (function(window) {
+  if (window.__EVENT_UTILS_INIT__) return;
+  window.__EVENT_UTILS_INIT__ = true;
+
   'use strict';
 
   function delegate(parent, eventType, selector, handler) {

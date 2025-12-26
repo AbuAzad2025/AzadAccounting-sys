@@ -48,65 +48,48 @@ def is_owner() -> bool:
         if not hasattr(current_user, 'is_authenticated') or not current_user.is_authenticated:
             return False
         
-        # فحص إذا كان حساب نظام
+        # PBAC: التحقق من الصلاحية بدلاً من الدور
+        if hasattr(current_user, 'has_permission'):
+            return current_user.has_permission('access_owner_dashboard')
+            
+        # Fallback for system accounts
         if hasattr(current_user, 'is_system_account') and current_user.is_system_account:
             return True
-        
-        # فحص اسم المستخدم
-        if hasattr(current_user, 'username') and current_user.username in ['owner', '__OWNER__']:
-            return True
-        
-        # فحص الدور
-        if hasattr(current_user, 'role') and current_user.role:
-            role_name = str(current_user.role.name).lower()
-            if role_name in ['owner', 'developer']:
-                return True
-        
+            
         return False
     except Exception:
         return False
 
 def is_super_admin() -> bool:
-    """التحقق من أن المستخدم super admin"""
+    """التحقق من أن المستخدم لديه صلاحيات عليا"""
+    return is_owner()
+
+def is_manager() -> bool:
+    """التحقق من أن المستخدم مدير"""
     try:
         if is_owner():
             return True
         
         if not hasattr(current_user, 'is_authenticated') or not current_user.is_authenticated:
             return False
-        
-        if hasattr(current_user, 'role') and current_user.role:
-            role_name = str(current_user.role.name).lower()
-            return role_name in ['super_admin', 'super', 'owner', 'developer']
-        
-        return False
-    except Exception:
-        return False
-
-def is_manager() -> bool:
-    """التحقق من أن المستخدم مدير"""
-    try:
-        if is_super_admin():
-            return True
-        
-        if not hasattr(current_user, 'is_authenticated') or not current_user.is_authenticated:
-            return False
-        
-        if hasattr(current_user, 'role') and current_user.role:
-            role_name = str(current_user.role.name).lower()
-            return role_name in ['manager', 'مدير']
+            
+        # PBAC: التحقق من صلاحيات إدارية عامة
+        if hasattr(current_user, 'has_permission'):
+            return (current_user.has_permission('view_reports') or 
+                    current_user.has_permission('manage_sales') or
+                    current_user.has_permission('manage_users'))
         
         return False
     except Exception:
         return False
 
 def get_user_role_name() -> str:
-    """الحصول على اسم دور المستخدم"""
+    """الحصول على توصيف مبسط لمستوى المستخدم"""
     try:
         if is_owner():
             return "Owner"
-        if hasattr(current_user, 'role') and current_user.role:
-            return current_user.role.name
+        if is_manager():
+            return "Admin"
         return "User"
     except Exception:
         return "Guest"
@@ -174,7 +157,7 @@ def get_security_response(message: str, sensitivity: Dict[str, Any]) -> str:
 ⚠️ هذه المعلومات متاحة للمالك فقط.
 
 **دورك الحالي:** {user_role}
-**المطلوب:** Owner
+**المطلوب:** access_owner_dashboard
 
 💡 إذا كنت بحاجة لهذه المعلومات، تواصل مع مالك النظام."""
     
@@ -184,7 +167,7 @@ def get_security_response(message: str, sensitivity: Dict[str, Any]) -> str:
 ⚠️ هذه المعلومات تتطلب صلاحيات إدارية.
 
 **دورك الحالي:** {user_role}
-**المطلوب:** Manager أو أعلى
+**المطلوب:** صلاحيات إدارية مناسبة (مثل view_reports / manage_users)
 
 💡 لمزيد من المعلومات، تواصل مع المدير."""
     

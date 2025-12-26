@@ -4,7 +4,7 @@ from sqlalchemy.orm import joinedload
 from sqlalchemy.inspection import inspect
 from extensions import db
 from models import ExpenseType, SystemSettings, Expense, Account
-from routes.security import owner_only
+from utils import permission_required
 
 
 security_expenses_bp = Blueprint(
@@ -175,7 +175,7 @@ def _update_type_meta(expense_type, meta):
 
 
 @security_expenses_bp.route("/", methods=["GET"])
-@owner_only
+@permission_required('manage_expenses')
 def control_panel():
     expense_types = (
         ExpenseType.query.options(joinedload(ExpenseType.expenses))
@@ -224,13 +224,13 @@ def control_panel():
 
 
 @security_expenses_bp.route("/library", methods=["GET"])
-@owner_only
+@permission_required('manage_expenses')
 def api_field_library():
     return jsonify({"success": True, "items": _build_field_library()})
 
 
 @security_expenses_bp.route("/library/custom", methods=["POST"])
-@owner_only
+@permission_required('manage_expenses')
 def api_add_custom_field():
     payload = request.get_json() or {}
     key = (payload.get("key") or "").strip()
@@ -251,7 +251,7 @@ def api_add_custom_field():
 
 
 @security_expenses_bp.route("/types/<int:type_id>/fields", methods=["POST"])
-@owner_only
+@permission_required('manage_expenses')
 def api_update_field_status(type_id):
     payload = request.get_json() or {}
     field_key = (payload.get("field_key") or "").strip()
@@ -279,7 +279,7 @@ def api_update_field_status(type_id):
 
 
 @security_expenses_bp.route("/types/<int:type_id>/bulk", methods=["POST"])
-@owner_only
+@permission_required('manage_expenses')
 def api_bulk_update(type_id):
     payload = request.get_json() or {}
     required = payload.get("required") or []
@@ -300,7 +300,7 @@ def api_bulk_update(type_id):
 
 
 @security_expenses_bp.route("/types/<int:type_id>/ledger", methods=["POST"])
-@owner_only
+@permission_required('manage_expenses')
 def api_update_ledger(type_id):
     expense_type = ExpenseType.query.get_or_404(type_id)
     payload = request.get_json() or {}
@@ -319,7 +319,7 @@ def api_update_ledger(type_id):
 
 
 @security_expenses_bp.route("/templates", methods=["POST"])
-@owner_only
+@permission_required('manage_expenses')
 def api_create_template():
     payload = request.get_json() or {}
     name = (payload.get("name") or "").strip()
@@ -347,7 +347,7 @@ def api_create_template():
 
 
 @security_expenses_bp.route("/templates/<string:template_id>/apply", methods=["POST"])
-@owner_only
+@permission_required('manage_expenses')
 def api_apply_template(template_id):
     payload = request.get_json() or {}
     type_ids = payload.get("type_ids") or []
@@ -377,7 +377,7 @@ def api_apply_template(template_id):
 
 
 @security_expenses_bp.route("/templates/<string:template_id>", methods=["DELETE"])
-@owner_only
+@permission_required('manage_expenses')
 def api_delete_template(template_id):
     templates = _load_templates()
     new_templates = [tpl for tpl in templates if tpl.get("id") != template_id]

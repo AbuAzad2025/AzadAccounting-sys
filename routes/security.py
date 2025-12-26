@@ -148,11 +148,7 @@ def _get_table_columns_safe(table_name: str) -> list[str]:
         inspector = inspect(db.engine)
         return [c['name'] for c in inspector.get_columns(table_name)]
     except Exception:
-        try:
-            result = db.session.execute(text(f"PRAGMA table_info({table_name})")).fetchall()
-            return [row[1] for row in result]
-        except Exception:
-            return []
+        return []
 
 
 def _assert_valid_table(table_name: str):
@@ -160,33 +156,13 @@ def _assert_valid_table(table_name: str):
     if not _is_safe_identifier(table_name) or table_name not in tables:
         abort(400)
 
-def owner_only(f):
-    @wraps(f)
-    @login_required
-    def decorated_function(*args, **kwargs):
-        # فحص: هل المستخدم هو المالك الخفي؟
-        current_username = str(getattr(current_user, 'username', '')).upper()
-        current_role_name = str(getattr(getattr(current_user, 'role', None), 'name', '')).upper()
-        
-        is_owner = (
-            getattr(current_user, 'is_system_account', False) or 
-            current_username == '__OWNER__' or
-            current_role_name == 'OWNER'
-        )
-        
-        if not is_owner:
-            flash('🚫 هذه الوحدة السرية متاحة للمالك فقط! (Super Admin ليس له صلاحية)', 'danger')
-            return redirect(url_for('main.dashboard'))
-        
-        return f(*args, **kwargs)
-    return decorated_function
+from utils import permission_required
 
-
-super_admin_only = owner_only
+# Removed deprecated owner_only alias
 
 
 @security_bp.route('/api/system-accounts/change-password', methods=['POST'])
-@owner_only
+@permission_required('access_owner_dashboard')
 def api_system_account_change_password():
     """API: تغيير كلمة مرور حساب نظام (Owner/Developer)"""
     try:
@@ -216,7 +192,7 @@ def api_system_account_change_password():
 
 
 @security_bp.route('/saas-manager')
-@owner_only
+@permission_required('access_owner_dashboard')
 def saas_manager():
     """
     🚀 SaaS Manager - إدارة الاشتراكات والفواتير
@@ -287,7 +263,7 @@ def saas_manager():
 
 
 @security_bp.route('/api/saas/plans', methods=['POST'])
-@owner_only
+@permission_required('manage_saas')
 def api_saas_create_plan():
     """API: إنشاء باقة جديدة"""
     from models import SaaSPlan
@@ -338,7 +314,7 @@ def api_saas_create_plan():
 
 
 @security_bp.route('/api/saas/subscriptions', methods=['POST'])
-@owner_only
+@permission_required('manage_saas')
 def api_saas_create_subscription():
     """API: إنشاء اشتراك جديد"""
     from models import SaaSSubscription, Customer, SaaSPlan
@@ -375,7 +351,7 @@ def api_saas_create_subscription():
 
 
 @security_bp.route('/api/saas/invoices/<int:invoice_id>/mark-paid', methods=['POST'])
-@owner_only
+@permission_required('manage_saas')
 def api_saas_mark_paid(invoice_id):
     """API: تأكيد دفع الفاتورة"""
     from models import SaaSInvoice
@@ -393,7 +369,7 @@ def api_saas_mark_paid(invoice_id):
 
 
 @security_bp.route('/api/saas/subscriptions/<int:sub_id>/cancel', methods=['POST'])
-@owner_only
+@permission_required('manage_saas')
 def api_saas_cancel_subscription(sub_id):
     """API: إلغاء اشتراك"""
     from models import SaaSSubscription
@@ -413,7 +389,7 @@ def api_saas_cancel_subscription(sub_id):
 
 
 @security_bp.route('/api/saas/subscriptions/<int:sub_id>/renew', methods=['POST'])
-@owner_only
+@permission_required('manage_saas')
 def api_saas_renew_subscription(sub_id):
     """API: تجديد اشتراك"""
     from models import SaaSSubscription
@@ -437,7 +413,7 @@ def api_saas_renew_subscription(sub_id):
 
 
 @security_bp.route('/api/saas/plans/<int:plan_id>', methods=['PUT'])
-@owner_only
+@permission_required('manage_saas')
 def api_saas_update_plan(plan_id):
     """API: تحديث باقة"""
     from models import SaaSPlan
@@ -479,7 +455,7 @@ def api_saas_update_plan(plan_id):
 
 
 @security_bp.route('/api/saas/invoices', methods=['POST'])
-@owner_only
+@permission_required('manage_saas')
 def api_saas_create_invoice():
     """API: إنشاء فاتورة"""
     from models import SaaSInvoice, SaaSSubscription
@@ -525,7 +501,7 @@ def api_saas_create_invoice():
 
 
 @security_bp.route('/api/saas/invoices/<int:invoice_id>/send-reminder', methods=['POST'])
-@owner_only
+@permission_required('manage_saas')
 def api_saas_send_reminder(invoice_id):
     """API: إرسال تذكير دفع"""
     from models import SaaSInvoice, SaaSSubscription, Customer
@@ -583,7 +559,7 @@ def api_get_customers():
 
 
 @security_bp.route('/api/saas/subscriptions/<int:sub_id>', methods=['GET'])
-@owner_only
+@permission_required('manage_saas')
 def api_saas_get_subscription(sub_id):
     """API: جلب تفاصيل اشتراك"""
     from models import SaaSSubscription, Customer
@@ -619,7 +595,7 @@ def api_saas_get_subscription(sub_id):
 
 
 @security_bp.route('/api/saas/subscriptions/<int:sub_id>', methods=['PUT'])
-@owner_only
+@permission_required('manage_saas')
 def api_saas_update_subscription(sub_id):
     """API: تحديث اشتراك"""
     from models import SaaSSubscription
@@ -644,7 +620,7 @@ def api_saas_update_subscription(sub_id):
 
 
 @security_bp.route('/api/saas/invoices/<int:invoice_id>/pdf', methods=['GET'])
-@owner_only
+@permission_required('manage_saas')
 def api_saas_invoice_pdf(invoice_id):
     """API: تحميل فاتورة PDF"""
     from models import SaaSInvoice, SaaSSubscription, Customer
@@ -727,7 +703,7 @@ def api_saas_invoice_pdf(invoice_id):
 
 
 @security_bp.route('/')
-@owner_only
+@permission_required('access_owner_dashboard')
 def index():
     """
     👑 لوحة التحكم الأمنية الرئيسية - Owner's Security Dashboard
@@ -738,7 +714,7 @@ def index():
 
 
 @security_bp.route('/index-old')
-@owner_only
+@permission_required('access_owner_dashboard')
 def index_old():
     """
     👑 لوحة التحكم الأمنية الرئيسية - Owner's Security Dashboard
@@ -767,8 +743,8 @@ def index_old():
         - Indexes Manager (115+ فهرس)
     
     🔒 Security:
-        - Owner only (@owner_only)
-        - حتى Super Admin لا يستطيع الدخول
+        - صلاحيات محددة عبر PBAC
+        - لا أحد يدخل بدون access_owner_dashboard
     """
     from datetime import datetime, timedelta, timezone
     
@@ -813,14 +789,8 @@ def index_old():
     # حجم قاعدة البيانات
     db_size = "N/A"
     try:
-        import os
-        db_path = os.path.join(current_app.root_path, 'instance', 'app.db')
-        if os.path.exists(db_path):
-            size_bytes = os.path.getsize(db_path)
-            if size_bytes < 1024 * 1024:
-                db_size = f"{size_bytes / 1024:.1f} KB"
-            else:
-                db_size = f"{size_bytes / (1024 * 1024):.1f} MB"
+        size_row = db.session.execute(text("SELECT pg_size_pretty(pg_database_size(current_database()))")).fetchone()
+        db_size = size_row[0] if size_row else "N/A"
     except Exception:
         pass
     
@@ -865,7 +835,7 @@ def index_old():
 
 
 @security_bp.route('/block-ip', methods=['GET', 'POST'])
-@owner_only
+@permission_required('access_owner_dashboard')
 def block_ip():
     """حظر IP معين"""
     if request.method == 'POST':
@@ -884,7 +854,7 @@ def block_ip():
 
 
 @security_bp.route('/blocked-ips')
-@owner_only
+@permission_required('access_owner_dashboard')
 def blocked_ips():
     """قائمة IPs المحظورة"""
     blocked = _get_all_blocked_ips()
@@ -892,7 +862,7 @@ def blocked_ips():
 
 
 @security_bp.route('/unblock-ip/<ip>', methods=['POST'])
-@owner_only
+@permission_required('access_owner_dashboard')
 def unblock_ip(ip):
     """إلغاء حظر IP"""
     _unblock_ip(ip)
@@ -901,7 +871,7 @@ def unblock_ip(ip):
 
 
 @security_bp.route('/block-country', methods=['GET', 'POST'])
-@owner_only
+@permission_required('access_owner_dashboard')
 def block_country():
     """حظر دولة معينة"""
     if request.method == 'POST':
@@ -919,7 +889,7 @@ def block_country():
 
 
 @security_bp.route('/blocked-countries')
-@owner_only
+@permission_required('access_owner_dashboard')
 def blocked_countries():
     """قائمة الدول المحظورة"""
     blocked = _get_all_blocked_countries()
@@ -927,7 +897,7 @@ def blocked_countries():
 
 
 @security_bp.route('/block-user/<int:user_id>', methods=['POST'])
-@owner_only
+@permission_required('manage_users')
 def block_user(user_id):
     """حظر مستخدم معين"""
     user = User.query.get_or_404(user_id)
@@ -943,7 +913,7 @@ def block_user(user_id):
 
 
 @security_bp.route('/system-cleanup', methods=['GET', 'POST'])
-@owner_only
+@permission_required('access_owner_dashboard')
 def system_cleanup():
     """تنظيف جداول النظام (Format)"""
     if request.method == 'POST':
@@ -1041,7 +1011,7 @@ def system_cleanup():
 
 
 @security_bp.route('/security-center')
-@owner_only
+@permission_required('access_owner_dashboard')
 def security_center():
     """
     🛡️ Security & Monitoring Center - 4 في 1
@@ -1162,7 +1132,7 @@ def _load_training_logs():
 
 
 @security_bp.route('/database-manager', methods=['GET', 'POST'])
-@owner_only
+@permission_required('access_owner_dashboard')
 def database_manager():
     """
     🗄️ مركز التحكم الشامل بقاعدة البيانات - Database Control Center
@@ -1202,7 +1172,7 @@ def database_manager():
         /database-manager?tab=logs&log_type=audit
     
     🔒 Security:
-        - Owner only (@owner_only)
+        - صلاحيات محددة عبر PBAC
         - Full audit trail
         - CSRF protection
     """
@@ -1470,7 +1440,7 @@ def database_manager():
 
 
 @security_bp.route('/users-center')
-@owner_only
+@permission_required('access_owner_dashboard')
 def users_center():
     """
     👥 Users & Permissions Center - 2 في 1
@@ -1513,7 +1483,7 @@ def users_center():
 
 
 @security_bp.route('/settings-center', methods=['GET', 'POST'])
-@owner_only
+@permission_required('access_owner_dashboard')
 def settings_center():
     """
     ⚙️ Settings & Customization Center - 8 في 1
@@ -1582,7 +1552,7 @@ def settings_center():
 
 
 @security_bp.route('/reports-center')
-@owner_only
+@permission_required('access_owner_dashboard')
 def reports_center():
     """
     📊 Reports & Performance Center - 3 في 1
@@ -1598,7 +1568,7 @@ def reports_center():
 
 
 @security_bp.route('/tools-center')
-@owner_only
+@permission_required('access_owner_dashboard')
 def tools_center():
     """
     🔧 Tools & Integration Center - 4 في 1
@@ -1768,7 +1738,7 @@ def _unused_ai_config_function():
 
 
 @security_bp.route('/card-vault')
-@owner_only
+@permission_required('access_owner_dashboard')
 def card_vault():
     """خزنة الكروت - عرض بيانات الفيزا كارد المشفرة"""
     from models import OnlinePayment
@@ -1786,7 +1756,7 @@ def card_vault():
 
 @security_bp.route('/code-editor', methods=['GET', 'POST'])
 @security_bp.route('/theme-editor', methods=['GET', 'POST'])  # Alias
-@owner_only
+@permission_required('access_owner_dashboard')
 def theme_editor():
     """
     🎨 محرر الملفات الموحد - Unified File Editor
@@ -1945,7 +1915,7 @@ def theme_editor():
 
 
 @security_bp.route('/logo-manager', methods=['GET', 'POST'])
-@owner_only
+@permission_required('access_owner_dashboard')
 def logo_manager():
     """مدير الشعارات - رفع وتعديل الشعارات"""
     import os
@@ -1987,7 +1957,7 @@ def logo_manager():
 
 
 @security_bp.route('/advanced-analytics')
-@owner_only
+@permission_required('view_reports')
 def advanced_analytics():
     """تحليلات متقدمة - ذكاء اصطناعي"""
     from models import Payment, Sale, Expense, Customer, Supplier
@@ -2065,7 +2035,7 @@ def advanced_analytics():
 
 
 @security_bp.route('/permissions-manager', methods=['GET', 'POST'])
-@owner_only
+@permission_required('manage_permissions')
 def permissions_manager():
     """إدارة الصلاحيات - إنشاء وتخصيص"""
     from models import Permission, Role
@@ -2093,7 +2063,7 @@ def permissions_manager():
 
 
 @security_bp.route('/email-manager', methods=['GET', 'POST'])
-@owner_only
+@permission_required('access_owner_dashboard')
 def email_manager():
     """إدارة البريد - SMTP + قوالب"""
     from models import SystemSettings
@@ -2127,7 +2097,7 @@ def email_manager():
 
 
 @security_bp.route('/invoice-designer', methods=['GET', 'POST'])
-@owner_only
+@permission_required('access_owner_dashboard')
 def invoice_designer():
     """محرر الفواتير - تخصيص تصميم الفواتير"""
     from models import SystemSettings
@@ -2160,7 +2130,7 @@ def invoice_designer():
 
 
 @security_bp.route('/integrations', methods=['GET', 'POST'])
-@owner_only
+@permission_required('access_owner_dashboard')
 def integrations():
     """🔌 مركز التكامل الشامل - إعداد جميع التكاملات من مكان واحد"""
     
@@ -2537,17 +2507,13 @@ def get_cached_security_stats():
     except Exception:
         pass
     
-    # حجم قاعدة البيانات
     db_size = "N/A"
     try:
-        import os
-        db_path = os.path.join(current_app.root_path, 'instance', 'app.db')
-        if os.path.exists(db_path):
-            size_bytes = os.path.getsize(db_path)
-            if size_bytes < 1024 * 1024:
-                db_size = f"{size_bytes / 1024:.1f} KB"
-            else:
-                db_size = f"{size_bytes / (1024 * 1024):.1f} MB"
+        uri = current_app.config.get("SQLALCHEMY_DATABASE_URI", "")
+        if "postgresql" in uri:
+            db_size = db.session.execute(
+                text("SELECT pg_size_pretty(pg_database_size(current_database()))")
+            ).scalar() or "N/A"
     except Exception:
         pass
     
@@ -2573,8 +2539,7 @@ def get_cached_security_stats():
                 idxs = inspector.get_indexes(table)
                 total_indexes += len(idxs)
         
-        # حساب إجمالي الجداول (ما عدا الجداول النظامية)
-        total_tables = len([t for t in tables if not t.startswith('sqlite_')])
+        total_tables = len([t for t in tables if t != 'alembic_version'])
         
         # حساب إجمالي العلاقات (Foreign Keys)
         total_relations = 0
@@ -3384,7 +3349,7 @@ def capture_cctv_snapshot(camera_id=1):
 
 
 @security_bp.route('/save-integration', methods=['POST'])
-@owner_only
+@permission_required('access_owner_dashboard')
 def save_integration():
     """حفظ إعدادات التكامل - route قديم للتوافق"""
     # إعادة توجيه للـ route الجديد
@@ -3392,7 +3357,7 @@ def save_integration():
 
 
 @security_bp.route('/test-integration/<integration_type>', methods=['POST'])
-@owner_only
+@permission_required('access_owner_dashboard')
 def test_integration(integration_type):
     """اختبار تكامل معين"""
     result = _test_integration_connection(integration_type)
@@ -3404,7 +3369,7 @@ def test_integration(integration_type):
 
 
 @security_bp.route('/send-test-message/<integration_type>', methods=['POST'])
-@owner_only
+@permission_required('access_owner_dashboard')
 def send_test_message(integration_type):
     """إرسال رسالة تجريبية"""
     result = _send_test_message(integration_type)
@@ -3416,7 +3381,7 @@ def send_test_message(integration_type):
 
 
 @security_bp.route('/integration-stats')
-@owner_only
+@permission_required('access_owner_dashboard')
 def integration_stats():
     """إحصائيات التكاملات"""
     stats = _get_integration_stats()
@@ -3424,7 +3389,7 @@ def integration_stats():
 
 
 @security_bp.route('/live-monitoring')
-@owner_only
+@permission_required('access_owner_dashboard')
 def live_monitoring():
     """مراقبة فورية للنظام"""
     live_data = {
@@ -3436,7 +3401,7 @@ def live_monitoring():
 
 
 @security_bp.route('/user-control')
-@owner_only
+@permission_required('access_owner_dashboard')
 def user_control():
     """
     👑 التحكم الكامل بالمستخدمين - Owner's User Management Panel
@@ -3655,7 +3620,7 @@ def user_control():
 
 
 @security_bp.route('/impersonate/<int:user_id>', methods=['POST'])
-@owner_only
+@permission_required('access_owner_dashboard')
 def impersonate_user(user_id):
     """تسجيل الدخول كمستخدم آخر"""
     from flask_login import logout_user, login_user
@@ -3714,7 +3679,7 @@ def stop_impersonate():
 
 
 @security_bp.route('/force-reset-password/<int:user_id>', methods=['POST'])
-@owner_only
+@permission_required('access_owner_dashboard')
 def force_reset_password(user_id):
     """إعادة تعيين كلمة مرور المستخدم"""
     from werkzeug.security import generate_password_hash
@@ -3731,7 +3696,7 @@ def force_reset_password(user_id):
 
 @security_bp.route('/toggle-user/<int:user_id>', methods=['POST'])
 @security_bp.route('/toggle_user_status/<int:user_id>', methods=['POST'])  # Alias
-@owner_only
+@permission_required('access_owner_dashboard')
 def toggle_user_status(user_id):
     """
     🔄 تفعيل/تعطيل مستخدم - Toggle User Status
@@ -3781,7 +3746,7 @@ def toggle_user_status(user_id):
 
 
 @security_bp.route('/delete-user/<int:user_id>', methods=['POST'])
-@owner_only
+@permission_required('access_owner_dashboard')
 def delete_user(user_id):
     """
     🗑️ حذف مستخدم نهائياً - Permanent User Deletion
@@ -3849,7 +3814,7 @@ def delete_user(user_id):
 
 
 @security_bp.route('/api/users/<int:user_id>/details')
-@owner_only
+@permission_required('access_owner_dashboard')
 def api_user_details(user_id):
     """
     📊 API - الحصول على تفاصيل مستخدم كاملة
@@ -3954,7 +3919,7 @@ def api_user_details(user_id):
 
 
 @security_bp.route('/api/users/bulk-operation', methods=['POST'])
-@owner_only
+@permission_required('access_owner_dashboard')
 def api_users_bulk_operation():
     """
     ⚡ API - عمليات جماعية على المستخدمين
@@ -4032,7 +3997,7 @@ def api_users_bulk_operation():
 
 
 @security_bp.route('/api/users/<int:user_id>/activity-history')
-@owner_only
+@permission_required('access_owner_dashboard')
 def api_user_activity_history(user_id):
     """
     📜 API - سجل نشاطات المستخدم الكامل
@@ -4078,7 +4043,7 @@ def api_user_activity_history(user_id):
 
 
 @security_bp.route('/create-user', methods=['POST'])
-@owner_only
+@permission_required('manage_users')
 def create_user():
     """
     ➕ إنشاء مستخدم جديد - Create New User
@@ -4159,7 +4124,7 @@ def create_user():
 
 
 @security_bp.route('/update-user-role/<int:user_id>', methods=['POST'])
-@owner_only
+@permission_required('access_owner_dashboard')
 def update_user_role(user_id):
     """
     🎭 تحديث دور المستخدم - Update User Role
@@ -4213,7 +4178,7 @@ def update_user_role(user_id):
 
 
 @security_bp.route('/update-user-permissions/<int:user_id>', methods=['POST'])
-@owner_only
+@permission_required('access_owner_dashboard')
 def update_user_extra_permissions(user_id):
     """تحديث الصلاحيات الإضافية للمستخدم - Owner Only"""
     from models import User, Permission
@@ -4258,7 +4223,7 @@ def update_user_extra_permissions(user_id):
 
 @security_bp.route('/settings', methods=['GET', 'POST'])
 @security_bp.route('/system-settings', methods=['GET', 'POST'])  # Backward compatibility
-@owner_only
+@permission_required('access_owner_dashboard')
 def system_settings():
     """إعدادات النظام الموحدة - 4 في 1 (عامة + متقدمة + شركة + ثوابت أعمال)"""
     from models import SystemSettings
@@ -4497,7 +4462,7 @@ def system_settings():
 
 
 @security_bp.route('/emergency-tools')
-@owner_only
+@permission_required('access_owner_dashboard')
 def emergency_tools():
     """أدوات الطوارئ"""
     from models import User, AuditLog
@@ -4516,7 +4481,7 @@ def emergency_tools():
 
 
 @security_bp.route('/emergency/maintenance-mode', methods=['POST'])
-@owner_only
+@permission_required('access_owner_dashboard')
 def toggle_maintenance_mode():
     """تفعيل/تعطيل وضع الصيانة"""
     current = _get_system_setting('maintenance_mode', False)
@@ -4528,7 +4493,7 @@ def toggle_maintenance_mode():
 
 
 @security_bp.route('/emergency/clear-cache', methods=['POST'])
-@owner_only
+@permission_required('access_owner_dashboard')
 def clear_system_cache():
     """مسح الكاش بالكامل"""
     from extensions import cache
@@ -4538,7 +4503,7 @@ def clear_system_cache():
 
 
 @security_bp.route('/emergency/kill-sessions', methods=['POST'])
-@owner_only
+@permission_required('access_owner_dashboard')
 def kill_all_sessions():
     """إنهاء جميع الجلسات"""
     # إنهاء جميع الجلسات النشطة
@@ -4548,7 +4513,7 @@ def kill_all_sessions():
 
 
 @security_bp.route('/data-export')
-@owner_only
+@permission_required('access_owner_dashboard')
 def data_export():
     """تصدير البيانات"""
     tables = _get_all_tables()
@@ -4556,7 +4521,7 @@ def data_export():
 
 
 @security_bp.route('/export-table/<table_name>')
-@owner_only
+@permission_required('access_owner_dashboard')
 def export_table_csv(table_name):
     """تصدير جدول كـ CSV"""
     import csv
@@ -4582,7 +4547,7 @@ def export_table_csv(table_name):
 
 
 @security_bp.route('/performance-monitor')
-@owner_only
+@permission_required('access_owner_dashboard')
 def performance_monitor():
     """مراقبة الأداء"""
     performance = {
@@ -4595,7 +4560,7 @@ def performance_monitor():
 
 
 @security_bp.route('/system-branding', methods=['GET', 'POST'])
-@owner_only
+@permission_required('access_owner_dashboard')
 def system_branding():
     """تخصيص العلامة التجارية (الشعار، الاسم، الألوان)"""
     if request.method == 'POST':
@@ -4704,7 +4669,7 @@ def system_branding():
 
 
 @security_bp.route('/db-editor/add-column/<table_name>', methods=['POST'])
-@owner_only
+@permission_required('access_owner_dashboard')
 def db_add_column(table_name):
     """إضافة عمود جديد"""
     _assert_valid_table(table_name)
@@ -4740,7 +4705,7 @@ def db_add_column(table_name):
 
 
 @security_bp.route('/db-editor/update-cell/<table_name>', methods=['POST'])
-@owner_only
+@permission_required('access_owner_dashboard')
 def db_update_cell(table_name):
     """تحديث خلية واحدة مباشرة - للتعديل السريع"""
     try:
@@ -4777,7 +4742,7 @@ def db_update_cell(table_name):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @security_bp.route('/db-editor/edit-row/<table_name>/<int:row_id>', methods=['POST'])
-@owner_only
+@permission_required('access_owner_dashboard')
 def db_edit_row(table_name, row_id):
     """تعديل صف في الجدول"""
     try:
@@ -4811,7 +4776,7 @@ def db_edit_row(table_name, row_id):
 
 
 @security_bp.route('/db-editor/delete-row/<table_name>/<row_id>', methods=['POST'])
-@owner_only
+@permission_required('access_owner_dashboard')
 def db_delete_row(table_name, row_id):
     """حذف صف من الجدول"""
     try:
@@ -4834,7 +4799,7 @@ def db_delete_row(table_name, row_id):
     return redirect(url_for('security.database_manager', tab='edit', table=table_name))
 
 @security_bp.route('/db-editor/delete-column/<table_name>', methods=['POST'])
-@owner_only
+@permission_required('access_owner_dashboard')
 def db_delete_column(table_name):
     """حذف عمود كامل من الجدول"""
     _assert_valid_table(table_name)
@@ -4866,7 +4831,7 @@ def db_delete_column(table_name):
 
 
 @security_bp.route('/db-editor/add-row/<table_name>', methods=['POST'])
-@owner_only
+@permission_required('access_owner_dashboard')
 def db_add_row(table_name):
     """إضافة صف جديد"""
     try:
@@ -4902,7 +4867,7 @@ def db_add_row(table_name):
 
 
 @security_bp.route('/db-editor/bulk-update/<table_name>', methods=['POST'])
-@owner_only
+@permission_required('access_owner_dashboard')
 def db_bulk_update(table_name):
     """تحديث جماعي للبيانات"""
     _assert_valid_table(table_name)
@@ -4935,7 +4900,7 @@ def db_bulk_update(table_name):
 
 
 @security_bp.route('/db-editor/fill-missing/<table_name>', methods=['POST'])
-@owner_only
+@permission_required('access_owner_dashboard')
 def db_fill_missing(table_name):
     """ملء البيانات الناقصة"""
     _assert_valid_table(table_name)
@@ -4963,7 +4928,7 @@ def db_fill_missing(table_name):
 
 
 @security_bp.route('/db-editor/schema/<table_name>')
-@owner_only
+@permission_required('access_owner_dashboard')
 def db_schema_editor(table_name):
     """Redirect to database_manager - schema tab"""
     return redirect(url_for('security.database_manager', tab='schema', table=table_name))
@@ -5179,10 +5144,10 @@ def _get_cleanable_tables():
     # بناء قائمة الجداول
     cleanable_tables = []
     
-    # إضافة خيار خاص للمستخدمين (حذف الكل ما عدا أول Super Admin)
+    # إضافة خيار خاص للمستخدمين (حذف الكل ما عدا أول مدير نظام)
     cleanable_tables.append({
         'name': 'users_except_first_super',
-        'display': '👤 المستخدمين (ما عدا أول Super Admin)',
+        'display': '👤 المستخدمين (ما عدا أول مدير نظام)',
         'danger': 'high',
         'category': 'المستخدمين والأدوار'
     })
@@ -5252,25 +5217,25 @@ def _cleanup_tables(tables):
     
     for table in tables:
         try:
-            # معالجة خاصة للمستخدمين - حذف الكل (حتى الأدمنز) ما عدا أول Super Admin
+            # معالجة خاصة للمستخدمين - حذف الكل (حتى الأدمنز) ما عدا أول مدير نظام
             if table == 'users_except_first_super':
                 from models import User
-                # البحث عن أول Super Admin (الأقدم)
+                # البحث عن أول مدير نظام (الأقدم)
                 first_super = User.query.filter_by(is_super_admin=True).order_by(User.id.asc()).first()
                 
                 if first_super:
                     first_super_id = first_super.id
-                    # حذف جميع المستخدمين (بما فيهم الأدمنز الآخرين) ما عدا أول Super Admin
+                    # حذف جميع المستخدمين (بما فيهم الأدمنز الآخرين) ما عدا أول مدير نظام
                     deleted_count = db.session.execute(
                         text("DELETE FROM users WHERE id != :super_id"), 
                         {'super_id': first_super_id}
                     ).rowcount
                     db.session.commit()
-                    current_app.logger.info(f"[INFO] Deleted {deleted_count} users, kept first Super Admin (ID: {first_super_id})")
+                    current_app.logger.info(f"[INFO] Deleted {deleted_count} users, kept first system admin (ID: {first_super_id})")
                     cleaned += 1
                 else:
-                    # إذا لم يوجد Super Admin، لا نحذف شيء للحماية
-                    errors.append(f"تخطي {table}: لا يوجد Super Admin!")
+                    # إذا لم يوجد مدير نظام، لا نحذف شيء للحماية
+                    errors.append(f"تخطي {table}: لا يوجد مدير نظام!")
                     continue
             else:
                 # تنظيف عادي للجداول الأخرى
@@ -5394,9 +5359,7 @@ def _get_all_tables():
             if "postgresql" in uri:
                 rows = db.session.execute(text("SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname NOT IN ('pg_catalog','information_schema') ORDER BY tablename")).fetchall()
                 return [r[0] for r in rows]
-            else:
-                rows = db.session.execute(text("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")).fetchall()
-                return [r[0] for r in rows if not str(r[0]).startswith("sqlite_")]
+            return []
         except Exception:
             return []
 
@@ -5682,12 +5645,14 @@ def _set_system_setting(key, value):
 
 def _get_db_size():
     """حجم قاعدة البيانات"""
-    import os
-    db_path = 'instance/app.db'
-    if os.path.exists(db_path):
-        size_bytes = os.path.getsize(db_path)
+    try:
+        res = db.session.execute(text("SELECT pg_database_size(current_database())"))
+        size_bytes = int(res.scalar() or 0)
+        if size_bytes <= 0:
+            return "N/A"
         return f"{size_bytes / (1024*1024):.2f} MB"
-    return "N/A"
+    except Exception:
+        return "N/A"
 
 
 def _get_system_health():
@@ -5722,7 +5687,7 @@ def _get_available_backups():
     
     if os.path.exists(backup_dir):
         for f in os.listdir(backup_dir):
-            if f.endswith('.db'):
+            if f.endswith('.dump'):
                 full_path = os.path.join(backup_dir, f)
                 backups.append({
                     'name': f,
@@ -6102,7 +6067,7 @@ def _get_security_notifications():
 
 
 @security_bp.route('/monitoring-dashboard')
-@owner_only
+@permission_required('access_owner_dashboard')
 def monitoring_dashboard():
     """لوحة مراقبة الأداء الشاملة (Grafana-like)"""
     from models import User, Sale, Payment, ServiceRequest
@@ -6131,7 +6096,7 @@ def monitoring_dashboard():
 
 
 @security_bp.route('/dark-mode-settings', methods=['GET', 'POST'])
-@owner_only
+@permission_required('access_owner_dashboard')
 def dark_mode_settings():
     """إعدادات الوضع الليلي (Dark Mode)"""
     if request.method == 'POST':
@@ -6144,7 +6109,7 @@ def dark_mode_settings():
 
 
 @security_bp.route('/grafana-setup')
-@owner_only
+@permission_required('access_owner_dashboard')
 def grafana_setup():
     """إعداد وتثبيت Grafana + Prometheus"""
     return render_template('security/grafana_setup.html',
@@ -6154,12 +6119,37 @@ def grafana_setup():
 @security_bp.route('/prometheus-metrics')
 def prometheus_metrics():
     """Prometheus metrics endpoint"""
-    from services.prometheus_service import get_all_metrics
-    return get_all_metrics()
+    try:
+        from services.prometheus_service import get_all_metrics
+        return get_all_metrics()
+    except Exception:
+        ts = int(datetime.now(timezone.utc).timestamp())
+        db_up = 0
+        try:
+            db.session.execute(text("SELECT 1")).scalar()
+            db_up = 1
+        except Exception:
+            db_up = 0
+
+        body = "\n".join(
+            [
+                "# HELP garage_manager_up Application up indicator",
+                "# TYPE garage_manager_up gauge",
+                "garage_manager_up 1",
+                "# HELP garage_manager_db_up Database connectivity indicator",
+                "# TYPE garage_manager_db_up gauge",
+                f"garage_manager_db_up {db_up}",
+                "# HELP garage_manager_timestamp_seconds Current server timestamp",
+                "# TYPE garage_manager_timestamp_seconds gauge",
+                f"garage_manager_timestamp_seconds {ts}",
+                "",
+            ]
+        )
+        return body, 200, {"Content-Type": "text/plain; version=0.0.4; charset=utf-8"}
 
 
 @security_bp.route('/api/live-metrics')
-@owner_only
+@permission_required('access_owner_dashboard')
 def api_live_metrics():
     """API للحصول على المتريكات الحية"""
     from services.prometheus_service import get_live_metrics_json
@@ -6167,7 +6157,7 @@ def api_live_metrics():
 
 
 @security_bp.route('/api/indexes/create', methods=['POST'])
-@owner_only
+@permission_required('access_owner_dashboard')
 def api_create_index():
     """إنشاء فهرس جديد"""
     try:
@@ -6243,7 +6233,7 @@ def api_create_index():
 
 
 @security_bp.route('/api/indexes/drop', methods=['POST'])
-@owner_only
+@permission_required('access_owner_dashboard')
 def api_drop_index():
     """حذف فهرس"""
     try:
@@ -6272,7 +6262,7 @@ def api_drop_index():
 
 
 @security_bp.route('/api/indexes/auto-optimize', methods=['POST'])
-@owner_only
+@permission_required('access_owner_dashboard')
 def api_auto_optimize_indexes():
     """تحسين تلقائي للفهارس"""
     try:
@@ -6379,7 +6369,7 @@ def api_auto_optimize_indexes():
 
 
 @security_bp.route('/api/indexes/clean-and-rebuild', methods=['POST'])
-@owner_only
+@permission_required('access_owner_dashboard')
 def api_clean_rebuild_indexes():
     """تنظيف وإعادة بناء الفهارس"""
     try:
@@ -6483,7 +6473,7 @@ def api_clean_rebuild_indexes():
 
 
 @security_bp.route('/api/indexes/analyze-table', methods=['POST'])
-@owner_only
+@permission_required('access_owner_dashboard')
 def api_analyze_table():
     """تحليل جدول واقتراح فهارس"""
     try:
@@ -6566,7 +6556,7 @@ def api_analyze_table():
 
 
 @security_bp.route('/api/indexes/batch-create', methods=['POST'])
-@owner_only
+@permission_required('access_owner_dashboard')
 def api_batch_create_indexes():
     """إنشاء عدة فهارس دفعة واحدة"""
     try:
@@ -6625,12 +6615,22 @@ def api_batch_create_indexes():
 
 
 @security_bp.route('/api/maintenance/vacuum', methods=['POST'])
-@owner_only
+@permission_required('access_owner_dashboard')
 def api_maintenance_vacuum():
     """تنفيذ VACUUM على قاعدة البيانات"""
     try:
-        db.session.execute(text('VACUUM'))
-        db.session.commit()
+        dialect = getattr(db.engine, "dialect", None)
+        dialect_name = (getattr(dialect, "name", "") or "").lower()
+        if dialect_name != "postgresql":
+            raise ValueError("maintenance.vacuum_postgresql_only")
+
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+
+        with db.engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+            conn.execute(text("VACUUM"))
         return jsonify({
             'success': True,
             'message': '✅ تم تنفيذ VACUUM بنجاح - تم تنظيف قاعدة البيانات'
@@ -6644,7 +6644,7 @@ def api_maintenance_vacuum():
 
 
 @security_bp.route('/api/maintenance/analyze', methods=['POST'])
-@owner_only
+@permission_required('access_owner_dashboard')
 def api_maintenance_analyze():
     """تنفيذ ANALYZE على جميع الجداول"""
     try:
@@ -6663,18 +6663,23 @@ def api_maintenance_analyze():
 
 
 @security_bp.route('/api/maintenance/checkpoint', methods=['POST'])
-@owner_only
+@permission_required('manage_system_health')
 def api_maintenance_checkpoint():
     """تنفيذ Checkpoint لدمج WAL"""
     try:
-        if _is_postgresql():
-            db.session.execute(text('CHECKPOINT'))
-            db.session.commit()
-            return jsonify({'success': True, 'message': '✅ تم تنفيذ CHECKPOINT بنجاح'})
+        dialect = getattr(db.engine, "dialect", None)
+        dialect_name = (getattr(dialect, "name", "") or "").lower()
+        if dialect_name != "postgresql":
+            raise ValueError("maintenance.checkpoint_postgresql_only")
 
-        db.session.execute(text('PRAGMA wal_checkpoint(TRUNCATE)'))
-        db.session.commit()
-        return jsonify({'success': True, 'message': '✅ تم تنفيذ Checkpoint بنجاح - تم دمج WAL files'})
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+
+        with db.engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+            conn.execute(text("CHECKPOINT"))
+        return jsonify({'success': True, 'message': '✅ تم تنفيذ CHECKPOINT بنجاح'})
     except Exception as e:
         db.session.rollback()
         return jsonify({
@@ -6684,36 +6689,18 @@ def api_maintenance_checkpoint():
 
 
 @security_bp.route('/api/maintenance/db-info', methods=['GET'])
-@owner_only
+@permission_required('manage_system_health')
 def api_maintenance_db_info():
     """الحصول على معلومات قاعدة البيانات"""
     try:
-        import os
-        db_uri = current_app.config.get('SQLALCHEMY_DATABASE_URI', '') or ''
-
-        if _is_postgresql():
-            size_row = db.session.execute(text("SELECT pg_size_pretty(pg_database_size(current_database()))")).fetchone()
-            block_row = db.session.execute(text("SHOW block_size")).fetchone()
-            return jsonify({
-                'success': True,
-                'db_size': size_row[0] if size_row else 'N/A',
-                'wal_mode': None,
-                'page_size': f"{block_row[0]} bytes" if block_row else 'N/A'
-            })
-
-        db_path = db_uri.replace('sqlite:///', '')
-        db_size = 'N/A'
-        if os.path.exists(db_path):
-            size_bytes = os.path.getsize(db_path)
-            db_size = f'{size_bytes / (1024*1024):.2f} MB'
-
-        wal_result = db.session.execute(text('PRAGMA journal_mode')).fetchone()
-        wal_mode = wal_result[0].upper() == 'WAL' if wal_result else False
-
-        page_result = db.session.execute(text('PRAGMA page_size')).fetchone()
-        page_size = f'{page_result[0]} bytes' if page_result else 'N/A'
-
-        return jsonify({'success': True, 'db_size': db_size, 'wal_mode': wal_mode, 'page_size': page_size})
+        size_row = db.session.execute(text("SELECT pg_size_pretty(pg_database_size(current_database()))")).fetchone()
+        block_row = db.session.execute(text("SHOW block_size")).fetchone()
+        return jsonify({
+            'success': True,
+            'db_size': size_row[0] if size_row else 'N/A',
+            'wal_mode': None,
+            'page_size': f"{block_row[0]} bytes" if block_row else 'N/A'
+        })
     except Exception as e:
         return jsonify({
             'success': False,
@@ -6722,7 +6709,7 @@ def api_maintenance_db_info():
 
 
 @security_bp.route('/data-quality-center', methods=['GET', 'POST'])
-@owner_only
+@permission_required('manage_system_health')
 def data_quality_center():
     """
     مركز متقدم لفحص وتحسين جودة البيانات
@@ -6907,7 +6894,7 @@ def data_quality_center():
 
 
 @security_bp.route('/advanced-check-linking', methods=['GET', 'POST'])
-@owner_only
+@permission_required('manage_system_health')
 def advanced_check_linking():
     """
     ربط متقدم للشيكات بالجهات من خلال تتبع المبيعات والعلاقات
@@ -7064,7 +7051,7 @@ def advanced_check_linking():
 
 
 @security_bp.route('/help')
-@owner_only
+@permission_required('access_owner_dashboard')
 def help_page():
     """
     ❓ مركز المساعدة - Help Center
@@ -7085,7 +7072,7 @@ def help_page():
 
 
 @security_bp.route('/sitemap')
-@owner_only
+@permission_required('access_owner_dashboard')
 def sitemap():
     """
     🗺️ خريطة الموقع - Site Map
@@ -7113,7 +7100,7 @@ def sitemap():
 
 
 @security_bp.route('/api/system-constants')
-@owner_only
+@permission_required('manage_system_config')
 def api_system_constants():
     """
     🔧 API للحصول على ثوابت النظام (للاستخدام في JavaScript)
@@ -7151,7 +7138,7 @@ def api_system_constants():
 # ==================== وحدة الإشعارات - Notifications Center ====================
 
 @security_bp.route('/notifications', methods=['GET'])
-@owner_only
+@permission_required('manage_system_config')
 def notifications_log():
     """
     📧 مركز الإشعارات - Notifications Center
@@ -7197,7 +7184,7 @@ def notifications_log():
 
 
 @security_bp.route('/notifications/test', methods=['POST'])
-@owner_only
+@permission_required('manage_system_config')
 def test_notification():
     """اختبار إرسال إشعار"""
     from utils import send_notification_sms, send_notification_email
@@ -7227,7 +7214,7 @@ def test_notification():
 # ==================== وحدة الضرائب - Tax Module ====================
 
 @security_bp.route('/tax-reports', methods=['GET'])
-@owner_only
+@permission_required('manage_reports')
 def tax_reports():
     """
     💰 تقارير الضرائب - Tax Reports
@@ -7283,7 +7270,7 @@ def tax_reports():
 
 
 @security_bp.route('/tax-reports/export/<period>')
-@owner_only
+@permission_required('manage_reports')
 def export_tax_report(period):
     from flask import Response, send_file
     from models import TaxEntry
@@ -7379,7 +7366,7 @@ def export_tax_report(period):
 # ==================== وحدة سجل التدقيق - Audit Log ====================
 
 @security_bp.route('/audit-log')
-@owner_only
+@permission_required('view_audit_logs')
 def audit_log_viewer():
     from flask import Response
     import csv
@@ -7496,7 +7483,7 @@ def audit_log_viewer():
                          })
 
 @security_bp.route('/audit-log/<int:log_id>')
-@owner_only
+@permission_required('view_audit_logs')
 def audit_log_detail(log_id):
     log = db.session.get(AuditLog, log_id)
     if not log:
@@ -7566,7 +7553,7 @@ def audit_log_detail(log_id):
 
 
 @security_bp.route('/security-audit-report', methods=['GET'])
-@owner_only
+@permission_required('view_audit_logs')
 def security_audit_report():
     """Security Audit Report شامل - تقرير أمني شامل"""
     from datetime import datetime, timedelta, timezone
@@ -7651,7 +7638,7 @@ def security_audit_report():
 
 
 @security_bp.route('/api/security-audit/stats', methods=['GET'])
-@owner_only
+@permission_required('view_audit_logs')
 def api_security_audit_stats():
     """API للحصول على إحصائيات الأمان"""
     from datetime import datetime, timedelta, timezone

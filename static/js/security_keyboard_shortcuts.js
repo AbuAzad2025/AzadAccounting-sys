@@ -7,6 +7,8 @@
  */
 
 (function() {
+  if (window.__SECURITY_KEYBOARD_SHORTCUTS_INIT__) return;
+  window.__SECURITY_KEYBOARD_SHORTCUTS_INIT__ = true;
   'use strict';
   
   // ═══ قائمة الاختصارات ═══

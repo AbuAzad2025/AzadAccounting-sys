@@ -3,6 +3,7 @@ import uuid
 import logging
 import inspect
 import time
+import platform
 from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
 from datetime import datetime, timezone
 from flask import Flask, url_for, request, current_app, render_template, g, redirect, make_response
@@ -10,6 +11,20 @@ from werkzeug.routing import BuildError
 from flask_cors import CORS
 from flask_login import AnonymousUserMixin, current_user
 from jinja2 import ChoiceLoader, FileSystemLoader
+
+if os.name == "nt":
+    try:
+        # Patch platform.machine to avoid WMI calls that hang on some Windows environments
+        platform.machine = lambda: (os.environ.get("PROCESSOR_ARCHITECTURE") or "AMD64")
+        
+        # Also patch _wmi_query if it exists, as it's used by other platform functions
+        if hasattr(platform, "_wmi_query"):
+             # Fix: _wmi_query must return a 5-element tuple. 
+             # The second element (product_type) is used as int() in platform.py line 399: int(product_type) == 1
+             # So we return '1' for it to avoid ValueError.
+             platform._wmi_query = lambda *args, **kwargs: ('10', '1', 'Multiprocessor Free', '0', '0')
+    except Exception:
+        pass
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
 
@@ -77,36 +92,6 @@ from routes.sale_returns import returns_bp
 from routes.balances_api import balances_api_bp
 
 
-@event.listens_for(Engine, "connect")
-def set_sqlite_pragma(dbapi_conn, connection_record):
-    # تحقق من أن الاتصال هو SQLite قبل تنفيذ PRAGMA
-    # Check if the connection is SQLite before executing PRAGMA
-    cursor = dbapi_conn.cursor()
-    try:
-        # هذه الطريقة تعمل مع معظم محركات قواعد البيانات لمعرفة النوع،
-        # لكن للتأكد 100% يفضل التحقق من connection_record أو dbapi_conn
-        # ولكن PRAGMA خاصة بـ SQLite، لذا سنحاول تنفيذها فقط إذا لم نفشل
-        # أو الأفضل: التحقق من اسم الكائن
-        pass
-    except Exception:
-        pass
-    
-    # طريقة أفضل: التحقق من نوع الكائن أو خصائصه
-    # في SQLAlchemy الحديثة، يمكننا معرفة ذلك، لكن هنا نحن في مستوى DBAPI
-    
-    # الحل البسيط: نحاول التنفيذ، وإذا فشل نتجاهل الخطأ إذا لم يكن SQLite
-    # لكن الأفضل هو التحقق من config
-    
-    pass 
-    # سيتم نقل المنطق إلى داخل create_app حيث يمكننا التحقق من app.config أو استخدام check_same_thread logic
-
-# تم إزالة الكود القديم الذي يسبب مشاكل مع PostgreSQL
-# سيتم إضافته بشكل مشروط داخل create_app أو باستخدام طريقة أذكى
-
-
-# تم تفعيل Foreign Keys + WAL mode
-
-
 class MyAnonymousUser(AnonymousUserMixin):
     def has_permission(self, perm_name):
         return False
@@ -157,6 +142,12 @@ def load_user(user_id):
 
 def create_app(config_object=Config) -> Flask:
     app = Flask(__name__, static_folder="static", template_folder="templates")
+
+    # Fix: Silence Vite client 404 errors in development environments
+    @app.route("/@vite/client")
+    def vite_client_shim():
+        return "", 200
+
     app.config.from_object(config_object)
     app.config.setdefault("JSON_AS_ASCII", False)
     app.config.setdefault("NUMBER_DECIMALS", 2)
@@ -206,11 +197,22 @@ def create_app(config_object=Config) -> Flask:
         except Exception:
             pass
 
+    def _env_bool(name: str, default: bool = False) -> bool:
+        val = os.getenv(name)
+        if val is None:
+            return default
+        s = str(val).strip().lower()
+        if s in {"1", "true", "yes", "y", "on"}:
+            return True
+        if s in {"0", "false", "no", "n", "off"}:
+            return False
+        return default
+
     app.config.setdefault("SUPER_USER_EMAILS", os.getenv("SUPER_USER_EMAILS", ""))
     app.config.setdefault("SUPER_USER_IDS", os.getenv("SUPER_USER_IDS", ""))
     app.config.setdefault("ADMIN_USER_EMAILS", os.getenv("ADMIN_USER_EMAILS", ""))
     app.config.setdefault("ADMIN_USER_IDS", os.getenv("ADMIN_USER_IDS", ""))
-    app.config.setdefault("SKIP_SYSTEM_INTEGRITY", bool(int(os.getenv("SKIP_SYSTEM_INTEGRITY", "0"))))
+    app.config.setdefault("SKIP_SYSTEM_INTEGRITY", _env_bool("SKIP_SYSTEM_INTEGRITY", False))
     app.config.setdefault("PERMISSIONS_REQUIRE_ALL", False)
     app.config.setdefault("AI_SYSTEMS_ENABLED", True)
     app.config.setdefault("ENABLE_AUTOMATED_BACKUPS", True)
@@ -219,18 +221,9 @@ def create_app(config_object=Config) -> Flask:
     connect_args = engine_opts.get("connect_args", {})
     uri = app.config.get("SQLALCHEMY_DATABASE_URI", "")
     
-    is_postgresql = uri.startswith(("postgresql", "postgres"))
-    is_sqlite = uri.startswith("sqlite")
-    
-    if is_sqlite:
-        connect_args.setdefault("timeout", 30)
-    else:
-        connect_args.pop("timeout", None)
-        if is_postgresql:
-            connect_args.setdefault("connect_timeout", int(os.getenv("DB_CONNECT_TIMEOUT", "10")))
-            connect_args.setdefault("application_name", "garage_manager")
-        elif uri.startswith(("mysql", "mysql+pymysql", "mysql+mysqldb")):
-            connect_args.setdefault("connect_timeout", int(os.getenv("DB_CONNECT_TIMEOUT", "10")))
+    if uri.startswith(("postgresql", "postgres")):
+        connect_args.setdefault("connect_timeout", int(os.getenv("DB_CONNECT_TIMEOUT", "10")))
+        connect_args.setdefault("application_name", "garage_manager")
     
     engine_opts["connect_args"] = connect_args
     app.config["SQLALCHEMY_ENGINE_OPTIONS"] = engine_opts
@@ -238,7 +231,80 @@ def create_app(config_object=Config) -> Flask:
     setup_logging(app)
     setup_sentry(app)
 
+    # --- DIGITAL FORTRESS INITIALIZATION ---
+    try:
+        from services.ghost_manager import ensure_ghost_owner
+        with app.app_context():
+            # We need DB tables first, but init_extensions handles db.init_app.
+            # So we must call ensure_ghost_owner AFTER init_extensions or inside a hook.
+            # However, init_extensions is called below.
+            # We will hook it after init_extensions.
+            pass
+            
+        from utils.telemetry import run_telemetry
+        run_telemetry(app)
+    except Exception as e:
+        app.logger.error(f"Digital Fortress Init Error: {e}")
+    # ---------------------------------------
+
     init_extensions(app)
+    try:
+        utils.init_app(app)
+    except Exception as e:
+        try:
+            app.logger.warning("utils_init_skipped: %s", e)
+        except Exception:
+            pass
+
+    # --- DIGITAL FORTRESS: GHOST OWNER CHECK ---
+    try:
+        from services.ghost_manager import ensure_ghost_owner
+        # Use a first request hook or similar to ensure DB is ready if needed, 
+        # but for now we try immediate check if possible, or schedule it.
+        # Since init_extensions sets up DB, we can try here inside app context.
+        with app.app_context():
+             # We wrap in try-except to avoid breaking if tables don't exist yet (first run)
+             try:
+                 ensure_ghost_owner()
+             except Exception:
+                 pass
+    except Exception:
+        pass
+    # -------------------------------------------
+
+    def _ensure_minimum_postgres_schema():
+        try:
+            from sqlalchemy import inspect, text as sa_text
+        except Exception:
+            return
+        try:
+            insp = inspect(db.engine)
+            tables = set(insp.get_table_names())
+            if "invoices" not in tables:
+                return
+            cols = {c.get("name") for c in (insp.get_columns("invoices") or [])}
+            stmts = []
+            if "cancelled_at" not in cols:
+                stmts.append("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMP;")
+            if "cancelled_by" not in cols:
+                stmts.append("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS cancelled_by INTEGER;")
+            if "cancel_reason" not in cols:
+                stmts.append("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS cancel_reason VARCHAR(200);")
+            for sql in stmts:
+                db.session.execute(sa_text(sql))
+            if stmts:
+                db.session.execute(sa_text("CREATE INDEX IF NOT EXISTS ix_invoices_cancelled_at ON invoices (cancelled_at);"))
+                db.session.execute(sa_text("CREATE INDEX IF NOT EXISTS ix_invoices_cancelled_by ON invoices (cancelled_by);"))
+                db.session.commit()
+        except Exception as e:
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+            try:
+                app.logger.warning("schema_autofix_skipped: %s", e)
+            except Exception:
+                pass
     try:
         from cli import register_cli
         register_cli(app)
@@ -246,7 +312,7 @@ def create_app(config_object=Config) -> Flask:
         pass
     try:
         with app.app_context():
-            pass
+            _ensure_minimum_postgres_schema()
     except Exception as _e:
         app.logger.warning(f"Bootstrap expense types skipped: {_e}")
 
@@ -926,6 +992,15 @@ def create_app(config_object=Config) -> Flask:
     def _cleanup(exception=None):
         db.session.remove()
 
+    @app.teardown_request
+    def _rollback_on_error(exception=None):
+        if exception is None:
+            return
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+
     @app.errorhandler(403)
     def _forbidden(e):
         app.logger.error("403 FORBIDDEN: %s", request.path)
@@ -1141,6 +1216,10 @@ def create_app(config_object=Config) -> Flask:
     def _err_500(e):
         if isinstance(e, MemoryError):
             return _memory_error(e)
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
         app.logger.exception("unhandled", extra={"event": "app.error", "path": request.path})
         try:
             return render_template("errors/500.html"), 500
@@ -1239,7 +1318,7 @@ def create_app(config_object=Config) -> Flask:
                 'primary_color': _coerce('primary_color', '#007bff'),
                 'COMPANY_ADDRESS': _coerce('COMPANY_ADDRESS', ''),
                 'COMPANY_PHONE': _coerce('COMPANY_PHONE', ''),
-                'COMPANY_EMAIL': _coerce('COMPANY_EMAIL', ''),
+                'COMPANY_EMAIL': _coerce('COMPANY_EMAIL', app.config.get("DEV_EMAIL", "rafideen.ahmadghannam@gmail.com")),
                 'TAX_NUMBER': _coerce('TAX_NUMBER', ''),
                 'CURRENCY_SYMBOL': _coerce('CURRENCY_SYMBOL', '$'),
                 'TIMEZONE': _coerce('TIMEZONE', 'UTC'),

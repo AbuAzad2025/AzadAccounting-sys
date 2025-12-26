@@ -21,7 +21,6 @@ def upgrade():
     bind = op.get_bind()
     inspector = inspect(bind)
     columns = {col["name"] for col in inspector.get_columns("partners")}
-    is_sqlite = bind.dialect.name == "sqlite"
     
     balance_columns = [
         ("current_balance", sa.Numeric(12, 2), True),
@@ -40,14 +39,9 @@ def upgrade():
         ("service_expenses_balance", sa.Numeric(12, 2), False),
     ]
     
-    if is_sqlite:
-        for col_name, col_type, create_index in balance_columns:
-            if col_name not in columns:
-                op.execute(f'ALTER TABLE partners ADD COLUMN {col_name} NUMERIC(12, 2) NOT NULL DEFAULT 0')
-    else:
-        for col_name, col_type, create_index in balance_columns:
-            if col_name not in columns:
-                op.add_column("partners", sa.Column(col_name, col_type, nullable=False, server_default=sa_text("0")))
+    for col_name, col_type, create_index in balance_columns:
+        if col_name not in columns:
+            op.add_column("partners", sa.Column(col_name, col_type, nullable=False, server_default=sa_text("0")))
     
     _calculate_initial_balances(bind)
 
@@ -104,7 +98,6 @@ def downgrade():
     bind = op.get_bind()
     inspector = inspect(bind)
     columns = {col["name"] for col in inspector.get_columns("partners")}
-    is_sqlite = bind.dialect.name == "sqlite"
     
     balance_columns = [
         "current_balance",
@@ -123,21 +116,11 @@ def downgrade():
         "service_expenses_balance"
     ]
     
-    if is_sqlite:
-        with op.batch_alter_table("partners") as batch_op:
-            indexes = {idx["name"] for idx in inspector.get_indexes("partners")}
-            if "ix_partners_current_balance" in indexes:
-                batch_op.drop_index("ix_partners_current_balance")
-            
-            for col_name in balance_columns:
-                if col_name in columns:
-                    batch_op.drop_column(col_name)
-    else:
-        indexes = {idx["name"] for idx in inspector.get_indexes("partners")}
-        if "ix_partners_current_balance" in indexes:
-            op.drop_index("ix_partners_current_balance", table_name="partners")
-        
-        for col_name in balance_columns:
-            if col_name in columns:
-                op.drop_column("partners", col_name)
+    indexes = {idx["name"] for idx in inspector.get_indexes("partners")}
+    if "ix_partners_current_balance" in indexes:
+        op.drop_index("ix_partners_current_balance", table_name="partners")
+    
+    for col_name in balance_columns:
+        if col_name in columns:
+            op.drop_column("partners", col_name)
 

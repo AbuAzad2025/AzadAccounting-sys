@@ -31,7 +31,7 @@ def _check_database() -> Dict[str, Any]:
             stats = {
                 "status": "healthy",
                 "response_time_ms": round(duration * 1000, 2),
-                "type": "PostgreSQL" if "postgresql" in current_app.config.get("SQLALCHEMY_DATABASE_URI", "") else "SQLite",
+                "type": "PostgreSQL",
             }
 
             try:
@@ -106,12 +106,7 @@ def _check_cache() -> Dict[str, Any]:
 def _check_disk_space() -> Dict[str, Any]:
     """فحص المساحة المتوفرة على القرص"""
     try:
-        # فحص مجلد instance
-        instance_dir = current_app.config.get("SQLALCHEMY_DATABASE_URI", "").replace("sqlite:///", "")
-        if instance_dir:
-            instance_dir = os.path.dirname(instance_dir)
-        else:
-            instance_dir = os.path.join(os.getcwd(), "instance")
+        instance_dir = current_app.instance_path or os.path.join(os.getcwd(), "instance")
 
         disk = psutil.disk_usage(instance_dir)
 

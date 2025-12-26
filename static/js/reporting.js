@@ -1,4 +1,6 @@
 (function () {
+  if (window.__REPORTING_INIT__) return;
+  window.__REPORTING_INIT__ = true;
   'use strict';
 
   const $ = (sel, root = document) => root.querySelector(sel);

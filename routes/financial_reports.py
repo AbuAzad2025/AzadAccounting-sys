@@ -9,18 +9,18 @@ from models import (
     db, Account, GLBatch, GLEntry, Customer, Supplier, Partner,
     Sale, Payment, Expense, Invoice, ServiceRequest
 )
-from routes.security import owner_only
+from utils import permission_required
 
 # إنشاء Blueprint
 financial_reports_bp = Blueprint('financial_reports', __name__, url_prefix='/reports/financial')
 
 @financial_reports_bp.route('/')
-@owner_only
+@permission_required('view_reports')
 def index():
     return render_template('reports/financial/index.html')
 
 @financial_reports_bp.route('/income-statement')
-@owner_only
+@permission_required('view_reports')
 def income_statement():
     try:
         start_date = request.args.get('start_date')
@@ -185,7 +185,7 @@ def income_statement():
         return render_template('errors/500.html', error=str(e)), 500
 
 @financial_reports_bp.route('/balance-sheet')
-@owner_only
+@permission_required('view_reports')
 def balance_sheet():
     """الميزانية العمومية (Balance Sheet) - يدعم HTML وJSON"""
     try:
@@ -302,7 +302,7 @@ def balance_sheet():
         return render_template('errors/500.html', error=str(e)), 500
 
 @financial_reports_bp.route('/cash-flow')
-@owner_only
+@permission_required('view_reports')
 def cash_flow():
     """قائمة التدفق النقدي (Cash Flow Statement)"""
     try:
@@ -467,7 +467,7 @@ def cash_flow():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @financial_reports_bp.route('/balances-summary')
-@owner_only
+@permission_required('view_reports')
 def balances_summary():
     """تقرير الأرصدة المجمعة"""
     try:
@@ -538,7 +538,7 @@ def balances_summary():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @financial_reports_bp.route('/validation')
-@owner_only
+@permission_required('view_reports')
 def validation_report():
     """تقرير التحقق من صحة النظام المحاسبي"""
     try:
@@ -606,7 +606,7 @@ def validation_report():
 # ========== تبويبات جديدة ==========
 
 @financial_reports_bp.route('/trial-balance')
-@owner_only
+@permission_required('view_reports')
 def trial_balance():
     try:
         as_of_date = request.args.get('date')
@@ -769,7 +769,7 @@ def trial_balance():
 
 
 @financial_reports_bp.route('/aging-report')
-@owner_only
+@permission_required('view_reports')
 def aging_report():
     try:
         report_type = request.args.get('type', 'ar')
@@ -975,7 +975,7 @@ def aging_report():
 
 
 @financial_reports_bp.route('/profit-trends')
-@owner_only
+@permission_required('view_reports')
 def profit_trends():
     """📈 اتجاهات الربحية - مقارنة شهرية"""
     try:
@@ -1036,7 +1036,7 @@ def profit_trends():
 
 
 @financial_reports_bp.route('/expense-breakdown')
-@owner_only
+@permission_required('view_reports')
 def expense_breakdown():
     """📊 تحليل المصروفات حسب النوع"""
     try:
@@ -1089,7 +1089,7 @@ def expense_breakdown():
 
 
 @financial_reports_bp.route('/receivables-payables')
-@owner_only
+@permission_required('view_reports')
 def receivables_payables():
     try:
         report_type = request.args.get('type', 'receivables')
@@ -1225,7 +1225,7 @@ def receivables_payables():
 
 
 @financial_reports_bp.route('/revenue-by-source')
-@owner_only
+@permission_required('view_reports')
 def revenue_by_source():
     """📊 تحليل مصادر الإيرادات"""
     try:

@@ -25,9 +25,8 @@ ledger_bp = Blueprint("ledger", __name__, url_prefix="/ledger")
 
 @ledger_bp.before_request
 def _restrict_super_admin():
-    rname = (getattr(getattr(current_user, "role", None), "name", "") or "").strip().lower()
-    if rname in {"super_admin", "super"}:
-        abort(403)
+    # تمت إزالة القيد للسماح للسوبر أدمن بالوصول
+    pass
 
 def extract_entity_from_batch(batch: GLBatch):
     return SmartEntityExtractor.extract_from_batch(batch)
@@ -184,819 +183,102 @@ def get_ledger_data():
         ledger_entries = []
         running_balance = 0.0
         
-        # 0. الرصيد الافتتاحي لجميع العملاء/الموردين/الشركاء
-        if not transaction_type or transaction_type == 'opening':
-            opening_total = 0.0
-            
-            # جمع الرصيد الافتتاحي للعملاء
-            customers_opening = db.session.query(
-                func.coalesce(func.sum(Customer.opening_balance), 0)
-            ).scalar() or 0
-            opening_total += float(customers_opening)
-            
-            # جمع الرصيد الافتتاحي للموردين
-            suppliers_opening = db.session.query(
-                func.coalesce(func.sum(Supplier.opening_balance), 0)
-            ).scalar() or 0
-            opening_total += float(suppliers_opening)
-            
-            # جمع الرصيد الافتتاحي للشركاء
-            partners_opening = db.session.query(
-                func.coalesce(func.sum(Partner.opening_balance), 0)
-            ).scalar() or 0
-            opening_total += float(partners_opening)
-            
-            if opening_total != 0:
-                # موجب = له علينا → دائن
-                # سالب = عليه لنا → مدين
-                if opening_total < 0:  # سالب = عليه = مدين
-                    debit_val = abs(opening_total)
-                    credit_val = 0.0
-                    running_balance += abs(opening_total)
-                else:  # موجب = له = دائن
-                    debit_val = 0.0
-                    credit_val = opening_total
-                    running_balance -= opening_total
-                
-                opening_date = from_date.strftime('%Y-%m-%d') if from_date else '2024-01-01'
-                ledger_entries.append({
-                    "id": 0,
-                    "date": opening_date,
-                    "transaction_number": "OPENING-BALANCE",
-                    "type": "opening",
-                    "type_ar": "رصيد افتتاحي",
-                    "description": f"الرصيد الافتتاحي الإجمالي (عملاء + موردين + شركاء)",
-                    "debit": debit_val,
-                    "credit": credit_val,
-                    "balance": running_balance,
-                    "entity_name": "—",
-                    "entity_type": ""
-                })
-        
-        # 1. المخزون الحالي - يُعرض دائماً بغض النظر عن الفترة
-        if True:  # نعرض المخزون دائماً
-            # حساب قيمة المخزون كقيد افتتاحي
-            total_stock_value = 0.0
-            total_stock_qty = 0
-            
-            # جلب المخزون مجمّع حسب المنتج (بسعر التكلفة)
-            stock_summary = (
-                db.session.query(
-                    Product.id,
-                    Product.name,
-                    Product.purchase_price,
-                    Product.currency,
-                    func.sum(StockLevel.quantity).label('total_qty')
-                )
-                .join(StockLevel, StockLevel.product_id == Product.id)
-                .filter(StockLevel.quantity > 0)
-                .group_by(Product.id, Product.name, Product.purchase_price, Product.currency)
-                .all()
-            )
-            
-            for row in stock_summary:
-                qty = float(row.total_qty or 0)
-                price = float(row.purchase_price or 0)  # سعر التكلفة وليس سعر البيع
-                product_currency = row.currency
-                
-                # تحويل للشيقل - استخدام تاريخ اليوم دائماً
-                if product_currency and product_currency != 'ILS' and price > 0:
-                    try:
-                        rate = fx_rate(product_currency, 'ILS', datetime.utcnow(), raise_on_missing=False)
-                        if rate and rate > 0:
-                            price = float(price * float(rate))
-                    except Exception:
-                        pass
-                
-                total_stock_value += qty * price
-                total_stock_qty += int(qty)
-            
-            if total_stock_value > 0:
-                running_balance += total_stock_value
-                # استخدام التاريخ الأقدم أو اليوم
-                stock_date = from_date.strftime('%Y-%m-%d') if from_date else datetime.utcnow().strftime('%Y-%m-%d')
-                ledger_entries.append({
-                    "id": 0,
-                    "date": stock_date,
-                    "transaction_number": "STOCK-VALUE",
-                    "type": "opening",
-                    "type_ar": "قيمة المخزون",
-                    "description": f"قيمة المخزون الحالي ({total_stock_qty} قطعة من {len(stock_summary)} منتج)",
-                    "debit": total_stock_value,
-                    "credit": 0.0,
-                    "balance": running_balance,
-                    "entity_name": "—",
-                    "entity_type": ""
-                })
-        
-        # 1. المبيعات (Sales)
-        if not transaction_type or transaction_type == 'sale':
-            sales = LedgerQueryOptimizer.get_sales_optimized(from_date, to_date)
-            
-            for sale in sales:
-                customer_name = sale.customer.name if sale.customer else "عميل غير محدد"
-                debit = CurrencyConverter.convert_to_ils(
-                    float(sale.total_amount or 0),
-                    sale.currency or 'ILS',
-                    sale.sale_date,
-                    getattr(sale, 'fx_rate_used', None)
-                )
-                running_balance += debit
-                
-                ledger_entries.append({
-                    "id": sale.id,
-                    "date": sale.sale_date.strftime('%Y-%m-%d'),
-                    "transaction_number": f"SALE-{sale.id}",
-                    "type": "sale",
-                    "type_ar": "مبيعات",
-                    "description": f"فاتورة مبيعات - {customer_name}",
-                    "debit": debit,
-                    "credit": 0.0,
-                    "balance": running_balance,
-                    "entity_name": customer_name,
-                    "entity_type": "عميل"
-                })
+        # --- بداية منطق القيد المزدوج (Double Entry Journal) ---
+        # بدلاً من تجميع البيانات يدوياً من جداول المبيعات والمصاريف، نقوم بجلب القيود مباشرة من GLEntry
+        # هذا يضمن دقة محاسبية (Debit = Credit) وعدم ازدواجية، ويعكس دفتر اليومية العام.
 
-        if not transaction_type or transaction_type in ['sale_return', 'return']:
-            sale_returns_query = SaleReturn.query.filter(SaleReturn.status == 'CONFIRMED')
-            if from_date:
-                sale_returns_query = sale_returns_query.filter(SaleReturn.created_at >= from_date)
-            if to_date:
-                sale_returns_query = sale_returns_query.filter(SaleReturn.created_at <= to_date)
-            sale_returns = sale_returns_query.order_by(SaleReturn.created_at, SaleReturn.id).all()
-            
-            for sale_return in sale_returns:
-                amount = CurrencyConverter.convert_to_ils(
-                    float(sale_return.total_amount or 0),
-                    sale_return.currency or 'ILS',
-                    sale_return.created_at or datetime.utcnow(),
-                    getattr(sale_return, 'fx_rate_used', None)
-                )
-                if amount <= 0:
-                    continue
-                customer_name = sale_return.customer.name if sale_return.customer else "عميل غير محدد"
-                running_balance -= amount
-                
-                ledger_entries.append({
-                    "id": sale_return.id,
-                    "date": (sale_return.created_at or datetime.utcnow()).strftime('%Y-%m-%d'),
-                    "transaction_number": f"RET-{sale_return.id}",
-                    "type": "sale_return",
-                    "type_ar": "مرتجع مبيعات",
-                    "description": f"مرتجع مبيعات - {customer_name}",
-                    "debit": 0.0,
-                    "credit": amount,
-                    "balance": running_balance,
-                    "entity_name": customer_name,
-                    "entity_type": "عميل"
-                })
+        query = db.session.query(GLEntry, GLBatch, Account).join(GLBatch, GLEntry.batch_id == GLBatch.id).outerjoin(Account, GLEntry.account == Account.code)
         
-        # 2. المشتريات والنفقات (Expenses)
-        if not transaction_type or transaction_type in ['purchase', 'expense']:
-            expenses = LedgerQueryOptimizer.get_expenses_optimized(from_date, to_date)
+        if from_date:
+            query = query.filter(GLBatch.posted_at >= from_date)
+        if to_date:
+            query = query.filter(GLBatch.posted_at <= to_date)
             
-            for expense in expenses:
-                amount_ils = CurrencyConverter.convert_to_ils(
-                    float(expense.amount or 0),
-                    expense.currency or 'ILS',
-                    expense.date,
-                    getattr(expense, 'fx_rate_used', None)
-                )
-                
-                exp_type = expense.type.name if expense.type else "مصروف"
-                exp_type_code = None
-                if expense.type and hasattr(expense.type, 'code'):
-                    exp_type_code = (expense.type.code or '').strip().upper()
-                
-                is_supplier_service = (
-                    exp_type_code == "SUPPLIER_EXPENSE" or
-                    (expense.supplier_id and (getattr(expense, 'payee_type', '') or '').upper() == "SUPPLIER")
-                )
-                is_partner_service = (
-                    exp_type_code == "PARTNER_EXPENSE" or
-                    (expense.partner_id and (getattr(expense, 'payee_type', '') or '').upper() == "PARTNER")
-                )
-                
-                if is_supplier_service or is_partner_service:
-                    debit = amount_ils
-                    credit = 0.0
-                    running_balance += debit
-                else:
-                    debit = 0.0
-                    credit = amount_ils
-                    running_balance -= credit
-                
-                expense_entity_name = "غير محدد"
-                expense_entity_type = ""
-                if expense.customer:
-                    expense_entity_name = expense.customer.name
-                    expense_entity_type = "عميل"
-                elif expense.supplier:
-                    expense_entity_name = expense.supplier.name
-                    expense_entity_type = "مورد"
-                elif expense.partner:
-                    expense_entity_name = expense.partner.name
-                    expense_entity_type = "شريك"
-                elif expense.employee:
-                    expense_entity_name = expense.employee.name
-                    expense_entity_type = "موظف"
-                elif expense.paid_to:
-                    expense_entity_name = expense.paid_to
-                    expense_entity_type = "جهة"
-                elif expense.payee_name:
-                    expense_entity_name = expense.payee_name
-                    expense_entity_type = "جهة"
-                
-                try:
-                    linked_payments = Payment.query.filter(Payment.expense_id == expense.id).filter(Payment.status.in_(['COMPLETED','PENDING'])).order_by(Payment.payment_date, Payment.id).all()
-                except Exception:
-                    linked_payments = []
+        if transaction_type:
+            tt_upper = transaction_type.strip().upper()
+            if tt_upper == 'SALE':
+                query = query.filter(GLBatch.source_type == 'SALE')
+            elif tt_upper in ['SALE_RETURN', 'RETURN']:
+                query = query.filter(GLBatch.source_type == 'SALE_RETURN')
+            elif tt_upper in ['PURCHASE', 'EXPENSE']:
+                query = query.filter(GLBatch.source_type.in_(['EXPENSE', 'PURCHASE']))
+            elif tt_upper == 'PAYMENT':
+                 query = query.filter(GLBatch.source_type == 'PAYMENT')
+            elif tt_upper == 'OPENING':
+                 query = query.filter(GLBatch.purpose == 'OPENING_BALANCE')
+            elif tt_upper in ['MANUAL', 'JOURNAL']:
+                 query = query.filter(GLBatch.source_type == 'MANUAL')
+            elif tt_upper == 'SERVICE':
+                query = query.filter(GLBatch.source_type == 'SERVICE')
 
-                description = expense.description or f"مصروف - {exp_type}"
-                if linked_payments:
-                    methods = []
-                    refs = []
-                    checks_info = []
-                    for pmt in linked_payments:
-                        mv = getattr(pmt, 'method', 'cash')
-                        if hasattr(mv, 'value'):
-                            mv = mv.value
-                        mraw = str(mv or '').lower()
-                        method_ar = {
-                            'cash': 'نقداً',
-                            'card': 'بطاقة',
-                            'bank': 'تحويل بنكي',
-                            'online': 'إلكتروني',
-                            'cheque': 'شيك'
-                        }.get(mraw, mraw)
-                        methods.append(method_ar)
-                        refs.append(getattr(pmt, 'payment_number', None) or getattr(pmt, 'receipt_number', None) or f"PAY-{pmt.id}")
-                        if mraw == 'cheque':
-                            cn = getattr(pmt, 'check_number', None)
-                            cb = getattr(pmt, 'check_bank', None)
-                            cd = getattr(pmt, 'check_due_date', None)
-                            if cd:
-                                try:
-                                    cd_str = cd.strftime('%Y-%m-%d')
-                                except Exception:
-                                    cd_str = str(cd)
-                            else:
-                                cd_str = None
-                            parts = []
-                            if cn:
-                                parts.append(f"#{cn}")
-                            if cb:
-                                parts.append(cb)
-                            if cd_str:
-                                parts.append(f"استحقاق: {cd_str}")
-                            if parts:
-                                checks_info.append("شيك " + " - ".join(parts))
-                    mdisp = ", ".join(sorted(set([m for m in methods if m])))
-                    rdisp = ", ".join(sorted(set([r for r in refs if r])))
-                    cdisp = "; ".join(checks_info)
-                    parts = []
-                    if mdisp:
-                        parts.append(f"سداد: {mdisp}")
-                    if rdisp:
-                        parts.append(f"مراجع: {rdisp}")
-                    if cdisp:
-                        parts.append(cdisp)
-                    if parts:
-                        description = f"{description} — " + " | ".join(parts)
+        # ترتيب حسب التاريخ، ثم رقم القيد، ثم المدين أولاً (المتعارف عليه في اليومية)
+        entries = query.order_by(GLBatch.posted_at, GLBatch.id, desc(GLEntry.debit)).limit(5000).all()
+        
+        # قاموس لترجمة أنواع العمليات
+        type_map = {
+            'SALE': 'مبيعات',
+            'SALE_RETURN': 'مرتجع مبيعات',
+            'EXPENSE': 'مصروف',
+            'PURCHASE': 'مشتريات',
+            'PAYMENT': 'دفعة',
+            'MANUAL': 'قيد يدوي',
+            'OPENING_BALANCE': 'رصيد افتتاحي',
+            'SERVICE': 'صيانة',
+            'PREORDER': 'حجز مسبق',
+            'EXCHANGE': 'توريد/صرف'
+        }
 
-                ledger_entries.append({
-                    "id": expense.id,
-                    "date": expense.date.strftime('%Y-%m-%d'),
-                    "transaction_number": f"EXP-{expense.id}",
-                    "type": "expense",
-                    "type_ar": exp_type,
-                    "description": description,
-                    "debit": debit,
-                    "credit": credit,
-                    "balance": running_balance,
-                    "entity_name": expense_entity_name,
-                    "entity_type": expense_entity_type
-                })
-        
-        # 3. الدفعات (Payments)
-        if not transaction_type or transaction_type == 'payment':
-            payments = LedgerQueryOptimizer.get_payments_optimized(from_date, to_date)
+        for entry, batch, account in entries:
+            # استخراج اسم الجهة (عميل، مورد، الخ)
+            entity_name, entity_type_ar, entity_id, entity_type_code = SmartEntityExtractor.extract_from_batch(batch)
+            if not entity_name:
+                entity_name = "—"
             
-            for payment in payments:
-                if getattr(payment, 'expense_id', None):
-                    continue
-                payment_status = getattr(payment, 'status', 'COMPLETED')
-                
-                checks_related = LedgerQueryOptimizer.get_checks_for_payment(payment.id)
-                
-                splits = list(getattr(payment, 'splits', []) or [])
-                if splits:
-                    split_ids = [s.id for s in splits]
-                    split_checks = LedgerQueryOptimizer.get_checks_for_splits(split_ids)
-                    checks_related.extend(split_checks)
-                
-                has_returned_check = False
-                has_bounced_check = False
-                has_pending_check = False
-                check_statuses = []
-                
-                for check in checks_related:
-                    check_status = str(getattr(check, 'status', 'PENDING') or 'PENDING').upper()
-                    check_statuses.append(check_status)
-                    if check_status in ['RETURNED', 'BOUNCED']:
-                        has_returned_check = True
-                        if check_status == 'BOUNCED':
-                            has_bounced_check = True
-                    elif check_status == 'PENDING':
-                        has_pending_check = True
-                
-                if checks_related:
-                    is_bounced = has_returned_check or has_bounced_check
-                    is_pending = has_pending_check and not is_bounced
-                else:
-                    is_bounced = payment_status in ['FAILED']
-                    is_pending = payment_status == 'PENDING'
-                
-                amount = CurrencyConverter.convert_to_ils(
-                    float(payment.total_amount or 0),
-                    payment.currency or 'ILS',
-                    payment.payment_date,
-                    getattr(payment, 'fx_rate_used', None)
-                )
-                
-                # تحديد الاتجاه - الشيكات المرتدة تعكس القيد
-                if is_bounced:
-                    # الشيك المرتد = زي increase في الرصيد للمدين (نفس الفاتورة/البيع)
-                    # يعتمد على الاتجاه الأصلي
-                    if payment.direction == 'OUT':
-                        debit = amount  # عكس: كان دائن، صار مدين
-                        credit = 0.0
-                        running_balance += debit
-                    else:
-                        credit = amount  # عكس: كان مدين، صار دائن
-                        debit = 0.0
-                        running_balance -= credit
-                elif payment.direction == 'OUT':
-                    credit = amount
-                    debit = 0.0
-                    running_balance -= credit
-                else:
-                    debit = amount
-                    credit = 0.0
-                    running_balance += debit
-                
-                temp_batch = GLBatch(
-                    source_type='PAYMENT',
-                    source_id=payment.id,
-                    entity_type=payment.entity_type if hasattr(payment, 'entity_type') else None,
-                    entity_id=payment.customer_id or payment.supplier_id or payment.partner_id
-                )
-                entity_name, entity_type, _, _ = extract_entity_from_batch(temp_batch)
-                if payment.entity_type:
-                    et_raw = (payment.entity_type or '').upper()
-                    try:
-                        entity_enum = PaymentEntityType(et_raw)
-                    except Exception:
-                        entity_enum = None
-                    if entity_enum == PaymentEntityType.EXPENSE:
-                        if payment.customer_id:
-                            customer = db.session.get(Customer, payment.customer_id)
-                            if customer:
-                                entity_name = customer.name
-                                entity_type = 'عميل'
-                        elif payment.supplier_id:
-                            supplier = db.session.get(Supplier, payment.supplier_id)
-                            if supplier:
-                                entity_name = supplier.name
-                                entity_type = 'مورد'
-                        elif payment.partner_id:
-                            partner = db.session.get(Partner, payment.partner_id)
-                            if partner:
-                                entity_name = partner.name
-                                entity_type = 'شريك'
-                
-                # ✅ بناء الوصف مع تفاصيل الشيك
-                method_value = getattr(payment, 'method', 'cash')
-                if hasattr(method_value, 'value'):
-                    method_value = method_value.value
-                method_raw = str(method_value).lower()
-                
-                description_parts = []
-                if payment.entity_type and payment.entity_type.upper() == "EXPENSE":
-                    if payment.expense_id:
-                        expense = db.session.get(Expense, payment.expense_id)
-                        if expense:
-                            expense_info = f"مصروف #{expense.id}"
-                            if expense.description:
-                                expense_info += f" - {expense.description}"
-                            elif expense.type and expense.type.name:
-                                expense_info += f" - {expense.type.name}"
-                            
-                            if payment.reference and expense_info not in payment.reference:
-                                description_parts.append(f"{expense_info} | {payment.reference}")
-                            elif payment.reference:
-                                description_parts.append(payment.reference)
-                            else:
-                                description_parts.append(expense_info)
-                            
-                            if payment.notes and payment.notes not in (payment.reference or ""):
-                                description_parts.append(payment.notes)
-                        else:
-                            if payment.reference:
-                                description_parts.append(payment.reference)
-                            if payment.notes:
-                                description_parts.append(payment.notes)
-                    else:
-                        if payment.reference:
-                            description_parts.append(payment.reference)
-                        if payment.notes:
-                            description_parts.append(payment.notes)
-                else:
-                    description_parts.append(f"دفعة - {entity_name}")
-                
-                check_info = None
-                if checks_related:
-                    for check in checks_related:
-                        check_status = str(getattr(check, 'status', 'PENDING') or 'PENDING').upper()
-                        if check_status in ['RETURNED', 'BOUNCED', 'CASHED', 'RESUBMITTED', 'PENDING']:
-                            check_info = {
-                                'check_number': check.check_number,
-                                'check_bank': check.check_bank,
-                                'check_due_date': check.check_due_date,
-                                'status': check_status,
-                            }
-                            break
-                
-                if method_raw == 'cheque':
-                    display_check_number = check_info['check_number'] if check_info and check_info.get('check_number') else getattr(payment, 'check_number', None)
-                    display_check_bank = check_info['check_bank'] if check_info and check_info.get('check_bank') else getattr(payment, 'check_bank', None)
-                    display_check_due_date = check_info['check_due_date'] if check_info and check_info.get('check_due_date') else getattr(payment, 'check_due_date', None)
-                    display_check_status = check_info['status'] if check_info and check_info.get('status') else None
-                    
-                    if display_check_number:
-                        description_parts.append(f"شيك #{display_check_number}")
-                    else:
-                        description_parts.append("شيك")
-                    
-                    if display_check_bank:
-                        description_parts.append(f"- {display_check_bank}")
-                    
-                    if display_check_due_date:
-                        if isinstance(display_check_due_date, datetime):
-                            check_due_date_str = display_check_due_date.strftime('%Y-%m-%d')
-                        else:
-                            check_due_date_str = str(display_check_due_date)
-                        description_parts.append(f"استحقاق: {check_due_date_str}")
-                    
-                    if is_bounced:
-                        status_text = "❌ مرتد"
-                        if display_check_status == 'RETURNED':
-                            status_text = "❌ مرتد (مرتجع)"
-                        elif display_check_status == 'BOUNCED':
-                            status_text = "❌ مرتد (مرفوض)"
-                        description_parts.append(f"- {status_text}")
-                    elif is_pending:
-                        description_parts.append("- ⏳ معلق")
-                    elif display_check_status in ['CASHED', 'RESUBMITTED']:
-                        if display_check_status == 'CASHED':
-                            description_parts.append("- ✅ تم الصرف")
-                        elif display_check_status == 'RESUBMITTED':
-                            description_parts.append("- 🔄 أعيد للبنك")
-                else:
-                    # ✅ طريقة الدفع بالعربي
-                    method_arabic = {
-                        'cash': 'نقداً',
-                        'card': 'بطاقة',
-                        'bank': 'تحويل بنكي',
-                        'online': 'إلكتروني'
-                    }.get(method_raw, method_raw)
-                    description_parts.append(f"({method_arabic})")
-                
-                if payment.reference:
-                    description_parts.append(f"- {payment.reference}")
-                if getattr(payment, "notes", ""):
-                    description_parts.append(f"- {payment.notes}")
-                
-                linked_service_id = None
-                linked_service_number = None
-                linked_service_customer = None
-                linked_service_vehicle = None
-                linked_service_balance = None
-                
-                if getattr(payment, "service_id", None):
-                    linked_service_id = int(payment.service_id)
-                    service_obj = getattr(payment, "service", None)
-                    if service_obj is None:
-                        try:
-                            service_obj = db.session.get(ServiceRequest, linked_service_id)
-                        except Exception:
-                            service_obj = None
-                    if service_obj is not None:
-                        linked_service_number = service_obj.service_number or f"SRV-{service_obj.id}"
-                        linked_service_customer = getattr(getattr(service_obj, "customer", None), "name", None)
-                        linked_service_vehicle = service_obj.vehicle_model or service_obj.vehicle_vrn or getattr(getattr(service_obj, "vehicle_type", None), "name", None)
-                        try:
-                            balance_due_val = float(getattr(service_obj, "balance_due", None))
-                        except Exception:
-                            balance_due_val = None
-                        linked_service_balance = balance_due_val
-                        description_parts.append(f"- صيانة #{linked_service_number}")
-                        if linked_service_vehicle:
-                            description_parts.append(f"- المركبة: {linked_service_vehicle}")
-                        if linked_service_customer and linked_service_customer != entity_name:
-                            description_parts.append(f"- العميل: {linked_service_customer}")
-                
-                description = " ".join(description_parts)
-                
-                # ✅ تحديد نوع القيد حسب الحالة
-                if is_bounced:
-                    entry_type = "check_bounced"
-                    type_ar = "شيك مرتد"
-                elif is_pending and method_raw == 'cheque':
-                    entry_type = "check_pending"
-                    type_ar = "شيك معلق"
-                elif linked_service_id:
-                    entry_type = "service_payment"
-                    type_ar = "دفعة صيانة"
-                else:
-                    entry_type = "payment"
-                    type_ar = "دفعة"
-                
-                ledger_entries.append({
-                    "id": payment.id,
-                    "date": payment.payment_date.strftime('%Y-%m-%d'),
-                    "transaction_number": f"PAY-{payment.id}",
-                    "type": entry_type,
-                    "type_ar": type_ar,
-                    "description": description,
-                    "debit": debit,
-                    "credit": credit,
-                    "balance": running_balance,
-                    "entity_name": entity_name,
-                    "entity_type": entity_type,
-                    "payment_details": {
-                        "method": method_raw,
-                        "check_number": getattr(payment, 'check_number', None),
-                        "check_bank": getattr(payment, 'check_bank', None),
-                        "check_due_date": getattr(payment, 'check_due_date', None),
-                        "status": payment_status,
-                        "is_archived": getattr(payment, "is_archived", False),
-                        "service_id": linked_service_id,
-                        "service_number": linked_service_number,
-                        "service_vehicle": linked_service_vehicle,
-                        "service_customer": linked_service_customer,
-                        "service_balance_due": linked_service_balance
-                    }
-                })
-        
-        # 4. الصيانة (Service Requests)
-        ignore_tag = "[LEDGER_SKIP]"
-        ignore_tag_upper = ignore_tag.upper()
-        if not transaction_type or transaction_type in ['maintenance', 'service', 'payment']:
-            services = LedgerQueryOptimizer.get_services_optimized(from_date, to_date)
-            for service in services:
-                text_notes = " ".join(filter(None, [
-                    getattr(service, "description", None),
-                    getattr(service, "engineer_notes", None),
-                    getattr(service, "notes", None),
-                    getattr(service, "archive_reason", None),
-                ])).upper()
-                if ignore_tag_upper in text_notes:
-                    continue
-                
-                parts_total = float(service.parts_total or 0)
-                labor_total = float(service.labor_total or 0)
-                discount = float(service.discount_total or 0)
-                tax_rate = float(service.tax_rate or 0)
-                
-                service_total = float(service.total_amount or 0)
-                
-                if service_total <= 0:
-                    subtotal = parts_total + labor_total - discount
-                    if subtotal < 0:
-                        subtotal = 0
-                    tax_amount = subtotal * (tax_rate / 100.0)
-                    service_total = subtotal + tax_amount
-                
-                if service_total <= 0:
-                    continue
-                
-                service_currency = getattr(service, 'currency', 'ILS') or 'ILS'
-                debit = CurrencyConverter.convert_to_ils(
-                    service_total,
-                    service_currency,
-                    service.created_at or datetime.utcnow(),
-                    getattr(service, 'fx_rate_used', None)
-                )
-                
-                running_balance += debit
-                customer_name = service.customer.name if service.customer else "عميل غير محدد"
-                
-                description_parts = [f"صيانة - {customer_name}"]
-                description_parts.append(f"قطع: {parts_total:.2f} + عمالة: {labor_total:.2f}")
-                if discount > 0:
-                    description_parts.append(f"خصم: {discount:.2f}")
-                if tax_rate > 0:
-                    tax_amount_calc = (parts_total + labor_total - discount) * (tax_rate / 100.0)
-                    if tax_amount_calc > 0:
-                        description_parts.append(f"ضريبة ({tax_rate:.1f}%): {tax_amount_calc:.2f}")
-                description_parts.append(f"الإجمالي: {service_total:.2f}")
-                
-                ledger_entries.append({
-                    "id": service.id,
-                    "date": service.created_at.strftime('%Y-%m-%d') if service.created_at else datetime.utcnow().strftime('%Y-%m-%d'),
-                    "transaction_number": service.service_number or f"SRV-{service.id}",
-                    "type": "service",
-                    "type_ar": "صيانة",
-                    "description": " | ".join(description_parts),
-                    "debit": debit,
-                    "credit": 0.0,
-                    "balance": running_balance,
-                    "entity_name": customer_name,
-                    "entity_type": "عميل"
-                })
-        
-        # 5. الحجوزات المسبقة (Preorders)
-        if not transaction_type or transaction_type in ['preorder', 'prepaid']:
-            preorders_query = PreOrder.query.filter(
-                PreOrder.status != 'CANCELLED',
-                PreOrder.status != 'FULFILLED'
-            )
-            if from_date:
-                preorders_query = preorders_query.filter(PreOrder.preorder_date >= from_date)
-            if to_date:
-                preorders_query = preorders_query.filter(PreOrder.preorder_date <= to_date)
+            # بناء الوصف: البيان من القيد + اسم الحساب
+            desc_parts = []
+            if batch.memo:
+                desc_parts.append(batch.memo)
             
-            for preorder in preorders_query.order_by(PreOrder.preorder_date).all():
-                total_amount = CurrencyConverter.convert_to_ils(
-                    float(preorder.total_amount or 0),
-                    preorder.currency or 'ILS',
-                    preorder.preorder_date or preorder.created_at or datetime.utcnow(),
-                    getattr(preorder, 'fx_rate_used', None)
-                )
-                
-                if total_amount > 0:
-                    customer_name = preorder.customer.name if preorder.customer else "عميل غير محدد"
-                    product_name = preorder.product.name if preorder.product else "منتج"
-                    running_balance += total_amount
-                    
-                    ledger_entries.append({
-                        "id": preorder.id,
-                        "date": (preorder.preorder_date or preorder.created_at or datetime.utcnow()).strftime('%Y-%m-%d'),
-                        "transaction_number": preorder.reference or f"PRE-{preorder.id}",
-                        "type": "preorder",
-                        "type_ar": "حجز مسبق",
-                        "description": f"حجز مسبق - {customer_name} - {product_name}",
-                        "debit": total_amount,
-                        "credit": 0.0,
-                        "balance": running_balance,
-                        "entity_name": customer_name,
-                        "entity_type": "عميل"
-                    })
-                
-                prepaid_amount = CurrencyConverter.convert_to_ils(
-                    float(preorder.prepaid_amount or 0),
-                    preorder.currency or 'ILS',
-                    preorder.preorder_date or preorder.created_at or datetime.utcnow(),
-                    getattr(preorder, 'fx_rate_used', None)
-                )
-                
-                if prepaid_amount > 0:
-                    customer_name = preorder.customer.name if preorder.customer else "عميل غير محدد"
-                    running_balance -= prepaid_amount
-                    
-                    ledger_entries.append({
-                        "id": f"PREPAID-{preorder.id}",
-                        "date": (preorder.preorder_date or preorder.created_at or datetime.utcnow()).strftime('%Y-%m-%d'),
-                        "transaction_number": preorder.reference or f"PRE-{preorder.id}",
-                        "type": "prepaid",
-                        "type_ar": "عربون حجز",
-                        "description": f"عربون حجز مسبق - {customer_name}",
-                        "debit": 0.0,
-                        "credit": prepaid_amount,
-                        "balance": running_balance,
-                        "entity_name": customer_name,
-                        "entity_type": "عميل"
-                    })
-        
-        # 6. التوريدات (Exchange Transactions)
-        if not transaction_type or transaction_type in ['purchase', 'exchange']:
-            from models import ExchangeTransaction, Warehouse, WarehouseType
-            exchange_warehouses = db.session.query(Warehouse.id).filter(
-                Warehouse.warehouse_type == WarehouseType.EXCHANGE.value
-            ).all()
-            warehouse_ids = [w[0] for w in exchange_warehouses]
+            account_display = f"{entry.account}"
+            if account:
+                account_display = f"{account.name} ({entry.account})"
             
-            if warehouse_ids:
-                exchange_txs_query = ExchangeTransaction.query.filter(
-                    ExchangeTransaction.warehouse_id.in_(warehouse_ids)
-                )
-                if from_date:
-                    exchange_txs_query = exchange_txs_query.filter(ExchangeTransaction.created_at >= from_date)
-                if to_date:
-                    exchange_txs_query = exchange_txs_query.filter(ExchangeTransaction.created_at <= to_date)
-                
-                for tx in exchange_txs_query.order_by(ExchangeTransaction.created_at).all():
-                    qty = int(tx.quantity or 0)
-                    unit_cost = float(tx.unit_cost or 0)
-                    if unit_cost <= 0 and tx.product:
-                        unit_cost = float(tx.product.purchase_price or 0)
-                    
-                    amount = qty * unit_cost
-                    tx_currency = getattr(tx, 'currency', None) or (tx.product.currency if tx.product else 'ILS') or 'ILS'
-                    
-                    amount_ils = CurrencyConverter.convert_to_ils(
-                        amount,
-                        tx_currency,
-                        tx.created_at or datetime.utcnow(),
-                        getattr(tx, 'fx_rate_used', None)
-                    )
-                    
-                    if amount_ils <= 0:
-                        continue
-                    
-                    direction = (getattr(tx, 'direction', '') or '').upper()
-                    supplier_name = tx.supplier.name if tx.supplier else "مورد غير محدد"
-                    product_name = tx.product.name if tx.product else "منتج"
-                    
-                    if direction in {'IN', 'PURCHASE', 'CONSIGN_IN'}:
-                        running_balance -= amount_ils
-                        ledger_entries.append({
-                            "id": tx.id,
-                            "date": (tx.created_at or datetime.utcnow()).strftime('%Y-%m-%d'),
-                            "transaction_number": f"TX-{tx.id}",
-                            "type": "purchase",
-                            "type_ar": "توريد",
-                            "description": f"توريد {product_name} - {qty} قطعة - {supplier_name}",
-                            "debit": 0.0,
-                            "credit": amount_ils,
-                            "balance": running_balance,
-                            "entity_name": supplier_name,
-                            "entity_type": "مورد"
-                        })
-                    elif direction in {'OUT', 'RETURN', 'CONSIGN_OUT'}:
-                        running_balance += amount_ils
-                        ledger_entries.append({
-                            "id": tx.id,
-                            "date": (tx.created_at or datetime.utcnow()).strftime('%Y-%m-%d'),
-                            "transaction_number": f"TX-{tx.id}",
-                            "type": "return",
-                            "type_ar": "مرتجع",
-                            "description": f"مرتجع {product_name} - {qty} قطعة - {supplier_name}",
-                            "debit": amount_ils,
-                            "credit": 0.0,
-                            "balance": running_balance,
-                            "entity_name": supplier_name,
-                            "entity_type": "مورد"
-                        })
-        
-        # 7. القيود اليدوية (Manual Journal Entries)
-        if not transaction_type or transaction_type in ['manual', 'journal']:
-            manual_batches_query = GLBatch.query.filter(GLBatch.source_type == 'MANUAL')
-            if from_date:
-                manual_batches_query = manual_batches_query.filter(GLBatch.posted_at >= from_date)
-            if to_date:
-                manual_batches_query = manual_batches_query.filter(GLBatch.posted_at <= to_date)
+            # الوصف النهائي: الحساب | البيان
+            description = f"{account_display}"
+            if batch.memo:
+                 description += f" | {batch.memo}"
+
+            # نوع العملية بالعربي
+            source_type = (batch.source_type or '').upper()
+            type_ar = type_map.get(source_type, source_type)
+            if batch.purpose == 'OPENING_BALANCE':
+                type_ar = 'رصيد افتتاحي'
+
+            debit = float(entry.debit or 0)
+            credit = float(entry.credit or 0)
             
-            for batch in manual_batches_query.order_by(GLBatch.posted_at).all():
-                # 🧠 استخراج الجهة المرتبطة بذكاء
-                entity_name, entity_type_ar, entity_id_extracted, entity_type_code = extract_entity_from_batch(batch)
-                
-                # جلب القيود الفرعية لهذا القيد
-                entries = GLEntry.query.filter_by(batch_id=batch.id).all()
-                
-                for entry in entries:
-                    debit = float(entry.debit or 0)
-                    credit = float(entry.credit or 0)
-                    
-                    if debit > 0:
-                        running_balance += debit
-                    else:
-                        running_balance -= credit
-                    
-                    # جلب اسم الحساب
-                    account = Account.query.filter_by(code=entry.account).first()
-                    account_name = account.name if account else f"حساب {entry.account}"
-                    
-                    ledger_entries.append({
-                        "id": f"MANUAL-{batch.id}-{entry.id}",
-                        "date": batch.posted_at.strftime('%Y-%m-%d'),
-                        "transaction_number": f"MAN-{batch.id}",
-                        "type": "manual",
-                        "type_ar": "قيد يدوي",
-                        "description": f"{batch.memo} - {account_name}",
-                        "debit": debit,
-                        "credit": credit,
-                        "balance": running_balance,
-                        "entity_name": entity_name,  # ✅ استخدام الجهة المستخرجة بذكاء
-                        "entity_type": entity_type_ar,  # ✅ استخدام نوع الجهة بالعربي
-                        "manual_details": {
-                            "batch_id": batch.id,
-                            "account_code": entry.account,
-                            "account_name": account_name,
-                            "ref": entry.ref
-                        }
-                    })
+            # الرصيد المتراكم في العرض (الفرق بين المدين والدائن)
+            # في دفتر اليومية، الرصيد التراكمي للشركة ككل هو صفر دائماً (نظرياً)
+            # لكن سنعرض التراكمي للفترة المحددة
+            running_balance += (debit - credit)
+            
+            ledger_entries.append({
+                "id": entry.id,
+                "date": batch.posted_at.strftime('%Y-%m-%d'),
+                "transaction_number": (batch.code or f"BATCH-{batch.id}"),
+                "type": (batch.source_type or "").lower(),
+                "type_ar": type_ar,
+                "description": description,
+                "debit": debit,
+                "credit": credit,
+                "balance": running_balance, 
+                "entity_name": entity_name,
+                "entity_type": entity_type_ar or "",
+                "batch_id": batch.id,
+                "source_id": batch.source_id
+            })
+
+        # --- نهاية منطق القيد المزدوج ---
         
         # ترتيب حسب التاريخ
         sort = request.args.get('sort', 'date')
@@ -1845,6 +1127,7 @@ def get_receivables_detailed_summary():
                     "type_ar": "مورد",
                     "debit": total_payments,
                     "credit": total_purchases,
+                    "balance": float(total_purchases - total_payments),
                     "days_overdue": days_overdue,
                     "last_transaction": last_transaction_str
                 })
@@ -1947,6 +1230,7 @@ def get_receivables_detailed_summary():
                     "type_ar": "شريك",
                     "debit": total_in + total_expenses,
                     "credit": total_out,
+                    "balance": float(total_out - (total_in + total_expenses)),
                     "days_overdue": days_overdue,
                     "last_transaction": last_transaction_str
                 })
@@ -1980,210 +1264,98 @@ def get_receivables_summary():
         
         receivables = []
         
-        # 1. العملاء (Customers)
-        from models import fx_rate
+        # 1. العملاء (Customers) - من دفتر الأستاذ
+        cust_query = db.session.query(
+            GLBatch.entity_id,
+            func.sum(GLEntry.debit).label('debit'),
+            func.sum(GLEntry.credit).label('credit')
+        ).join(GLEntry, GLBatch.id == GLEntry.batch_id).filter(
+            GLBatch.entity_type == 'CUSTOMER',
+            GLEntry.account == '1100_AR'
+        )
         
-        customers = Customer.query.limit(10000).all()
-        for customer in customers:
-            # حساب المبيعات للعميل
-            sales_query = Sale.query.filter(
-                Sale.customer_id == customer.id,
-                Sale.status == 'CONFIRMED'
-            )
-            if from_date:
-                sales_query = sales_query.filter(Sale.sale_date >= from_date)
-            if to_date:
-                sales_query = sales_query.filter(Sale.sale_date <= to_date)
+        if from_date:
+            cust_query = cust_query.filter(GLBatch.posted_at >= from_date)
+        if to_date:
+            cust_query = cust_query.filter(GLBatch.posted_at <= to_date)
             
-            total_sales = 0.0
-            for sale in sales_query.limit(10000).all():
-                amount = float(sale.total_amount or 0)
-                if sale.currency and sale.currency != 'ILS':
-                    try:
-                        rate = fx_rate(sale.currency, 'ILS', sale.sale_date, raise_on_missing=False)
-                        if rate > 0:
-                            amount = float(amount * float(rate))
-                        else:
-                            current_app.logger.warning(f"⚠️ سعر صرف مفقود في ملخص الذمم: {sale.currency}/ILS للبيع #{sale.id}")
-                    except Exception as e:
-                        current_app.logger.error(f"❌ خطأ في تحويل العملة في ملخص الذمم للبيع #{sale.id}: {str(e)}")
-                total_sales += amount
-            
-            # حساب الدفعات من العميل
-            payments_query = Payment.query.filter(
-                Payment.customer_id == customer.id,
-                Payment.direction == 'IN',
-                Payment.status == 'COMPLETED'  # ✅ فلترة الدفعات المكتملة فقط
-            )
-            if from_date:
-                payments_query = payments_query.filter(Payment.payment_date >= from_date)
-            if to_date:
-                payments_query = payments_query.filter(Payment.payment_date <= to_date)
-            
-            total_payments = 0.0
-            for payment in payments_query.limit(10000).all():
-                amount = float(payment.total_amount or 0)
-                if payment.currency and payment.currency != 'ILS':
-                    try:
-                        rate = fx_rate(payment.currency, 'ILS', payment.payment_date, raise_on_missing=False)
-                        if rate > 0:
-                            amount = float(amount * float(rate))
-                        else:
-                            current_app.logger.warning(f"⚠️ سعر صرف مفقود في ملخص الذمم: {payment.currency}/ILS للدفعة #{payment.id}")
-                    except Exception as e:
-                        current_app.logger.error(f"❌ خطأ في تحويل العملة في ملخص الذمم للدفعة #{payment.id}: {str(e)}")
-                total_payments += amount
-            
-            if total_sales > 0 or total_payments > 0:
-                receivables.append({
-                    "name": customer.name,
-                    "type": "customer",
-                    "type_ar": "عميل",
-                    "debit": total_sales,
-                    "credit": total_payments
-                })
+        cust_rows = cust_query.group_by(GLBatch.entity_id).all()
         
-        # 2. الموردين (Suppliers)
-        suppliers = Supplier.query.limit(10000).all()
-        for supplier in suppliers:
-            # حساب المشتريات من المورد (النفقات)
-            expenses_query = Expense.query.filter(
-                Expense.payee_type == 'SUPPLIER',
-                Expense.payee_entity_id == supplier.id
-            )
-            if from_date:
-                expenses_query = expenses_query.filter(Expense.date >= from_date)
-            if to_date:
-                expenses_query = expenses_query.filter(Expense.date <= to_date)
+        if cust_rows:
+            c_ids = [r.entity_id for r in cust_rows]
+            c_map = {c.id: c.name for c in Customer.query.filter(Customer.id.in_(c_ids)).all()}
             
-            total_purchases = 0.0
-            for expense in expenses_query.limit(10000).all():
-                amount = float(expense.amount or 0)
-                if expense.currency and expense.currency != 'ILS':
-                    try:
-                        rate = fx_rate(expense.currency, 'ILS', expense.date, raise_on_missing=False)
-                        if rate > 0:
-                            amount = float(amount * float(rate))
-                        else:
-                            current_app.logger.warning(f"⚠️ سعر صرف مفقود في ملخص الذمم (موردين): {expense.currency}/ILS للمصروف #{expense.id}")
-                    except Exception as e:
-                        current_app.logger.error(f"❌ خطأ في تحويل العملة في ملخص الذمم (موردين) للمصروف #{expense.id}: {str(e)}")
-                total_purchases += amount
-            
-            # حساب الدفعات للمورد
-            payments_query = Payment.query.filter(
-                Payment.supplier_id == supplier.id,
-                Payment.direction == 'OUT',
-                Payment.status == 'COMPLETED'
-            )
-            if from_date:
-                payments_query = payments_query.filter(Payment.payment_date >= from_date)
-            if to_date:
-                payments_query = payments_query.filter(Payment.payment_date <= to_date)
-            
-            total_payments = 0.0
-            for payment in payments_query.limit(10000).all():
-                amount = float(payment.total_amount or 0)
-                if payment.currency and payment.currency != 'ILS':
-                    try:
-                        rate = fx_rate(payment.currency, 'ILS', payment.payment_date, raise_on_missing=False)
-                        if rate > 0:
-                            amount = float(amount * float(rate))
-                        else:
-                            current_app.logger.warning(f"⚠️ سعر صرف مفقود في ملخص الذمم (موردين): {payment.currency}/ILS للدفعة #{payment.id}")
-                    except Exception as e:
-                        current_app.logger.error(f"❌ خطأ في تحويل العملة في ملخص الذمم (موردين) للدفعة #{payment.id}: {str(e)}")
-                total_payments += amount
-            
-            if total_purchases > 0 or total_payments > 0:
-                receivables.append({
-                    "name": supplier.name,
-                    "type": "supplier",
-                    "type_ar": "مورد",
-                    "debit": total_payments,
-                    "credit": total_purchases
-                })
+            for r in cust_rows:
+                if (r.debit or 0) > 0 or (r.credit or 0) > 0:
+                    receivables.append({
+                        "name": c_map.get(r.entity_id, f"Client #{r.entity_id}"),
+                        "type": "customer",
+                        "type_ar": "عميل",
+                        "debit": float(r.debit or 0),
+                        "credit": float(r.credit or 0)
+                    })
+
+        # 2. الموردين (Suppliers) - من دفتر الأستاذ
+        supp_query = db.session.query(
+            GLBatch.entity_id,
+            func.sum(GLEntry.debit).label('debit'),
+            func.sum(GLEntry.credit).label('credit')
+        ).join(GLEntry, GLBatch.id == GLEntry.batch_id).filter(
+            GLBatch.entity_type == 'SUPPLIER',
+            GLEntry.account == '2000_AP'
+        )
         
-        # 3. الشركاء (Partners)
-        partners = Partner.query.limit(10000).all()
-        for partner in partners:
-            # حساب النفقات المرتبطة بالشريك
-            expenses_query = Expense.query.filter(
-                Expense.payee_type == 'PARTNER',
-                Expense.payee_entity_id == partner.id
-            )
-            if from_date:
-                expenses_query = expenses_query.filter(Expense.date >= from_date)
-            if to_date:
-                expenses_query = expenses_query.filter(Expense.date <= to_date)
+        if from_date:
+            supp_query = supp_query.filter(GLBatch.posted_at >= from_date)
+        if to_date:
+            supp_query = supp_query.filter(GLBatch.posted_at <= to_date)
             
-            total_expenses = 0.0
-            for expense in expenses_query.limit(10000).all():
-                amount = float(expense.amount or 0)
-                if expense.currency and expense.currency != 'ILS':
-                    try:
-                        rate = fx_rate(expense.currency, 'ILS', expense.date, raise_on_missing=False)
-                        if rate > 0:
-                            amount = float(amount * float(rate))
-                        else:
-                            current_app.logger.warning(f"⚠️ سعر صرف مفقود في ملخص الذمم (شركاء): {expense.currency}/ILS للمصروف #{expense.id}")
-                    except Exception as e:
-                        current_app.logger.error(f"❌ خطأ في تحويل العملة في ملخص الذمم (شركاء) للمصروف #{expense.id}: {str(e)}")
-                total_expenses += amount
+        supp_rows = supp_query.group_by(GLBatch.entity_id).all()
+        
+        if supp_rows:
+            s_ids = [r.entity_id for r in supp_rows]
+            s_map = {s.id: s.name for s in Supplier.query.filter(Supplier.id.in_(s_ids)).all()}
             
-            # حساب الدفعات من/إلى الشريك
-            payments_in_query = Payment.query.filter(
-                Payment.partner_id == partner.id,
-                Payment.direction == 'IN'
-            )
-            payments_out_query = Payment.query.filter(
-                Payment.partner_id == partner.id,
-                Payment.direction == 'OUT'
-            )
+            for r in supp_rows:
+                if (r.debit or 0) > 0 or (r.credit or 0) > 0:
+                    receivables.append({
+                        "name": s_map.get(r.entity_id, f"Supplier #{r.entity_id}"),
+                        "type": "supplier",
+                        "type_ar": "مورد",
+                        "debit": float(r.debit or 0),
+                        "credit": float(r.credit or 0)
+                    })
+        
+        # 3. الشركاء (Partners) - من دفتر الأستاذ
+        partner_query = db.session.query(
+            GLBatch.entity_id,
+            func.sum(GLEntry.debit).label('debit'),
+            func.sum(GLEntry.credit).label('credit')
+        ).join(GLEntry, GLBatch.id == GLEntry.batch_id).filter(
+            GLBatch.entity_type == 'PARTNER',
+            GLEntry.account == '2000_AP'
+        )
+        
+        if from_date:
+            partner_query = partner_query.filter(GLBatch.posted_at >= from_date)
+        if to_date:
+            partner_query = partner_query.filter(GLBatch.posted_at <= to_date)
+        
+        partner_rows = partner_query.group_by(GLBatch.entity_id).all()
+        
+        if partner_rows:
+            p_ids = [r.entity_id for r in partner_rows]
+            p_map = {p.id: p.name for p in Partner.query.filter(Partner.id.in_(p_ids)).all()}
             
-            if from_date:
-                payments_in_query = payments_in_query.filter(Payment.payment_date >= from_date)
-                payments_out_query = payments_out_query.filter(Payment.payment_date >= from_date)
-            if to_date:
-                payments_in_query = payments_in_query.filter(Payment.payment_date <= to_date)
-                payments_out_query = payments_out_query.filter(Payment.payment_date <= to_date)
-            
-            total_in = 0.0
-            for payment in payments_in_query.all():
-                amount = float(payment.total_amount or 0)
-                if payment.currency and payment.currency != 'ILS':
-                    try:
-                        rate = fx_rate(payment.currency, 'ILS', payment.payment_date, raise_on_missing=False)
-                        if rate > 0:
-                            amount = float(amount * float(rate))
-                        else:
-                            current_app.logger.warning(f"⚠️ سعر صرف مفقود في ملخص الذمم (شركاء): {payment.currency}/ILS للدفعة #{payment.id}")
-                    except Exception as e:
-                        current_app.logger.error(f"❌ خطأ في تحويل العملة في ملخص الذمم (شركاء) للدفعة #{payment.id}: {str(e)}")
-                total_in += amount
-            
-            total_out = 0.0
-            for payment in payments_out_query.all():
-                amount = float(payment.total_amount or 0)
-                if payment.currency and payment.currency != 'ILS':
-                    try:
-                        rate = fx_rate(payment.currency, 'ILS', payment.payment_date, raise_on_missing=False)
-                        if rate > 0:
-                            amount = float(amount * float(rate))
-                        else:
-                            current_app.logger.warning(f"⚠️ سعر صرف مفقود في ملخص الذمم (شركاء): {payment.currency}/ILS للدفعة #{payment.id}")
-                    except Exception as e:
-                        current_app.logger.error(f"❌ خطأ في تحويل العملة في ملخص الذمم (شركاء) للدفعة #{payment.id}: {str(e)}")
-                total_out += amount
-            
-            if total_in > 0 or total_out > 0 or total_expenses > 0:
-                receivables.append({
-                    "name": partner.name,
-                    "type": "partner",
-                    "type_ar": "شريك",
-                    "debit": total_in + total_expenses,
-                    "credit": total_out
-                })
+            for r in partner_rows:
+                if (r.debit or 0) > 0 or (r.credit or 0) > 0:
+                    receivables.append({
+                        "name": p_map.get(r.entity_id, f"Partner #{r.entity_id}"),
+                        "type": "partner",
+                        "type_ar": "شريك",
+                        "debit": float(r.debit or 0),
+                        "credit": float(r.credit or 0)
+                    })
         
         return jsonify(receivables)
         

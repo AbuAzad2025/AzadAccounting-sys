@@ -19,13 +19,11 @@ depends_on = None
 def upgrade():
     bind = op.get_bind()
     inspector = inspect(bind)
-    is_sqlite = bind.dialect.name == "sqlite"
-    
-    _optimize_service_indexes(bind, inspector, is_sqlite)
-    _optimize_ledger_indexes(bind, inspector, is_sqlite)
+    _optimize_service_indexes(bind, inspector)
+    _optimize_ledger_indexes(bind, inspector)
 
 
-def _optimize_service_indexes(connection, inspector, is_sqlite):
+def _optimize_service_indexes(connection, inspector):
     try:
         existing_indexes = {idx["name"] for idx in inspector.get_indexes("service_requests")}
     except Exception:
@@ -72,26 +70,20 @@ def _optimize_service_indexes(connection, inspector, is_sqlite):
     
     service_indexes.sort(key=lambda x: x["priority"])
     
-    if is_sqlite:
-        for idx_info in service_indexes:
-            if idx_info["name"] not in existing_indexes:
-                columns_str = ", ".join(idx_info["columns"])
-                op.execute(f'CREATE INDEX IF NOT EXISTS {idx_info["name"]} ON service_requests ({columns_str})')
-    else:
-        for idx_info in service_indexes:
-            if idx_info["name"] not in existing_indexes:
-                try:
-                    op.create_index(
-                        idx_info["name"],
-                        "service_requests",
-                        idx_info["columns"],
-                        unique=False
-                    )
-                except Exception:
-                    pass
+    for idx_info in service_indexes:
+        if idx_info["name"] not in existing_indexes:
+            try:
+                op.create_index(
+                    idx_info["name"],
+                    "service_requests",
+                    idx_info["columns"],
+                    unique=False
+                )
+            except Exception:
+                pass
 
 
-def _optimize_ledger_indexes(connection, inspector, is_sqlite):
+def _optimize_ledger_indexes(connection, inspector):
     try:
         existing_batch_indexes = {idx["name"] for idx in inspector.get_indexes("gl_batches")}
     except Exception:
@@ -126,23 +118,17 @@ def _optimize_ledger_indexes(connection, inspector, is_sqlite):
     
     batch_indexes.sort(key=lambda x: x["priority"])
     
-    if is_sqlite:
-        for idx_info in batch_indexes:
-            if idx_info["name"] not in existing_batch_indexes:
-                columns_str = ", ".join(idx_info["columns"])
-                op.execute(f'CREATE INDEX IF NOT EXISTS {idx_info["name"]} ON gl_batches ({columns_str})')
-    else:
-        for idx_info in batch_indexes:
-            if idx_info["name"] not in existing_batch_indexes:
-                try:
-                    op.create_index(
-                        idx_info["name"],
-                        "gl_batches",
-                        idx_info["columns"],
-                        unique=False
-                    )
-                except Exception:
-                    pass
+    for idx_info in batch_indexes:
+        if idx_info["name"] not in existing_batch_indexes:
+            try:
+                op.create_index(
+                    idx_info["name"],
+                    "gl_batches",
+                    idx_info["columns"],
+                    unique=False
+                )
+            except Exception:
+                pass
     
     try:
         existing_entry_indexes = {idx["name"] for idx in inspector.get_indexes("gl_entries")}
@@ -166,23 +152,17 @@ def _optimize_ledger_indexes(connection, inspector, is_sqlite):
     
     entry_indexes.sort(key=lambda x: x["priority"])
     
-    if is_sqlite:
-        for idx_info in entry_indexes:
-            if idx_info["name"] not in existing_entry_indexes:
-                columns_str = ", ".join(idx_info["columns"])
-                op.execute(f'CREATE INDEX IF NOT EXISTS {idx_info["name"]} ON gl_entries ({columns_str})')
-    else:
-        for idx_info in entry_indexes:
-            if idx_info["name"] not in existing_entry_indexes:
-                try:
-                    op.create_index(
-                        idx_info["name"],
-                        "gl_entries",
-                        idx_info["columns"],
-                        unique=False
-                    )
-                except Exception:
-                    pass
+    for idx_info in entry_indexes:
+        if idx_info["name"] not in existing_entry_indexes:
+            try:
+                op.create_index(
+                    idx_info["name"],
+                    "gl_entries",
+                    idx_info["columns"],
+                    unique=False
+                )
+            except Exception:
+                pass
     
     try:
         connection.execute(sa_text("ANALYZE service_requests"))
@@ -199,17 +179,9 @@ def _optimize_ledger_indexes(connection, inspector, is_sqlite):
     except Exception:
         pass
     
-    # دمج WAL في الملف الرئيسي بعد إضافة الفهارس
-    try:
-        connection.execute(sa_text("PRAGMA wal_checkpoint(TRUNCATE)"))
-    except Exception:
-        pass
-
-
 def downgrade():
     bind = op.get_bind()
     inspector = inspect(bind)
-    is_sqlite = bind.dialect.name == "sqlite"
     
     service_indexes_to_drop = [
         "ix_service_requests_customer_id_status_received_at",
@@ -232,39 +204,20 @@ def downgrade():
         "ix_gl_entries_batch_id_account"
     ]
     
-    if is_sqlite:
-        for idx_name in service_indexes_to_drop:
-            try:
-                op.execute(f'DROP INDEX IF EXISTS {idx_name}')
-            except Exception:
-                pass
-        
-        for idx_name in batch_indexes_to_drop:
-            try:
-                op.execute(f'DROP INDEX IF EXISTS {idx_name}')
-            except Exception:
-                pass
-        
-        for idx_name in entry_indexes_to_drop:
-            try:
-                op.execute(f'DROP INDEX IF EXISTS {idx_name}')
-            except Exception:
-                pass
-    else:
-        for idx_name in service_indexes_to_drop:
-            try:
-                op.drop_index(idx_name, table_name="service_requests")
-            except Exception:
-                pass
-        
-        for idx_name in batch_indexes_to_drop:
-            try:
-                op.drop_index(idx_name, table_name="gl_batches")
-            except Exception:
-                pass
-        
-        for idx_name in entry_indexes_to_drop:
-            try:
-                op.drop_index(idx_name, table_name="gl_entries")
-            except Exception:
-                pass
+    for idx_name in service_indexes_to_drop:
+        try:
+            op.drop_index(idx_name, table_name="service_requests")
+        except Exception:
+            pass
+    
+    for idx_name in batch_indexes_to_drop:
+        try:
+            op.drop_index(idx_name, table_name="gl_batches")
+        except Exception:
+            pass
+    
+    for idx_name in entry_indexes_to_drop:
+        try:
+            op.drop_index(idx_name, table_name="gl_entries")
+        except Exception:
+            pass

@@ -154,7 +154,7 @@
         
         <h6 class="mt-3 mb-2"><strong>الوصول للوحدة السرية:</strong></h6>
         <ol>
-          <li>تأكد أنك مسجل دخول بحساب <strong>Owner</strong></li>
+          <li>تأكد أنك مسجل دخول بحساب <strong>Admin</strong> يملك صلاحية الوصول</li>
           <li>ستجد في القائمة الجانبية: <span class="badge bg-warning">👑 اللوحة السرية</span></li>
           <li>أو اذهب مباشرة إلى: <code>/security/</code></li>
         </ol>
@@ -438,12 +438,11 @@
             </h2>
             <div id="faq2" class="accordion-collapse collapse" data-parent="#faqAccordion">
               <div class="accordion-body">
-                <strong>السبب:</strong> يظهر فقط للمستخدمين بدور <code>Owner</code><br>
+                <strong>السبب:</strong> يظهر فقط لمن لديهم صلاحية <code>access_owner_dashboard</code><br>
                 <strong>الحل:</strong>
                 <ol>
-                  <li>تحقق من دورك في صفحة المستخدمين</li>
-                  <li>يجب أن يكون Role = <code>Owner</code> (بالضبط)</li>
-                  <li>أو استخدم الأمر: <code>flask user-assign-role your_username Owner</code></li>
+                  <li>تحقق من صلاحياتك في صفحة المستخدمين</li>
+                  <li>يجب أن تكون لديك صلاحية <code>access_owner_dashboard</code></li>
                 </ol>
               </div>
             </div>
@@ -454,22 +453,22 @@
             <h2 class="accordion-header">
               <button class="accordion-button collapsed" type="button" data-toggle="collapse" data-target="#faq3">
                 <i class="fas fa-question-circle text-primary ml-2"></i>
-                ما الفرق بين الوحدة السرية والـ Super Admin؟
+                ما الفرق بين اللوحة السرية ومدير النظام؟
               </button>
             </h2>
             <div id="faq3" class="accordion-collapse collapse" data-parent="#faqAccordion">
               <div class="accordion-body">
                 <table class="table table-sm">
                   <tr>
-                    <th>الميزة</th>
-                    <th>Super Admin</th>
-                    <th>Owner (الوحدة السرية)</th>
-                  </tr>
-                  <tr>
-                    <td>إدارة المستخدمين</td>
-                    <td>✅</td>
-                    <td>✅ + انتحال شخصية</td>
-                  </tr>
+            <th>الميزة</th>
+            <th>Admin (صلاحيات واسعة)</th>
+            <th>Owner (الوحدة السرية)</th>
+          </tr>
+          <tr>
+            <td>إدارة المستخدمين</td>
+            <td>✅</td>
+            <td>✅ + انتحال شخصية</td>
+          </tr>
                   <tr>
                     <td>قاعدة البيانات</td>
                     <td>❌</td>
@@ -542,7 +541,7 @@
             <h6><i class="fas fa-ban text-danger"></i> المشكلة: لا أستطيع الوصول</h6>
             <p><strong>الحل:</strong></p>
             <ul>
-              <li>تأكد أنك Owner (ليس Super Admin)</li>
+              <li>تأكد أنك تملك صلاحية الوصول (PBAC)</li>
               <li>شغّل: <code>flask user-assign-role your_username Owner</code></li>
               <li>سجّل خروج ودخول مرة أخرى</li>
             </ul>
@@ -611,7 +610,7 @@
         <h6><i class="fas fa-headset"></i> هل تحتاج مساعدة إضافية؟</h6>
         <p class="mb-0">
           للدعم الفني، تواصل مع: 
-          <a href="mailto:support@example.com">support@example.com</a>
+          <a href="mailto:rafideen.ahmadghannam@gmail.com">rafideen.ahmadghannam@gmail.com</a>
         </p>
       </div>
       

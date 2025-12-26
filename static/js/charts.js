@@ -1,4 +1,7 @@
 (function () {
+  if (window.__CHARTS_INIT__) return;
+  window.__CHARTS_INIT__ = true;
+
   'use strict';
 
   let chartsInitialized = false;

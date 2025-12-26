@@ -1,3 +1,7 @@
+(function() {
+  if (window.__AUTH_INIT__) return;
+  window.__AUTH_INIT__ = true;
+
 document.addEventListener('DOMContentLoaded', function () {
   const btn = document.querySelector('.toggle-pass');
   const input = document.getElementById('login-password');
@@ -24,3 +28,4 @@ document.addEventListener('DOMContentLoaded', function () {
     }, 100);
   }
 });
+})();

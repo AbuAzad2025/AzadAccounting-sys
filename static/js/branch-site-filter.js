@@ -1,4 +1,7 @@
 (function() {
+  if (window.__BRANCH_SITE_FILTER_INIT__) return;
+  window.__BRANCH_SITE_FILTER_INIT__ = true;
+
   'use strict';
 
   document.addEventListener('DOMContentLoaded', function() {

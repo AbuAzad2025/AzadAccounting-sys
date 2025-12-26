@@ -7,7 +7,6 @@ Create Date: 2025-01-03
 """
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects import sqlite
 
 revision = '20250103_supplier_hybrid'
 down_revision = '6ba7684adf28'

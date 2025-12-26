@@ -166,8 +166,8 @@
       </a>
     </li>
     <li class="nav-item">
-      <a class="nav-link" id="convert-tab" data-toggle="tab" href="#convert" role="tab">
-        <i class="fas fa-exchange-alt"></i> تحويل قاعدة البيانات
+      <a class="nav-link" id="json-tab" data-toggle="tab" href="#json" role="tab">
+        <i class="fas fa-file-code"></i> نسخ JSON (نقل/استعادة)
       </a>
     </li>
   </ul>
@@ -349,136 +349,77 @@
     </div>
 
     <!-- ============================================ -->
-    <!-- TAB 3: تحويل قاعدة البيانات -->
+    <!-- TAB 3: نسخ JSON -->
     <!-- ============================================ -->
-    <div class="tab-pane fade" id="convert" role="tabpanel">
-      
-      <div class="alert alert-danger border-0 shadow-sm">
-        <i class="fas fa-exclamation-triangle"></i> <strong>تحذير:</strong> تحويل قاعدة البيانات عملية حساسة! سيتم حفظ نسخة احتياطية تلقائياً قبل التحويل.
-      </div>
+    <div class="tab-pane fade" id="json" role="tabpanel">
+      <div class="card shadow-lg border-0">
+        <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+          <h5 class="mb-0"><i class="fas fa-file-code"></i> نسخ احتياطية JSON (للنقل والاستعادة)</h5>
+          <span class="badge bg-light text-dark">{{ json_backups|length }}</span>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> هذه النسخ مفيدة لنقل البيانات بين قواعد بيانات مختلفة (مثلاً من SQLite إلى PostgreSQL) أو لاستعادة البيانات بدقة عالية.
+            </div>
 
-      <!-- قاعدة البيانات الحالية -->
-      <div class="row mb-4">
-        <div class="col-md-12">
-          <div class="card bg-light shadow-sm">
-            <div class="card-body">
-              <h6 class="fw-bold mb-3">قاعدة البيانات الحالية:</h6>
-              <div class="d-flex align-items-center gap-3">
-                <div class="p-3 rounded bg-success bg-opacity-10">
-                  <i class="fas fa-database fa-3x text-success"></i>
-                </div>
-                <div>
-                  <h4 class="mb-0">{{ current_db_type }}</h4>
-                  <small class="text-muted">النوع الحالي</small>
-                </div>
-              </div>
+            {% if json_backups %}
+            <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-dark">
+                <tr>
+                    <th>اسم الملف</th>
+                    <th>التاريخ</th>
+                    <th>الحجم</th>
+                    <th>العمر (ساعات)</th>
+                    <th class="text-center">إجراءات</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for backup in json_backups %}
+                <tr>
+                    <td>
+                    <i class="fas fa-file-code text-warning me-2"></i>
+                    <strong>{{ backup.name }}</strong>
+                    </td>
+                    <td>
+                    <div>{{ backup.date }}</div>
+                    <small class="text-muted">{{ backup.timestamp }}</small>
+                    </td>
+                    <td><span class="badge bg-secondary">{{ backup.size }}</span></td>
+                    <td>{{ backup.age_hours }}</td>
+                    <td class="text-center">
+                    <div class="d-flex justify-content-center gap-2">
+                        <!-- تحميل -->
+                        <a href="{{ url_for('advanced.download_backup', filename=backup.name) }}" class="btn btn-primary btn-sm" title="تحميل">
+                        <i class="fas fa-download"></i>
+                        </a>
+                        
+                        <!-- استعادة -->
+                        <form method="POST" action="{{ url_for('advanced.restore_json_backup', filename=backup.name) }}" class="d-inline" onsubmit="return confirm('⚠️ تحذير: استعادة البيانات ستقوم بمسح البيانات الحالية واستبدالها بالبيانات الموجودة في الملف.\n\nهل أنت متأكد تماماً؟');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <div class="input-group input-group-sm" style="width: auto;">
+                            <input type="text" name="confirm_token" class="form-control form-control-sm" placeholder="اكتب {{ backup.name }}" required style="width: 150px;">
+                            <button type="submit" class="btn btn-warning btn-sm text-dark fw-bold">
+                                <i class="fas fa-recycle"></i> استعادة
+                            </button>
+                        </div>
+                        </form>
+                    </div>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
             </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- اختيار نوع قاعدة البيانات المستهدفة -->
-      <div class="row g-3 mb-4">
-        <div class="col-md-3">
-          <div class="card h-100 text-center db-card" onclick="selectDB('sqlite')">
-            <div class="card-body">
-              <i class="fas fa-database fa-3x text-primary mb-3"></i>
-              <h6>SQLite</h6>
-              <small class="text-muted">ملف محلي - سريع</small>
+            {% else %}
+            <div class="alert alert-warning text-center">
+            <i class="fas fa-exclamation-triangle"></i> لا توجد نسخ JSON حالياً
             </div>
-          </div>
-        </div>
-        <div class="col-md-3">
-          <div class="card h-100 text-center db-card" onclick="selectDB('postgresql')">
-            <div class="card-body">
-              <i class="fas fa-server fa-3x text-info mb-3"></i>
-              <h6>PostgreSQL</h6>
-              <small class="text-muted">قوي - احترافي</small>
-            </div>
-          </div>
-        </div>
-        <div class="col-md-3">
-          <div class="card h-100 text-center db-card" onclick="selectDB('mysql')">
-            <div class="card-body">
-              <i class="fas fa-database fa-3x text-warning mb-3"></i>
-              <h6>MySQL</h6>
-              <small class="text-muted">شائع - موثوق</small>
-            </div>
-          </div>
-        </div>
-        <div class="col-md-3">
-          <div class="card h-100 text-center db-card" onclick="selectDB('mssql')">
-            <div class="card-body">
-              <i class="fas fa-server fa-3x text-danger mb-3"></i>
-              <h6>SQL Server</h6>
-              <small class="text-muted">Microsoft</small>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- نموذج التحويل -->
-      <div class="row">
-        <div class="col-md-10 mx-auto">
-          <div class="card shadow-lg">
-            <div class="card-header bg-primary text-white">
-              <h5 class="mb-0"><i class="fas fa-exchange-alt"></i> تحويل قاعدة البيانات</h5>
-            </div>
-            <div class="card-body">
-              <form method="POST" action="{{ url_for('advanced.backup_manager') }}" id="convertForm">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <input type="hidden" name="action" value="convert_database">
-                <input type="hidden" name="target_db" id="target_db" value="">
-                
-                <div class="mb-4">
-                  <label class="form-label fw-bold">نوع قاعدة البيانات المستهدفة</label>
-                  <select class="custom-select custom-select-lg" id="db_type_select" onchange="updateConnectionString()" required>
-                    <option value="">-- اختر النوع --</option>
-                    <option value="sqlite">SQLite</option>
-                    <option value="postgresql">PostgreSQL</option>
-                    <option value="mysql">MySQL</option>
-                    <option value="mssql">SQL Server</option>
-                  </select>
-                </div>
-                
-                <div class="mb-4">
-                  <label class="form-label fw-bold">Connection String</label>
-                  <textarea name="connection_string" id="connection_string" class="form-control" rows="3" placeholder="مثال: postgresql://user:password@localhost/dbname" required></textarea>
-                  <small class="text-muted" id="connection_hint"></small>
-                  
-                  <div class="mt-2">
-                    <button type="button" class="btn btn-info" onclick="testConnection()">
-                      <i class="fas fa-plug"></i> اختبار الاتصال
-                    </button>
-                    <span id="connection_status" class="ms-2"></span>
-                  </div>
-                </div>
-                
-                <div id="connection_examples" class="alert alert-light" style="display:none;">
-                  <strong>أمثلة:</strong>
-                  <div id="example_text"></div>
-                </div>
-                
-                <div class="alert alert-warning">
-                  <strong>تأكيد:</strong>
-                  <ul class="mb-0 mt-2">
-                    <li>تأكد من أن قاعدة البيانات المستهدفة موجودة</li>
-                    <li>تأكد من صحة بيانات الاتصال</li>
-                    <li>سيتم حفظ نسخة احتياطية تلقائياً</li>
-                    <li>قد تستغرق العملية وقتاً طويلاً</li>
-                  </ul>
-                </div>
-                
-                <button type="submit" class="btn btn-danger w-100 btn-lg">
-                  <i class="fas fa-exchange-alt"></i> بدء التحويل الآن
-                </button>
-              </form>
-            </div>
-          </div>
+            {% endif %}
         </div>
       </div>
     </div>
-    
+
   </div>
 
 </div>
@@ -500,20 +441,6 @@
   opacity: 1;
 }
 
-/* DB Cards */
-.db-card {
-  cursor: pointer;
-  transition: all 0.3s ease;
-  border: 2px solid transparent;
-}
-.db-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-}
-.db-card.active {
-  border: 3px solid #28a745;
-  background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
-}
 </style>
 
 <script>
@@ -536,81 +463,6 @@ $(document).ready(function() {
     $('#backupTabs a[href="' + activeTab + '"]').tab('show');
   }
 });
-
-function selectDB(type) {
-  document.querySelectorAll('.db-card').forEach(c => c.classList.remove('active'));
-  event.currentTarget.classList.add('active');
-  document.getElementById('db_type_select').value = type;
-  document.getElementById('target_db').value = type;
-  updateConnectionString();
-}
-
-function updateConnectionString() {
-  const type = document.getElementById('db_type_select').value;
-  const connString = document.getElementById('connection_string');
-  const hint = document.getElementById('connection_hint');
-  const examples = document.getElementById('connection_examples');
-  const exampleText = document.getElementById('example_text');
-  
-  document.getElementById('target_db').value = type;
-  
-  if (type === 'sqlite') {
-    connString.value = 'sqlite:///instance/app_new.db';
-    hint.textContent = 'مسار الملف المحلي';
-    exampleText.innerHTML = '<code>sqlite:///instance/app_new.db</code>';
-    examples.style.display = 'block';
-  } else if (type === 'postgresql') {
-    connString.value = 'postgresql://user:password@localhost:5432/dbname';
-    hint.textContent = 'المستخدم:كلمة المرور@السيرفر:المنفذ/اسم قاعدة البيانات';
-    exampleText.innerHTML = '<code>postgresql://azad:123456@localhost:5432/garage_db</code>';
-    examples.style.display = 'block';
-  } else if (type === 'mysql') {
-    connString.value = 'mysql+pymysql://user:password@localhost:3306/dbname';
-    hint.textContent = 'المستخدم:كلمة المرور@السيرفر:المنفذ/اسم قاعدة البيانات';
-    exampleText.innerHTML = '<code>mysql+pymysql://root:123456@localhost:3306/garage_db</code>';
-    examples.style.display = 'block';
-  } else if (type === 'mssql') {
-    connString.value = 'mssql+pyodbc://user:password@localhost/dbname?driver=ODBC+Driver+17+for+SQL+Server';
-    hint.textContent = 'المستخدم:كلمة المرور@السيرفر/اسم قاعدة البيانات';
-    exampleText.innerHTML = '<code>mssql+pyodbc://sa:Pass123@localhost/garage_db?driver=ODBC+Driver+17+for+SQL+Server</code>';
-    examples.style.display = 'block';
-  } else {
-    connString.value = '';
-    hint.textContent = '';
-    examples.style.display = 'none';
-  }
-}
-
-function testConnection() {
-  const connString = document.getElementById('connection_string').value;
-  const statusSpan = document.getElementById('connection_status');
-  
-  if (!connString) {
-    statusSpan.innerHTML = '<span class="badge bg-danger">أدخل Connection String أولاً</span>';
-    return;
-  }
-  
-  statusSpan.innerHTML = '<span class="badge bg-warning"><i class="fas fa-spinner fa-spin"></i> جاري الاختبار...</span>';
-  
-  fetch('{{ url_for("advanced.test_db_connection") }}', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: 'csrf_token={{ csrf_token() }}&connection_string=' + encodeURIComponent(connString)
-  })
-  .then(response => response.json())
-  .then(data => {
-    if (data.success) {
-      statusSpan.innerHTML = '<span class="badge bg-success"><i class="fas fa-check"></i> ' + data.message + '</span>';
-    } else {
-      statusSpan.innerHTML = '<span class="badge bg-danger"><i class="fas fa-times"></i> ' + data.message + '</span>';
-    }
-  })
-  .catch(error => {
-    statusSpan.innerHTML = '<span class="badge bg-danger"><i class="fas fa-times"></i> خطأ في الاتصال</span>';
-  });
-}
 </script>
 
 {% endblock %}

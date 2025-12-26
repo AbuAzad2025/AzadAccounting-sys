@@ -21,6 +21,7 @@ class PermissionsRegistry:
     """
     
     PERMISSIONS_AR_MAP = {
+        'manage_branches': 'إدارة_الفروع',
         'backup_database': 'نسخ_احتياطي',
         'restore_database': 'استعادة_نسخة',
         'hard_delete': 'حذف_قوي',
@@ -73,10 +74,45 @@ class PermissionsRegistry:
         'manage_barcode': 'إدارة_الباركود',
         'view_own_orders': 'عرض_طلباتي',
         'view_own_account': 'عرض_حسابي',
+        'access_dashboard': 'الوصول_للوحة_التحكم',
+
+        # Branches
+        'manage_branches': 'إدارة_الفروع',
+
+        # Bank
+        'manage_bank': 'إدارة_البنك',
+        'view_bank': 'عرض_البنك',
+        'add_bank_transaction': 'إضافة_معاملة_بنكية',
+
+        # Projects
+        'manage_projects': 'إدارة_المشاريع',
+        'view_projects': 'عرض_المشاريع',
+
+        # Workflows
+        'manage_workflows': 'إدارة_سير_العمل',
+        'view_workflows': 'عرض_سير_العمل',
+
+        # Engineering & Cost Centers
+        'manage_engineering': 'إدارة_الهندسة',
+        'manage_cost_centers': 'إدارة_مراكز_التكلفة',
+        
+        # Additional Accounting
+        'manage_accounting_docs': 'إدارة_المستندات',
+        'validate_accounting': 'التحقق_المحاسبي',
+        
+        # AI Admin
+        'manage_ai': 'إدارة_الذكاء_الاصطناعي',
     }
     
     PERMISSIONS = {
         'system': {
+            'access_dashboard': {
+                'name_ar': 'الوصول للوحة التحكم',
+                'code_ar': 'الوصول_للوحة_التحكم',
+                'description': 'الوصول للوحة التحكم الرئيسية',
+                'module': 'system',
+                'is_protected': True,
+            },
             'backup_database': {
                 'name_ar': 'نسخ احتياطي للنظام',
                 'code_ar': 'نسخ_احتياطي',
@@ -105,6 +141,34 @@ class PermissionsRegistry:
                 'module': 'system',
                 'is_protected': True,
             },
+            'manage_tenants': {
+                'name_ar': 'إدارة المستأجرين',
+                'code_ar': 'إدارة_المستأجرين',
+                'description': 'إدارة قواعد البيانات والمستأجرين',
+                'module': 'system',
+                'is_protected': True,
+            },
+            'manage_system_config': {
+                'name_ar': 'إعدادات النظام',
+                'code_ar': 'إعدادات_النظام',
+                'description': 'إدارة إعدادات النظام والميزات',
+                'module': 'system',
+                'is_protected': True,
+            },
+            'manage_system_health': {
+                'name_ar': 'صحة النظام',
+                'code_ar': 'صحة_النظام',
+                'description': 'مراقبة أداء وصحة النظام',
+                'module': 'system',
+                'is_protected': True,
+            },
+            'manage_mobile_app': {
+                'name_ar': 'إدارة تطبيق الجوال',
+                'code_ar': 'إدارة_تطبيق_الجوال',
+                'description': 'إنشاء وإدارة تطبيقات الجوال',
+                'module': 'system',
+                'is_protected': True,
+            },
         },
         
         'owner_only': {
@@ -129,16 +193,16 @@ class PermissionsRegistry:
                 'module': 'owner_only',
                 'is_protected': True,
             },
-            'manage_ledger': {
-                'name_ar': 'إدارة الدفتر',
-                'code_ar': 'إدارة_الدفتر',
-                'description': 'التحكم الكامل بالدفتر العام',
-                'module': 'owner_only',
-                'is_protected': True,
-            },
         },
         
         'ai': {
+            'manage_ai': {
+                'name_ar': 'إدارة الذكاء الاصطناعي',
+                'code_ar': 'إدارة_الذكاء_الاصطناعي',
+                'description': 'إدارة إعدادات ونماذج الذكاء الاصطناعي',
+                'module': 'ai',
+                'is_protected': True,
+            },
             'access_ai_assistant': {
                 'name_ar': 'الوصول للمساعد الذكي',
                 'code_ar': 'مساعد_ذكي',
@@ -307,6 +371,27 @@ class PermissionsRegistry:
         },
         
         'accounting': {
+            'manage_accounting_docs': {
+                'name_ar': 'إدارة المستندات',
+                'code_ar': 'إدارة_المستندات',
+                'description': 'إدارة المستندات المحاسبية والأرشيف',
+                'module': 'accounting',
+                'is_protected': True,
+            },
+            'validate_accounting': {
+                'name_ar': 'التحقق المحاسبي',
+                'code_ar': 'التحقق_المحاسبي',
+                'description': 'التحقق من صحة القيود والمراجعة',
+                'module': 'accounting',
+                'is_protected': True,
+            },
+            'manage_ledger': {
+                'name_ar': 'إدارة الدفتر',
+                'code_ar': 'إدارة_الدفتر',
+                'description': 'التحكم الكامل بالدفتر العام',
+                'module': 'accounting',
+                'is_protected': True,
+            },
             'manage_payments': {
                 'name_ar': 'إدارة المدفوعات',
                 'code_ar': 'إدارة_المدفوعات',
@@ -358,6 +443,26 @@ class PermissionsRegistry:
                 'description': 'إدارة الشحنات والتوصيل',
                 'module': 'shipments',
                 'is_protected': False,
+            },
+        },
+        
+        'branches': {
+            'manage_branches': {
+                'name_ar': 'إدارة الفروع',
+                'code_ar': 'إدارة_الفروع',
+                'description': 'إدارة الفروع والمواقع',
+                'module': 'branches',
+                'is_protected': True,
+            },
+        },
+        
+        'saas': {
+            'manage_saas': {
+                'name_ar': 'إدارة SaaS',
+                'code_ar': 'إدارة_SaaS',
+                'description': 'إدارة الاشتراكات والباقات',
+                'module': 'saas',
+                'is_protected': True,
             },
         },
         
@@ -478,6 +583,94 @@ class PermissionsRegistry:
                 'is_protected': False,
             },
         },
+
+        'bank': {
+            'manage_bank': {
+                'name_ar': 'إدارة البنك',
+                'code_ar': 'إدارة_البنك',
+                'description': 'إدارة الحسابات البنكية والمعاملات',
+                'module': 'bank',
+                'is_protected': True,
+            },
+            'view_bank': {
+                'name_ar': 'عرض البنك',
+                'code_ar': 'عرض_البنك',
+                'description': 'عرض الحسابات البنكية',
+                'module': 'bank',
+                'is_protected': False,
+            },
+            'add_bank_transaction': {
+                'name_ar': 'إضافة معاملة بنكية',
+                'code_ar': 'إضافة_معاملة_بنكية',
+                'description': 'إضافة إيداع أو سحب بنكي',
+                'module': 'bank',
+                'is_protected': True,
+            },
+        },
+
+        'projects': {
+            'manage_projects': {
+                'name_ar': 'إدارة المشاريع',
+                'code_ar': 'إدارة_المشاريع',
+                'description': 'إدارة المشاريع بالكامل',
+                'module': 'projects',
+                'is_protected': True,
+            },
+            'view_projects': {
+                'name_ar': 'عرض المشاريع',
+                'code_ar': 'عرض_المشاريع',
+                'description': 'عرض قائمة المشاريع',
+                'module': 'projects',
+                'is_protected': False,
+            },
+        },
+
+        'workflows': {
+            'manage_workflows': {
+                'name_ar': 'إدارة سير العمل',
+                'code_ar': 'إدارة_سير_العمل',
+                'description': 'إدارة وتصميم سير العمل',
+                'module': 'workflows',
+                'is_protected': True,
+            },
+            'view_workflows': {
+                'name_ar': 'عرض سير العمل',
+                'code_ar': 'عرض_سير_العمل',
+                'description': 'عرض حالات سير العمل',
+                'module': 'workflows',
+                'is_protected': False,
+            },
+        },
+
+        'archive': {
+            'restore_archive': {
+                'name_ar': 'استعادة الأرشيف',
+                'code_ar': 'استعادة_أرشيف',
+                'description': 'استعادة السجلات المؤرشفة',
+                'module': 'archive',
+                'is_protected': False,
+            },
+        },
+        
+        'engineering': {
+            'manage_engineering': {
+                'name_ar': 'إدارة الهندسة',
+                'code_ar': 'إدارة_الهندسة',
+                'description': 'إدارة العمليات الهندسية',
+                'module': 'engineering',
+                'is_protected': True,
+            },
+        },
+        
+        'cost_centers': {
+            'manage_cost_centers': {
+                'name_ar': 'إدارة مراكز التكلفة',
+                'code_ar': 'إدارة_مراكز_التكلفة',
+                'description': 'إدارة مراكز التكلفة والمشاريع المالية',
+                'module': 'cost_centers',
+                'is_protected': True,
+            },
+        },
     }
     
     
@@ -563,14 +756,22 @@ class PermissionsRegistry:
             'name_ar': 'المدير الأعلى',
             'description': '⚡ مدير النظام - صلاحيات كاملة تقريباً',
             'permissions': '*',
-            'exclude': ['access_owner_dashboard', 'manage_advanced_accounting', 'manage_any_user_permissions', 'hard_delete'],
+            'exclude': [
+                'access_owner_dashboard', 
+                'manage_any_user_permissions', 
+                'hard_delete',
+                'access_ai_assistant',
+                'train_ai',
+                'manage_shop',
+                'manage_api'
+            ],
             'is_protected': True,
             'is_super': True,
             'level': 1,
             'max_accounts': None,
             'special_access': [
-                'access_ai_assistant',
-                'train_ai',
+                'manage_advanced_accounting',
+                'manage_ledger',
             ],
             'capabilities': {
                 'can_restore_db': True,
@@ -581,7 +782,7 @@ class PermissionsRegistry:
                 'can_manage_permissions': True,
                 'can_access_everything': False,
                 'can_access_owner_dashboard': False,
-                'can_manage_advanced_accounting': False,
+                'can_manage_advanced_accounting': True,
                 'can_manage_any_user_permissions': False,
             },
         },
@@ -590,15 +791,20 @@ class PermissionsRegistry:
             'name_ar': 'سوبر',
             'description': '⚡ سوبر - نفس صلاحيات المدير الأعلى',
             'permissions': '*',
-            'exclude': ['access_owner_dashboard', 'manage_advanced_accounting', 'manage_any_user_permissions', 'hard_delete'],
+            'exclude': [
+                'access_owner_dashboard', 
+                'manage_advanced_accounting', 
+                'manage_any_user_permissions', 
+                'hard_delete',
+                'access_ai_assistant',
+                'train_ai',
+                'manage_shop'
+            ],
             'is_protected': True,
             'is_super': True,
             'level': 1,
             'max_accounts': None,
-            'special_access': [
-                'access_ai_assistant',
-                'train_ai',
-            ],
+            'special_access': [],
             'capabilities': {
                 'can_restore_db': True,
                 'can_hard_delete': False,
@@ -640,6 +846,7 @@ class PermissionsRegistry:
             'name_ar': 'المشرف',
             'description': '👨‍💼 مشرف - إشراف على العمليات اليومية',
             'permissions': [
+                'access_dashboard',
                 'manage_customers', 'add_customer', 'view_customers',
                 'manage_service', 'view_service',
                 'manage_sales', 'view_sales',
@@ -670,6 +877,7 @@ class PermissionsRegistry:
             'name_ar': 'الموظف',
             'description': '👨‍💻 موظف - المبيعات والصيانة والمحاسبة',
             'permissions': [
+                'access_dashboard',
                 'manage_customers', 'add_customer', 'view_customers',
                 'manage_service', 'view_service',
                 'manage_sales', 'view_sales',
@@ -697,6 +905,7 @@ class PermissionsRegistry:
             'name_ar': 'الميكانيكي',
             'description': '🔧 ميكانيكي - الصيانة والقطع فقط',
             'permissions': [
+                'access_dashboard',
                 'manage_service', 'view_service',
                 'view_warehouses', 'view_inventory', 'view_parts',
                 'view_reports',
@@ -721,10 +930,6 @@ class PermissionsRegistry:
             'description': '🛒 عميل - التصفح والطلبات الشخصية',
             'permissions': [
                 'view_shop', 'browse_products',
-                'place_online_order',
-                'view_preorders',
-                'view_own_orders',
-                'view_own_account',
             ],
             'is_protected': False,
             'is_super': False,

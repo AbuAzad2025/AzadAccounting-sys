@@ -246,7 +246,7 @@
             
             <div class="product-footer">
               {% if avail > 0 and not has_any('manage_shop','manage_inventory') %}
-                {% if current_user.is_authenticated %}
+                {% if has_perm('place_online_order') %}
                   <form method="POST"
                         action="{{ url_for('shop.add_to_cart', product_id=product.id) }}"
                         class="add-to-cart-form">

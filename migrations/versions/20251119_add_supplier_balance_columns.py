@@ -21,7 +21,6 @@ def upgrade():
     bind = op.get_bind()
     inspector = inspect(bind)
     columns = {col["name"] for col in inspector.get_columns("suppliers")}
-    is_sqlite = bind.dialect.name == "sqlite"
     
     balance_columns = [
         ("current_balance", sa.Numeric(12, 2), True),
@@ -39,22 +38,13 @@ def upgrade():
         ("returned_checks_out_balance", sa.Numeric(12, 2), False),
     ]
     
-    if is_sqlite:
-        for col_name, col_type, create_index in balance_columns:
-            if col_name not in columns:
-                op.execute(f'ALTER TABLE suppliers ADD COLUMN {col_name} NUMERIC(12, 2) NOT NULL DEFAULT 0')
-        
-        indexes = {idx["name"] for idx in inspector.get_indexes("suppliers")}
-        if "ix_suppliers_current_balance" not in indexes:
-            op.execute('CREATE INDEX IF NOT EXISTS ix_suppliers_current_balance ON suppliers (current_balance)')
-    else:
-        for col_name, col_type, create_index in balance_columns:
-            if col_name not in columns:
-                op.add_column("suppliers", sa.Column(col_name, col_type, nullable=False, server_default=sa_text("0")))
-        
-        indexes = {idx["name"] for idx in inspector.get_indexes("suppliers")}
-        if "ix_suppliers_current_balance" not in indexes:
-            op.create_index("ix_suppliers_current_balance", "suppliers", ["current_balance"])
+    for col_name, col_type, create_index in balance_columns:
+        if col_name not in columns:
+            op.add_column("suppliers", sa.Column(col_name, col_type, nullable=False, server_default=sa_text("0")))
+    
+    indexes = {idx["name"] for idx in inspector.get_indexes("suppliers")}
+    if "ix_suppliers_current_balance" not in indexes:
+        op.create_index("ix_suppliers_current_balance", "suppliers", ["current_balance"])
     
     _calculate_initial_balances(bind)
 
@@ -260,7 +250,6 @@ def downgrade():
     bind = op.get_bind()
     inspector = inspect(bind)
     columns = {col["name"] for col in inspector.get_columns("suppliers")}
-    is_sqlite = bind.dialect.name == "sqlite"
     
     balance_columns = [
         "current_balance",
@@ -278,21 +267,10 @@ def downgrade():
         "returned_checks_out_balance"
     ]
     
-    if is_sqlite:
-        with op.batch_alter_table("suppliers") as batch_op:
-            indexes = {idx["name"] for idx in inspector.get_indexes("suppliers")}
-            if "ix_suppliers_current_balance" in indexes:
-                batch_op.drop_index("ix_suppliers_current_balance")
-            
-            for col_name in balance_columns:
-                if col_name in columns:
-                    batch_op.drop_column(col_name)
-    else:
-        indexes = {idx["name"] for idx in inspector.get_indexes("suppliers")}
-        if "ix_suppliers_current_balance" in indexes:
-            op.drop_index("ix_suppliers_current_balance", table_name="suppliers")
-        
-        for col_name in balance_columns:
-            if col_name in columns:
-                op.drop_column("suppliers", col_name)
-
+    indexes = {idx["name"] for idx in inspector.get_indexes("suppliers")}
+    if "ix_suppliers_current_balance" in indexes:
+        op.drop_index("ix_suppliers_current_balance", table_name="suppliers")
+    
+    for col_name in balance_columns:
+        if col_name in columns:
+            op.drop_column("suppliers", col_name)

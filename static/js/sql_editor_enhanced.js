@@ -13,6 +13,8 @@
  */
 
 (function() {
+  if (window.__SQL_EDITOR_ENHANCED_INIT__) return;
+  window.__SQL_EDITOR_ENHANCED_INIT__ = true;
   'use strict';
   
   const SQL_HISTORY_KEY = 'sql_query_history';

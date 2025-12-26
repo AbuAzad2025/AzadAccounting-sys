@@ -1,5 +1,5 @@
 
-from flask import Blueprint, render_template, render_template_string, request, redirect, url_for, flash, jsonify, current_app, send_file, session, Response
+from flask import Blueprint, render_template, render_template_string, request, redirect, url_for, flash, jsonify, current_app, send_file, session, Response, abort
 from flask_login import login_required, current_user
 from sqlalchemy import text, func, inspect, or_
 from datetime import datetime, timedelta, timezone, date
@@ -7,11 +7,11 @@ from extensions import db, cache
 from backup_automation import AutomatedBackupManager
 from models import User, SystemSettings
 import utils
+from utils import permission_required
 from functools import wraps
 import os
 import string
 import json
-import sqlite3
 import shutil
 from werkzeug.utils import secure_filename
 from dataclasses import dataclass
@@ -30,7 +30,6 @@ class OwnerSectionMeta:
 
 
 OWNER_SECTIONS = [
-    OwnerSectionMeta('db_merger', 'دمج قواعد البيانات', 'advanced.db_merger', 'database', 10, 'infrastructure'),
     OwnerSectionMeta('multi_tenant', 'Multi-Tenant', 'advanced.multi_tenant', 'building', 20, 'infrastructure'),
     OwnerSectionMeta('backup_manager', 'Backup Manager', 'advanced.backup_manager', 'save', 30, 'infrastructure'),
     OwnerSectionMeta('system_cloner', 'System Cloner', 'advanced.system_cloner', 'clone', 40, 'distribution'),
@@ -54,11 +53,6 @@ SMOKE_TASKS = [
         'key': 'backup_run',
         'title': 'إنشاء نسخة احتياطية',
         'description': 'تشغيل Backup Manager والتأكد من تسجيل النسخة.',
-    },
-    {
-        'key': 'merge_preview',
-        'title': 'معاينة الدمج',
-        'description': 'رفع ملف صغير إلى DB Merger والتأكد من عرض الجداول.',
     },
     {
         'key': 'module_toggle',
@@ -139,37 +133,9 @@ def inject_owner_sections_meta():
     return {'owner_sections_meta': sections}
 
 
-def owner_only(f):
-    @wraps(f)
-    @login_required
-    def decorated_function(*args, **kwargs):
-        if not utils.is_super():
-            flash('⛔ الوصول محظور', 'danger')
-            return redirect(url_for('main.dashboard'))
-        primary_owner_id_raw = SystemSettings.get_setting("primary_owner_user_id", 1)
-        try:
-            primary_owner_id = int(primary_owner_id_raw)
-        except Exception:
-            primary_owner_id = 1
-
-        username = str(getattr(current_user, "username", "") or "").strip().lower()
-        role_name = str(getattr(getattr(current_user, "role", None), "name", "") or "").strip().lower()
-        allowed_usernames = {"azad", "owner", "admin", "__owner__"}
-        is_allowed = (
-            bool(getattr(current_user, "is_system_account", False))
-            or (getattr(current_user, "id", None) == primary_owner_id)
-            or (username in allowed_usernames)
-            or (role_name == "owner")
-        )
-        if not is_allowed:
-            flash('⛔ هذه الوحدة متاحة للمالك الأساسي فقط', 'danger')
-            return redirect(url_for('main.dashboard'))
-        return f(*args, **kwargs)
-    return decorated_function
-
-
 @advanced_bp.route('/owner-hub')
-@owner_only
+@login_required
+@permission_required('access_owner_dashboard')
 def owner_hub():
     cache_key = "owner_hub_data"
     cached_data = cache.get(cache_key)
@@ -317,7 +283,7 @@ def owner_hub():
 
 
 @advanced_bp.route('/owner-smoke-checklist', methods=['GET', 'POST'])
-@owner_only
+@permission_required('access_owner_dashboard')
 def owner_smoke_checklist():
     state = _load_smoke_checklist_state()
     if request.method == 'POST':
@@ -343,27 +309,13 @@ def owner_smoke_checklist():
     )
 
 @advanced_bp.route('/db-merger', methods=['GET', 'POST'])
-@owner_only
+@permission_required('access_owner_dashboard')
 def db_merger():
-    preview_data = session.pop('db_merger_preview', None)
-    if request.method == 'POST':
-        action = request.form.get('action')
-        if action == 'preview':
-            return _handle_db_merger_preview()
-        elif action == 'execute':
-            return _handle_db_merger_execute()
-    
-    stats = {
-        'current_db_size': _get_db_size(),
-        'total_tables': len(db.metadata.tables),
-        'total_records': _count_all_records()
-    }
-    
-    return render_template('advanced/db_merger.html', stats=stats, preview=preview_data)
+    abort(404)
 
 
 @advanced_bp.route('/multi-tenant', methods=['GET', 'POST'])
-@owner_only
+@permission_required('manage_tenants')
 def multi_tenant():
     """إدارة Multi-Tenant المتقدمة - نسخ متعددة مع تحكم كامل"""
     
@@ -390,12 +342,9 @@ def multi_tenant():
             db.session.add(SystemSettings(key=f'tenant_{tenant_name}_modules', value=json.dumps(tenant_modules)))
             db.session.add(SystemSettings(key=f'tenant_{tenant_name}_created_at', value=str(datetime.utcnow())))
             
-                                                  
-            if tenant_db.startswith('sqlite:///'):
-                db_path = tenant_db.replace('sqlite:///', '')
-                full_path = os.path.join(current_app.root_path, db_path)
-                os.makedirs(os.path.dirname(full_path), exist_ok=True)
-                _create_tenant_database(full_path)
+            if not tenant_db or not str(tenant_db).strip().startswith('postgresql://'):
+                flash('❌ قاعدة بيانات الـ Tenant يجب أن تكون PostgreSQL (postgresql://...)', 'danger')
+                return redirect(url_for('advanced.multi_tenant'))
             
             db.session.commit()
             _log_owner_action('multi_tenant.create', tenant_name, {
@@ -497,7 +446,7 @@ def multi_tenant():
 
 
 @advanced_bp.route('/dashboard-links', methods=['GET', 'POST'])
-@owner_only
+@permission_required('manage_system_config')
 def dashboard_links():
     """إدارة روابط الداشبورد - إخفاء/إظهار"""
     if request.method == 'POST':
@@ -543,7 +492,7 @@ def dashboard_links():
 
 
 @advanced_bp.route('/version-control', methods=['GET', 'POST'])
-@owner_only
+@permission_required('manage_system_config')
 def version_control():
     """إدارة النسخ والإصدارات"""
     if request.method == 'POST':
@@ -605,7 +554,7 @@ def version_control():
 
 
 @advanced_bp.route('/licensing', methods=['GET', 'POST'])
-@owner_only
+@permission_required('manage_system_config')
 def licensing():
     """إدارة التراخيص والتفعيل"""
     if request.method == 'POST':
@@ -673,7 +622,7 @@ MODULE_LOOKUP = {m['key']: m for m in MODULE_CATALOG}
 
 
 @advanced_bp.route('/module-manager', methods=['GET', 'POST'])
-@owner_only
+@permission_required('manage_system_config')
 def module_manager():
     """مدير الوحدات - تفعيل/تعطيل"""
     module_states = _get_module_states()
@@ -731,31 +680,46 @@ def _get_module_states():
 
 
 @advanced_bp.route('/backup-manager', methods=['GET', 'POST'])
-@owner_only
+@permission_required('backup_database')
 def backup_manager():
-    backup_dir = os.path.join(current_app.root_path, 'instance', 'backups', 'db')
+    backup_dir = current_app.config.get("BACKUP_DB_DIR") or os.path.join(current_app.instance_path, "backups", "db")
     
     if request.method == 'POST':
         action = request.form.get('action')
         
         if action == 'create_backup':
-            backup_name = request.form.get('backup_name') or f'backup_{datetime.now().strftime("%Y%m%d_%H%M%S")}'
-            if not _validate_safe_slug(backup_name):
-                flash('❌ اسم النسخة يجب أن يكون بدون مسافات أو رموز خاصة', 'danger')
-                return redirect(url_for('advanced.backup_manager'))
-            
             try:
-                os.makedirs(backup_dir, exist_ok=True)
-                db_path = os.path.join(current_app.root_path, 'instance', 'app.db')
-                backup_path = os.path.join(backup_dir, f'{backup_name}.db')
-                
-                shutil.copy2(db_path, backup_path)
-                size_mb = os.path.getsize(backup_path) / (1024 * 1024)
-                
-                flash(f'✅ تم إنشاء نسخة احتياطية: {backup_name}', 'success')
-                _log_owner_action('backup.create', backup_name, {
+                custom_name = (request.form.get('backup_name') or '').strip() or None
+                if custom_name and not _validate_safe_slug(custom_name):
+                    flash('❌ اسم النسخة يجب أن يكون بدون مسافات أو رموز خاصة', 'danger')
+                    return redirect(url_for('advanced.backup_manager'))
+
+                from extensions import perform_backup_db
+                success, message, backup_path = perform_backup_db(current_app)
+                if not success or not backup_path or not os.path.exists(backup_path):
+                    flash(f'❌ {message}', 'danger')
+                    return redirect(url_for('advanced.backup_manager'))
+
+                final_path = backup_path
+                if custom_name:
+                    base = os.path.splitext(os.path.basename(backup_path))[0]
+                    suffix = base.replace("backup_", "", 1)
+                    desired = os.path.join(backup_dir, f'backup_{custom_name}_{suffix}.dump')
+                    try:
+                        os.replace(backup_path, desired)
+                        info_src = os.path.splitext(backup_path)[0] + ".info"
+                        info_dst = os.path.splitext(desired)[0] + ".info"
+                        if os.path.exists(info_src):
+                            os.replace(info_src, info_dst)
+                        final_path = desired
+                    except Exception:
+                        final_path = backup_path
+
+                size_mb = os.path.getsize(final_path) / (1024 * 1024)
+                flash(f'✅ تم إنشاء نسخة احتياطية', 'success')
+                _log_owner_action('backup.create', os.path.basename(final_path), {
                     'size_mb': round(size_mb, 2),
-                    'path': backup_path.replace(current_app.root_path, '')
+                    'path': final_path.replace(current_app.root_path, '')
                 })
             except Exception as e:
                 _record_backup_failure(f'Create backup failed: {str(e)}')
@@ -793,43 +757,14 @@ def backup_manager():
             return redirect(url_for('advanced.backup_manager'))
         
         elif action == 'convert_database':
-            target_db = request.form.get('target_db')
-            connection_string = request.form.get('connection_string')
-            
-            if not connection_string or not target_db:
-                flash('❌ يجب تحديد نوع قاعدة البيانات و Connection String', 'danger')
-                return redirect(url_for('advanced.backup_manager'))
-            
-            try:
-                result = _convert_database(target_db, connection_string)
-                
-                flash(f'✅ تم التحويل بنجاح!', 'success')
-                flash(f'📊 السجلات: {result["records"]} سجل', 'info')
-                flash(f'📋 الجداول: {result["tables"]} جدول', 'info')
-                flash(f'💾 نسخة أمان: {os.path.basename(result["backup"])}', 'info')
-                _log_owner_action('backup.convert', target_db, {
-                    'records': result['records'],
-                    'tables': result['tables'],
-                    'backup': os.path.basename(result['backup'])
-                })
-                
-                if result.get('errors'):
-                    flash(f'⚠️ تحذيرات: {len(result["errors"])} خطأ', 'warning')
-                
-            except ValueError as e:
-                _record_backup_failure(f'Convert error: {str(e)}')
-                flash(f'❌ خطأ في البيانات: {str(e)}', 'danger')
-            except Exception as e:
-                _record_backup_failure(f'Convert error: {str(e)}')
-                flash(f'❌ خطأ في التحويل: {str(e)}', 'danger')
-            
+            flash('❌ تحويل قاعدة البيانات غير مدعوم. النظام يعمل على PostgreSQL فقط.', 'danger')
             return redirect(url_for('advanced.backup_manager'))
     
     backups = []
     now = datetime.now()
     if os.path.exists(backup_dir):
         for filename in sorted(os.listdir(backup_dir), reverse=True):
-            if filename.endswith('.db'):
+            if filename.endswith('.dump'):
                 filepath = os.path.join(backup_dir, filename)
                 size = os.path.getsize(filepath) / (1024 * 1024)
                 mtime = datetime.fromtimestamp(os.path.getmtime(filepath))
@@ -839,9 +774,29 @@ def backup_manager():
                     'size': f'{size:.2f} MB',
                     'date': mtime.strftime('%Y-%m-%d %H:%M'),
                     'timestamp': mtime.isoformat(),
-                    'age_hours': round(age_hours, 2)
+                    'age_hours': round(age_hours, 2),
+                    'type': 'db_dump'
                 })
     
+    # Scan JSON exports
+    json_backups = []
+    exports_dir = os.path.join(current_app.root_path, 'exports')
+    if os.path.exists(exports_dir):
+        for filename in sorted(os.listdir(exports_dir), reverse=True):
+            if filename.endswith('.json'):
+                filepath = os.path.join(exports_dir, filename)
+                size = os.path.getsize(filepath) / (1024 * 1024)
+                mtime = datetime.fromtimestamp(os.path.getmtime(filepath))
+                age_hours = (now - mtime).total_seconds() / 3600
+                json_backups.append({
+                    'name': filename,
+                    'size': f'{size:.2f} MB',
+                    'date': mtime.strftime('%Y-%m-%d %H:%M'),
+                    'timestamp': mtime.isoformat(),
+                    'age_hours': round(age_hours, 2),
+                    'type': 'json'
+                })
+
     auto_backup_enabled = SystemSettings.query.filter_by(key='auto_backup_enabled').first()
     auto_backup_schedule = SystemSettings.query.filter_by(key='auto_backup_schedule').first()
     
@@ -855,7 +810,7 @@ def backup_manager():
     current_db_type = _detect_current_db_type()
     auto_enabled = auto_backup_enabled.value == 'True' if auto_backup_enabled else False
     schedule_status = _describe_schedule_status(auto_enabled, schedule_info)
-    backup_summary = _build_backup_summary(backups)
+    backup_summary = _build_backup_summary(backups + json_backups)
     
     backup_failures = SystemSettings.get_setting('backup_failures', [])
     if not isinstance(backup_failures, list):
@@ -863,6 +818,7 @@ def backup_manager():
     
     return render_template('advanced/backup_manager.html', 
                          backups=backups,
+                         json_backups=json_backups,
                          auto_backup_enabled=auto_enabled,
                          schedule_info=schedule_info,
                          current_db_type=current_db_type,
@@ -873,14 +829,18 @@ def backup_manager():
 
 
 @advanced_bp.route('/download-backup/<filename>')
-@owner_only
+@permission_required('backup_database')
 def download_backup(filename):
     """تحميل نسخة احتياطية"""
     try:
-        backup_dir = os.path.join(current_app.root_path, 'instance', 'backups', 'db')
-        filepath = os.path.join(backup_dir, secure_filename(filename))
+        if filename.endswith('.json'):
+            exports_dir = os.path.join(current_app.root_path, 'exports')
+            filepath = os.path.join(exports_dir, secure_filename(filename))
+        else:
+            backup_dir = current_app.config.get("BACKUP_DB_DIR") or os.path.join(current_app.instance_path, "backups", "db")
+            filepath = os.path.join(backup_dir, secure_filename(filename))
         
-        if os.path.exists(filepath) and filename.endswith('.db'):
+        if os.path.exists(filepath):
             return send_file(filepath, as_attachment=True, download_name=filename)
         else:
             flash('❌ الملف غير موجود', 'danger')
@@ -890,12 +850,57 @@ def download_backup(filename):
         return redirect(url_for('advanced.backup_manager'))
 
 
+@advanced_bp.route('/restore-json-backup/<filename>', methods=['POST'])
+@permission_required('backup_database')
+def restore_json_backup(filename):
+    """استعادة نسخة احتياطية من ملف JSON"""
+    try:
+        exports_dir = os.path.join(current_app.root_path, 'exports')
+        filepath = os.path.join(exports_dir, secure_filename(filename))
+        confirm_token = request.form.get('confirm_token')
+        
+        if confirm_token != filename:
+            flash('❌ يجب كتابة اسم النسخة للتأكيد قبل الاستعادة', 'danger')
+            return redirect(url_for('advanced.backup_manager'))
+        
+        if not os.path.exists(filepath):
+            flash('❌ الملف غير موجود', 'danger')
+            return redirect(url_for('advanced.backup_manager'))
+        
+        from extensions import perform_backup_db
+        # Always take a safety backup first
+        safety_ok, _, safety_path = perform_backup_db(current_app)
+        if not safety_ok:
+             flash('⚠️ فشل إنشاء نسخة أمان تلقائية، لكن سيتم متابعة الاستعادة بحذر.', 'warning')
+        else:
+             flash(f'💾 تم حفظ نسخة أمان: {os.path.basename(safety_path)}', 'info')
+
+        from import_data_json import import_from_json
+        success, messages = import_from_json(filepath, app=current_app)
+        
+        if success:
+            flash(f'✅ تم استعادة البيانات من {filename} بنجاح.', 'success')
+            _log_owner_action('backup.restore_json', filename, {'status': 'success'})
+        else:
+            flash(f'❌ حدثت أخطاء أثناء الاستعادة. راجع السجلات.', 'danger')
+            for msg in messages:
+                if "Error" in msg or "Warning" in msg:
+                    flash(msg, 'warning')
+            _log_owner_action('backup.restore_json', filename, {'status': 'failed', 'errors': messages[:5]})
+            
+    except Exception as e:
+        flash(f'❌ خطأ غير متوقع: {str(e)}', 'danger')
+        
+    return redirect(url_for('advanced.backup_manager'))
+
+
+
 @advanced_bp.route('/restore-backup/<filename>', methods=['POST'])
-@owner_only
+@permission_required('backup_database')
 def restore_backup(filename):
     """استعادة نسخة احتياطية"""
     try:
-        backup_dir = os.path.join(current_app.root_path, 'instance', 'backups', 'db')
+        backup_dir = current_app.config.get("BACKUP_DB_DIR") or os.path.join(current_app.instance_path, "backups", "db")
         backup_path = os.path.join(backup_dir, secure_filename(filename))
         confirm_token = request.form.get('confirm_token')
         
@@ -903,24 +908,26 @@ def restore_backup(filename):
             flash('❌ يجب كتابة اسم النسخة للتأكيد قبل الاستعادة', 'danger')
             return redirect(url_for('advanced.backup_manager'))
         
-        if not os.path.exists(backup_path) or not filename.endswith('.db'):
+        if not os.path.exists(backup_path) or not filename.endswith('.dump'):
             flash('❌ الملف غير موجود', 'danger')
             return redirect(url_for('advanced.backup_manager'))
         
-                                           
-        current_db = os.path.join(current_app.root_path, 'instance', 'app.db')
-        safety_backup = os.path.join(backup_dir, f'before_restore_{datetime.now().strftime("%Y%m%d_%H%M%S")}.db')
-        shutil.copy2(current_db, safety_backup)
-        
-                        
-        shutil.copy2(backup_path, current_db)
-        
-        flash(f'✅ تم استعادة النسخة: {filename}', 'success')
-        flash(f'💾 تم حفظ نسخة أمان: {os.path.basename(safety_backup)}', 'info')
-        _log_owner_action('backup.restore', filename, {
-            'safety_backup': os.path.basename(safety_backup),
-        })
-        
+        from extensions import perform_backup_db, restore_database
+        safety_ok, _, safety_path = perform_backup_db(current_app)
+        if not safety_ok or not safety_path:
+            flash('❌ فشل حفظ نسخة الأمان قبل الاستعادة', 'danger')
+            return redirect(url_for('advanced.backup_manager'))
+
+        ok, msg = restore_database(current_app, backup_path)
+        if ok:
+            flash(f'✅ تم استعادة النسخة: {filename}', 'success')
+            flash(f'💾 تم حفظ نسخة أمان: {os.path.basename(safety_path)}', 'info')
+            _log_owner_action('backup.restore', filename, {
+                'safety_backup': os.path.basename(safety_path),
+            })
+        else:
+            flash(f'❌ {msg}', 'danger')
+    
     except Exception as e:
         _record_backup_failure(f'Restore error ({filename}): {str(e)}')
         flash(f'❌ خطأ في الاستعادة: {str(e)}', 'danger')
@@ -929,11 +936,11 @@ def restore_backup(filename):
 
 
 @advanced_bp.route('/delete-backup/<filename>', methods=['POST'])
-@owner_only
+@permission_required('backup_database')
 def delete_backup(filename):
     """حذف نسخة احتياطية"""
     try:
-        backup_dir = os.path.join(current_app.root_path, 'instance', 'backups', 'db')
+        backup_dir = current_app.config.get("BACKUP_DB_DIR") or os.path.join(current_app.instance_path, "backups", "db")
         filepath = os.path.join(backup_dir, secure_filename(filename))
         confirm_token = request.form.get('confirm_token')
         
@@ -941,8 +948,14 @@ def delete_backup(filename):
             flash('❌ يجب كتابة اسم النسخة للتأكيد قبل الحذف', 'danger')
             return redirect(url_for('advanced.backup_manager'))
         
-        if os.path.exists(filepath) and filename.endswith('.db'):
+        if os.path.exists(filepath) and filename.endswith('.dump'):
             os.remove(filepath)
+            info_file = os.path.splitext(filepath)[0] + ".info"
+            if os.path.exists(info_file):
+                try:
+                    os.remove(info_file)
+                except Exception:
+                    pass
             flash(f'✅ تم حذف النسخة: {filename}', 'success')
             _log_owner_action('backup.delete', filename)
         else:
@@ -955,7 +968,7 @@ def delete_backup(filename):
 
 
 @advanced_bp.route('/toggle-auto-backup', methods=['POST'])
-@owner_only
+@permission_required('backup_database')
 def toggle_auto_backup():
     """تفعيل/تعطيل النسخ التلقائي"""
     try:
@@ -982,7 +995,7 @@ def toggle_auto_backup():
 
 
 @advanced_bp.route('/test-db-connection', methods=['POST'])
-@owner_only
+@permission_required('manage_system_config')
 def test_db_connection():
     """اختبار الاتصال بقاعدة البيانات"""
     try:
@@ -1019,7 +1032,7 @@ def test_db_connection():
 
 
 @advanced_bp.route('/api-generator', methods=['GET', 'POST'])
-@owner_only
+@permission_required('manage_system_config')
 def api_generator():
     """مولد API تلقائي"""
     if request.method == 'POST':
@@ -1037,7 +1050,7 @@ def api_generator():
 
 
 @advanced_bp.route('/feature-flags', methods=['GET', 'POST'])
-@owner_only
+@permission_required('manage_system_config')
 def feature_flags():
     """إدارة Feature Flags"""
     if request.method == 'POST':
@@ -1076,7 +1089,7 @@ def feature_flags():
 
 
 @advanced_bp.route('/system-health', methods=['GET', 'POST'])
-@owner_only
+@permission_required('manage_system_health')
 def system_health():
     if request.method == 'POST':
         action = request.form.get('action')
@@ -1104,13 +1117,8 @@ def system_health():
         
         elif action == 'optimize_db':
             try:
-                dialect = getattr(db.engine, "dialect", None)
-                dialect_name = getattr(dialect, "name", "") or ""
-                if dialect_name == "sqlite":
-                    db.session.execute(text("VACUUM"))
-                else:
-                    db.session.execute(text("ANALYZE"))
-                db.session.commit()
+                from extensions import perform_vacuum_optimize
+                perform_vacuum_optimize(current_app)
                 flash('✅ تم تحسين قاعدة البيانات', 'success')
             except Exception as e:
                 flash(f'❌ خطأ: {str(e)}', 'danger')
@@ -1131,91 +1139,7 @@ def system_health():
 
 
 def _merge_databases(source_db_path, mode='smart', ignored_tables=None):
-    ignored_set = set(ignored_tables or [])
-    from sqlalchemy.types import Boolean
-    
-    # Source is SQLite (backup file)
-    conn_source = sqlite3.connect(source_db_path)
-    cursor_source = conn_source.cursor()
-    
-    added_count = 0
-    
-    # Get target inspector
-    inspector = inspect(db.engine)
-    
-    try:
-        tables = cursor_source.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
-        
-        for (table_name,) in tables:
-            if table_name.startswith('sqlite_') or table_name in ignored_set:
-                continue
-            
-            try:
-                # Get columns from source
-                cols_info = cursor_source.execute(f"PRAGMA table_info({table_name})").fetchall()
-                col_names = [info[1] for info in cols_info]
-                
-                if mode == 'smart':
-                    # Get target table columns and types for safe conversion
-                    try:
-                        target_cols = {c['name']: c['type'] for c in inspector.get_columns(table_name)}
-                    except Exception:
-                        # Table might not exist in target
-                        continue
-                        
-                    # Process in chunks to save memory
-                    BATCH_SIZE = 1000
-                    cursor_source.execute(f"SELECT * FROM {table_name}")
-                    
-                    while True:
-                        rows = cursor_source.fetchmany(BATCH_SIZE)
-                        if not rows:
-                            break
-                            
-                        data_to_insert = []
-                        for row in rows:
-                            row_dict = dict(zip(col_names, row))
-                            new_row = {}
-                            for col, val in row_dict.items():
-                                if col not in target_cols:
-                                    continue
-                                
-                                col_type = target_cols[col]
-                                # SQLite stores booleans as 0/1, Postgres needs bool or correct cast
-                                if isinstance(col_type, Boolean) and isinstance(val, int):
-                                    new_row[col] = bool(val)
-                                else:
-                                    new_row[col] = val
-                            data_to_insert.append(new_row)
-                        
-                        if not data_to_insert:
-                            continue
-
-                        # Insert into Target
-                        # We use matched columns only
-                        final_cols = list(data_to_insert[0].keys())
-                        placeholders = ', '.join([':' + c for c in final_cols])
-                        columns_str = ', '.join(final_cols)
-                        
-                        if "postgresql" in current_app.config.get("SQLALCHEMY_DATABASE_URI", ""):
-                            stmt = f"INSERT INTO {table_name} ({columns_str}) VALUES ({placeholders}) ON CONFLICT DO NOTHING"
-                        else:
-                            stmt = f"INSERT OR IGNORE INTO {table_name} ({columns_str}) VALUES ({placeholders})"
-                        
-                        with db.engine.begin() as conn:
-                            conn.execute(text(stmt), data_to_insert)
-                            added_count += len(data_to_insert)
-
-            except Exception as e:
-                current_app.logger.error(f"Error merging table {table_name}: {e}")
-                pass
-                
-    except Exception as e:
-        current_app.logger.error(f"Merge database error: {e}")
-    finally:
-        conn_source.close()
-    
-    return {'added': added_count}
+    raise ValueError("DB Merger غير مدعوم. النظام يعمل على PostgreSQL فقط.")
 
 
 def _get_db_size():
@@ -1236,13 +1160,7 @@ def _get_db_size():
                 return result
             except Exception:
                 return 'N/A'
-        else:
-            # SQLite size
-            db_path = os.path.join(current_app.root_path, 'instance', 'app.db')
-            if os.path.exists(db_path):
-                size = os.path.getsize(db_path) / (1024 * 1024)
-                return f'{size:.2f} MB'
-            return 'N/A'
+        return 'N/A'
     except Exception:
         return 'N/A'
 
@@ -1270,8 +1188,7 @@ def _count_all_records():
         total = 0
         preparer = db.engine.dialect.identifier_preparer
         inspector = inspect(db.engine)
-        tables = [t for t in inspector.get_table_names() 
-                 if not t.startswith('sqlite_') and not t.startswith('_alembic') and t != 'alembic_version']
+        tables = [t for t in inspector.get_table_names() if not t.startswith('_alembic') and t != 'alembic_version']
         
         for table in tables:
             try:
@@ -1372,7 +1289,7 @@ def _get_latest_backup_snapshot():
         backups = sorted(
             [
                 filename for filename in os.listdir(backup_dir)
-                if filename.endswith(('.db', '.sql', '.dump'))
+                if filename.endswith(('.dump',))
             ],
             reverse=True
         )
@@ -1575,101 +1492,17 @@ def _get_license_status():
 
 
 def _handle_db_merger_preview():
-    if 'db_file' not in request.files:
-        flash('❌ لم يتم رفع ملف', 'danger')
-        return redirect(url_for('advanced.db_merger'))
-    file = request.files['db_file']
-    if not file.filename.endswith('.db'):
-        flash('❌ يجب أن يكون ملف .db', 'danger')
-        return redirect(url_for('advanced.db_merger'))
-    merge_mode = request.form.get('merge_mode', 'smart')
-    ignored_tables = request.form.getlist('ignored_tables')
-    try:
-        temp_path = os.path.join(current_app.root_path, 'instance', 'temp_merge.db')
-        file.save(temp_path)
-        comparison = _compare_databases(temp_path, ignored_tables)
-        session['db_merger_preview'] = {
-            'file_name': secure_filename(file.filename),
-            'merge_mode': merge_mode,
-            'ignored_tables': ignored_tables,
-            'comparison': comparison,
-            'temp_path': temp_path,
-        }
-        flash('✅ تم إنشاء معاينة الدمج، راجع التفاصيل قبل التنفيذ', 'success')
-        return redirect(url_for('advanced.db_merger'))
-    except Exception as e:
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
-        flash(f'❌ خطأ في المعاينة: {str(e)}', 'danger')
-        return redirect(url_for('advanced.db_merger'))
+    flash('❌ DB Merger غير مدعوم. النظام يعمل على PostgreSQL فقط.', 'danger')
+    return redirect(url_for('advanced.backup_manager'))
 
 
 def _handle_db_merger_execute():
-    preview = session.get('db_merger_preview')
-    if not preview:
-        flash('❌ لا توجد معاينة جاهزة، قم برفع الملف أولاً', 'danger')
-        return redirect(url_for('advanced.db_merger'))
-    temp_path = preview.get('temp_path')
-    merge_mode = preview.get('merge_mode', 'smart')
-    ignored_tables = preview.get('ignored_tables', [])
-    safety_backup = None
-    try:
-        safety_backup = _create_safety_backup()
-        result = _merge_databases(temp_path, merge_mode, ignored_tables)
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
-        session.pop('db_merger_preview', None)
-        _log_owner_action('db_merger.execute', preview.get('file_name'), {
-            'added': result['added'],
-            'ignored_tables': ignored_tables,
-            'safety_backup': safety_backup
-        })
-        flash(f'✅ تم الدمج بنجاح! {result["added"]} سجل مضاف', 'success')
-        return redirect(url_for('advanced.db_merger'))
-    except Exception as e:
-        flash(f'❌ خطأ أثناء الدمج: {str(e)}', 'danger')
-        return redirect(url_for('advanced.db_merger'))
+    flash('❌ DB Merger غير مدعوم. النظام يعمل على PostgreSQL فقط.', 'danger')
+    return redirect(url_for('advanced.backup_manager'))
 
 
 def _compare_databases(source_db_path, ignored_tables):
-    comparison = []
-    ignored_set = set(ignored_tables or [])
-    
-    # Source is assumed to be an SQLite database file
-    try:
-        source_conn = sqlite3.connect(source_db_path)
-        source_cursor = source_conn.cursor()
-    except sqlite3.Error:
-        # If it's not a valid SQLite file (e.g. uploaded SQL dump), return empty comparison or handle error
-        current_app.logger.warning(f"Merge source is not a valid SQLite file: {source_db_path}")
-        return []
-
-    try:
-        tables = source_cursor.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
-        for (table_name,) in tables:
-            if table_name.startswith('sqlite_') or table_name in ignored_set:
-                continue
-            
-            try:
-                source_count = source_cursor.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()[0]
-            except Exception:
-                source_count = 'N/A'
-            
-            try:
-                # Use SQLAlchemy to query the current database (supports both SQLite and PostgreSQL)
-                target_count = db.session.execute(text(f"SELECT COUNT(*) FROM {table_name}")).scalar()
-            except Exception:
-                target_count = 'N/A'
-            
-            comparison.append({
-                'table': table_name,
-                'source_count': source_count,
-                'target_count': target_count,
-            })
-    finally:
-        source_conn.close()
-
-    return comparison
+    raise ValueError("DB Merger غير مدعوم. النظام يعمل على PostgreSQL فقط.")
 
 
 def _create_safety_backup():
@@ -2324,7 +2157,7 @@ def _run_accounting_system_check():
 
 
 @advanced_bp.route('/download-cloned-system/<clone_name>')
-@owner_only
+@permission_required('manage_system_config')
 def download_cloned_system(clone_name):
     """تحميل نظام مستنسخ"""
     if not _validate_safe_slug(clone_name):
@@ -2364,7 +2197,7 @@ def download_cloned_system(clone_name):
 
 
 @advanced_bp.route('/system-cloner', methods=['GET', 'POST'])
-@owner_only
+@permission_required('manage_system_config')
 def system_cloner():
     """مولد الأنظمة المخصصة - استنساخ ذكي للمزايا المختارة"""
     
@@ -2702,7 +2535,7 @@ from models import User
 def create_app():
     app = Flask(__name__)
     app.config['SECRET_KEY'] = 'change-this-in-production'
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://user:password@localhost:5432/dbname'
     
     db.init_app(app)
     migrate.init_app(app, db)
@@ -2793,7 +2626,7 @@ Password: admin123
 
 
 @advanced_bp.route('/download-mobile-app/<app_name>')
-@owner_only
+@permission_required('manage_mobile_app')
 def download_mobile_app(app_name):
     """تحميل تطبيق موبايل"""
     try:
@@ -2810,7 +2643,7 @@ def download_mobile_app(app_name):
 
 
 @advanced_bp.route('/mobile-app-generator', methods=['GET', 'POST'])
-@owner_only
+@permission_required('manage_mobile_app')
 def mobile_app_generator():
     """مولد تطبيقات الموبايل - تحويل النظام لتطبيق Android/iOS"""
     
@@ -3290,135 +3123,18 @@ def _detect_current_db_type():
     """كشف نوع قاعدة البيانات الحالية"""
     try:
         uri = current_app.config.get('SQLALCHEMY_DATABASE_URI', '')
-        if uri.startswith('sqlite'):
-            return 'SQLite'
-        elif uri.startswith('postgresql'):
+        if uri.startswith(('postgresql', 'postgres')):
             return 'PostgreSQL'
-        elif uri.startswith('mysql'):
-            return 'MySQL'
-        elif uri.startswith('mssql') or uri.startswith('sqlserver'):
-            return 'SQL Server'
-        else:
-            return 'Unknown'
+        dialect = getattr(db.engine, "dialect", None)
+        dialect_name = str(getattr(dialect, "name", "") or "").strip()
+        return dialect_name.title() if dialect_name else 'Unknown'
     except Exception:
-        return 'SQLite'
+        return 'Unknown'
 
 
 def _convert_database(target_db, connection_string):
     """تحويل قاعدة البيانات من نوع لآخر - محسّن وقوي"""
-    from sqlalchemy import create_engine, MetaData, Table, Column
-    from sqlalchemy.orm import sessionmaker
-    
-                                     
-    if not connection_string or len(connection_string) < 10:
-        raise ValueError("Connection string غير صالح")
-    
-                                     
-    backup_dir = os.path.join(current_app.root_path, 'instance', 'backups', 'db')
-    os.makedirs(backup_dir, exist_ok=True)
-    
-    current_db = os.path.join(current_app.root_path, 'instance', 'app.db')
-    safety_backup = os.path.join(backup_dir, f'before_convert_{datetime.now().strftime("%Y%m%d_%H%M%S")}.db')
-    
-    if os.path.exists(current_db):
-        shutil.copy2(current_db, safety_backup)
-    
-    source_engine = db.engine
-    
-                                              
-    try:
-        target_engine = create_engine(connection_string, echo=False)
-                        
-        with target_engine.connect() as conn:
-            conn.execute(text("SELECT 1"))
-    except Exception as e:
-        raise ValueError(f"فشل الاتصال بقاعدة البيانات المستهدفة: {str(e)}")
-    
-    source_metadata = MetaData()
-    source_metadata.reflect(bind=source_engine)
-    
-                                               
-    target_metadata = MetaData()
-    
-                         
-    for table_name, source_table in source_metadata.tables.items():
-        if table_name.startswith('sqlite_') or table_name.startswith('alembic_'):
-            continue
-        
-                                                  
-        columns = []
-        for column in source_table.columns:
-                                                     
-            col_copy = Column(
-                column.name,
-                column.type,
-                primary_key=column.primary_key,
-                nullable=column.nullable,
-                default=column.default,
-                unique=column.unique
-            )
-            columns.append(col_copy)
-        
-        Table(table_name, target_metadata, *columns, extend_existing=True)
-    
-                   
-    target_metadata.create_all(bind=target_engine)
-    
-    SourceSession = sessionmaker(bind=source_engine)
-    TargetSession = sessionmaker(bind=target_engine)
-    
-    source_session = SourceSession()
-    target_session = TargetSession()
-    
-    total_records = 0
-    tables_converted = 0
-    errors = []
-    
-    try:
-        for table_name in source_metadata.tables.keys():
-            if table_name.startswith('sqlite_') or table_name.startswith('alembic_'):
-                continue
-            
-            try:
-                source_table = source_metadata.tables[table_name]
-                target_table = target_metadata.tables[table_name]
-                
-                                        
-                source_data = source_session.execute(source_table.select()).fetchall()
-                
-                                            
-                for row in source_data:
-                    try:
-                        row_dict = dict(row._mapping)
-                        target_session.execute(target_table.insert().values(**row_dict))
-                        total_records += 1
-                    except Exception as e:
-                        errors.append(f"خطأ في {table_name}: {str(e)}")
-                        continue
-                
-                tables_converted += 1
-                
-                                                         
-                target_session.commit()
-                
-            except Exception as e:
-                errors.append(f"خطأ في جدول {table_name}: {str(e)}")
-                continue
-        
-    except Exception as e:
-        target_session.rollback()
-        raise e
-    finally:
-        source_session.close()
-        target_session.close()
-    
-    return {
-        'records': total_records,
-        'tables': tables_converted,
-        'target': target_db,
-        'errors': errors,
-        'backup': safety_backup
-    }
+    raise ValueError("db_conversion_disabled_postgresql_only")
 
 
 def _get_all_tenants():
@@ -3598,38 +3314,11 @@ def _get_available_modules_list():
 
 def _create_tenant_database(db_path):
     """إنشاء قاعدة بيانات جديدة للـ Tenant"""
-    try:
-                                         
-        current_db = os.path.join(current_app.root_path, 'instance', 'app.db')
-        if os.path.exists(current_db):
-            shutil.copy2(current_db, db_path)
-            
-                                          
-            conn = sqlite3.connect(db_path)
-            cursor = conn.cursor()
-            
-                              
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
-            tables = cursor.fetchall()
-            
-                                     
-            for (table_name,) in tables:
-                try:
-                    cursor.execute(f"DELETE FROM {table_name}")
-                except Exception:
-                    pass
-            
-            conn.commit()
-            conn.close()
-            
-            return True
-    except Exception as e:
-        current_app.logger.error(f"Error creating tenant database: {str(e)}")
-        return False
+    raise ValueError("tenant_db_creation_disabled_postgresql_only")
 
 
 @advanced_bp.route('/financial-control', methods=['GET', 'POST'])
-@owner_only
+@permission_required('manage_advanced_accounting')
 def financial_control():
     from models import SystemSettings, Budget, FixedAsset, FixedAssetCategory
     
@@ -3726,7 +3415,7 @@ def financial_control():
 
 
 @advanced_bp.route("/accounting-control", methods=["GET", "POST"])
-@owner_only
+@permission_required('manage_advanced_accounting')
 def accounting_control():
     settings_bundle = _get_accounting_settings_bundle()
     
@@ -3770,7 +3459,7 @@ def accounting_control():
 
 
 @advanced_bp.route("/api/advanced-accounting-stats")
-@owner_only
+@permission_required('manage_advanced_accounting')
 def api_accounting_stats():
     from models import BankTransaction
     
@@ -3793,7 +3482,7 @@ def api_accounting_stats():
 
 
 @advanced_bp.route("/accounting-control/export-settings", methods=["GET"])
-@owner_only
+@permission_required('manage_advanced_accounting')
 def accounting_control_export_settings():
     settings_bundle = _get_accounting_settings_bundle()
     payload = {
@@ -3811,7 +3500,7 @@ def accounting_control_export_settings():
 
 
 @advanced_bp.route("/accounting-control/import-settings", methods=["POST"])
-@owner_only
+@permission_required('manage_advanced_accounting')
 def accounting_control_import_settings():
     payload = request.get_json(silent=True)
     if not payload:
@@ -3838,14 +3527,14 @@ def accounting_control_import_settings():
 
 
 @advanced_bp.route("/accounting-control/system-check", methods=["GET"])
-@owner_only
+@permission_required('manage_advanced_accounting')
 def accounting_control_system_check():
     report = _run_accounting_system_check()
     return jsonify({"success": True, "report": report})
 
 
 @advanced_bp.route("/accounting-control/manual-backup", methods=["POST"])
-@owner_only
+@permission_required('backup_database')
 def accounting_control_manual_backup():
     manager = AutomatedBackupManager(current_app._get_current_object())
     backup_path = manager.create_backup()
@@ -3870,7 +3559,7 @@ def accounting_control_manual_backup():
 
 
 @advanced_bp.route("/accounting-control/report.pdf", methods=["GET"])
-@owner_only
+@permission_required('manage_advanced_accounting')
 def accounting_control_report_pdf():
     from weasyprint import HTML
     
@@ -3894,7 +3583,7 @@ def accounting_control_report_pdf():
 
 
 @advanced_bp.route('/performance-profiler', methods=['GET'])
-@owner_only
+@permission_required('manage_system_health')
 def performance_profiler():
     """Performance Profiler - تحليل أداء النظام"""
     from sqlalchemy import text
@@ -3921,8 +3610,7 @@ def performance_profiler():
             profiler_data['database']['simple_query_time'] = round((time.time() - start) * 1000, 2)
             
             inspector = inspect(db.engine)
-            tables = [t for t in inspector.get_table_names() 
-                     if not t.startswith('sqlite_') and not t.startswith('_alembic')]
+            tables = list(inspector.get_table_names() or [])
             profiler_data['database']['table_count'] = len(tables)
             
             slow_queries = []
@@ -3963,7 +3651,7 @@ def performance_profiler():
 
 
 @advanced_bp.route('/database-optimizer', methods=['GET', 'POST'])
-@owner_only
+@permission_required('manage_system_health')
 def database_optimizer():
     """Database Optimizer - تحسين قاعدة البيانات"""
     from sqlalchemy import text
@@ -3973,15 +3661,12 @@ def database_optimizer():
         
         if action == 'optimize':
             try:
-                dialect = getattr(db.engine, "dialect", None)
-                dialect_name = getattr(dialect, "name", "") or ""
-                if dialect_name == "sqlite":
-                    db.session.execute(text("PRAGMA optimize"))
-                    db.session.execute(text("PRAGMA wal_checkpoint(TRUNCATE)"))
-                    db.session.execute(text("VACUUM"))
-                else:
-                    db.session.execute(text("ANALYZE"))
-                db.session.commit()
+                try:
+                    db.session.rollback()
+                except Exception:
+                    pass
+                with db.engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+                    conn.execute(text("VACUUM (ANALYZE)"))
                 flash('✅ تم تحسين قاعدة البيانات بنجاح', 'success')
                 cache.delete("performance_profiler_data")
                 cache.delete("total_records_count")
@@ -4003,20 +3688,15 @@ def database_optimizer():
         elif action == 'reindex':
             try:
                 inspector = inspect(db.engine)
-                tables = [t for t in inspector.get_table_names() 
-                         if not t.startswith('sqlite_') and not t.startswith('_alembic')]
+                tables = list(inspector.get_table_names() or [])
                 
                 reindexed = []
                 dialect = getattr(db.engine, "dialect", None)
-                dialect_name = getattr(dialect, "name", "") or ""
                 preparer = getattr(dialect, "identifier_preparer", None)
                 for table in tables:
                     try:
                         quoted = preparer.quote(table) if preparer else table
-                        if dialect_name == "postgresql":
-                            db.session.execute(text(f"REINDEX TABLE {quoted}"))
-                        else:
-                            db.session.execute(text(f"REINDEX {quoted}"))
+                        db.session.execute(text(f"REINDEX TABLE {quoted}"))
                         reindexed.append(table)
                     except Exception:
                         continue
@@ -4029,27 +3709,15 @@ def database_optimizer():
             return redirect(url_for('advanced.database_optimizer'))
     
     try:
-        dialect = getattr(db.engine, "dialect", None)
-        dialect_name = getattr(dialect, "name", "") or ""
-        if dialect_name == "sqlite":
-            db_path = os.path.join(current_app.root_path, 'instance', 'app.db')
-            if os.path.exists(db_path):
-                db_size = os.path.getsize(db_path) / (1024 * 1024)
-            else:
-                db_size = 0
-            db_location = db_path
-        else:
-            try:
-                # PostgreSQL size query
-                result = db.session.execute(text("SELECT pg_database_size(current_database())")).scalar()
-                db_size = float(result) / (1024 * 1024) if result else 0
-            except Exception:
-                db_size = 0
-            db_location = db.engine.url.database or 'N/A'
+        try:
+            result = db.session.execute(text("SELECT pg_database_size(current_database())")).scalar()
+            db_size = float(result) / (1024 * 1024) if result else 0
+        except Exception:
+            db_size = 0
+        db_location = db.engine.url.database or 'N/A'
         
         inspector = inspect(db.engine)
-        tables = [t for t in inspector.get_table_names() 
-                 if not t.startswith('sqlite_') and not t.startswith('_alembic')]
+        tables = list(inspector.get_table_names() or [])
         
         index_count = 0
         for table in tables:
@@ -4113,7 +3781,7 @@ def database_optimizer():
             <div class="card-body text-center">
               <i class="fas fa-magic fa-3x text-success mb-3"></i>
               <h6>Optimize</h6>
-              <p class="small text-muted mb-3">SQLite: PRAGMA/VACUUM، PostgreSQL: ANALYZE</p>
+              <p class="small text-muted mb-3">VACUUM (ANALYZE)</p>
               <form method="POST">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="action" value="optimize">
@@ -4141,7 +3809,7 @@ def database_optimizer():
             <div class="card-body text-center">
               <i class="fas fa-stream fa-3x text-warning mb-3"></i>
               <h6>Reindex</h6>
-              <p class="small text-muted mb-3">SQLite: REINDEX، PostgreSQL: REINDEX TABLE</p>
+              <p class="small text-muted mb-3">REINDEX (PostgreSQL)</p>
               <form method="POST">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="action" value="reindex">
@@ -4159,7 +3827,7 @@ def database_optimizer():
 
 
 @advanced_bp.route('/api/performance/stats', methods=['GET'])
-@owner_only
+@permission_required('manage_system_health')
 def api_performance_stats():
     """API للحصول على إحصائيات الأداء"""
     from sqlalchemy import text
@@ -4171,13 +3839,12 @@ def api_performance_stats():
         query_time = (time.time() - start) * 1000
         
         dialect = getattr(db.engine, "dialect", None)
-        dialect_name = getattr(dialect, "name", "") or ""
-        if dialect_name == "sqlite":
-            db_path = os.path.join(current_app.root_path, 'instance', 'app.db')
-            db_size = os.path.getsize(db_path) / (1024 * 1024) if os.path.exists(db_path) else 0
-        else:
-            size_bytes = db.session.execute(text("SELECT pg_database_size(current_database())")).scalar()
-            db_size = (float(size_bytes) / (1024 * 1024)) if size_bytes else 0
+        dialect_name = (getattr(dialect, "name", "") or "").lower()
+        if dialect_name != "postgresql":
+            raise ValueError("performance_stats.postgresql_only")
+
+        size_bytes = db.session.execute(text("SELECT pg_database_size(current_database())")).scalar()
+        db_size = (float(size_bytes) / (1024 * 1024)) if size_bytes else 0
         
         return jsonify({
             'success': True,

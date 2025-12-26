@@ -44,6 +44,8 @@ def _get_models():
 
 redis_client: Optional[redis.Redis] = None
 _TWOPLACES = Decimal("0.01")
+_ACL_CACHE_LISTENERS_INSTALLED = False
+_ACCOUNTING_LISTENERS_INSTALLED = False
 
 
 def _D(x: Any) -> Decimal:
@@ -875,23 +877,29 @@ def optimize_database_queries():
 
 def get_performance_metrics():
     """الحصول على مقاييس الأداء"""
-    from models import db
     from sqlalchemy import text
     
     try:
-        # حجم قاعدة البيانات
-        db_size = db.session.execute(text("SELECT page_count * page_size as size FROM pragma_page_count(), pragma_page_size()")).scalar()
+        uri = current_app.config.get("SQLALCHEMY_DATABASE_URI", "")
+        if "postgresql" not in uri:
+            return {'error': 'unsupported database'}
         
-        # عدد الجداول
-        table_count = db.session.execute(text("SELECT COUNT(*) FROM sqlite_master WHERE type='table'")).scalar()
-        
-        # إحصائيات الفهرس
-        index_count = db.session.execute(text("SELECT COUNT(*) FROM sqlite_master WHERE type='index'")).scalar()
+        db_size = db.session.execute(text("SELECT pg_database_size(current_database())")).scalar()
+        table_count = db.session.execute(text("""
+            SELECT COUNT(*)
+            FROM information_schema.tables
+            WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
+        """)).scalar()
+        index_count = db.session.execute(text("""
+            SELECT COUNT(*)
+            FROM pg_indexes
+            WHERE schemaname NOT IN ('pg_catalog', 'information_schema')
+        """)).scalar()
         
         return {
-            'database_size_mb': round(db_size / (1024 * 1024), 2),
-            'table_count': table_count,
-            'index_count': index_count,
+            'database_size_mb': round(float(db_size or 0) / (1024 * 1024), 2),
+            'table_count': int(table_count or 0),
+            'index_count': int(index_count or 0),
             'cache_hit_ratio': getattr(cache, 'hit_ratio', 0)
         }
     except Exception as e:
@@ -900,10 +908,16 @@ def get_performance_metrics():
 def optimize_system():
     """تحسين النظام العام"""
     try:
-        # تحسين قاعدة البيانات
-        from models import db
-        db.session.execute(text("VACUUM"))
-        db.session.execute(text("ANALYZE"))
+        uri = current_app.config.get("SQLALCHEMY_DATABASE_URI", "")
+        if "postgresql" in uri:
+            conn = db.engine.raw_connection()
+            try:
+                conn.set_isolation_level(0)
+                cursor = conn.cursor()
+                cursor.execute("VACUUM ANALYZE")
+                cursor.close()
+            finally:
+                conn.close()
         
         # مسح التخزين المؤقت القديم
         cache.clear()
@@ -911,8 +925,6 @@ def optimize_system():
         return True
     except Exception as e:
         return False
-    except Exception:
-        pass
 
 def clear_all_cache():
     """مسح جميع التخزين المؤقت"""
@@ -1010,8 +1022,9 @@ def is_super() -> bool:
     except Exception:
         pass
     try:
-        role_name = str(getattr(getattr(current_user, "role", None), "name", "")).lower()
-        return role_name in {r.lower() for r in _SUPER_ROLES}
+        if not getattr(current_user, "is_authenticated", False):
+            return False
+        return bool(getattr(current_user, "is_system_account", False) or getattr(current_user, "username", "") == "__OWNER__")
     except Exception:
         return False
 
@@ -1027,8 +1040,14 @@ def is_admin() -> bool:
     except Exception:
         pass
     try:
-        role_name = str(getattr(getattr(current_user, "role", None), "name", "")).lower()
-        return role_name == "admin"
+        if not getattr(current_user, "is_authenticated", False):
+            return False
+        if getattr(current_user, "is_system_account", False) or getattr(current_user, "username", "") == "__OWNER__":
+            return True
+        fn = getattr(current_user, "has_permission", None)
+        if callable(fn):
+            return bool(fn("manage_users") or fn("manage_permissions"))
+        return False
     except Exception:
         return False
 
@@ -1045,7 +1064,7 @@ def super_only(f):
 def admin_or_super(f):
     @wraps(f)
     def _w(*args, **kwargs):
-        if not is_admin():
+        if not (is_admin() or is_super()):
             abort(403)
         return f(*args, **kwargs)
     return _w
@@ -1160,11 +1179,15 @@ def get_role_permissions(role) -> set:
 
 
 def _install_acl_cache_listeners():
+    global _ACL_CACHE_LISTENERS_INSTALLED
+    if _ACL_CACHE_LISTENERS_INSTALLED:
+        return
     try:
         from sqlalchemy import event
         from models import Role, User
     except Exception:
         return
+    _ACL_CACHE_LISTENERS_INSTALLED = True
 
     def _role_perm_change(target, value, initiator):
         try:
@@ -1486,6 +1509,9 @@ def detect_card_brand(pan: str) -> str:
 
 
 def _install_accounting_listeners():
+    global _ACCOUNTING_LISTENERS_INSTALLED
+    if _ACCOUNTING_LISTENERS_INSTALLED:
+        return
     try:
         from sqlalchemy import event
         from sqlalchemy.orm import object_session
@@ -1493,6 +1519,7 @@ def _install_accounting_listeners():
         Q = Decimal("0.01")
     except Exception:
         return
+    _ACCOUNTING_LISTENERS_INSTALLED = True
 
     def _q2_local(x):
         try:

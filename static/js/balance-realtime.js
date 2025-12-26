@@ -1,4 +1,7 @@
 (function() {
+    if (window.__BALANCE_REALTIME_INIT__) return;
+    window.__BALANCE_REALTIME_INIT__ = true;
+
     if (typeof io === 'undefined') return;
     
     const socket = io();

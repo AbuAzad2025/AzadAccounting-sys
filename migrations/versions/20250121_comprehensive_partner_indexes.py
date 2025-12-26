@@ -19,7 +19,6 @@ depends_on = None
 def upgrade():
     bind = op.get_bind()
     inspector = inspect(bind)
-    is_sqlite = bind.dialect.name == "sqlite"
     
     existing_partner_indexes = {idx["name"] for idx in inspector.get_indexes("partners")}
     
@@ -51,20 +50,14 @@ def upgrade():
         }
     ]
     
-    if is_sqlite:
-        for idx_info in partner_indexes:
-            if idx_info["name"] not in existing_partner_indexes:
-                columns_str = ", ".join(idx_info["columns"])
-                op.execute(f'CREATE INDEX IF NOT EXISTS {idx_info["name"]} ON partners ({columns_str})')
-    else:
-        for idx_info in partner_indexes:
-            if idx_info["name"] not in existing_partner_indexes:
-                op.create_index(
-                    idx_info["name"],
-                    "partners",
-                    idx_info["columns"],
-                    unique=False
-                )
+    for idx_info in partner_indexes:
+        if idx_info["name"] not in existing_partner_indexes:
+            op.create_index(
+                idx_info["name"],
+                "partners",
+                idx_info["columns"],
+                unique=False
+            )
     
     try:
         existing_payment_indexes = {idx["name"] for idx in inspector.get_indexes("payments")}
@@ -89,23 +82,17 @@ def upgrade():
         }
     ]
     
-    if is_sqlite:
-        for idx_info in payment_indexes:
-            if idx_info["name"] not in existing_payment_indexes:
-                columns_str = ", ".join(idx_info["columns"])
-                op.execute(f'CREATE INDEX IF NOT EXISTS {idx_info["name"]} ON payments ({columns_str})')
-    else:
-        for idx_info in payment_indexes:
-            if idx_info["name"] not in existing_payment_indexes:
-                try:
-                    op.create_index(
-                        idx_info["name"],
-                        "payments",
-                        idx_info["columns"],
-                        unique=False
-                    )
-                except Exception:
-                    pass
+    for idx_info in payment_indexes:
+        if idx_info["name"] not in existing_payment_indexes:
+            try:
+                op.create_index(
+                    idx_info["name"],
+                    "payments",
+                    idx_info["columns"],
+                    unique=False
+                )
+            except Exception:
+                pass
     
     try:
         existing_expense_indexes = {idx["name"] for idx in inspector.get_indexes("expenses")}
@@ -125,23 +112,17 @@ def upgrade():
         }
     ]
     
-    if is_sqlite:
-        for idx_info in expense_indexes:
-            if idx_info["name"] not in existing_expense_indexes:
-                columns_str = ", ".join(idx_info["columns"])
-                op.execute(f'CREATE INDEX IF NOT EXISTS {idx_info["name"]} ON expenses ({columns_str})')
-    else:
-        for idx_info in expense_indexes:
-            if idx_info["name"] not in existing_expense_indexes:
-                try:
-                    op.create_index(
-                        idx_info["name"],
-                        "expenses",
-                        idx_info["columns"],
-                        unique=False
-                    )
-                except Exception:
-                    pass
+    for idx_info in expense_indexes:
+        if idx_info["name"] not in existing_expense_indexes:
+            try:
+                op.create_index(
+                    idx_info["name"],
+                    "expenses",
+                    idx_info["columns"],
+                    unique=False
+                )
+            except Exception:
+                pass
     
     try:
         bind.execute(sa_text("ANALYZE partners"))
@@ -162,7 +143,6 @@ def upgrade():
 def downgrade():
     bind = op.get_bind()
     inspector = inspect(bind)
-    is_sqlite = bind.dialect.name == "sqlite"
     
     try:
         existing_partner_indexes = {idx["name"] for idx in inspector.get_indexes("partners")}
@@ -177,21 +157,12 @@ def downgrade():
         "ix_partners_share_percentage"
     ]
     
-    if is_sqlite:
-        with op.batch_alter_table("partners") as batch_op:
-            for idx_name in partner_indexes_to_drop:
-                if idx_name in existing_partner_indexes:
-                    try:
-                        batch_op.drop_index(idx_name)
-                    except Exception:
-                        pass
-    else:
-        for idx_name in partner_indexes_to_drop:
-            if idx_name in existing_partner_indexes:
-                try:
-                    op.drop_index(idx_name, table_name="partners")
-                except Exception:
-                    pass
+    for idx_name in partner_indexes_to_drop:
+        if idx_name in existing_partner_indexes:
+            try:
+                op.drop_index(idx_name, table_name="partners")
+            except Exception:
+                pass
     
     try:
         existing_payment_indexes = {idx["name"] for idx in inspector.get_indexes("payments")}
@@ -204,21 +175,12 @@ def downgrade():
         "ix_payments_partner_id_date"
     ]
     
-    if is_sqlite:
-        with op.batch_alter_table("payments") as batch_op:
-            for idx_name in payment_indexes_to_drop:
-                if idx_name in existing_payment_indexes:
-                    try:
-                        batch_op.drop_index(idx_name)
-                    except Exception:
-                        pass
-    else:
-        for idx_name in payment_indexes_to_drop:
-            if idx_name in existing_payment_indexes:
-                try:
-                    op.drop_index(idx_name, table_name="payments")
-                except Exception:
-                    pass
+    for idx_name in payment_indexes_to_drop:
+        if idx_name in existing_payment_indexes:
+            try:
+                op.drop_index(idx_name, table_name="payments")
+            except Exception:
+                pass
     
     try:
         existing_expense_indexes = {idx["name"] for idx in inspector.get_indexes("expenses")}
@@ -230,19 +192,10 @@ def downgrade():
         "ix_expenses_payee_type_entity_id"
     ]
     
-    if is_sqlite:
-        with op.batch_alter_table("expenses") as batch_op:
-            for idx_name in expense_indexes_to_drop:
-                if idx_name in existing_expense_indexes:
-                    try:
-                        batch_op.drop_index(idx_name)
-                    except Exception:
-                        pass
-    else:
-        for idx_name in expense_indexes_to_drop:
-            if idx_name in existing_expense_indexes:
-                try:
-                    op.drop_index(idx_name, table_name="expenses")
-                except Exception:
-                    pass
+    for idx_name in expense_indexes_to_drop:
+        if idx_name in existing_expense_indexes:
+            try:
+                op.drop_index(idx_name, table_name="expenses")
+            except Exception:
+                pass
 

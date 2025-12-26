@@ -259,14 +259,16 @@ def _super_roles():
         from utils import _SUPER_ROLES as _SR
         return {str(x).strip().lower() for x in (_SR or [])}
     except Exception:
-        return {"developer", "owner", "super_admin"}
+        return {"developer", "owner"}
 
 def is_super_admin(user) -> bool:
     try:
         if not getattr(user, "is_authenticated", False):
             return False
-        rname = (getattr(getattr(user, "role", None), "name", "") or "").strip().lower()
-        return rname in _super_roles()
+        # PBAC: التحقق من الصلاحية بدلاً من الدور
+        if hasattr(user, 'has_permission'):
+            return user.has_permission('manage_shop')
+        return False
     except Exception:
         return False
 
@@ -291,15 +293,10 @@ def online_customer_required(f):
                 address=getattr(current_user, "address", None),
                 currency="ILS",
                 is_online=True,
-                name=getattr(current_user, "username", "Super Admin"),
+                name=getattr(current_user, "username", "مستخدم"),
             )
             return f(*a, **kw)
-        cust = Customer.query.filter_by(id=current_user.id).first()
-        if not cust:
-            return _resp("لم يتم العثور على حساب العميل.", "danger")
-        g.viewer_only = False
-        g.online_customer = cust
-        return f(*a, **kw)
+        return _resp("هذه الميزة غير متاحة للحسابات المسجلة.", "warning")
     return inner
 
 class GatewayAdapter:
@@ -813,11 +810,7 @@ def checkout():
                         tvals = _warehouse_types()
                         if tvals:
                             q = q.filter(Warehouse.warehouse_type.in_(tvals))
-                    bind_name = db.session.bind.dialect.name if db.session.bind else ""
-                    if bind_name == "sqlite":
-                        _ = q.all()
-                    else:
-                        _ = q.with_for_update(skip_locked=True).all()
+                    _ = q.with_for_update(skip_locked=True).all()
                 for itm in cart.items:
                     if itm.quantity > available_qty(itm.product_id):
                         abort(409, description="الكمية المطلوبة غير متوفرة.")
@@ -1083,18 +1076,75 @@ def admin_product_new():
     cats = ProductCategory.query.order_by(ProductCategory.name.asc()).all()
     form.category_id.choices = [(c.id, c.name) for c in cats]
     if form.validate_on_submit():
-        p = Product()
+        def _is_blank(v):
+            if v is None:
+                return True
+            if isinstance(v, str):
+                return not v.strip()
+            return False
+
+        name = (form.name.data or "").strip()
+        existing = (
+            Product.query.filter(func.lower(Product.name) == name.lower()).order_by(Product.id.asc()).first()
+            if name
+            else None
+        )
+        if existing:
+            try:
+                form.id.process(None, existing.id)
+            except Exception:
+                form.id.data = existing.id
+
+        p = existing or Product()
+        preserve_if_blank = {}
+        if existing:
+            for k in (
+                "sku",
+                "serial_no",
+                "barcode",
+                "description",
+                "part_number",
+                "brand",
+                "commercial_name",
+                "chassis_number",
+                "unit",
+                "origin_country",
+                "dimensions",
+                "image",
+                "online_name",
+                "online_image",
+                "notes",
+                "supplier_id",
+                "supplier_international_id",
+                "supplier_local_id",
+                "vehicle_type_id",
+                "reorder_point",
+                "warranty_period",
+                "weight",
+                "min_price",
+                "max_price",
+                "online_price",
+            ):
+                preserve_if_blank[k] = getattr(p, k, None)
+
         form.apply_to(p)
+        if existing:
+            for field_name, old_val in preserve_if_blank.items():
+                if hasattr(form, field_name):
+                    if _is_blank(getattr(form, field_name).data):
+                        setattr(p, field_name, old_val)
+
         sku = (getattr(p, "sku", None) or "").strip() or None
         barcode = (getattr(p, "barcode", None) or "").strip() or None
         serial = (getattr(p, "serial_no", None) or "").strip() or None
-        if sku and _exists_product_field(Product.sku, sku):
+        exclude_id = p.id if existing else None
+        if sku and _exists_product_field(Product.sku, sku, exclude_id=exclude_id):
             flash("SKU مستخدم بالفعل.", "danger")
             return render_template("shop/admin_product_form.html", form=form, product=None)
-        if barcode and _exists_product_field(Product.barcode, barcode):
+        if barcode and _exists_product_field(Product.barcode, barcode, exclude_id=exclude_id):
             flash("الباركود مستخدم بالفعل.", "danger")
             return render_template("shop/admin_product_form.html", form=form, product=None)
-        if serial and _exists_product_field(Product.serial_no, serial):
+        if serial and _exists_product_field(Product.serial_no, serial, exclude_id=exclude_id):
             flash("الرقم التسلسلي مستخدم بالفعل.", "danger")
             return render_template("shop/admin_product_form.html", form=form, product=None)
         db.session.add(p)
@@ -1106,14 +1156,15 @@ def admin_product_new():
             or Warehouse.query.filter_by(is_active=True).first()
         )
         if default_wh:
-            kwargs = {"product_id": p.id, "warehouse_id": default_wh.id, "quantity": 0}
-            if hasattr(StockLevel, "reserved_quantity"):
-                kwargs["reserved_quantity"] = 0
-            stock = StockLevel(**kwargs)
-            db.session.add(stock)
+            if not StockLevel.query.filter_by(product_id=p.id, warehouse_id=default_wh.id).first():
+                kwargs = {"product_id": p.id, "warehouse_id": default_wh.id, "quantity": 0}
+                if hasattr(StockLevel, "reserved_quantity"):
+                    kwargs["reserved_quantity"] = 0
+                stock = StockLevel(**kwargs)
+                db.session.add(stock)
         try:
             db.session.commit()
-            flash("✅ تم إضافة المنتج", "success")
+            flash("✅ تم تحديث المنتج الموجود" if existing else "✅ تم إضافة المنتج", "success")
             return redirect(url_for("shop.admin_products"))
         except SQLAlchemyError as e:
             db.session.rollback()

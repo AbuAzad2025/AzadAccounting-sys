@@ -1073,8 +1073,6 @@ class HardDeleteService:
         
         if linked_customer_id:
             try:
-                db.session.execute(sql_text("PRAGMA foreign_keys=OFF"))
-                
                 db.session.execute(sql_text("DELETE FROM sale_lines WHERE sale_id IN (SELECT id FROM sales WHERE customer_id = :cid)"), {"cid": linked_customer_id})
                 db.session.execute(sql_text("DELETE FROM sales WHERE customer_id = :cid"), {"cid": linked_customer_id})
                 db.session.execute(sql_text("DELETE FROM payment_splits WHERE payment_id IN (SELECT id FROM payments WHERE customer_id = :cid)"), {"cid": linked_customer_id})
@@ -1090,10 +1088,8 @@ class HardDeleteService:
                 db.session.execute(sql_text("DELETE FROM gl_batches WHERE entity_type = 'CUSTOMER' AND entity_id = :cid"), {"cid": linked_customer_id})
                 db.session.execute(sql_text("DELETE FROM customers WHERE id = :cid"), {"cid": linked_customer_id})
                 db.session.flush()
-                
-                db.session.execute(sql_text("PRAGMA foreign_keys=ON"))
             except Exception:
-                db.session.execute(sql_text("PRAGMA foreign_keys=ON"))
+                pass
         
         try:
             db.session.query(Product).filter(
@@ -1189,8 +1185,6 @@ class HardDeleteService:
         
         if linked_customer_id:
             try:
-                db.session.execute(sql_text("PRAGMA foreign_keys=OFF"))
-                
                 db.session.execute(sql_text("DELETE FROM sale_lines WHERE sale_id IN (SELECT id FROM sales WHERE customer_id = :cid)"), {"cid": linked_customer_id})
                 db.session.execute(sql_text("DELETE FROM sales WHERE customer_id = :cid"), {"cid": linked_customer_id})
                 db.session.execute(sql_text("DELETE FROM payment_splits WHERE payment_id IN (SELECT id FROM payments WHERE customer_id = :cid)"), {"cid": linked_customer_id})
@@ -1206,10 +1200,8 @@ class HardDeleteService:
                 db.session.execute(sql_text("DELETE FROM gl_batches WHERE entity_type = 'CUSTOMER' AND entity_id = :cid"), {"cid": linked_customer_id})
                 db.session.execute(sql_text("DELETE FROM customers WHERE id = :cid"), {"cid": linked_customer_id})
                 db.session.flush()
-                
-                db.session.execute(sql_text("PRAGMA foreign_keys=ON"))
             except Exception:
-                db.session.execute(sql_text("PRAGMA foreign_keys=ON"))
+                pass
         
         db.session.query(Partner).filter_by(id=partner_id).delete()
     

@@ -1,3 +1,7 @@
+(function() {
+    if (window.__GPS_LOCATION_PICKER_INIT__) return;
+    window.__GPS_LOCATION_PICKER_INIT__ = true;
+
 /**
  * GPS Location Picker - خرافي!
  * يتيح اختيار الموقع من خريطة Google Maps أو استخدام GPS الجهاز
@@ -198,6 +202,8 @@ function createGPSButton() {
     return controlDiv;
 }
 
+window.initLocationPicker = initLocationPicker;
+
 /**
  * إنشاء أزرار المشاركة والنسخ
  */
@@ -218,7 +224,7 @@ function createShareButtons(latInput, lngInput) {
     copyButton.style.boxShadow = '0 2px 6px rgba(0,0,0,0.3)';
     copyButton.style.cursor = 'pointer';
     copyButton.style.padding = '10px 15px';
-    copyButton.style.borderRadius = '8px';
+    button_borderRadius = '8px';
     copyButton.style.fontWeight = 'bold';
 
     copyButton.addEventListener('click', function() {
@@ -436,3 +442,4 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
+})();

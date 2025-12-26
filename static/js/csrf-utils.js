@@ -4,6 +4,10 @@ function getCSRFToken() {
         || '';
 }
 
+(function() {
+    if (window.__CSRF_UTILS_INIT__) return;
+    window.__CSRF_UTILS_INIT__ = true;
+
 function setupGlobalCSRF() {
     const originalFetch = window.fetch;
     window.fetch = function(url, options = {}) {
@@ -25,4 +29,5 @@ function setupGlobalCSRF() {
 if (typeof document !== 'undefined') {
     setupGlobalCSRF();
 }
+})();
 

@@ -21,6 +21,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (isSelect2 && window.jQuery) jQuery(el).trigger('change.select2');
     if (disabled) el.setAttribute('disabled', 'disabled'); else el.removeAttribute('disabled');
   }
+})();
 
   function clearFieldValues(container) {
     if (!container) return;
@@ -789,3 +790,4 @@ document.addEventListener('DOMContentLoaded', function () {
     };
   }
 });
+})();

@@ -516,7 +516,7 @@ class SystemKnowledgeBase:
                 'impact': 'medium'
             },
             {
-                'rule': 'Super Admin (ID=1) يتجاوز وضع الصيانة',
+                'rule': 'حساب النظام (ID=1) يتجاوز وضع الصيانة',
                 'source': 'app.py - check_maintenance_mode',
                 'impact': 'high'
             },

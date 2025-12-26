@@ -82,7 +82,7 @@ def upgrade():
             skipped += 1
     
     try:
-        conn.execute(sa.text("PRAGMA optimize"))
+        conn.execute(sa.text("ANALYZE"))
     except Exception:
         pass
     

@@ -14,7 +14,7 @@
 {% block content %}
 <div class="container-fluid">
   <div class="d-flex gap-2 mb-3">
-    {% if shop_is_super_admin %}
+    {% if has_perm('manage_users') %}
       <a href="{{ url_for('users_bp.create_user') }}" class="btn btn-success">
         <i class="fas fa-user-plus"></i> إضافة مستخدم جديد
       </a>
@@ -35,7 +35,7 @@
         <th>آخر دخول</th>
         <th>صلاحيات إضافية</th>
         <th>تاريخ الإنشاء</th>
-        {% if shop_is_super_admin %}
+        {% if has_perm('manage_users') %}
           <th style="width:160px">إجراءات</th>
         {% endif %}
       </tr>
@@ -129,7 +129,7 @@
           <td class="text-center" data-order="{{ user.created_at.isoformat() if user.created_at else '' }}">
             {{ user.created_at|format_date if user.created_at else '—' }}
           </td>
-          {% if shop_is_super_admin %}
+          {% if has_perm('manage_users') %}
             <td class="text-center text-nowrap">
               <a href="{{ url_for('users_bp.user_detail', user_id=user.id) }}" class="btn btn-sm btn-info" title="تفاصيل"><i class="fas fa-eye"></i></a>
               <a href="{{ url_for('users_bp.edit_user', user_id=user.id) }}" class="btn btn-sm btn-primary" title="تعديل"><i class="fas fa-edit"></i></a>
@@ -176,7 +176,7 @@
     const $tbl = $('#users-table');
     if ($.fn.DataTable && $tbl.length) {
       const cols = $tbl.find('thead th').length;
-      const hasActions = {% if shop_is_super_admin %}true{% else %}false{% endif %};
+      const hasActions = {% if has_perm('manage_users') %}true{% else %}false{% endif %};
       $tbl.DataTable({
         responsive: true,
         autoWidth: false,

@@ -211,12 +211,12 @@ def _begin():
     except Exception: pass
     return db.session.begin()
 
-@click.command("create-superadmin")
+@click.command("create-system-admin")
 @click.option("--username", required=True)
 @click.option("--password", required=True)
 @click.option("--email", default=None)
 @with_appcontext
-def create_superadmin(username, password, email):
+def create_system_admin(username, password, email):
     s = db.session
     if not email:
         email = f"{username}@local"
@@ -238,7 +238,7 @@ def create_superadmin(username, password, email):
         u.role = r
         u.set_password(password)
     s.commit()
-    click.echo(f"✅ super_admin '{username}' created or updated.")
+    click.echo(f"✅ system admin '{username}' created or updated.")
 
 @click.command("seed-roles")
 @click.option("--force", is_flag=True)
@@ -1266,7 +1266,8 @@ def invoice_update_status(invoice_id: int):
     inv=db.session.get(Invoice, invoice_id)
     if not inv: raise click.ClickException("Invoice not found")
     try:
-        with _begin(): inv.update_status()
+        with _begin():
+            db.session.flush()
         click.echo(f"OK: invoice {invoice_id} status -> {inv.status}")
     except SQLAlchemyError as e:
         db.session.rollback(); raise click.ClickException(str(e)) from e
@@ -2021,10 +2022,10 @@ def currency_test(base, quote):
     except Exception as e:
         click.echo(f"❌ خطأ في النظام: {e}")
 
-@click.command('create-superadmin', help="إنشاء مستخدم Super Admin")
+@click.command('create-system-admin-interactive', help="إنشاء مستخدم مدير نظام")
 @with_appcontext
-def create_superadmin():
-    """إنشاء مستخدم Super Admin بصلاحيات كاملة"""
+def create_system_admin_interactive():
+    """إنشاء مستخدم مدير نظام بصلاحيات كاملة"""
     from werkzeug.security import generate_password_hash
 
     email = click.prompt("البريد الإلكتروني", type=str)
@@ -2041,11 +2042,11 @@ def create_superadmin():
         click.echo(click.style(f"المستخدم {email} موجود بالفعل", fg="yellow"))
         return
 
-    # البحث عن دور Super Admin أو إنشاؤه
+    # البحث عن دور مدير النظام أو إنشاؤه
     super_role = Role.query.filter_by(slug="super_admin").first()
     if not super_role:
         super_role = Role(
-            name="Super Admin",
+            name="System Admin",
             slug="super_admin",
             description="صلاحيات كاملة للنظام"
         )
@@ -2065,7 +2066,7 @@ def create_superadmin():
     try:
         db.session.add(user)
         db.session.commit()
-        click.echo(click.style(f"✅ تم إنشاء مستخدم Super Admin: {email}", fg="green"))
+        click.echo(click.style(f"✅ تم إنشاء مستخدم مدير نظام: {email}", fg="green"))
     except Exception as e:
         db.session.rollback()
         click.echo(click.style(f"❌ خطأ: {str(e)}", fg="red"))
@@ -2747,7 +2748,7 @@ def register_cli(app) -> None:
         gl_seed_accounts, gl_list_batches, gl_list_entries,
         note_add, note_list, audit_tail,
         currency_balance, currency_validate, currency_report, currency_health, currency_update, currency_test,
-        create_superadmin,
+        create_system_admin, create_system_admin_interactive,
         optimize_db, link_missing_counterparties,
         seed_employees, seed_salaries, seed_expenses_demo, seed_branches,
         workflow_check_timeouts, gl_recreate_payments, sync_balances, checks_sync_due

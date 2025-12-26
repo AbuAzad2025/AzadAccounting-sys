@@ -1,6 +1,9 @@
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-  const input = document.querySelector('#upload-form input[type="file"]');
+(function() {
+  if (window.__IMPORT_UPLOAD_INIT__) return;
+  window.__IMPORT_UPLOAD_INIT__ = true;
+
+  document.addEventListener('DOMContentLoaded', function () {
+    const input = document.querySelector('#upload-form input[type="file"]');
   if (!input) return;
 
   const MAX_SIZE_MB = 5;
@@ -47,4 +50,4 @@ document.addEventListener('DOMContentLoaded', function () {
     setTimeout(() => { if (el) el.remove(); }, 5000);
   }
 });
-</script>
+})();

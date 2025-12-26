@@ -99,7 +99,7 @@
           <div class="d-flex justify-content-between"><span>المبلغ المطلوب للحجز:</span><span class="fw-bold" id="cart-prepaid">{{ '%.2f'|format(prepaid_amount) }} شيكل</span></div>
           <small class="d-block mt-1">20% كحد أدنى</small>
         </div>
-        {% if not has_any('manage_shop','manage_payments') %}
+        {% if has_perm('place_online_order') and not has_any('manage_shop','manage_payments') %}
         <a href="{{ url_for('shop.checkout') }}" class="btn btn-primary w-100 py-3">إتمام عملية الشراء</a>
         {% endif %}
         <a href="{{ url_for('shop.catalog') }}" class="btn btn-outline-secondary w-100 mt-2">العودة للتسوق</a>

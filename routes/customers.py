@@ -27,7 +27,7 @@ from sqlalchemy import func, or_, case, exists, and_, select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import joinedload, load_only, selectinload, sessionmaker
 
-from extensions import db, quick_wal_checkpoint
+from extensions import db
 from forms import CustomerForm, CustomerImportForm, ExportContactsForm
 from models import (
     AuditLog,
@@ -414,14 +414,16 @@ def list_customers():
             current_app.logger.error("customers_print_pdf_error: %s", exc)
             context["pdf_export"] = False
 
-    quick_wal_checkpoint()
-    
     return render_template("customers/list.html", **context)
 
 
 @customers_bp.route("/<int:customer_id>", methods=["GET"], endpoint="customer_detail")
 @login_required
 def customer_detail(customer_id):
+    try:
+        db.session.rollback()
+    except Exception:
+        pass
     customer = db.session.get(Customer, customer_id) or abort(404)
     balance_breakdown = None
     rights_items = []
@@ -429,6 +431,10 @@ def customer_detail(customer_id):
     try:
         balance_breakdown = build_customer_balance_view(customer_id, db.session)
     except Exception as exc:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
         current_app.logger.warning("customer_balance_breakdown_page_failed: %s", exc)
     if balance_breakdown and balance_breakdown.get("success"):
         rights_items = (balance_breakdown.get("rights") or {}).get("items") or []
@@ -445,6 +451,10 @@ def customer_detail(customer_id):
 @customers_bp.route("/<int:customer_id>/analytics", methods=["GET"], endpoint="customer_analytics")
 @login_required
 def customer_analytics(customer_id):
+    try:
+        db.session.rollback()
+    except Exception:
+        pass
     customer = db.session.get(Customer, customer_id) or abort(404)
 
     from utils import D, q0
@@ -946,7 +956,7 @@ def export_customer_vcf(customer_id):
 @customers_bp.route("/<int:customer_id>/account_statement", methods=["GET"], endpoint="account_statement")
 @login_required
 def account_statement(customer_id):
-    if getattr(current_user, "__tablename__", "") == "customers" and getattr(current_user, "id", None) != customer_id:
+    if getattr(current_user, "__tablename__", "") == "customers":
         abort(403)
     from models import Check, CheckStatus
     
@@ -2254,26 +2264,41 @@ def account_statement(customer_id):
             "notes": exp.notes or '',
         })
 
-    opening_balance = D(getattr(c, 'opening_balance', 0) or 0)
-    if getattr(c, 'currency', None) and c.currency != "ILS":
-        try:
-            from models import convert_amount
-            ref_date = start_date or getattr(c, 'created_at', None)
-            opening_balance = D(convert_amount(opening_balance, c.currency, "ILS", ref_date))
-        except Exception:
-            pass
+    # Calculate opening balance (brought forward)
+    from utils.balance_calculator import calculate_balance_before_date
+    opening_balance = D(calculate_balance_before_date(c.id, start_date))
     
     if opening_balance != 0:
         opening_date = start_date or c.created_at
         
+        statement_text = "الرصيد الافتتاحي"
+        # Try to detect if this is a "brought forward" balance (start_date > created_at)
+        try:
+            c_created = c.created_at
+            if hasattr(c_created, 'date'):
+                 c_created_date = c_created.date()
+            else:
+                 c_created_date = c_created
+
+            s_date = start_date
+            if hasattr(s_date, 'date'):
+                s_date_date = s_date.date()
+            else:
+                s_date_date = s_date
+                
+            if c_created_date and s_date_date and s_date_date > c_created_date:
+                 statement_text = "رصيد مدور (سابق)"
+        except:
+            pass
+
         opening_entry = {
-            "date": opening_date,
+            "date": start_date,
             "type": "OPENING_BALANCE",
             "ref": "OB-001",
-            "statement": "الرصيد الافتتاحي",
+            "statement": statement_text,
             "debit": abs(opening_balance) if opening_balance < 0 else D(0),
             "credit": abs(opening_balance) if opening_balance > 0 else D(0),
-            "notes": "الرصيد السابق قبل بدء النظام",
+            "notes": "الرصيد السابق قبل الفترة المحددة",
             "currency": "ILS"
         }
         entries.insert(0, opening_entry)

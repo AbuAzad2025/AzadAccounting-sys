@@ -1,4 +1,7 @@
 (function () {
+  if (window.__SERVICE_INIT__) return;
+  window.__SERVICE_INIT__ = true;
+
   'use strict';
 
   function toNum(v) {
@@ -314,6 +317,12 @@
     $formPart.on('submit', function(e) {
       if (!validateDiscount($formPart)) {
         e.preventDefault();
+        // Restore button state if safe-enhancements already triggered
+        var btn = $formPart.find('button[type="submit"], .btn-primary');
+        if (btn.length) {
+             btn.prop('disabled', false);
+             if (btn[0].dataset.originalHtml) btn.html(btn[0].dataset.originalHtml);
+        }
         Swal.fire({
           icon: 'error',
           title: 'خطأ في البيانات',
@@ -373,6 +382,11 @@
       $formTask.on('submit', function(e) {
         if (!validateDiscount($formTask)) {
           e.preventDefault();
+          var btn = $formTask.find('button[type="submit"], .btn-primary');
+          if (btn.length) {
+               btn.prop('disabled', false);
+               if (btn[0].dataset.originalHtml) btn.html(btn[0].dataset.originalHtml);
+          }
           Swal.fire({
             icon: 'error',
             title: 'خطأ في البيانات',
@@ -537,6 +551,11 @@
     $('#form-discount-tax').on('submit', function(e) {
       if (!validateTotalDiscount()) {
         e.preventDefault();
+        var btn = $(this).find('button[type="submit"], .btn-primary');
+        if (btn.length) {
+             btn.prop('disabled', false);
+             if (btn[0].dataset.originalHtml) btn.html(btn[0].dataset.originalHtml);
+        }
         Swal.fire({
           icon: 'error',
           title: 'خطأ في البيانات',

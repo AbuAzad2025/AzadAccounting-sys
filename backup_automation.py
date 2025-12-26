@@ -18,8 +18,7 @@ class AutomatedBackupManager:
             return {'latest_backup': None}
         
         backups = []
-        # Support various backup formats
-        patterns = ['*.db', '*.dump', '*.sql', '*.sqlite']
+        patterns = ['*.dump']
         for pattern in patterns:
             backups.extend(glob.glob(os.path.join(self.backup_dir, pattern)))
             

@@ -19,7 +19,6 @@ depends_on = None
 def upgrade():
     bind = op.get_bind()
     inspector = inspect(bind)
-    is_sqlite = bind.dialect.name == "sqlite"
     
     existing_partner_indexes = {idx["name"] for idx in inspector.get_indexes("partners")}
     
@@ -40,18 +39,11 @@ def upgrade():
         if idx_name in existing_partner_indexes:
             redundant_indexes.append(idx_name)
     
-    if is_sqlite:
-        for idx_name in redundant_indexes:
-            try:
-                op.execute(f'DROP INDEX IF EXISTS {idx_name}')
-            except Exception:
-                pass
-    else:
-        for idx_name in redundant_indexes:
-            try:
-                op.drop_index(idx_name, table_name="partners")
-            except Exception:
-                pass
+    for idx_name in redundant_indexes:
+        try:
+            op.drop_index(idx_name, table_name="partners")
+        except Exception:
+            pass
     
     optimized_indexes = [
         {
@@ -94,29 +86,23 @@ def upgrade():
     
     optimized_indexes.sort(key=lambda x: x["priority"])
     
-    if is_sqlite:
-        for idx_info in optimized_indexes:
-            if idx_info["name"] not in existing_partner_indexes:
-                columns_str = ", ".join(idx_info["columns"])
-                op.execute(f'CREATE INDEX IF NOT EXISTS {idx_info["name"]} ON partners ({columns_str})')
-    else:
-        for idx_info in optimized_indexes:
-            if idx_info["name"] not in existing_partner_indexes:
-                try:
-                    op.create_index(
-                        idx_info["name"],
-                        "partners",
-                        idx_info["columns"],
-                        unique=False
-                    )
-                except Exception:
-                    pass
+    for idx_info in optimized_indexes:
+        if idx_info["name"] not in existing_partner_indexes:
+            try:
+                op.create_index(
+                    idx_info["name"],
+                    "partners",
+                    idx_info["columns"],
+                    unique=False
+                )
+            except Exception:
+                pass
     
-    _optimize_checks_indexes(bind, inspector, is_sqlite)
+    _optimize_checks_indexes(bind, inspector)
     _optimize_legacy_data(bind)
 
 
-def _optimize_checks_indexes(bind, inspector, is_sqlite):
+def _optimize_checks_indexes(bind, inspector):
     try:
         existing_check_indexes = {idx["name"] for idx in inspector.get_indexes("checks")}
         
@@ -167,26 +153,19 @@ def _optimize_checks_indexes(bind, inspector, is_sqlite):
         
         check_indexes.sort(key=lambda x: x["priority"])
         
-        if is_sqlite:
-            for idx_info in check_indexes:
-                if idx_info["name"] not in existing_check_indexes:
-                    columns_str = ", ".join([col for col in idx_info["columns"] if col])
-                    if columns_str:
-                        op.execute(f'CREATE INDEX IF NOT EXISTS {idx_info["name"]} ON checks ({columns_str})')
-        else:
-            for idx_info in check_indexes:
-                if idx_info["name"] not in existing_check_indexes:
-                    try:
-                        columns = [col for col in idx_info["columns"] if col]
-                        if columns:
-                            op.create_index(
-                                idx_info["name"],
-                                "checks",
-                                columns,
-                                unique=False
-                            )
-                    except Exception:
-                        pass
+        for idx_info in check_indexes:
+            if idx_info["name"] not in existing_check_indexes:
+                try:
+                    columns = [col for col in idx_info["columns"] if col]
+                    if columns:
+                        op.create_index(
+                            idx_info["name"],
+                            "checks",
+                            columns,
+                            unique=False
+                        )
+                except Exception:
+                    pass
     except Exception:
         pass
 
@@ -367,7 +346,6 @@ def _optimize_legacy_data(connection):
 def downgrade():
     bind = op.get_bind()
     inspector = inspect(bind)
-    is_sqlite = bind.dialect.name == "sqlite"
     
     try:
         existing_partner_indexes = {idx["name"] for idx in inspector.get_indexes("partners")}
@@ -393,37 +371,21 @@ def downgrade():
         "ix_checks_check_date_status"
     ]
     
-    if is_sqlite:
-        for idx_name in indexes_to_drop:
-            if idx_name in existing_partner_indexes:
-                try:
-                    op.execute(f'DROP INDEX IF EXISTS {idx_name}')
-                except Exception:
-                    pass
-    else:
-        for idx_name in indexes_to_drop:
-            if idx_name in existing_partner_indexes:
-                try:
-                    op.drop_index(idx_name, table_name="partners")
-                except Exception:
-                    pass
+    for idx_name in indexes_to_drop:
+        if idx_name in existing_partner_indexes:
+            try:
+                op.drop_index(idx_name, table_name="partners")
+            except Exception:
+                pass
     
     try:
         existing_check_indexes = {idx["name"] for idx in inspector.get_indexes("checks")}
     except Exception:
         existing_check_indexes = set()
     
-    if is_sqlite:
-        for idx_name in check_indexes_to_drop:
-            if idx_name in existing_check_indexes:
-                try:
-                    op.execute(f'DROP INDEX IF EXISTS {idx_name}')
-                except Exception:
-                    pass
-    else:
-        for idx_name in check_indexes_to_drop:
-            if idx_name in existing_check_indexes:
-                try:
-                    op.drop_index(idx_name, table_name="checks")
-                except Exception:
-                    pass
+    for idx_name in check_indexes_to_drop:
+        if idx_name in existing_check_indexes:
+            try:
+                op.drop_index(idx_name, table_name="checks")
+            except Exception:
+                pass

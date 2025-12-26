@@ -13,6 +13,8 @@
  */
 
 (function() {
+  if (window.__SECURITY_MEGA_ENHANCEMENTS_INIT__) return;
+  window.__SECURITY_MEGA_ENHANCEMENTS_INIT__ = true;
   'use strict';
   
   // ═══════════════════════════════════════════════════════════════════
@@ -661,16 +663,27 @@
   
   function addLoadingStates() {
     document.querySelectorAll('form').forEach(form => {
-      form.addEventListener('submit', function() {
-        const submitBtn = this.querySelector('button[type="submit"]');
-        if (submitBtn && !submitBtn.dataset.noLoading) {
-          submitBtn.disabled = true;
-          submitBtn.textContent = '';
-          const spinner = document.createElement('span');
-          spinner.className = 'spinner-border spinner-border-sm';
-          submitBtn.appendChild(spinner);
-          submitBtn.appendChild(document.createTextNode(' جاري المعالجة...'));
-        }
+      form.addEventListener('submit', function(e) {
+        setTimeout(() => {
+          if (e && e.defaultPrevented) return;
+          try { if (typeof this.checkValidity === 'function' && !this.checkValidity()) return; } catch (_) {}
+          const submitBtn = this.querySelector('button[type="submit"]');
+          if (submitBtn && !submitBtn.dataset.noLoading && !submitBtn.classList.contains('no-loading')) {
+            const originalHtml = submitBtn.innerHTML;
+            submitBtn.disabled = true;
+            submitBtn.textContent = '';
+            const spinner = document.createElement('span');
+            spinner.className = 'spinner-border spinner-border-sm';
+            submitBtn.appendChild(spinner);
+            submitBtn.appendChild(document.createTextNode(' جاري المعالجة...'));
+            setTimeout(() => {
+              try {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalHtml;
+              } catch (_) {}
+            }, 15000);
+          }
+        }, 0);
       });
     });
   }

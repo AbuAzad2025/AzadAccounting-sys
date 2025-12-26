@@ -32,7 +32,7 @@
           <div class="d-flex justify-content-between align-items-center">
             <div>
               <h6 class="text-white-50 mb-1">صلاحية مطلوبة</h6>
-              <h3 class="mb-0 fw-bold">Super Admin</h3>
+              <h3 class="mb-0 fw-bold">Restricted</h3>
               <small class="opacity-75">فقط</small>
             </div>
             <i class="fas fa-user-shield fa-2x opacity-50"></i>
@@ -47,7 +47,7 @@
           <div class="d-flex justify-content-between align-items-center">
             <div>
               <h6 class="text-white-50 mb-1">أنواع الملفات</h6>
-              <h3 class="mb-0 fw-bold">.db, .sqlite</h3>
+              <h3 class="mb-0 fw-bold">.dump</h3>
               <small class="opacity-75">المدعومة</small>
             </div>
             <i class="fas fa-file-archive fa-2x opacity-50"></i>
@@ -79,7 +79,7 @@
     </div>
     <div class="card-body">
 
-      {% if shop_is_super_admin %}
+      {% if has_perm('restore_database') %}
         <div class="alert alert-warning d-flex align-items-center">
           <i class="fas fa-exclamation-triangle fa-lg ml-2"></i>
           <div><strong>تحذير:</strong> سيؤدي المتابعة إلى استبدال جميع البيانات الحالية بالملف المحدد.</div>
@@ -88,7 +88,7 @@
           {{ form.hidden_tag() }}
           <div class="mb-3">
             {{ form.db_file.label(class="form-label fw-bold") }}
-            {{ form.db_file(class="form-control", accept=".db,.sqlite,.sqlite3,application/x-sqlite3") }}
+            {{ form.db_file(class="form-control", accept=".dump,application/octet-stream") }}
             {% if form.db_file.errors %}
             <div class="invalid-feedback d-block mt-1">
               {% for err in form.db_file.errors %}
@@ -108,7 +108,7 @@
         </form>
       {% else %}
         <div class="alert alert-danger">
-          <i class="fas fa-ban"></i> هذه الصفحة متاحة فقط لمستخدم <strong>Super Admin</strong>.
+          <i class="fas fa-ban"></i> هذه الصفحة متاحة فقط للمستخدمين الذين يملكون صلاحية <strong>استعادة النسخ الاحتياطي</strong>.
         </div>
       {% endif %}
 

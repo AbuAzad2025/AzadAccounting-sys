@@ -1,4 +1,7 @@
 (function() {
+    if (window.__DATATABLES_ARABIC_INIT__) return;
+    window.__DATATABLES_ARABIC_INIT__ = true;
+
     let applied = false;
     function applyDefaults() {
         if (applied) return;

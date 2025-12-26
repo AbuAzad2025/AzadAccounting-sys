@@ -1,3 +1,7 @@
+(function() {
+    if (window.__AI_ALERTS_INIT__) return;
+    window.__AI_ALERTS_INIT__ = true;
+
 document.addEventListener('DOMContentLoaded', function() {
     const trainingStatusInterval = 3000;
     let trainingPollInterval = null;
@@ -146,4 +150,5 @@ document.addEventListener('DOMContentLoaded', function() {
         startPolling(window.currentTrainingJobId);
     }
 });
+})();
 

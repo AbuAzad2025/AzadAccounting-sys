@@ -1,3 +1,7 @@
+(function() {
+    if (window.__EXPORT_HELPERS_INIT__) return;
+    window.__EXPORT_HELPERS_INIT__ = true;
+
 /**
  * Export Helpers - وظائف مساعدة للتصدير
  * ========================================
@@ -108,5 +112,7 @@ function exportJSONToCSV(data, filename = 'export.csv', columns = null) {
     setTimeout(() => URL.revokeObjectURL(url), 100);
 }
 
+window.exportTableToCSV = exportTableToCSV;
+window.exportJSONToCSV = exportJSONToCSV;
 
-
+})();

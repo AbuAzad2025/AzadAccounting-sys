@@ -631,7 +631,7 @@ def invoices_report():
     if kind:
         query = query.filter(Invoice.kind == kind)
     if status_filter:
-        query = query.filter(Invoice.status == status_filter)
+        query = query.filter(Invoice.status == status_filter.strip().upper())
     
     invoices = query.order_by(Invoice.invoice_date.desc()).all()
     

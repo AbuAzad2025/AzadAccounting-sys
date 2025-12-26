@@ -29,8 +29,19 @@
   }
   window.showNotification = showNotification;
 
+  function fetchWithTimeout(url, options, timeoutMs) {
+    var ms = Number(timeoutMs || 20000);
+    if (!(ms > 0)) ms = 20000;
+    if (typeof AbortController === 'undefined') return fetch(url, options);
+    var controller = new AbortController();
+    var timer = setTimeout(function () { try { controller.abort(); } catch (_) {} }, ms);
+    var opts = options ? Object.assign({}, options) : {};
+    opts.signal = controller.signal;
+    return fetch(url, opts).finally(function () { clearTimeout(timer); });
+  }
+
   function postJSON(url, payload) {
-    return fetch(url, {
+    return fetchWithTimeout(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -47,6 +58,9 @@
         }
         return data;
       });
+    }).catch(function (err) {
+      if (err && err.name === 'AbortError') throw new Error('انتهت مهلة الاتصال بالخادم');
+      throw err;
     });
   }
 
@@ -54,7 +68,7 @@
     var fd = new FormData(formElem);
     var csrf = getCSRFToken();
     if (csrf && !fd.get('csrf_token')) fd.append('csrf_token', csrf);
-    return fetch(url, {
+    return fetchWithTimeout(url, {
       method: 'POST',
       headers: { 'X-Requested-With': 'XMLHttpRequest' },
       credentials: 'same-origin',
@@ -67,6 +81,9 @@
         }
         return data;
       });
+    }).catch(function (err) {
+      if (err && err.name === 'AbortError') throw new Error('انتهت مهلة الاتصال بالخادم');
+      throw err;
     });
   }
 
@@ -282,18 +299,29 @@
     form.__boundTransferForm = true;
     form.addEventListener('submit', function (e) {
       e.preventDefault();
+      var btn = form.querySelector('button[type="submit"], .btn-primary');
+      if (btn) btn.disabled = true;
+      
       postForm(form.action || window.location.href, form)
         .then(function (res) {
           if (res && (res.ok === true || res.success === true)) {
             showNotification(res.message || 'تم تحويل الكمية بنجاح.', 'success');
-            if (res.redirect) { window.location = res.redirect; return; }
+            if (res.redirect) { 
+              window.location = res.redirect; 
+            } else {
+              // If no redirect, re-enable button to allow new actions or corrections
+              if (btn) btn.disabled = false;
+              // Optional: reset form if needed, but maybe user wants to keep values
+            }
           } else {
             var msg = (res && (res.message || res.error)) || 'تعذر تنفيذ التحويل';
             showNotification(msg, 'danger');
+            if (btn) btn.disabled = false;
           }
         })
         .catch(function (err) {
           showNotification((err && err.message) || 'خطأ غير متوقع', 'danger');
+          if (btn) btn.disabled = false;
         });
     });
   }
@@ -304,19 +332,28 @@
     form.__boundExchangeForm = true;
     form.addEventListener('submit', function (e) {
       e.preventDefault();
+      var btn = form.querySelector('button[type="submit"], .btn-primary');
+      if (btn) btn.disabled = true;
+
       postForm(form.action || window.location.href, form)
         .then(function (res) {
           if (res && (res.ok === true || res.success === true)) {
             var msg = 'تم تسجيل العملية.' + (typeof res.new_quantity !== 'undefined' ? (' الكمية الجديدة: ' + res.new_quantity) : '');
             showNotification(msg, 'success');
-            if (res.redirect) { window.location = res.redirect; return; }
+            if (res.redirect) { 
+              window.location = res.redirect; 
+            } else {
+              if (btn) btn.disabled = false;
+            }
           } else {
             var msg2 = (res && (res.message || res.error)) || 'تعذر تنفيذ العملية';
             showNotification(msg2, 'danger');
+            if (btn) btn.disabled = false;
           }
         })
         .catch(function (err) {
           showNotification((err && err.message) || 'خطأ غير متوقع', 'danger');
+          if (btn) btn.disabled = false;
         });
     });
   }
@@ -329,12 +366,16 @@
       form.__boundStockForm = true;
       form.addEventListener('submit', function (e) {
         e.preventDefault();
+        var btn = form.querySelector('button[type="submit"], .btn-primary');
+        if (btn) btn.disabled = true;
+        
         postForm(form.action || window.location.href, form)
           .then(function (resp) {
             var ok = resp && (resp.success === true || resp.ok === true);
             if (!ok) {
               var m = (resp && (resp.alert || resp.error || resp.message)) || 'تعذر إتمام العملية.';
               showNotification(m, 'warning');
+              if (btn) btn.disabled = false;
               return;
             }
             if (typeof resp.quantity !== 'undefined') {
@@ -346,6 +387,7 @@
           })
           .catch(function (err) {
             showNotification((err && err.message) || 'خطأ غير متوقع', 'danger');
+            if (btn) btn.disabled = false;
           });
       });
     });

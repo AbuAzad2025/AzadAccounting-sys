@@ -597,7 +597,7 @@
           </a>
         {% endif %}
         
-        {% if shop_is_super_admin %}
+        {% if has_perm('manage_users') %}
           <a href="{{ url_for('users_bp.edit_user', user_id=user.id) }}" class="action-btn btn-primary-gradient">
             <i class="fas fa-edit mr-2"></i>
             تعديل الحساب

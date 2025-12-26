@@ -11,7 +11,7 @@ load_dotenv()
 
 # Configuration
 DB_URI = os.getenv("DATABASE_URL", "")
-BACKUP_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "instance", "backups", "db")
+BACKUP_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "instance", "backups")
 if not os.path.exists(BACKUP_DIR):
     os.makedirs(BACKUP_DIR)
 MAX_BACKUPS = 30 # Keep last 30 backups

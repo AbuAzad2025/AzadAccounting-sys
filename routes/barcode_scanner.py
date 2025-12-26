@@ -887,12 +887,50 @@ def bulk_import_products():
                     continue
                 
                 # البحث عن المنتج بالباركود
-                existing_product = Product.query.filter_by(barcode=barcode).first()
+                existing_product = Product.query.filter_by(barcode=barcode, warehouse_id=warehouse_id).first()
+                if not existing_product:
+                    existing_product = Product.query.filter(
+                        func.lower(Product.name) == name.lower(),
+                        Product.warehouse_id == warehouse_id
+                    ).first()
+                    if existing_product and barcode:
+                        if existing_product.barcode and existing_product.barcode != barcode:
+                            errors.append(f"تعارض باركود للاسم {name}: {barcode}")
+                            continue
+                        if not existing_product.barcode:
+                            other = (
+                                db.session.query(Product.id)
+                                .filter(
+                                    Product.barcode == barcode,
+                                    Product.warehouse_id == warehouse_id,
+                                    Product.id != existing_product.id
+                                )
+                                .first()
+                            )
+                            if other:
+                                errors.append(f"الباركود مستخدم بالفعل: {barcode}")
+                                continue
+                            existing_product.barcode = barcode
                 
                 if existing_product:
                     # تحديث المنتج الموجود (الحقول المحددة فقط)
                     update_fields = product_data.get("update_fields", {})
                     
+                    if existing_product.part_number in (None, "") and part_number:
+                        existing_product.part_number = part_number
+                    if existing_product.brand in (None, "") and brand:
+                        existing_product.brand = brand
+                    if existing_product.commercial_name in (None, "") and commercial_name:
+                        existing_product.commercial_name = commercial_name
+                    if existing_product.origin_country in (None, "") and origin_country:
+                        existing_product.origin_country = origin_country
+                    if existing_product.unit in (None, "") and unit:
+                        existing_product.unit = unit
+                    if (existing_product.warranty_period in (None, 0)) and warranty_period > 0:
+                        existing_product.warranty_period = warranty_period
+                    if (existing_product.price in (None, 0)) and price > 0:
+                        existing_product.price = price
+
                     if update_fields.get("name") and update_fields["name"] != existing_product.name:
                         existing_product.name = update_fields["name"]
                     if update_fields.get("part_number") is not None:
@@ -943,6 +981,7 @@ def bulk_import_products():
                     # إنشاء منتج جديد
                     new_product = Product(
                         name=name,
+                        warehouse_id=warehouse_id,
                         barcode=barcode,
                         part_number=part_number if part_number else None,
                         brand=brand if brand else None,

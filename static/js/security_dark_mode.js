@@ -5,6 +5,8 @@
  */
 
 (function() {
+  if (window.__SECURITY_DARK_MODE_INIT__) return;
+  window.__SECURITY_DARK_MODE_INIT__ = true;
   'use strict';
   
   const DARK_MODE_KEY = 'securityDarkMode';

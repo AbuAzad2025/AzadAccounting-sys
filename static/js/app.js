@@ -1,4 +1,7 @@
 (function ($, window, document) {
+  if (window.__APP_INIT__) return;
+  window.__APP_INIT__ = true;
+
   "use strict";
   if (!$) return;
 
@@ -435,24 +438,39 @@
       });
 
       $(root).find('img[data-src]').each(function() {
+        const $img = $(this);
+        if ($img.data('lazy-initialized')) return;
+        $img.data('lazy-initialized', true);
         imageObserver.observe(this);
       });
     }
 
     // Debounced search
     let searchTimeout;
-    $(root).find('[data-search]').on('input', function() {
-      clearTimeout(searchTimeout);
-      const $this = $(this);
-      searchTimeout = setTimeout(() => {
-        performSearch($this.val(), $this.data('search'));
-      }, 300);
+    $(root).find('[data-search]').each(function() {
+      const $el = $(this);
+      if ($el.data('search-initialized')) return;
+      $el.data('search-initialized', true);
+
+      $el.on('input', function() {
+        clearTimeout(searchTimeout);
+        const $this = $(this);
+        searchTimeout = setTimeout(() => {
+          performSearch($this.val(), $this.data('search'));
+        }, 300);
+      });
     });
 
     // Auto-save forms
-    $(root).find('[data-autosave]').on('input change', debounce(function() {
-      saveFormData($(this).closest('form'));
-    }, 1000));
+    $(root).find('[data-autosave]').each(function() {
+      const $el = $(this);
+      if ($el.data('autosave-initialized')) return;
+      $el.data('autosave-initialized', true);
+
+      $el.on('input change', debounce(function() {
+        saveFormData($(this).closest('form'));
+      }, 1000));
+    });
   }
 
   function performSearch(query, target) {
@@ -505,7 +523,6 @@
     socketNotificationsInitialized = true;
     
     if (typeof io === 'undefined') {
-
       return;
     }
 
@@ -530,10 +547,10 @@
     socket.emit('join_user_room');
   }
 
-  function showNotification(title, message, type = 'info') {
-    // Disabled: notifications can cause performance issues
-    return;
-  }
+  // function showNotification(title, message, type = 'info') {
+  //   // Disabled: notifications can cause performance issues
+  //   return;
+  // }
 
   function showSystemAlert(message, severity = 'warning') {
     // Disabled: notifications can cause performance issues

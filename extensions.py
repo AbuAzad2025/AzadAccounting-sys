@@ -5,7 +5,6 @@ import logging
 import os
 import sys
 import glob
-import sqlite3
 from datetime import datetime, timezone
 
 from flask import g, has_request_context
@@ -180,38 +179,6 @@ def setup_sentry(app):
 
 db = SQLAlchemy(session_options={"expire_on_commit": False})
 
-
-# ═══════════════════════════════════════════════════════════════════════
-# 🔄 Checkpoint تلقائي لـ WAL بعد كل commit
-# ═══════════════════════════════════════════════════════════════════════
-
-_checkpoint_counter = 0
-_CHECKPOINT_INTERVAL = 5
-
-
-@event.listens_for(db.session.__class__, "after_commit")
-def _auto_checkpoint_after_commit(session):
-    """تنفيذ checkpoint تلقائي بعد commit لدمج WAL في الملف الرئيسي"""
-    global _checkpoint_counter
-    try:
-        from flask import current_app
-        from sqlalchemy import text
-        uri = current_app.config.get("SQLALCHEMY_DATABASE_URI", "")
-        if not uri.startswith("sqlite:///"):
-            return
-        
-        _checkpoint_counter += 1
-        if _checkpoint_counter >= _CHECKPOINT_INTERVAL:
-            _checkpoint_counter = 0
-            try:
-                session.execute(text("PRAGMA wal_checkpoint(PASSIVE)"))
-            except Exception:
-                try:
-                    session.execute(text("PRAGMA wal_checkpoint(TRUNCATE)"))
-                except Exception:
-                    pass
-    except Exception:
-        pass
 migrate = Migrate()
 login_manager = LoginManager()
 mail = Mail()
@@ -301,78 +268,24 @@ def _rate_limit_key():
 limiter = Limiter(key_func=_rate_limit_key, default_limits=[])
 scheduler = BackgroundScheduler()
 
+def _get_pg_bin(bin_name: str) -> str:
+    import shutil
 
-@event.listens_for(Engine, "connect")
-def _configure_db_connection(dbapi_connection, connection_record):
-    """Configure database connection based on dialect (SQLite/PostgreSQL)"""
-    try:
-        if isinstance(dbapi_connection, sqlite3.Connection):
-            cur = dbapi_connection.cursor()
-            cur.execute("PRAGMA busy_timeout=30000")
-            cur.execute("PRAGMA journal_mode=WAL")
-            cur.execute("PRAGMA synchronous=FULL")
-            cur.execute("PRAGMA foreign_keys=ON")
-            cur.execute("PRAGMA cache_size=-128000")
-            cur.execute("PRAGMA temp_store=MEMORY")
-            cur.execute("PRAGMA mmap_size=268435456")
-            cur.execute("PRAGMA page_size=4096")
-            cur.execute("PRAGMA auto_vacuum=INCREMENTAL")
-            cur.execute("PRAGMA threads=4")
-            cur.execute("PRAGMA wal_autocheckpoint=500")
-            cur.execute("PRAGMA optimize")
-            cur.execute("PRAGMA query_only=0")
-            cur.close()
-        # PostgreSQL optimization/configuration could be added here if needed
-        # e.g., setting application_name or specific session variables
-    except Exception:
-        pass
+    path = shutil.which(bin_name)
+    if path:
+        return path
 
+    if os.name == "nt":
+        common_versions = ["18", "17", "16", "15", "14", "13", "12"]
+        for ver in common_versions:
+            candidate = os.path.join(r"C:\Program Files\PostgreSQL", ver, "bin", f"{bin_name}.exe")
+            if os.path.exists(candidate):
+                return candidate
+            candidate_x86 = os.path.join(r"C:\Program Files (x86)\PostgreSQL", ver, "bin", f"{bin_name}.exe")
+            if os.path.exists(candidate_x86):
+                return candidate_x86
 
-def perform_wal_checkpoint(app):
-    """تنفيذ Checkpoint دوري لدمج WAL وتقليل حجمه"""
-    try:
-        uri = app.config.get("SQLALCHEMY_DATABASE_URI", "")
-        if not uri.startswith("sqlite:///"):
-            return
-        
-        with app.app_context():
-            try:
-                from sqlalchemy import text
-                result = db.session.execute(text("PRAGMA wal_checkpoint(TRUNCATE)")).fetchone()
-                if result and len(result) >= 3:
-                    busy, log, checkpointed = result[0], result[1], result[2]
-                    if busy == 0 and log == 0:
-                        app.logger.debug(f"✅ WAL Checkpoint completed: {checkpointed} pages checkpointed")
-                    else:
-                        app.logger.debug(f"⚠️ WAL Checkpoint: busy={busy}, log={log}, checkpointed={checkpointed}")
-                db.session.commit()
-            except Exception as e:
-                db.session.rollback()
-                app.logger.warning(f"⚠️ WAL Checkpoint failed: {e}")
-    except Exception as e:
-        app.logger.warning(f"⚠️ WAL Checkpoint error: {e}")
-
-
-def quick_wal_checkpoint():
-    """تفريغ WAL checkpoint بسرعة - للاستخدام في قوائم الموردين/العملاء/الشركاء"""
-    try:
-        from flask import current_app
-        from sqlalchemy import text
-        uri = current_app.config.get("SQLALCHEMY_DATABASE_URI", "")
-        if not uri.startswith("sqlite:///"):
-            return
-        
-        try:
-            db.session.execute(text("PRAGMA wal_checkpoint(PASSIVE)"))
-            db.session.commit()
-        except Exception:
-            try:
-                db.session.execute(text("PRAGMA wal_checkpoint(TRUNCATE)"))
-                db.session.commit()
-            except Exception:
-                db.session.rollback()
-    except Exception:
-        pass
+    return bin_name
 
 
 def perform_vacuum_optimize(app):
@@ -382,17 +295,10 @@ def perform_vacuum_optimize(app):
         
         with app.app_context():
             try:
-                from sqlalchemy import text
-                if uri.startswith("sqlite:///"):
-                    db.session.execute(text("PRAGMA optimize"))
-                    db.session.execute(text("PRAGMA incremental_vacuum"))
-                    db.session.commit()
-                elif "postgresql" in uri:
-                    # PostgreSQL VACUUM cannot run inside a transaction block
-                    # We need to use a raw connection with autocommit
+                if "postgresql" in uri:
                     conn = db.engine.raw_connection()
                     try:
-                        conn.set_isolation_level(0) # ISOLATION_LEVEL_AUTOCOMMIT
+                        conn.set_isolation_level(0)
                         cursor = conn.cursor()
                         cursor.execute("VACUUM ANALYZE")
                         cursor.close()
@@ -408,7 +314,7 @@ def perform_vacuum_optimize(app):
 
 
 def perform_backup_db(app=None):
-    """نسخ احتياطي ذكي لقاعدة البيانات - يدعم SQLite و PostgreSQL"""
+    """نسخ احتياطي ذكي لقاعدة البيانات"""
     try:
         # إذا تم استدعاء الدالة بدون app (مثلاً من قبل المستخدم)
         if app is None:
@@ -416,17 +322,17 @@ def perform_backup_db(app=None):
             app = current_app
         
         uri = app.config.get("SQLALCHEMY_DATABASE_URI", "")
-        backup_dir = app.config.get("BACKUP_DB_DIR")
+        backup_dir = app.config.get("BACKUP_DB_DIR") or os.path.join(app.instance_path, "backups")
         os.makedirs(backup_dir, exist_ok=True)
         
         ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         
-        # PostgreSQL Backup (dump file format for restore)
         if "postgresql" in uri:
             backup_path = os.path.join(backup_dir, f"backup_{ts}.dump")
             try:
                 import subprocess
                 from sqlalchemy.engine.url import make_url
+                pg_dump_bin = _get_pg_bin("pg_dump")
                 
                 u = make_url(uri)
                 env = os.environ.copy()
@@ -435,7 +341,7 @@ def perform_backup_db(app=None):
                 
                 # Construct command: pg_dump -h host -p port -U user -d dbname -Fc -f file
                 # -Fc means Custom format (compressed, suitable for pg_restore)
-                cmd = ["pg_dump", "-h", u.host or "localhost", "-p", str(u.port or 5432), "-U", u.username or "postgres", "-d", u.database, "-Fc", "-f", backup_path]
+                cmd = [pg_dump_bin, "-h", u.host or "localhost", "-p", str(u.port or 5432), "-U", u.username or "postgres", "-d", u.database, "-Fc", "-f", backup_path]
                 
                 app.logger.info(f"Starting PostgreSQL backup to {backup_path}")
                 process = subprocess.run(cmd, env=env, capture_output=True, text=True)
@@ -452,6 +358,19 @@ def perform_backup_db(app=None):
                     with open(info_path, "w") as f:
                         import json
                         json.dump(backup_info, f, indent=2)
+                    keep_last = app.config.get("BACKUP_KEEP_LAST", 5)
+                    backups = sorted(glob.glob(os.path.join(backup_dir, "backup_*.*")))
+                    backup_files = sorted([f for f in backups if f.endswith((".dump", ".info"))])
+                    dump_files = [f for f in backup_files if f.endswith(".dump")]
+                    if len(dump_files) > keep_last:
+                        for old in dump_files[:-keep_last]:
+                            try:
+                                os.remove(old)
+                                info_file = os.path.splitext(old)[0] + ".info"
+                                if os.path.exists(info_file):
+                                    os.remove(info_file)
+                            except Exception as e:
+                                app.logger.warning(f"Failed to remove old backup {old}: {e}")
                     app.logger.info(f"PostgreSQL backup completed successfully")
                     return True, "تم النسخ الاحتياطي بنجاح", backup_path
                 else:
@@ -462,87 +381,10 @@ def perform_backup_db(app=None):
             except Exception as e:
                 app.logger.error(f"PostgreSQL backup exception: {e}")
                 return False, f"خطأ في النسخ الاحتياطي: {str(e)}", None
-                
-        # SQLite Backup
-        elif uri.startswith("sqlite:///"):
-            db_path = uri.replace("sqlite:///", "")
-            if not os.path.exists(db_path):
-                app.logger.error(f"Database file not found: {db_path}")
-                return False, "ملف قاعدة البيانات غير موجود", None
-            
-            backup_path = os.path.join(backup_dir, f"backup_{ts}.db")
-            
-            # نسخ احتياطي مع التحقق من التكامل
-            src = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=60)
-            dst = sqlite3.connect(backup_path, timeout=60)
-            
-            try:
-                # نسخ احتياطي مع التحقق
-                backup_pages = int(app.config.get("BACKUP_DB_PAGES") or 1024)
-                if backup_pages <= 0:
-                    backup_pages = 1024
-                backup_sleep = float(app.config.get("BACKUP_DB_SLEEP") or 0.1)
-                if backup_sleep <= 0:
-                    backup_sleep = 0.1
-                src.execute("PRAGMA busy_timeout=60000")
-                dst.execute("PRAGMA busy_timeout=60000")
-                src.backup(dst, pages=backup_pages, sleep=backup_sleep)
-                
-                # التحقق من صحة النسخة الاحتياطية
-                result = dst.execute("PRAGMA integrity_check").fetchone()
-                if result[0] != "ok":
-                    app.logger.error(f"Backup integrity check failed: {result[0]}")
-                    dst.close()
-                    os.remove(backup_path)
-                    return False, f"فشل التحقق من صحة النسخة: {result[0]}", None
-                
-                # إضافة معلومات النسخة الاحتياطية
-                backup_info = {
-                    "timestamp": ts,
-                    "original_size": os.path.getsize(db_path),
-                    "backup_size": os.path.getsize(backup_path),
-                    "version": app.config.get("APP_VERSION", "unknown")
-                }
-                
-                # حفظ معلومات النسخة الاحتياطية
-                info_path = os.path.join(backup_dir, f"backup_{ts}.info")
-                with open(info_path, "w") as f:
-                    import json
-                    json.dump(backup_info, f, indent=2)
-                
-                app.logger.info(f"Database backup completed: {backup_path}")
-                return True, "تم النسخ الاحتياطي بنجاح", backup_path
-                
-            except Exception as e:
-                app.logger.error(f"Backup failed: {e}")
-                if os.path.exists(backup_path):
-                    os.remove(backup_path)
-                return False, f"فشل النسخ الاحتياطي: {str(e)}", None
-            finally:
-                src.close()
-                dst.close()
         
         else:
             app.logger.warning("Backup skipped: Database type not supported for auto-backup")
             return False, "نوع قاعدة البيانات غير مدعوم للنسخ التلقائي", None
-
-        # تنظيف النسخ القديمة
-        keep_last = app.config.get("BACKUP_KEEP_LAST", 5)
-        # Match both .db, .sql and .dump files
-        backups = sorted(glob.glob(os.path.join(backup_dir, "backup_*.*"))) 
-        
-        backup_files = sorted([f for f in backups if f.endswith(('.db', '.sql', '.dump'))])
-        
-        if len(backup_files) > keep_last:
-            for old in backup_files[:-keep_last]:
-                try:
-                    os.remove(old)
-                    # حذف ملف المعلومات أيضاً
-                    info_file = os.path.splitext(old)[0] + ".info"
-                    if os.path.exists(info_file):
-                        os.remove(info_file)
-                except Exception as e:
-                    app.logger.warning(f"Failed to remove old backup {old}: {e}")
                     
     except Exception as e:
         app.logger.error(f"Backup process failed: {e}")
@@ -832,37 +674,14 @@ def process_check_reminders(app):
 
 
 def perform_backup_sql(app):
-    """نسخ احتياطي SQL محسن - يدعم SQLite و PostgreSQL"""
+    """نسخ احتياطي SQL محسن"""
     try:
         uri = app.config.get("SQLALCHEMY_DATABASE_URI", "")
         backup_dir = app.config.get("BACKUP_SQL_DIR")
         os.makedirs(backup_dir, exist_ok=True)
         ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
 
-        if uri.startswith("sqlite:///"):
-            db_path = uri.replace("sqlite:///", "")
-            if not os.path.exists(db_path):
-                app.logger.error(f"Database file not found: {db_path}")
-                return
-            
-            backup_path = os.path.join(backup_dir, f"backup_{ts}.sql")
-            
-            conn = sqlite3.connect(db_path)
-            try:
-                with open(backup_path, "w", encoding="utf-8") as f:
-                    f.write(f"-- Database Backup\n")
-                    f.write(f"-- Timestamp: {ts}\n")
-                    f.write(f"-- Version: {app.config.get('APP_VERSION', 'unknown')}\n")
-                    f.write(f"-- Original Size: {os.path.getsize(db_path)} bytes\n\n")
-                    
-                    for line in conn.iterdump():
-                        f.write(f"{line}\n")
-                
-                app.logger.info(f"SQL backup completed: {backup_path}")
-            finally:
-                conn.close()
-
-        elif uri.startswith("postgresql"):
+        if uri.startswith("postgresql"):
             backup_path = os.path.join(backup_dir, f"backup_pg_{ts}.sql")
             
             # Extract connection details
@@ -916,7 +735,7 @@ def perform_backup_sql(app):
 
 
 def restore_database(app, backup_path):
-    """استعادة قاعدة البيانات من نسخة احتياطية - يدعم SQLite و PostgreSQL"""
+    """استعادة قاعدة البيانات من نسخة احتياطية"""
     try:
         uri = app.config.get("SQLALCHEMY_DATABASE_URI", "")
         
@@ -934,8 +753,9 @@ def restore_database(app, backup_path):
                 # Construct command: pg_restore -h host -p port -U user -d dbname --clean --if-exists backup_file
                 # --clean: drop database objects before creating them
                 # --if-exists: used with --clean to prevent errors if objects don't exist
+                pg_restore_bin = _get_pg_bin("pg_restore")
                 cmd = [
-                    "pg_restore", 
+                    pg_restore_bin,
                     "-h", u.host or "localhost", 
                     "-p", str(u.port or 5432), 
                     "-U", u.username or "postgres", 
@@ -966,26 +786,6 @@ def restore_database(app, backup_path):
             except Exception as e:
                 app.logger.error(f"PostgreSQL restore exception: {e}")
                 return False, f"خطأ في الاستعادة: {str(e)}"
-
-        # SQLite Restore
-        elif uri.startswith("sqlite:///"):
-            db_path = uri.replace("sqlite:///", "")
-            
-            try:
-                # إغلاق الاتصالات الحالية
-                db.session.remove()
-                db.engine.dispose()
-                
-                # نسخ الملف
-                import shutil
-                shutil.copy2(backup_path, db_path)
-                
-                app.logger.info(f"SQLite restore completed: {db_path}")
-                return True, "تمت استعادة قاعدة البيانات بنجاح"
-                
-            except Exception as e:
-                app.logger.error(f"SQLite restore failed: {e}")
-                return False, f"فشل الاستعادة: {str(e)}"
         
         else:
             return False, "نوع قاعدة البيانات غير مدعوم للاستعادة التلقائية"
@@ -1112,32 +912,33 @@ def init_extensions(app):
         @limiter.request_filter
         def _exempt_super_admin():
             try:
-                from flask_login import current_user
-                if getattr(current_user, "is_authenticated", False):
-                    if getattr(current_user, "is_super_role", False):
-                        return True
-                    role_name = str(getattr(getattr(current_user, "role", None), "name", "")).strip().lower()
-                    if role_name == "super_admin":
-                        return True
+                import utils
+                return utils.is_super()
             except Exception:
                 return False
-            return False
 
     try:
-        scheduler.add_job(
-            lambda: perform_backup_db(app),
-            "interval",
-            seconds=app.config.get("BACKUP_DB_INTERVAL").total_seconds(),
-            id="db_backup",
-            replace_existing=True,
-        )
-        scheduler.add_job(
-            lambda: perform_backup_sql(app),
-            "interval",
-            seconds=app.config.get("BACKUP_SQL_INTERVAL").total_seconds(),
-            id="sql_backup",
-            replace_existing=True,
-        )
+        backup_db_interval = app.config.get("BACKUP_DB_INTERVAL")
+        if backup_db_interval and hasattr(backup_db_interval, 'total_seconds'):
+            scheduler.add_job(
+                lambda: perform_backup_db(app),
+                "interval",
+                seconds=backup_db_interval.total_seconds(),
+                id="db_backup",
+                replace_existing=True,
+            )
+        
+        # Check if perform_backup_sql exists before adding job
+        if 'perform_backup_sql' in globals():
+             backup_sql_interval = app.config.get("BACKUP_SQL_INTERVAL")
+             if backup_sql_interval and hasattr(backup_sql_interval, 'total_seconds'):
+                scheduler.add_job(
+                    lambda: perform_backup_sql(app),
+                    "interval",
+                    seconds=backup_sql_interval.total_seconds(),
+                    id="sql_backup",
+                    replace_existing=True,
+                )
         
         scheduler.add_job(
             lambda: update_exchange_rates_job(app),
@@ -1194,14 +995,6 @@ def init_extensions(app):
         )
         
         scheduler.add_job(
-            lambda: perform_wal_checkpoint(app),
-            "interval",
-            minutes=3,
-            id="wal_checkpoint",
-            replace_existing=True,
-        )
-        
-        scheduler.add_job(
             lambda: perform_vacuum_optimize(app),
             "interval",
             hours=1,
@@ -1240,6 +1033,8 @@ def ensure_performance_indexes(app):
         from sqlalchemy import text
         with app.app_context():
             uri = app.config.get("SQLALCHEMY_DATABASE_URI", "")
+            if "postgresql" not in uri:
+                return
             base_stmts = [
                 "CREATE INDEX IF NOT EXISTS ix_users_is_active ON users (is_active)",
                 "CREATE INDEX IF NOT EXISTS ix_users_lower_username ON users (lower(username))",
@@ -1338,51 +1133,31 @@ def ensure_performance_indexes(app):
                 "CREATE INDEX IF NOT EXISTS ix_checks_date_pending ON checks (check_date) WHERE status = 'PENDING'",
                 "CREATE INDEX IF NOT EXISTS ix_service_received_active ON service_requests (received_at) WHERE status IN ('PENDING','IN_PROGRESS','DIAGNOSIS')",
             ]
-            sqlite_partial_stmts = [
-                "CREATE INDEX IF NOT EXISTS ix_payments_date_active ON payments (payment_date) WHERE is_archived = 0",
-                "CREATE INDEX IF NOT EXISTS ix_payments_customer_date_completed ON payments (customer_id, payment_date) WHERE is_archived = 0 AND status = 'COMPLETED'",
-                "CREATE INDEX IF NOT EXISTS ix_checks_date_pending ON checks (check_date) WHERE status = 'PENDING'",
-            ]
+            with db.engine.connect() as conn:
+                ac = conn.execution_options(isolation_level="AUTOCOMMIT")
 
-            if "postgresql" in uri:
-                with db.engine.connect() as conn:
-                    ac = conn.execution_options(isolation_level="AUTOCOMMIT")
-
-                    def _exec(sql: str) -> bool:
-                        try:
-                            ac.execute(text(sql))
-                            return True
-                        except Exception:
-                            return False
-
-                    for sql in base_stmts:
-                        _exec(sql)
-
-                    pg_trgm_ready = _exec("CREATE EXTENSION IF NOT EXISTS pg_trgm")
-                    if not pg_trgm_ready:
-                        try:
-                            pg_trgm_ready = bool(
-                                ac.execute(text("SELECT 1 FROM pg_extension WHERE extname = 'pg_trgm' LIMIT 1")).scalar()
-                            )
-                        except Exception:
-                            pg_trgm_ready = False
-                    if pg_trgm_ready:
-                        for sql in pg_trgm_stmts:
-                            _exec(sql)
-                    for sql in pg_partial_stmts:
-                        _exec(sql)
-            else:
-                stmts = list(base_stmts)
-                if uri.startswith("sqlite"):
-                    stmts += sqlite_partial_stmts
-                for sql in stmts:
+                def _exec(sql: str) -> bool:
                     try:
-                        db.session.execute(text(sql))
-                        db.session.commit()
+                        ac.execute(text(sql))
+                        return True
                     except Exception:
-                        try:
-                            db.session.rollback()
-                        except Exception:
-                            pass
+                        return False
+
+                for sql in base_stmts:
+                    _exec(sql)
+
+                pg_trgm_ready = _exec("CREATE EXTENSION IF NOT EXISTS pg_trgm")
+                if not pg_trgm_ready:
+                    try:
+                        pg_trgm_ready = bool(
+                            ac.execute(text("SELECT 1 FROM pg_extension WHERE extname = 'pg_trgm' LIMIT 1")).scalar()
+                        )
+                    except Exception:
+                        pg_trgm_ready = False
+                if pg_trgm_ready:
+                    for sql in pg_trgm_stmts:
+                        _exec(sql)
+                for sql in pg_partial_stmts:
+                    _exec(sql)
     except Exception:
         pass

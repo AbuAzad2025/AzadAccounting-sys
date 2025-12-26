@@ -1110,20 +1110,23 @@ def fx_rate(base: str, quote: str, at: datetime | None = None, raise_on_missing:
     t = at or datetime.now(timezone.utc)
     
     # 1. البحث عن سعر محلي (مدخل من الادمن)
-    q = (
-        db.session.query(ExchangeRate.rate)
-        .filter(
-            ExchangeRate.base_code == b,
-            ExchangeRate.quote_code == qv,
-            ExchangeRate.is_active.is_(True),
-            ExchangeRate.valid_from <= t,
+    try:
+        q = (
+            db.session.query(ExchangeRate.rate)
+            .filter(
+                ExchangeRate.base_code == b,
+                ExchangeRate.quote_code == qv,
+                ExchangeRate.is_active.is_(True),
+                ExchangeRate.valid_from <= t,
+            )
+            .order_by(ExchangeRate.valid_from.desc())
         )
-        .order_by(ExchangeRate.valid_from.desc())
-    )
-    v = q.first()
-    if v:
-        return Decimal(str(v[0]))
-    
+        v = q.first()
+        if v:
+            return Decimal(str(v[0]))
+    except Exception:
+        pass
+
     # 2. في حال عدم وجود سعر محلي، جرب السيرفرات العالمية
     try:
         online_rate = _fetch_external_fx_rate(b, qv, t)
@@ -1256,33 +1259,33 @@ def _fetch_from_exchangerate_host(base: str, quote: str, at: datetime) -> Decima
 def _save_external_rate(base: str, quote: str, rate: Decimal, at: datetime):
     """حفظ السعر الخارجي في قاعدة البيانات"""
     try:
-        # استخدام connection منفصل لتجنب مشاكل flush
         from sqlalchemy import text as sa_text
         
-        # التحقق من وجود السعر مسبقاً
-        result = db.session.connection().execute(
-            sa_text("""
-                SELECT id FROM exchange_rates 
-                WHERE base_code = :base 
-                AND quote_code = :quote 
-                AND DATE(valid_from) = DATE(:valid_from)
-                LIMIT 1
-            """),
-            {"base": base, "quote": quote, "valid_from": at}
-        ).fetchone()
-        
-        if not result:
-            # إدراج السعر مباشرة باستخدام SQL
-            db.session.connection().execute(
-                sa_text("""
-                    INSERT INTO exchange_rates 
-                    (base_code, quote_code, rate, valid_from, source, is_active)
-                    VALUES (:base, :quote, :rate, :valid_from, 'External API', 1)
-                """),
-                {"base": base, "quote": quote, "rate": float(rate), "valid_from": at}
-            )
+        with db.engine.begin() as conn:
+            result = conn.execute(
+                sa_text(
+                    """
+                    SELECT id FROM exchange_rates
+                    WHERE base_code = :base
+                    AND quote_code = :quote
+                    AND DATE(valid_from) = DATE(:valid_from)
+                    LIMIT 1
+                    """
+                ),
+                {"base": base, "quote": quote, "valid_from": at},
+            ).fetchone()
+            if not result:
+                conn.execute(
+                    sa_text(
+                        """
+                        INSERT INTO exchange_rates
+                        (base_code, quote_code, rate, valid_from, source, is_active)
+                        VALUES (:base, :quote, :rate, :valid_from, 'External API', 1)
+                        """
+                    ),
+                    {"base": base, "quote": quote, "rate": float(rate), "valid_from": at},
+                )
     except Exception:
-        # في حال فشل الحفظ، لا نريد إيقاف العملية
         pass
 
 def convert_amount(amount: Decimal | float | str, from_code: str, to_code: str, at: datetime | None = None) -> Decimal:
@@ -1377,7 +1380,10 @@ def get_fx_rate_with_fallback(base: str, quote: str, at: datetime | None = None)
                         'success': True
                     }
         except Exception:
-            pass
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
         
         try:
             online_rate = _fetch_external_fx_rate(b, qv, t)
@@ -1391,7 +1397,10 @@ def get_fx_rate_with_fallback(base: str, quote: str, at: datetime | None = None)
                     'success': True
                 }
         except Exception:
-            pass
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
         
         return {
             'rate': 0.0,
@@ -1713,7 +1722,20 @@ class User(db.Model, UserMixin, TimestampMixin, AuditMixin):
         if not password or not isinstance(password, str):
             raise ValueError("password required")
         prev = bool(self.password_hash)
-        self.password_hash = generate_password_hash(password)
+        try:
+            method = None
+            try:
+                from flask import has_app_context, current_app
+                if has_app_context():
+                    method = current_app.config.get("PASSWORD_HASH_METHOD")
+            except Exception:
+                method = None
+            if method:
+                self.password_hash = generate_password_hash(password, method=method)
+            else:
+                self.password_hash = generate_password_hash(password)
+        except Exception:
+            self.password_hash = generate_password_hash(password, method="pbkdf2:sha256")
         try:
             from flask import has_request_context
             if has_request_context():
@@ -1917,7 +1939,7 @@ class Customer(db.Model, TimestampMixin, AuditMixin, UserMixin):
     whatsapp = Column(String(20), nullable=True)  # ✅ يسمح بـ NULL
     email = Column(String(120), unique=True, nullable=True)  # ✅ يسمح بـ NULL
     address = Column(String(200))
-    password_hash = Column(String(128))
+    password_hash = Column(String(512))
     category = Column(String(20), default="عادي")
     notes = Column(Text)
     is_active = Column(Boolean, default=True, nullable=False, server_default=sa_text("true"))
@@ -2049,7 +2071,10 @@ class Customer(db.Model, TimestampMixin, AuditMixin, UserMixin):
                 try:
                     total += convert_amount(amt, inv.currency, "ILS", inv.invoice_date)
                 except Exception:
-                    pass
+                    try:
+                        db.session.rollback()
+                    except Exception:
+                        pass
         return float(total)
 
     @total_invoiced.expression
@@ -2401,7 +2426,10 @@ class Supplier(db.Model, TimestampMixin, AuditMixin):
                 try:
                     direct += convert_amount(amt, p.currency, "ILS", p.payment_date)
                 except Exception:
-                    pass
+                    try:
+                        db.session.rollback()
+                    except Exception:
+                        pass
         
         via_loans_payments = db.session.query(Payment).join(
             SupplierLoanSettlement, SupplierLoanSettlement.id == Payment.loan_settlement_id
@@ -2419,7 +2447,10 @@ class Supplier(db.Model, TimestampMixin, AuditMixin):
                 try:
                     via_loans += convert_amount(amt, p.currency, "ILS", p.payment_date)
                 except Exception:
-                    pass
+                    try:
+                        db.session.rollback()
+                    except Exception:
+                        pass
         
         expenses = db.session.query(Expense).filter(
             or_(
@@ -2436,7 +2467,10 @@ class Supplier(db.Model, TimestampMixin, AuditMixin):
                 try:
                     expenses_total += convert_amount(amt, exp.currency, "ILS", exp.date)
                 except Exception:
-                    pass
+                    try:
+                        db.session.rollback()
+                    except Exception:
+                        pass
         
         return float(direct + via_loans + expenses_total)
 
@@ -3019,7 +3053,10 @@ class Partner(db.Model, TimestampMixin, AuditMixin):
                 try:
                     total += convert_amount(amt, p.currency, "ILS", p.payment_date)
                 except Exception:
-                    pass
+                    try:
+                        db.session.rollback()
+                    except Exception:
+                        pass
         
         from models import ExpenseType
         from sqlalchemy import func
@@ -3038,7 +3075,10 @@ class Partner(db.Model, TimestampMixin, AuditMixin):
                 try:
                     total += convert_amount(amt, exp.currency, "ILS", exp.date)
                 except Exception:
-                    pass
+                    try:
+                        db.session.rollback()
+                    except Exception:
+                        pass
         
         return float(total)
 
@@ -3527,7 +3567,10 @@ class Employee(db.Model, TimestampMixin, AuditMixin):
                 try:
                     total += convert_amount(amt, exp.currency, "ILS", exp.date)
                 except Exception:
-                    pass
+                    try:
+                        db.session.rollback()
+                    except Exception:
+                        pass
         return float(total)
 
     @total_expenses.expression
@@ -3551,7 +3594,10 @@ class Employee(db.Model, TimestampMixin, AuditMixin):
                 try:
                     total += convert_amount(amt, p.currency, "ILS", p.payment_date)
                 except Exception:
-                    pass
+                    try:
+                        db.session.rollback()
+                    except Exception:
+                        pass
         return float(total)
 
     @total_paid.expression
@@ -3834,6 +3880,7 @@ class Product(db.Model, TimestampMixin, AuditMixin):
     online_name = Column(String(255))
     online_price = Column(Numeric(12, 2), default=0, server_default=sa_text("0"))
     online_image = Column(String(255))
+    warehouse_id = Column(Integer, ForeignKey("warehouses.id"))
     
     # ✅ حقول العملة وسعر الصرف
     currency = Column(String(10), default='ILS', nullable=False, server_default=sa_text("'ILS'"))
@@ -3858,6 +3905,8 @@ class Product(db.Model, TimestampMixin, AuditMixin):
         CheckConstraint("weight IS NULL OR weight >= 0", name="ck_product_weight_ge_0"),
         CheckConstraint("online_price IS NULL OR online_price >= 0", name="ck_product_online_price_ge_0"),
         Index("ix_products_brand_part", "brand", "part_number"),
+        Index("uq_products_name_wh_ci", func.lower(name), "warehouse_id", unique=True, postgresql_where=warehouse_id.isnot(None)),
+        Index("uq_products_name_global_ci", func.lower(name), unique=True, postgresql_where=warehouse_id.is_(None)),
         Index("uq_products_sku_ci", func.lower(sku), unique=True, postgresql_where=sku.isnot(None)),
         Index("uq_products_barcode", barcode, unique=True, postgresql_where=barcode.isnot(None)),
         Index("uq_products_serial_ci", func.lower(serial_no), unique=True, postgresql_where=serial_no.isnot(None)),
@@ -6011,32 +6060,42 @@ class Invoice(db.Model, TimestampMixin):
     @hybrid_property
     def total_paid(self):
         from decimal import Decimal
-        payments = db.session.query(Payment).filter(
-            Payment.invoice_id == self.id,
-            Payment.status == PaymentStatus.COMPLETED.value,
-            Payment.direction == PaymentDirection.IN.value
-        ).all()
-        total = Decimal('0.00')
+
+        total = Decimal("0.00")
         invoice_currency = self.currency or "ILS"
+
+        payments = [
+            p
+            for p in (self.payments or [])
+            if getattr(p, "invoice_id", None) == self.id
+            and getattr(p, "status", None) == PaymentStatus.COMPLETED.value
+            and getattr(p, "direction", None) == PaymentDirection.IN.value
+        ]
+
         for p in payments:
-            amt = Decimal(str(p.total_amount or 0))
-            if p.currency == invoice_currency:
+            amt = Decimal(str(getattr(p, "total_amount", 0) or 0))
+            p_currency = getattr(p, "currency", None)
+            if not p_currency or p_currency == invoice_currency:
                 total += amt
-            else:
-                try:
-                    total += convert_amount(amt, p.currency, invoice_currency, p.payment_date)
-                except Exception:
-                    pass
+                continue
+            try:
+                total += convert_amount(amt, p_currency, invoice_currency, getattr(p, "payment_date", None))
+            except Exception:
+                pass
+
         return float(total)
 
     @total_paid.expression
     def total_paid(cls):
+        from sqlalchemy.orm import aliased
+
+        p = aliased(Payment)
         return (
-            select(func.coalesce(func.sum(Payment.total_amount), 0))
+            select(func.coalesce(func.sum(p.total_amount), 0))
             .where(
-                (Payment.invoice_id == cls.id)
-                & (Payment.status == PaymentStatus.COMPLETED.value)
-                & (Payment.direction == PaymentDirection.IN.value)
+                (p.invoice_id == cls.id)
+                & (p.status == PaymentStatus.COMPLETED.value)
+                & (p.direction == PaymentDirection.IN.value)
             ).scalar_subquery()
         )
 
@@ -6044,7 +6103,7 @@ class Invoice(db.Model, TimestampMixin):
     def balance_due(self):
         return float(q(self.total_amount or 0) - q(self.total_paid or 0))
 
-    @property
+    @hybrid_property
     def status(self):
         """
         حالة الفاتورة - محسوبة تلقائياً من total_paid
@@ -6064,6 +6123,17 @@ class Invoice(db.Model, TimestampMixin):
             return 'PAID'
         else:
             return 'PARTIAL'
+
+    @status.expression
+    def status(cls):
+        from sqlalchemy import case, literal
+
+        return case(
+            (cls.cancelled_at.is_not(None), literal("CANCELLED")),
+            (cls.total_paid <= 0, literal("UNPAID")),
+            (cls.total_paid >= cls.total_amount, literal("PAID")),
+            else_=literal("PARTIAL"),
+        )
 
     @hybrid_property
     def refundable_amount(self):
@@ -10461,7 +10531,7 @@ class ExpenseType(db.Model, TimestampMixin, AuditMixin):
     description = db.Column(db.Text)
     is_active = db.Column(db.Boolean, default=True, nullable=False)
     code = db.Column(db.String(50), unique=True, index=True)
-    fields_meta = db.Column(db.JSON)  # قد تكون Text في SQLite، SQLAlchemy يحولها تلقائياً
+    fields_meta = db.Column(db.JSON)
 
     expenses = relationship("Expense", back_populates="type", order_by="Expense.id")
 

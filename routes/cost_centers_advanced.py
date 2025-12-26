@@ -9,24 +9,13 @@ from sqlalchemy import func, and_, or_, desc, text as sa_text
 from datetime import datetime, date, timedelta
 from decimal import Decimal
 from functools import wraps
+from utils import permission_required
 
 cost_centers_advanced_bp = Blueprint('cost_centers_advanced', __name__, url_prefix='/cost-centers')
 
-def owner_only(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if not current_user.is_authenticated:
-            flash('يجب تسجيل الدخول أولاً', 'warning')
-            return redirect(url_for('auth.login'))
-        if not (current_user.role and current_user.role.name == 'Owner'):
-            flash('هذه الصفحة للمالك فقط', 'danger')
-            return redirect(url_for('main.dashboard'))
-        return f(*args, **kwargs)
-    return decorated_function
-
 @cost_centers_advanced_bp.route('/dashboard')
 @login_required
-@owner_only
+@permission_required('manage_cost_centers')
 def dashboard():
     total_centers = CostCenter.query.filter_by(is_active=True).count()
     
@@ -89,7 +78,7 @@ def dashboard():
 
 @cost_centers_advanced_bp.route('/alerts')
 @login_required
-@owner_only
+@permission_required('manage_cost_centers')
 def alerts_list():
     cost_center_id = request.args.get('cost_center', type=int)
     alert_type = request.args.get('type')
@@ -114,7 +103,7 @@ def alerts_list():
 
 @cost_centers_advanced_bp.route('/alerts/add', methods=['POST'])
 @login_required
-@owner_only
+@permission_required('manage_cost_centers')
 def add_alert():
     try:
         cost_center_id = request.form.get('cost_center_id', type=int)
@@ -148,7 +137,7 @@ def add_alert():
 
 @cost_centers_advanced_bp.route('/alerts/<int:alert_id>/toggle', methods=['POST'])
 @login_required
-@owner_only
+@permission_required('manage_cost_centers')
 def toggle_alert(alert_id):
     try:
         alert = CostCenterAlert.query.get_or_404(alert_id)
@@ -169,7 +158,7 @@ def toggle_alert(alert_id):
 
 @cost_centers_advanced_bp.route('/allocation-rules')
 @login_required
-@owner_only
+@permission_required('manage_cost_centers')
 def allocation_rules():
     rules = CostAllocationRule.query.order_by(CostAllocationRule.is_active.desc(), CostAllocationRule.code).all()
     
@@ -197,7 +186,7 @@ def allocation_rules():
 
 @cost_centers_advanced_bp.route('/allocation-rules/add', methods=['GET', 'POST'])
 @login_required
-@owner_only
+@permission_required('manage_cost_centers')
 def add_allocation_rule():
     if request.method == 'POST':
         try:
@@ -258,7 +247,7 @@ def add_allocation_rule():
 
 @cost_centers_advanced_bp.route('/allocation-rules/<int:rule_id>/execute', methods=['POST'])
 @login_required
-@owner_only
+@permission_required('manage_cost_centers')
 def execute_allocation_rule(rule_id):
     try:
         rule = CostAllocationRule.query.get_or_404(rule_id)
@@ -327,7 +316,7 @@ def execute_allocation_rule(rule_id):
 
 @cost_centers_advanced_bp.route('/reports/trends')
 @login_required
-@owner_only
+@permission_required('manage_cost_centers')
 def report_trends():
     cost_center_id = request.args.get('cost_center', type=int)
     months = request.args.get('months', 12, type=int)

@@ -1,4 +1,6 @@
 (function() {
+  if (window.__SECURITY_TOUR_GUIDE_INIT__) return;
+  window.__SECURITY_TOUR_GUIDE_INIT__ = true;
   'use strict';
 
   window.SecurityTourGuide = {

@@ -1,7 +1,6 @@
 
 from __future__ import annotations
 import os
-import sqlite3
 from datetime import date, datetime, timedelta, time
 from decimal import Decimal
 from typing import List, Tuple
@@ -10,6 +9,7 @@ from flask import Blueprint, current_app, flash, jsonify, redirect, render_templ
 from flask_login import current_user, login_required
 from sqlalchemy import func, case, and_
 from sqlalchemy.orm import load_only, joinedload
+from werkzeug.utils import secure_filename
 
 from extensions import db, cache
 from forms import RestoreForm
@@ -52,8 +52,12 @@ def _has_perm(code: str) -> bool:
 def _inject_sidebar_helpers():
     def has_any(*codes) -> bool:
         return any(_has_perm(c) for c in codes)
-    role_name = str(getattr(getattr(current_user, "role", None), "name", "")).lower()
-    is_super = (role_name == "super_admin") or bool(getattr(current_user, "is_super_admin", False))
+    
+    try:
+        is_super = utils.is_super()
+    except Exception:
+        is_super = False
+        
     return {
         "has_perm": _has_perm,
         "has_any": has_any,
@@ -703,7 +707,7 @@ def dashboard():
     recent_services = []
     if _has_perm("manage_service"):
         q = ServiceRequest.query
-        if current_user.role and (current_user.role.name or "").lower() == "mechanic":
+        if not any(_has_perm(c) for c in ("manage_customers", "manage_sales", "manage_users")):
             q = q.filter_by(mechanic_id=current_user.id)
         done_statuses = ("COMPLETED", "CANCELLED", "CLOSED", "DELIVERED", "FINISHED")
         q = q.filter(~ServiceRequest.status.in_(done_statuses)).order_by(ServiceRequest.created_at.desc())
@@ -775,9 +779,8 @@ def dashboard():
 # @utils.permission_required("backup_database")  # Commented out - function not available
 def backup_db():
     is_prod = (current_app.config.get("ENV") == "production" or current_app.config.get("FLASK_ENV") == "production")
-    role_name = str(getattr(getattr(current_user, "role", None), "name", "")).lower()
-    if is_prod and role_name != "super_admin":
-        flash("❌ غير مسموح بالنسخ الاحتياطي في بيئة الإنتاج إلا لمستخدم super_admin فقط.", "danger")
+    if is_prod and not utils.is_super():
+        flash("❌ غير مسموح بالنسخ الاحتياطي في بيئة الإنتاج إلا للمسؤولين (Super/Owner).", "danger")
         return redirect(url_for("main.dashboard"))
 
     try:
@@ -800,36 +803,38 @@ def backup_db():
 # @utils.permission_required("restore_database")  # Commented out - function not available
 def restore_db():
     is_prod = (current_app.config.get("ENV") == "production" or current_app.config.get("FLASK_ENV") == "production")
-    role_name = str(getattr(getattr(current_user, "role", None), "name", "")).lower()
-    if is_prod and role_name != "super_admin":
+    if is_prod and not utils.is_super():
         if request.is_json or request.headers.get('Accept') == 'application/json':
-            return jsonify({"success": False, "message": "غير مسموح بالاستعادة في بيئة الإنتاج إلا لمستخدم super_admin فقط"}), 403
-        flash("❌ غير مسموح بالاستعادة في بيئة الإنتاج إلا لمستخدم super_admin فقط.", "danger")
+            return jsonify({"success": False, "message": "غير مسموح بالاستعادة في بيئة الإنتاج إلا للمسؤولين"}), 403
+        flash("❌ غير مسموح بالاستعادة في بيئة الإنتاج إلا للمسؤولين (Super/Owner).", "danger")
         return redirect(url_for("main.dashboard"))
 
     form = RestoreForm()
     if form.validate_on_submit() or (request.method == 'POST' and 'db_file' in request.files):
-        uri = current_app.config.get("SQLALCHEMY_DATABASE_URI", "")
-        if not uri.startswith("sqlite:///"):
-            if request.is_json or request.headers.get('Accept') == 'application/json':
-                return jsonify({"success": False, "message": "الاستعادة المباشرة مدعومة فقط لـ SQLite. لـ PostgreSQL يرجى التواصل مع الدعم الفني."}), 400
-            flash("⚠️ الاستعادة المباشرة مدعومة فقط لـ SQLite. لـ PostgreSQL يرجى التواصل مع الدعم الفني.", "warning")
-            return redirect(url_for("main.restore_db"))
-        db_path = uri.replace("sqlite:///", "")
         try:
             db_file = form.db_file.data if form.validate_on_submit() else request.files.get('db_file')
             if not db_file:
                 raise ValueError("لم يتم تحديد ملف")
-            
-            db.session.commit()
-            db.session.remove()
-            db.engine.dispose()
-            db_file.save(db_path)
-            
+
+            tmp_dir = current_app.config.get("IMPORT_TMP_DIR") or os.path.join(current_app.instance_path, "imports")
+            os.makedirs(tmp_dir, exist_ok=True)
+            safe_name = secure_filename(getattr(db_file, "filename", "") or "") or "restore.dump"
+            if not safe_name.lower().endswith(".dump"):
+                safe_name += ".dump"
+            temp_path = os.path.join(tmp_dir, f"restore_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{safe_name}")
+            db_file.save(temp_path)
+
+            from extensions import restore_database
+            ok, msg = restore_database(current_app, temp_path)
+            if ok:
+                if request.is_json or request.headers.get('Accept') == 'application/json':
+                    return jsonify({"success": True, "message": msg}), 200
+                flash(f"✅ {msg}", "success")
+                return redirect(url_for("main.dashboard"))
             if request.is_json or request.headers.get('Accept') == 'application/json':
-                return jsonify({"success": True, "message": "تمت الاستعادة بنجاح"}), 200
-            flash("✅ تمت الاستعادة بنجاح. قد تحتاج لإعادة تشغيل التطبيق.", "success")
-            return redirect(url_for("main.dashboard"))
+                return jsonify({"success": False, "message": msg}), 400
+            flash(f"❌ {msg}", "danger")
+            return redirect(url_for("main.restore_db"))
         except Exception as e:
             if request.is_json or request.headers.get('Accept') == 'application/json':
                 return jsonify({"success": False, "message": f"خطأ أثناء الاستعادة: {str(e)}"}), 500
@@ -840,8 +845,7 @@ def restore_db():
 @main_bp.route("/automated-backup-status", methods=["GET"], endpoint="automated_backup_status")
 @login_required
 def automated_backup_status():
-    role_name = str(getattr(getattr(current_user, "role", None), "name", "")).lower()
-    if role_name not in ["super_admin", "owner"]:
+    if not utils.is_super():
         # إرجاع بيانات فارغة بدون خطأ للمستخدمين العاديين
         return jsonify({"enabled": False, "next_run": None, "schedule": "غير متاح"})
     
@@ -865,8 +869,7 @@ def automated_backup_status():
 @main_bp.route("/toggle-automated-backup", methods=["POST"], endpoint="toggle_automated_backup")
 @login_required
 def toggle_automated_backup():
-    role_name = str(getattr(getattr(current_user, "role", None), "name", "")).lower()
-    if role_name != "super_admin":
+    if not utils.is_super():
         flash("❌ غير مسموح", "danger")
         return redirect(url_for("main.dashboard"))
     

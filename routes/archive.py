@@ -142,9 +142,9 @@ def view_archive(archive_id):
 @archive_bp.route('/restore/<int:archive_id>', methods=['GET', 'POST'])
 @login_required
 def restore_archive(archive_id):
-    """استعادة الأرشيف - فقط للمالك أو Super Admin"""
+    """استعادة الأرشيف - يتطلب صلاحية restore_archive"""
     # التحقق من الصلاحيات
-    if current_user.id != 1 and not (current_user.role and current_user.role.name == 'super_admin'):
+    if not current_user.has_permission('restore_archive'):
         flash('❌ غير مصرح لك باستعادة الأرشيفات', 'danger')
         return redirect(url_for('archive.index'))
     
@@ -164,10 +164,10 @@ def restore_archive(archive_id):
 @archive_bp.route('/delete/<int:archive_id>', methods=['POST'])
 @login_required
 def delete_archive(archive_id):
-    """حذف الأرشيف نهائياً - فقط للمالك (ID=1)"""
-    # التحقق من الصلاحيات - فقط المالك
-    if current_user.id != 1:
-        flash('❌ غير مصرح لك بحذف الأرشيفات نهائياً - هذه الصلاحية للمالك فقط', 'danger')
+    """حذف الأرشيف نهائياً - يتطلب صلاحية hard_delete"""
+    # التحقق من الصلاحيات - فقط من يملك صلاحية الحذف القوي
+    if not current_user.has_permission('hard_delete'):
+        flash('❌ غير مصرح لك بحذف الأرشيفات نهائياً', 'danger')
         return redirect(url_for('archive.index'))
     
     archive = Archive.query.get_or_404(archive_id)

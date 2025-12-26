@@ -86,3 +86,8 @@ tests/
 **/tests/
 test_*.py
 *_test.py
+
+!production_data.sql
+
+# Exports (Backups)
+exports/

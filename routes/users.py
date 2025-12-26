@@ -3,6 +3,7 @@ import json
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for, abort, current_app
 from flask_login import current_user, login_required
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import func
 from sqlalchemy.orm import joinedload
 from extensions import db
 from forms import UserForm
@@ -102,7 +103,8 @@ def _get_or_404(model, ident, options=None):
 
 def _is_super_admin_user(user: User) -> bool:
     try:
-        return bool(user.role and (user.role.name or "").strip().lower() == "super_admin")
+        from permissions_config.permissions import PermissionsRegistry
+        return bool(user.role and PermissionsRegistry.is_role_super(user.role.name))
     except Exception:
         return False
 
@@ -132,12 +134,27 @@ def edit_profile():
 
     from flask_wtf import FlaskForm
     from wtforms import StringField, SubmitField
-    from wtforms.validators import DataRequired, Email, Length, Optional
+    from wtforms.validators import DataRequired, Email, Length, Optional, ValidationError
     
     class EditProfileForm(FlaskForm):
         username = StringField('اسم المستخدم', validators=[DataRequired(), Length(min=3, max=50)])
         email = StringField('البريد الإلكتروني', validators=[DataRequired(), Email()])
         submit = SubmitField('حفظ التعديلات')
+
+        def validate_username(self, field):
+            name = (field.data or '').strip()
+            qry = User.query.filter(func.lower(User.username) == func.lower(name))
+            qry = qry.filter(User.id != current_user.id)
+            if qry.first():
+                raise ValidationError("اسم المستخدم مستخدم بالفعل.")
+
+        def validate_email(self, field):
+            email_l = (field.data or '').strip().lower()
+            qry = User.query.filter(func.lower(User.email) == email_l)
+            qry = qry.filter(User.id != current_user.id)
+            if qry.first():
+                raise ValidationError("البريد الإلكتروني مستخدم بالفعل.")
+            field.data = email_l
     
     form = EditProfileForm(obj=current_user)
     
@@ -193,7 +210,7 @@ def change_password():
 
 @users_bp.route("/", methods=["GET"], endpoint="list_users")
 @login_required
-@utils.super_only
+@utils.permission_required("manage_users")
 def list_users():
     # استثناء حسابات النظام المخفية
     q = User.query.filter(User.is_system_account == False).options(joinedload(User.role))
@@ -298,7 +315,7 @@ def registered_customers():
 
 @users_bp.route("/<int:user_id>", methods=["GET"], endpoint="user_detail")
 @login_required
-@utils.super_only
+@utils.permission_required("manage_users")
 def user_detail(user_id):
     user = _get_or_404(User, user_id, options=[joinedload(User.role)])
     if getattr(user, 'is_system_account', False) or getattr(user, 'username', '') == '__OWNER__':
@@ -317,7 +334,7 @@ def user_detail(user_id):
 
 @users_bp.route("/api", methods=["GET"], endpoint="api_users")
 @login_required
-@utils.super_only
+@utils.permission_required("manage_users")
 def api_users():
     q = User.query.filter(User.is_system_account == False)
     term = request.args.get("q", "")
@@ -333,7 +350,7 @@ def api_users():
 
 @users_bp.route("/create", methods=["GET", "POST"], endpoint="create_user")
 @login_required
-@utils.super_only
+@utils.permission_required("manage_users")
 def create_user():
     form = UserForm()
     all_permissions = _filter_permissions_assignable_by_actor(Permission.query.order_by(Permission.name).all())
@@ -425,7 +442,7 @@ def create_user():
 
 @users_bp.route("/<int:user_id>/edit", methods=["GET", "POST"], endpoint="edit_user")
 @login_required
-@utils.super_only
+@utils.permission_required("manage_users")
 def edit_user(user_id):
     user = _get_or_404(User, user_id)
     # حماية حسابات النظام من التعديل (كأنها غير موجودة)
@@ -437,7 +454,12 @@ def edit_user(user_id):
     target_level = _role_level_by_name(target_role_name)
     if actor_level != 0 and target_level <= actor_level:
         abort(403)
-    if not _actor_can_manage_super_level() and target_role_name in {"super_admin", "super"}:
+    try:
+        from permissions_config.permissions import PermissionsRegistry
+        is_target_super = PermissionsRegistry.is_role_super(target_role_name)
+    except Exception:
+        is_target_super = False
+    if not _actor_can_manage_super_level() and is_target_super:
         abort(403)
 
     if request.method == "POST":
@@ -518,7 +540,7 @@ def edit_user(user_id):
 
 @users_bp.route("/<int:user_id>/delete", methods=["POST"], endpoint="delete_user")
 @login_required
-@utils.super_only
+@utils.permission_required("manage_users")
 def delete_user(user_id):
     user = _get_or_404(User, user_id)
     
@@ -531,7 +553,12 @@ def delete_user(user_id):
     target_level = _role_level_by_name(target_role_name)
     if actor_level != 0 and target_level <= actor_level:
         abort(403)
-    if not _actor_can_manage_super_level() and target_role_name in {"super_admin", "super"}:
+    try:
+        from permissions_config.permissions import PermissionsRegistry
+        is_target_super = PermissionsRegistry.is_role_super(target_role_name)
+    except Exception:
+        is_target_super = False
+    if not _actor_can_manage_super_level() and is_target_super:
         abort(403)
     if user.id == current_user.id:
         flash("❌ لا يمكن حذف حسابك الحالي.", "danger")
