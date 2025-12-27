@@ -754,15 +754,12 @@ class PermissionsRegistry:
         
         'super_admin': {
             'name_ar': 'المدير الأعلى',
-            'description': '⚡ مدير النظام - صلاحيات كاملة تقريباً ما عدا لوحة المالك والذكاء الاصطناعي',
+            'description': '⚡ مدير النظام - صلاحيات كاملة تقريباً ما عدا لوحة المالك',
             'permissions': '*',
             'exclude': [
                 'access_owner_dashboard', 
                 'manage_any_user_permissions', 
                 'hard_delete',
-                'access_ai_assistant',
-                'train_ai',
-                'manage_shop',
                 'manage_api'
             ],
             'is_protected': True,
@@ -772,6 +769,9 @@ class PermissionsRegistry:
             'special_access': [
                 'manage_advanced_accounting',
                 'manage_ledger',
+                'access_ai_assistant',
+                'train_ai',
+                'manage_shop',
             ],
             'capabilities': {
                 'can_restore_db': True,
@@ -793,18 +793,21 @@ class PermissionsRegistry:
             'permissions': '*',
             'exclude': [
                 'access_owner_dashboard', 
-                'manage_advanced_accounting', 
                 'manage_any_user_permissions', 
                 'hard_delete',
-                'access_ai_assistant',
-                'train_ai',
-                'manage_shop'
+                'manage_api'
             ],
             'is_protected': True,
             'is_super': True,
             'level': 1,
             'max_accounts': None,
-            'special_access': [],
+            'special_access': [
+                'manage_advanced_accounting',
+                'manage_ledger',
+                'access_ai_assistant',
+                'train_ai',
+                'manage_shop',
+            ],
             'capabilities': {
                 'can_restore_db': True,
                 'can_hard_delete': False,
@@ -821,9 +824,26 @@ class PermissionsRegistry:
         
         'admin': {
             'name_ar': 'المدير',
-            'description': '🎯 المدير - إدارة يومية كاملة',
+            'description': '🎯 المدير - إدارة يومية كاملة (بدون متجر ومساعد ذكي ولوحة مالك)',
             'permissions': '*',
-            'exclude': ['restore_database', 'access_owner_dashboard', 'manage_advanced_accounting', 'manage_any_user_permissions', 'hard_delete', 'access_ai_assistant', 'train_ai', 'manage_ledger'],
+            'exclude': [
+                'restore_database', 
+                'access_owner_dashboard', 
+                'manage_advanced_accounting', 
+                'manage_any_user_permissions', 
+                'hard_delete', 
+                'access_ai_assistant', 
+                'train_ai', 
+                'manage_ledger',
+                'manage_shop',
+                'view_shop',
+                'browse_products',
+                'place_online_order',
+                'view_preorders',
+                'add_preorder',
+                'edit_preorder',
+                'delete_preorder'
+            ],
             'is_protected': True,
             'is_super': False,
             'level': 2,
