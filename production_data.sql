@@ -1,7 +1,7 @@
 
 -- AZAD GARAGE MANAGER PRODUCTION EXPORT
 -- Generated Automatically
--- Excludes: users, alembic_version
+-- Excludes: users ONLY
 -- 
 BEGIN;
 
@@ -12,7 +12,7 @@ SET session_replication_role = 'replica';
 -- PostgreSQL database dump
 --
 
-\restrict uDgYWNr47FmDnlpEY6Ue4mLfvlgv0ddvMHkZEjHRr17ehIJn80htaoT8D98tRoZ
+\restrict PQ3bTwOEIVk1kf77l47rOXG5cfK5zaXrXm09Yw3Tt8JcyxWgBSOSFwYMTfpcNF8
 
 -- Dumped from database version 18.1
 -- Dumped by pg_dump version 18.1
@@ -50,6 +50,13 @@ INSERT INTO public.accounts (id, code, name, type, is_active, created_at, update
 INSERT INTO public.accounts (id, code, name, type, is_active, created_at, updated_at) VALUES (19, '6500_FUEL', 'وقود', 'EXPENSE', true, '2025-12-24 22:50:44.393011', '2025-12-24 22:50:44.393011') ON CONFLICT DO NOTHING;
 INSERT INTO public.accounts (id, code, name, type, is_active, created_at, updated_at) VALUES (20, '6600_OFFICE', 'مكتب', 'EXPENSE', true, '2025-12-24 22:50:44.393011', '2025-12-24 22:50:44.393011') ON CONFLICT DO NOTHING;
 INSERT INTO public.accounts (id, code, name, type, is_active, created_at, updated_at) VALUES (21, '6960_HOME_EXPENSE', 'مصاريف منزلية', 'EXPENSE', true, '2025-12-24 22:50:44.393011', '2025-12-24 22:50:44.393011') ON CONFLICT DO NOTHING;
+
+
+--
+-- Data for Name: alembic_version; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+INSERT INTO public.alembic_version (version_num) VALUES ('20251226_product_wh_scope') ON CONFLICT DO NOTHING;
 
 
 --
@@ -3410,7 +3417,7 @@ SELECT pg_catalog.setval('public.workflow_instances_id_seq', 1, false);
 -- PostgreSQL database dump complete
 --
 
-\unrestrict uDgYWNr47FmDnlpEY6Ue4mLfvlgv0ddvMHkZEjHRr17ehIJn80htaoT8D98tRoZ
+\unrestrict PQ3bTwOEIVk1kf77l47rOXG5cfK5zaXrXm09Yw3Tt8JcyxWgBSOSFwYMTfpcNF8
 
 
 -- Re-enable checks

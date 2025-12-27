@@ -38,8 +38,6 @@ def generate_export():
         "--no-privileges",
         "--on-conflict-do-nothing",
         "--exclude-table=users",
-        "--exclude-table=alembic_version",
-        "--exclude-table=sessions",
         "-f", output_file
     ]
     
@@ -61,7 +59,7 @@ def generate_export():
         header = """
 -- AZAD GARAGE MANAGER PRODUCTION EXPORT
 -- Generated Automatically
--- Excludes: users, alembic_version
+-- Excludes: users ONLY
 -- 
 BEGIN;
 
