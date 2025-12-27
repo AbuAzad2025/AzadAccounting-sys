@@ -14,11 +14,15 @@ git pull origin main
 
 ### 2. طريقة الاستيراد (Import)
 بعد سحب الملف، قم بتنفيذ الأمر التالي لإدخال البيانات إلى قاعدة البيانات.
-**ملاحظة:** يجب استبدال `<db_user>` و `<db_name>` بالبيانات الصحيحة للسيرفر.
+**ملاحظة:** يجب استبدال `<db_user>` و `<db_name>` و `<host>` بالبيانات الصحيحة للسيرفر.
 
 ```bash
 # أمر الاستيراد (PostgreSQL)
+# إذا كان السيرفر محلي:
 psql -U postgres -d garage_db -f production_data.sql
+
+# إذا كان السيرفر خارجي (مثل PythonAnywhere):
+psql -h <host_address> -p <port> -U <username> -d <database_name> -f production_data.sql
 ```
 
 ### ماذا يفعل هذا الملف؟
