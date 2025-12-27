@@ -948,13 +948,13 @@ def _fetch_permissions_from_db(user) -> set:
             perms |= get_role_permissions(user.role)
         except Exception:
             for p in _iter_rel(user.role.permissions):
-                name = getattr(p, "name", None) or getattr(p, "code", None)
+                name = getattr(p, "code", None) or getattr(p, "name", None)
                 if name:
                     perms.add(str(name).lower())
     extra_rel = getattr(user, "extra_permissions", None)
     if extra_rel is not None:
         for p in _iter_rel(extra_rel):
-            name = getattr(p, "name", None) or getattr(p, "code", None)
+            name = getattr(p, "code", None) or getattr(p, "name", None)
             if name:
                 perms.add(str(name).lower())
     return perms
