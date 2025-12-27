@@ -13,7 +13,7 @@
       </button>
     </li>
 
-    {% if current_user.is_authenticated %}
+    {% if current_user.is_authenticated and (has_perm('view_shop') or has_perm('manage_shop')) %}
     <li class="nav-item">
       <a class="nav-link nav-strong" href="{{ url_for('shop.catalog') }}" target="_blank" title="المتجر">
         <i class="fas fa-store"></i>

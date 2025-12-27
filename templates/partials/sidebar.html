@@ -30,7 +30,7 @@
           </a>
         </li>
 
-        {% if has_perm('manage_customers') or has_perm('manage_service') or has_perm('manage_sales') or has_perm('view_warehouses') or has_perm('manage_warehouses') %}
+        {% if has_perm('manage_customers') or has_perm('view_customers') or has_perm('manage_service') or has_perm('view_service') or has_perm('manage_sales') or has_perm('view_sales') or has_perm('view_warehouses') or has_perm('manage_warehouses') %}
         <li class="nav-item has-treeview {% if request.blueprint in ['customers_bp', 'service', 'sales_bp', 'recurring'] or request.endpoint == 'warehouse_bp.preorders_list' %}menu-open{% endif %}">
           <a href="#" class="nav-link {% if request.blueprint in ['customers_bp', 'service', 'sales_bp', 'recurring'] or request.endpoint == 'warehouse_bp.preorders_list' %}active{% endif %}">
             <i class="nav-icon fas fa-briefcase text-primary"></i>
@@ -40,7 +40,7 @@
             </p>
           </a>
           <ul class="nav nav-treeview">
-            {% if has_perm('manage_customers') %}
+            {% if has_perm('manage_customers') or has_perm('view_customers') %}
             <li class="nav-item">
               <a href="{{ url_for('customers_bp.list_customers') }}" class="nav-link {% if request.blueprint == 'customers_bp' %}active{% endif %}">
                 <i class="far fa-circle nav-icon text-success"></i>
@@ -48,7 +48,7 @@
               </a>
             </li>
             {% endif %}
-            {% if has_perm('manage_service') %}
+            {% if has_perm('manage_service') or has_perm('view_service') %}
             <li class="nav-item">
               <a href="{{ url_for('service.list_requests') }}" class="nav-link {% if request.blueprint == 'service' %}active{% endif %}">
                 <i class="far fa-circle nav-icon text-warning"></i>
@@ -64,7 +64,7 @@
               </a>
             </li>
             {% endif %}
-            {% if has_perm('manage_sales') %}
+            {% if has_perm('manage_sales') or has_perm('view_sales') %}
             <li class="nav-item">
               <a href="{{ url_for('sales_bp.list_sales') }}" class="nav-link {% if request.blueprint == 'sales_bp' %}active{% endif %}">
                 <i class="far fa-circle nav-icon text-info"></i>
@@ -211,9 +211,9 @@
         </li>
         {% endif %}
 
-        {% if has_perm('manage_advanced_accounting') %}
-        <li class="nav-item has-treeview {% if request.blueprint in ['bank', 'cost_centers', 'projects'] or (request.endpoint and (request.endpoint.startswith('bank.') or request.endpoint.startswith('cost_centers.') or request.endpoint.startswith('projects.'))) %}menu-open{% endif %}">
-          <a href="#" class="nav-link {% if request.blueprint in ['bank', 'cost_centers', 'projects'] or (request.endpoint and (request.endpoint.startswith('bank.') or request.endpoint.startswith('cost_centers.') or request.endpoint.startswith('projects.'))) %}active{% endif %}">
+        {% if has_perm('manage_advanced_accounting') or has_perm('manage_bank') or has_perm('view_bank') or has_perm('manage_cost_centers') or has_perm('manage_engineering') or has_perm('manage_projects') or has_perm('view_projects') or has_perm('manage_workflows') or has_perm('view_workflows') %}
+        <li class="nav-item has-treeview {% if request.blueprint in ['bank', 'cost_centers', 'projects', 'workflows'] or (request.endpoint and (request.endpoint.startswith('bank.') or request.endpoint.startswith('cost_centers.') or request.endpoint.startswith('projects.') or request.endpoint.startswith('workflows.'))) %}menu-open{% endif %}">
+          <a href="#" class="nav-link {% if request.blueprint in ['bank', 'cost_centers', 'projects', 'workflows'] or (request.endpoint and (request.endpoint.startswith('bank.') or request.endpoint.startswith('cost_centers.') or request.endpoint.startswith('projects.') or request.endpoint.startswith('workflows.'))) %}active{% endif %}">
             <i class="nav-icon fas fa-chart-pie" style="color: #667eea;"></i>
             <p>
               المحاسبة المتقدمة
@@ -221,12 +221,16 @@
             </p>
           </a>
           <ul class="nav nav-treeview">
+            {% if has_perm('manage_bank') or has_perm('view_bank') or has_perm('manage_advanced_accounting') %}
             <li class="nav-item">
               <a href="/bank/accounts" class="nav-link {% if request.endpoint and request.endpoint.startswith('bank.') %}active{% endif %}">
                 <i class="far fa-circle nav-icon" style="color: #4299e1;"></i>
                 <p>البنوك والتسويات</p>
               </a>
             </li>
+            {% endif %}
+            
+            {% if has_perm('manage_cost_centers') or has_perm('manage_advanced_accounting') %}
             <li class="nav-item has-treeview {% if request.endpoint and request.endpoint.startswith('cost_centers') %}menu-open{% endif %}">
               <a href="#" class="nav-link {% if request.endpoint and request.endpoint.startswith('cost_centers') %}active{% endif %}">
                 <i class="far fa-circle nav-icon" style="color: #48bb78;"></i>
@@ -259,7 +263,9 @@
                 </li>
               </ul>
             </li>
+            {% endif %}
             
+            {% if has_perm('manage_engineering') or has_perm('manage_advanced_accounting') %}
             <li class="nav-item has-treeview {% if request.endpoint and request.endpoint.startswith('engineering.') %}menu-open{% endif %}">
               <a href="#" class="nav-link {% if request.endpoint and request.endpoint.startswith('engineering.') %}active{% endif %}">
                 <i class="far fa-circle nav-icon" style="color: #fc8181;"></i>
@@ -298,7 +304,9 @@
                 </li>
               </ul>
             </li>
+            {% endif %}
             
+            {% if has_perm('manage_projects') or has_perm('view_projects') or has_perm('manage_advanced_accounting') %}
             <li class="nav-item has-treeview {% if request.endpoint and (request.endpoint.startswith('projects.') or request.endpoint.startswith('project_advanced.')) %}menu-open{% endif %}">
               <a href="#" class="nav-link {% if request.endpoint and (request.endpoint.startswith('projects.') or request.endpoint.startswith('project_advanced.')) %}active{% endif %}">
                 <i class="far fa-circle nav-icon" style="color: #ed8936;"></i>
@@ -314,12 +322,14 @@
                     <p>قائمة المشاريع</p>
                   </a>
                 </li>
+                {% if has_perm('manage_projects') %}
                 <li class="nav-item">
                   <a href="/projects/add" class="nav-link {% if request.endpoint == 'projects.add_project' %}active{% endif %}">
                     <i class="fas fa-plus nav-icon text-success" style="font-size: 0.7rem;"></i>
                     <p>مشروع جديد</p>
                   </a>
                 </li>
+                {% endif %}
                 <li class="nav-item">
                   <a href="/projects/reports/profitability" class="nav-link">
                     <i class="fas fa-chart-line nav-icon text-info" style="font-size: 0.7rem;"></i>
@@ -328,7 +338,9 @@
                 </li>
               </ul>
             </li>
+            {% endif %}
             
+            {% if has_perm('manage_workflows') or has_perm('view_workflows') or has_perm('manage_advanced_accounting') %}
             <li class="nav-item has-treeview {% if request.endpoint and request.endpoint.startswith('workflows.') %}menu-open{% endif %}">
               <a href="#" class="nav-link {% if request.endpoint and request.endpoint.startswith('workflows.') %}active{% endif %}">
                 <i class="far fa-circle nav-icon" style="color: #8b5cf6;"></i>
@@ -344,12 +356,14 @@
                     <p>لوحة التحكم</p>
                   </a>
                 </li>
+                {% if has_perm('manage_workflows') %}
                 <li class="nav-item">
                   <a href="/workflows/definitions" class="nav-link {% if request.endpoint == 'workflows.definitions' %}active{% endif %}">
                     <i class="fas fa-cogs nav-icon text-info" style="font-size: 0.7rem;"></i>
                     <p>التعريفات</p>
                   </a>
                 </li>
+                {% endif %}
                 <li class="nav-item">
                   <a href="/workflows/instances" class="nav-link {% if request.endpoint == 'workflows.instances' %}active{% endif %}">
                     <i class="fas fa-tasks nav-icon text-success" style="font-size: 0.7rem;"></i>
@@ -364,6 +378,7 @@
                 </li>
               </ul>
             </li>
+            {% endif %}
           </ul>
         </li>
         {% endif %}
@@ -416,6 +431,7 @@
         </li>
         {% endif %}
 
+        {% if has_perm('view_shop') or has_perm('manage_shop') %}
         <li class="nav-item has-treeview {% if request.blueprint == 'shop' %}menu-open{% endif %}">
           <a href="#" class="nav-link {% if request.blueprint == 'shop' %}active{% endif %}">
             <i class="nav-icon fas fa-store text-warning"></i>
@@ -425,12 +441,14 @@
             </p>
           </a>
           <ul class="nav nav-treeview">
+            {% if has_perm('view_shop') %}
             <li class="nav-item">
               <a href="{{ url_for('shop.catalog') }}" class="nav-link {% if request.endpoint == 'shop.catalog' %}active{% endif %}">
                 <i class="far fa-circle nav-icon text-info"></i>
                 <p>تصفح المتجر</p>
               </a>
             </li>
+            {% endif %}
             {% if has_perm('manage_shop') %}
             <li class="nav-item">
               <a href="{{ url_for('shop.admin_products') }}" class="nav-link {% if request.endpoint == 'shop.admin_products' %}active{% endif %}">
@@ -447,6 +465,7 @@
             {% endif %}
           </ul>
         </li>
+        {% endif %}
 
         {% if has_perm('access_owner_dashboard') %}
         <li class="nav-item has-treeview {% if request.blueprint in ['security', 'shop'] %}menu-open{% endif %}">
