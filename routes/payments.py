@@ -562,7 +562,7 @@ def index():
         ])
         filters.append(or_(*search_filters))
     base_q = (
-        Payment.query.filter(Payment.is_archived == False)
+        Payment.query.filter(or_(Payment.is_archived.is_(False), Payment.is_archived.is_(None)))
         .filter(*filters)
         .options(
             load_only(

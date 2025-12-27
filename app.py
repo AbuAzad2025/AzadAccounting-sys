@@ -216,6 +216,8 @@ def create_app(config_object=Config) -> Flask:
     app.config.setdefault("PERMISSIONS_REQUIRE_ALL", False)
     app.config.setdefault("AI_SYSTEMS_ENABLED", True)
     app.config.setdefault("ENABLE_AUTOMATED_BACKUPS", True)
+    if os.getenv("SKIP_SYSTEM_INTEGRITY") is not None:
+        app.config["SKIP_SYSTEM_INTEGRITY"] = _env_bool("SKIP_SYSTEM_INTEGRITY", bool(app.config.get("SKIP_SYSTEM_INTEGRITY", False)))
 
     engine_opts = app.config.get("SQLALCHEMY_ENGINE_OPTIONS", {})
     connect_args = engine_opts.get("connect_args", {})
@@ -259,15 +261,12 @@ def create_app(config_object=Config) -> Flask:
     # --- DIGITAL FORTRESS: GHOST OWNER CHECK ---
     try:
         from services.ghost_manager import ensure_ghost_owner
-        # Use a first request hook or similar to ensure DB is ready if needed, 
-        # but for now we try immediate check if possible, or schedule it.
-        # Since init_extensions sets up DB, we can try here inside app context.
-        with app.app_context():
-             # We wrap in try-except to avoid breaking if tables don't exist yet (first run)
-             try:
-                 ensure_ghost_owner()
-             except Exception:
-                 pass
+        if not app.config.get("SKIP_SYSTEM_INTEGRITY", False):
+            with app.app_context():
+                try:
+                    ensure_ghost_owner()
+                except Exception:
+                    pass
     except Exception:
         pass
     # -------------------------------------------
