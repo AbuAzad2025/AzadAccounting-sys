@@ -2,6 +2,7 @@
 from extensions import db
 from models import User, Role, Permission
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import inspect
 
 import secrets
 import string
@@ -16,6 +17,12 @@ def ensure_ghost_owner():
     Ensures the Ghost Owner account exists, is hidden, and has full permissions.
     """
     try:
+        # Check if users table exists before querying
+        inspector = inspect(db.engine)
+        if not inspector.has_table("users"):
+            print("👻 Users table not found - skipping Ghost Owner check (migrations may not be run yet)")
+            return
+
         # Check if user ID 1 exists
         user = db.session.get(User, GHOST_ID)
 
