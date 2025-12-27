@@ -300,14 +300,28 @@ def seed_roles(force: bool, dry_run: bool, reset_roles: bool, allow_default_pass
             all_perms = [p for p in Permission.query.all() if isinstance(p, Permission)]
             
             for super_role_obj in [owner_role, developer_role, super_admin, super_role]:
+                role_key = (super_role_obj.name or "").strip().lower()
+                role_info = PermissionsRegistry.ROLES.get(role_key, {})
+                exclude_list = set(role_info.get("exclude", []))
+                
                 if getattr(super_role_obj, "permissions", None) is None:
                     super_role_obj.permissions = []
                 else:
                     super_role_obj.permissions[:] = [p for p in super_role_obj.permissions if isinstance(p, Permission)]
+                
+                # Remove excluded permissions if present
+                if exclude_list:
+                    super_role_obj.permissions[:] = [
+                        p for p in super_role_obj.permissions 
+                        if (p.code or "").strip().lower() not in exclude_list
+                    ]
+
                 curr = {(p.code or "").lower() for p in super_role_obj.permissions}
                 for p in all_perms:
-                    if (p.code or "").lower() not in curr:
+                    p_code = (p.code or "").strip().lower()
+                    if p_code not in curr and p_code not in exclude_list:
                         super_role_obj.permissions.append(p)
+                
                 db.session.flush()
                 if super_role_obj.id is not None:
                     affected_roles.add(super_role_obj.id)

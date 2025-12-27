@@ -706,34 +706,54 @@ class UserForm(FlaskForm):
         super().__init__(*args, **kwargs)
         
         from flask_login import current_user
+        from permissions_config.permissions import PermissionsRegistry
         
-        all_roles = Role.query.order_by(Role.name).all()
+        all_roles = Role.query.all()
+        # Sort roles by level then name
+        def _get_role_info(r_name):
+            return PermissionsRegistry.ROLES.get((r_name or "").strip().lower(), {})
+
+        all_roles.sort(key=lambda r: (
+            int(_get_role_info(r.name).get("level", 999)), 
+            r.name
+        ))
         
         current_username = str(getattr(current_user, "username", "") or "").strip()
         current_role_name = str(getattr(getattr(current_user, "role", None), "name", "") or "").strip().lower()
 
         def _role_level(role_name: str) -> int:
-            try:
-                from permissions_config.permissions import PermissionsRegistry
-                info = PermissionsRegistry.ROLES.get((role_name or "").strip().lower())
-                if isinstance(info, dict):
-                    return int(info.get("level", 999))
-            except Exception:
-                pass
+            info = PermissionsRegistry.ROLES.get((role_name or "").strip().lower())
+            if isinstance(info, dict):
+                return int(info.get("level", 999))
             return 999
 
         actor_level = _role_level(current_role_name)
         is_owner = bool(getattr(current_user, "is_system_account", False)) or current_username.upper() == "__OWNER__" or actor_level == 0
 
-        if is_owner:
-            self.role_id.choices = [(r.id, r.name) for r in all_roles]
-        else:
-            allowed = []
-            for r in all_roles:
-                role_name = str(getattr(r, "name", "") or "").strip().lower()
-                if _role_level(role_name) > actor_level:
-                    allowed.append((r.id, r.name))
-            self.role_id.choices = allowed
+        choices = []
+        for r in all_roles:
+            r_name = (r.name or "").strip()
+            r_info = _get_role_info(r_name)
+            r_level = int(r_info.get("level", 999))
+            r_label = r_info.get("name_ar", r_name)  # Use Arabic name if available
+
+            # Logic:
+            # 1. Owner (Level 0) can see everything.
+            # 2. Level 1 (Super Admin) can see Level >= 1.
+            # 3. Others can see Level > Actor Level.
+            
+            allowed = False
+            if is_owner:
+                allowed = True
+            elif actor_level == 1 and r_level >= 1:
+                allowed = True
+            elif r_level > actor_level:
+                allowed = True
+            
+            if allowed:
+                choices.append((r.id, f"{r_label} ({r_name})"))
+
+        self.role_id.choices = choices
         
         try:
             from flask import request

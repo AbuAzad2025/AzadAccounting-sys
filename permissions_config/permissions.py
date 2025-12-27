@@ -721,7 +721,7 @@ class PermissionsRegistry:
         
         'developer': {
             'name_ar': 'المطور',
-            'description': '💻 مطور النظام - صلاحيات تقنية كاملة',
+            'description': '💻 مطور النظام - نفس صلاحيات المالك',
             'permissions': '*',
             'exclude': [],
             'is_protected': True,
@@ -754,7 +754,7 @@ class PermissionsRegistry:
         
         'super_admin': {
             'name_ar': 'المدير الأعلى',
-            'description': '⚡ مدير النظام - صلاحيات كاملة تقريباً',
+            'description': '⚡ مدير النظام - صلاحيات كاملة تقريباً ما عدا لوحة المالك والذكاء الاصطناعي',
             'permissions': '*',
             'exclude': [
                 'access_owner_dashboard', 

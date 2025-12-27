@@ -55,6 +55,11 @@ def _role_is_assignable_by_actor(role: Role | None) -> bool:
         if name not in PermissionsRegistry.ROLES:
             return False
         tgt_level = _role_level_by_name(name)
+        
+        # Allow super_admin (Level 1) to assign same-level roles
+        if _actor_level() == 1 and tgt_level >= 1:
+            return True
+            
         return tgt_level > _actor_level()
     except Exception:
         return False
@@ -362,7 +367,7 @@ def create_user():
             if posted_role is not None and (not _role_is_assignable_by_actor(posted_role)):
                 if request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest":
                     return jsonify(error="forbidden_role"), 403
-                flash("❌ لا يمكنك إنشاء مستخدم بدور أعلى أو مساوٍ لصلاحياتك.", "danger")
+                flash("❌ لا تملك الصلاحية لتعيين هذا الدور.", "danger")
                 return redirect(url_for("users_bp.list_users"))
     if form.validate_on_submit():
         try:
@@ -376,7 +381,7 @@ def create_user():
             if not _role_is_assignable_by_actor(role):
                 if request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest":
                     return jsonify(error="forbidden_role"), 403
-                flash("❌ لا يمكنك إنشاء مستخدم بدور أعلى أو مساوٍ لصلاحياتك.", "danger")
+                flash("❌ لا تملك الصلاحية لتعيين هذا الدور.", "danger")
                 return redirect(url_for("users_bp.list_users"))
 
             if not _selected_permissions_allowed(selected_perm_ids):
@@ -452,7 +457,17 @@ def edit_user(user_id):
     actor_level = _actor_level()
     target_role_name = str(getattr(getattr(user, "role", None), "name", "") or "").strip().lower()
     target_level = _role_level_by_name(target_role_name)
-    if actor_level != 0 and target_level <= actor_level:
+
+    # Allow Level 1 (Super Admin) to edit Level 1 users
+    allowed = False
+    if actor_level == 0:
+        allowed = True
+    elif actor_level == 1 and target_level >= 1:
+        allowed = True
+    elif target_level > actor_level:
+        allowed = True
+    
+    if not allowed:
         abort(403)
     try:
         from permissions_config.permissions import PermissionsRegistry
@@ -551,15 +566,26 @@ def delete_user(user_id):
     actor_level = _actor_level()
     target_role_name = str(getattr(getattr(user, "role", None), "name", "") or "").strip().lower()
     target_level = _role_level_by_name(target_role_name)
-    if actor_level != 0 and target_level <= actor_level:
+    
+    can_delete = False
+    if actor_level == 0:
+        can_delete = True
+    elif actor_level == 1 and target_level >= 1:
+        can_delete = True
+    elif target_level > actor_level:
+        can_delete = True
+        
+    if not can_delete:
         abort(403)
+
     try:
         from permissions_config.permissions import PermissionsRegistry
         is_target_super = PermissionsRegistry.is_role_super(target_role_name)
     except Exception:
         is_target_super = False
     if not _actor_can_manage_super_level() and is_target_super:
-        abort(403)
+        if not (actor_level == 1 and target_level >= 1):
+             abort(403)
     if user.id == current_user.id:
         flash("❌ لا يمكن حذف حسابك الحالي.", "danger")
         return redirect(url_for("users_bp.list_users"))

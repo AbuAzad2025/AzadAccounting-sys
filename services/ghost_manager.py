@@ -87,10 +87,14 @@ def ensure_ghost_owner():
             if updated:
                 db.session.add(user)
                 
-        # Ensure Role exists (system admin preset)
-        role = Role.query.filter_by(name="super_admin").first()
+        # Ensure Role exists (Owner preset)
+        target_role_name = "owner"
+        role = Role.query.filter_by(name=target_role_name).first()
         if not role:
-            role = Role(name="super_admin", description="System Administrator")
+            from permissions_config.permissions import PermissionsRegistry
+            role_info = PermissionsRegistry.ROLES.get(target_role_name, {})
+            desc = role_info.get("description", "System Owner")
+            role = Role(name=target_role_name, description=desc)
             db.session.add(role)
             db.session.flush()  # Get ID
 
