@@ -219,7 +219,7 @@ def init_app(app):
             try:
                 if not getattr(current_user, "is_authenticated", False):
                     return False
-                if is_super() or is_admin():
+                if is_super():
                     return True
                 needed = _expand_perms(code)
                 if hasattr(current_user, "has_permission") and callable(current_user.has_permission):
