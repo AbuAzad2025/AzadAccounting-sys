@@ -1164,7 +1164,7 @@ def get_role_permissions(role) -> set:
             pass
     perms = set()
     for p in _iter_rel(getattr(role, "permissions", [])):
-        name = getattr(p, "name", None) or getattr(p, "code", None)
+        name = getattr(p, "code", None) or getattr(p, "name", None)
         if name:
             perms.add(str(name).lower())
     try:
