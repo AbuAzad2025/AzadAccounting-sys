@@ -842,7 +842,9 @@ class PermissionsRegistry:
                 'view_preorders',
                 'add_preorder',
                 'edit_preorder',
-                'delete_preorder'
+                'delete_preorder',
+                'manage_api',
+                'access_api'
             ],
             'is_protected': True,
             'is_super': False,

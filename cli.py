@@ -31,7 +31,7 @@ from models import (
     build_partner_settlement_draft, build_supplier_settlement_draft, convert_amount, User,
 )
 
-RESERVED_CODES = PermissionsRegistry.get_protected_permissions()
+RESERVED_CODES = PermissionsRegistry.get_all_permission_codes()
 
 def _get_perm_name_ar(code: str) -> str:
     perm_info = PermissionsRegistry.get_permission_info(code)
