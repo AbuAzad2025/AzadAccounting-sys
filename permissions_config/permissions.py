@@ -754,13 +754,15 @@ class PermissionsRegistry:
         
         'super_admin': {
             'name_ar': 'المدير الأعلى',
-            'description': '⚡ مدير النظام - صلاحيات كاملة تقريباً ما عدا لوحة المالك',
+            'description': '⚡ مدير النظام - صلاحيات كاملة تقريباً ما عدا لوحة المالك والمساعد الذكي',
             'permissions': '*',
             'exclude': [
                 'access_owner_dashboard', 
                 'manage_any_user_permissions', 
                 'hard_delete',
-                'manage_api'
+                'manage_api',
+                'access_ai_assistant',
+                'train_ai'
             ],
             'is_protected': True,
             'is_super': True,
@@ -769,8 +771,6 @@ class PermissionsRegistry:
             'special_access': [
                 'manage_advanced_accounting',
                 'manage_ledger',
-                'access_ai_assistant',
-                'train_ai',
                 'manage_shop',
             ],
             'capabilities': {
@@ -795,7 +795,9 @@ class PermissionsRegistry:
                 'access_owner_dashboard', 
                 'manage_any_user_permissions', 
                 'hard_delete',
-                'manage_api'
+                'manage_api',
+                'access_ai_assistant',
+                'train_ai'
             ],
             'is_protected': True,
             'is_super': True,
@@ -804,8 +806,6 @@ class PermissionsRegistry:
             'special_access': [
                 'manage_advanced_accounting',
                 'manage_ledger',
-                'access_ai_assistant',
-                'train_ai',
                 'manage_shop',
             ],
             'capabilities': {
