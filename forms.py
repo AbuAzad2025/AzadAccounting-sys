@@ -739,15 +739,12 @@ class UserForm(FlaskForm):
 
             # Logic:
             # 1. Owner (Level 0) can see everything.
-            # 2. Level 1 (Super Admin) can see Level >= 1.
-            # 3. Others can see Level > Actor Level.
+            # 2. Others can see Level >= Actor Level.
             
             allowed = False
             if is_owner:
                 allowed = True
-            elif actor_level == 1 and r_level >= 1:
-                allowed = True
-            elif r_level > actor_level:
+            elif r_level >= actor_level:
                 allowed = True
             
             if allowed:

@@ -32,8 +32,8 @@ def _actor_level() -> int:
     return _role_level_by_name(_actor_role_name())
 
 def _actor_can_manage_users() -> bool:
-    lvl = _actor_level()
-    return lvl <= 1
+    # Access is controlled by permission 'manage_users'
+    return True
 
 def _actor_can_manage_super_level() -> bool:
     try:
@@ -60,7 +60,7 @@ def _role_is_assignable_by_actor(role: Role | None) -> bool:
         if _actor_level() == 1 and tgt_level >= 1:
             return True
             
-        return tgt_level > _actor_level()
+        return tgt_level >= _actor_level()
     except Exception:
         return False
 
@@ -219,6 +219,30 @@ def change_password():
 def list_users():
     # استثناء حسابات النظام المخفية
     q = User.query.filter(User.is_system_account == False).options(joinedload(User.role))
+    
+    # Filter users based on role level
+    # No user can see roles higher than them (Level < Actor Level)
+    from permissions_config.permissions import PermissionsRegistry
+    actor_level = _actor_level()
+    
+    if actor_level > 0:
+        all_roles = Role.query.all()
+        allowed_role_ids = []
+        for r in all_roles:
+            r_name = (r.name or "").strip()
+            r_info = PermissionsRegistry.ROLES.get(r_name.lower(), {})
+            r_level = int(r_info.get("level", 999))
+            
+            # Allow seeing users with Same Level or Lower Level (Higher Number)
+            if r_level >= actor_level:
+                allowed_role_ids.append(r.id)
+        
+        if allowed_role_ids:
+            q = q.filter(User.role_id.in_(allowed_role_ids))
+        else:
+            # If no roles allowed (shouldn't happen as user has a role), show nothing
+            q = q.filter(func.random() < 0)
+
     term = request.args.get("search", "")
     if term:
         like = f"%{term}%"
@@ -420,7 +444,10 @@ def create_user():
             ))
 
             db.session.commit()
-            # clear_user_permission_cache(user.id)  # Commented out - function not available
+            try:
+                utils.clear_user_permission_cache(user.id)
+            except Exception:
+                pass
 
             if request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest":
                 return jsonify(id=user.id, username=user.username), 201
@@ -532,7 +559,10 @@ def edit_user(user_id):
             ))
 
             db.session.commit()
-            # clear_user_permission_cache(user.id)  # Commented out - function not available
+            try:
+                utils.clear_user_permission_cache(user.id)
+            except Exception:
+                pass
 
             flash("تم تحديث المستخدم.", "success")
             return redirect(url_for("users_bp.list_users"))
@@ -572,7 +602,7 @@ def delete_user(user_id):
         can_delete = True
     elif actor_level == 1 and target_level >= 1:
         can_delete = True
-    elif target_level > actor_level:
+    elif target_level >= actor_level:
         can_delete = True
         
     if not can_delete:
