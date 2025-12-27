@@ -1,0 +1,33 @@
+[flake8]
+exclude =
+    .venv,
+    migrations,
+    static,
+    templates,
+    instance,
+    exports,
+    docs,
+    AI,
+    translations,
+    routes,
+    services,
+    utils,
+    models.py,
+    utils.py,
+    notifications.py,
+    reports.py,
+    reset_db.py,
+    run_system_backup.py,
+    verify_sales_integrity.py,
+    validators.py,
+    wsgi.py
+filename =
+    cli.py,
+    permissions_config/*.py
+max-line-length = 200
+extend-ignore =
+    E501,
+    W291,
+    W292,
+    W293,
+    W391
