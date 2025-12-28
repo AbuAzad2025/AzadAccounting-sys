@@ -552,7 +552,13 @@ class LegacyEntityResolver:
         return count
 
 def _base_query_with_filters(include_relations=True):
-    show_archived = request.args.get("show_archived", "").strip().lower() in ("1", "true", "yes")
+    raw_show_archived = (request.args.get("show_archived") or "").strip().lower()
+    if raw_show_archived in ("0", "false", "no"):
+        show_archived = False
+    elif raw_show_archived in ("1", "true", "yes"):
+        show_archived = True
+    else:
+        show_archived = True
     q = Expense.query
     if not show_archived:
         q = q.filter(Expense.is_archived == False)

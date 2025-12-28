@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-import json, os, re, uuid, traceback
+import json, os, re, uuid, traceback, sqlite3
 from datetime import datetime, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 from types import SimpleNamespace
@@ -23,7 +23,7 @@ from utils.supplier_balance_updater import update_supplier_balance_components, b
 from utils.partner_balance_updater import update_partner_balance_components, build_partner_balance_view
 from permissions_config.permissions import PermissionsRegistry
 from models import (
-    Account, AuditLog, Check, CheckStatus, Customer, Employee, ExchangeTransaction, Expense, ExpenseType, GLBatch,
+    Account, AuditLog, Branch, Site, Check, CheckStatus, Customer, Employee, ExchangeTransaction, Expense, ExpenseType, GLBatch,
     GLEntry, GL_ACCOUNTS, Invoice, Note, OnlineCart, OnlineCartItem, OnlinePayment, OnlinePreOrder, OnlinePreOrderItem,
     Partner, PartnerSettlement, Payment, PaymentDirection, PaymentEntityType, PaymentMethod, PaymentStatus, Permission,
     PreOrder, Product, Role, ServicePart, ServiceRequest, ServiceStatus, ServiceTask,
@@ -130,6 +130,256 @@ def _dedupe_role_permissions_in_place(role: Role) -> None:
         seen.add(pid)
         unique.append(p)
     role.permissions[:] = unique
+
+
+@click.command("import-sqlite-appdb")
+@click.option("--sqlite-path", default=os.path.join("instance", "app.db"), show_default=True)
+@click.option("--dry-run", is_flag=True, default=False)
+@click.option("--force", is_flag=True, default=False)
+@with_appcontext
+def import_sqlite_appdb(sqlite_path: str, dry_run: bool, force: bool):
+    allow = os.getenv("ALLOW_SQLITE_IMPORT", "").strip() == "1"
+    if not (force or allow):
+        raise click.ClickException("ارفع ALLOW_SQLITE_IMPORT=1 أو استخدم --force")
+
+    abs_path = sqlite_path
+    if not os.path.isabs(abs_path):
+        abs_path = os.path.abspath(abs_path)
+    if not os.path.exists(abs_path):
+        raise click.ClickException(f"ملف SQLite غير موجود: {abs_path}")
+
+    con = sqlite3.connect(abs_path)
+    con.row_factory = sqlite3.Row
+    cur = con.cursor()
+
+    cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
+    sqlite_tables = {r[0] for r in cur.fetchall()}
+    required = {"branches", "sites", "expense_types", "employees", "expenses"}
+    missing = sorted(required - sqlite_tables)
+    if missing:
+        raise click.ClickException(f"جداول ناقصة في SQLite: {', '.join(missing)}")
+
+    existing_user_ids = {row[0] for row in db.session.execute(sa_text("select id from users")).fetchall()}
+
+    def _parse_dt2(v):
+        if v is None:
+            return None
+        if isinstance(v, datetime):
+            return v
+        if isinstance(v, (int, float)):
+            return datetime.fromtimestamp(float(v))
+        s = str(v).strip()
+        if not s:
+            return None
+        try:
+            return datetime.fromisoformat(s)
+        except Exception:
+            return None
+
+    def _parse_date2(v):
+        dt = _parse_dt2(v)
+        return dt.date() if dt else None
+
+    def _coerce_value(col, v):
+        if v is None:
+            return None
+        col_type = col.type.__class__.__name__.lower()
+        if "datetime" in col_type:
+            return _parse_dt2(v)
+        if col_type == "date":
+            return _parse_date2(v)
+        if "boolean" in col_type:
+            if isinstance(v, str):
+                return v.strip().lower() in ("1", "true", "yes", "y", "t")
+            return bool(int(v)) if isinstance(v, (int, float)) else bool(v)
+        if "numeric" in col_type or "decimal" in col_type:
+            try:
+                return Decimal(str(v))
+            except Exception:
+                return None
+        return v
+
+    def _row_dict(row: sqlite3.Row):
+        return {k: row[k] for k in row.keys()}
+
+    def _get_sqlite_rows(table: str):
+        cur.execute(f"SELECT * FROM {table}")
+        return list(cur.fetchall())
+
+    def _upsert_by_unique(model, unique_field: str, rows):
+        inserted = 0
+        updated = 0
+        mapping = {}
+        cols = {c.name: c for c in model.__table__.columns}
+        for row in rows:
+            data = _row_dict(row)
+            unique_val = (data.get(unique_field) or "").strip() if isinstance(data.get(unique_field), str) else data.get(unique_field)
+            if not unique_val:
+                continue
+            existing = db.session.execute(
+                select(model).where(getattr(model, unique_field) == unique_val)
+            ).scalar_one_or_none()
+            if existing:
+                target = existing
+                updated += 1
+            else:
+                target = model()
+                inserted += 1
+            for k, v in data.items():
+                if k not in cols:
+                    continue
+                if k in ("id",):
+                    continue
+                setattr(target, k, _coerce_value(cols[k], v))
+            db.session.add(target)
+            db.session.flush()
+            mapping[data.get("id")] = target.id
+        return inserted, updated, mapping
+
+    def _upsert_by_pk(model, rows, id_map=None, fk_maps=None, value_transform=None):
+        inserted = 0
+        updated = 0
+        cols = {c.name: c for c in model.__table__.columns}
+        for row in rows:
+            data = _row_dict(row)
+            src_id = data.get("id")
+            if src_id is None:
+                continue
+            dst_id = id_map.get(src_id, src_id) if id_map else src_id
+            existing = db.session.get(model, dst_id)
+            if existing:
+                obj = existing
+                updated += 1
+            else:
+                obj = model()
+                obj.id = dst_id
+                inserted += 1
+            for k, v in data.items():
+                if k not in cols:
+                    continue
+                if k == "id":
+                    continue
+                if fk_maps and k in fk_maps:
+                    v = fk_maps[k].get(v) if v is not None else None
+                if value_transform:
+                    v = value_transform(k, v)
+                if k in ("created_by", "updated_by", "archived_by") and v is not None and v not in existing_user_ids:
+                    v = None
+                setattr(obj, k, _coerce_value(cols[k], v))
+            db.session.add(obj)
+        return inserted, updated
+
+    def _set_seq(table_name: str, pk_col: str = "id"):
+        seq = f"{table_name}_{pk_col}_seq"
+        db.session.execute(sa_text(
+            f"select setval('{seq}', (select coalesce(max({pk_col}), 1) from {table_name}), true)"
+        ))
+
+    branches_rows = _get_sqlite_rows("branches")
+    sites_rows = _get_sqlite_rows("sites")
+    types_rows = _get_sqlite_rows("expense_types")
+    employees_rows = _get_sqlite_rows("employees")
+    expenses_rows = _get_sqlite_rows("expenses")
+
+    click.echo(f"SQLite: branches={len(branches_rows)} sites={len(sites_rows)} expense_types={len(types_rows)} employees={len(employees_rows)} expenses={len(expenses_rows)}")
+    if dry_run:
+        click.echo("Dry-run: لم يتم إدخال أي بيانات.")
+        return
+
+    try:
+        b_ins, b_upd, branch_map = _upsert_by_unique(Branch, "code", branches_rows)
+        db.session.flush()
+
+        default_branch = Branch.query.filter(func.lower(Branch.code) == "main").first() or Branch.query.order_by(Branch.id.asc()).first()
+        if not default_branch:
+            raise click.ClickException("لا يوجد أي فرع في قاعدة البيانات الهدف")
+        default_branch_id = default_branch.id
+
+        site_fk_maps = {"branch_id": branch_map}
+        s_ins, s_upd = _upsert_by_pk(Site, sites_rows, fk_maps=site_fk_maps)
+        db.session.flush()
+        existing_site_ids = {r[0] for r in db.session.execute(sa_text("select id from sites")).fetchall()}
+
+        t_ins, t_upd, type_map = _upsert_by_unique(ExpenseType, "name", types_rows)
+        db.session.flush()
+
+        fallback_type = ExpenseType.query.filter(func.lower(ExpenseType.name) == "imported").first()
+        if not fallback_type:
+            fallback_type = ExpenseType(name="Imported", description="Imported from legacy SQLite")
+            db.session.add(fallback_type)
+            db.session.flush()
+        fallback_type_id = fallback_type.id
+
+        emp_fk_maps = {"branch_id": branch_map}
+        def _employee_value_transform(k: str, v):
+            if k == "branch_id":
+                return v or default_branch_id
+            if k == "site_id":
+                if v in (None, 0):
+                    return None
+                return v if v in existing_site_ids else None
+            return v
+        e_ins, e_upd = _upsert_by_pk(Employee, employees_rows, fk_maps=emp_fk_maps, value_transform=_employee_value_transform)
+        db.session.flush()
+
+        existing_customer_ids = {r[0] for r in db.session.execute(sa_text("select id from customers")).fetchall()}
+        existing_supplier_ids = {r[0] for r in db.session.execute(sa_text("select id from suppliers")).fetchall()}
+        existing_partner_ids = {r[0] for r in db.session.execute(sa_text("select id from partners")).fetchall()}
+        existing_warehouse_ids = {r[0] for r in db.session.execute(sa_text("select id from warehouses")).fetchall()}
+        existing_shipment_ids = {r[0] for r in db.session.execute(sa_text("select id from shipments")).fetchall()}
+        existing_utility_account_ids = {r[0] for r in db.session.execute(sa_text("select id from utility_accounts")).fetchall()}
+        existing_stock_adjustment_ids = {r[0] for r in db.session.execute(sa_text("select id from stock_adjustments")).fetchall()}
+        existing_site_ids = {r[0] for r in db.session.execute(sa_text("select id from sites")).fetchall()}
+        existing_employee_ids = {r[0] for r in db.session.execute(sa_text("select id from employees")).fetchall()}
+
+        def _expense_value_transform(k: str, v):
+            if k == "branch_id":
+                if v is None:
+                    return default_branch_id
+                return branch_map.get(v) or default_branch_id
+            if k == "type_id":
+                if v is None:
+                    return fallback_type_id
+                return type_map.get(v) or fallback_type_id
+            if k == "site_id":
+                return v if v in existing_site_ids else None
+            if k == "employee_id":
+                return v if v in existing_employee_ids else None
+            if k == "customer_id":
+                return v if v in existing_customer_ids else None
+            if k == "supplier_id":
+                return v if v in existing_supplier_ids else None
+            if k == "partner_id":
+                return v if v in existing_partner_ids else None
+            if k == "warehouse_id":
+                return v if v in existing_warehouse_ids else None
+            if k == "shipment_id":
+                return v if v in existing_shipment_ids else None
+            if k == "utility_account_id":
+                return v if v in existing_utility_account_ids else None
+            if k == "stock_adjustment_id":
+                return v if v in existing_stock_adjustment_ids else None
+            return v
+
+        exp_fk_maps = {"branch_id": branch_map, "type_id": type_map}
+        x_ins, x_upd = _upsert_by_pk(Expense, expenses_rows, fk_maps=exp_fk_maps, value_transform=_expense_value_transform)
+        db.session.flush()
+
+        _set_seq("branches")
+        _set_seq("sites")
+        _set_seq("expense_types")
+        _set_seq("employees")
+        _set_seq("expenses")
+
+        db.session.commit()
+        click.echo(
+            "✅ تم الاستيراد: "
+            f"branches +{b_ins}/~{b_upd}, sites +{s_ins}/~{s_upd}, "
+            f"types +{t_ins}/~{t_upd}, employees +{e_ins}/~{e_upd}, expenses +{x_ins}/~{x_upd}"
+        )
+    except Exception as exc:
+        db.session.rollback()
+        raise click.ClickException(str(exc))
 
 def _sync_role_permissions(role_id: int, desired_permission_ids: set[int], *, reset: bool = False, add_only: bool = False) -> None:
     if not role_id:
@@ -2793,6 +3043,7 @@ def checks_sync_due(target_date, direction, limit, dry_run, note):
 
 def register_cli(app) -> None:
     commands=[
+        import_sqlite_appdb,
         seed_roles, sync_permissions, list_permissions, list_roles, role_add_perms, create_role, export_rbac,
         create_user, user_set_password, user_activate, user_assign_role, list_users, list_customers,
         seed_expense_types, expense_type_cmd, seed_palestine_cmd, seed_all, clear_rbac_caches,
