@@ -131,9 +131,7 @@ def add_team():
                 branch_id=branch_id,
                 max_concurrent_tasks=max_concurrent_tasks,
                 description=description,
-                is_active=True,
-                created_by=current_user.id,
-                updated_by=current_user.id
+                is_active=True
             )
             
             db.session.add(team)
@@ -238,9 +236,7 @@ def add_task():
                 scheduled_end=scheduled_end,
                 customer_id=customer_id,
                 location=location,
-                cost_center_id=cost_center_id,
-                created_by=current_user.id,
-                updated_by=current_user.id
+                cost_center_id=cost_center_id
             )
             
             db.session.add(task)
@@ -344,9 +340,7 @@ def add_timesheet():
                 total_cost=total_cost,
                 work_description=work_description,
                 cost_center_id=cost_center_id,
-                status='DRAFT',
-                created_by=current_user.id,
-                updated_by=current_user.id
+                status='DRAFT'
             )
             
             db.session.add(timesheet)
@@ -443,4 +437,3 @@ def report_productivity():
                          date_from=date_from,
                          date_to=date_to,
                          selected_team=team_id)
-
