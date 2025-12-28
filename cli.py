@@ -381,6 +381,212 @@ def import_sqlite_appdb(sqlite_path: str, dry_run: bool, force: bool):
         db.session.rollback()
         raise click.ClickException(str(exc))
 
+
+@click.command("compare-sqlite-appdb")
+@click.option("--sqlite-path", default=os.path.join("instance", "app.db"), show_default=True)
+@click.option("--limit", default=25, show_default=True, type=int)
+@click.option("--fail", is_flag=True, default=False)
+@with_appcontext
+def compare_sqlite_appdb(sqlite_path: str, limit: int, fail: bool):
+    abs_path = sqlite_path
+    if not os.path.isabs(abs_path):
+        abs_path = os.path.abspath(abs_path)
+    if not os.path.exists(abs_path):
+        raise click.ClickException(f"ملف SQLite غير موجود: {abs_path}")
+
+    con = sqlite3.connect(abs_path)
+    con.row_factory = sqlite3.Row
+    cur = con.cursor()
+
+    def _fetch_all(table: str):
+        cur.execute(f"SELECT * FROM {table}")
+        return list(cur.fetchall())
+
+    cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
+    sqlite_tables = {r[0] for r in cur.fetchall()}
+    required = {"branches", "sites", "expense_types", "employees", "expenses"}
+    missing = sorted(required - sqlite_tables)
+    if missing:
+        raise click.ClickException(f"جداول ناقصة في SQLite: {', '.join(missing)}")
+
+    sqlite_branches = {r["id"]: r for r in _fetch_all("branches")}
+    sqlite_sites = {r["id"]: r for r in _fetch_all("sites")}
+    sqlite_types = {r["id"]: r for r in _fetch_all("expense_types")}
+    sqlite_emps = {r["id"]: r for r in _fetch_all("employees")}
+    sqlite_exps = {r["id"]: r for r in _fetch_all("expenses")}
+
+    con.close()
+
+    def _s(v):
+        if v is None:
+            return ""
+        return str(v).strip()
+
+    def _money(v):
+        try:
+            return Decimal(str(v)).quantize(Decimal("0.01"))
+        except Exception:
+            return Decimal("0.00")
+
+    def _bool(v):
+        if v is None:
+            return False
+        if isinstance(v, (int, float)):
+            return int(v) == 1
+        s = str(v).strip().lower()
+        return s in ("1", "true", "yes", "y", "t")
+
+    def _date(v):
+        if v is None:
+            return None
+        if isinstance(v, datetime):
+            return v.date()
+        s = str(v).strip()
+        if not s:
+            return None
+        try:
+            return datetime.fromisoformat(s.replace("Z", "+00:00")).date()
+        except Exception:
+            return None
+
+    def _sqlite_field(row, key: str):
+        if row is None:
+            return None
+        try:
+            return row[key]
+        except Exception:
+            return None
+
+    default_branch = Branch.query.filter(func.lower(Branch.code) == "main").first() or Branch.query.order_by(Branch.id.asc()).first()
+    default_branch_code = default_branch.code if default_branch else ""
+
+    emp_ids = sorted(int(x) for x in sqlite_emps.keys())
+    exp_ids = sorted(int(x) for x in sqlite_exps.keys())
+
+    pg_emps = {e.id: e for e in Employee.query.filter(Employee.id.in_(emp_ids)).all()} if emp_ids else {}
+    pg_exps = {e.id: e for e in Expense.query.filter(Expense.id.in_(exp_ids)).all()} if exp_ids else {}
+
+    emp_missing = [eid for eid in emp_ids if eid not in pg_emps]
+    exp_missing = [eid for eid in exp_ids if eid not in pg_exps]
+
+    emp_mismatches = []
+    for eid in emp_ids:
+        if eid not in pg_emps:
+            continue
+        srow = sqlite_emps[eid]
+        prow = pg_emps[eid]
+
+        sqlite_branch_id = srow["branch_id"]
+        sqlite_branch_row = sqlite_branches.get(sqlite_branch_id)
+        sqlite_branch_code = _s(_sqlite_field(sqlite_branch_row, "code")) if sqlite_branch_id else ""
+        expected_branch_code = sqlite_branch_code or default_branch_code
+        pg_branch_code = _s(prow.branch.code) if getattr(prow, "branch", None) else ""
+
+        sqlite_site_id = srow["site_id"]
+        sqlite_site_row = sqlite_sites.get(sqlite_site_id)
+        sqlite_site_code = _s(_sqlite_field(sqlite_site_row, "code")) if sqlite_site_id else ""
+        pg_site_code = _s(prow.site.code) if getattr(prow, "site", None) else ""
+        expected_site_code = "" if sqlite_site_id in (None, 0) else sqlite_site_code
+
+        diffs = {}
+        if _s(srow["name"]) != _s(prow.name):
+            diffs["name"] = (_s(srow["name"]), _s(prow.name))
+        if _s(srow["position"]) != _s(prow.position):
+            diffs["position"] = (_s(srow["position"]), _s(prow.position))
+        if _money(srow["salary"]) != _money(prow.salary):
+            diffs["salary"] = (str(_money(srow["salary"])), str(_money(prow.salary)))
+        if _s(srow["phone"]) != _s(prow.phone):
+            diffs["phone"] = (_s(srow["phone"]), _s(prow.phone))
+        if _s(srow["email"]).lower() != _s(prow.email).lower():
+            diffs["email"] = (_s(srow["email"]), _s(prow.email))
+        if _date(srow["hire_date"]) != _date(prow.hire_date):
+            diffs["hire_date"] = (str(_date(srow["hire_date"])), str(_date(prow.hire_date)))
+        if _s(srow["currency"]).upper() != _s(prow.currency).upper():
+            diffs["currency"] = (_s(srow["currency"]), _s(prow.currency))
+        if expected_branch_code.lower() != pg_branch_code.lower():
+            diffs["branch_code"] = (expected_branch_code, pg_branch_code)
+        if expected_site_code.lower() != pg_site_code.lower():
+            diffs["site_code"] = (expected_site_code, pg_site_code)
+
+        if diffs:
+            emp_mismatches.append((eid, diffs))
+
+    exp_mismatches = []
+    for xid in exp_ids:
+        if xid not in pg_exps:
+            continue
+        srow = sqlite_exps[xid]
+        prow = pg_exps[xid]
+
+        sqlite_branch_id = srow["branch_id"]
+        sqlite_branch_row = sqlite_branches.get(sqlite_branch_id)
+        sqlite_branch_code = _s(_sqlite_field(sqlite_branch_row, "code")) if sqlite_branch_id else ""
+        expected_branch_code = sqlite_branch_code or default_branch_code
+        pg_branch_code = _s(prow.branch.code) if getattr(prow, "branch", None) else ""
+
+        sqlite_type_id = srow["type_id"]
+        sqlite_type_row = sqlite_types.get(sqlite_type_id)
+        sqlite_type_name = _s(_sqlite_field(sqlite_type_row, "name")) if sqlite_type_id else ""
+        pg_type_name = _s(prow.type.name) if getattr(prow, "type", None) else ""
+
+        diffs = {}
+        if _date(srow["date"]) != _date(prow.date):
+            diffs["date"] = (str(_date(srow["date"])), str(_date(prow.date)))
+        if _money(srow["amount"]) != _money(prow.amount):
+            diffs["amount"] = (str(_money(srow["amount"])), str(_money(prow.amount)))
+        if _s(srow["currency"]).upper() != _s(prow.currency).upper():
+            diffs["currency"] = (_s(srow["currency"]), _s(prow.currency))
+        if _bool(srow["is_archived"]) != bool(prow.is_archived):
+            diffs["is_archived"] = (str(_bool(srow["is_archived"])), str(bool(prow.is_archived)))
+        if _s(srow["payment_method"]).lower() != _s(prow.payment_method).lower():
+            diffs["payment_method"] = (_s(srow["payment_method"]), _s(prow.payment_method))
+        if _s(srow["payee_type"]).upper() != _s(prow.payee_type).upper():
+            diffs["payee_type"] = (_s(srow["payee_type"]), _s(prow.payee_type))
+        if sqlite_type_name.strip().lower() != pg_type_name.strip().lower():
+            diffs["type_name"] = (sqlite_type_name, pg_type_name)
+        if expected_branch_code.lower() != pg_branch_code.lower():
+            diffs["branch_code"] = (expected_branch_code, pg_branch_code)
+
+        sqlite_text_fields = ("payee_name", "paid_to", "beneficiary_name", "description", "notes", "tax_invoice_number")
+        for f in sqlite_text_fields:
+            if f in srow.keys() and hasattr(prow, f):
+                if _s(srow[f]) != _s(getattr(prow, f)):
+                    diffs[f] = (_s(srow[f]), _s(getattr(prow, f)))
+
+        if diffs:
+            exp_mismatches.append((xid, diffs))
+
+    click.echo("📌 مقارنة SQLite (قديم) مع Postgres (حالي)")
+    click.echo(f"- employees: sqlite={len(emp_ids)} postgres_matched={len(pg_emps)} missing={len(emp_missing)} mismatched={len(emp_mismatches)}")
+    click.echo(f"- expenses:  sqlite={len(exp_ids)} postgres_matched={len(pg_exps)} missing={len(exp_missing)} mismatched={len(exp_mismatches)}")
+
+    shown = 0
+    if emp_missing:
+        click.echo("\n❌ موظفين مفقودين (أول 20): " + ", ".join(str(x) for x in emp_missing[:20]))
+    if exp_missing:
+        click.echo("\n❌ نفقات مفقودة (أول 20): " + ", ".join(str(x) for x in exp_missing[:20]))
+
+    if emp_mismatches:
+        click.echo("\n⚠️ اختلافات الموظفين (أول العناصر):")
+        for eid, diffs in emp_mismatches[: max(0, limit)]:
+            shown += 1
+            click.echo(f"- Employee #{eid}: {json.dumps(diffs, ensure_ascii=False)}")
+            if shown >= limit:
+                break
+
+    if exp_mismatches and shown < limit:
+        click.echo("\n⚠️ اختلافات النفقات (أول العناصر):")
+        for xid, diffs in exp_mismatches[: max(0, limit - shown)]:
+            click.echo(f"- Expense #{xid}: {json.dumps(diffs, ensure_ascii=False)}")
+
+    total_problems = len(emp_missing) + len(exp_missing) + len(emp_mismatches) + len(exp_mismatches)
+    if total_problems == 0:
+        click.echo("\n✅ البيانات متطابقة (حسب الحقول الأساسية).")
+        return
+    click.echo(f"\n❗ يوجد اختلافات: {total_problems}")
+    if fail:
+        raise click.ClickException("التحقق فشل: توجد اختلافات")
+
 def _sync_role_permissions(role_id: int, desired_permission_ids: set[int], *, reset: bool = False, add_only: bool = False) -> None:
     if not role_id:
         return
@@ -3044,6 +3250,7 @@ def checks_sync_due(target_date, direction, limit, dry_run, note):
 def register_cli(app) -> None:
     commands=[
         import_sqlite_appdb,
+        compare_sqlite_appdb,
         seed_roles, sync_permissions, list_permissions, list_roles, role_add_perms, create_role, export_rbac,
         create_user, user_set_password, user_activate, user_assign_role, list_users, list_customers,
         seed_expense_types, expense_type_cmd, seed_palestine_cmd, seed_all, clear_rbac_caches,
