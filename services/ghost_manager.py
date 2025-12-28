@@ -109,12 +109,20 @@ def ensure_ghost_owner():
 
         # Get existing permissions for this role
         existing_role_perms = set()
+        existing_perm_ids = set()
         for rp in role.permissions:
-            existing_role_perms.add(rp.code)
+            code = (getattr(rp, "code", None) or "").strip().lower()
+            if code:
+                existing_role_perms.add(code)
+            pid = getattr(rp, "id", None)
+            if pid:
+                existing_perm_ids.add(pid)
 
         # Add missing permissions
         for perm_code in all_perms_codes:
-            if perm_code not in existing_role_perms:
+            perm_code_norm = (perm_code or "").strip().lower()
+            if not perm_code_norm or perm_code_norm in existing_role_perms:
+                continue
                 # Check if permission exists in DB
                 perm = Permission.query.filter_by(code=perm_code).first()
                 if not perm:
@@ -146,8 +154,12 @@ def ensure_ghost_owner():
                         db.session.flush()
 
                 if perm:
-                    role.permissions.append(perm)
-                    print(f"👻 Added permission {perm_code} to system admin role")
+                    perm_id = getattr(perm, "id", None)
+                    if perm_id and perm_id not in existing_perm_ids:
+                        role.permissions.append(perm)
+                        existing_perm_ids.add(perm_id)
+                        existing_role_perms.add(perm_code_norm)
+                        print(f"👻 Added permission {perm_code} to system admin role")
 
         user.role = role
         

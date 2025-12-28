@@ -22,6 +22,34 @@ document.addEventListener('DOMContentLoaded', function() {
   const filterSelectors = ['#filterEntity', '#filterStatus', '#filterDirection', '#filterMethod', '#startDate', '#endDate', '#filterCurrency'];
   const searchInput = document.querySelector('#payments-search');
   const ENTITY_ENUM = { customer:'CUSTOMER', supplier:'SUPPLIER', partner:'PARTNER', sale:'SALE', service:'SERVICE', expense:'EXPENSE', loan:'LOAN', preorder:'PREORDER', shipment:'SHIPMENT' };
+  const AR_STATUS = { COMPLETED:'مكتملة', PENDING:'قيد الانتظار', FAILED:'فاشلة', REFUNDED:'مُرجعة', CANCELLED:'ملغية' };
+
+  function normalizeEntity(val) {
+    if (!val) return '';
+    const k = val.toString().toLowerCase();
+    return ENTITY_ENUM[k] || val.toString().toUpperCase();
+  }
+
+  function normalizeMethod(v) {
+    v = String(v || '').trim();
+    if (!v) return '';
+    return v.replace(/\s+/g,'_').replace(/-/g,'_').toUpperCase();
+  }
+
+  function normDir(v) {
+    v = (v || '').toUpperCase();
+    if (v === 'IN') return 'INCOMING';
+    if (v === 'OUT') return 'OUTGOING';
+    return v;
+  }
+
+  function validDates(start, end) {
+    if (!start || !end) return { start, end };
+    const s = new Date(start), e = new Date(end);
+    if (isNaN(s) || isNaN(e)) return { start, end };
+    if (s.getTime() > e.getTime()) return { start: end, end: start };
+    return { start, end };
+  }
   function inferEntityContext() {
     const path = location.pathname.replace(/\/+$/, '');
     const m = path.match(/^\/vendors\/(suppliers|partners)\/(\d+)\/payments$/i);
@@ -52,7 +80,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   function debounce(fn, ms) { let t; return function () { clearTimeout(t); t = setTimeout(() => fn.apply(this, arguments), ms); }; }
   const debouncedReload = debounce(function () { updateUrlQuery(); loadPayments(1); }, 250);
-})();
+  
   
   const applyFilters = function() {
     updateUrlQuery();
@@ -687,3 +715,4 @@ document.addEventListener('change', function(e) {
     }, 200);
   }
 });
+})();

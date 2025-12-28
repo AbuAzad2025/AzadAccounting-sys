@@ -561,8 +561,13 @@ def index():
             Payment.service.has(ServiceRequest.service_number.ilike(like_pattern)),
         ])
         filters.append(or_(*search_filters))
+    active_filter = or_(
+        Payment.is_archived.is_(False),
+        Payment.is_archived.is_(None),
+        and_(Payment.is_archived.is_(True), Payment.archived_at.is_(None)),
+    )
     base_q = (
-        Payment.query.filter(or_(Payment.is_archived.is_(False), Payment.is_archived.is_(None)))
+        Payment.query.filter(active_filter)
         .filter(*filters)
         .options(
             load_only(

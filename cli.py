@@ -11,8 +11,9 @@ from types import SimpleNamespace
 
 import click
 from flask.cli import with_appcontext
-from sqlalchemy import func, or_, select, text as sa_text
+from sqlalchemy import func, or_, select, text as sa_text, delete as sa_delete
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from extensions import db
 from utils import clear_role_permission_cache, clear_users_cache_by_role, get_entity_balance_in_ils, validate_currency_consistency
@@ -29,6 +30,7 @@ from models import (
     Shipment, ShipmentItem, StockAdjustment, StockAdjustmentItem, StockLevel, Supplier,
     SupplierSettlement, Transfer, TransferDirection, Warehouse, _ensure_customer_for_counterparty, _gl_upsert_batch_and_entries,
     build_partner_settlement_draft, build_supplier_settlement_draft, convert_amount, User,
+    role_permissions,
 )
 
 RESERVED_CODES = PermissionsRegistry.get_all_permission_codes()
@@ -97,7 +99,72 @@ def _clean_role_perms(role: Role) -> None:
     if getattr(role, "permissions", None) is None:
         role.permissions = []
         return
-    role.permissions[:] = [p for p in role.permissions if isinstance(p, Permission)]
+    perms = [p for p in role.permissions if isinstance(p, Permission)]
+    seen: set[int] = set()
+    unique: list[Permission] = []
+    for p in perms:
+        pid = getattr(p, "id", None)
+        if not pid:
+            unique.append(p)
+            continue
+        if pid in seen:
+            continue
+        seen.add(pid)
+        unique.append(p)
+    role.permissions[:] = unique
+
+def _dedupe_role_permissions_in_place(role: Role) -> None:
+    if getattr(role, "permissions", None) is None:
+        role.permissions = []
+        return
+    perms = [p for p in role.permissions if isinstance(p, Permission)]
+    seen: set[int] = set()
+    unique: list[Permission] = []
+    for p in perms:
+        pid = getattr(p, "id", None)
+        if not pid:
+            unique.append(p)
+            continue
+        if pid in seen:
+            continue
+        seen.add(pid)
+        unique.append(p)
+    role.permissions[:] = unique
+
+def _sync_role_permissions(role_id: int, desired_permission_ids: set[int], *, reset: bool = False, add_only: bool = False) -> None:
+    if not role_id:
+        return
+    desired = {int(x) for x in (desired_permission_ids or set()) if x}
+    existing = {
+        int(r[0])
+        for r in db.session.execute(
+            select(role_permissions.c.permission_id).where(role_permissions.c.role_id == role_id)
+        ).all()
+        if r and r[0]
+    }
+
+    if reset:
+        if existing:
+            db.session.execute(sa_delete(role_permissions).where(role_permissions.c.role_id == role_id))
+        existing = set()
+    elif not add_only:
+        to_remove = existing - desired
+        if to_remove:
+            db.session.execute(
+                sa_delete(role_permissions).where(
+                    role_permissions.c.role_id == role_id,
+                    role_permissions.c.permission_id.in_(sorted(to_remove)),
+                )
+            )
+            existing -= to_remove
+
+    to_add = desired - existing
+    if to_add:
+        rows = [{"role_id": role_id, "permission_id": pid} for pid in sorted(to_add)]
+        stmt = pg_insert(role_permissions).values(rows).on_conflict_do_nothing(
+            index_elements=["role_id", "permission_id"]
+        )
+        db.session.execute(stmt)
 def _get_or_create_role(name: str) -> Role:
     r = Role.query.filter(func.lower(Role.name) == name.lower()).first()
     if not r:
@@ -145,25 +212,12 @@ def _assign_role_perms(role: Role, desired_codes: set[str], *, reset: bool = Fal
         return
     desired = {(_normalize_code(c) or "").lower() for c in (desired_codes or set())}
     desired.discard("")
-    if getattr(role, "permissions", None) is None:
-        role.permissions = []
-    else:
-        role.permissions[:] = [p for p in role.permissions if isinstance(p, Permission)]
-    if reset:
-        role.permissions.clear()
-        db.session.flush()
-    current = {(p.code or "").lower() for p in role.permissions}
-    missing = desired - current
-    if not missing:
-        return
-    to_add: list[Permission] = []
-    for code in sorted(missing):
+    desired_ids: set[int] = set()
+    for code in sorted(desired):
         perm = _ensure_permission(code)
-        if isinstance(perm, Permission):
-            to_add.append(perm)
-    if to_add:
-        role.permissions.extend(to_add)
-        db.session.flush()
+        if isinstance(perm, Permission) and getattr(perm, "id", None):
+            desired_ids.add(int(perm.id))
+    _sync_role_permissions(int(role.id), desired_ids, reset=reset, add_only=not reset)
 
 def _norm_email(s: str) -> str:
     return (s or "").strip().lower()
@@ -304,25 +358,16 @@ def seed_roles(force: bool, dry_run: bool, reset_roles: bool, allow_default_pass
                 role_info = PermissionsRegistry.ROLES.get(role_key, {})
                 exclude_list = set(role_info.get("exclude", []))
                 
-                if getattr(super_role_obj, "permissions", None) is None:
-                    super_role_obj.permissions = []
-                else:
-                    super_role_obj.permissions[:] = [p for p in super_role_obj.permissions if isinstance(p, Permission)]
-                
-                # Remove excluded permissions if present
-                if exclude_list:
-                    super_role_obj.permissions[:] = [
-                        p for p in super_role_obj.permissions 
-                        if (p.code or "").strip().lower() not in exclude_list
-                    ]
-
-                curr = {(p.code or "").lower() for p in super_role_obj.permissions}
+                desired_ids: set[int] = set()
                 for p in all_perms:
-                    p_code = (p.code or "").strip().lower()
-                    if p_code not in curr and p_code not in exclude_list:
-                        super_role_obj.permissions.append(p)
-                
-                db.session.flush()
+                    p_code = (getattr(p, "code", None) or "").strip().lower()
+                    if not p_code or p_code in exclude_list:
+                        continue
+                    pid = getattr(p, "id", None)
+                    if pid:
+                        desired_ids.add(int(pid))
+
+                _sync_role_permissions(int(super_role_obj.id), desired_ids, reset=False, add_only=False)
                 if super_role_obj.id is not None:
                     affected_roles.add(super_role_obj.id)
 

@@ -913,9 +913,9 @@ def payments_advanced_report():
     
     sd = _parse_date(request.args.get("start_date"))
     ed = _parse_date(request.args.get("end_date"))
-    direction_filter = request.args.get("direction")
-    method_filter = request.args.get("method")
-    status_filter = request.args.get("status")
+    direction_filter = (request.args.get("direction") or "").strip()
+    method_filter = (request.args.get("method") or "").strip()
+    status_filter = (request.args.get("status") or "").strip()
     
     if sd and ed and ed < sd:
         sd, ed = ed, sd
@@ -934,17 +934,27 @@ def payments_advanced_report():
         query = query.filter(Payment.payment_date <= end_dt)
     
     if direction_filter:
-        query = query.filter(Payment.direction == direction_filter)
+        direction_val = direction_filter.upper()
+        try:
+            from models import PaymentDirection as _PD
+            query = query.filter(Payment.direction == _PD(direction_val))
+        except Exception:
+            query = query.filter(Payment.direction == direction_val)
     
     if method_filter:
         try:
             from models import PaymentMethod as _PM
-            query = query.filter(Payment.method == _PM(method_filter))
+            query = query.filter(Payment.method == _PM(method_filter.lower()))
         except Exception:
-            query = query.filter(Payment.method == method_filter)
+            query = query.filter(Payment.method == method_filter.lower())
     
     if status_filter:
-        query = query.filter(Payment.status == status_filter)
+        status_val = status_filter.upper()
+        try:
+            from models import PaymentStatus as _PS
+            query = query.filter(Payment.status == _PS(status_val))
+        except Exception:
+            query = query.filter(Payment.status == status_val)
     else:
         query = query.filter(Payment.status == PaymentStatus.COMPLETED)
     
@@ -955,21 +965,28 @@ def payments_advanced_report():
     total_amount = Decimal('0.00')
     completed_count = 0
     method_stats_dict = defaultdict(lambda: Decimal('0.00'))
+
+    def _enum_val(v):
+        return getattr(v, "value", v)
     
     for payment in payments:
         amount_ils = _to_ils(payment.total_amount or 0, getattr(payment, "currency", "ILS"), payment.payment_date)
         payment.amount_ils = float(amount_ils)
         total_amount += amount_ils
         
-        if payment.status == PaymentStatus.COMPLETED:
+        status_v = str(_enum_val(getattr(payment, "status", None)) or "")
+        direction_v = str(_enum_val(getattr(payment, "direction", None)) or "")
+        method_v = str(_enum_val(getattr(payment, "method", None)) or "")
+
+        if status_v.upper() == PaymentStatus.COMPLETED.value:
             completed_count += 1
             
-        if payment.direction == PaymentDirection.IN:
+        if direction_v.upper() == PaymentDirection.IN.value:
             total_in += amount_ils
         else:
             total_out += amount_ils
         
-        method_key = payment.method.value if payment.method else 'OTHER'
+        method_key = (method_v or "other").lower()
         method_stats_dict[method_key] += amount_ils
     
     method_labels = {
@@ -1383,6 +1400,7 @@ def suppliers_report():
 @reports_bp.route("/partners", methods=["GET"], endpoint="partners_report")
 def partners_report():
     from datetime import datetime
+    from utils import get_entity_balance_in_ils
 
     search = (request.args.get("q") or "").strip()
     balance_filter = (request.args.get("balance") or "").strip()
@@ -1404,7 +1422,13 @@ def partners_report():
     total_balance = 0.0
 
     for partner in partners:
-        balance = float(partner.balance or 0)
+        smart_balance = None
+        try:
+            smart_balance = float(get_entity_balance_in_ils("PARTNER", int(partner.id)))
+        except Exception:
+            smart_balance = None
+
+        balance = smart_balance if smart_balance is not None else float(partner.balance or 0)
 
         if balance_filter == "positive" and balance <= 0:
             continue

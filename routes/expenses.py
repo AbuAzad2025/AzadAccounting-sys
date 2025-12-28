@@ -1146,6 +1146,26 @@ def index():
         latest_expense = expenses[0]
     resolver = LegacyEntityResolver()
     resolver.annotate(expenses)
+
+    entity_meta = {
+        "SUPPLIER": (Supplier, "مورد"),
+        "PARTNER": (Partner, "شريك"),
+        "CUSTOMER": (Customer, "عميل"),
+        "EMPLOYEE": (Employee, "موظف"),
+    }
+    for exp in expenses:
+        if not exp or exp.payee_name:
+            continue
+        ptype = (getattr(exp, "payee_type", None) or "").strip().upper()
+        if ptype in ("EMPLOYEE", "SUPPLIER", "PARTNER", "CUSTOMER"):
+            model, label = entity_meta.get(ptype, (None, None))
+            entity_id = getattr(exp, "payee_entity_id", None)
+            if model and entity_id:
+                obj = db.session.get(model, int(entity_id))
+                if obj and getattr(obj, "name", None):
+                    exp.payee_name = obj.name
+                else:
+                    exp.payee_name = f"{label} محذوف #{entity_id}"
     
     from models import fx_rate
     

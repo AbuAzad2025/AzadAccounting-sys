@@ -931,10 +931,15 @@ def top_products_report(
     group_by_warehouse: bool = False,
 ) -> dict:
     TZ = ZoneInfo(tz_name)
-    sd = _parse_date_like(start_date) or date.min
-    ed = _parse_date_like(end_date) or date.max
+    today = date.today()
+    sd = _parse_date_like(start_date) or (today - timedelta(days=30))
+    ed = _parse_date_like(end_date) or today
     if ed < sd:
         sd, ed = ed, sd
+    if sd.year < 1970:
+        sd = date(1970, 1, 1)
+    if ed.year < 1970:
+        ed = date(1970, 1, 1)
     start_dt_local = datetime.combine(sd, _t.min).replace(tzinfo=TZ)
     try:
         _ed_plus1 = ed + timedelta(days=1)

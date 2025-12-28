@@ -170,7 +170,8 @@
     {% endif %}
   </td>
   <td class="text-center">
-    {% if payment.direction.value == 'IN' %}
+    {% set dirv = payment.direction.value if payment.direction is not string and payment.direction is not none else payment.direction %}
+    {% if (dirv|string|upper) == 'IN' %}
     <span class="badge bg-success"><i class="fas fa-arrow-down"></i> وارد</span>
     {% else %}
     <span class="badge bg-danger"><i class="fas fa-arrow-up"></i> صادر</span>
@@ -183,7 +184,7 @@
     {% endif %}
   </td>
   <td>
-    {% set m = payment.method.value if payment.method else '' %}
+    {% set m = (payment.method.value if payment.method is not string and payment.method is not none else payment.method) or '' %}
     {% if m == 'cash' %}
     <span class="badge bg-success">نقدي</span>
     {% elif m == 'bank' %}
@@ -195,18 +196,19 @@
     {% elif m == 'online' %}
     <span class="badge bg-secondary">أونلاين</span>
     {% else %}
-    {{ payment.method.label if payment.method and payment.method.label else m }}
+    {{ payment.method.label if payment.method is not string and payment.method is not none and payment.method.label else m }}
     {% endif %}
   </td>
   <td class="text-center">
-    {% if payment.status.value == 'COMPLETED' %}
+    {% set sv = payment.status.value if payment.status is not string and payment.status is not none else payment.status %}
+    {% if (sv|string|upper) == 'COMPLETED' %}
     <span class="badge bg-success">مكتمل</span>
-    {% elif payment.status.value == 'PENDING' %}
+    {% elif (sv|string|upper) == 'PENDING' %}
     <span class="badge bg-warning">معلق</span>
-    {% elif payment.status.value == 'CANCELLED' %}
+    {% elif (sv|string|upper) == 'CANCELLED' %}
     <span class="badge bg-danger">ملغي</span>
     {% else %}
-    {{ payment.status.value }}
+    {{ sv }}
     {% endif %}
   </td>
   <td>
