@@ -5355,198 +5355,199 @@ def _sale_gl_batch_upsert(mapper, connection, target: "Sale"):
         return
     
     try:
-        from models import fx_rate
-        
-        # تحويل المبلغ للشيقل
-        from decimal import Decimal
-        amount = Decimal(str(target.total_amount or 0))
-        if amount <= 0:
-            return
-        
-        # تحويل العملة
-        amount_ils = amount
-        exchange_rate = Decimal(1)
+        with connection.begin_nested():
+            from models import fx_rate
+            
+            # تحويل المبلغ للشيقل
+            from decimal import Decimal
+            amount = Decimal(str(target.total_amount or 0))
+            if amount <= 0:
+                return
+            
+            # تحويل العملة
+            amount_ils = amount
+            exchange_rate = Decimal(1)
 
-        if target.currency and target.currency != 'ILS':
-            try:
-                rate = fx_rate(target.currency, 'ILS', target.sale_date or datetime.utcnow(), raise_on_missing=False)
-                if rate and rate > 0:
-                    exchange_rate = Decimal(str(rate))
-                    amount_ils = amount * exchange_rate
-            except Exception:
-                pass
-        
-        # جلب SaleLines لتحليل نسب الشركاء/الموردين
-        from sqlalchemy import select as sa_select
-        sale_lines = connection.execute(
-            sa_select(
-                SaleLine.id,
-                SaleLine.product_id,
-                SaleLine.warehouse_id,
-                SaleLine.quantity,
-                SaleLine.unit_price,
-                SaleLine.discount_rate,
-                SaleLine.tax_rate
-            ).where(SaleLine.sale_id == target.id)
-        ).fetchall()
-        
-        if not sale_lines:
-            return  # لا توجد بنود
-        
-        # القيد المحاسبي الأساسي
-        entries = []
-        
-        # مدين: حسابات العملاء (AR) - المبلغ الكامل
-        entries.append((GL_ACCOUNTS.get("AR", "1100_AR"), amount_ils, Decimal(0)))
-        
-        # تحليل كل SaleLine
-        total_revenue_company = Decimal(0)
-        total_revenue_partners = {}  # {partner_id: amount}
-        total_cogs_suppliers = {}    # {supplier_id: amount}
-        
-        for line in sale_lines:
-            line_id, product_id, warehouse_id, qty, unit_price, disc_rate, tax_rate = line
+            if target.currency and target.currency != 'ILS':
+                try:
+                    rate = fx_rate(target.currency, 'ILS', target.sale_date or datetime.utcnow(), raise_on_missing=False)
+                    if rate and rate > 0:
+                        exchange_rate = Decimal(str(rate))
+                        amount_ils = amount * exchange_rate
+                except Exception:
+                    pass
             
-            # حساب صافي المبلغ للبند
-            gross = Decimal(str(qty or 0)) * Decimal(str(unit_price or 0))
-            discount = gross * (Decimal(str(disc_rate or 0)) / Decimal(100))
-            taxable = gross - discount
-            tax = taxable * (Decimal(str(tax_rate or 0)) / Decimal(100))
-            line_total = (taxable + tax) * exchange_rate
+            # جلب SaleLines لتحليل نسب الشركاء/الموردين
+            from sqlalchemy import select as sa_select
+            sale_lines = connection.execute(
+                sa_select(
+                    SaleLine.id,
+                    SaleLine.product_id,
+                    SaleLine.warehouse_id,
+                    SaleLine.quantity,
+                    SaleLine.unit_price,
+                    SaleLine.discount_rate,
+                    SaleLine.tax_rate
+                ).where(SaleLine.sale_id == target.id)
+            ).fetchall()
             
-            # جلب نوع المستودع
-            wh_result = connection.execute(
-                sa_text("SELECT warehouse_type, partner_id, supplier_id, share_percent FROM warehouses WHERE id = :wid"),
-                {"wid": warehouse_id}
-            ).fetchone()
+            if not sale_lines:
+                return  # لا توجد بنود
             
-            if not wh_result:
-                # مستودع غير موجود - نعتبره MAIN
-                total_revenue_company += line_total
-                continue
+            # القيد المحاسبي الأساسي
+            entries = []
             
-            wh_type, wh_partner_id, wh_supplier_id, wh_share_pct = wh_result
+            # مدين: حسابات العملاء (AR) - المبلغ الكامل
+            entries.append((GL_ACCOUNTS.get("AR", "1100_AR"), amount_ils, Decimal(0)))
             
-            # تحليل حسب نوع المستودع
-            if wh_type == 'PARTNER':
-                # بضاعة شريك - جلب الشركاء والنسب
-                partners_result = connection.execute(
-                    sa_text("""
-                        SELECT partner_id, share_percent FROM product_partners
-                        WHERE product_id = :pid
-                        UNION
-                        SELECT partner_id, share_percentage FROM warehouse_partner_shares
-                        WHERE product_id = :pid AND warehouse_id = :wid
-                    """),
-                    {"pid": product_id, "wid": warehouse_id}
-                ).fetchall()
+            # تحليل كل SaleLine
+            total_revenue_company = Decimal(0)
+            total_revenue_partners = {}  # {partner_id: amount}
+            total_cogs_suppliers = {}    # {supplier_id: amount}
+            
+            for line in sale_lines:
+                line_id, product_id, warehouse_id, qty, unit_price, disc_rate, tax_rate = line
                 
-                if partners_result:
-                    # تقسيم الإيراد حسب النسب
-                    total_partner_share = sum(Decimal(str(p[1] or 0)) for p in partners_result)
-                    company_share_pct = Decimal(100) - total_partner_share
-                    
-                    # نصيب الشركة
-                    if company_share_pct > 0:
-                        total_revenue_company += line_total * (company_share_pct / Decimal(100))
-                    
-                    # نصيب الشركاء
-                    for partner_id, share_pct in partners_result:
-                        partner_amount = line_total * (Decimal(str(share_pct or 0)) / Decimal(100))
-                        total_revenue_partners[partner_id] = total_revenue_partners.get(partner_id, Decimal(0)) + partner_amount
-                else:
-                    # لا توجد نسب محددة - نعتبره 100% للشركة
-                    total_revenue_company += line_total
-            
-            elif wh_type == 'EXCHANGE':
-                # بضاعة عهدة - جلب المورد والتكلفة
-                exchange_result = connection.execute(
-                    sa_text("""
-                        SELECT supplier_id, unit_cost
-                        FROM exchange_transactions
-                        WHERE product_id = :pid AND warehouse_id = :wid
-                          AND supplier_id IS NOT NULL
-                        ORDER BY created_at DESC
-                        LIMIT 1
-                    """),
-                    {"pid": product_id, "wid": warehouse_id}
+                # حساب صافي المبلغ للبند
+                gross = Decimal(str(qty or 0)) * Decimal(str(unit_price or 0))
+                discount = gross * (Decimal(str(disc_rate or 0)) / Decimal(100))
+                taxable = gross - discount
+                tax = taxable * (Decimal(str(tax_rate or 0)) / Decimal(100))
+                line_total = (taxable + tax) * exchange_rate
+                
+                # جلب نوع المستودع
+                wh_result = connection.execute(
+                    sa_text("SELECT warehouse_type, partner_id, supplier_id, share_percent FROM warehouses WHERE id = :wid"),
+                    {"wid": warehouse_id}
                 ).fetchone()
                 
-                if exchange_result:
-                    supplier_id, unit_cost = exchange_result
-                    cogs_amount = Decimal(str(qty or 0)) * Decimal(str(unit_cost or 0))
-                    
-                    # الإيراد للشركة
+                if not wh_result:
+                    # مستودع غير موجود - نعتبره MAIN
                     total_revenue_company += line_total
+                    continue
+                
+                wh_type, wh_partner_id, wh_supplier_id, wh_share_pct = wh_result
+                
+                # تحليل حسب نوع المستودع
+                if wh_type == 'PARTNER':
+                    # بضاعة شريك - جلب الشركاء والنسب
+                    partners_result = connection.execute(
+                        sa_text("""
+                            SELECT partner_id, share_percent FROM product_partners
+                            WHERE product_id = :pid
+                            UNION
+                            SELECT partner_id, share_percentage FROM warehouse_partner_shares
+                            WHERE product_id = :pid AND warehouse_id = :wid
+                        """),
+                        {"pid": product_id, "wid": warehouse_id}
+                    ).fetchall()
                     
-                    # COGS للمورد
-                    total_cogs_suppliers[supplier_id] = total_cogs_suppliers.get(supplier_id, Decimal(0)) + cogs_amount
-                else:
-                    # لا توجد معاملات عهدة - نعتبره MAIN
+                    if partners_result:
+                        # تقسيم الإيراد حسب النسب
+                        total_partner_share = sum(Decimal(str(p[1] or 0)) for p in partners_result)
+                        company_share_pct = Decimal(100) - total_partner_share
+                        
+                        # نصيب الشركة
+                        if company_share_pct > 0:
+                            total_revenue_company += line_total * (company_share_pct / Decimal(100))
+                        
+                        # نصيب الشركاء
+                        for partner_id, share_pct in partners_result:
+                            partner_amount = line_total * (Decimal(str(share_pct or 0)) / Decimal(100))
+                            total_revenue_partners[partner_id] = total_revenue_partners.get(partner_id, Decimal(0)) + partner_amount
+                    else:
+                        # لا توجد نسب محددة - نعتبره 100% للشركة
+                        total_revenue_company += line_total
+                
+                elif wh_type == 'EXCHANGE':
+                    # بضاعة عهدة - جلب المورد والتكلفة
+                    exchange_result = connection.execute(
+                        sa_text("""
+                            SELECT supplier_id, unit_cost
+                            FROM exchange_transactions
+                            WHERE product_id = :pid AND warehouse_id = :wid
+                              AND supplier_id IS NOT NULL
+                            ORDER BY created_at DESC
+                            LIMIT 1
+                        """),
+                        {"pid": product_id, "wid": warehouse_id}
+                    ).fetchone()
+                    
+                    if exchange_result:
+                        supplier_id, unit_cost = exchange_result
+                        cogs_amount = Decimal(str(qty or 0)) * Decimal(str(unit_cost or 0))
+                        
+                        # الإيراد للشركة
+                        total_revenue_company += line_total
+                        
+                        # COGS للمورد
+                        total_cogs_suppliers[supplier_id] = total_cogs_suppliers.get(supplier_id, Decimal(0)) + cogs_amount
+                    else:
+                        # لا توجد معاملات عهدة - نعتبره MAIN
+                        total_revenue_company += line_total
+                
+                else:  # MAIN أو غير محدد
                     total_revenue_company += line_total
             
-            else:  # MAIN أو غير محدد
-                total_revenue_company += line_total
-        
-        # معالجة الخصم الكلي وتكاليف الشحن
-        global_discount = Decimal(str(target.discount_total or 0)) * exchange_rate
-        shipping_income = Decimal(str(target.shipping_cost or 0)) * exchange_rate
+            # معالجة الخصم الكلي وتكاليف الشحن
+            global_discount = Decimal(str(target.discount_total or 0)) * exchange_rate
+            shipping_income = Decimal(str(target.shipping_cost or 0)) * exchange_rate
 
-        # مدين: خصم مسموح به (Discount Allowed)
-        if global_discount > 0:
-            entries.append((GL_ACCOUNTS.get("DISCOUNT_ALLOWED", "4050_SALES_DISCOUNT"), global_discount, Decimal(0)))
-        
-        # دائن: إيراد شحن (Shipping Income)
-        if shipping_income > 0:
-            entries.append((GL_ACCOUNTS.get("SHIPPING_INCOME", "4200_SHIPPING_INCOME"), Decimal(0), shipping_income))
+            # مدين: خصم مسموح به (Discount Allowed)
+            if global_discount > 0:
+                entries.append((GL_ACCOUNTS.get("DISCOUNT_ALLOWED", "4050_SALES_DISCOUNT"), global_discount, Decimal(0)))
+            
+            # دائن: إيراد شحن (Shipping Income)
+            if shipping_income > 0:
+                entries.append((GL_ACCOUNTS.get("SHIPPING_INCOME", "4200_SHIPPING_INCOME"), Decimal(0), shipping_income))
 
-        # ضمان توازن القيد (معالجة فروقات التقريب)
-        # Total Debits so far: AR + Discount
-        # Total Credits so far: Revenue (Company + Partners) + Shipping
-        # We need sum(Debits) == sum(Credits)
-        
-        # AR is calculated as target.total_amount * exchange_rate
-        # total_amount = lines_total - discount + shipping (roughly)
-        
-        total_debits = amount_ils + global_discount
-        total_credits = total_revenue_company + sum(total_revenue_partners.values()) + shipping_income
-        
-        diff = total_debits - total_credits
-        
-        # إذا كان الفرق صغيراً جداً (نتيجة تقريب)، نضيفه لإيراد الشركة (أو نخصمه)
-        if abs(diff) < Decimal("1.0"):
-             total_revenue_company += diff
-        
-        # دائن: إيرادات الشركة
-        if total_revenue_company > 0:
-            entries.append((GL_ACCOUNTS.get("REV", "4000_SALES"), Decimal(0), total_revenue_company))
-        
-        # دائن: حسابات الشركاء (AP)
-        for partner_id, amount in total_revenue_partners.items():
-            if amount > 0:
-                entries.append((GL_ACCOUNTS.get("AP", "2000_AP"), Decimal(0), amount))
-        
-        # مدين: COGS + دائن: حسابات الموردين (AP)
-        for supplier_id, cogs in total_cogs_suppliers.items():
-            if cogs > 0:
-                entries.append((GL_ACCOUNTS.get("COGS", "5100_COGS"), cogs, Decimal(0)))  # مدين
-                entries.append((GL_ACCOUNTS.get("AP", "2000_AP"), Decimal(0), cogs))      # دائن
-        
-        customer_name = target.customer.name if target.customer else "عميل"
-        memo = f"فاتورة مبيعات #{target.sale_number or target.id} - {customer_name}"
-        
-        _gl_upsert_batch_and_entries(
-            connection,
-            source_type="SALE",
-            source_id=target.id,
-            purpose="REVENUE",
-            currency="ILS",
-            memo=memo,
-            entries=entries,
-            ref=target.sale_number or f"SALE-{target.id}",
-            entity_type="CUSTOMER",
-            entity_id=target.customer_id
-        )
+            # ضمان توازن القيد (معالجة فروقات التقريب)
+            # Total Debits so far: AR + Discount
+            # Total Credits so far: Revenue (Company + Partners) + Shipping
+            # We need sum(Debits) == sum(Credits)
+            
+            # AR is calculated as target.total_amount * exchange_rate
+            # total_amount = lines_total - discount + shipping (roughly)
+            
+            total_debits = amount_ils + global_discount
+            total_credits = total_revenue_company + sum(total_revenue_partners.values()) + shipping_income
+            
+            diff = total_debits - total_credits
+            
+            # إذا كان الفرق صغيراً جداً (نتيجة تقريب)، نضيفه لإيراد الشركة (أو نخصمه)
+            if abs(diff) < Decimal("1.0"):
+                 total_revenue_company += diff
+            
+            # دائن: إيرادات الشركة
+            if total_revenue_company > 0:
+                entries.append((GL_ACCOUNTS.get("REV", "4000_SALES"), Decimal(0), total_revenue_company))
+            
+            # دائن: حسابات الشركاء (AP)
+            for partner_id, amount in total_revenue_partners.items():
+                if amount > 0:
+                    entries.append((GL_ACCOUNTS.get("AP", "2000_AP"), Decimal(0), amount))
+            
+            # مدين: COGS + دائن: حسابات الموردين (AP)
+            for supplier_id, cogs in total_cogs_suppliers.items():
+                if cogs > 0:
+                    entries.append((GL_ACCOUNTS.get("COGS", "5100_COGS"), cogs, Decimal(0)))  # مدين
+                    entries.append((GL_ACCOUNTS.get("AP", "2000_AP"), Decimal(0), cogs))      # دائن
+            
+            customer_name = target.customer.name if target.customer else "عميل"
+            memo = f"فاتورة مبيعات #{target.sale_number or target.id} - {customer_name}"
+            
+            _gl_upsert_batch_and_entries(
+                connection,
+                source_type="SALE",
+                source_id=target.id,
+                purpose="REVENUE",
+                currency="ILS",
+                memo=memo,
+                entries=entries,
+                ref=target.sale_number or f"SALE-{target.id}",
+                entity_type="CUSTOMER",
+                entity_id=target.customer_id
+            )
     except Exception as e:
         # تسجيل الخطأ بشكل مفصل وعدم إيقاف العملية
         from flask import current_app
@@ -5556,39 +5557,40 @@ def _sale_gl_batch_upsert(mapper, connection, target: "Sale"):
         current_app.logger.debug(traceback.format_exc())
         # محاولة إعادة المحاولة مرة واحدة
         try:
-            # إعادة المحاولة بعد ثانية واحدة
-            import time
-            time.sleep(0.1)
-            # إعادة تنفيذ نفس الكود
-            if target.status == SaleStatus.CONFIRMED.value:
-                amount = float(target.total_amount or 0)
-                if amount > 0:
-                    # محاولة إنشاء قيد مبسط
-                    amount_ils = amount
-                    if target.currency and target.currency != 'ILS':
-                        try:
-                            rate = fx_rate(target.currency, 'ILS', target.sale_date or datetime.utcnow(), raise_on_missing=False)
-                            if rate and rate > 0:
-                                amount_ils = float(amount * float(rate))
-                        except Exception:
-                            pass
-                    entries = [
-                        (GL_ACCOUNTS.get("AR", "1100_AR"), amount_ils, 0),
-                        (GL_ACCOUNTS.get("REV", "4000_SALES"), 0, amount_ils),
-                    ]
-                    _gl_upsert_batch_and_entries(
-                        connection,
-                        source_type="SALE",
-                        source_id=target.id,
-                        purpose="REVENUE",
-                        currency="ILS",
-                        memo=f"فاتورة مبيعات #{target.sale_number or target.id}",
-                        entries=entries,
-                        ref=target.sale_number or f"SALE-{target.id}",
-                        entity_type="CUSTOMER",
-                        entity_id=target.customer_id
-                    )
-                    current_app.logger.info(f"✅ تم إصلاح GLBatch للبيع #{target.id} بعد إعادة المحاولة")
+            with connection.begin_nested():
+                # إعادة المحاولة بعد ثانية واحدة
+                import time
+                time.sleep(0.1)
+                # إعادة تنفيذ نفس الكود
+                if target.status == SaleStatus.CONFIRMED.value:
+                    amount = float(target.total_amount or 0)
+                    if amount > 0:
+                        # محاولة إنشاء قيد مبسط
+                        amount_ils = amount
+                        if target.currency and target.currency != 'ILS':
+                            try:
+                                rate = fx_rate(target.currency, 'ILS', target.sale_date or datetime.utcnow(), raise_on_missing=False)
+                                if rate and rate > 0:
+                                    amount_ils = float(amount * float(rate))
+                            except Exception:
+                                pass
+                        entries = [
+                            (GL_ACCOUNTS.get("AR", "1100_AR"), amount_ils, 0),
+                            (GL_ACCOUNTS.get("REV", "4000_SALES"), 0, amount_ils),
+                        ]
+                        _gl_upsert_batch_and_entries(
+                            connection,
+                            source_type="SALE",
+                            source_id=target.id,
+                            purpose="REVENUE",
+                            currency="ILS",
+                            memo=f"فاتورة مبيعات #{target.sale_number or target.id}",
+                            entries=entries,
+                            ref=target.sale_number or f"SALE-{target.id}",
+                            entity_type="CUSTOMER",
+                            entity_id=target.customer_id
+                        )
+                        current_app.logger.info(f"✅ تم إصلاح GLBatch للبيع #{target.id} بعد إعادة المحاولة")
         except Exception as retry_e:
             current_app.logger.error(f"❌ فشلت إعادة المحاولة للبيع #{target.id}: {retry_e}")
 
