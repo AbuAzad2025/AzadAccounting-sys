@@ -46,9 +46,13 @@ def fix_ledger():
     print("===================================================")
     
     with app.app_context():
-        # 1. Ensure Critical Accounts Exist (Just in case implicit creation fails)
-        ensure_accounts(db.session.connection())
-        db.session.commit()
+        # 1. Ensure Critical Accounts Exist (Using safer method with rollback)
+        try:
+             ensure_accounts(db.session.connection())
+             db.session.commit()
+        except Exception as e:
+             print(f"Error creating accounts: {e}")
+             db.session.rollback()
 
         # 2. Scan and Fix Entities
         total_fixed = 0
@@ -67,31 +71,28 @@ def fix_ledger():
                 batch = GLBatch.query.filter_by(source_type=source_type, source_id=item.id).first()
                 
                 if not batch:
-                    # Missing batch -> Regenerate
                     should_regenerate = True
-                    # print(f"  - Missing Batch for {source_type} #{item.id}")
                 else:
                     # Check 2: Does it have entries?
                     entries = GLEntry.query.filter_by(batch_id=batch.id).all()
                     if not entries:
-                        # Empty batch -> Regenerate
                         should_regenerate = True
-                        # print(f"  - Empty Batch for {source_type} #{item.id}")
                     else:
                         # Check 3: Is it balanced?
                         total_debit = sum(Decimal(str(e.debit or 0)) for e in entries)
                         total_credit = sum(Decimal(str(e.credit or 0)) for e in entries)
                         if abs(total_debit - total_credit) > Decimal('0.05'):
-                            # Unbalanced -> Regenerate
                             should_regenerate = True
                             print(f"  - Unbalanced Batch #{batch.id} for {source_type} #{item.id} (Diff: {total_debit - total_credit})")
 
                 if should_regenerate:
                     try:
-                        # Clean up existing bad batch if any
+                        # Ensure we have a fresh transaction for each item
+                        # Delete existing bad batch if any
                         if batch:
-                            db.session.delete(batch)
-                            db.session.commit() # Commit delete first
+                            db.session.execute(text("DELETE FROM gl_entries WHERE batch_id = :bid"), {"bid": batch.id})
+                            db.session.execute(text("DELETE FROM gl_batches WHERE id = :bid"), {"bid": batch.id})
+                            db.session.commit()
                         
                         # Regenerate
                         conn = db.session.connection()
@@ -131,15 +132,29 @@ def ensure_accounts(connection):
             
             if not result:
                 print(f"Creating missing account: {code} - {name}")
-                connection.execute(
-                    text("""
-                        INSERT INTO accounts (code, name, account_type, is_active, created_at, updated_at)
-                        VALUES (:code, :name, :type, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                    """),
-                    {"code": code, "name": name, "type": acct_type}
-                )
+                # Note: 'type' column is used in some schemas instead of 'account_type'
+                # We try 'type' first as it seems to be the issue in logs
+                try:
+                    connection.execute(
+                        text("""
+                            INSERT INTO accounts (code, name, type, is_active, created_at, updated_at)
+                            VALUES (:code, :name, :type, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        """),
+                        {"code": code, "name": name, "type": acct_type}
+                    )
+                except Exception as e_type:
+                     # Fallback to account_type if type fails (though logs suggest account_type is wrong)
+                     print(f"Retrying with account_type for {code}...")
+                     connection.execute(
+                        text("""
+                            INSERT INTO accounts (code, name, account_type, is_active, created_at, updated_at)
+                            VALUES (:code, :name, :type, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        """),
+                        {"code": code, "name": name, "type": acct_type}
+                    )
         except Exception as e:
             print(f"Warning: Could not check/create account {code}: {e}")
+            # Do not re-raise, let the script continue
 
 if __name__ == "__main__":
     fix_ledger()
