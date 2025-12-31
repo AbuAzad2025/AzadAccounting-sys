@@ -4,14 +4,14 @@
 
 from __future__ import annotations
 
-import json, os, re, uuid, traceback, sqlite3
+import json, os, re, uuid, traceback, sqlite3, hashlib
 from datetime import datetime, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 from types import SimpleNamespace
 
 import click
 from flask.cli import with_appcontext
-from sqlalchemy import func, or_, select, text as sa_text, delete as sa_delete
+from sqlalchemy import func, or_, select, text as sa_text, delete as sa_delete, bindparam, inspect, MetaData, Table
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
@@ -584,6 +584,290 @@ def compare_sqlite_appdb(sqlite_path: str, limit: int, fail: bool):
         click.echo("\n✅ البيانات متطابقة (حسب الحقول الأساسية).")
         return
     click.echo(f"\n❗ يوجد اختلافات: {total_problems}")
+    if fail:
+        raise click.ClickException("التحقق فشل: توجد اختلافات")
+
+
+@click.command("compare-sqlite-full")
+@click.option("--sqlite-path", default=os.path.join("instance", "app.db"), show_default=True)
+@click.option("--tables", default="*", show_default=True)
+@click.option("--schema-only", is_flag=True, default=False)
+@click.option("--limit", default=20, show_default=True, type=int)
+@click.option("--chunk-size", default=500, show_default=True, type=int)
+@click.option("--fail", is_flag=True, default=False)
+@with_appcontext
+def compare_sqlite_full(sqlite_path: str, tables: str, schema_only: bool, limit: int, chunk_size: int, fail: bool):
+    abs_path = sqlite_path
+    if not os.path.isabs(abs_path):
+        abs_path = os.path.abspath(abs_path)
+    if not os.path.exists(abs_path):
+        raise click.ClickException(f"ملف SQLite غير موجود: {abs_path}")
+
+    con = sqlite3.connect(abs_path)
+    con.row_factory = sqlite3.Row
+    cur = con.cursor()
+    cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
+    sqlite_tables = sorted(
+        t[0]
+        for t in cur.fetchall()
+        if t and t[0] and not str(t[0]).startswith("sqlite_")
+    )
+
+    if tables.strip() == "*":
+        target_tables = sqlite_tables
+    else:
+        wanted = [t.strip() for t in tables.split(",") if t.strip()]
+        missing = [t for t in wanted if t not in sqlite_tables]
+        if missing:
+            raise click.ClickException("جداول غير موجودة في SQLite: " + ", ".join(missing))
+        target_tables = wanted
+
+    def _fetch_all(table: str):
+        cur.execute(f"SELECT * FROM {table}")
+        return list(cur.fetchall())
+
+    sqlite_branch_id_to_code = {}
+    sqlite_type_id_to_name = {}
+    if "branches" in sqlite_tables:
+        for r in _fetch_all("branches"):
+            try:
+                sqlite_branch_id_to_code[int(r["id"])] = str(r["code"] or "").strip()
+            except Exception:
+                continue
+    if "expense_types" in sqlite_tables:
+        for r in _fetch_all("expense_types"):
+            try:
+                sqlite_type_id_to_name[int(r["id"])] = str(r["name"] or "").strip()
+            except Exception:
+                continue
+
+    pg_branch_code_to_id = {str(b.code or "").strip().lower(): b.id for b in Branch.query.all()}
+    pg_type_name_to_id = {str(t.name or "").strip().lower(): t.id for t in ExpenseType.query.all()}
+
+    default_branch = Branch.query.filter(func.lower(Branch.code) == "main").first() or Branch.query.order_by(Branch.id.asc()).first()
+    default_branch_id = default_branch.id if default_branch else None
+    fallback_type = ExpenseType.query.filter(func.lower(ExpenseType.name) == "imported").first()
+    fallback_type_id = fallback_type.id if fallback_type else None
+
+    insp = inspect(db.engine)
+    pg_tables = set(insp.get_table_names(schema="public"))
+
+    click.echo("📌 مقارنة شاملة SQLite (قديم) مع Postgres (حالي)")
+    click.echo(f"- جداول SQLite: {len(sqlite_tables)} | جداول مستهدفة: {len(target_tables)} | جداول Postgres: {len(pg_tables)}")
+
+    def _sqlite_cols(table: str):
+        cur.execute(f"PRAGMA table_info({table})")
+        rows = cur.fetchall()
+        cols = []
+        pk_cols = []
+        for r in rows:
+            name = r[1]
+            decl = r[2] or ""
+            pk = int(r[5] or 0)
+            cols.append((name, decl))
+            if pk:
+                pk_cols.append((pk, name))
+        pk_cols = [n for _, n in sorted(pk_cols)]
+        return cols, pk_cols
+
+    def _sqlite_count(table: str):
+        cur.execute(f"SELECT COUNT(*) FROM {table}")
+        return int(cur.fetchone()[0])
+
+    def _sqlite_pk_chunk(table: str, pk: str, offset: int, size: int):
+        cur.execute(f"SELECT {pk} FROM {table} ORDER BY {pk} LIMIT ? OFFSET ?", (size, offset))
+        return [r[0] for r in cur.fetchall()]
+
+    def _normalize(v):
+        if v is None:
+            return None
+        if isinstance(v, (bytes, bytearray, memoryview)):
+            return bytes(v).hex()
+        if isinstance(v, bool):
+            return bool(v)
+        if isinstance(v, (int,)):
+            return int(v)
+        if isinstance(v, (float,)):
+            return Decimal(str(v))
+        if isinstance(v, Decimal):
+            return v
+        if isinstance(v, datetime):
+            return v.replace(tzinfo=None)
+        try:
+            return str(v)
+        except Exception:
+            return repr(v)
+
+    def _coerce_like_pg(pg_val, sqlite_val):
+        if pg_val is None:
+            return _normalize(sqlite_val)
+        if isinstance(pg_val, bool):
+            s = str(sqlite_val).strip().lower()
+            if s in ("1", "true", "yes", "y", "t"):
+                return True
+            if s in ("0", "false", "no", "n", "f"):
+                return False
+            try:
+                return bool(int(sqlite_val))
+            except Exception:
+                return bool(sqlite_val)
+        if isinstance(pg_val, Decimal):
+            try:
+                return Decimal(str(sqlite_val))
+            except Exception:
+                return Decimal("0")
+        if isinstance(pg_val, int):
+            try:
+                return int(sqlite_val)
+            except Exception:
+                return sqlite_val
+        if isinstance(pg_val, datetime):
+            s = str(sqlite_val).strip()
+            try:
+                return datetime.fromisoformat(s.replace("Z", "+00:00")).replace(tzinfo=None)
+            except Exception:
+                return sqlite_val
+        return _normalize(sqlite_val)
+
+    def _map_sqlite_fk(table: str, col: str, sqlite_val):
+        if col == "branch_id":
+            if sqlite_val in (None, 0, "0"):
+                return default_branch_id
+            try:
+                sid = int(sqlite_val)
+                code = (sqlite_branch_id_to_code.get(sid) or "").strip().lower()
+                if code and code in pg_branch_code_to_id:
+                    return pg_branch_code_to_id[code]
+            except Exception:
+                pass
+            return default_branch_id
+
+        if col == "type_id" and table == "expenses":
+            if sqlite_val in (None, 0, "0"):
+                return fallback_type_id
+            try:
+                sid = int(sqlite_val)
+                name = (sqlite_type_id_to_name.get(sid) or "").strip().lower()
+                if name and name in pg_type_name_to_id:
+                    return pg_type_name_to_id[name]
+            except Exception:
+                pass
+            return fallback_type_id
+
+        if sqlite_val in (None, ""):
+            return None
+        try:
+            if isinstance(sqlite_val, str) and sqlite_val.strip() == "":
+                return None
+        except Exception:
+            pass
+
+        if col.endswith("_id"):
+            if sqlite_val in (0, "0"):
+                return None
+            try:
+                if isinstance(sqlite_val, str) and sqlite_val.strip() == "0":
+                    return None
+            except Exception:
+                pass
+
+        return sqlite_val
+
+    problems = 0
+    shown = 0
+    for table in target_tables:
+        if table not in pg_tables:
+            problems += 1
+            click.echo(f"\n❌ جدول مفقود في Postgres: {table}")
+            continue
+
+        sqlite_cols, sqlite_pk = _sqlite_cols(table)
+        sqlite_col_names = [c[0] for c in sqlite_cols]
+        pg_cols = insp.get_columns(table, schema="public")
+        pg_col_names = [c["name"] for c in pg_cols]
+
+        missing_cols = [c for c in sqlite_col_names if c not in pg_col_names]
+        extra_cols = [c for c in pg_col_names if c not in sqlite_col_names]
+
+        sqlite_count = _sqlite_count(table)
+        pg_count = db.session.execute(sa_text(f"select count(*) from {table}")).scalar()
+        pg_count = int(pg_count or 0)
+
+        if missing_cols or sqlite_count != pg_count:
+            problems += 1
+        click.echo(f"\n🧾 {table}: rows sqlite={sqlite_count} postgres={pg_count} | cols sqlite={len(sqlite_col_names)} postgres={len(pg_col_names)}")
+        if missing_cols:
+            click.echo("  ❌ أعمدة SQLite غير موجودة في Postgres: " + ", ".join(missing_cols[:50]) + (" ..." if len(missing_cols) > 50 else ""))
+        if extra_cols:
+            click.echo("  ℹ️ أعمدة موجودة في Postgres فقط: " + ", ".join(extra_cols[:50]) + (" ..." if len(extra_cols) > 50 else ""))
+
+        if schema_only:
+            continue
+
+        pg_pk = insp.get_pk_constraint(table, schema="public").get("constrained_columns") or []
+        common_cols = [c for c in sqlite_col_names if c in pg_col_names]
+
+        if not common_cols:
+            continue
+
+        if len(sqlite_pk) == 1 and len(pg_pk) == 1 and sqlite_pk[0] == pg_pk[0] and sqlite_pk[0] in common_cols:
+            pk = sqlite_pk[0]
+            offset = 0
+            meta = MetaData()
+            pg_table = Table(table, meta, autoload_with=db.engine, schema="public")
+            cols_sel = [pg_table.c[c] for c in common_cols if c in pg_table.c]
+            stmt = select(*cols_sel).where(pg_table.c[pk].in_(bindparam("pks", expanding=True)))
+
+            while True:
+                ids = _sqlite_pk_chunk(table, pk, offset, chunk_size)
+                if not ids:
+                    break
+                offset += len(ids)
+
+                cur.execute(
+                    f"SELECT {', '.join(common_cols)} FROM {table} WHERE {pk} IN ({','.join(['?'] * len(ids))})",
+                    ids,
+                )
+                sqlite_rows = {r[common_cols.index(pk)]: r for r in cur.fetchall()}
+
+                pg_rows = {}
+                for r in db.session.execute(stmt, {"pks": ids}).all():
+                    d = dict(zip(common_cols, r))
+                    pg_rows[d[pk]] = d
+
+                for rid in ids:
+                    srow = sqlite_rows.get(rid)
+                    prow = pg_rows.get(rid)
+                    if prow is None or srow is None:
+                        problems += 1
+                        if shown < limit:
+                            click.echo(f"  ❌ صف مفقود في أحد الطرفين: {pk}={rid}")
+                            shown += 1
+                        continue
+
+                    diffs = {}
+                    for i, col in enumerate(common_cols):
+                        pg_val = prow.get(col)
+                        s_val_raw = srow[i]
+                        s_val_raw = _map_sqlite_fk(table, col, s_val_raw)
+                        s_val = _coerce_like_pg(pg_val, s_val_raw)
+                        if _normalize(pg_val) != _normalize(s_val):
+                            diffs[col] = (str(pg_val), str(s_val_raw))
+                    if diffs:
+                        problems += 1
+                        if shown < limit:
+                            click.echo(f"  ⚠️ اختلاف صف {pk}={rid}: {json.dumps(diffs, ensure_ascii=False)}")
+                            shown += 1
+                if shown >= limit:
+                    break
+        else:
+            problems += 1
+            click.echo("  ⚠️ تخطي مقارنة الصفوف: لا يوجد PK متوافق (أو PK مركب).")
+
+    if problems == 0:
+        click.echo("\n✅ مطابق بالكامل: كل جداول SQLite وأعمدتها وصفوفها متطابقة في Postgres.")
+        return
+    click.echo(f"\n❗ فشل التطابق الكامل: تم العثور على {problems} مشكلة.")
     if fail:
         raise click.ClickException("التحقق فشل: توجد اختلافات")
 
@@ -3251,6 +3535,7 @@ def register_cli(app) -> None:
     commands=[
         import_sqlite_appdb,
         compare_sqlite_appdb,
+        compare_sqlite_full,
         seed_roles, sync_permissions, list_permissions, list_roles, role_add_perms, create_role, export_rbac,
         create_user, user_set_password, user_activate, user_assign_role, list_users, list_customers,
         seed_expense_types, expense_type_cmd, seed_palestine_cmd, seed_all, clear_rbac_caches,

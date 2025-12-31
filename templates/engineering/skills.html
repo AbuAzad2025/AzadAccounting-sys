@@ -53,7 +53,7 @@
                     </td>
                     <td>{{ skill.description or '-' }}</td>
                     <td>
-                        {% if skill.requires_certification %}
+                        {% if skill.is_certification_required %}
                             <span class="badge badge-warning"><i class="fas fa-certificate"></i> نعم</span>
                         {% else %}
                             <span class="badge badge-secondary">لا</span>
