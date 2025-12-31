@@ -141,7 +141,7 @@ def ensure_accounts(connection):
                         connection.execute(
                             text("""
                                 INSERT INTO accounts (code, name, "type", is_active, created_at, updated_at)
-                                VALUES (:code, :name, :type, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                                VALUES (:code, :name, :type, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                             """),
                             {"code": code, "name": name, "type": acct_type}
                         )
@@ -155,7 +155,7 @@ def ensure_accounts(connection):
                             connection.execute(
                                 text("""
                                     INSERT INTO accounts (code, name, account_type, is_active, created_at, updated_at)
-                                    VALUES (:code, :name, :type, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                                    VALUES (:code, :name, :type, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                                 """),
                                 {"code": code, "name": name, "type": acct_type}
                             )
