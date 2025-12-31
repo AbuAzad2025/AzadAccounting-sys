@@ -39,27 +39,27 @@ def cleanup_empty_batches():
         # 2. Delete Them
         print(f"Deleting {count} empty batches...")
         try:
-            # We use a transaction to be safe
-            with conn.begin():
-                # Get IDs to delete
-                ids_to_delete = [b.id for b in empty_batches]
+            # SQLAlchemy connection from db.session might already have a transaction started
+            # Use db.session directly for safer ORM-compatible transaction management
+            ids_to_delete = [b.id for b in empty_batches]
+            
+            if ids_to_delete:
+                # Convert list to tuple for SQL IN clause
+                ids_tuple = tuple(ids_to_delete)
+                if len(ids_tuple) == 1:
+                    # Handle single item tuple syntax (id,)
+                    query = text("DELETE FROM gl_batches WHERE id = :id")
+                    db.session.execute(query, {"id": ids_tuple[0]})
+                else:
+                    query = text("DELETE FROM gl_batches WHERE id IN :ids")
+                    db.session.execute(query, {"ids": ids_tuple})
                 
-                # Execute deletion
-                # Note: We use raw SQL for performance and simplicity here
-                if ids_to_delete:
-                    # Convert list to tuple for SQL IN clause
-                    ids_tuple = tuple(ids_to_delete)
-                    if len(ids_tuple) == 1:
-                        # Handle single item tuple syntax (id,)
-                        query = text("DELETE FROM gl_batches WHERE id = :id")
-                        conn.execute(query, {"id": ids_tuple[0]})
-                    else:
-                        query = text("DELETE FROM gl_batches WHERE id IN :ids")
-                        conn.execute(query, {"ids": ids_tuple})
+                db.session.commit()
             
             print(f"✅ Successfully deleted {count} empty batches.")
             
         except Exception as e:
+            db.session.rollback()
             print(f"❌ Error deleting batches: {e}")
 
 if __name__ == "__main__":
