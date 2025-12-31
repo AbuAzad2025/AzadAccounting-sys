@@ -12,6 +12,23 @@ DATA_TO_FIX = [
     {'name': 'سامي كمال الطميزي', 'opening_balance': -1000.0}
 ]
 
+# 3. Cached Balance Resets (Fixing Ghost Balances)
+CACHED_BALANCE_RESETS = [
+    {'id': 6, 'name': 'وليد قصراوي مضخات', 'balance': 0.0},
+    {'id': 9, 'name': 'احمد ياسين طولكرم', 'balance': 0.0},
+    {'id': 10, 'name': 'عارف القرناوي رهط', 'balance': 0.0},
+    {'id': 11, 'name': 'سميح عموري طولكرم', 'balance': 0.0},
+    {'id': 28, 'name': 'ادهم قطام', 'balance': 0.0},
+    {'id': 32, 'name': 'مجهول', 'balance': 0.0},
+    {'id': 30, 'name': 'طوب شاهين', 'balance': 0.0},
+    {'id': 31, 'name': 'ونشات رام الله', 'balance': 0.0},
+    {'id': 17, 'name': 'عدنان السلامين', 'balance': 0.0},
+    {'id': 21, 'name': 'فيصل الجمل', 'balance': 0.0},
+    {'id': 38, 'name': 'موسى الخيري', 'balance': 0.0},
+    {'id': 5, 'name': 'يوسف ابو علي دورا', 'balance': -300.0},
+    {'id': 1, 'name': 'عامر ابو شخيدم', 'balance': -20500.0}
+]
+
 def apply_fixes():
     app = create_app()
     with app.app_context():
@@ -146,6 +163,19 @@ def apply_fixes():
                  db.session.add(s111_w2)
             else:
                  print(f"Stock for Product 111 @ Warehouse 2 checked (Qty: {s111_w2.quantity}).")
+        
+        db.session.commit()
+
+        # --- Cached Balance Resets ---
+        print("\n--- Applying Cached Balance Resets ---")
+        for item in CACHED_BALANCE_RESETS:
+            cust = Customer.query.get(item['id'])
+            if cust:
+                if cust.current_balance != item['balance']:
+                    print(f"  - Resetting Cached Balance for {cust.name}: {cust.current_balance} -> {item['balance']}")
+                    cust.current_balance = item['balance']
+                else:
+                    print(f"  - Cached Balance for {cust.name} is correct ({item['balance']}).")
         
         db.session.commit()
             
