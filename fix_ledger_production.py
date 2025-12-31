@@ -137,9 +137,10 @@ def ensure_accounts(connection):
                 created = False
                 try:
                     with connection.begin_nested():
+                        # We must quote "type" because it's a reserved keyword in some contexts
                         connection.execute(
                             text("""
-                                INSERT INTO accounts (code, name, type, is_active, created_at, updated_at)
+                                INSERT INTO accounts (code, name, "type", is_active, created_at, updated_at)
                                 VALUES (:code, :name, :type, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                             """),
                             {"code": code, "name": name, "type": acct_type}
@@ -147,6 +148,7 @@ def ensure_accounts(connection):
                     created = True
                 except Exception as e_type:
                      # Fallback to account_type if type fails
+                     print(f"Failed to create with 'type' column: {e_type}")
                      print(f"Retrying with account_type for {code}...")
                      try:
                         with connection.begin_nested():
