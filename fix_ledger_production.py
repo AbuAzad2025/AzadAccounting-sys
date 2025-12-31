@@ -133,25 +133,37 @@ def ensure_accounts(connection):
             if not result:
                 print(f"Creating missing account: {code} - {name}")
                 # Note: 'type' column is used in some schemas instead of 'account_type'
-                # We try 'type' first as it seems to be the issue in logs
+                # We try 'type' first using a savepoint to prevent transaction abort
+                created = False
                 try:
-                    connection.execute(
-                        text("""
-                            INSERT INTO accounts (code, name, type, is_active, created_at, updated_at)
-                            VALUES (:code, :name, :type, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                        """),
-                        {"code": code, "name": name, "type": acct_type}
-                    )
+                    with connection.begin_nested():
+                        connection.execute(
+                            text("""
+                                INSERT INTO accounts (code, name, type, is_active, created_at, updated_at)
+                                VALUES (:code, :name, :type, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                            """),
+                            {"code": code, "name": name, "type": acct_type}
+                        )
+                    created = True
                 except Exception as e_type:
-                     # Fallback to account_type if type fails (though logs suggest account_type is wrong)
+                     # Fallback to account_type if type fails
                      print(f"Retrying with account_type for {code}...")
-                     connection.execute(
-                        text("""
-                            INSERT INTO accounts (code, name, account_type, is_active, created_at, updated_at)
-                            VALUES (:code, :name, :type, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                        """),
-                        {"code": code, "name": name, "type": acct_type}
-                    )
+                     try:
+                        with connection.begin_nested():
+                            connection.execute(
+                                text("""
+                                    INSERT INTO accounts (code, name, account_type, is_active, created_at, updated_at)
+                                    VALUES (:code, :name, :type, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                                """),
+                                {"code": code, "name": name, "type": acct_type}
+                            )
+                        created = True
+                     except Exception as e_final:
+                        print(f"Failed to create account {code} with account_type: {e_final}")
+                
+                if created:
+                    print(f"Successfully created account {code}")
+
         except Exception as e:
             print(f"Warning: Could not check/create account {code}: {e}")
             # Do not re-raise, let the script continue
