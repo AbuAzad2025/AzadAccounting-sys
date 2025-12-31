@@ -430,7 +430,27 @@ section.content .container-fluid {
                 {% set t = e.type or '' %}
                 <span class="badge {{ type_badges.get(t, 'bg-secondary') }}">{{ type_labels.get(t, t) }}</span>
               </td>
-              <td class="text-truncate" title="{{ e.ref }}">{{ e.ref }}</td>
+              <td class="text-truncate" title="{{ e.ref }}">
+                {% if e.model == 'sale' and e.id %}
+                  <a href="{{ url_for('sales_bp.sale_detail', id=e.id) }}" target="_blank">{{ e.ref }}</a>
+                {% elif e.model == 'sale_return' and e.id %}
+                  <a href="{{ url_for('returns.view_return', return_id=e.id) }}" target="_blank">{{ e.ref }}</a>
+                {% elif e.model == 'service' and e.id %}
+                  <a href="{{ url_for('service.view_request', rid=e.id) }}" target="_blank">{{ e.ref }}</a>
+                {% elif e.model == 'expense' and e.id %}
+                  <a href="{{ url_for('expenses_bp.detail', exp_id=e.id) }}" target="_blank">{{ e.ref }}</a>
+                {% elif e.model == 'check' and e.id %}
+                  <a href="{{ url_for('checks.check_detail', check_id=e.id) }}" target="_blank">{{ e.ref }}</a>
+                {% elif e.model == 'exchange_transaction' and e.id %}
+                  <a href="{{ url_for('warehouse_bp.transaction_detail', id=e.id) }}" target="_blank">{{ e.ref }}</a>
+                {% elif e.model == 'preorder' and e.id %}
+                  <a href="{{ url_for('warehouse_bp.preorder_detail', preorder_id=e.id) }}" target="_blank">{{ e.ref }}</a>
+                {% elif (e.model == 'payment' or e.type in ['PAYMENT', 'PAYMENT_IN', 'PAYMENT_OUT', 'CHECK_BOUNCED', 'CHECK_PENDING', 'CHECK_RESUBMITTED', 'CHECK_SETTLED', 'CHECK_LEGAL', 'CHECK_ARCHIVED', 'CHECK_CASHED', 'CHECK_CANCELLED']) and e.id %}
+                  <a href="{{ url_for('payments.view_payment', payment_id=e.id) }}" target="_blank">{{ e.ref }}</a>
+                {% else %}
+                  {{ e.ref }}
+                {% endif %}
+              </td>
               <td title="{{ e.statement }}">
                 {% if (e.type in ['PAYMENT','CHECK_BOUNCED','CHECK_PENDING','CHECK_RESUBMITTED','CHECK_SETTLED','CHECK_LEGAL','CHECK_ARCHIVED','CHECK_CASHED','CHECK_CANCELLED']) and e.get('payment_details') %}
                   {% set pd = e.payment_details %}

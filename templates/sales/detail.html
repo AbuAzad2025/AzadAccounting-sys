@@ -49,7 +49,7 @@
 
       <h5 class="mb-2"><i class="fas fa-list mr-2"></i> تفاصيل البنود</h5>
 
-      {% set ns = namespace(lines_sum=0.0) %}
+      {% set ns = namespace(lines_sum=0.0, lines_discount_sum=0.0) %}
 
       <div class="table-responsive">
         <table class="table table-bordered table-hover align-middle">
@@ -67,7 +67,10 @@
           </thead>
           <tbody>
             {% for line in sale.lines %}
+              {% set gross = (line.quantity or 0) * (line.unit_price or 0) %}
+              {% set disc_amt = (gross|float) * ((line.discount_rate or 0) / 100.0) %}
               {% set ns.lines_sum = ns.lines_sum + ((line.line_total_value or 0)|float) %}
+              {% set ns.lines_discount_sum = ns.lines_discount_sum + (disc_amt|float) %}
               <tr>
                 <td>{{ loop.index }}</td>
                 <td>{{ line.product_name }}</td>
@@ -84,6 +87,10 @@
             <tr>
               <td colspan="7" class="text-right">مجموع البنود:</td>
               <td>{{ num(ns.lines_sum) }} {{ sale.currency }}</td>
+            </tr>
+            <tr>
+              <td colspan="7" class="text-right">خصم البنود:</td>
+              <td>{{ num(ns.lines_discount_sum) }} {{ sale.currency }}</td>
             </tr>
             <tr>
               <td colspan="7" class="text-right">خصم الفاتورة:</td>

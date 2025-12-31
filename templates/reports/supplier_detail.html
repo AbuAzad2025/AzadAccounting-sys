@@ -295,6 +295,7 @@
                                 <th>#</th>
                                 <th>التاريخ</th>
                                 <th>المنتج</th>
+                                <th>المستودع</th>
                                 <th>الكمية</th>
                                 <th>سعر الوحدة</th>
                                 <th>الإجمالي</th>
@@ -307,6 +308,7 @@
                                 <td>{{ tx.id }}</td>
                                 <td>{{ tx.created_at.strftime('%Y-%m-%d %H:%M') if tx.created_at else '-' }}</td>
                                 <td><strong>{{ tx.product.name if tx.product else 'غير محدد' }}</strong></td>
+                                <td>{{ tx.warehouse.name if tx.warehouse else 'غير محدد' }}</td>
                                 <td><span class="badge bg-primary">{{ tx.quantity }}</span></td>
                                 <td>{{ tx.unit_cost|format_currency }}</td>
                                 <td><strong>{{ (tx.quantity * tx.unit_cost)|format_currency }}</strong></td>
@@ -355,6 +357,7 @@
                                 <th>#</th>
                                 <th>التاريخ</th>
                                 <th>المنتج</th>
+                                <th>المستودع</th>
                                 <th>الكمية</th>
                                 <th>سعر الوحدة</th>
                                 <th>الإجمالي</th>
@@ -367,6 +370,7 @@
                                 <td>{{ tx.id }}</td>
                                 <td>{{ tx.created_at.strftime('%Y-%m-%d %H:%M') if tx.created_at else '-' }}</td>
                                 <td><strong>{{ tx.product.name if tx.product else 'غير محدد' }}</strong></td>
+                                <td>{{ tx.warehouse.name if tx.warehouse else 'غير محدد' }}</td>
                                 <td><span class="badge bg-danger">{{ tx.quantity }}</span></td>
                                 <td>{{ tx.unit_cost|format_currency }}</td>
                                 <td><strong>{{ (tx.quantity * tx.unit_cost)|format_currency }}</strong></td>

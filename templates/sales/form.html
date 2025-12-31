@@ -299,6 +299,10 @@
                     <td id="subtotal" class="text-right">0.00 {{ form.currency.data }}</td>
                   </tr>
                   <tr>
+                    <th class="text-right"><i class="fas fa-minus-circle mr-1"></i> خصم البنود:</th>
+                    <td id="totalDiscount" class="text-right">0.00 {{ form.currency.data }}</td>
+                  </tr>
+                  <tr>
                     <th class="text-right"><i class="fas fa-shipping-fast mr-1"></i> تكلفة الشحن:</th>
                     <td id="shippingCostDisplay" class="text-right">{{ "%.2f"|format(form.shipping_cost.data or 0) }} {{ form.currency.data }}</td>
                   </tr>

@@ -362,6 +362,14 @@ def api_warehouse_info():
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 
+
+@warehouse_bp.route("/transaction/<int:id>", methods=["GET"], endpoint="transaction_detail")
+@login_required
+def transaction_detail(id):
+    from models import ExchangeTransaction
+    tx = ExchangeTransaction.query.get_or_404(id)
+    return render_template("warehouses/transaction_detail.html", transaction=tx)
+
 @warehouse_bp.route("/api/upload_product_image", methods=["POST"], endpoint="api_upload_product_image")
 @login_required
 def api_upload_product_image():
@@ -2857,7 +2865,11 @@ def product_card(product_id):
         res = getattr(lvl, "reserved_quantity", 0) if lvl else 0
         stock.append({"warehouse": w, "on_hand": qty, "reserved": res, "virtual_available": qty - res})
     transfers = Transfer.query.filter_by(product_id=part.id).options(joinedload(Transfer.source_warehouse), joinedload(Transfer.destination_warehouse)).order_by(Transfer.transfer_date.desc()).all()
-    exchanges = ExchangeTransaction.query.filter_by(product_id=part.id).options(joinedload(ExchangeTransaction.partner)).order_by(getattr(ExchangeTransaction, "created_at", ExchangeTransaction.id).desc()).all()
+    exchanges = ExchangeTransaction.query.filter_by(product_id=part.id).options(
+        joinedload(ExchangeTransaction.partner),
+        joinedload(ExchangeTransaction.supplier),
+        joinedload(ExchangeTransaction.warehouse)
+    ).order_by(getattr(ExchangeTransaction, "created_at", ExchangeTransaction.id).desc()).all()
     shipments = ShipmentItem.query.filter_by(product_id=part.id).join(Shipment).options(joinedload(ShipmentItem.shipment), joinedload(ShipmentItem.warehouse)).order_by(func.coalesce(Shipment.actual_arrival, Shipment.expected_arrival, Shipment.shipment_date).desc()).all()
     return render_template("parts/card.html", part=part, stock=stock, transfers=transfers, exchanges=exchanges, shipments=shipments)
 

@@ -2259,7 +2259,8 @@ def supplier_detail_report(supplier_id):
 
     from models import ExchangeTransaction
     exchange_query = ExchangeTransaction.query.options(
-        joinedload(ExchangeTransaction.product)
+        joinedload(ExchangeTransaction.product),
+        joinedload(ExchangeTransaction.warehouse)
     ).filter(
         ExchangeTransaction.supplier_id == supplier_id
     )

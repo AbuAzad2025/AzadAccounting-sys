@@ -64,7 +64,7 @@
 }
 
 .actions-col {
-  min-width: 620px;
+  min-width: 300px;
 }
 
 .supplier-actions {
@@ -132,7 +132,7 @@
 
 {% block content %}
 <div class="suppliers-container py-5">
-  <input type="hidden" id="csrf_token" value="{{ form.csrf_token.current_token }}">
+  <input type="hidden" id="csrf_token" value="{{ csrf_token_value }}">
   <!-- تنبيه معلوماتي -->
   <!-- تنبيه القطع غير المسعّرة -->
   <div id="unpricedAlert" class="alert alert-warning alert-dismissible fade show mb-4" role="alert" style="display: none;">
@@ -167,50 +167,30 @@
   </div>
 
   <div class="row mb-4 g-3">
-    <div class="col-md-3">
-      <div class="card bg-primary text-white p-3 rounded-4 shadow-sm">
+    <div class="col-md-3 col-sm-6">
+      <div class="card bg-primary text-white p-3 rounded-4 shadow-sm h-100">
         <h6 class="mb-1"><i class="fas fa-truck"></i> إجمالي الموردين</h6>
         <h3 class="mb-0"><span id="suppliers-total-count">{{ summary.total_suppliers }}</span></h3>
       </div>
     </div>
-    <div class="col-md-3">
-      <div id="suppliers-total-balance-card" class="card {% if summary.total_balance > 0 %}bg-success{% elif summary.total_balance < 0 %}bg-danger{% else %}bg-secondary{% endif %} text-white p-3 rounded-4 shadow-sm">
+    <div class="col-md-3 col-sm-6">
+      <div id="suppliers-total-balance-card" class="card {% if summary.total_balance > 0 %}bg-success{% elif summary.total_balance < 0 %}bg-danger{% else %}bg-secondary{% endif %} text-white p-3 rounded-4 shadow-sm h-100">
         <h6 class="mb-1"><i class="fas fa-balance-scale"></i> الرصيد الصافي</h6>
         <h3 class="mb-0"><span id="suppliers-total-balance">{{ "%.2f"|format(summary.total_balance) }}</span> ₪</h3>
       </div>
     </div>
-    <div class="col-md-3">
-      <div class="card bg-warning text-white p-3 rounded-4 shadow-sm">
-        <h6 class="mb-1"><i class="fas fa-users"></i> عدد الموردين</h6>
-        <h3 class="mb-0"><span id="suppliers-total-count-secondary">{{ summary.total_suppliers }}</span></h3>
+    <div class="col-md-3 col-sm-6">
+      <div class="card bg-warning text-dark p-3 rounded-4 shadow-sm h-100">
+        <h6 class="mb-1"><i class="fas fa-file-invoice-dollar"></i> مستحق دفع (لهم)</h6>
+        <h3 class="mb-0"><span id="suppliers-with-credit">{{ summary.suppliers_with_credit }}</span> <small class="fs-6">مورد</small></h3>
+        <div class="mt-1 small fw-bold">إجمالي: {{ "%.2f"|format(summary.total_credit) }} ₪</div>
       </div>
     </div>
-    <div class="col-md-3">
-      <div class="card bg-info text-white p-3 rounded-4 shadow-sm">
-        <h6 class="mb-1"><i class="fas fa-calculator"></i> متوسط الرصيد</h6>
-        <h3 class="mb-0"><span id="suppliers-average-balance">{{ "%.2f"|format(summary.average_balance) }}</span> ₪</h3>
-      </div>
-    </div>
-  </div>
-
-  <!-- ملخصات إضافية -->
-  <div class="row mb-4 g-3">
-    <div class="col-md-4">
-      <div class="card bg-success text-white p-3 rounded-4 shadow-sm">
-        <h6 class="mb-1"><i class="fas fa-check-circle"></i> موردين بذمة (مستحق دفع)</h6>
-        <h3 class="mb-0"><span id="suppliers-with-credit">{{ summary.suppliers_with_credit }}</span></h3>
-      </div>
-    </div>
-    <div class="col-md-4">
-      <div class="card bg-danger text-white p-3 rounded-4 shadow-sm">
-        <h6 class="mb-1"><i class="fas fa-exclamation-circle"></i> موردين مدينين (لنا)</h6>
-        <h3 class="mb-0"><span id="suppliers-with-debt">{{ summary.suppliers_with_debt }}</span></h3>
-      </div>
-    </div>
-    <div class="col-md-4">
-      <div class="card text-white p-3 rounded-4 shadow-sm" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-        <h6 class="mb-1 text-white"><i class="fas fa-chart-line"></i> متوسط الرصيد</h6>
-        <h3 class="mb-0 text-white"><span id="suppliers-average-balance-secondary">{{ "%.2f"|format(summary.average_balance) }}</span> ₪</h3>
+    <div class="col-md-3 col-sm-6">
+      <div class="card bg-danger text-white p-3 rounded-4 shadow-sm h-100">
+        <h6 class="mb-1"><i class="fas fa-hand-holding-usd"></i> مدينين (لنا)</h6>
+        <h3 class="mb-0"><span id="suppliers-with-debt">{{ summary.suppliers_with_debt }}</span> <small class="fs-6">مورد</small></h3>
+        <div class="mt-1 small fw-bold">إجمالي: {{ "%.2f"|format(summary.total_debit) }} ₪</div>
       </div>
     </div>
   </div>
@@ -308,7 +288,7 @@
                   </a>
                   {% if s.is_archived %}
                   <form method="post" action="{{ url_for('vendors_bp.restore_supplier', supplier_id=s.id) }}" class="d-inline-block">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token_value }}">
                     <button type="submit" class="btn btn-sm btn-success d-flex align-items-center" title="استعادة">
                       <i class="fas fa-undo"></i>
                       <span class="d-none d-lg-inline ms-1">استعادة</span>
@@ -316,7 +296,7 @@
                   </form>
                   {% else %}
                   <form method="post" action="{{ url_for('vendors_bp.archive_supplier', supplier_id=s.id) }}" class="d-inline-block">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token_value }}">
                     <button type="submit" class="btn btn-sm btn-warning d-flex align-items-center" title="أرشفة">
                       <i class="fas fa-archive"></i>
                       <span class="d-none d-lg-inline ms-1">أرشفة</span>
@@ -324,7 +304,7 @@
                   </form>
                   {% endif %}
                   <form method="post" action="{{ url_for('vendors_bp.suppliers_delete', id=s.id) }}" class="d-inline-block">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token_value }}">
                     <button type="submit"
                             class="btn btn-sm btn-danger d-flex align-items-center"
                             title="حذف عادي"
@@ -370,41 +350,63 @@
 
 <div class="modal fade" id="supplierServiceModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header bg-primary text-white">
-        <h5 class="modal-title"><i class="fas fa-file-signature ml-2"></i>توريد خدمة للمورد</h5>
-        <button type="button" class="close text-white" data-dismiss="modal" aria-label="إغلاق"></button>
+    <div class="modal-content border shadow-lg rounded-lg" style="border-color: #d1d3e2; box-shadow: 0 0 20px rgba(0,0,0,0.1) !important; background-color: #ffffff;">
+      <div class="modal-header bg-white border-bottom pb-3 pt-3" style="border-bottom-color: #eaecf4 !important;">
+        <h5 class="modal-title text-dark fw-bold"><i class="fas fa-file-invoice text-primary ml-2"></i> توريد خدمة جديدة</h5>
+        <button type="button" class="close text-muted" data-dismiss="modal" aria-label="إغلاق"></button>
       </div>
       <form id="supplierServiceForm">
-        <div class="modal-body">
+        <div class="modal-body p-4 bg-white">
           <input type="hidden" id="serviceSupplierId" name="supplier_id">
-          <div class="mb-3">
-            <div class="text-muted small">المورد: <span class="font-weight-bold" id="serviceSupplierName"></span></div>
-            <div class="text-muted small">تاريخ الفاتورة: <span class="font-weight-bold" id="serviceInvoiceDate"></span></div>
+          
+          <div class="d-flex justify-content-between align-items-center bg-white p-3 rounded mb-4 border" style="border-color: #eaecf4 !important; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+            <div>
+                <small class="text-muted d-block font-weight-bold text-uppercase" style="font-size: 0.75rem; letter-spacing: 0.5px;">المورد</small>
+                <span class="text-dark h6 mb-0 font-weight-bold" id="serviceSupplierName">--</span>
+            </div>
+            <div class="text-left">
+                <small class="text-muted d-block font-weight-bold text-uppercase" style="font-size: 0.75rem; letter-spacing: 0.5px;">التاريخ</small>
+                <span class="text-dark h6 mb-0 font-weight-bold" id="serviceInvoiceDate">--</span>
+            </div>
           </div>
-          <div class="form-group">
-            <label for="serviceAmount" class="font-weight-bold">المبلغ</label>
-            <input type="number" class="form-control" id="serviceAmount" step="0.01" min="0.01" placeholder="0.00" required>
+
+          <div class="row">
+             <div class="col-md-8">
+                <div class="form-group mb-3">
+                    <label for="serviceAmount" class="text-secondary font-weight-bold small text-uppercase">قيمة الخدمة</label>
+                    <div class="input-group input-group-lg shadow-sm rounded">
+                        <input type="number" class="form-control font-weight-bold text-dark border-right-0 bg-white" id="serviceAmount" step="0.01" min="0.01" placeholder="0.00" required style="border-color: #d1d3e2;">
+                        <div class="input-group-append">
+                            <span class="input-group-text bg-white border-left-0" style="border-color: #d1d3e2;"><i class="fas fa-money-bill-wave text-muted"></i></span>
+                        </div>
+                    </div>
+                </div>
+             </div>
+             <div class="col-md-4">
+                <div class="form-group mb-3">
+                    <label for="serviceCurrency" class="text-secondary font-weight-bold small text-uppercase">العملة</label>
+                    <select id="serviceCurrency" class="custom-select custom-select-lg font-weight-bold text-dark shadow-sm rounded" style="border-color: #d1d3e2; background-color: #ffffff;">
+                      {% for c in quick_service.currency_choices %}
+                      <option value="{{ c.code }}" {% if c.code == quick_service.default_currency %}selected{% endif %}>{{ c.label }}</option>
+                      {% endfor %}
+                    </select>
+                </div>
+             </div>
           </div>
-          <div class="form-group">
-            <label for="serviceCurrency" class="font-weight-bold">العملة</label>
-            <select id="serviceCurrency" class="custom-select">
-              {% for c in quick_service.currency_choices %}
-              <option value="{{ c.code }}" {% if c.code == quick_service.default_currency %}selected{% endif %}>{{ c.label }}</option>
-              {% endfor %}
-            </select>
+
+          <div class="form-group mb-2">
+            <label for="serviceDescription" class="text-secondary font-weight-bold small text-uppercase">تفاصيل الخدمة</label>
+            <textarea class="form-control shadow-sm rounded" id="serviceDescription" rows="3" placeholder="اكتب وصفاً مختصراً للخدمة المقدمة..." style="border-color: #d1d3e2; background-color: #ffffff;"></textarea>
           </div>
-          <div class="form-group">
-            <label for="serviceDescription" class="font-weight-bold">وصف الخدمة</label>
-            <textarea class="form-control" id="serviceDescription" rows="2" placeholder="تفاصيل مختصرة"></textarea>
-          </div>
-          <div class="alert alert-danger d-none" id="serviceFormError"></div>
+          
+          <div class="alert alert-danger d-none mt-3 shadow-sm" id="serviceFormError"></div>
         </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-outline-secondary" data-dismiss="modal">إلغاء</button>
-          <button type="submit" class="btn btn-primary" id="serviceSubmitBtn">
+        
+        <div class="modal-footer bg-white border-top pt-3 pb-3" style="border-top-color: #eaecf4 !important;">
+          <button type="button" class="btn btn-light text-muted font-weight-bold border" data-dismiss="modal" style="background-color: #f8f9fc; border-color: #eaecf4;">إلغاء</button>
+          <button type="submit" class="btn btn-primary px-4 font-weight-bold shadow-sm" id="serviceSubmitBtn" style="background-color: #4e73df; border-color: #4e73df;">
             <span class="spinner-border spinner-border-sm d-none mr-2" id="serviceSubmitSpinner"></span>
-            إنشاء الفاتورة
+            <i class="fas fa-save ml-1"></i> حفظ الفاتورة
           </button>
         </div>
       </form>
@@ -414,53 +416,85 @@
 
 <div class="modal fade" id="supplierServicePayModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header bg-success text-white">
-        <h5 class="modal-title"><i class="fas fa-money-check-alt ml-2"></i>تسديد فاتورة الخدمة</h5>
-        <button type="button" class="close text-white" data-dismiss="modal" aria-label="إغلاق"></button>
+    <div class="modal-content border shadow-lg rounded-lg" style="border-color: #d1d3e2; box-shadow: 0 0 20px rgba(0,0,0,0.1) !important; background-color: #ffffff;">
+      <div class="modal-header bg-white border-bottom pb-3 pt-3" style="border-bottom-color: #eaecf4 !important;">
+        <h5 class="modal-title text-dark fw-bold"><i class="fas fa-cash-register text-success ml-2"></i> تسجيل دفعة مالية</h5>
+        <button type="button" class="close text-muted" data-dismiss="modal" aria-label="إغلاق"></button>
       </div>
       <form id="supplierServicePayForm">
-        <div class="modal-body">
+        <div class="modal-body p-4 bg-white">
           <input type="hidden" id="payExpenseId">
-          <div class="mb-3">
-            <div class="text-muted small">المورد: <span class="font-weight-bold" id="paySupplierName"></span></div>
-            <div class="text-muted small">رقم الفاتورة: <span class="font-weight-bold" id="payExpenseCode"></span></div>
+          
+          <div class="bg-white p-3 rounded mb-4 border" style="border-color: #eaecf4 !important; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+             <div class="row">
+                 <div class="col-6">
+                    <small class="text-muted d-block font-weight-bold text-uppercase" style="font-size: 0.75rem; letter-spacing: 0.5px;">المورد</small>
+                    <span class="text-dark font-weight-bold" id="paySupplierName">--</span>
+                 </div>
+                 <div class="col-6 text-left">
+                    <small class="text-muted d-block font-weight-bold text-uppercase" style="font-size: 0.75rem; letter-spacing: 0.5px;">رقم الفاتورة</small>
+                    <span class="text-dark font-weight-bold badge badge-light border" id="payExpenseCode" style="font-size: 0.9rem;">--</span>
+                 </div>
+             </div>
           </div>
-          <div class="form-row">
-            <div class="form-group col-md-6">
-              <label for="payAmount" class="font-weight-bold">المبلغ</label>
-              <input type="number" class="form-control" id="payAmount" step="0.01" min="0.01">
+
+          <div class="row">
+            <div class="col-md-6">
+              <div class="form-group mb-3">
+                <label for="payAmount" class="text-secondary font-weight-bold small text-uppercase">المبلغ المدفوع</label>
+                <div class="input-group input-group-lg shadow-sm rounded">
+                    <input type="number" class="form-control font-weight-bold text-dark border-right-0 bg-white" id="payAmount" step="0.01" min="0.01" style="border-color: #d1d3e2;">
+                     <div class="input-group-append">
+                        <span class="input-group-text bg-white border-left-0" style="border-color: #d1d3e2;"><i class="fas fa-coins text-muted"></i></span>
+                    </div>
+                </div>
+              </div>
             </div>
-            <div class="form-group col-md-6">
-              <label for="payCurrency" class="font-weight-bold">العملة</label>
-              <input type="text" class="form-control" id="payCurrency" readonly>
+            <div class="col-md-6">
+              <div class="form-group mb-3">
+                <label for="payCurrency" class="text-secondary font-weight-bold small text-uppercase">العملة</label>
+                <input type="text" class="form-control form-control-lg bg-light font-weight-bold text-center border shadow-sm rounded" id="payCurrency" readonly style="border-color: #d1d3e2;">
+              </div>
             </div>
           </div>
-          <div class="form-group">
-            <label for="payMethod" class="font-weight-bold">طريقة الدفع</label>
-            <select id="payMethod" class="custom-select">
-              <option value="cash">نقداً</option>
-              <option value="bank">تحويل بنكي</option>
-              <option value="cheque">شيك</option>
-              <option value="card">بطاقة</option>
-              <option value="online">دفع إلكتروني</option>
-            </select>
+
+          <div class="form-group mb-3">
+            <label for="payMethod" class="text-secondary font-weight-bold small text-uppercase">طريقة الدفع</label>
+            <div class="input-group shadow-sm rounded">
+                <div class="input-group-prepend">
+                    <span class="input-group-text bg-white" style="border-color: #d1d3e2;"><i class="fas fa-wallet text-muted"></i></span>
+                </div>
+                <select id="payMethod" class="custom-select font-weight-bold text-dark" style="border-color: #d1d3e2; background-color: #ffffff;">
+                  <option value="cash">نقداً (Cash)</option>
+                  <option value="bank">تحويل بنكي (Bank Transfer)</option>
+                  <option value="cheque">شيك (Cheque)</option>
+                  <option value="card">بطاقة (Card)</option>
+                  <option value="online">دفع إلكتروني (Online)</option>
+                </select>
+            </div>
           </div>
-          <div class="form-group">
-            <label for="payReference" class="font-weight-bold">مرجع/ملاحظة</label>
-            <input type="text" class="form-control" id="payReference" placeholder="رقم مرجع اختياري">
+          
+          <div class="form-group mb-3">
+             <div class="row">
+                <div class="col-12">
+                     <label for="payReference" class="text-secondary font-weight-bold small text-uppercase">رقم المرجع / الشيك (اختياري)</label>
+                     <input type="text" class="form-control shadow-sm rounded" id="payReference" placeholder="مثال: 123456" style="border-color: #d1d3e2;">
+                </div>
+             </div>
           </div>
-          <div class="form-group">
-            <label for="payNotes" class="font-weight-bold">ملاحظات</label>
-            <textarea class="form-control" id="payNotes" rows="2"></textarea>
+
+          <div class="form-group mb-0">
+            <label for="payNotes" class="text-secondary font-weight-bold small text-uppercase">ملاحظات إضافية</label>
+            <textarea class="form-control shadow-sm rounded" id="payNotes" rows="2" placeholder="أي تفاصيل أخرى..." style="border-color: #d1d3e2; background-color: #ffffff;"></textarea>
           </div>
-          <div class="alert alert-danger d-none" id="payFormError"></div>
+          <div class="alert alert-danger d-none mt-3 shadow-sm" id="payFormError"></div>
         </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-outline-secondary" data-dismiss="modal">لاحقاً</button>
-          <button type="submit" class="btn btn-success" id="paySubmitBtn">
+        
+        <div class="modal-footer bg-white border-top pt-3 pb-3" style="border-top-color: #eaecf4 !important;">
+          <button type="button" class="btn btn-light text-muted font-weight-bold border" data-dismiss="modal" style="background-color: #f8f9fc; border-color: #eaecf4;">إغلاق</button>
+          <button type="submit" class="btn btn-success px-4 font-weight-bold shadow-sm" id="paySubmitBtn" style="background-color: #1cc88a; border-color: #1cc88a;">
             <span class="spinner-border spinner-border-sm d-none mr-2" id="paySubmitSpinner"></span>
-            حفظ الدفعة
+            <i class="fas fa-check-circle ml-1"></i> تأكيد الدفع
           </button>
         </div>
       </form>
@@ -470,47 +504,63 @@
 
 <div class="modal fade" id="settlementModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content rounded-4">
-      <div class="modal-header bg-light">
-        <h5 class="modal-title"><i class="fas fa-scale-balanced ml-2"></i> تسوية رصيد</h5>
-        <button type="button" class="close" data-dismiss="modal" aria-label="إغلاق"></button>
+    <div class="modal-content border shadow-lg rounded-lg" style="border-color: #d1d3e2; box-shadow: 0 0 20px rgba(0,0,0,0.1) !important; background-color: #ffffff;">
+      <div class="modal-header bg-white border-bottom pb-3 pt-3" style="border-bottom-color: #eaecf4 !important;">
+        <h5 class="modal-title text-dark fw-bold"><i class="fas fa-balance-scale text-info ml-2"></i> تسوية رصيد مورد</h5>
+        <button type="button" class="close text-muted" data-dismiss="modal" aria-label="إغلاق"></button>
       </div>
-      <div class="modal-body">
-        <div class="mb-2 text-muted small">الجهة: <span id="stlName"></span></div>
-        <div class="d-flex justify-content-between align-items-center mb-3">
-          <div>الرصيد الحالي:</div>
-          <div id="stlBalance" class="fw-bold"></div>
+      <div class="modal-body p-4 bg-white">
+        
+        <div class="text-center bg-white p-4 rounded mb-4 border position-relative overflow-hidden" style="border-color: #eaecf4 !important; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+            <div class="position-absolute top-0 right-0 p-2 opacity-10" style="opacity: 0.05;">
+                <i class="fas fa-coins fa-4x text-dark"></i>
+            </div>
+            <h6 class="text-muted font-weight-bold mb-1" id="stlName">--</h6>
+            <div class="display-4 font-weight-bold text-dark my-2" id="stlBalance">0.00</div>
+            <span class="badge badge-pill badge-secondary px-3 py-1" id="stlCurrencyBadge" style="background-color: #858796;">--</span>
         </div>
-        <div class="mb-3">
-          <label class="form-label">المبلغ للتسوية</label>
-          <input type="number" step="0.01" min="0" inputmode="decimal" class="form-control" id="stlAmount">
-        </div>
-        <div class="row g-2 mb-3">
-          <div class="col-md-6">
-            <label class="form-label">الاتجاه</label>
-            <div id="stlDirectionBadge"></div>
+
+        <div class="form-group mb-4">
+          <label class="text-secondary font-weight-bold small text-uppercase">مبلغ التسوية</label>
+          <div class="input-group input-group-lg shadow-sm rounded">
+             <input type="number" step="0.01" min="0" inputmode="decimal" class="form-control font-weight-bold text-dark text-center border-right-0 bg-white" id="stlAmount" placeholder="0.00" style="border-color: #d1d3e2;">
+             <div class="input-group-append">
+                <span class="input-group-text bg-white border-left-0" style="border-color: #d1d3e2;"><i class="fas fa-hand-holding-usd text-muted"></i></span>
+             </div>
           </div>
-          <div class="col-md-6">
-            <label class="form-label">العملة</label>
-            <input type="text" class="form-control" id="stlCurrency" readonly>
-          </div>
         </div>
-        <div class="mb-3">
-          <label class="form-label">طريقة الدفع</label>
-          <select id="stlMethod" class="custom-select">
-            <option value="cash">نقداً</option>
-            <option value="bank">تحويل بنكي</option>
-            <option value="cheque">شيك</option>
-            <option value="card">بطاقة</option>
-            <option value="online">إلكتروني</option>
-          </select>
+
+        <div class="row">
+           <div class="col-md-6">
+                <div class="form-group mb-3">
+                    <label class="text-secondary font-weight-bold small text-uppercase">نوع العملية</label>
+                    <div id="stlDirectionBadge" class="h-100 d-flex align-items-center justify-content-center p-2 bg-white rounded border shadow-sm" style="border-color: #d1d3e2;">--</div>
+                </div>
+           </div>
+           <div class="col-md-6">
+                <div class="form-group mb-3">
+                    <label class="text-secondary font-weight-bold small text-uppercase">طريقة الدفع</label>
+                    <select id="stlMethod" class="custom-select font-weight-bold text-dark shadow-sm rounded" style="border-color: #d1d3e2; background-color: #ffffff;">
+                        <option value="cash">نقداً</option>
+                        <option value="bank">تحويل بنكي</option>
+                        <option value="cheque">شيك</option>
+                        <option value="card">بطاقة</option>
+                        <option value="online">إلكتروني</option>
+                    </select>
+                </div>
+           </div>
         </div>
+
         <input type="hidden" id="stlEntityType">
         <input type="hidden" id="stlEntityId">
+        <input type="hidden" id="stlCurrency"> 
       </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-outline-secondary" id="stlPrint"><i class="fas fa-print ml-1"></i> طباعة</button>
-        <button type="button" class="btn btn-success" id="stlConfirm"><i class="fas fa-check ml-1"></i> إنشاء سند</button>
+      
+      <div class="modal-footer bg-white border-top pt-3 pb-3" style="border-top-color: #eaecf4 !important;">
+        <button type="button" class="btn btn-outline-secondary font-weight-bold border" id="stlPrint" style="border-color: #d1d3e2;"><i class="fas fa-print ml-1"></i> طباعة</button>
+        <button type="button" class="btn btn-info px-4 font-weight-bold shadow-sm text-white" id="stlConfirm" style="background-color: #36b9cc; border-color: #36b9cc;">
+            <i class="fas fa-check ml-1"></i> تنفيذ التسوية
+        </button>
       </div>
     </div>
   </div>

@@ -462,7 +462,7 @@
           </thead>
           <tbody>
             {% for e in ledger_entries %}
-            <tr>
+            <tr {% if e.id and e.model %}onclick="openTransaction('{{ e.id }}', '{{ e.model }}')" style="cursor: pointer;" class="clickable-row"{% endif %}>
               {# التاريخ #}
               <td style="border: 1px solid #dee2e6; padding: 8px; text-align: center;">{{ e.date|format_date }}</td>
               
@@ -760,6 +760,34 @@
     console.warn('DataTables initialization skipped:', err);
   }
   {% endif %}
+
+  // Function to open transaction details
+  window.openTransaction = function(id, model) {
+    if (!id || !model) return;
+    
+    let url = '';
+    // Note: We use 999999 as a placeholder to be replaced
+    if (model === 'sale') {
+      url = "{{ url_for('sales_bp.sale_detail', id=999999) }}".replace('999999', id);
+    } else if (model === 'service') {
+            url = "{{ url_for('service.view_request', rid=999999) }}".replace('999999', id);
+          } else if (model === 'payment') {
+            url = "{{ url_for('payments.view_payment', payment_id=999999) }}".replace('999999', id);
+          } else if (model === 'check') {
+            url = "{{ url_for('checks.check_detail', check_id=999999) }}".replace('999999', id);
+          } else if (model === 'exchange_transaction') {
+            url = "{{ url_for('warehouse_bp.transaction_detail', id=999999) }}".replace('999999', id);
+          } else if (model === 'sale_return') {
+            url = "{{ url_for('returns.view_return', return_id=999999) }}".replace('999999', id);
+          } else if (model === 'preorder') {
+            url = "{{ url_for('warehouse_bp.preorder_detail', preorder_id=999999) }}".replace('999999', id);
+          }
+    
+    if (url) {
+      window.open(url, '_blank');
+    }
+  };
+
   window.printStatementTable = function() {
     const table = document.getElementById('statementTable');
     if (!table) return;

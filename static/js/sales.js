@@ -114,10 +114,15 @@
 
     const wantsSelect2 = !!document.querySelector('#saleForm .select2');
     const select2Ready = wantsSelect2
-      ? loadJQueryOnce()
-          .then(()=>loadCssOnce('https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css'))
-          .then(()=>loadCssOnce('https://cdn.jsdelivr.net/npm/@ttskch/select2-bootstrap4-theme@1.5.2/dist/select2-bootstrap4.min.css'))
-          .then(()=>loadScriptOnce('https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js'))
+      ? loadJQueryOnce().then(() => {
+          // If Select2 is already loaded (from AdminLTE), skip CDN
+          if (window.jQuery && window.jQuery.fn && window.jQuery.fn.select2) {
+             return Promise.resolve();
+          }
+          loadCssOnce('https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css');
+          loadCssOnce('https://cdn.jsdelivr.net/npm/@ttskch/select2-bootstrap4-theme@1.5.2/dist/select2-bootstrap4.min.css');
+          return loadScriptOnce('https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js');
+      })
       : Promise.resolve();
 
     // Sortable
@@ -166,6 +171,9 @@
         $(row).find('select').each(function(){
           const $sel = $(this);
           try {
+            // تنظيف s2-initialized لضمان إعادة التهيئة
+            $sel.removeData('s2-initialized').removeAttr('data-s2-initialized');
+            
             if($sel.data('select2')){
               $sel.select2('destroy');
             }
@@ -217,6 +225,15 @@
       
       // إزالة أي span متبقي من Select2
       qsa('span[class*="select2"]', clone).forEach(el => el.remove());
+
+      // منع app.js من تهيئة Select2 على العناصر الجديدة
+      // لأننا سنقوم بتهيئتها يدوياً في bindRow
+      if(window.jQuery){
+        const $ = window.jQuery;
+        $(clone).find('select').each(function(){
+          $(this).data('s2-initialized', 1);
+        });
+      }
       
       // إعادة ترقيم الصف الجديد
       renumberRow(clone, currentMaxIndex()+1);
@@ -456,7 +473,7 @@
       set('#discountTotalDisplay', toNum(qs('#discountTotal')?.value));
       set('#baseForTax', baseForTax);
       set('#totalAmount', total);
-      const td = qs('#totalDiscount'); if(td){ td.textContent = totalDiscount.toFixed(2); }
+      set('#totalDiscount', totalDiscount);
     }
     const recalcDebounced = debounce(recalc,150);
 

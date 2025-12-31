@@ -1109,6 +1109,8 @@ def account_statement(customer_id):
         entries.append({
             "date": inv.invoice_date or inv.created_at,
             "type": "INVOICE",
+            "id": inv.id,
+            "model": "invoice",
             "ref": inv.invoice_number or f"INV-{inv.id}",
             "statement": generate_statement("INVOICE", inv),
             "debit": D(inv.total_amount or 0),  # الفاتورة = عليه (مدين)
@@ -1160,6 +1162,8 @@ def account_statement(customer_id):
         entries.append({
             "date": getattr(s, "sale_date", None) or getattr(s, "created_at", None),
             "type": "SALE",
+            "id": s.id,
+            "model": "sale",
             "ref": getattr(s, "sale_number", None) or f"SALE-{s.id}",
             "statement": generate_statement("SALE", s),
             "debit": D(s.total_amount or 0),  # البيع = عليه (مدين)
@@ -1182,6 +1186,8 @@ def account_statement(customer_id):
         entries.append({
             "date": getattr(ret, "created_at", None) or getattr(ret, "updated_at", None),
             "type": "SALE_RETURN",
+            "id": ret.id,
+            "model": "sale_return",
             "ref": f"RET-{ret.id}",
             "statement": generate_statement("SALE_RETURN", ret),
             "debit": D(0),
@@ -1205,6 +1211,8 @@ def account_statement(customer_id):
         entries.append({
             "date": getattr(srv, "completed_at", None) or getattr(srv, "created_at", None),
             "type": "SERVICE",
+            "id": srv.id,
+            "model": "service",
             "ref": getattr(srv, "service_number", None) or f"SRV-{srv.id}",
             "statement": generate_statement("SERVICE", srv),
             "debit": service_total,
@@ -1230,6 +1238,8 @@ def account_statement(customer_id):
             entries.append({
                 "date": pre.preorder_date or pre.created_at or datetime.now(),
                 "type": "PREORDER",
+                "id": pre.id,
+                "model": "preorder",
                 "ref": preorder_ref,
                 "statement": generate_statement("PREORDER", pre),
                 "debit": total_amount,
@@ -1241,6 +1251,8 @@ def account_statement(customer_id):
             entries.append({
                 "date": pre.preorder_date or pre.created_at or datetime.now(),
                 "type": "PREPAID",
+                "id": pre.id,
+                "model": "preorder",
                 "ref": preorder_ref,
                 "statement": f"عربون حجز {preorder_ref}",
                 "debit": D(0),
@@ -1263,6 +1275,8 @@ def account_statement(customer_id):
         entries.append({
             "date": op.created_at,
             "type": "ONLINE_PREORDER",
+            "id": op.id,
+            "model": "online_preorder",
             "ref": getattr(op, "order_number", None) or f"ONL-{op.id}",
             "statement": f"طلب أونلاين - {getattr(op, 'order_number', None) or f'ONL-{op.id}'}",
             "debit": total_amount,
@@ -1274,6 +1288,8 @@ def account_statement(customer_id):
             entries.append({
                 "date": op.created_at,
                 "type": "ONLINE_PREPAID",
+                "id": op.id,
+                "model": "online_preorder",
                 "ref": getattr(op, "order_number", None) or f"ONL-{op.id}",
                 "statement": f"دفعة مقدمة - طلب أونلاين {getattr(op, 'order_number', None) or f'ONL-{op.id}'}",
                 "debit": D(0),
@@ -1933,6 +1949,8 @@ def account_statement(customer_id):
                     entries.append({
                         "date": getattr(p, "payment_date", None) or getattr(p, "created_at", None),
                         "type": split_entry_type,
+                        "id": p.id,
+                        "model": "payment",
                         "ref": f"SPLIT-{split.id}-PMT-{p.id}",
                         "statement": split_statement,
                         "debit": split_debit,
@@ -1984,6 +2002,8 @@ def account_statement(customer_id):
                 entries.append({
                     "date": getattr(p, "payment_date", None) or getattr(p, "created_at", None),
                     "type": entry_type,
+                    "id": p.id,
+                    "model": "payment",
                     "ref": getattr(p, "payment_number", None) or getattr(p, "receipt_number", None) or f"PMT-{p.id}",
                     "statement": payment_statement,
                     "debit": debit_val,
@@ -2149,6 +2169,8 @@ def account_statement(customer_id):
         entries.append({
             "date": check.check_date or check.created_at,
             "type": entry_type,
+            "id": check.id,
+            "model": "check",
             "ref": f"CHK-{check.id}",
             "statement": payment_statement,
             "debit": debit_val,
@@ -2257,6 +2279,8 @@ def account_statement(customer_id):
         entries.append({
             "date": exp.date or exp.created_at,
             "type": entry_type,
+            "id": exp.id,
+            "model": "expense",
             "ref": f"EXP-{exp.id}",
             "statement": statement,
             "debit": debit_val,

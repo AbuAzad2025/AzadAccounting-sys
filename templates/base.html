@@ -503,6 +503,34 @@
     
     
     
+    /* Sidebar Hidden State (Full Hide) - High Specificity Override */
+    html body.sidebar-hidden .main-sidebar,
+    html body.sidebar-hidden.sidebar-mini .main-sidebar,
+    html body.sidebar-hidden.sidebar-collapse .main-sidebar,
+    html body.sidebar-hidden.sidebar-open .main-sidebar {
+      display: none !important;
+      width: 0 !important;
+      transform: translateX(-100%) !important;
+      visibility: hidden !important;
+    }
+
+    html body.sidebar-hidden .content-wrapper,
+    html body.sidebar-hidden .main-footer,
+    html body.sidebar-hidden .main-header.navbar,
+    html body.sidebar-hidden[data-sidebar-position] .content-wrapper,
+    html body.sidebar-hidden[data-sidebar-position] .main-footer,
+    html body.sidebar-hidden[data-sidebar-position] .main-header.navbar {
+      margin-left: 0 !important;
+      margin-right: 0 !important;
+      width: 100% !important;
+      max-width: 100% !important;
+    }
+
+    /* Force hide overlay on mobile if exists */
+    body.sidebar-hidden .sidebar-overlay {
+      display: none !important;
+    }
+
     /* Sidebar Collapse على Mobile */
     @media (max-width: 991.98px) {
       body.sidebar-collapse .main-sidebar {
@@ -824,6 +852,28 @@ function applySidebarPosition(position) {
   
   if (!sidebar) {
     console.error('❌ Sidebar not found!');
+    return;
+  }
+  
+  // CHECK FOR FULL HIDDEN STATE
+  if (body.classList.contains('sidebar-hidden')) {
+    console.log('🙈 Sidebar is fully hidden - forcing 100% width');
+    if (contentWrapper) {
+      contentWrapper.style.setProperty('margin-left', '0', 'important');
+      contentWrapper.style.setProperty('margin-right', '0', 'important');
+      contentWrapper.style.setProperty('width', '100%', 'important');
+      contentWrapper.style.setProperty('max-width', '100%', 'important');
+    }
+    if (navbar) {
+      navbar.style.setProperty('margin-left', '0', 'important');
+      navbar.style.setProperty('margin-right', '0', 'important');
+      navbar.style.setProperty('width', '100%', 'important');
+    }
+    if (footer) {
+      footer.style.setProperty('margin-left', '0', 'important');
+      footer.style.setProperty('margin-right', '0', 'important');
+      footer.style.setProperty('width', '100%', 'important');
+    }
     return;
   }
   

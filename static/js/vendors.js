@@ -340,6 +340,7 @@ var partnersRequestSeq = 0;
       balance: document.getElementById("stlBalance"),
       amount: document.getElementById("stlAmount"),
       currency: document.getElementById("stlCurrency"),
+      currencyBadge: document.getElementById("stlCurrencyBadge"),
       method: document.getElementById("stlMethod"),
       direction: document.getElementById("stlDirectionBadge"),
       entityId: document.getElementById("stlEntityId"),
@@ -360,6 +361,7 @@ var partnersRequestSeq = 0;
     dom.amount.setAttribute("autocomplete", "off");
     dom.amount.setAttribute("dir", "ltr");
     dom.currency.value = String(payload.currency || "ILS").toUpperCase();
+    if (dom.currencyBadge) dom.currencyBadge.textContent = dom.currency.value;
     dom.entityId.value = payload.id || "";
     dom.entityType.value = String(payload.entityType || "").toUpperCase();
     dom.direction.innerHTML = directionBadge(dir);

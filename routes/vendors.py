@@ -274,6 +274,7 @@ def suppliers_list():
         pay_url=url_for("payments.create_payment"),
         summary=summary,
         quick_service=quick_service,
+        csrf_token_value=generate_csrf(),
     )
 
 @vendors_bp.route("/suppliers/new", methods=["GET", "POST"], endpoint="suppliers_create")
@@ -464,6 +465,8 @@ def suppliers_statement(supplier_id: int):
             # توريد = حقوق المورد = دائن (credit) لأن الرصيد يصبح أكثر سالبية
             statement = f"توريد {prod_name} - كمية: {qty}"
             entries.append({
+                "id": tx.id,
+                "model": "exchange_transaction",
                 "date": d, 
                 "type": "PURCHASE", 
                 "ref": f"توريد قطع #{tx.id}", 
@@ -480,6 +483,8 @@ def suppliers_statement(supplier_id: int):
             # مرتجع = يقلل حقوق المورد = مدين (debit) لأن الرصيد يصبح أقل سالبية
             statement = f"مرتجع {prod_name} - كمية: {qty}"
             entries.append({
+                "id": tx.id,
+                "model": "exchange_transaction",
                 "date": d, 
                 "type": "RETURN", 
                 "ref": f"مرتجع قطع #{tx.id}", 
@@ -495,6 +500,8 @@ def suppliers_statement(supplier_id: int):
         elif dirv in {"SETTLEMENT", "ADJUST"}:
             statement = f"تسوية مخزون {prod_name} - كمية: {qty}"
             entries.append({
+                "id": tx.id,
+                "model": "exchange_transaction",
                 "date": d, 
                 "type": "SETTLEMENT", 
                 "ref": f"تسوية مخزون #{tx.id}", 
@@ -552,6 +559,8 @@ def suppliers_statement(supplier_id: int):
             
             statement = f"مبيعات للمورد - {ref}"
             entries.append({
+                "id": sale.id,
+                "model": "sale",
                 "date": d, 
                 "type": "SALE", 
                 "ref": ref, 
@@ -618,8 +627,10 @@ def suppliers_statement(supplier_id: int):
             
             statement = f"صيانة للمورد - {ref}"
             entries.append({
+                "id": service.id,
+                "model": "service",
                 "date": d, 
-                "type": "SERVICE", 
+                "type": "SERVICE",  
                 "ref": ref, 
                 "statement": statement, 
                 "debit": amt, 
@@ -672,6 +683,8 @@ def suppliers_statement(supplier_id: int):
             
             statement = f"حجز مسبق للمورد - {ref}"
             entries.append({
+                "id": preorder.id,
+                "model": "preorder",
                 "date": d, 
                 "type": "PREORDER", 
                 "ref": ref, 
@@ -720,6 +733,8 @@ def suppliers_statement(supplier_id: int):
             
             statement_prepaid = f"عربون حجز مسبق - {ref_prepaid}"
             entries.append({
+                "id": preorder.id,
+                "model": "preorder",
                 "date": d, 
                 "type": "PREPAID", 
                 "ref": ref_prepaid, 
@@ -770,6 +785,8 @@ def suppliers_statement(supplier_id: int):
             ref_return = f"مرتجع #{sale_return.id}"
             statement_return = f"مرتجع مبيعات للمورد - {ref_return}"
             entries.append({
+                "id": sale_return.id,
+                "model": "sale_return",
                 "date": d, 
                 "type": "SALE_RETURN", 
                 "ref": ref_return, 
@@ -1210,6 +1227,8 @@ def suppliers_statement(supplier_id: int):
                 
                 # إضافة الـ split كدفعة منفصلة
                 entries.append({
+                    "id": pmt.id,
+                    "model": "payment",
                     "date": d,
                     "type": split_entry_type,
                     "ref": f"SPLIT-{split.id}-PMT-{pmt.id}",
@@ -1240,6 +1259,8 @@ def suppliers_statement(supplier_id: int):
                         returned_credit = D(0)
                     
                     entries.append({
+                        "id": getattr(split_check, 'id', None) if split_check else None,
+                        "model": "check",
                         "date": (split_check.check_date if split_check else None) or d,
                         "type": "CHECK_RETURNED",
                         "ref": f"SPLIT-RETURN-{split.id}-CHK-{getattr(split_check, 'id', 'NA')}",
@@ -1266,6 +1287,8 @@ def suppliers_statement(supplier_id: int):
             credit_val = Decimal("0.00") if is_out else amt
             
             entries.append({
+                "id": pmt.id,
+                "model": "payment",
                 "date": d,
                 "type": entry_type,
                 "ref": ref,
@@ -1308,6 +1331,8 @@ def suppliers_statement(supplier_id: int):
                         returned_credit = D(0)
                     
                     entries.append({
+                        "id": check.id,
+                        "model": "check",
                         "date": check.check_date or d,
                         "type": "CHECK_RETURNED",
                         "ref": f"CHK-{check.id}",
@@ -1364,7 +1389,16 @@ def suppliers_statement(supplier_id: int):
             product = getattr(loan, "product", None)
             if product:
                 statement = f"تسوية قرض - {product.name}"
-        entries.append({"date": d, "type": "SETTLEMENT", "ref": ref, "statement": statement, "debit": Decimal("0.00"), "credit": amt})
+        entries.append({
+            "id": s.id,
+            "model": "supplier_loan_settlement",
+            "date": d, 
+            "type": "SETTLEMENT", 
+            "ref": ref, 
+            "statement": statement, 
+            "debit": Decimal("0.00"), 
+            "credit": amt
+        })
         total_credit += amt
         pid = getattr(getattr(s, "loan", None), "product_id", None)
         if pid in per_product:
@@ -1419,6 +1453,8 @@ def suppliers_statement(supplier_id: int):
         if is_supplier_service:
             # توريد خدمة = حقوق المورد = دائن (credit) لأن الرصيد يصبح أكثر سالبية
             entries.append({
+                "id": exp.id,
+                "model": "expense",
                 "date": d,
                 "type": "EXPENSE",
                 "ref": ref,
@@ -1430,6 +1466,8 @@ def suppliers_statement(supplier_id: int):
         else:
             # مصروف عادي = دفعنا له = مدين (debit) لأن الرصيد يصبح أقل سالبية
             entries.append({
+                "id": exp.id,
+                "model": "expense",
                 "date": d,
                 "type": "EXPENSE",
                 "ref": ref,
@@ -1594,6 +1632,7 @@ def suppliers_statement(supplier_id: int):
                     opening_date = first_entry_date - timedelta(days=1)
         
         opening_entry = {
+            "model": "opening_balance",
             "date": opening_date,
             "type": "OPENING_BALANCE",
             "ref": "OB-SUP-000",
@@ -2210,6 +2249,8 @@ def partners_statement(partner_id: int):
             if total_partner_share_decimal > 0:
                 statement = f"نسبة ربح من مبيعات - {ref}"
                 entries.append({
+                    "id": sale.id,
+                    "model": "sale",
                     "date": d, 
                     "type": "PARTNER_SALE_SHARE", 
                     "ref": ref, 
@@ -2263,6 +2304,8 @@ def partners_statement(partner_id: int):
                     }]
                     
                     entries.append({
+                        "id": return_item.get('reference_number'),
+                        "model": "sale_return",
                         "date": return_date,
                         "type": "PARTNER_SALE_RETURN",
                         "ref": ref_return,
@@ -2339,6 +2382,8 @@ def partners_statement(partner_id: int):
             
             statement = f"صيانة للشريك - {ref}"
             entries.append({
+                "id": service.id,
+                "model": "service",
                 "date": d, 
                 "type": "SERVICE", 
                 "ref": ref, 
@@ -2639,6 +2684,8 @@ def partners_statement(partner_id: int):
                     
                     # إضافة الـ split كدفعة منفصلة
                     entries.append({
+                        "id": p.id,
+                        "model": "payment",
                         "date": d,
                         "type": split_entry_type,
                         "ref": f"SPLIT-{split.id}-PMT-{p.id}",
@@ -2656,6 +2703,8 @@ def partners_statement(partner_id: int):
             if is_out:
                 entry_type = "CHECK_BOUNCED" if is_bounced else ("CHECK_PENDING" if is_pending and method_raw == 'cheque' else "PAYMENT_OUT")
                 entries.append({
+                    "id": p.id,
+                    "model": "payment",
                     "date": d,
                     "type": entry_type,
                     "ref": ref,
@@ -2672,6 +2721,8 @@ def partners_statement(partner_id: int):
             else:
                 entry_type = "CHECK_BOUNCED" if is_bounced else ("CHECK_PENDING" if is_pending and method_raw == 'cheque' else "PAYMENT_IN")
                 entries.append({
+                    "id": p.id,
+                    "model": "payment",
                     "date": d,
                     "type": entry_type,
                     "ref": ref,
@@ -2722,6 +2773,8 @@ def partners_statement(partner_id: int):
             statement += f" - {exp.description}"
         
         entries.append({
+            "id": exp.id,
+            "model": "expense",
             "date": d,
             "type": "EXPENSE",
             "ref": ref,

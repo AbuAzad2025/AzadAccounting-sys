@@ -1897,7 +1897,7 @@ def view_payment(payment_id: int):
         if _wants_json():
             return jsonify(error="not_found", message="السند غير موجود"), 404
         flash("السند غير موجود", "error")
-        return redirect(url_for("payments_bp.index"))
+        return redirect(url_for("payments.index"))
     
     if _wants_json():
         return jsonify(payment=_serialize_payment(payment, full=True))

@@ -1,0 +1,147 @@
+{% extends 'base.html' %}
+{% block title %}تفاصيل الحركة المخزونية #{{ transaction.id }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4" dir="rtl">
+  
+  <!-- شريط الأدوات -->
+  <div class="card shadow-sm mb-4">
+    <div class="card-header bg-info text-white">
+      <div class="d-flex justify-content-between align-items-center">
+        <h3 class="mb-0">
+          <i class="fas fa-box-open ml-2"></i>
+          تفاصيل الحركة المخزونية #{{ transaction.id }}
+        </h3>
+        <div class="d-flex gap-2">
+            {% if request.referrer %}
+            <a href="{{ request.referrer }}" class="btn btn-outline-light">
+                <i class="fas fa-arrow-right ml-1"></i> رجوع
+            </a>
+            {% else %}
+            <a href="{{ url_for('warehouse_bp.index') }}" class="btn btn-outline-light">
+                <i class="fas fa-arrow-right ml-1"></i> رجوع
+            </a>
+            {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="row">
+    <div class="col-md-8">
+        <div class="card card-outline card-info shadow-sm mb-4">
+            <div class="card-header bg-light">
+            <h5 class="card-title mb-0 text-info">
+                <i class="fas fa-info-circle ml-2"></i>معلومات الحركة
+            </h5>
+            </div>
+
+            <div class="card-body">
+            <dl class="row mb-0">
+                <dt class="col-sm-4 text-end">رقم الحركة</dt>
+                <dd class="col-sm-8">#{{ transaction.id }}</dd>
+
+                <dt class="col-sm-4 text-end">التاريخ</dt>
+                <dd class="col-sm-8">{{ transaction.created_at|format_datetime }}</dd>
+
+                <dt class="col-sm-4 text-end">المنتج</dt>
+                <dd class="col-sm-8">
+                    {% if transaction.product %}
+                        <a href="{{ url_for('warehouse_bp.product_details', product_id=transaction.product_id) }}" target="_blank">
+                            {{ transaction.product.name }}
+                        </a>
+                        <span class="text-muted small">({{ transaction.product.part_number or '---' }})</span>
+                    {% else %}
+                        <span class="text-danger">منتج محذوف</span>
+                    {% endif %}
+                </dd>
+
+                <dt class="col-sm-4 text-end">المستودع</dt>
+                <dd class="col-sm-8">{{ transaction.warehouse.name if transaction.warehouse else '—' }}</dd>
+
+                <dt class="col-sm-4 text-end">النوع/الاتجاه</dt>
+                <dd class="col-sm-8">
+                    {% if transaction.direction in ['IN', 'PURCHASE', 'CONSIGN_IN'] %}
+                        <span class="badge bg-success">توريد / إدخال (IN)</span>
+                    {% elif transaction.direction in ['OUT', 'RETURN', 'CONSIGN_OUT'] %}
+                        <span class="badge bg-danger">صرف / إخراج (OUT)</span>
+                    {% else %}
+                        <span class="badge bg-secondary">{{ transaction.direction }}</span>
+                    {% endif %}
+                </dd>
+
+                <dt class="col-sm-4 text-end">الكمية</dt>
+                <dd class="col-sm-8 fs-5 fw-bold">{{ transaction.quantity }}</dd>
+
+                <dt class="col-sm-4 text-end">سعر الوحدة</dt>
+                <dd class="col-sm-8">
+                    {% if transaction.unit_cost %}
+                        {{ transaction.unit_cost|number_format(2) }} 
+                        {% if transaction.product and transaction.product.currency %}{{ transaction.product.currency }}{% endif %}
+                    {% else %}
+                        <span class="text-muted">غير مسعر</span>
+                    {% endif %}
+                </dd>
+
+                <dt class="col-sm-4 text-end">الإجمالي</dt>
+                <dd class="col-sm-8">
+                    {% if transaction.unit_cost and transaction.quantity %}
+                        {{ (transaction.unit_cost * transaction.quantity)|number_format(2) }}
+                    {% else %}
+                        —
+                    {% endif %}
+                </dd>
+                
+                <dt class="col-sm-4 text-end">المورد</dt>
+                <dd class="col-sm-8">
+                    {% if transaction.supplier %}
+                        <a href="{{ url_for('reports.supplier_detail_report', supplier_id=transaction.supplier_id) }}" target="_blank">
+                            {{ transaction.supplier.name }}
+                        </a>
+                    {% else %}—{% endif %}
+                </dd>
+
+                <dt class="col-sm-4 text-end">الشريك</dt>
+                <dd class="col-sm-8">
+                    {% if transaction.partner %}
+                        <a href="{{ url_for('reports.partner_detail_report', partner_id=transaction.partner_id) }}" target="_blank">
+                            {{ transaction.partner.name }}
+                        </a>
+                    {% else %}—{% endif %}
+                </dd>
+
+                <dt class="col-sm-4 text-end">ملاحظات</dt>
+                <dd class="col-sm-8 text-muted">{{ transaction.notes or 'لا توجد ملاحظات' }}</dd>
+            </dl>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <!-- معلومات إضافية أو روابط ذات صلة -->
+        <div class="card shadow-sm">
+            <div class="card-header bg-light">
+                <h6 class="mb-0">معلومات المنتج الحالية</h6>
+            </div>
+            <div class="card-body">
+                {% if transaction.product %}
+                <dl class="row mb-0 small">
+                    <dt class="col-6">الكمية الحالية:</dt>
+                    <dd class="col-6">{{ transaction.product.quantity }}</dd>
+                    
+                    <dt class="col-6">سعر البيع:</dt>
+                    <dd class="col-6">{{ transaction.product.selling_price }}</dd>
+                    
+                    <dt class="col-6">الموقع:</dt>
+                    <dd class="col-6">{{ transaction.product.location or '—' }}</dd>
+                </dl>
+                {% else %}
+                <p class="text-muted mb-0">المنتج غير متوفر</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

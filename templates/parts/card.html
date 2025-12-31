@@ -104,9 +104,11 @@
               <tr class="text-center">
                 <th>التاريخ</th>
                 <th>الاتجاه</th>
-                <th>الشريك/التاجر</th>
+                <th>المستودع</th>
+                <th>الجهة (مورد/شريك)</th>
                 <th class="text-end">الكمية</th>
                 <th class="text-end">تكلفة للوحدة</th>
+                <th class="text-end">الإجمالي</th>
                 <th>مُسعَّر؟</th>
                 <th>ملاحظات</th>
               </tr>
@@ -120,17 +122,35 @@
                     {% elif e.direction == 'OUT' %}صادر
                     {% else %}—{% endif %}
                   </td>
-                  <td class="text-center">{{ e.partner and e.partner.name or '—' }}</td>
+                  <td class="text-center">{{ e.warehouse and e.warehouse.name or '—' }}</td>
+                  <td class="text-center">
+                    {% if e.partner %}
+                      <a href="{{ url_for('partners.partner_detail', partner_id=e.partner.id) }}">{{ e.partner.name }}</a>
+                      <span class="badge bg-info text-dark">شريك</span>
+                    {% elif e.supplier %}
+                      <a href="{{ url_for('reports.supplier_detail_report', supplier_id=e.supplier.id) }}">{{ e.supplier.name }}</a>
+                      <span class="badge bg-secondary">مورد</span>
+                    {% else %}
+                      —
+                    {% endif %}
+                  </td>
                   <td class="text-end">{{ e.quantity }}</td>
                   <td class="text-end">
                     {% set uc = e.unit_cost|default(None, true) %}
                     {{ uc is not none and ('%.2f'|format(uc|float)) or '—' }}
                   </td>
+                  <td class="text-end">
+                    {% if e.quantity and e.unit_cost is not none %}
+                      {{ '%.2f'|format((e.quantity|float) * (e.unit_cost|float)) }}
+                    {% else %}
+                      —
+                    {% endif %}
+                  </td>
                   <td class="text-center">{{ (e.is_priced|default(false, true)) and 'نعم' or 'لا' }}</td>
                   <td>{{ e.notes or '—' }}</td>
                 </tr>
               {% else %}
-                <tr><td colspan="7" class="text-center text-muted">لا توجد تبادلات</td></tr>
+                <tr><td colspan="9" class="text-center text-muted">لا توجد تبادلات</td></tr>
               {% endfor %}
             </tbody>
           </table>

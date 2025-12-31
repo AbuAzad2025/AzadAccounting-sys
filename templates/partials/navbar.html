@@ -2,9 +2,15 @@
   
   <ul class="navbar-nav">
     <li class="nav-item">
-      <a class="nav-link nav-strong" data-widget="pushmenu" href="#" role="button" title="القائمة الجانبية">
+      <a class="nav-link nav-strong" data-widget="pushmenu" href="#" role="button" title="تصغير القائمة">
         <i class="fas fa-bars"></i>
       </a>
+    </li>
+    
+    <li class="nav-item">
+      <button class="nav-link btn btn-link text-white nav-strong" onclick="toggleSidebarFull()" title="إخفاء/إظهار القائمة بالكامل" style="border: none; background: none;">
+        <i class="fas fa-expand-arrows-alt" id="sidebar-full-toggle-icon"></i>
+      </button>
     </li>
     
     <li class="nav-item">
@@ -291,6 +297,70 @@
 </style>
 
 <script>
+// التحكم في إخفاء/إظهار القائمة الجانبية بالكامل
+function toggleSidebarFull() {
+    const body = document.body;
+    const icon = document.getElementById('sidebar-full-toggle-icon');
+    
+    // تبديل الكلاس
+    const isHidden = body.classList.toggle('sidebar-hidden');
+    
+    // في حالة الموبايل، نغلق القائمة المفتوحة أيضاً
+    if (isHidden && body.classList.contains('sidebar-open')) {
+        body.classList.remove('sidebar-open');
+        body.classList.add('sidebar-closed');
+    }
+
+    // تحديث الأيقونة وحفظ الحالة
+    if (isHidden) {
+        if (icon) {
+            icon.classList.remove('fa-compress-arrows-alt');
+            icon.classList.add('fa-expand-arrows-alt');
+        }
+        localStorage.setItem('sidebar_full_hidden', 'true');
+    } else {
+        if (icon) {
+            icon.classList.remove('fa-expand-arrows-alt');
+            icon.classList.add('fa-compress-arrows-alt');
+        }
+        localStorage.setItem('sidebar_full_hidden', 'false');
+    }
+    
+    // تطبيق التغييرات فوراً باستخدام الدالة الموجودة في base.html
+    if (typeof applySidebarPosition === 'function') {
+        const currentPos = localStorage.getItem('sidebarPosition') || 'left';
+        applySidebarPosition(currentPos);
+    }
+
+    // إجبار إعادة حساب المخطط (Layout) بشكل متكرر لضمان استجابة المكتبات
+    const triggerResize = () => window.dispatchEvent(new Event('resize'));
+    triggerResize();
+    setTimeout(triggerResize, 100);
+    setTimeout(triggerResize, 300);
+    setTimeout(triggerResize, 500);
+}
+
+// استعادة حالة القائمة عند التحميل
+document.addEventListener('DOMContentLoaded', function() {
+    const isHidden = localStorage.getItem('sidebar_full_hidden') === 'true';
+    if (isHidden) {
+        document.body.classList.add('sidebar-hidden');
+        const icon = document.getElementById('sidebar-full-toggle-icon');
+        if (icon) {
+            icon.classList.remove('fa-compress-arrows-alt');
+            icon.classList.add('fa-expand-arrows-alt');
+        }
+
+        // تطبيق التغييرات فوراً لضمان عدم حدوث تعارض
+        if (typeof applySidebarPosition === 'function') {
+            setTimeout(() => {
+                const currentPos = localStorage.getItem('sidebarPosition') || 'left';
+                applySidebarPosition(currentPos);
+            }, 50);
+        }
+    }
+});
+
 // تحديث الوقت والتاريخ
 function updateDateTime() {
     const now = new Date();
