@@ -1592,11 +1592,6 @@ class AuthAudit(db.Model):
 
     user = relationship("User", backref=db.backref("auth_events", lazy="dynamic"))
 
-    __table_args__ = (
-        db.Index("ix_supplier_settle_closing_balance", "closing_balance"),
-        db.Index("ix_supplier_settle_total_due", "total_due"),
-        db.Index("ix_supplier_settle_opening_balance", "opening_balance"),
-    )
 
 
 def _auth_log(
