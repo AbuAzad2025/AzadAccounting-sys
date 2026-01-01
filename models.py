@@ -1592,7 +1592,11 @@ class AuthAudit(db.Model):
 
     user = relationship("User", backref=db.backref("auth_events", lazy="dynamic"))
 
-    __table_args__ = ()
+    __table_args__ = (
+        db.Index("ix_supplier_settle_closing_balance", "closing_balance"),
+        db.Index("ix_supplier_settle_total_due", "total_due"),
+        db.Index("ix_supplier_settle_opening_balance", "opening_balance"),
+    )
 
 
 def _auth_log(
@@ -2708,7 +2712,11 @@ class SupplierSettlement(db.Model, TimestampMixin, AuditMixin):
     previous_settlement = db.relationship("SupplierSettlement", remote_side=[id], foreign_keys=[previous_settlement_id], backref="next_settlements")
     approved_by_user = db.relationship("User", foreign_keys=[approved_by])
 
-    __table_args__ = ()
+    __table_args__ = (
+        db.Index("ix_supplier_settle_closing_balance", "closing_balance"),
+        db.Index("ix_supplier_settle_total_due", "total_due"),
+        db.Index("ix_supplier_settle_opening_balance", "opening_balance"),
+    )
 
     @validates("status", "mode")
     def _v_str_enums(self, _, v):

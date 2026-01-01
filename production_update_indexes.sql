@@ -144,6 +144,12 @@ DROP INDEX IF EXISTS ix_stock_levels_wh_prod;
 
 CREATE INDEX IF NOT EXISTS ix_stock_quantity ON stock_levels (quantity);
 
+CREATE INDEX IF NOT EXISTS ix_supplier_settle_closing_balance ON supplier_settlements (closing_balance);
+
+CREATE INDEX IF NOT EXISTS ix_supplier_settle_opening_balance ON supplier_settlements (opening_balance);
+
+CREATE INDEX IF NOT EXISTS ix_supplier_settle_total_due ON supplier_settlements (total_due);
+
 CREATE INDEX IF NOT EXISTS ix_supplier_settle_line_product ON supplier_settlement_lines (product_id);
 
 DROP INDEX IF EXISTS gin_suppliers_name_trgm;
