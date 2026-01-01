@@ -911,7 +911,6 @@ class Currency(db.Model):
     symbol = db.Column(db.String(10))
     decimals = db.Column(db.Integer, nullable=False, server_default=sa_text("2"), default=2)
     is_active = db.Column(db.Boolean, nullable=False, server_default=sa_text("true"), default=True)
-    __table_args__ = ()
 
 
 class DeletionLog(db.Model):
@@ -1982,6 +1981,24 @@ class Customer(db.Model, TimestampMixin, AuditMixin, UserMixin):
     __table_args__ = (
         CheckConstraint("credit_limit >= 0", name="ck_customer_credit_limit_non_negative"),
         CheckConstraint("discount_rate >= 0 AND discount_rate <= 100", name="ck_customer_discount_0_100"),
+        Index("ix_customers_active_name", "is_active", "name"),
+        Index("ix_customers_online_active", "is_online", "is_active"),
+        Index("ix_customers_opening_balance", "opening_balance"),
+        Index("ix_customers_credit_limit", "credit_limit"),
+        Index("ix_customers_sales_balance", "sales_balance"),
+        Index("ix_customers_returns_balance", "returns_balance"),
+        Index("ix_customers_invoices_balance", "invoices_balance"),
+        Index("ix_customers_services_balance", "services_balance"),
+        Index("ix_customers_preorders_balance", "preorders_balance"),
+        Index("ix_customers_online_orders_balance", "online_orders_balance"),
+        Index("ix_customers_payments_in_balance", "payments_in_balance"),
+        Index("ix_customers_payments_out_balance", "payments_out_balance"),
+        Index("ix_customers_checks_in_balance", "checks_in_balance"),
+        Index("ix_customers_checks_out_balance", "checks_out_balance"),
+        Index("ix_customers_returned_checks_in_balance", "returned_checks_in_balance"),
+        Index("ix_customers_returned_checks_out_balance", "returned_checks_out_balance"),
+        Index("ix_customers_expenses_balance", "expenses_balance"),
+        Index("ix_customers_service_expenses_balance", "service_expenses_balance"),
     )
 
     @property
@@ -2393,7 +2410,11 @@ class Supplier(db.Model, TimestampMixin, AuditMixin):
     loan_settlements = db.relationship("SupplierLoanSettlement", back_populates="supplier", cascade="all, delete-orphan")
     archived_by_user = db.relationship("User", foreign_keys=[archived_by])
 
-    __table_args__ = ()
+    __table_args__ = (
+        db.Index("ix_supp_name_active", "name", "is_archived"),
+        db.Index("ix_supp_contact", "contact"),
+        db.Index("ix_supp_opening_balance", "opening_balance"),
+    )
 
     @validates("email")
     def _v_email(self, _, v):
@@ -2749,7 +2770,9 @@ class SupplierSettlementLine(db.Model, TimestampMixin):
     settlement = db.relationship("SupplierSettlement", back_populates="lines")
     product = db.relationship("Product")
 
-    __table_args__ = ()
+    __table_args__ = (
+        db.Index("ix_supplier_settle_line_product", "product_id"),
+    )
 
 
 def _ex_dir_sign(direction: str) -> int:
@@ -3011,7 +3034,9 @@ class Partner(db.Model, TimestampMixin, AuditMixin):
     service_tasks = db.relationship("ServiceTask", back_populates="partner")
     expenses = db.relationship("Expense", back_populates="partner")
 
-    __table_args__ = ()
+    __table_args__ = (
+        db.Index("ix_partners_opening_balance", "opening_balance"),
+    )
 
     @validates("email")
     def _v_email(self, _, v):
@@ -3298,7 +3323,11 @@ class PartnerSettlement(db.Model, TimestampMixin, AuditMixin):
     previous_settlement = db.relationship("PartnerSettlement", remote_side=[id], foreign_keys=[previous_settlement_id], backref="next_settlements")
     approved_by_user = db.relationship("User", foreign_keys=[approved_by])
 
-    __table_args__ = ()
+    __table_args__ = (
+        db.Index("ix_partner_settle_closing_balance", "closing_balance"),
+        db.Index("ix_partner_settle_total_due", "total_due"),
+        db.Index("ix_partner_settle_opening_balance", "opening_balance"),
+    )
 
     @hybrid_property
     def total_paid(self):
@@ -3408,7 +3437,10 @@ class PartnerSettlementLine(db.Model, TimestampMixin):
     product = db.relationship("Product")
     warehouse = db.relationship("Warehouse")
 
-    __table_args__ = ()
+    __table_args__ = (
+        db.Index("ix_partner_settle_line_product", "product_id"),
+        db.Index("ix_partner_settle_line_warehouse", "warehouse_id"),
+    )
 
 
 def _find_partner_share_percentage(partner_id: int, product_id: int | None, warehouse_id: int | None) -> float:
@@ -3911,6 +3943,10 @@ class Product(db.Model, TimestampMixin, AuditMixin):
         Index("uq_products_barcode", barcode, unique=True, postgresql_where=barcode.isnot(None)),
         Index("uq_products_serial_ci", func.lower(serial_no), unique=True, postgresql_where=serial_no.isnot(None)),
         Index("ix_products_category_active", "category_id", "is_active"),
+        Index("ix_products_is_published", "is_published"),
+        Index("ix_products_supplier", "supplier_id"),
+        Index("ix_products_warehouse", "warehouse_id"),
+        Index("ix_products_vehicle_type", "vehicle_type_id"),
     )
     category = relationship("ProductCategory", back_populates="products")
     vehicle_type = relationship("EquipmentType", back_populates="products")
@@ -4142,7 +4178,12 @@ class Warehouse(db.Model, TimestampMixin, AuditMixin):
     partner_shares = db.relationship('WarehousePartnerShare', back_populates='warehouse')
     expenses = db.relationship('Expense', back_populates='warehouse')
     stock_adjustments = db.relationship('StockAdjustment', back_populates='warehouse', passive_deletes=True)
-    __table_args__ = ()
+    __table_args__ = (
+        Index("ix_warehouses_parent", "parent_id"),
+        Index("ix_warehouses_supplier", "supplier_id"),
+        Index("ix_warehouses_partner", "partner_id"),
+        Index("ix_warehouses_share_percent", "share_percent"),
+    )
     @validates('name','location','notes','online_slug')
     def _v_strip(self,_,v): return (v or '').strip() or None
     @validates('warehouse_type')
@@ -4267,6 +4308,7 @@ class StockLevel(db.Model, TimestampMixin):
         db.CheckConstraint('(min_stock IS NULL OR max_stock IS NULL OR max_stock >= min_stock)', name='ck_max_ge_min'),
         db.UniqueConstraint('product_id', 'warehouse_id', name='uq_stock_product_wh'),
         db.Index('ix_stock_product_wh', 'product_id', 'warehouse_id'),
+        db.Index('ix_stock_quantity', 'quantity'),
     )
     product = db.relationship('Product', back_populates='stock_levels')
     warehouse = db.relationship('Warehouse', back_populates='stock_levels')
@@ -4605,6 +4647,7 @@ class WarehousePartnerShare(db.Model, TimestampMixin):
     __table_args__ = (
         db.UniqueConstraint('partner_id', 'warehouse_id', 'product_id', name='uq_wps_partner_wh_prod'),
         db.Index('ix_wps_partner_wh_prod', 'partner_id', 'warehouse_id', 'product_id'),
+        db.Index('ix_wps_share_percentage', 'share_percentage'),
         CheckConstraint('share_percentage >= 0 AND share_percentage <= 100', name='ck_wps_share_percentage_range'),
         CheckConstraint('share_amount >= 0', name='ck_wps_share_amount_non_negative'),
     )
@@ -4685,6 +4728,9 @@ class PreOrder(db.Model, TimestampMixin, AuditMixin):
         db.Index('ix_preorders_partner_status', 'partner_id', 'status'),
         db.Index('ix_preorders_supplier_status', 'supplier_id', 'status'),
         db.Index('ix_preorders_prod_wh', 'product_id', 'warehouse_id'),
+        db.Index('ix_preorders_date_status', 'preorder_date', 'status'),
+        db.Index('ix_preorders_pay_method', 'payment_method'),
+        db.Index('ix_preorders_prepaid', 'prepaid_amount'),
     )
     @property
     def reservation_code(self): return self.reference
@@ -5016,6 +5062,10 @@ class Sale(db.Model, TimestampMixin, AuditMixin):
         db.CheckConstraint("refunded_total >= 0", name="ck_sale_refunded_total_non_negative"),
         db.Index("ix_sales_customer_status_date", "customer_id", "status", "sale_date"),
         db.Index("ix_sales_payment_status_date", "payment_status", "sale_date"),
+        db.Index("ix_sales_seller_date", "seller_id", "sale_date"),
+        db.Index("ix_sales_archived", "is_archived", "archived_at"),
+        db.Index("ix_sales_total_amount", "total_amount"),
+        db.Index("ix_sales_balance_due", "balance_due"),
     )
 
     @hybrid_property
@@ -6067,7 +6117,12 @@ class Invoice(db.Model, TimestampMixin):
 
     gl_batches = relationship("GLBatch", primaryjoin="and_(foreign(GLBatch.source_id)==Invoice.id, GLBatch.source_type=='INVOICE')", viewonly=True, order_by="GLBatch.id", lazy="selectin")
 
-    __table_args__ = ()
+    __table_args__ = (
+        Index("ix_inv_customer_date", "customer_id", "invoice_date"),
+        Index("ix_inv_kind_date", "kind", "invoice_date"),
+        Index("ix_inv_cust_cancelled", "customer_id", "cancelled_at"),
+        Index("ix_inv_total_amount", "total_amount"),
+    )
 
     @validates("source", "kind")
     def _uppercase_enum(self, key, value):
@@ -6784,6 +6839,13 @@ class Payment(db.Model, TimestampMixin):
         db.Index("ix_pay_direction", "direction"),
         db.Index("ix_pay_currency", "currency"),
         db.Index("ix_pay_created_at", "payment_date"),
+        db.Index("ix_pay_cust_stat_dir", "customer_id", "status", "direction"),
+        db.Index("ix_pay_srv_stat_dir", "service_id", "status", "direction"),
+        db.Index("ix_pay_shp_stat_dir", "shipment_id", "status", "direction"),
+        db.Index("ix_pay_exp_stat_dir", "expense_id", "status", "direction"),
+        db.Index("ix_pay_method_date", "method", "payment_date"),
+        db.Index("ix_pay_created_by", "created_by"),
+        db.Index("ix_pay_total_amount", "total_amount"),
     )
 
     @property
@@ -8814,7 +8876,18 @@ class ServiceRequest(db.Model, TimestampMixin, AuditMixin):
 
     refund_of = db.relationship("ServiceRequest", remote_side=[id])
 
-    __table_args__ = ()
+    __table_args__ = (
+        db.Index("ix_srv_vehicle_vrn", "vehicle_vrn"),
+        db.Index("ix_srv_chassis", "chassis_number"),
+        db.Index("ix_srv_vehicle_model", "vehicle_model"),
+        db.Index("ix_srv_cust_status", "customer_id", "status"),
+        db.Index("ix_srv_mech_status", "mechanic_id", "status"),
+        db.Index("ix_srv_cost_center", "cost_center_id"),
+        db.Index("ix_srv_created_status", "created_at", "status"),
+        db.Index("ix_srv_expected_delivery", "expected_delivery"),
+        db.Index("ix_srv_completed_at", "completed_at"),
+        db.Index("ix_srv_total_amount", "total_amount"),
+    )
 
     @validates("status", "priority")
     def _v_enum_strings(self, _, v): return getattr(v, "value", v)
@@ -10805,6 +10878,7 @@ class Expense(db.Model, TimestampMixin, AuditMixin):
         db.Index("ix_expense_supplier_date", "supplier_id", "date"),
         db.Index("ix_expense_shipment_date", "shipment_id", "date"),
         db.Index("ix_expense_customer_date", "customer_id", "date"),
+        db.Index("ix_expense_amount", "amount"),
     )
 
     @validates("amount")
@@ -12038,6 +12112,7 @@ class GLBatch(db.Model, TimestampMixin):
         db.UniqueConstraint("source_type", "source_id", "purpose", name="uq_gl_source_purpose"),
         db.Index("ix_gl_entity", "entity_type", "entity_id"),
         db.Index("ix_gl_status_source", "status", "source_type", "source_id"),
+        db.Index("ix_gl_posted_status", "status", "posted_at"),
     )
 
     @validates("currency")

@@ -138,13 +138,13 @@
 
               <div class="form-group col-span-4">
                 <label for="customer_id"><i class="fas fa-user mr-1"></i> العميل <span class="text-muted">(اختياري)</span></label>
-                {{ form.customer_id(class="form-control select2 ajax-select", id="customer_id",
+                {{ form.customer_id(class="form-control header-select", id="customer_id",
                   **{'data-endpoint': url_for('api.customers'),'data-placeholder': 'اختر العميل','data-allow-clear': 1}) }}
               </div>
 
               <div class="form-group col-span-4">
                 <label for="seller_employee_id"><i class="fas fa-user-tie mr-1"></i> البائع (موظف)</label>
-                {{ form.seller_employee_id(class="form-control select2 ajax-select", id="seller_employee_id",
+                {{ form.seller_employee_id(class="form-control header-select", id="seller_employee_id",
                   **{'data-endpoint': url_for('api.search_employees'),'data-placeholder': 'اختر الموظف المسؤول','data-allow-clear': 1}) }}
               </div>
 
@@ -227,7 +227,7 @@
                         <i class="fas fa-box mr-1"></i>الصنف <span class="required">*</span>
                       </label>
                       <select name="{{ line.product_id.name }}" id="{{ line.product_id.id }}"
-                              class="form-control select2 ajax-select product-select" 
+                              class="form-control product-select" 
                               required
                               data-endpoint="{{ url_for('api.products') }}"
                               data-placeholder="اختر الصنف"
@@ -356,5 +356,5 @@
 {% block scripts %}
   {{ super() }}
   <script src="{{ url_for('static', filename='adminlte/plugins/select2/js/select2.full.min.js') }}"></script>
-  <script src="{{ url_for('static', filename='js/sales.js', v=3) }}"></script>
+  <script src="{{ url_for('static', filename='js/sales.js', v=6) }}"></script>
 {% endblock %}

@@ -39,7 +39,7 @@ def income_statement():
         end_date_dt = datetime.combine(end_date, datetime.max.time())
         
         revenue_query = db.session.query(
-            func.sum(GLEntry.credit).label('total_revenue')
+            func.sum(GLEntry.credit - GLEntry.debit).label('total_revenue')
         ).join(GLBatch).filter(
             GLBatch.status == 'POSTED',
             GLBatch.posted_at >= start_date,
@@ -47,84 +47,102 @@ def income_statement():
             Account.type == 'REVENUE'
         ).join(Account, Account.code == GLEntry.account).scalar() or 0
         
+        # تكلفة البضاعة المباعة (COGS)
+        # عادة ما تكون حسابات المصاريف التي تبدأ بـ 51
         cogs_query = db.session.query(
-            func.sum(GLEntry.debit).label('total_cogs')
+            func.sum(GLEntry.debit - GLEntry.credit).label('total_cogs')
         ).join(GLBatch).filter(
             GLBatch.status == 'POSTED',
             GLBatch.posted_at >= start_date,
             GLBatch.posted_at <= end_date_dt,
+            Account.type == 'EXPENSE',
             or_(
                 GLEntry.account.like('51%'),
                 GLEntry.account == '5105_COGS_EXCHANGE'
             )
         ).scalar() or 0
         
+        # المصاريف التشغيلية (كل المصاريف ما عدا COGS والضرائب)
         expenses_query = db.session.query(
-            func.sum(GLEntry.debit).label('total_expenses')
+            func.sum(GLEntry.debit - GLEntry.credit).label('total_expenses')
         ).join(GLBatch).filter(
             GLBatch.status == 'POSTED',
             GLBatch.posted_at >= start_date,
             GLBatch.posted_at <= end_date_dt,
             Account.type == 'EXPENSE',
-            ~GLEntry.account.like('51%')
+            ~GLEntry.account.like('51%'),
+            GLEntry.account != '5105_COGS_EXCHANGE'
         ).join(Account, Account.code == GLEntry.account).scalar() or 0
         
+        # الضرائب (فقط حسابات المصاريف الضريبية إن وجدت)
+        # ملاحظة: 2100_VAT_PAYABLE هو التزام وليس مصروف
+        # سنبحث عن حسابات مصاريف تحتوي على كلمة "Tax" أو "ضريبة"
         taxes_query = db.session.query(
-            func.sum(GLEntry.debit).label('total_taxes')
+            func.sum(GLEntry.debit - GLEntry.credit).label('total_taxes')
         ).join(GLBatch).filter(
             GLBatch.status == 'POSTED',
             GLBatch.posted_at >= start_date,
             GLBatch.posted_at <= end_date_dt,
+            Account.type == 'EXPENSE',
             or_(
-                GLEntry.account.like('21%'),
-                GLEntry.account == '2100_VAT_PAYABLE'
+                Account.name.ilike('%tax%'),
+                Account.name.ilike('%ضريبة%')
             )
-        ).scalar() or 0
+        ).join(Account, Account.code == GLEntry.account).scalar() or 0
         
         total_revenue = float(revenue_query)
         total_cogs = float(cogs_query)
         gross_profit = total_revenue - total_cogs
-        operating_expenses = float(expenses_query)
+        
+        # المصاريف التشغيلية يجب أن تستثني الضرائب المحسوبة منفصلاً لتجنب الازدواجية
+        operating_expenses = float(expenses_query) - float(taxes_query)
         operating_profit = gross_profit - operating_expenses
+        
         total_taxes = float(taxes_query)
         net_profit = operating_profit - total_taxes
         
         revenue_details = db.session.query(
             GLEntry.account,
             Account.name,
-            func.sum(GLEntry.credit).label('amount')
+            func.sum(GLEntry.credit - GLEntry.debit).label('amount')
         ).join(Account, Account.code == GLEntry.account).join(GLBatch).filter(
             GLBatch.status == 'POSTED',
             GLBatch.posted_at >= start_date,
             GLBatch.posted_at <= end_date_dt,
             Account.type == 'REVENUE'
-        ).group_by(GLEntry.account, Account.name).order_by(func.sum(GLEntry.credit).desc()).all()
+        ).group_by(GLEntry.account, Account.name).having(func.sum(GLEntry.credit - GLEntry.debit) != 0).order_by(func.sum(GLEntry.credit).desc()).all()
         
         expense_details = db.session.query(
             GLEntry.account,
             Account.name,
-            func.sum(GLEntry.debit).label('amount')
+            func.sum(GLEntry.debit - GLEntry.credit).label('amount')
         ).join(Account, Account.code == GLEntry.account).join(GLBatch).filter(
             GLBatch.status == 'POSTED',
             GLBatch.posted_at >= start_date,
             GLBatch.posted_at <= end_date_dt,
             Account.type == 'EXPENSE',
-            ~GLEntry.account.like('51%')
-        ).group_by(GLEntry.account, Account.name).order_by(func.sum(GLEntry.debit).desc()).all()
+            ~GLEntry.account.like('51%'),
+            GLEntry.account != '5105_COGS_EXCHANGE',
+            ~or_(
+                Account.name.ilike('%tax%'),
+                Account.name.ilike('%ضريبة%')
+            )
+        ).group_by(GLEntry.account, Account.name).having(func.sum(GLEntry.debit - GLEntry.credit) != 0).order_by(func.sum(GLEntry.debit).desc()).all()
         
         cogs_details = db.session.query(
             GLEntry.account,
             Account.name,
-            func.sum(GLEntry.debit).label('amount')
+            func.sum(GLEntry.debit - GLEntry.credit).label('amount')
         ).join(Account, Account.code == GLEntry.account).join(GLBatch).filter(
             GLBatch.status == 'POSTED',
             GLBatch.posted_at >= start_date,
             GLBatch.posted_at <= end_date_dt,
+            Account.type == 'EXPENSE',
             or_(
                 GLEntry.account.like('51%'),
                 GLEntry.account == '5105_COGS_EXCHANGE'
             )
-        ).group_by(GLEntry.account, Account.name).order_by(func.sum(GLEntry.debit).desc()).all()
+        ).group_by(GLEntry.account, Account.name).having(func.sum(GLEntry.debit - GLEntry.credit) != 0).order_by(func.sum(GLEntry.debit).desc()).all()
         
         data = {
             'start_date': start_date,
@@ -197,13 +215,16 @@ def balance_sheet():
             balance_date = datetime.fromisoformat(balance_date).date()
         
         # الأصول المتداولة
+        # استخدام Account.type بدلاً من الكود
         current_assets = db.session.query(
             func.sum(GLEntry.debit - GLEntry.credit).label('total')
         ).join(GLBatch).filter(
             GLBatch.status == 'POSTED',
             GLBatch.posted_at <= balance_date,
-            GLEntry.account.like('1%')  # الأصول المتداولة
-        ).scalar() or 0
+            Account.type == 'ASSET',
+            GLEntry.account.like('1%'),
+            ~GLEntry.account.like('15%') # استبعاد الأصول الثابتة افتراضاً بناءً على الكود
+        ).join(Account, Account.code == GLEntry.account).scalar() or 0
         
         # الأصول الثابتة
         fixed_assets = db.session.query(
@@ -211,8 +232,9 @@ def balance_sheet():
         ).join(GLBatch).filter(
             GLBatch.status == 'POSTED',
             GLBatch.posted_at <= balance_date,
-            GLEntry.account.like('15%')  # الأصول الثابتة
-        ).scalar() or 0
+            Account.type == 'ASSET',
+            GLEntry.account.like('15%')
+        ).join(Account, Account.code == GLEntry.account).scalar() or 0
         
         # الخصوم المتداولة
         current_liabilities = db.session.query(
@@ -220,17 +242,40 @@ def balance_sheet():
         ).join(GLBatch).filter(
             GLBatch.status == 'POSTED',
             GLBatch.posted_at <= balance_date,
-            GLEntry.account.like('2%')  # الخصوم المتداولة
-        ).scalar() or 0
+            Account.type == 'LIABILITY'
+        ).join(Account, Account.code == GLEntry.account).scalar() or 0
         
-        # حقوق الملكية
+        # حقوق الملكية (رأس المال والاحتياطيات)
         equity = db.session.query(
             func.sum(GLEntry.credit - GLEntry.debit).label('total')
         ).join(GLBatch).filter(
             GLBatch.status == 'POSTED',
             GLBatch.posted_at <= balance_date,
-            GLEntry.account.like('3%')  # حقوق الملكية
-        ).scalar() or 0
+            Account.type == 'EQUITY'
+        ).join(Account, Account.code == GLEntry.account).scalar() or 0
+        
+        # --- حساب الأرباح المحتجزة (Retained Earnings) ---
+        # هي مجموع الإيرادات - مجموع المصاريف لكل الفترات السابقة حتى تاريخ الميزانية
+        total_revenue_accumulated = db.session.query(
+            func.sum(GLEntry.credit - GLEntry.debit)
+        ).join(GLBatch).filter(
+            GLBatch.status == 'POSTED',
+            GLBatch.posted_at <= balance_date,
+            Account.type == 'REVENUE'
+        ).join(Account, Account.code == GLEntry.account).scalar() or 0
+        
+        total_expenses_accumulated = db.session.query(
+            func.sum(GLEntry.debit - GLEntry.credit)
+        ).join(GLBatch).filter(
+            GLBatch.status == 'POSTED',
+            GLBatch.posted_at <= balance_date,
+            Account.type == 'EXPENSE'
+        ).join(Account, Account.code == GLEntry.account).scalar() or 0
+        
+        retained_earnings = float(total_revenue_accumulated) - float(total_expenses_accumulated)
+        
+        # إضافة الأرباح المحتجزة إلى حقوق الملكية
+        equity = float(equity) + retained_earnings
         
         # تفاصيل الأصول مع أسماء
         assets_details = db.session.query(
@@ -240,7 +285,7 @@ def balance_sheet():
         ).join(Account, Account.code == GLEntry.account).join(GLBatch).filter(
             GLBatch.status == 'POSTED',
             GLBatch.posted_at <= balance_date,
-            GLEntry.account.like('1%')
+            Account.type == 'ASSET'
         ).group_by(GLEntry.account, Account.name).having(func.sum(GLEntry.debit - GLEntry.credit) != 0).all()
         
         # تفاصيل الخصوم وحقوق الملكية مع أسماء
@@ -251,8 +296,19 @@ def balance_sheet():
         ).join(Account, Account.code == GLEntry.account).join(GLBatch).filter(
             GLBatch.status == 'POSTED',
             GLBatch.posted_at <= balance_date,
-            or_(GLEntry.account.like('2%'), GLEntry.account.like('3%'))
+            or_(Account.type == 'LIABILITY', Account.type == 'EQUITY')
         ).group_by(GLEntry.account, Account.name).having(func.sum(GLEntry.credit - GLEntry.debit) != 0).all()
+        
+        # إضافة سطر الأرباح المحتجزة إلى التفاصيل يدوياً
+        if abs(retained_earnings) > 0.001:
+            # تحويل القائمة إلى قائمة قابلة للتعديل (لأن SQLAlchemy ترجع tuples غير قابلة للتعديل أو كائنات خاصة)
+            # ولكن هنا نرجع كائنات Row، لذا سنقوم بإنشاء قائمة جديدة من القواميس أو الكائنات المشابهة
+            # الأسهل هو التعامل معها في الـ Template أو تحويلها هنا
+            pass # سيتم التعامل معها عند العرض أو إضافتها ككائن وهمي إذا لزم الأمر
+            
+            # لغايات العرض في JSON والـ Template، سنقوم بدمجها
+            # لكن assets_details و liabilities_equity_details هي قوائم من النتائج
+            # سنقوم بتحويلها لقواميس في مرحلة JSON، وفي الـ Template يمكننا إضافة سطر إضافي
         
         total_assets = float(current_assets) + float(fixed_assets)
         total_liabilities_equity = float(current_liabilities) + float(equity)
@@ -707,6 +763,11 @@ def trial_balance():
         customers_total = db.session.query(
             func.coalesce(func.sum(Customer.current_balance), 0)
         ).scalar() or 0
+        # الرصيد في المودل موجب يعني أن العميل مدين لنا (أصل)
+        # ولكن في قاعدة البيانات (customers table) الرصيد الموجب يعني أن العميل له رصيد عندنا (التزام)
+        # والسالب يعني أن العميل عليه رصيد لنا (أصل)
+        # بينما في GL (1100_AR) الرصيد المدين (الأصل) موجب
+        # لذلك يجب عكس إشارة رصيد المودل ليتطابق مع GL
         ar_model_balance = -float(customers_total)
         
         suppliers_total = db.session.query(
@@ -719,18 +780,44 @@ def trial_balance():
         
         ap_model_balance = float(suppliers_total) + float(partners_total)
         
+        # حساب التسويات اليدوية (Manual Adjustments) لحسابات الذمم
+        # هذا ضروري لأن القيود اليدوية لا تحدث أرصدة العملاء/الموردين في المودل
+        manual_ar_adjustments = db.session.query(
+            func.coalesce(func.sum(GLEntry.debit - GLEntry.credit), 0)
+        ).join(GLBatch).filter(
+            GLBatch.status == 'POSTED',
+            GLBatch.source_type == 'MANUAL',
+            GLEntry.account == '1100_AR',
+            GLBatch.posted_at <= as_of_dt
+        ).scalar() or 0
+
+        manual_ap_adjustments = db.session.query(
+            func.coalesce(func.sum(GLEntry.credit - GLEntry.debit), 0)
+        ).join(GLBatch).filter(
+            GLBatch.status == 'POSTED',
+            GLBatch.source_type == 'MANUAL',
+            GLEntry.account == '2000_AP',
+            GLBatch.posted_at <= as_of_dt
+        ).scalar() or 0
+        
         reconciliation = {
             'ar': {
                 'gl_balance': ar_gl_balance,
                 'model_balance': ar_model_balance,
+                'manual_adjustments': float(manual_ar_adjustments),
                 'difference': abs(ar_gl_balance - ar_model_balance),
-                'is_matched': abs(ar_gl_balance - ar_model_balance) < 0.01
+                'explained_difference': abs(ar_gl_balance - (ar_model_balance + float(manual_ar_adjustments))),
+                'is_matched': abs(ar_gl_balance - ar_model_balance) < 0.01,
+                'is_fully_explained': abs(ar_gl_balance - (ar_model_balance + float(manual_ar_adjustments))) < 0.01
             },
             'ap': {
                 'gl_balance': ap_gl_balance,
                 'model_balance': ap_model_balance,
+                'manual_adjustments': float(manual_ap_adjustments),
                 'difference': abs(ap_gl_balance - ap_model_balance),
-                'is_matched': abs(ap_gl_balance - ap_model_balance) < 0.01
+                'explained_difference': abs(ap_gl_balance - (ap_model_balance + float(manual_ap_adjustments))),
+                'is_matched': abs(ap_gl_balance - ap_model_balance) < 0.01,
+                'is_fully_explained': abs(ap_gl_balance - (ap_model_balance + float(manual_ap_adjustments))) < 0.01
             }
         }
         

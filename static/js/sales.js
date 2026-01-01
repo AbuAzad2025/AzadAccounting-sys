@@ -366,7 +366,7 @@
             endpoint: () => endpoint,
             placeholder: $pd.data('placeholder') || 'اختر الصنف'
           });
-          $pd.off('select2:select').on('select2:select', async (e) => {
+          $pd.off('select2:select.sales').on('select2:select.sales', async (e) => {
             // عند اختيار صنف جديد، نلغي وضع السعر اليدوي ليتم جلب السعر الجديد
             if(priceInp) row.dataset.priceManual = '';
 
@@ -390,11 +390,17 @@
         initProducts();
 
         if ($wh.length) {
-          $wh.off('change').on('change', () => {
-            if ($pd.length) { $pd.val(null).trigger('change'); }
-            initProducts();
-            const saleCurrency = qs('select[name="currency"]')?.value || 'ILS';
-            updateAvailability(+($pd.val()),+($wh.val()),row,saleCurrency);
+          // استخدام أحداث Select2 المباشرة بدلاً من change لضمان استجابة أفضل
+          $wh.off('select2:select.sales select2:unselect.sales').on('select2:select.sales select2:unselect.sales', () => {
+            // استخدام timeout بسيط للسماح للواجهة بالاستقرار (إغلاق القائمة المنسدلة)
+            setTimeout(() => {
+              if ($pd.length) { 
+                $pd.val(null).trigger('change'); 
+              }
+              initProducts();
+              const saleCurrency = qs('select[name="currency"]')?.value || 'ILS';
+              updateAvailability(+($pd.val()), +($wh.val()), row, saleCurrency);
+            }, 10);
           });
         }
       });
@@ -477,13 +483,16 @@
     }
     const recalcDebounced = debounce(recalc,150);
 
-    // تهيئة Select2 للعناصر الرأسية
+    // تهيئة Select2 للعناصر الرأسية (العميل والموظف)
     select2Ready.then(()=>{
       if(!(window.jQuery && window.jQuery.fn && window.jQuery.fn.select2)) return;
       const $ = window.jQuery;
-      $('#saleForm select.ajax-select').each(function(){
+      // نستخدم كلاس خاص header-select لمنع التعارض مع app.js
+      $('#saleForm select.header-select').each(function(){
         const $el = $(this);
+        // تخطي إذا كان العنصر داخل بند فاتورة (احتياط)
         if ($el.closest('.sale-line').length) return;
+        
         const endpoint = $el.data('endpoint');
         if(!endpoint) return;
         initAjaxSelect($el, { endpoint, placeholder: $el.data('placeholder') || '' });
