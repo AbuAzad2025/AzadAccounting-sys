@@ -9,6 +9,14 @@
             كشف مفصل للعميل: {{ customer.name }}
         </h2>
         <div class="btn-group">
+            <div class="btn-group shadow-sm rounded-pill overflow-hidden bg-white ms-2">
+                <button onclick="window.history.back()" class="btn btn-sm text-primary fw-bold border-end" title="رجوع">
+                    <i class="fas fa-arrow-right"></i>
+                </button>
+                <button onclick="window.history.forward()" class="btn btn-sm text-primary fw-bold" title="تقدم">
+                    <i class="fas fa-arrow-left"></i>
+                </button>
+            </div>
             <a href="{{ url_for('reports_bp.customers_report') }}" class="btn btn-outline-secondary">
                 <i class="fas fa-arrow-right ml-1"></i>
                 العودة للقائمة
@@ -21,7 +29,7 @@
     <div class="row mb-4">
         <div class="col-md-6">
             <div class="card border-0 shadow-sm">
-                <div class="card-header bg-primary text-white">
+                <div class="card-header text-white" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);">
                     <h5 class="mb-0"><i class="fas fa-info-circle ml-2"></i>معلومات العميل</h5>
                 </div>
                 <div class="card-body">
@@ -45,7 +53,7 @@
         </div>
         <div class="col-md-6">
             <div class="card border-0 shadow-sm">
-                <div class="card-header bg-info text-white">
+                <div class="card-header text-white" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);">
                     <h5 class="mb-0"><i class="fas fa-chart-bar ml-2"></i>ملخص الإجماليات</h5>
                 </div>
                 <div class="card-body">
@@ -122,11 +130,11 @@
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                 <div class="col-md-4">
                     <label for="start" class="form-label">من تاريخ</label>
-                    <input type="date" class="form-control" id="start" name="start" value="{{ start_date }}">
+                    <input type="date" class="form-control form-control-modern" id="start" name="start" value="{{ start_date }}">
                 </div>
                 <div class="col-md-4">
                     <label for="end" class="form-label">إلى تاريخ</label>
-                    <input type="date" class="form-control" id="end" name="end" value="{{ end_date }}">
+                    <input type="date" class="form-control form-control-modern" id="end" name="end" value="{{ end_date }}">
                 </div>
                 <div class="col-md-4 d-flex align-items-end">
                     <button type="submit" class="btn btn-primary ml-2">

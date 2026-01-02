@@ -2,89 +2,140 @@
 {% block title %}لوحة المالك{% endblock %}
 {% block page_title %}👑 لوحة المالك الشاملة{% endblock %}
 
+{% block extra_css %}
+<style>
+    .bg-gradient-success {
+        background: linear-gradient(135deg, #1cc88a 0%, #13855c 100%);
+    }
+    .bg-gradient-warning {
+        background: linear-gradient(135deg, #f6c23e 0%, #dda20a 100%);
+    }
+    .bg-gradient-info {
+        background: linear-gradient(135deg, #36b9cc 0%, #258391 100%);
+    }
+    .bg-gradient-danger {
+        background: linear-gradient(135deg, #e74a3b 0%, #be2617 100%);
+    }
+    .bg-gradient-dark {
+        background: linear-gradient(135deg, #5a5c69 0%, #373840 100%);
+    }
+    .bg-gradient-secondary {
+        background: linear-gradient(135deg, #858796 0%, #60616f 100%);
+    }
+    .gradient-header {
+        background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);
+        color: white;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid">
   {% include 'advanced/_navigation.html' %}
 
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0 text-gray-800"><i class="fas fa-crown text-primary me-2"></i> لوحة المالك الشاملة</h4>
+    <div class="btn-group shadow-sm rounded-pill overflow-hidden bg-white">
+        <a href="javascript:window.history.back()" class="btn btn-sm text-primary fw-bold border-end" title="رجوع">
+            <i class="fas fa-arrow-right"></i>
+        </a>
+        <a href="javascript:window.history.forward()" class="btn btn-sm text-primary fw-bold" title="تقدم">
+            <i class="fas fa-arrow-left"></i>
+        </a>
+    </div>
+  </div>
+
   {% if license_info %}
   <div class="alert alert-{{ 'danger' if license_info.status == 'expired' else 'warning' if license_info.status == 'warning' else 'info' }} border-0 shadow-sm mb-4">
-    <i class="fas fa-certificate"></i>
-    {% if license_info.status == 'expired' %}
-      <strong>انتهى الترخيص!</strong> يرجى التجديد فوراً.
-    {% elif license_info.status == 'warning' %}
-      <strong>تنبيه:</strong> الترخيص ينتهي خلال {{ license_info.days_left }} يوم.
-    {% else %}
-      الترخيص فعال حتى {{ license_info.expiry }}
-    {% endif %}
-    <a href="{{ url_for('advanced.licensing') }}" class="btn btn-sm btn-light ms-3">إدارة الترخيص</a>
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <i class="fas fa-certificate"></i>
+            {% if license_info.status == 'expired' %}
+            <strong>انتهى الترخيص!</strong> يرجى التجديد فوراً.
+            {% elif license_info.status == 'warning' %}
+            <strong>تنبيه:</strong> الترخيص ينتهي خلال {{ license_info.days_left }} يوم.
+            {% else %}
+            الترخيص فعال حتى {{ license_info.expiry }}
+            {% endif %}
+            <a href="{{ url_for('advanced.licensing') }}" class="btn btn-sm btn-light ms-3">إدارة الترخيص</a>
+        </div>
+    </div>
   </div>
   {% endif %}
 
   <div class="row g-3 mb-4">
     <div class="col-md-3">
-      <div class="card border-0 shadow-sm h-100">
-        <div class="card-body">
-          <span class="text-muted">قواعد البيانات</span>
-          <h3 class="mb-1">{{ db_stats.size }}</h3>
-          <small class="text-muted d-block">السجلات: {{ db_stats.records }}</small>
-          <small class="text-muted">Tenants: {{ db_stats.tenants }}</small>
+      <a href="{{ url_for('advanced.database_optimizer') }}" class="text-decoration-none">
+        <div class="card border-0 shadow-sm h-100 card-hover">
+          <div class="card-body">
+            <span class="text-muted fw-bold">قواعد البيانات</span>
+            <h3 class="mb-1 text-primary">{{ db_stats.size }}</h3>
+            <small class="text-muted d-block">السجلات: {{ db_stats.records }}</small>
+            <small class="text-muted">Tenants: {{ db_stats.tenants }}</small>
+          </div>
         </div>
-      </div>
+      </a>
     </div>
     <div class="col-md-3">
-      <div class="card border-0 shadow-sm h-100">
-        <div class="card-body">
-          <span class="text-muted">النسخ الاحتياطية</span>
-          <h3 class="mb-1">
-            {% if backup_snapshot.name %}
-              {{ backup_snapshot.size }}
-            {% else %}
-              لا يوجد
-            {% endif %}
-          </h3>
-          <small class="text-muted d-block">
-            {% if backup_snapshot.date %}
-              {{ backup_snapshot.date }}
-            {% else %}
-              لم يتم الإنشاء بعد
-            {% endif %}
-          </small>
-          <span class="badge bg-{{ 'success' if auto_backup_enabled else 'secondary' }}">
-            {{ 'مفعل' if auto_backup_enabled else 'معطل' }}
-          </span>
+      <a href="{{ url_for('advanced.backup_manager') }}" class="text-decoration-none">
+        <div class="card border-0 shadow-sm h-100 card-hover">
+          <div class="card-body">
+            <span class="text-muted fw-bold">النسخ الاحتياطية</span>
+            <h3 class="mb-1 text-dark">
+              {% if backup_snapshot.name %}
+                {{ backup_snapshot.size }}
+              {% else %}
+                <span class="text-muted small">لا يوجد</span>
+              {% endif %}
+            </h3>
+            <small class="text-muted d-block">
+              {% if backup_snapshot.date %}
+                {{ backup_snapshot.date }}
+              {% else %}
+                لم يتم الإنشاء بعد
+              {% endif %}
+            </small>
+            <span class="badge bg-{{ 'success' if auto_backup_enabled else 'secondary' }} mt-2">
+              {{ 'مفعل' if auto_backup_enabled else 'معطل' }}
+            </span>
+          </div>
         </div>
-      </div>
+      </a>
     </div>
     <div class="col-md-3">
-      <div class="card border-0 shadow-sm h-100">
-        <div class="card-body">
-          <span class="text-muted">Tenants</span>
-          <h3 class="mb-1">{{ tenant_stats.total }}</h3>
-          <small class="text-success d-block">نشط: {{ tenant_stats.active }}</small>
-          <small class="text-muted">متوقف: {{ tenant_stats.inactive }}</small>
+      <a href="{{ url_for('advanced.multi_tenant') }}" class="text-decoration-none">
+        <div class="card border-0 shadow-sm h-100 card-hover">
+          <div class="card-body">
+            <span class="text-muted fw-bold">Tenants</span>
+            <h3 class="mb-1 text-info">{{ tenant_stats.total }}</h3>
+            <small class="text-success d-block">نشط: {{ tenant_stats.active }}</small>
+            <small class="text-muted">متوقف: {{ tenant_stats.inactive }}</small>
+          </div>
         </div>
-      </div>
+      </a>
     </div>
     <div class="col-md-3">
-      <div class="card border-0 shadow-sm h-100">
-        <div class="card-body">
-          <span class="text-muted">صحة النظام</span>
-          <h3 class="mb-1">{{ overall_health }}%</h3>
-          <small class="text-muted d-block">اختبارات: {{ health_checks|length }}</small>
-          <span class="badge bg-{{ 'success' if overall_health >= 80 else 'warning' if overall_health >= 60 else 'danger' }}">
-            {{ 'ممتاز' if overall_health >= 80 else 'متوسط' if overall_health >= 60 else 'يتطلب تدخل' }}
-          </span>
+      <a href="{{ url_for('advanced.system_health') }}" class="text-decoration-none">
+        <div class="card border-0 shadow-sm h-100 card-hover">
+          <div class="card-body">
+            <span class="text-muted fw-bold">صحة النظام</span>
+            <h3 class="mb-1 text-{{ 'success' if overall_health >= 80 else 'warning' if overall_health >= 60 else 'danger' }}">{{ overall_health }}%</h3>
+            <small class="text-muted d-block">اختبارات: {{ health_checks|length }}</small>
+            <span class="badge bg-{{ 'success' if overall_health >= 80 else 'warning' if overall_health >= 60 else 'danger' }} mt-2">
+              {{ 'ممتاز' if overall_health >= 80 else 'متوسط' if overall_health >= 60 else 'يتطلب تدخل' }}
+            </span>
+          </div>
         </div>
-      </div>
+      </a>
     </div>
   </div>
 
   <div class="row g-3 mb-4">
     <div class="col-lg-8">
-      <div class="card border-0 shadow-sm h-100">
-        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-          <span><i class="fas fa-bolt"></i> اختصارات فورية</span>
-          <span class="badge bg-light text-dark">{{ quick_links|length }}</span>
+      <div class="card border-0 shadow-sm h-100 card-hover">
+        <div class="card-header gradient-header text-white d-flex justify-content-between align-items-center">
+          <span class="fw-bold"><i class="fas fa-bolt me-2"></i> اختصارات فورية</span>
+          <span class="badge bg-white text-primary rounded-pill">{{ quick_links|length }}</span>
         </div>
         <div class="card-body">
           <div class="row">
@@ -101,9 +152,9 @@
       </div>
     </div>
     <div class="col-lg-4">
-      <div class="card border-0 shadow-sm h-100 mb-3">
-        <div class="card-header bg-dark text-white">
-          <span><i class="fas fa-shield-alt"></i> حالة الأمان</span>
+      <div class="card border-0 shadow-sm h-100 mb-3 card-hover">
+        <div class="card-header bg-gradient-dark text-white">
+          <span class="fw-bold"><i class="fas fa-shield-alt me-2"></i> حالة الأمان</span>
         </div>
         <div class="card-body">
           <div class="d-flex justify-content-between mb-2">
@@ -130,10 +181,10 @@
         </div>
       </div>
       {% if owner_alerts %}
-    <div class="card border-0 shadow-sm h-100">
-      <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
-        <span><i class="fas fa-exclamation-triangle"></i> تنبيهات سريعة</span>
-        <span class="badge bg-dark text-white">{{ owner_alerts|length }}</span>
+    <div class="card border-0 shadow-sm h-100 card-hover">
+      <div class="card-header bg-gradient-warning text-dark d-flex justify-content-between align-items-center">
+        <span class="fw-bold"><i class="fas fa-exclamation-triangle me-2"></i> تنبيهات سريعة</span>
+        <span class="badge bg-dark text-white rounded-pill">{{ owner_alerts|length }}</span>
       </div>
       <div class="card-body p-0">
         {% if owner_alerts %}
@@ -171,7 +222,7 @@
       <span><i class="fas fa-stream"></i> معايير رئيسية</span>
       <span class="badge bg-light text-dark">يتم التحديث لحظياً</span>
     </div>
-    <div class="table-responsive">
+    <div class="table-responsive table-rounded shadow-sm">
       <table class="table table-hover mb-0">
         <thead class="table-light">
           <tr>
@@ -347,18 +398,18 @@
 
   <div class="card border-0 shadow-sm mb-4">
     <div class="card-header bg-light d-flex justify-content-between align-items-center">
-      <span><i class="fas fa-cubes"></i> الوحدات</span>
+      <span class="fw-bold text-secondary"><i class="fas fa-cubes me-2"></i> الوحدات</span>
       <span class="text-muted">متزامنة مع الترتيب الداخلي</span>
     </div>
     <div class="card-body">
       <div class="row g-3">
         {% for section in owner_sections_meta %}
         <div class="col-md-3">
-          <a href="{{ url_for(section.endpoint) }}" class="card border-0 shadow-sm h-100 text-decoration-none text-dark">
+          <a href="{{ url_for(section.endpoint) }}" class="card border-0 shadow-sm h-100 text-decoration-none text-dark card-hover">
             <div class="card-body">
               <div class="d-flex justify-content-between align-items-center">
-                <h6 class="mb-0">{{ section.name }}</h6>
-                <i class="fas fa-{{ section.icon }}"></i>
+                <h6 class="mb-0 fw-bold">{{ section.name }}</h6>
+                <i class="fas fa-{{ section.icon }} text-primary"></i>
               </div>
               <small class="text-muted text-uppercase">{{ section.category }}</small>
             </div>

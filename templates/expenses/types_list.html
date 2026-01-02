@@ -14,7 +14,7 @@
 <style>
   /* تحسين النافيجيشن */
   .expense-nav {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);
     border-radius: 12px;
     padding: 1.5rem;
     margin-bottom: 1.5rem;
@@ -69,6 +69,14 @@
   <nav class="expense-nav no-print">
     <div class="d-flex justify-content-between align-items-center flex-wrap">
       <div class="d-flex align-items-center mb-2 mb-md-0">
+        <div class="btn-group shadow-sm rounded-pill overflow-hidden bg-white ml-3">
+             <button onclick="window.history.back()" class="btn btn-sm text-primary fw-bold border-end" title="رجوع">
+                 <i class="fas fa-arrow-right"></i>
+             </button>
+             <button onclick="window.history.forward()" class="btn btn-sm text-primary fw-bold" title="تقدم">
+                 <i class="fas fa-arrow-left"></i>
+             </button>
+        </div>
         <i class="fas fa-money-bill-wave fa-2x text-white ml-3"></i>
         <h4 class="text-white mb-0 fw-bold">وحدة النفقات</h4>
       </div>
@@ -86,15 +94,15 @@
     </div>
   </nav>
 
-  <div class="card shadow-sm mb-3">
-    <div class="card-header bg-white d-flex align-items-center justify-content-between">
-      <h2 class="mb-0"><i class="fas fa-tags ml-2 text-primary"></i>أنواع المصاريف</h2>
+  <div class="card shadow-sm mb-3 card-hover">
+    <div class="card-header text-white d-flex align-items-center justify-content-between" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);">
+      <h2 class="mb-0 fs-4"><i class="fas fa-tags ml-2"></i>أنواع المصاريف</h2>
       <div class="d-flex gap-2 flex-wrap no-print">
-        <button class="btn btn-outline-primary" onclick="window.print()">
+        <button class="btn btn-light btn-sm shadow-sm text-primary fw-bold" onclick="window.print()">
           <i class="fas fa-print ml-1"></i>طباعة القائمة
         </button>
         {% if current_user.has_permission('manage_expenses') %}
-        <a href="{{ url_for('expenses_bp.add_type') }}" class="btn btn-action-add">
+        <a href="{{ url_for('expenses_bp.add_type') }}" class="btn btn-light btn-sm shadow-sm text-success fw-bold">
           <i class="fas fa-plus ml-1"></i>إضافة نوع
         </a>
         {% endif %}

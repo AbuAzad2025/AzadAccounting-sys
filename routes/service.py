@@ -404,6 +404,44 @@ def list_requests():
         filter_values=filter_values
     )
 
+@service_bp.route('/archive/<int:id>', methods=['POST'])
+@login_required
+def archive_service(id):
+    if not current_user.has_permission("archive_service"):
+         return jsonify({"status": "error", "message": "ليس لديك صلاحية لأرشفة طلبات الصيانة"}), 403
+    
+    service = ServiceRequest.query.get_or_404(id)
+    reason = request.form.get("reason")
+    
+    try:
+        archive_record(service, ServiceRequest, reason=reason)
+        return jsonify({"status": "success", "message": "تم أرشفة طلب الصيانة بنجاح"})
+    except Exception as e:
+        db.session.rollback()
+        try:
+            service.is_archived = True
+            db.session.commit()
+            return jsonify({"status": "success", "message": "تم أرشفة طلب الصيانة بنجاح (يدوي)"})
+        except:
+            return jsonify({"status": "error", "message": str(e)}), 500
+
+@service_bp.route('/restore/<int:id>', methods=['POST'])
+@login_required
+def restore_service(id):
+    if not current_user.has_permission("archive_service"):
+         return jsonify({"status": "error", "message": "ليس لديك صلاحية لاستعادة طلبات الصيانة"}), 403
+         
+    try:
+        restore_record(id, ServiceRequest)
+        return jsonify({"status": "success", "message": "تم استعادة طلب الصيانة بنجاح"})
+    except Exception as e:
+        service = ServiceRequest.query.get(id)
+        if service:
+            service.is_archived = False
+            db.session.commit()
+            return jsonify({"status": "success", "message": "تم استعادة طلب الصيانة بنجاح (يدوي)"})
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 @service_bp.route('/export/csv', methods=['GET'])
 @login_required
 def export_requests_csv():
@@ -929,36 +967,6 @@ def search_requests():
     results=ServiceRequest.query.join(Customer).filter(or_(ServiceRequest.service_number.ilike(f'%{query}%'),ServiceRequest.vehicle_vrn.ilike(f'%{query}%'),Customer.name.ilike(f'%{query}%'),Customer.phone.ilike(f'%{query}%'))).limit(10).all()
 
 
-@service_bp.route('/<int:rid>/archive', methods=['POST'])
-@login_required
-def archive_request(rid):
-    """أرشفة طلب صيانة"""
-    from models import Archive
-    
-    service = ServiceRequest.query.get_or_404(rid)
-    reason = request.form.get('reason', 'أرشفة طلب صيانة')
-    
-    try:
-        # أرشفة السجل
-        archive = Archive.archive_record(
-            record=service,
-            reason=reason,
-            user_id=current_user.id
-        )
-        
-        # حذف السجل الأصلي
-        db.session.delete(service)
-        db.session.commit()
-        
-        flash(f'تم أرشفة طلب الصيانة #{service.service_number or service.id} بنجاح', 'success')
-        return redirect(url_for('service.list_requests'))
-        
-    except SQLAlchemyError as e:
-        db.session.rollback()
-        _log_and_flash("service.archive_request", e, "تعذر أرشفة الطلب حالياً.")
-        return redirect(url_for('service.view_request', rid=rid))
-
-
 @service_bp.route('/analytics')
 @login_required
 def analytics():
@@ -1060,44 +1068,4 @@ def generate_service_receipt_pdf(service_request):
     subtotal=parts_total+tasks_total; y-=10*mm; c.setFont("Helvetica-Bold",11); c.drawRightString(160*mm,y,"الإجمالي الكلي:"); c.drawRightString(195*mm,y,f"{subtotal:.2f}")
     c.showPage(); c.save(); buffer.seek(0); return buffer.getvalue()
 
-@service_bp.route('/archive/<int:service_id>', methods=['POST'])
-@login_required
-def archive_service(service_id):
-    try:
-        service = ServiceRequest.query.get_or_404(service_id)
-        reason = request.form.get('reason', 'أرشفة تلقائية')
-        
-        utils.archive_record(service, reason, current_user.id)
-        flash(f'تم أرشفة طلب الصيانة رقم {service_id} بنجاح', 'success')
-        return redirect(url_for('service.list_requests'))
-        
-    except Exception as e:
-        db.session.rollback()
-        _log_and_flash("service.archive_service", e, "تعذر أرشفة طلب الصيانة حالياً.")
-        return redirect(url_for('service.list_requests'))
 
-@service_bp.route('/restore/<int:service_id>', methods=['POST'])
-@login_required
-def restore_service(service_id):
-    try:
-        service = ServiceRequest.query.get_or_404(service_id)
-        
-        if not service.is_archived:
-            flash('طلب الصيانة غير مؤرشف', 'warning')
-            return redirect(url_for('service.list_requests'))
-        
-        from models import Archive
-        archive = Archive.query.filter_by(
-            record_type='service_requests',
-            record_id=service_id
-        ).first()
-        
-        if archive:
-            utils.restore_record(archive.id)
-        flash(f'تم استعادة طلب الصيانة رقم {service_id} بنجاح', 'success')
-        return redirect(url_for('service.list_requests'))
-        
-    except Exception as e:
-        db.session.rollback()
-        _log_and_flash("service.restore_service", e, "تعذر استعادة طلب الصيانة حالياً.")
-        return redirect(url_for('service.list_requests'))

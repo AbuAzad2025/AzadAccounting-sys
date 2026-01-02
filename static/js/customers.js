@@ -433,6 +433,19 @@
 
   const initCustomerTable = () => {
     bindCustomerDeleteButtons();
+    // ربط زر الأرشفة
+    if (window.jQuery) {
+      window.jQuery(document).on('click', '.archive-btn', function(e) {
+        e.preventDefault();
+        const id = window.jQuery(this).data('id');
+        if (typeof archiveCustomer === 'function' && id) {
+          archiveCustomer(id);
+        } else {
+            console.error('archiveCustomer function not found or invalid ID');
+        }
+      });
+    }
+
     if (typeof window !== "undefined" && typeof window.enableTableSorting === "function") {
       window.enableTableSorting("#customersTable");
     }

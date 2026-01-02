@@ -8,15 +8,22 @@
     <link href="{{ url_for('static', filename='adminlte/plugins/fontawesome-free/css/all.min.css') }}" rel="stylesheet">
     <style>
         .report-card {
-            transition: transform 0.2s;
+            transition: all 0.3s ease;
             cursor: pointer;
+            border: none;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
         }
         .report-card:hover {
             transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.15) !important;
         }
         .report-icon {
             font-size: 3rem;
             margin-bottom: 1rem;
+            transition: transform 0.3s ease;
+        }
+        .report-card:hover .report-icon {
+            transform: scale(1.1);
         }
         .date-range {
             background: #f8f9fa;
@@ -25,7 +32,7 @@
             margin-bottom: 2rem;
         }
         .summary-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);
             color: white;
             border-radius: 15px;
             padding: 1.5rem;
@@ -100,11 +107,11 @@
                     <div class="row">
                         <div class="col-md-4">
                             <label for="startDate" class="form-label">من تاريخ</label>
-                            <input type="date" class="form-control" id="startDate">
+                            <input type="date" class="form-control form-control-modern" id="startDate">
                         </div>
                         <div class="col-md-4">
                             <label for="endDate" class="form-label">إلى تاريخ</label>
-                            <input type="date" class="form-control" id="endDate">
+                            <input type="date" class="form-control form-control-modern" id="endDate">
                         </div>
                         <div class="col-md-4 d-flex align-items-end">
                             <button type="button" class="btn btn-primary" onclick="applyDateRange()">
@@ -163,9 +170,9 @@
                 
 
                 <div id="reportResults" class="mt-4" style="display: none;">
-                    <div class="card">
-                        <div class="card-header">
-                            <h5 id="reportTitle">نتائج التقرير</h5>
+                    <div class="card shadow-sm">
+                        <div class="card-header text-white" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);">
+                            <h5 id="reportTitle" class="mb-0">نتائج التقرير</h5>
                         </div>
                         <div class="card-body">
                             <div id="reportContent">

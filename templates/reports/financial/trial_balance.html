@@ -4,8 +4,8 @@
 
 {% block content %}
 <div class="container-fluid mt-4">
-    <div class="card shadow-sm">
-        <div class="card-header bg-gradient-primary text-white">
+    <div class="card shadow-sm card-hover">
+        <div class="card-header gradient-header text-white">
             <h3 class="mb-0">
                 <i class="fas fa-balance-scale-right"></i>
                 ميزان المراجعة (Trial Balance)
@@ -19,11 +19,11 @@
             <div class="row mb-4">
                 <div class="col-md-6">
                     <label>كما في تاريخ:</label>
-                    <input type="date" id="as_of_date" class="form-control" value="{{ as_of_date.strftime('%Y-%m-%d') }}">
+                    <input type="date" id="as_of_date" class="form-control form-control-modern" value="{{ as_of_date.strftime('%Y-%m-%d') }}">
                 </div>
                 <div class="col-md-6">
                     <label>&nbsp;</label>
-                    <button class="btn btn-primary d-block w-100" onclick="updateReport()">
+                    <button class="btn btn-primary d-block w-100 btn-modern" onclick="updateReport()">
                         <i class="fas fa-sync"></i> تحديث
                     </button>
                 </div>
@@ -45,11 +45,11 @@
             
             <div class="row mb-4">
                 <div class="col-md-6">
-                    <div class="card border-0 shadow-sm">
+                    <div class="card border-0 shadow-sm card-hover">
                         <div class="card-body">
                             <h5 class="mb-3"><i class="fas fa-layer-group"></i> ملخص حسب نوع الحساب</h5>
                             <div class="table-responsive">
-                                <table class="table table-sm table-bordered mb-0">
+                                <table class="table table-sm table-bordered table-rounded mb-0">
                                     <thead class="table-light">
                                         <tr>
                                             <th>النوع</th>
@@ -80,7 +80,7 @@
             <!-- Reconciliation Section -->
             <div class="row mb-4">
                 <div class="col-md-6">
-                    <div class="card border-0 shadow-sm h-100">
+                    <div class="card border-0 shadow-sm h-100 card-hover">
                         <div class="card-header bg-light">
                             <h6 class="mb-0"><i class="fas fa-users"></i> مطابقة ذمم العملاء (AR Reconciliation)</h6>
                         </div>
@@ -126,7 +126,7 @@
                     </div>
                 </div>
                 <div class="col-md-6">
-                    <div class="card border-0 shadow-sm h-100">
+                    <div class="card border-0 shadow-sm h-100 card-hover">
                         <div class="card-header bg-light">
                             <h6 class="mb-0"><i class="fas fa-truck"></i> مطابقة ذمم الموردين (AP Reconciliation)</h6>
                         </div>
@@ -285,19 +285,13 @@
             
 
             <div class="mt-4 text-center">
-                <a href="/reports/financial" class="btn btn-secondary">
+                <a href="/reports/financial" class="btn btn-secondary btn-modern">
                     <i class="fas fa-arrow-left"></i> رجوع
                 </a>
             </div>
         </div>
     </div>
 </div>
-
-<style>
-.bg-gradient-primary {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-}
-</style>
 
 <script>
 function updateReport() {

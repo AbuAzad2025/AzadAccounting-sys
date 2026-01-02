@@ -8,23 +8,31 @@
 {% block report_content %}
 <div class="container-fluid" dir="rtl">
 
-<div class="mb-3">
+<div class="mb-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
   <h4 class="fw-bold m-0"><i class="fas fa-chart-line"></i> تقرير الأرباح والخسائر (P&L)</h4>
+  <div class="btn-group shadow-sm rounded-pill overflow-hidden bg-white">
+      <button onclick="window.history.back()" class="btn btn-sm text-primary fw-bold border-end" title="رجوع">
+          <i class="fas fa-arrow-right"></i>
+      </button>
+      <button onclick="window.history.forward()" class="btn btn-sm text-primary fw-bold" title="تقدم">
+          <i class="fas fa-arrow-left"></i>
+      </button>
+  </div>
 </div>
 
 <div class="card shadow-sm mb-3">
-  <div class="card-header bg-info text-white">
+  <div class="card-header text-white" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);">
     <i class="fas fa-calendar-alt"></i> الفترة
   </div>
   <div class="card-body">
     <form method="get" class="row g-3">
 <div class="col-md-4">
   <label class="form-label"><i class="fas fa-calendar"></i> من تاريخ</label>
-  <input type="date" name="start_date" value="{{ request.args.get('start_date', start_date) }}" class="form-control">
+  <input type="date" name="start_date" value="{{ request.args.get('start_date', start_date) }}" class="form-control form-control-modern">
 </div>
 <div class="col-md-4">
   <label class="form-label"><i class="fas fa-calendar"></i> إلى تاريخ</label>
-  <input type="date" name="end_date" value="{{ request.args.get('end_date', end_date) }}" class="form-control">
+  <input type="date" name="end_date" value="{{ request.args.get('end_date', end_date) }}" class="form-control form-control-modern">
 </div>
 <div class="col-md-4 align-self-end">
   <button type="submit" class="btn btn-primary">
@@ -72,7 +80,7 @@
 </div>
 
 <div class="card shadow-sm mb-3">
-  <div class="card-header bg-success text-white">
+  <div class="card-header text-white" style="background: linear-gradient(135deg, #1cc88a 0%, #13855c 100%);">
     <h5 class="mb-0"><i class="fas fa-arrow-up"></i> الإيرادات</h5>
   </div>
   <div class="card-body">
@@ -100,7 +108,7 @@
 </div>
 
 <div class="card shadow-sm mb-3">
-  <div class="card-header bg-danger text-white">
+  <div class="card-header text-white" style="background: linear-gradient(135deg, #e74a3b 0%, #be2617 100%);">
     <h5 class="mb-0"><i class="fas fa-arrow-down"></i> المصروفات</h5>
   </div>
   <div class="card-body">
@@ -128,7 +136,7 @@
 </div>
 
 <div class="card shadow-sm">
-  <div class="card-header bg-primary text-white">
+  <div class="card-header text-white" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);">
     <h5 class="mb-0"><i class="fas fa-calculator"></i> النتيجة النهائية</h5>
   </div>
   <div class="card-body">

@@ -28,10 +28,6 @@
       cursor: help;
       border-bottom: 1px dotted #6c757d;
     }
-    .form-control:focus, .custom-select:focus {
-      border-color: #80bdff;
-      box-shadow: 0 0 0 0.2rem rgba(0,123,255,0.25);
-    }
     .was-validated .form-control:valid {
       border-color: #28a745;
     }
@@ -86,8 +82,8 @@
   {{ form.hidden_tag() }}
 
   <!-- قسم 1: اختيار نوع المستودع مع البطاقات التوضيحية -->
-  <div class="card shadow-sm mb-4">
-    <div class="card-header bg-primary text-white">
+  <div class="card shadow-lg rounded-4 border-0 mb-4">
+    <div class="card-header gradient-header text-white">
       <i class="fas fa-warehouse ml-2"></i>
       <strong>معلومات المستودع الأساسية</strong>
     </div>
@@ -100,7 +96,7 @@
           {{ form.name.label.text }}
           <span class="text-danger">*</span>
         </label>
-        {{ form.name(class="form-control form-control-lg", placeholder="مثال: المستودع الرئيسي، مستودع الشراكة مع أحمد، مستودع قطع غيار علي", required=True, autofocus=True) }}
+        {{ form.name(class="form-control form-control-lg form-control-modern", placeholder="مثال: المستودع الرئيسي، مستودع الشراكة مع أحمد، مستودع قطع غيار علي", required=True, autofocus=True) }}
         {% for e in form.name.errors %}
           <div class="invalid-feedback d-block">{{ e }}</div>
         {% endfor %}
@@ -130,14 +126,14 @@
           {{ form.branch_id.label.text }}
           <small class="text-muted">(اختياري — الافتراضي: الفرع الرئيسي)</small>
         </label>
-        {{ form.branch_id(class="custom-select") }}
+        {{ form.branch_id(class="form-select form-control-modern") }}
       </div>
 
       <!-- بطاقات توضيحية لأنواع المستودعات -->
       <div class="row g-3 mb-3" id="warehouse-types-info">
         <!-- رئيسي -->
         <div class="col-md-6 col-lg-4">
-          <div class="warehouse-type-card card h-100 border-primary" data-type="MAIN">
+          <div class="warehouse-type-card card h-100 border-primary card-hover" data-type="MAIN">
             <div class="card-body text-center">
               <div class="warehouse-type-icon text-primary">
                 <i class="fas fa-building"></i>
@@ -157,7 +153,7 @@
 
         <!-- شريك -->
         <div class="col-md-6 col-lg-4">
-          <div class="warehouse-type-card card h-100 border-warning" data-type="PARTNER">
+          <div class="warehouse-type-card card h-100 border-warning card-hover" data-type="PARTNER">
             <div class="card-body text-center">
               <div class="warehouse-type-icon text-warning">
                 <i class="fas fa-handshake"></i>
@@ -217,7 +213,7 @@
 
         <!-- ملكيتي -->
         <div class="col-md-6 col-lg-4">
-          <div class="warehouse-type-card card h-100 border-secondary" data-type="INVENTORY">
+          <div class="warehouse-type-card card h-100 border-secondary card-hover" data-type="INVENTORY">
             <div class="card-body text-center">
               <div class="warehouse-type-icon text-secondary">
                 <i class="fas fa-box"></i>
@@ -252,7 +248,7 @@
               <i class="fas fa-map-marker-alt text-secondary ml-1"></i>
               {{ form.location.label.text }}
             </label>
-            {{ form.location(class="form-control", placeholder="مثال: الطابق الأول - قسم القطع الثقيلة") }}
+            {{ form.location(class="form-control form-control-modern", placeholder="مثال: الطابق الأول - قسم القطع الثقيلة") }}
             {% for e in form.location.errors %}
               <div class="invalid-feedback d-block">{{ e }}</div>
             {% endfor %}
@@ -268,7 +264,7 @@
               {{ form.capacity.label.text }}
             </label>
             <div class="input-group">
-              {{ form.capacity(class="form-control", placeholder="مثال: 1000", type="number", min="0") }}
+              {{ form.capacity(class="form-control form-control-modern", placeholder="مثال: 1000", type="number", min="0") }}
               <span class="input-group-text">قطعة</span>
             </div>
             {% for e in form.capacity.errors %}
@@ -285,7 +281,7 @@
               <i class="fas fa-sticky-note text-secondary ml-1"></i>
               {{ form.notes.label.text }}
             </label>
-            {{ form.notes(class="form-control", rows="3", placeholder="أي ملاحظات أو تفاصيل إضافية عن المستودع...") }}
+            {{ form.notes(class="form-control form-control-modern", rows="3", placeholder="أي ملاحظات أو تفاصيل إضافية عن المستودع...") }}
             {% for e in form.notes.errors %}
               <div class="invalid-feedback d-block">{{ e }}</div>
             {% endfor %}
@@ -306,7 +302,7 @@
     </div>
 
     <div class="col-md-6">
-      <div class="card shadow-sm h-100">
+      <div class="card shadow-sm h-100 card-hover">
         <div class="card-header bg-info text-white">
           <i class="fas fa-cogs ml-1"></i> إعدادات متقدمة
         </div>

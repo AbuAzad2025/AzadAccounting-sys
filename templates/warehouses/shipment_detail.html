@@ -3,9 +3,20 @@
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
-  <div></div>
-  <div class="btn-group">
-    <a href="{{ url_for('shipments_bp.edit_shipment', id=shipment.id) }}" class="btn btn-warning">تعديل</a>
+  <div>
+    <h3 class="mb-0">تفاصيل الشحنة #{{ shipment.shipment_number or shipment.number or '-' }}</h3>
+  </div>
+  <div class="d-flex align-items-center gap-2">
+    <div class="btn-group shadow-sm rounded-pill overflow-hidden bg-white ms-3">
+        <button onclick="window.history.back()" class="btn btn-sm text-primary fw-bold border-end" title="رجوع">
+            <i class="fas fa-arrow-right"></i>
+        </button>
+        <button onclick="window.history.forward()" class="btn btn-sm text-primary fw-bold" title="تقدم">
+            <i class="fas fa-arrow-left"></i>
+        </button>
+    </div>
+    <div class="btn-group">
+      <a href="{{ url_for('shipments_bp.edit_shipment', id=shipment.id) }}" class="btn btn-warning">تعديل</a>
 
     <form method="POST" action="{{ url_for('shipments_bp.delete_shipment', id=shipment.id) }}" onsubmit="return confirm('تأكيد حذف الشحنة؟');" class="d-inline m-0 p-0">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -55,10 +66,14 @@
     </form>
 
     <a href="{{ url_for('shipments_bp.list_shipments') }}" class="btn btn-outline-secondary">رجوع</a>
+    </div>
   </div>
 </div>
 
-<div class="card">
+<div class="card shadow-sm mb-4">
+  <div class="card-header text-white" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);">
+    <h5 class="mb-0"><i class="fas fa-info-circle ml-2"></i> المعلومات الأساسية</h5>
+  </div>
   <div class="card-body">
     {% macro status_badge(s) -%}
       {% set u = (s or '')|upper %}

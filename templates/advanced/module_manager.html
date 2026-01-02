@@ -3,39 +3,63 @@
 {% block page_title %}🧩 مدير الوحدات - Module Manager{% endblock %}
 
 {% block content %}
+<style>
+    .card-hover {
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .card-hover:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.15) !important;
+    }
+</style>
 <div class="container-fluid">
   
   {% include 'advanced/_navigation.html' %}
   
-  <div class="alert alert-info border-0 shadow-sm">
-    <i class="fas fa-puzzle-piece"></i> <strong>تحكم بالوحدات:</strong> فعّل أو عطّل الوحدات حسب احتياجك
+  <div class="alert alert-info border-0 shadow-sm d-flex justify-content-between align-items-center">
+    <div>
+      <i class="fas fa-puzzle-piece"></i> <strong>تحكم بالوحدات:</strong> فعّل أو عطّل الوحدات حسب احتياجك
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <div class="btn-group shadow-sm rounded-pill overflow-hidden bg-white">
+            <button onclick="window.history.back()" class="btn btn-sm text-primary fw-bold border-end" title="رجوع">
+                <i class="fas fa-arrow-right"></i>
+            </button>
+            <button onclick="window.history.forward()" class="btn btn-sm text-primary fw-bold" title="تقدم">
+                <i class="fas fa-arrow-left"></i>
+            </button>
+        </div>
+        <a href="{{ url_for('advanced.owner_hub') }}" class="btn btn-sm btn-light shadow-sm text-primary fw-bold">
+          <i class="fas fa-arrow-right me-1"></i> عودة للوحة المالك
+        </a>
+    </div>
   </div>
 
   <div class="row g-3 mb-4">
     <div class="col-md-4">
-      <div class="card border-0 shadow-sm h-100">
+      <div class="card border-0 shadow-sm h-100 card-hover bg-primary text-white" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);">
         <div class="card-body">
-          <span class="text-muted">إجمالي الوحدات</span>
-          <h3 class="mb-1">{{ stats.total }}</h3>
-          <small class="text-muted">مفعل: {{ stats.active }}</small>
+          <span class="text-white-50">إجمالي الوحدات</span>
+          <h3 class="mb-1 fw-bold">{{ stats.total }}</h3>
+          <small class="text-white-50">مفعل: {{ stats.active }}</small>
         </div>
       </div>
     </div>
     <div class="col-md-4">
-      <div class="card border-0 shadow-sm h-100">
+      <div class="card border-0 shadow-sm h-100 card-hover bg-success text-white" style="background: linear-gradient(135deg, #1cc88a 0%, #13855c 100%);">
         <div class="card-body">
-          <span class="text-muted">وحدات بحالة ممتازة</span>
-          <h3 class="mb-1">{{ stats.total - stats.blocked }}</h3>
-          <small class="text-success">بلا اعتماديات مفقودة</small>
+          <span class="text-white-50">وحدات بحالة ممتازة</span>
+          <h3 class="mb-1 fw-bold">{{ stats.total - stats.blocked }}</h3>
+          <small class="text-white-50">بلا اعتماديات مفقودة</small>
         </div>
       </div>
     </div>
     <div class="col-md-4">
-      <div class="card border-0 shadow-sm h-100">
+      <div class="card border-0 shadow-sm h-100 card-hover bg-warning text-white" style="background: linear-gradient(135deg, #f6c23e 0%, #dda20a 100%);">
         <div class="card-body">
-          <span class="text-muted">وحدات تتطلب اعتماديات</span>
-          <h3 class="mb-1 text-warning">{{ stats.blocked }}</h3>
-          <small class="text-muted">فعّل الاعتماديات أولاً</small>
+          <span class="text-white-50">وحدات تتطلب اعتماديات</span>
+          <h3 class="mb-1 fw-bold">{{ stats.blocked }}</h3>
+          <small class="text-white-50">فعّل الاعتماديات أولاً</small>
         </div>
       </div>
     </div>
@@ -74,12 +98,12 @@
           
           <div class="d-flex gap-2">
             {% if module.enabled %}
-              <span class="badge bg-success">مفعّل</span>
+              <span class="badge bg-success rounded-pill">مفعّل</span>
             {% else %}
-              <span class="badge bg-secondary">معطّل</span>
+              <span class="badge bg-secondary rounded-pill">معطّل</span>
             {% endif %}
             {% if not module.deps_ready %}
-              <span class="badge bg-warning text-dark">اعتماديات ناقصة</span>
+              <span class="badge bg-warning text-dark rounded-pill">اعتماديات ناقصة</span>
             {% endif %}
           </div>
 
@@ -96,7 +120,7 @@
               {% for dep in module.dependencies_detail %}
               <li>
                 <i class="fas fa-link"></i> {{ dep.name }}
-                <span class="badge bg-{{ 'success' if dep.enabled else 'secondary' }}">
+                <span class="badge bg-{{ 'success' if dep.enabled else 'secondary' }} rounded-pill">
                   {{ 'مفعل' if dep.enabled else 'معطل' }}
                 </span>
               </li>

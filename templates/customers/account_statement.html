@@ -197,13 +197,23 @@
 {% endblock %}
 
 {% block breadcrumb %}
-<nav aria-label="breadcrumb">
-  <ol class="breadcrumb bg-white px-3 py-2 rounded mb-4">
-    <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">الرئيسية</a></li>
-    <li class="breadcrumb-item"><a href="{{ url_for('customers_bp.list_customers') }}">العملاء</a></li>
-    <li class="breadcrumb-item active">كشف حساب {{ customer.name }}</li>
-  </ol>
-</nav>
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <nav aria-label="breadcrumb" class="flex-grow-1">
+    <ol class="breadcrumb bg-white px-3 py-2 rounded mb-0">
+      <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">الرئيسية</a></li>
+      <li class="breadcrumb-item"><a href="{{ url_for('customers_bp.list_customers') }}">العملاء</a></li>
+      <li class="breadcrumb-item active">كشف حساب {{ customer.name }}</li>
+    </ol>
+  </nav>
+  <div class="btn-group shadow-sm rounded-pill overflow-hidden bg-white ms-3 no-print">
+      <a href="javascript:window.history.back()" class="btn btn-sm text-primary fw-bold border-end" title="رجوع">
+          <i class="fas fa-arrow-right"></i>
+      </a>
+      <a href="javascript:window.history.forward()" class="btn btn-sm text-primary fw-bold" title="تقدم">
+          <i class="fas fa-arrow-left"></i>
+      </a>
+  </div>
+</div>
 {% endblock %}
 
 {% block content %}
@@ -271,26 +281,26 @@
   </div>
 
   <!-- 👤 بطاقة معلومات العميل -->
-  <div class="card shadow-sm border mb-4">
-    <div class="card-body">
-      <div class="row align-items-center">
-        <div class="col-md-8">
-          <h3 class="mb-2"><i class="fas fa-user-circle"></i> {{ customer.name }}</h3>
-          <div class="row">
-            <div class="col-md-6">
-              <p class="mb-1"><i class="fas fa-phone"></i> <strong>الجوال:</strong> {{ customer.phone or '—' }}</p>
-              <p class="mb-1"><i class="fas fa-envelope"></i> <strong>البريد:</strong> {{ customer.email or '—' }}</p>
-            </div>
-            <div class="col-md-6">
-              <p class="mb-1"><i class="fas fa-map-marker-alt"></i> <strong>العنوان:</strong> {{ customer.address or '—' }}</p>
-              <p class="mb-1"><i class="fas fa-tag"></i> <strong>التصنيف:</strong> {{ customer.category or 'عادي' }}</p>
-            </div>
+  <div class="card shadow-sm border mb-4 card-hover">
+  <div class="card-body">
+    <div class="row align-items-center">
+      <div class="col-md-8">
+        <h3 class="mb-2 text-primary"><i class="fas fa-user-circle"></i> {{ customer.name }}</h3>
+        <div class="row">
+          <div class="col-md-6">
+            <p class="mb-1"><i class="fas fa-phone text-muted"></i> <strong>الجوال:</strong> {{ customer.phone or '—' }}</p>
+            <p class="mb-1"><i class="fas fa-envelope text-muted"></i> <strong>البريد:</strong> {{ customer.email or '—' }}</p>
+          </div>
+          <div class="col-md-6">
+            <p class="mb-1"><i class="fas fa-map-marker-alt text-muted"></i> <strong>العنوان:</strong> {{ customer.address or '—' }}</p>
+            <p class="mb-1"><i class="fas fa-tag text-muted"></i> <strong>التصنيف:</strong> {{ customer.category or 'عادي' }}</p>
           </div>
         </div>
-        <div class="col-md-4 text-center">
-          <div class="p-3 rounded border" style="background: #f8f9fa;">
-            <h6 class="mb-1 text-muted">الرصيد الحالي</h6>
-            <h2 class="mb-0 fw-bold" data-balance-customer="{{ customer.id }}">
+      </div>
+      <div class="col-md-4 text-center">
+        <div class="p-3 rounded border bg-light shadow-sm" style="transition: all 0.3s ease;">
+          <h6 class="mb-1 text-muted">الرصيد الحالي</h6>
+          <h2 class="mb-0 fw-bold" data-balance-customer="{{ customer.id }}">
               {% if balance > 0 %}
                 <span class="text-success">{{ balance|format_currency }}</span>
                 <br><small style="font-size: 0.6em;">له علينا</small>
@@ -308,16 +318,16 @@
     </div>
   </div>
 
-  <div class="card mb-3 no-print">
+  <div class="card mb-3 no-print card-hover">
     <div class="card-body">
       <form method="get" action="{{ url_for('customers_bp.account_statement', customer_id=customer.id) }}" class="row g-2 align-items-end">
         <div class="col-auto">
           <label class="form-label">من تاريخ</label>
-          <input type="date" name="start_date" class="form-control form-control-sm" value="{{ start_date.strftime('%Y-%m-%d') if start_date }}">
+          <input type="date" name="start_date" class="form-control form-control-modern form-control-sm" value="{{ start_date.strftime('%Y-%m-%d') if start_date }}">
         </div>
         <div class="col-auto">
           <label class="form-label">إلى تاريخ</label>
-          <input type="date" name="end_date" class="form-control form-control-sm" value="{{ end_date.strftime('%Y-%m-%d') if end_date }}">
+          <input type="date" name="end_date" class="form-control form-control-modern form-control-sm" value="{{ end_date.strftime('%Y-%m-%d') if end_date }}">
         </div>
         <div class="col-auto">
           <button type="submit" class="btn btn-sm btn-primary"><i class="fas fa-filter"></i> تطبيق</button>
@@ -336,7 +346,7 @@
     ] %}
     {% for label, value, color_class, icon in stats %}
     <div class="col-12 col-md-4">
-      <div class="card shadow-sm h-100">
+      <div class="card shadow-sm h-100 card-hover">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center">
             <div>
@@ -360,7 +370,7 @@
     ] %}
     {% for label, value, color_class, icon in stats_period %}
     <div class="col-12 col-md-4">
-      <div class="card shadow-sm h-100">
+      <div class="card shadow-sm h-100 card-hover">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center">
             <div>
@@ -387,7 +397,7 @@
     ] %}
     {% for label, value in categories %}
     <div class="col-12 col-md-3">
-      <div class="card shadow-sm h-100">
+      <div class="card shadow-sm h-100 card-hover">
         <div class="card-body">
           <div class="text-muted small">{{ label }}</div>
           <div class="fs-6 fw-bold">{{ (value or 0)|format_currency }}</div>
@@ -435,7 +445,7 @@
     'OPENING_BALANCE': 'bg-purple text-white'
   } %}
 
-  <div class="card shadow-sm rounded" style="overflow-x:auto;">
+  <div class="card shadow-sm rounded card-hover" style="overflow-x:auto;">
     <div class="card-header bg-primary text-white">
       <h5 class="card-title m-0">
         <i class="fas fa-file-invoice ms-2"></i> كشف حساب: {{ customer.name }}
@@ -448,7 +458,7 @@
           <i class="fas fa-print"></i> طباعة الكشف
         </button>
       </div>
-      <div class="table-responsive">
+      <div class="table-responsive table-rounded">
         <table class="table table-bordered table-sm align-middle" id="statementTable" data-no-export="true" style="border: 2px solid #dee2e6; border-collapse: collapse;">
           <thead class="table-light" style="background-color: #f8f9fa;">
             <tr>

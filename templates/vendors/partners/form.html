@@ -2,46 +2,21 @@
 {% block title %}{{ form.name.data and 'تعديل' or 'إضافة' }} شريك{% endblock %}
 
 {% block content %}
-<style>
-.card-header-gradient-partner {
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-  border: none;
-}
-.section-card-partner {
-  border: none;
-  background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
-  border-radius: 15px !important;
-  transition: all 0.3s ease;
-}
-.section-card-partner:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 16px rgba(0,0,0,0.1);
-}
-.form-control-modern-partner {
-  border-radius: 10px;
-  border: 2px solid #ffd1dc;
-  transition: all 0.3s ease;
-}
-.form-control-modern-partner:focus {
-  border-color: #f5576c;
-  box-shadow: 0 0 0 0.2rem rgba(245, 87, 108, 0.25);
-}
-.input-group-modern-partner .input-group-text {
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-  color: white;
-  border: none;
-  border-radius: 10px 0 0 10px;
-}
-</style>
-
 <div class="container py-5">
-  <div class="row justify-content-center">
-    <div class="col-md-9">
-      <div class="card shadow-lg rounded-4 border-0">
-        <div class="card-header card-header-gradient-partner text-white py-4">
-          <div class="d-flex justify-content-between align-items-center">
-            <h3 class="mb-0 fw-bold"><i class="fas fa-handshake ml-2"></i>{{ form.name.data and 'تعديل' or 'إضافة' }} شريك</h3>
-          {% if partner %}
+  <div class="card shadow-lg rounded-4 border-0 card-hover">
+    <div class="card-header text-white py-4" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);">
+      <div class="d-flex justify-content-between align-items-center">
+        <h3 class="mb-0 fw-bold"><i class="fas fa-handshake ml-2"></i>{{ form.name.data and 'تعديل' or 'إضافة' }} شريك</h3>
+        <div class="d-flex gap-2">
+            <div class="btn-group shadow-sm rounded-pill overflow-hidden bg-white">
+                <a href="javascript:window.history.back()" class="btn btn-sm text-primary fw-bold border-end" title="رجوع">
+                    <i class="fas fa-arrow-right"></i>
+                </a>
+                <a href="javascript:window.history.forward()" class="btn btn-sm text-primary fw-bold" title="تقدم">
+                    <i class="fas fa-arrow-left"></i>
+                </a>
+            </div>
+            {% if partner %}
           <div class="btn-group">
             {% if partner.balance and partner.balance > 0 %}
             <a href="{{ url_for('payments.create_payment', 
@@ -83,31 +58,31 @@
             <div class="row mb-4">
               <div class="col-md-12">
                 {{ form.name.label(class="form-label fw-bold fs-5") }}
-                {{ form.name(class="form-control form-control-lg form-control-modern-partner shadow-sm" + (' is-invalid' if form.name.errors else ''), placeholder="أدخل اسم الشريك", autofocus=true) }}
+                {{ form.name(class="form-control form-control-lg form-control-modern shadow-sm" + (' is-invalid' if form.name.errors else ''), placeholder="أدخل اسم الشريك", autofocus=true) }}
                 {% for err in form.name.errors %}<div class="invalid-feedback d-block fw-bold">{{ err }}</div>{% endfor %}
               </div>
             </div>
 
-            <div class="section-card-partner shadow-sm mb-4">
+            <div class="section-card shadow-sm mb-4 bg-light rounded-3">
               <div class="card-body p-4">
-                <h5 class="card-title mb-4" style="color: #f5576c;">
+                <h5 class="card-title mb-4 text-primary">
                   <i class="fas fa-id-card ml-2"></i>معلومات الاتصال
                 </h5>
                 
                 <div class="row g-3">
                   <div class="col-md-6">
                     {{ form.phone_number.label(class="form-label fw-bold") }}
-                    <div class="input-group input-group-modern-partner shadow-sm">
-                      <span class="input-group-text"><i class="fas fa-phone"></i></span>
-                      {{ form.phone_number(class="form-control form-control-modern-partner" + (' is-invalid' if form.phone_number.errors else ''), placeholder="05xxxxxxxx", style="border-radius: 0 10px 10px 0;") }}
+                    <div class="input-group shadow-sm">
+                      <span class="input-group-text bg-primary text-white border-0"><i class="fas fa-phone"></i></span>
+                      {{ form.phone_number(class="form-control form-control-modern" + (' is-invalid' if form.phone_number.errors else ''), placeholder="05xxxxxxxx") }}
                     </div>
                     {% for err in form.phone_number.errors %}<div class="text-danger small mt-1 fw-bold">{{ err }}</div>{% endfor %}
                   </div>
                   <div class="col-md-6">
                     {{ form.email.label(class="form-label fw-bold") }}
-                    <div class="input-group input-group-modern-partner shadow-sm">
-                      <span class="input-group-text"><i class="fas fa-envelope"></i></span>
-                      {{ form.email(class="form-control form-control-modern-partner" + (' is-invalid' if form.email.errors else ''), placeholder="partner@example.com", style="border-radius: 0 10px 10px 0;") }}
+                    <div class="input-group shadow-sm">
+                      <span class="input-group-text bg-primary text-white border-0"><i class="fas fa-envelope"></i></span>
+                      {{ form.email(class="form-control form-control-modern" + (' is-invalid' if form.email.errors else ''), placeholder="partner@example.com") }}
                     </div>
                     {% for err in form.email.errors %}<div class="text-danger small mt-1 fw-bold">{{ err }}</div>{% endfor %}
                   </div>
@@ -116,17 +91,17 @@
                 <div class="row g-3 mt-3">
                   <div class="col-md-6">
                     {{ form.identity_number.label(class="form-label fw-bold") }}
-                    <div class="input-group input-group-modern-partner shadow-sm">
-                      <span class="input-group-text"><i class="fas fa-id-badge"></i></span>
-                      {{ form.identity_number(class="form-control form-control-modern-partner", placeholder="رقم الهوية", style="border-radius: 0 10px 10px 0;") }}
+                    <div class="input-group shadow-sm">
+                      <span class="input-group-text bg-primary text-white border-0"><i class="fas fa-id-badge"></i></span>
+                      {{ form.identity_number(class="form-control form-control-modern", placeholder="رقم الهوية") }}
                     </div>
                     {% for err in form.identity_number.errors %}<div class="text-danger small mt-1 fw-bold">{{ err }}</div>{% endfor %}
                   </div>
                   <div class="col-md-6">
                     {{ form.contact_info.label(class="form-label fw-bold") }}
                     <div class="input-group shadow-sm">
-                      <span class="input-group-text bg-light border-0"><i class="fas fa-comments text-primary"></i></span>
-                      {{ form.contact_info(class="form-control form-control-modern-partner", placeholder="معلومات إضافية للتواصل") }}
+                      <span class="input-group-text bg-primary text-white border-0"><i class="fas fa-comments"></i></span>
+                      {{ form.contact_info(class="form-control form-control-modern", placeholder="معلومات إضافية للتواصل") }}
                     </div>
                     {% for err in form.contact_info.errors %}<div class="text-danger small mt-1 fw-bold">{{ err }}</div>{% endfor %}
                   </div>
@@ -134,18 +109,18 @@
 
                 <div class="mt-3">
                   {{ form.address.label(class="form-label fw-bold") }}
-                  <div class="input-group input-group-modern-partner shadow-sm">
-                    <span class="input-group-text"><i class="fas fa-map-marker-alt"></i></span>
-                    {{ form.address(class="form-control form-control-modern-partner", placeholder="العنوان الكامل", style="border-radius: 0 10px 10px 0;") }}
+                  <div class="input-group shadow-sm">
+                    <span class="input-group-text bg-primary text-white border-0"><i class="fas fa-map-marker-alt"></i></span>
+                    {{ form.address(class="form-control form-control-modern", placeholder="العنوان الكامل") }}
                   </div>
                   {% for err in form.address.errors %}<div class="text-danger small mt-1 fw-bold">{{ err }}</div>{% endfor %}
                 </div>
               </div>
             </div>
 
-            <div class="section-card-partner shadow-sm mb-4">
+            <div class="section-card shadow-sm mb-4 bg-light rounded-3">
               <div class="card-body p-4">
-                <h5 class="card-title mb-4" style="color: #f5576c;">
+                <h5 class="card-title mb-4 text-primary">
                   <i class="fas fa-chart-pie ml-2"></i>المعلومات المالية والحصص
                 </h5>
                 
@@ -153,22 +128,22 @@
                   <div class="col-md-3">
                     {{ form.currency.label(class="form-label fw-bold fs-6") }}
                     <div class="shadow-sm">
-                      {{ form.currency(class="form-control form-control-lg form-control-modern-partner border-2" + (' is-invalid' if form.currency.errors else ''), style="background: linear-gradient(to right, #fff 0%, #ffecd2 100%);") }}
+                      {{ form.currency(class="form-control form-control-lg form-control-modern border-2" + (' is-invalid' if form.currency.errors else ''), style="background: linear-gradient(to right, #fff 0%, #f8f9fa 100%);") }}
                     </div>
                     {% for err in form.currency.errors %}<div class="invalid-feedback d-block fw-bold">{{ err }}</div>{% endfor %}
                   </div>
                   <div class="col-md-3">
                     {{ form.share_percentage.label(class="form-label fw-bold") }}
                     <div class="input-group shadow-sm">
-                      {{ form.share_percentage(class="form-control form-control-lg form-control-modern-partner" + (' is-invalid' if form.share_percentage.errors else ''), placeholder="0", step="0.01", min="0", max="100") }}
-                      <span class="input-group-text bg-gradient text-white fw-bold" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); border: none;">%</span>
+                      {{ form.share_percentage(class="form-control form-control-lg form-control-modern" + (' is-invalid' if form.share_percentage.errors else ''), placeholder="0", step="0.01", min="0", max="100") }}
+                      <span class="input-group-text bg-gradient text-white fw-bold" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%); border: none;">%</span>
                     </div>
                     {% for err in form.share_percentage.errors %}<div class="text-danger small mt-1 fw-bold">{{ err }}</div>{% endfor %}
                   </div>
                   <div class="col-md-6">
                     <label class="form-label fw-bold">{{ form.opening_balance.label.text }}</label>
                     <div class="input-group shadow-sm">
-                      {{ form.opening_balance(class="form-control form-control-lg form-control-modern-partner" + (' is-invalid' if form.opening_balance.errors else ''), placeholder="0.00") }}
+                      {{ form.opening_balance(class="form-control form-control-lg form-control-modern" + (' is-invalid' if form.opening_balance.errors else ''), placeholder="0.00") }}
                       <span class="input-group-text bg-gradient text-white fw-bold" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); border: none;">₪</span>
                     </div>
                     <small class="text-muted mt-1 d-block">
@@ -209,13 +184,13 @@
             <div class="mb-4">
               {{ form.notes.label(class="form-label fw-bold") }}
               <div class="shadow-sm">
-                {{ form.notes(class="form-control form-control-modern-partner", rows="3", placeholder="ملاحظات إضافية (اختياري)", style="resize: vertical;") }}
+                {{ form.notes(class="form-control form-control-modern", rows="3", placeholder="ملاحظات إضافية (اختياري)", style="resize: vertical;") }}
               </div>
               {% for err in form.notes.errors %}<div class="text-danger small mt-1 fw-bold">{{ err }}</div>{% endfor %}
             </div>
 
             <div class="d-flex flex-wrap gap-3 mt-5 border-top pt-4">
-              <button type="submit" class="btn btn-lg shadow-lg px-5 py-3 fw-bold" style="background: linear-gradient(135deg, {{ '#ff9800' if form.name.data else '#e91e63' }} 0%, {{ '#f57c00' if form.name.data else '#c2185b' }} 100%); border: none; color: white; border-radius: 15px;">
+              <button type="submit" class="btn btn-lg shadow-lg px-5 py-3 fw-bold" style="background: linear-gradient(135deg, {{ '#ff9800' if form.name.data else '#4caf50' }} 0%, {{ '#f57c00' if form.name.data else '#388e3c' }} 100%); border: none; color: white; border-radius: 15px;">
                 <i class="fas fa-{{ form.name.data and 'edit' or 'user-plus' }} ml-2"></i>
                 {{ form.name.data and 'تحديث الشريك' or 'إضافة الشريك' }}
               </button>
@@ -247,7 +222,7 @@
         </div>
         <div class="mb-3">
           <label class="form-label">المبلغ للتسوية</label>
-          <input type="number" step="0.01" min="0" inputmode="decimal" class="form-control" id="stlAmount">
+          <input type="number" step="0.01" min="0" inputmode="decimal" class="form-control form-control-modern" id="stlAmount">
         </div>
         <div class="row g-2 mb-3">
           <div class="col-md-6">
@@ -256,12 +231,12 @@
           </div>
           <div class="col-md-6">
             <label class="form-label">العملة</label>
-            <input type="text" class="form-control" id="stlCurrency" readonly>
+            <input type="text" class="form-control form-control-modern" id="stlCurrency" readonly>
           </div>
         </div>
         <div class="mb-3">
           <label class="form-label">طريقة الدفع</label>
-          <select id="stlMethod" class="custom-select">
+          <select id="stlMethod" class="custom-select form-control-modern">
             <option value="cash">نقداً</option>
             <option value="bank">تحويل بنكي</option>
             <option value="cheque">شيك</option>

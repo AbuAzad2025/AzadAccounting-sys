@@ -140,7 +140,7 @@
   
   document.addEventListener('DOMContentLoaded', function() {
     loadSavedPreference();
-    addDarkModeButton();
+    // addDarkModeButton(); // Disabled as we moved it to navbar
     watchSystemPreference();
   });
   

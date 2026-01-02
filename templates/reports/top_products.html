@@ -91,19 +91,19 @@
     <div class="card-body row g-3 align-items-end">
       <div class="col-12 col-md-3">
         <label class="form-label">{{ FIELD_LABELS.get("start_date", "من") }}</label>
-        <input type="date" class="form-control" name="start" value="{{ start }}">
+        <input type="date" class="form-control form-control-modern" name="start" value="{{ start }}">
       </div>
       <div class="col-12 col-md-3">
         <label class="form-label">{{ FIELD_LABELS.get("end_date", "إلى") }}</label>
-        <input type="date" class="form-control" name="end" value="{{ end }}">
+        <input type="date" class="form-control form-control-modern" name="end" value="{{ end }}">
       </div>
       <div class="col-12 col-md-2">
         <label class="form-label">العدد</label>
-        <input type="number" class="form-control" name="limit" min="1" max="1000" value="{{ limit }}">
+        <input type="number" class="form-control form-control-modern" name="limit" min="1" max="1000" value="{{ limit }}">
       </div>
       <div class="col-12 col-md-2">
         <label class="form-label">{{ FIELD_LABELS.get("warehouse", "المستودع") }}</label>
-        <select class="custom-select" name="warehouse_id" {% if not can_group_by_warehouse %}disabled title="لا يتوفر ربط بالمستودع في هذا المخطط"{% endif %}>
+        <select class="custom-select form-control-modern" name="warehouse_id" {% if not can_group_by_warehouse %}disabled title="لا يتوفر ربط بالمستودع في هذا المخطط"{% endif %}>
           <option value="">الكل</option>
           {% for w in warehouses %}
           <option value="{{ w.id }}" {% if selected_warehouse_id and w.id == selected_warehouse_id %}selected{% endif %}>{{ w.name }}</option>

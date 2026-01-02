@@ -24,6 +24,17 @@ from werkzeug.utils import secure_filename
 ai_admin_bp = Blueprint('ai_admin', __name__, url_prefix='/ai-admin')
 
 
+@ai_admin_bp.before_request
+def restrict_to_owner():
+    """تقييد الوصول للمالك فقط"""
+    if not current_user.is_authenticated:
+        return redirect(url_for('auth.login'))
+    
+    if not current_user.is_system:
+        flash('⛔ هذه اللوحة خاصة بالمالك فقط', 'danger')
+        return redirect(url_for('main.dashboard'))
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # 📋 ROUTES
 # ═══════════════════════════════════════════════════════════════════════════

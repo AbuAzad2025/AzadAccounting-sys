@@ -28,7 +28,7 @@
 <!-- إحصائيات سريعة -->
 <div class="row mb-4">
   <div class="col-lg-3 col-md-6 mb-3">
-    <div class="card border-0 shadow-sm bg-primary text-white">
+    <div class="card border-0 shadow-sm bg-primary text-white card-hover">
       <div class="card-body">
         <div class="d-flex justify-content-between">
           <div>
@@ -44,7 +44,7 @@
   </div>
   
   <div class="col-lg-3 col-md-6 mb-3">
-    <div class="card border-0 shadow-sm bg-success text-white">
+    <div class="card border-0 shadow-sm bg-success text-white card-hover">
       <div class="card-body">
         <div class="d-flex justify-content-between">
           <div>
@@ -92,13 +92,26 @@
   </div>
 </div>
 
-<div class="card mb-4 no-print">
+<div class="card mb-4 no-print shadow-sm">
+  <div class="card-header text-white" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);">
+    <div class="d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="fas fa-filter ml-2"></i>تصفية المخزون</h5>
+        <div class="btn-group shadow-sm rounded-pill overflow-hidden bg-white">
+            <button onclick="window.history.back()" class="btn btn-sm text-primary fw-bold border-end" title="رجوع">
+                <i class="fas fa-arrow-right"></i>
+            </button>
+            <button onclick="window.history.forward()" class="btn btn-sm text-primary fw-bold" title="تقدم">
+                <i class="fas fa-arrow-left"></i>
+            </button>
+        </div>
+    </div>
+  </div>
   <div class="card-body">
     <form id="inv-form" method="get" class="row g-3 align-items-end" onsubmit="return onSubmitInvForm(event)">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
       <div class="col-md-5">
         <label class="form-label">اختر المستودعات</label>
-        <select name="warehouse_ids" multiple class="custom-select" size="6">
+        <select name="warehouse_ids" multiple class="custom-select form-control-modern" size="6">
           {% for w in warehouses %}
             <option value="{{ w.id }}" selected>{{ w.name }}</option>
           {% endfor %}
@@ -107,7 +120,7 @@
       </div>
       <div class="col-md-4">
         <label class="form-label">بحث عن قطعة</label>
-        <input type="text" name="q" class="form-control" value="{{ search or '' }}" placeholder="اسم القطعة">
+        <input type="text" name="q" class="form-control form-control-modern" value="{{ search or '' }}" placeholder="اسم القطعة">
       </div>
       <div class="col-md-3 d-flex gap-2">
         <button id="apply-btn" type="submit" class="btn btn-primary flex-fill">
@@ -122,10 +135,11 @@
   </div>
 </div>
 
-<div class="card print-area">
-  <div class="table-responsive">
-    <table class="table table-sm table-bordered align-middle mb-0">
-      <thead class="table-light">
+<div class="card print-area card-hover">
+  <div class="card-body p-0 table-rounded">
+    <div class="table-responsive">
+      <table class="table table-sm table-bordered align-middle mb-0 table-hover">
+        <thead class="text-white" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);">
         <tr>
           <th>القطعة</th>
           <th>ID القطعة</th>

@@ -202,21 +202,15 @@ def suppliers_list():
               <span class="d-none d-lg-inline ms-1">تعديل</span>
             </a>
             {% if s.is_archived %}
-            <form method="post" action="{{ url_for('vendors_bp.restore_supplier', supplier_id=s.id) }}" class="d-inline-block">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-              <button type="submit" class="btn btn-sm btn-success d-flex align-items-center" title="استعادة">
+            <button type="button" class="btn btn-sm btn-success d-flex align-items-center" title="استعادة" onclick="restoreSupplier({{ s.id }})">
                 <i class="fas fa-undo"></i>
                 <span class="d-none d-lg-inline ms-1">استعادة</span>
-              </button>
-            </form>
+            </button>
             {% else %}
-            <form method="post" action="{{ url_for('vendors_bp.archive_supplier', supplier_id=s.id) }}" class="d-inline-block">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-              <button type="submit" class="btn btn-sm btn-warning d-flex align-items-center" title="أرشفة">
+            <button type="button" class="btn btn-sm btn-warning d-flex align-items-center" title="أرشفة" onclick="archiveSupplier({{ s.id }})">
                 <i class="fas fa-archive"></i>
                 <span class="d-none d-lg-inline ms-1">أرشفة</span>
-              </button>
-            </form>
+            </button>
             {% endif %}
             <form method="post" action="{{ url_for('vendors_bp.suppliers_delete', id=s.id) }}" class="d-inline-block">
               <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -2119,19 +2113,13 @@ def partners_list():
               <i class="fas fa-edit"></i><span class="d-none d-xl-inline">تعديل</span>
             </a>
             {% if p.is_archived %}
-              <form method="post" action="{{ url_for('vendors_bp.restore_partner', partner_id=p.id) }}" class="d-inline">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <button type="submit" class="btn btn-sm btn-success" title="استعادة الشريك">
-                  <i class="fas fa-undo"></i><span class="d-none d-xl-inline">استعادة</span>
-                </button>
-              </form>
+              <button type="button" class="btn btn-sm btn-success" title="استعادة الشريك" onclick="restorePartner({{ p.id }})">
+                <i class="fas fa-undo"></i><span class="d-none d-xl-inline">استعادة</span>
+              </button>
             {% else %}
-              <form method="post" action="{{ url_for('vendors_bp.archive_partner', partner_id=p.id) }}" class="d-inline">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <button type="submit" class="btn btn-sm btn-outline-warning" title="أرشفة الشريك">
-                  <i class="fas fa-archive"></i><span class="d-none d-xl-inline">أرشفة</span>
-                </button>
-              </form>
+              <button type="button" class="btn btn-sm btn-outline-warning" title="أرشفة الشريك" onclick="archivePartner({{ p.id }})">
+                <i class="fas fa-archive"></i><span class="d-none d-xl-inline">أرشفة</span>
+              </button>
             {% endif %}
             <form method="post"
                   action="{{ url_for('vendors_bp.partners_delete', id=p.id) }}"
@@ -3768,12 +3756,19 @@ def archive_supplier(supplier_id):
         reason = request.form.get('reason', 'أرشفة تلقائية')
         
         utils.archive_record(supplier, reason, current_user.id)
+        
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': True, 'message': f'تم أرشفة المورد {supplier.name} بنجاح'})
+            
         flash(f'تم أرشفة المورد {supplier.name} بنجاح', 'success')
         return redirect(url_for('vendors_bp.suppliers_list'))
         
     except Exception as e:
         
         db.session.rollback()
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'message': f'خطأ في أرشفة المورد: {str(e)}'}), 500
+            
         flash(f'خطأ في أرشفة المورد: {str(e)}', 'error')
         return redirect(url_for('vendors_bp.suppliers_list'))
 
@@ -3791,12 +3786,18 @@ def archive_partner(partner_id):
         
         utils.archive_record(partner, reason, current_user.id)
         
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': True, 'message': f'تم أرشفة الشريك {partner.name} بنجاح'})
+            
         flash(f'تم أرشفة الشريك {partner.name} بنجاح', 'success')
         return redirect(url_for('vendors_bp.partners_list'))
         
     except Exception as e:
         
         db.session.rollback()
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'message': f'خطأ في أرشفة الشريك: {str(e)}'}), 500
+            
         flash(f'خطأ في أرشفة الشريك: {str(e)}', 'error')
         return redirect(url_for('vendors_bp.partners_list'))
 
@@ -3809,6 +3810,8 @@ def restore_supplier(supplier_id):
         supplier = Supplier.query.get_or_404(supplier_id)
         
         if not supplier.is_archived:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'success': False, 'message': 'المورد غير مؤرشف'}), 400
             flash('المورد غير مؤرشف', 'warning')
             return redirect(url_for('vendors_bp.suppliers_list'))
         
@@ -3821,13 +3824,24 @@ def restore_supplier(supplier_id):
         
         if archive:
             utils.restore_record(archive.id)
+        else:
+            # Fallback if archive record missing
+            supplier.is_archived = False
+            supplier.archived_at = None
+            db.session.commit()
         
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': True, 'message': f'تم استعادة المورد {supplier.name} بنجاح'})
+            
         flash(f'تم استعادة المورد {supplier.name} بنجاح', 'success')
         return redirect(url_for('vendors_bp.suppliers_list'))
         
     except Exception as e:
         
         db.session.rollback()
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'message': f'خطأ في استعادة المورد: {str(e)}'}), 500
+            
         flash(f'خطأ في استعادة المورد: {str(e)}', 'error')
         return redirect(url_for('vendors_bp.suppliers_list'))
 
@@ -3840,6 +3854,8 @@ def restore_partner(partner_id):
         partner = Partner.query.get_or_404(partner_id)
         
         if not partner.is_archived:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'success': False, 'message': 'الشريك غير مؤرشف'}), 400
             flash('الشريك غير مؤرشف', 'warning')
             return redirect(url_for('vendors_bp.partners_list'))
         
@@ -3852,13 +3868,24 @@ def restore_partner(partner_id):
         
         if archive:
             utils.restore_record(archive.id)
+        else:
+            # Fallback if archive record missing
+            partner.is_archived = False
+            partner.archived_at = None
+            db.session.commit()
         
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': True, 'message': f'تم استعادة الشريك {partner.name} بنجاح'})
+            
         flash(f'تم استعادة الشريك {partner.name} بنجاح', 'success')
         return redirect(url_for('vendors_bp.partners_list'))
         
     except Exception as e:
         
         db.session.rollback()
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'message': f'خطأ في استعادة الشريك: {str(e)}'}), 500
+            
         flash(f'خطأ في استعادة الشريك: {str(e)}', 'error')
         return redirect(url_for('vendors_bp.partners_list'))
 def _utcnow_naive():

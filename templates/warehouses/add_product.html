@@ -33,42 +33,57 @@
 {% endif %}
 
   <div class="alert alert-primary mb-3">
-    <div class="d-flex align-items-center">
-      <i class="fas fa-warehouse fa-2x ml-3"></i>
-      <div>
-        <strong>نوع المستودع: {{ wtype }}</strong>
-        <div class="small">الحقول المعلّمة بـ <span class="text-danger">*</span> إلزامية</div>
+    <div class="d-flex align-items-center justify-content-between">
+      <div class="d-flex align-items-center">
+        <i class="fas fa-warehouse fa-2x ml-3"></i>
+        <div>
+          <strong>نوع المستودع: {{ wtype }}</strong>
+          <div class="small">الحقول المعلّمة بـ <span class="text-danger">*</span> إلزامية</div>
+        </div>
+      </div>
+      <div class="d-flex gap-2">
+         <div class="btn-group shadow-sm rounded-pill overflow-hidden bg-white">
+            <button type="button" onclick="window.history.back()" class="btn btn-sm text-primary fw-bold border-end" title="رجوع">
+                <i class="fas fa-arrow-right"></i>
+            </button>
+            <button type="button" onclick="window.history.forward()" class="btn btn-sm text-primary fw-bold" title="تقدم">
+                <i class="fas fa-arrow-left"></i>
+            </button>
+         </div>
+         <a href="{{ url_for('warehouse_bp.detail', warehouse_id=warehouse.id) }}" class="btn btn-light btn-sm shadow-sm text-primary fw-bold">
+            <i class="fas fa-arrow-right ml-1"></i> رجوع للمستودع
+         </a>
       </div>
     </div>
   </div>
 
   <!-- القسم 1: المعلومات الأساسية -->
   <div class="card mb-3 shadow-sm border-primary">
-    <div class="card-header bg-primary text-white">
+    <div class="card-header text-white" style="background: linear-gradient(135deg, #0d6efd, #0a58ca);">
       <i class="fas fa-info-circle ml-1"></i> المعلومات الأساسية
     </div>
     <div class="card-body">
       <div class="row g-3">
         <div class="col-md-6">
           <label class="form-label">{{ product_form.name.label.text }} <span class="text-danger">*</span></label>
-          {{ product_form.name(class_="form-control", required=True, placeholder="مثال: كمبرسر خلاطات") }}
+          {{ product_form.name(class_="form-control form-control-modern", required=True, placeholder="مثال: كمبرسر خلاطات") }}
           <small class="text-muted"><i class="fas fa-info-circle"></i> اسم القطعة كما سيظهر في الفواتير</small>
         </div>
         <div class="col-md-3">
           <label class="form-label">{{ product_form.sku.label.text }} <span class="text-muted">(اختياري)</span></label>
-          {{ product_form.sku(class_="form-control", placeholder="مثال: COMP-001") }}
+          {{ product_form.sku(class_="form-control form-control-modern", placeholder="مثال: COMP-001") }}
           <small class="text-muted"><i class="fas fa-tag"></i> كود داخلي للبحث السريع</small>
         </div>
         <div class="col-md-3">
           <label class="form-label">{{ product_form.part_number.label.text }} <span class="text-muted">(اختياري)</span></label>
-          {{ product_form.part_number(class_="form-control", placeholder="رقم القطعة") }}
+          {{ product_form.part_number(class_="form-control form-control-modern", placeholder="رقم القطعة") }}
           <small class="text-muted"><i class="fas fa-hashtag"></i> رقم القطعة من المصنع</small>
         </div>
         <div class="col-md-12">
           <label class="form-label">{{ product_form.barcode.label.text }} <span class="text-muted">(اختياري)</span></label>
           <div class="input-group">
             {{ product_form.barcode(
-                 class_="form-control",
+                 class_="form-control form-control-modern",
                  id="barcode",
                  dir="ltr",
                  inputmode="numeric",
@@ -88,7 +103,7 @@
 
   <!-- القسم 2: التصنيف -->
   <div class="card mb-3 shadow-sm">
-    <div class="card-header bg-secondary text-white">
+    <div class="card-header text-white" style="background: linear-gradient(135deg, #6c757d, #5c636a);">
       <i class="fas fa-tags ml-1"></i> التصنيف والنوع
     </div>
     <div class="card-body">
@@ -97,7 +112,7 @@
           <label class="form-label">{{ product_form.category_id.label.text }} <span class="text-danger">*</span></label>
           <div class="input-group">
             {{ product_form.category_id(
-                 class_="form-control select2",
+                 class_="form-control form-control-modern select2",
                  id="category_id",
                  placeholder="اختر الفئة",
                  required=True,
@@ -111,7 +126,7 @@
           <label class="form-label">{{ product_form.vehicle_type_id.label.text }} <span class="text-muted">(اختياري)</span></label>
           <div class="input-group">
             {{ product_form.vehicle_type_id(
-                 class_="form-control select2",
+                 class_="form-control form-control-modern select2",
                  id="vehicle_type_id",
                  **{
                    'data-url': url_for('api.search_equipment_types'),
@@ -124,7 +139,7 @@
         </div>
         <div class="col-md-4">
           <label class="form-label">{{ product_form.brand.label.text }} <span class="text-muted">(اختياري)</span></label>
-          {{ product_form.brand(class_="form-control", placeholder="مثال: Toyota, Caterpillar") }}
+          {{ product_form.brand(class_="form-control form-control-modern", placeholder="مثال: Toyota, Caterpillar") }}
           <small class="text-muted"><i class="fas fa-copyright"></i> الماركة أو الشركة المصنعة</small>
         </div>
       </div>
@@ -132,22 +147,22 @@
   </div>
 
   <!-- القسم 3: التسعير والكمية -->
-  <div class="card mb-3 shadow-sm border-success">
-    <div class="card-header bg-success text-white">
-      <i class="fas fa-dollar-sign ml-1"></i> التسعير والكمية
+  <div class="card mb-4 shadow-sm border-0 card-hover">
+    <div class="card-header text-white py-3" style="background: linear-gradient(135deg, #198754 0%, #157347 100%);">
+      <h5 class="mb-0"><i class="fas fa-dollar-sign me-2"></i> التسعير والكمية</h5>
     </div>
     <div class="card-body">
       <div class="row g-3">
         <!-- الصف الأول: العملة والأسعار الأساسية -->
         <div class="col-md-3">
           <label class="form-label fw-bold">{{ product_form.currency.label.text }} <span class="text-danger">*</span></label>
-          {{ product_form.currency(class_="custom-select", id="product_currency", required=True) }}
+          {{ product_form.currency(class_="custom-select form-control-modern", id="product_currency", required=True) }}
           <small class="text-muted"><i class="fas fa-globe text-info"></i> عملة كل الأسعار أدناه</small>
         </div>
         <div class="col-md-3">
           <label class="form-label fw-bold text-success">سعر البيع <span class="text-danger">*</span></label>
           <div class="input-group">
-            {{ product_form.price(class_="form-control", id="product_price", required=True, placeholder="0.00") }}
+            {{ product_form.price(class_="form-control form-control-modern", id="product_price", required=True, placeholder="0.00") }}
             <span class="input-group-text bg-success text-white" id="currency-symbol">₪</span>
           </div>
           <small class="text-muted"><i class="fas fa-money-bill-wave text-success"></i> السعر للعملاء</small>
@@ -155,7 +170,7 @@
         <div class="col-md-3">
           <label class="form-label fw-bold text-danger">سعر التكلفة <span class="text-danger">*</span></label>
           <div class="input-group">
-            {{ product_form.purchase_price(class_="form-control", id="purchase_price", required=True, placeholder="0.00") }}
+            {{ product_form.purchase_price(class_="form-control form-control-modern", id="purchase_price", required=True, placeholder="0.00") }}
             <span class="input-group-text bg-danger text-white" id="cost-currency-symbol">₪</span>
           </div>
           <small class="text-muted"><i class="fas fa-receipt text-danger"></i> التكلفة الفعلية (لحساب الأرباح والشركاء)</small>
@@ -163,7 +178,7 @@
         <div class="col-md-3">
           <label class="form-label">{{ product_form.tax_rate.label.text }} <span class="text-muted">(اختياري)</span></label>
           <div class="input-group">
-            {{ product_form.tax_rate(class_="form-control", placeholder="16") }}
+            {{ product_form.tax_rate(class_="form-control form-control-modern", placeholder="16") }}
             <span class="input-group-text">%</span>
           </div>
           <small class="text-muted"><i class="fas fa-percent"></i> نسبة الضريبة</small>
@@ -172,22 +187,22 @@
         <!-- الصف الثاني: الكمية والمخزون -->
         <div class="col-md-3">
           <label class="form-label">{{ stock_form.quantity.label.text }} <span class="text-muted">(اختياري)</span></label>
-          {{ stock_form.quantity(class_="form-control", placeholder="0") }}
+          {{ stock_form.quantity(class_="form-control form-control-modern", placeholder="0") }}
           <small class="text-muted"><i class="fas fa-boxes"></i> عدد القطع المُضافة الآن</small>
         </div>
         <div class="col-md-3">
           <label class="form-label">{{ product_form.min_qty.label.text }} <span class="text-muted">(اختياري)</span></label>
-          {{ product_form.min_qty(class_="form-control", placeholder="5") }}
+          {{ product_form.min_qty(class_="form-control form-control-modern", placeholder="5") }}
           <small class="text-muted"><i class="fas fa-bell text-warning"></i> تنبيه عند النقص</small>
         </div>
         <div class="col-md-3">
           <label class="form-label">{{ product_form.reorder_point.label.text }} <span class="text-muted">(اختياري)</span></label>
-          {{ product_form.reorder_point(class_="form-control", placeholder="10") }}
+          {{ product_form.reorder_point(class_="form-control form-control-modern", placeholder="10") }}
           <small class="text-muted"><i class="fas fa-sync"></i> نقطة إعادة الطلب</small>
         </div>
         <div class="col-md-3">
           <label class="form-label">{{ product_form.unit.label.text }} <span class="text-muted">(اختياري)</span></label>
-          {{ product_form.unit(class_="form-control", placeholder="قطعة/كرتون/كجم") }}
+          {{ product_form.unit(class_="form-control form-control-modern", placeholder="قطعة/كرتون/كجم") }}
           <small class="text-muted"><i class="fas fa-balance-scale"></i> وحدة القياس</small>
         </div>
       </div>
@@ -202,7 +217,7 @@
 
   <!-- القسم 4: مساهمات الشركاء (يظهر فقط لمستودعات الشراكة) -->
   <div class="card mb-3 shadow-sm border-warning {% if (wtype|upper) == 'PARTNER' %}{% else %}d-none{% endif %}" id="partner-section">
-    <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+    <div class="card-header text-dark d-flex justify-content-between align-items-center" style="background: linear-gradient(135deg, #ffc107, #ffca2c);">
       <div>
         <i class="fas fa-handshake ml-1"></i> مساهمات الشركاء
         <small class="ms-2">(خاص بمستودعات الشراكة)</small>
@@ -221,7 +236,7 @@
       <div class="partner-entry border rounded p-3 mb-3 bg-light">
         <label class="form-label">الشريك <span class="text-danger">*</span></label>
         {{ p_form.partner_id(
-             class_="form-control select2",
+             class_="form-control form-control-modern select2",
              placeholder="اختر الشريك",
              **{'data-url': url_for('api.search_partners')}
            ) }}
@@ -231,19 +246,19 @@
           <div class="col-md-4">
             <label class="form-label">{{ p_form.share_percentage.label.text }} <span class="text-danger">*</span></label>
             <div class="input-group">
-              {{ p_form.share_percentage(class_="form-control", placeholder="50") }}
+              {{ p_form.share_percentage(class_="form-control form-control-modern", placeholder="50") }}
               <span class="input-group-text">%</span>
             </div>
             <small class="text-muted"><i class="fas fa-percentage"></i> نسبة حصة الشريك</small>
           </div>
           <div class="col-md-4">
             <label class="form-label">{{ p_form.share_amount.label.text }} <span class="text-muted">(اختياري)</span></label>
-            {{ p_form.share_amount(class_="form-control", placeholder="0.00") }}
+            {{ p_form.share_amount(class_="form-control form-control-modern", placeholder="0.00") }}
             <small class="text-muted"><i class="fas fa-coins"></i> القيمة المالية للحصة</small>
           </div>
           <div class="col-md-4">
             <label class="form-label">{{ p_form.notes.label.text }} <span class="text-muted">(اختياري)</span></label>
-            {{ p_form.notes(class_="form-control", placeholder="ملاحظات") }}
+            {{ p_form.notes(class_="form-control form-control-modern", placeholder="ملاحظات") }}
             <small class="text-muted"><i class="fas fa-comment"></i> أي ملاحظات إضافية</small>
           </div>
         </div>
@@ -256,13 +271,12 @@
   </div>
 
   <!-- القسم 4: معلومات المورّد/التاجر (يظهر فقط لمستودعات التبادل) -->
-  <div class="card mb-3 shadow-sm border-info {% if (wtype|upper) == 'EXCHANGE' %}{% else %}d-none{% endif %}" id="exchange-section">
-    <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+  <div class="card mb-4 shadow-sm border-0 card-hover {% if (wtype|upper) == 'EXCHANGE' %}{% else %}d-none{% endif %}" id="exchange-section">
+    <div class="card-header text-white d-flex justify-content-between align-items-center py-3" style="background: linear-gradient(135deg, #0dcaf0 0%, #0aa2c0 100%);">
       <div>
-        <i class="fas fa-truck-loading ml-1"></i> معلومات المورّد/التاجر
-        <small class="ms-2">(خاص بمستودعات التبادل)</small>
+        <h5 class="mb-0"><i class="fas fa-truck-loading me-2"></i> معلومات المورّد/التاجر</h5>
       </div>
-      <button type="button" id="add-vendor-btn" class="btn btn-sm btn-light">
+      <button type="button" id="add-vendor-btn" class="btn btn-sm btn-light rounded-pill">
         <i class="fas fa-plus"></i> إضافة صف
       </button>
     </div>
@@ -279,7 +293,7 @@
             <label class="form-label">{{ v_form.supplier_id.label.text }} <span class="text-muted">(اختياري)</span></label>
             <div class="input-group">
               {{ v_form.supplier_id(
-                   class_="form-control select2",
+                   class_="form-control form-control-modern select2",
                    placeholder="اختر المورد/التاجر",
                    **{'data-url': url_for('api.search_suppliers')}
                  ) }}
@@ -293,7 +307,7 @@
           <div class="col-md-6">
             <label class="form-label">{{ v_form.vendor_price.label.text }}</label>
             <div class="input-group">
-              {{ v_form.vendor_price(class_="form-control", placeholder="0.00") }}
+              {{ v_form.vendor_price(class_="form-control form-control-modern", placeholder="0.00") }}
               <span class="input-group-text">₪</span>
             </div>
             <small class="text-muted"><i class="fas fa-dollar-sign text-success"></i> سعر تكلفة القطعة الواحدة</small>
@@ -302,7 +316,7 @@
           <div class="col-md-6">
             <label class="form-label">{{ v_form.vendor_paid.label.text }} <span class="text-muted">(اختياري)</span></label>
             <div class="input-group">
-              {{ v_form.vendor_paid(class_="form-control", placeholder="0.00") }}
+              {{ v_form.vendor_paid(class_="form-control form-control-modern", placeholder="0.00") }}
               <span class="input-group-text">₪</span>
             </div>
             <small class="text-muted">
@@ -320,7 +334,7 @@
           
           <div class="col-md-12">
             <label class="form-label">{{ v_form.vendor_phone.label.text }} <span class="text-muted">(اختياري)</span></label>
-            {{ v_form.vendor_phone(class_="form-control", placeholder="05xxxxxxxx") }}
+            {{ v_form.vendor_phone(class_="form-control form-control-modern", placeholder="05xxxxxxxx") }}
             <small class="text-muted"><i class="fas fa-phone"></i> رقم هاتف المورد للتواصل</small>
           </div>
         </div>

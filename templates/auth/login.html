@@ -29,7 +29,7 @@
         <div class="input-group-prepend">
           <span class="input-group-text"><i class="fas fa-user"></i></span>
         </div>
-        {{ form.username(class="form-control", placeholder="البريد / اسم المستخدم / رقم الهاتف", autocomplete="username", autofocus=True, dir="auto") }}
+        {{ form.username(class="form-control form-control-modern", placeholder="البريد / اسم المستخدم / رقم الهاتف", autocomplete="username", autofocus=True, dir="auto") }}
       </div>
     </div>
 
@@ -39,7 +39,7 @@
         <div class="input-group-prepend">
           <span class="input-group-text"><i class="fas fa-lock"></i></span>
         </div>
-        {{ form.password(class="form-control", placeholder="كلمة المرور", autocomplete="current-password", id="login-password") }}
+        {{ form.password(class="form-control form-control-modern", placeholder="كلمة المرور", autocomplete="current-password", id="login-password") }}
         <div class="input-group-append">
           <button class="btn btn-toggle-pass" type="button" onclick="togglePasswordVisibility()">
              <i class="fas fa-eye" id="toggle-icon"></i>
@@ -123,7 +123,7 @@
   </div>
   
   <div class="mt-4 text-center">
-    <div class="card border-0 shadow-sm" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+    <div class="card border-0 shadow-sm card-hover" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);">
       <div class="card-body text-white py-3">
         <h6 class="font-weight-bold mb-2">
           <i class="fas fa-rocket ml-2"></i>نظام احترافي متكامل

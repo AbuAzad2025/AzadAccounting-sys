@@ -1,123 +1,85 @@
 {% set is_owner = current_user.is_authenticated and (current_user.is_system_account or (current_user.username|default('')|upper == '__OWNER__') or (current_user.role and current_user.role.name|default('')|upper == 'OWNER')) %}
-<nav class="navbar navbar-expand-lg navbar-dark mb-4" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
-  <div class="container-fluid">
-    <a class="navbar-brand fw-bold" href="{% if is_owner %}{{ url_for('security.index') }}{% else %}{{ url_for('main.dashboard') }}{% endif %}">
-      <i class="fas fa-crown"></i> Security Panel
-    </a>
-    <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#advancedNav">
-      <span class="navbar-toggler-icon"></span>
-    </button>
-    <div class="collapse navbar-collapse" id="advancedNav">
-      <ul class="navbar-nav ml-auto">
-        <li class="nav-item">
-          <a class="nav-link d-flex align-items-center gap-1 {% if request.endpoint == 'advanced.owner_hub' %}active{% endif %}" 
-             href="{{ url_for('advanced.owner_hub') }}">
-            <i class="fas fa-crown"></i> Owner Hub
-          </a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link {% if request.endpoint == 'advanced.db_merger' %}active{% endif %}" 
-             href="{{ url_for('advanced.db_merger') }}">
-            <i class="fas fa-database"></i> DB Merger
-          </a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link d-flex align-items-center gap-1 {% if request.endpoint == 'advanced.multi_tenant' %}active{% endif %}" 
-             href="{{ url_for('advanced.multi_tenant') }}">
-            <i class="fas fa-building"></i> Multi-Tenant
-            {% if stats and stats.inactive_tenants %}
-            <span class="badge bg-warning text-dark">{{ stats.inactive_tenants }}</span>
-            {% endif %}
-          </a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link d-flex align-items-center gap-1 {% if request.endpoint == 'advanced.backup_manager' %}active{% endif %}" 
-             href="{{ url_for('advanced.backup_manager') }}">
-            <i class="fas fa-save"></i> Backup Manager
-            {% if backup_summary %}
-            <span class="badge bg-{{ backup_summary.color }}">{{ backup_summary.message }}</span>
-            {% endif %}
-          </a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link {% if request.endpoint == 'advanced.system_cloner' %}active{% endif %}" 
-             href="{{ url_for('advanced.system_cloner') }}">
-            <i class="fas fa-clone"></i> System Cloner
-          </a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link {% if request.endpoint == 'advanced.mobile_app_generator' %}active{% endif %}" 
-             href="{{ url_for('advanced.mobile_app_generator') }}">
-            <i class="fas fa-mobile-alt"></i> Mobile Apps
-          </a>
-        </li>
-  <li class="nav-item">
-    <a class="nav-link {% if request.endpoint == 'advanced.financial_control' %}active{% endif %}" 
-       href="{{ url_for('advanced.financial_control') }}">
-      <i class="fas fa-dollar-sign"></i> التحكم المالي
-    </a>
-  </li>
-  <li class="nav-item">
-    <a class="nav-link {% if request.endpoint == 'security_control.security_control' %}active{% endif %}" 
-       href="{{ url_for('security_control.security_control') }}">
-      <i class="fas fa-shield-alt"></i> التحكم بالأمان
-    </a>
-  </li>
-  <li class="nav-item">
-    <a class="nav-link {% if request.endpoint == 'advanced.accounting_control' %}active{% endif %}" 
-       href="{{ url_for('advanced.accounting_control') }}">
-      <i class="fas fa-calculator"></i> المحاسبة المتقدمة
-    </a>
-  </li>
-        <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle" href="#" role="button" data-toggle="dropdown">
-            <i class="fas fa-cog"></i> المزيد
-          </a>
-          <ul class="dropdown-menu">
-            <li><a class="dropdown-item" href="{{ url_for('advanced.dashboard_links') }}">
-              <i class="fas fa-link"></i> Dashboard Links
-            </a></li>
-            <li><a class="dropdown-item" href="{{ url_for('advanced.version_control') }}">
-              <i class="fas fa-code-branch"></i> Version Control
-            </a></li>
-            <li><a class="dropdown-item" href="{{ url_for('advanced.licensing') }}">
-              <i class="fas fa-key"></i> Licensing
-            </a></li>
-            <li><hr class="dropdown-divider"></li>
-            <li><a class="dropdown-item" href="{{ url_for('advanced.module_manager') }}">
-              <i class="fas fa-puzzle-piece"></i> Module Manager
-            </a></li>
-            <li><a class="dropdown-item" href="{{ url_for('advanced.feature_flags') }}">
-              <i class="fas fa-flag"></i> Feature Flags
-            </a></li>
-            <li><hr class="dropdown-divider"></li>
-            <li><a class="dropdown-item" href="{{ url_for('advanced.system_health') }}">
-              <i class="fas fa-heartbeat"></i> System Health
-            </a></li>
-            <li><a class="dropdown-item" href="{{ url_for('advanced.api_generator') }}">
-              <i class="fas fa-code"></i> API Generator
-            </a></li>
-            <li><a class="dropdown-item" href="{{ url_for('advanced.owner_smoke_checklist') }}">
-              <i class="fas fa-clipboard-check"></i> Owner Checklist
-            </a></li>
-          </ul>
-        </li>
-      </ul>
-      <ul class="navbar-nav">
-        <li class="nav-item">
-          <a class="nav-link" href="{{ url_for('main.dashboard') }}">
-            <i class="fas fa-home"></i> الرئيسية
-          </a>
-        </li>
-        {% if is_owner %}
-        <li class="nav-item">
-          <a class="nav-link" href="{{ url_for('security.index') }}">
-            <i class="fas fa-shield-alt"></i> الأمان
-          </a>
-        </li>
-        {% endif %}
-      </ul>
+<nav class="navbar navbar-expand-lg navbar-dark mb-4 gradient-header" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%); border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+    <div class="container-fluid">
+        <a class="navbar-brand fw-bold" href="{% if is_owner %}{{ url_for('security.index') }}{% else %}{{ url_for('main.dashboard') }}{% endif %}">
+            <i class="fas fa-crown me-2"></i> Security Panel
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#advancedNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        
+        <div class="collapse navbar-collapse" id="advancedNav">
+            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                {% if is_owner %}
+                <li class="nav-item">
+                    <a class="nav-link {% if active_page == 'owner_hub' %}active fw-bold{% endif %}" href="{{ url_for('advanced.owner_hub') }}">
+                        <i class="fas fa-tachometer-alt me-1"></i> الرئيسية
+                    </a>
+                </li>
+                {% endif %}
+                
+                <li class="nav-item">
+                    <a class="nav-link {% if active_page == 'financial' %}active fw-bold{% endif %}" href="{{ url_for('advanced.financial_control') }}">
+                        <i class="fas fa-chart-line me-1"></i> المالية
+                    </a>
+                </li>
+                
+                <li class="nav-item">
+                    <a class="nav-link {% if active_page == 'accounting' %}active fw-bold{% endif %}" href="{{ url_for('advanced.accounting_control') }}">
+                        <i class="fas fa-calculator me-1"></i> المحاسبة
+                    </a>
+                </li>
+                
+                {% if is_owner %}
+                <li class="nav-item">
+                    <a class="nav-link {% if active_page == 'users' %}active fw-bold{% endif %}" href="{{ url_for('security.users') }}">
+                        <i class="fas fa-users-cog me-1"></i> المستخدمين
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if active_page == 'audit' %}active fw-bold{% endif %}" href="{{ url_for('security.audit_log') }}">
+                        <i class="fas fa-history me-1"></i> السجلات
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+            
+            <ul class="navbar-nav ms-auto align-items-center">
+                <li class="nav-item mx-1">
+                    <div class="btn-group shadow-sm rounded-pill overflow-hidden">
+                        <a href="javascript:window.history.back()" class="btn btn-sm btn-light text-primary fw-bold border-end" title="رجوع">
+                            <i class="fas fa-arrow-right"></i>
+                        </a>
+                        <a href="javascript:window.history.forward()" class="btn btn-sm btn-light text-primary fw-bold" title="تقدم">
+                            <i class="fas fa-arrow-left"></i>
+                        </a>
+                    </div>
+                </li>
+                <li class="nav-item ms-2">
+                    <a class="nav-link btn btn-link text-white" href="{{ url_for('main.dashboard') }}">
+                        <i class="fas fa-home me-1"></i> العودة للنظام
+                    </a>
+                </li>
+            </ul>
+        </div>
     </div>
-  </div>
 </nav>
+
+<style>
+    .navbar-nav .nav-link {
+        color: rgba(255,255,255,0.85) !important;
+        transition: all 0.3s ease;
+        padding: 0.5rem 1rem;
+        border-radius: 5px;
+    }
+    .navbar-nav .nav-link:hover, .navbar-nav .nav-link.active {
+        color: #fff !important;
+        background: rgba(255,255,255,0.1);
+        transform: translateY(-1px);
+    }
+    .navbar-brand {
+        font-size: 1.4rem;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+</style>
 

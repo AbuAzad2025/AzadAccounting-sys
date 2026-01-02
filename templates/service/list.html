@@ -60,15 +60,15 @@
   <!-- إحصائيات سريعة محسّنة -->
   <div class="row g-3 mb-4">
     <div class="col-lg-3 col-md-6">
-      <div class="card border-0 shadow-sm bg-info text-white">
+      <div class="card border-0 shadow-sm h-100 text-white" style="background: linear-gradient(135deg, #f09819 0%, #edde5d 100%);">
         <div class="card-body">
-          <div class="d-flex justify-content-between">
+          <div class="d-flex justify-content-between align-items-center">
             <div>
-              <h6 class="card-title text-white-50 mb-1">طلبات معلّقة</h6>
+              <h6 class="text-white mb-2 opacity-75">طلبات معلّقة</h6>
               <h3 class="mb-0 fw-bold">{{ stats.pending }}</h3>
             </div>
-            <div class="align-self-center">
-              <i class="fas fa-clock fa-2x opacity-75"></i>
+            <div class="p-3 bg-white bg-opacity-25 rounded-circle">
+              <i class="fas fa-clock fa-2x"></i>
             </div>
           </div>
         </div>
@@ -76,15 +76,15 @@
     </div>
     
     <div class="col-lg-3 col-md-6">
-      <div class="card border-0 shadow-sm bg-warning text-white">
+      <div class="card border-0 shadow-sm h-100 text-white" style="background: linear-gradient(135deg, #ff9966 0%, #ff5e62 100%);">
         <div class="card-body">
-          <div class="d-flex justify-content-between">
+          <div class="d-flex justify-content-between align-items-center">
             <div>
-              <h6 class="card-title text-white-50 mb-1">أولوية عالية</h6>
+              <h6 class="text-white mb-2 opacity-75">أولوية عالية</h6>
               <h3 class="mb-0 fw-bold">{{ stats.high_priority }}</h3>
             </div>
-            <div class="align-self-center">
-              <i class="fas fa-bolt fa-2x opacity-75"></i>
+            <div class="p-3 bg-white bg-opacity-25 rounded-circle">
+              <i class="fas fa-bolt fa-2x"></i>
             </div>
           </div>
         </div>
@@ -92,15 +92,15 @@
     </div>
     
     <div class="col-lg-3 col-md-6">
-      <div class="card border-0 shadow-sm bg-primary text-white">
+      <div class="card border-0 shadow-sm h-100 text-white" style="background: linear-gradient(135deg, #4e54c8 0%, #8f94fb 100%);">
         <div class="card-body">
-          <div class="d-flex justify-content-between">
+          <div class="d-flex justify-content-between align-items-center">
             <div>
-              <h6 class="card-title text-white-50 mb-1">قيد التنفيذ</h6>
+              <h6 class="text-white mb-2 opacity-75">قيد التنفيذ</h6>
               <h3 class="mb-0 fw-bold">{{ stats.in_progress }}</h3>
             </div>
-            <div class="align-self-center">
-              <i class="fas fa-tools fa-2x opacity-75"></i>
+            <div class="p-3 bg-white bg-opacity-25 rounded-circle">
+              <i class="fas fa-tools fa-2x"></i>
             </div>
           </div>
         </div>
@@ -108,15 +108,15 @@
     </div>
     
     <div class="col-lg-3 col-md-6">
-      <div class="card border-0 shadow-sm bg-success text-white">
+      <div class="card border-0 shadow-sm h-100 text-white" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);">
         <div class="card-body">
-          <div class="d-flex justify-content-between">
+          <div class="d-flex justify-content-between align-items-center">
             <div>
-              <h6 class="card-title text-white-50 mb-1">مكتملة</h6>
+              <h6 class="text-white mb-2 opacity-75">مكتملة</h6>
               <h3 class="mb-0 fw-bold">{{ stats.completed }}</h3>
             </div>
-            <div class="align-self-center">
-              <i class="fas fa-check-circle fa-2x opacity-75"></i>
+            <div class="p-3 bg-white bg-opacity-25 rounded-circle">
+              <i class="fas fa-check-circle fa-2x"></i>
             </div>
           </div>
         </div>
@@ -125,172 +125,200 @@
   </div>
   {% endif %}
 
-  <div class="card card-outline card-secondary mb-3">
-    <div class="card-header">
-      <h3 class="card-title"><i class="fas fa-filter"></i> تصفية النتائج</h3>
-      <div class="card-tools">
-        <button class="btn btn-tool" data-card-widget="collapse">
-          <i class="fas fa-minus"></i>
-        </button>
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-white border-bottom-0 py-3" data-bs-toggle="collapse" href="#filterCollapse" role="button" aria-expanded="true" aria-controls="filterCollapse" style="cursor: pointer;">
+      <div class="d-flex justify-content-between align-items-center">
+        <h5 class="card-title mb-0 fw-bold text-secondary"><i class="fas fa-filter me-2"></i> تصفية وبحث متقدم</h5>
+        <i class="fas fa-chevron-down text-muted"></i>
       </div>
     </div>
 
-    <div class="card-body">
-      <form class="row g-3 align-items-end" method="get" action="{{ url_for('service.list_requests') }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+    <div class="collapse show" id="filterCollapse">
+      <div class="card-body pt-0">
+        <form class="row g-3 align-items-end" method="get" action="{{ url_for('service.list_requests') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
 
-        <div class="col-auto">
-          <label for="customer" class="form-label small"><i class="fas fa-user"></i> العميل</label>
-          <input id="customer" name="customer" class="form-control form-control-sm" style="width: 150px;" value="{{ filter_values.customer or '' }}" placeholder="اسم/جوال">
-        </div>
+          <div class="col-md-3 col-sm-6">
+            <label for="customer" class="form-label small text-muted fw-bold">العميل</label>
+            <div class="input-group input-group-sm">
+              <span class="input-group-text bg-light border-end-0"><i class="fas fa-user text-muted"></i></span>
+              <input id="customer" name="customer" class="form-control border-start-0" value="{{ filter_values.customer or '' }}" placeholder="اسم العميل أو رقم الجوال">
+            </div>
+          </div>
 
-        <div class="col-auto">
-          <label for="mechanic" class="form-label small"><i class="fas fa-user-cog"></i> الميكانيكي</label>
-          <select id="mechanic" name="mechanic" class="form-select form-select-sm" style="width: 120px;">
-            <option value="">الكل</option>
-            {% for m in mechanics %}
-              <option value="{{ m.username }}" {% if filter_values.mechanic==m.username %}selected{% endif %}>{{ m.username }}</option>
-            {% endfor %}
-          </select>
-        </div>
+          <div class="col-md-2 col-sm-6">
+            <label for="mechanic" class="form-label small text-muted fw-bold">الميكانيكي</label>
+            <select id="mechanic" name="mechanic" class="form-select form-select-sm">
+              <option value="">الكل</option>
+              {% for m in mechanics %}
+                <option value="{{ m.username }}" {% if filter_values.mechanic==m.username %}selected{% endif %}>{{ m.username }}</option>
+              {% endfor %}
+            </select>
+          </div>
 
-        <div class="col-auto">
-          <label for="vrn" class="form-label small"><i class="fas fa-car"></i> لوحة المركبة</label>
-          <input id="vrn" name="vrn" class="form-control form-control-sm" style="width: 120px;" value="{{ filter_values.vrn or '' }}" placeholder="VRN">
-        </div>
+          <div class="col-md-2 col-sm-6">
+            <label for="vrn" class="form-label small text-muted fw-bold">لوحة المركبة</label>
+            <div class="input-group input-group-sm">
+              <span class="input-group-text bg-light border-end-0"><i class="fas fa-car text-muted"></i></span>
+              <input id="vrn" name="vrn" class="form-control border-start-0" value="{{ filter_values.vrn or '' }}" placeholder="VRN">
+            </div>
+          </div>
 
-        <div class="col-auto">
-          <label for="date" class="form-label small"><i class="fas fa-calendar-day"></i> الزمن</label>
-          <select id="date" name="date" class="form-select form-select-sm" style="width: 120px;">
-            <option value="">الكل</option>
-            <option value="today" {% if filter_values.date=='today' %}selected{% endif %}>اليوم</option>
-            <option value="week"  {% if filter_values.date=='week' %}selected{% endif %}>هذا الأسبوع</option>
-            <option value="month" {% if filter_values.date=='month' %}selected{% endif %}>هذا الشهر</option>
-          </select>
-        </div>
+          <div class="col-md-2 col-sm-6">
+            <label for="date" class="form-label small text-muted fw-bold">الزمن</label>
+            <select id="date" name="date" class="form-select form-select-sm">
+              <option value="">الكل</option>
+              <option value="today" {% if filter_values.date=='today' %}selected{% endif %}>اليوم</option>
+              <option value="week"  {% if filter_values.date=='week' %}selected{% endif %}>هذا الأسبوع</option>
+              <option value="month" {% if filter_values.date=='month' %}selected{% endif %}>هذا الشهر</option>
+            </select>
+          </div>
 
-        <div class="col-auto">
-          <label for="sort" class="form-label small"><i class="fas fa-sort-amount-down"></i> الترتيب</label>
-          <select id="sort" name="sort" class="form-select form-select-sm" style="width: 140px;">
-            <option value="balance_due" {% if filter_values.sort=='balance_due' or not filter_values.sort %}selected{% endif %}>المتبقي</option>
-            <option value="received_at" {% if filter_values.sort=='received_at' %}selected{% endif %}>تاريخ الاستلام</option>
-            <option value="priority" {% if filter_values.sort=='priority' %}selected{% endif %}>الأولوية</option>
-            <option value="status" {% if filter_values.sort=='status' %}selected{% endif %}>الحالة</option>
-          </select>
-        </div>
+          <div class="col-md-3 col-sm-12 d-flex gap-2">
+            <div class="flex-grow-1">
+               <label for="sort" class="form-label small text-muted fw-bold">الترتيب</label>
+               <select id="sort" name="sort" class="form-select form-select-sm">
+                 <option value="balance_due" {% if filter_values.sort=='balance_due' or not filter_values.sort %}selected{% endif %}>المتبقي</option>
+                 <option value="received_at" {% if filter_values.sort=='received_at' %}selected{% endif %}>تاريخ الاستلام</option>
+                 <option value="priority" {% if filter_values.sort=='priority' %}selected{% endif %}>الأولوية</option>
+                 <option value="status" {% if filter_values.sort=='status' %}selected{% endif %}>الحالة</option>
+               </select>
+            </div>
+            <div style="width: 80px;">
+               <label for="order" class="form-label small text-muted fw-bold">الاتجاه</label>
+               <select id="order" name="order" class="form-select form-select-sm">
+                 <option value="desc" {% if filter_values.order=='desc' or not filter_values.order %}selected{% endif %}>تنازلي</option>
+                 <option value="asc" {% if filter_values.order=='asc' %}selected{% endif %}>تصاعدي</option>
+               </select>
+            </div>
+          </div>
 
-        <div class="col-auto">
-          <label for="order" class="form-label small"><i class="fas fa-exchange-alt"></i> الاتجاه</label>
-          <select id="order" name="order" class="form-select form-select-sm" style="width: 100px;">
-            <option value="desc" {% if filter_values.order=='desc' or not filter_values.order %}selected{% endif %}>تنازلي</option>
-            <option value="asc" {% if filter_values.order=='asc' %}selected{% endif %}>تصاعدي</option>
-          </select>
-        </div>
+          <div class="col-12 text-end mt-3">
+            <a href="{{ url_for('service.list_requests') }}" class="btn btn-light btn-sm me-2">
+              <i class="fas fa-times"></i> مسح
+            </a>
+            <button type="submit" class="btn btn-primary btn-sm px-4 shadow-sm">
+              <i class="fas fa-search"></i> تصفية النتائج
+            </button>
+          </div>
 
-        <div class="col-auto d-flex align-items-end">
-          <button type="submit" class="btn btn-primary btn-sm">
-            <i class="fas fa-search"></i> تصفية
-          </button>
-        </div>
-
-      </form>
+        </form>
+      </div>
     </div>
   </div>
 
-  <div class="card">
-    <div class="card-header">
-      <h3 class="card-title">
-        <i class="fas fa-list"></i> النتائج
-        <span class="badge bg-primary ms-2">{{ pagination.total }} طلب</span>
-      </h3>
+  <div class="card border-0 shadow-sm">
+    <div class="card-header bg-white border-bottom-0 py-3 d-flex justify-content-between align-items-center">
+      <h5 class="card-title mb-0 fw-bold text-primary">
+        <i class="fas fa-list me-2"></i> قائمة الطلبات
+      </h5>
+      <span class="badge bg-primary rounded-pill px-3">{{ pagination.total }} طلب</span>
     </div>
-    <div class="card-body table-responsive p-0">
-      <table id="servicesTable" class="table table-hover table-striped mb-0">
-        <thead class="table-light">
-          <tr>
-            <th><i class="fas fa-hashtag"></i> رقم الطلب</th>
-            <th><i class="fas fa-user"></i> العميل</th>
-            <th><i class="fas fa-car"></i> نوع المركبة</th>
-            <th><i class="fas fa-calculator"></i> إجمالي السند</th>
-            <th><i class="fas fa-balance-scale"></i> المتبقي</th>
-            <th><i class="fas fa-bolt"></i> الأولوية</th>
-            <th><i class="fas fa-traffic-light"></i> الحالة</th>
-            <th style="width:180px"><i class="fas fa-ellipsis-h"></i> الإجراءات</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% if requests %}
-            {% for s in requests %}
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table id="servicesTable" class="table table-hover align-middle mb-0">
+          <thead class="bg-light">
             <tr>
-              <td class="text-nowrap"><i class="fas fa-receipt text-muted"></i> {{ s.service_number }}</td>
-              <td>{{ s.customer.name if s.customer else (s.name or '—') }}</td>
-              <td class="text-nowrap">{{ s.vehicle_type.name if s.vehicle_type else '—' }}</td>
-              <td class="text-nowrap">
-                <span class="badge badge-total-amount">
-                  {{ '%.2f'|format(s.total or 0.0) }} ₪
-                </span>
-              </td>
-              <td class="text-nowrap">
-                {% set balance_value = s.balance_due or 0.0 %}
-                <span class="badge {{ 'badge-balance-zero' if balance_value|float <= 0 else 'badge-balance-positive' }}">
-                  {{ '%.2f'|format(balance_value) }} ₪
-                </span>
-              </td>
-              <td>
-                {% set p = (s.priority.value if s.priority is not string else s.priority)|upper %}
-                <span class="badge badge-status bg-{{ priority_colors.get(p, 'secondary') }}">
-                  {{ priority_labels.get(p, p) }}
-                </span>
-              </td>
-              <td>
-                {% set st = (s.status.value if s.status is not string else s.status)|upper %}
-                {% set STATUS_COLORS = {
-                  'PENDING':'secondary','DIAGNOSIS':'info','IN_PROGRESS':'primary',
-                  'COMPLETED':'success','CANCELLED':'danger','ON_HOLD':'warning'
-                } %}
-                <span class="badge badge-status bg-{{ STATUS_COLORS.get(st,'secondary') }}">
-                  {{ status_labels.get(st, st) }}
-                </span>
-              </td>
-              <td>
-                <div class="btn-group btn-group-sm" role="group">
-                  <a href="{{ url_for('service.view_request', rid=s.id) }}" class="btn btn-info" title="عرض">
-                    <i class="fas fa-eye"></i>
+              <th class="py-3 ps-3 border-bottom-0">رقم الطلب</th>
+              <th class="py-3 border-bottom-0">العميل</th>
+              <th class="py-3 border-bottom-0">المركبة</th>
+              <th class="py-3 border-bottom-0">إجمالي السند</th>
+              <th class="py-3 border-bottom-0">المتبقي</th>
+              <th class="py-3 border-bottom-0">الأولوية</th>
+              <th class="py-3 border-bottom-0">الحالة</th>
+              <th class="py-3 pe-3 border-bottom-0 text-end" style="min-width: 150px;">الإجراءات</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% if requests %}
+              {% for s in requests %}
+              <tr>
+                <td class="ps-3 fw-bold text-primary">
+                  <a href="{{ url_for('service.view_request', rid=s.id) }}" class="text-decoration-none">
+                    {{ s.service_number }}
                   </a>
-                  <a href="{{ url_for('service.view_receipt', rid=s.id) }}" class="btn btn-outline-secondary" target="_blank" title="إيصال">
-                    <i class="fas fa-print"></i>
-                  </a>
-                  {% if s.is_archived %}
-                  <form method="post" action="{{ url_for('service.restore_service', service_id=s.id) }}" class="d-inline">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    <button type="submit" class="btn btn-success" title="استعادة">
+                </td>
+                <td>
+                  <div class="d-flex align-items-center">
+                    <div class="avatar-sm bg-light rounded-circle text-muted me-2 d-flex align-items-center justify-content-center" style="width: 32px; height: 32px;">
+                      <i class="fas fa-user"></i>
+                    </div>
+                    <span class="fw-semibold">{{ s.customer.name if s.customer else (s.name or '—') }}</span>
+                  </div>
+                </td>
+                <td>
+                  {% if s.vehicle_type %}
+                    <span class="badge bg-light text-dark border">{{ s.vehicle_type.name }}</span>
+                  {% else %}
+                    <span class="text-muted small">—</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <span class="fw-bold text-dark">
+                    {{ '%.2f'|format(s.total or 0.0) }} ₪
+                  </span>
+                </td>
+                <td>
+                  {% set balance_value = s.balance_due or 0.0 %}
+                  {% if balance_value|float <= 0 %}
+                    <span class="badge bg-success bg-opacity-10 text-success rounded-pill">
+                      <i class="fas fa-check me-1"></i> مدفوع
+                    </span>
+                  {% else %}
+                    <span class="badge bg-danger bg-opacity-10 text-danger rounded-pill">
+                      {{ '%.2f'|format(balance_value) }} ₪
+                    </span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% set p = (s.priority.value if s.priority is not string else s.priority)|upper %}
+                  <span class="badge bg-{{ priority_colors.get(p, 'secondary') }} bg-opacity-75 rounded-pill shadow-sm">
+                    {{ priority_labels.get(p, p) }}
+                  </span>
+                </td>
+                <td>
+                  {% set st = (s.status.value if s.status is not string else s.status)|upper %}
+                  <span class="badge bg-{{ STATUS_COLORS.get(st,'secondary') }} rounded-pill">
+                    {{ status_labels.get(st, st) }}
+                  </span>
+                </td>
+                <td class="pe-3 text-end">
+                  <div class="btn-group shadow-sm rounded-pill" role="group">
+                    <a href="{{ url_for('service.view_request', rid=s.id) }}" class="btn btn-sm btn-outline-primary border-end-0" title="عرض التفاصيل">
+                      <i class="fas fa-eye"></i>
+                    </a>
+                    <a href="{{ url_for('service.view_receipt', rid=s.id) }}" class="btn btn-sm btn-outline-primary border-start-0 border-end-0" target="_blank" title="طباعة الإيصال">
+                      <i class="fas fa-print"></i>
+                    </a>
+                    {% if s.is_archived %}
+                    <button type="button" class="btn btn-sm btn-outline-success border-start-0" title="استعادة" onclick="restoreService({{ s.id }})">
                       <i class="fas fa-undo"></i>
                     </button>
-                  </form>
-                  {% else %}
-                  <form method="post" action="{{ url_for('service.archive_service', service_id=s.id) }}" class="d-inline">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    <button type="submit" class="btn btn-warning" title="أرشفة">
+                    {% else %}
+                    <button type="button" class="btn btn-sm btn-outline-danger border-start-0" title="أرشفة" onclick="archiveService({{ s.id }})">
                       <i class="fas fa-archive"></i>
                     </button>
-                  </form>
-                  {% endif %}
-                  {% if current_user.has_permission('manage_service') %}
-                  {% endif %}
-                </div>
-              </td>
-            </tr>
-            {% endfor %}
-          {% else %}
-            <tr>
-              <td colspan="8" class="text-center text-muted py-5">
-                <i class="fas fa-inbox fa-3x mb-3 d-block"></i>
-                لا توجد طلبات صيانة
-              </td>
-            </tr>
-          {% endif %}
-        </tbody>
-      </table>
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td colspan="8" class="text-center text-muted py-5">
+                  <div class="d-flex flex-column align-items-center">
+                    <div class="bg-light rounded-circle p-4 mb-3">
+                      <i class="fas fa-inbox fa-3x text-secondary opacity-50"></i>
+                    </div>
+                    <h5 class="fw-bold">لا توجد طلبات صيانة</h5>
+                    <p class="small opacity-75">لم يتم العثور على أي طلبات تطابق معايير البحث</p>
+                  </div>
+                </td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
     </div>
     
     {% if pagination and pagination.pages > 1 %}

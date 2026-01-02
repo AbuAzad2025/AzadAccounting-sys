@@ -124,12 +124,12 @@
                   </form>
                   {% endif %}
                   {% if can('hard_delete') %}
-                  <form method="POST" action="{{ url_for('archive.delete_archive', archive_id=archive.id) }}" class="d-inline" onsubmit="return confirm('هل أنت متأكد من حذف هذا الأرشيف نهائياً؟')">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <button type="submit" class="btn btn-outline-danger" title="حذف نهائي">
-                      <i class="fas fa-trash"></i>
-                    </button>
-                  </form>
+                  <form method="POST" action="{{ url_for('archive.delete_archive', archive_id=archive.id) }}" class="d-inline" data-confirm="هل أنت متأكد من حذف هذا الأرشيف نهائياً؟">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <button type="submit" class="btn btn-outline-danger" title="حذف نهائي">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </form>
                   {% endif %}
                 </div>
               </td>

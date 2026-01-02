@@ -85,12 +85,9 @@
             <li><a class="dropdown-item" href="{{ url_for('shop.preorder_list') }}">طلباتي</a></li>
             {% endif %}
             <li><hr class="dropdown-divider"></li>
-            <li><a href="#" class="dropdown-item text-danger" onclick="event.preventDefault();document.getElementById('logout-form-shop').submit();">تسجيل الخروج</a></li>
+            <li><a href="#" class="dropdown-item text-danger" data-toggle="modal" data-target="#logoutModalShopNavbar">تسجيل الخروج</a></li>
           </ul>
         </div>
-        <form id="logout-form-shop" action="{{ url_for('auth.logout') }}" method="POST" style="display:none;">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        </form>
         {% else %}
         <a href="{{ url_for('auth.login') }}" class="btn btn-outline-light"><i class="fas fa-sign-in-alt ml-2"></i> تسجيل الدخول</a>
         {% endif %}
@@ -98,6 +95,30 @@
     </div>
   </div>
 </nav>
+
+<!-- Logout Modal for Shop Navbar -->
+<div class="modal fade" id="logoutModalShopNavbar" tabindex="-1" role="dialog" aria-labelledby="logoutModalShopNavbarLabel" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header bg-danger text-white">
+        <h5 class="modal-title" id="logoutModalShopNavbarLabel">تأكيد تسجيل الخروج</h5>
+        <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        هل أنت متأكد أنك تريد تسجيل الخروج من المتجر؟
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">إلغاء</button>
+        <form action="{{ url_for('auth.logout') }}" method="post" data-no-confirm="true">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-danger">تسجيل خروج</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
 
 {% include 'shop/sidebar.html' %}
 

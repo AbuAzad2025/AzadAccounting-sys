@@ -76,7 +76,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="card shadow-sm">
+<div class="card shadow-lg rounded-4 border-0 card-hover">
   <div class="card-body">
     <!-- أزرار الإدارة محسّنة -->
     <div class="warehouse-detail-actions mb-4">
@@ -132,7 +132,7 @@
     
     <div class="row mb-4">
       <div class="col-lg-3 col-md-6 mb-3">
-        <div class="card stat-card shadow-sm bg-primary text-white">
+        <div class="card stat-card shadow-sm bg-primary text-white card-hover" style="background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);">
           <div class="card-body">
             <div class="d-flex justify-content-between align-items-center">
               <div>
@@ -149,7 +149,7 @@
       </div>
       
       <div class="col-lg-3 col-md-6 mb-3">
-        <div class="card stat-card shadow-sm bg-success text-white">
+        <div class="card stat-card shadow-sm bg-success text-white card-hover" style="background: linear-gradient(135deg, #198754 0%, #157347 100%);">
           <div class="card-body">
             <div class="d-flex justify-content-between align-items-center">
               <div>
@@ -166,7 +166,7 @@
       </div>
       
       <div class="col-lg-3 col-md-6 mb-3">
-        <div class="card stat-card shadow-sm bg-warning text-white">
+        <div class="card stat-card shadow-sm bg-warning text-white" style="background: linear-gradient(135deg, #ffc107 0%, #ffca2c 100%);">
           <div class="card-body">
             <div class="d-flex justify-content-between align-items-center">
               <div>
@@ -183,7 +183,7 @@
       </div>
       
       <div class="col-lg-3 col-md-6 mb-3">
-        <div class="card stat-card shadow-sm bg-info text-white">
+        <div class="card stat-card shadow-sm bg-info text-white" style="background: linear-gradient(135deg, #0dcaf0 0%, #0aa2c0 100%);">
           <div class="card-body">
             <div class="d-flex justify-content-between align-items-center">
               <div>
@@ -203,8 +203,8 @@
     <div class="row gy-4">
       <!-- العمود الجانبي -->
       <div class="col-lg-4">
-        <div class="card h-100 shadow-sm">
-          <div class="card-header bg-light">
+        <div class="card h-100 shadow-lg rounded-4 border-0 card-hover">
+          <div class="card-header gradient-header text-white" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);">
             <h5 class="mb-0">
               <i class="fas fa-info-circle ml-2"></i>
               معلومات المستودع
@@ -244,7 +244,7 @@
                 <i class="fas fa-power-off info-icon"></i>
                 <strong>الحالة</strong>
               </div>
-              <span class="badge {{ 'bg-success' if warehouse.is_active else 'bg-secondary' }}">
+              <span class="badge {{ 'bg-success' if warehouse.is_active else 'bg-secondary' }} rounded-pill">
                 {{ 'نشط' if warehouse.is_active else 'غير نشط' }}
               </span>
             </div>
@@ -258,13 +258,13 @@
             <div class="mb-3">
               <label class="form-label small text-muted">البحث بالاسم أو رقم القطعة</label>
               <select id="product-quick"
-                      class="form-control select2"
+                      class="form-control select2 form-control-modern"
                       data-endpoint="{{ url_for('api.search_products') }}"
                       data-placeholder="ابحث بالاسم أو رقم القطعة أو الباركود"></select>
             </div>
             <div>
               <label class="form-label small text-muted">البحث بالباركود</label>
-              <input id="barcode-input" type="text" class="form-control" placeholder="أدخل/امسح الباركود ثم Enter">
+              <input id="barcode-input" type="text" class="form-control form-control-modern" placeholder="أدخل/امسح الباركود ثم Enter">
             </div>
             
             <hr class="my-3">
@@ -293,8 +293,8 @@
         <div id="op-alerts"></div>
 
         <!-- Tabs للنماذج -->
-        <div class="card shadow-sm mb-4">
-          <div class="card-header bg-light">
+        <div class="card shadow-lg rounded-4 border-0 mb-4 card-hover">
+          <div class="card-header gradient-header text-white" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
             <h5 class="mb-0">
               <i class="fas fa-tasks ml-2"></i>
               العمليات المتاحة
@@ -354,7 +354,7 @@
                         <small class="text-muted d-block">ابحث بالاسم أو رقم القطعة أو امسح الباركود</small>
                       </label>
                       {{ stock_form.product_id(
-                          class_="form-control select2",
+                          class_="form-control select2 form-control-modern",
                           data_endpoint=url_for('api.search_products'),
                           id="stock-product"
                       ) }}
@@ -365,7 +365,7 @@
                         <i class="fas fa-hashtag ml-1"></i>{{ stock_form.quantity.label }} <span class="text-danger">*</span>
                         <small class="text-muted d-block">الكمية الجديدة (النهائية)</small>
                       </label>
-                      {{ stock_form.quantity(class_="form-control", placeholder="مثال: 15", id="stock-quantity-input") }}
+                      {{ stock_form.quantity(class_="form-control form-control-modern", placeholder="مثال: 15", id="stock-quantity-input") }}
                       {% for err in stock_form.quantity.errors %}<div class="text-danger small">{{ err }}</div>{% endfor %}
                     </div>
                     <div class="col-md-3">
@@ -373,14 +373,14 @@
                         <i class="fas fa-exclamation-triangle ml-1"></i>{{ stock_form.min_stock.label }}
                         <small class="text-muted d-block">حد أدنى للتنبيه (اختياري)</small>
                       </label>
-                      {{ stock_form.min_stock(class_="form-control", placeholder="حد أدنى للتنبيه") }}
+                      {{ stock_form.min_stock(class_="form-control form-control-modern", placeholder="حد أدنى للتنبيه") }}
                     </div>
                     <div class="col-md-3">
                       <label class="form-label">
                         <i class="fas fa-exclamation-circle ml-1"></i>{{ stock_form.max_stock.label }}
                         <small class="text-muted d-block">حد أعلى للتنبيه (اختياري)</small>
                       </label>
-                      {{ stock_form.max_stock(class_="form-control", placeholder="حد أعلى للتنبيه") }}
+                      {{ stock_form.max_stock(class_="form-control form-control-modern", placeholder="حد أعلى للتنبيه") }}
                     </div>
                     <div class="col-12">
                       <button type="submit" class="btn btn-success">
@@ -437,7 +437,7 @@
                         {{ transfer_form.product_id.label }} <span class="text-danger">*</span>
                       </label>
                       {{ transfer_form.product_id(
-                          class_="form-control select2",
+                          class_="form-control select2 form-control-modern",
                           data_endpoint=url_for('api.search_products'),
                           id="transfer-product"
                       ) }}
@@ -450,7 +450,7 @@
                         <i class="fas fa-hashtag ml-1"></i>
                         {{ transfer_form.quantity.label }} <span class="text-danger">*</span>
                       </label>
-                      {{ transfer_form.quantity(class_="form-control", placeholder="مثال: 5", type="number", min="1", id="transfer-quantity-input") }}
+                      {{ transfer_form.quantity(class_="form-control form-control-modern", placeholder="مثال: 5", type="number", min="1", id="transfer-quantity-input") }}
                       {% for err in transfer_form.quantity.errors %}<div class="text-danger small">{{ err }}</div>{% endfor %}
                       <small class="text-muted">الكمية المراد نقلها</small>
                       <div class="d-none text-danger small mt-1" id="transfer-warning">⚠️ الكمية أكبر من المتاح!</div>
@@ -462,7 +462,7 @@
                         من مستودع <span class="text-danger">*</span>
                       </label>
                       {{ transfer_form.source_id(
-                          class_="form-control select2",
+                          class_="form-control select2 form-control-modern",
                           data_endpoint=url_for('api.search_warehouses'),
                           id="transfer-source"
                       ) }}
@@ -543,7 +543,7 @@
                       </label>
                       <select name="product_id"
                               id="exchange-product"
-                              class="form-control select2"
+                              class="form-control select2 form-control-modern"
                               required
                               data-endpoint="{{ url_for('api.search_products') }}"></select>
                       <small class="text-muted">اختر المنتج</small>
@@ -553,7 +553,7 @@
                         <i class="fas fa-hashtag ml-1"></i>
                         الكمية <span class="text-danger">*</span>
                       </label>
-                      <input type="number" name="quantity" min="1" class="form-control" placeholder="مثال: 3" required id="exchange-quantity-input">
+                      <input type="number" name="quantity" min="1" class="form-control form-control-modern" placeholder="مثال: 3" required id="exchange-quantity-input">
                       <small class="text-muted">العدد</small>
                       <div class="d-none text-warning small mt-1" id="exchange-warning">⚠️ تحذير: قد تصل لكمية سالبة!</div>
                     </div>
@@ -562,7 +562,7 @@
                         <i class="fas fa-arrows-alt-v ml-1"></i>
                         الاتجاه <span class="text-danger">*</span>
                       </label>
-                      <select name="direction" class="form-control" id="exchange-direction">
+                      <select name="direction" class="form-control form-control-modern" id="exchange-direction">
                         <option value="IN">➕ وارد (IN) - إضافة للمخزون</option>
                         <option value="OUT">➖ صادر (OUT) - خصم من المخزون</option>
                         <option value="ADJUSTMENT">🔄 تسوية (ADJUSTMENT) - تصحيح</option>
@@ -575,7 +575,7 @@
                       </label>
                       <select name="partner_id"
                               id="exchange-partner"
-                              class="form-control select2"
+                              class="form-control select2 form-control-modern"
                               data-endpoint="{{ url_for('api.search_partners') }}"></select>
                       <small class="text-muted">الشريك المرتبط بهذه العملية</small>
                     </div>
@@ -587,7 +587,7 @@
                       </label>
                       <select name="supplier_id"
                               id="exchange-supplier"
-                              class="form-control select2"
+                              class="form-control select2 form-control-modern"
                               data-endpoint="{{ url_for('api.search_suppliers') }}"></select>
                       <small class="text-muted">المورد أو التاجر المحلي</small>
                     </div>
@@ -596,7 +596,7 @@
                         <i class="fas fa-dollar-sign ml-1"></i>
                         سعر/تكلفة للوحدة (اختياري)
                       </label>
-                      <input type="number" step="0.01" name="unit_cost" class="form-control" placeholder="مثال: 12.50">
+                      <input type="number" step="0.01" name="unit_cost" class="form-control form-control-modern" placeholder="مثال: 12.50">
                       <small class="text-muted">السعر أو التكلفة لكل قطعة</small>
                     </div>
                     <div class="col-12">
@@ -604,7 +604,7 @@
                         <i class="fas fa-comment ml-1"></i>
                         ملاحظات
                       </label>
-                      <textarea name="notes" class="form-control" rows="2" placeholder="سبب العملية أو أي تفاصيل إضافية"></textarea>
+                      <textarea name="notes" class="form-control form-control-modern" rows="2" placeholder="سبب العملية أو أي تفاصيل إضافية"></textarea>
                     </div>
                     <div class="col-12">
                       <button type="submit" class="btn btn-secondary">

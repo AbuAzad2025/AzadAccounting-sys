@@ -28,14 +28,28 @@
     .column-hidden { display: none !important; }
     
     .stat-card {
-      transition: transform 0.2s;
-      border-left: 4px solid;
+      transition: all 0.3s ease;
+      border: none;
+      border-radius: 15px;
+      overflow: hidden;
     }
-    .stat-card:hover { transform: translateY(-2px); }
-    .stat-card.primary { border-left-color: #007bff; }
-    .stat-card.success { border-left-color: #28a745; }
-    .stat-card.warning { border-left-color: #ffc107; }
-    .stat-card.danger { border-left-color: #dc3545; }
+    .stat-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 10px 20px rgba(0,0,0,0.15) !important;
+    }
+    
+    .table-rounded {
+        border-radius: 10px;
+        overflow: hidden;
+    }
+    .table-rounded thead th {
+        border-top: none;
+    }
+
+    .bg-gradient-primary { background: linear-gradient(135deg, #0d6efd, #0a58ca); }
+    .bg-gradient-success { background: linear-gradient(135deg, #198754, #157347); }
+    .bg-gradient-warning { background: linear-gradient(135deg, #ffc107, #ffca2c); }
+    .bg-gradient-danger { background: linear-gradient(135deg, #dc3545, #b02a37); }
     
     @media (max-width: 768px) {
       .btn-group { flex-wrap: wrap; gap: 0.25rem; }
@@ -228,42 +242,46 @@
 <!-- Statistics Cards -->
 <div class="row mb-4">
   <div class="col-lg-3 col-md-6 mb-3">
-    <div class="card stat-card primary shadow-sm h-100 py-2">
+    <div class="card stat-card shadow-sm h-100 py-2 border-0 card-hover">
       <div class="card-body">
         <div class="d-flex justify-content-between align-items-center">
           <div>
             <div class="text-uppercase text-primary fw-bold small mb-1">إجمالي المنتجات</div>
-            <div class="h5 mb-0 fw-bold" id="stat-total-products">{{ rows|length }}</div>
+            <div class="h5 mb-0 fw-bold text-dark" id="stat-total-products">{{ rows|length }}</div>
           </div>
-          <i class="fas fa-boxes fa-2x text-primary opacity-50"></i>
+          <div class="rounded-circle p-3 bg-primary text-white" style="background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);">
+            <i class="fas fa-boxes fa-2x"></i>
+          </div>
         </div>
       </div>
     </div>
   </div>
   
   <div class="col-lg-3 col-md-6 mb-3">
-    <div class="card stat-card success shadow-sm h-100 py-2">
+    <div class="card stat-card shadow-sm h-100 py-2 border-0 card-hover">
       <div class="card-body">
         <div class="d-flex justify-content-between align-items-center">
           <div>
             <div class="text-uppercase text-success fw-bold small mb-1">إجمالي الكمية</div>
-            <div class="h5 mb-0 fw-bold" id="stat-total-quantity">
+            <div class="h5 mb-0 fw-bold text-dark" id="stat-total-quantity">
               {% set total_qty = rows|sum(attribute='total')|int %}{{ total_qty }}
             </div>
           </div>
-          <i class="fas fa-cubes fa-2x text-success opacity-50"></i>
+          <div class="rounded-circle p-3 bg-success text-white" style="background: linear-gradient(135deg, #198754 0%, #157347 100%);">
+            <i class="fas fa-cubes fa-2x"></i>
+          </div>
         </div>
       </div>
     </div>
   </div>
   
   <div class="col-lg-3 col-md-6 mb-3">
-    <div class="card stat-card warning shadow-sm h-100 py-2">
+    <div class="card stat-card shadow-sm h-100 py-2 border-0 card-hover">
       <div class="card-body">
         <div class="d-flex justify-content-between align-items-center">
           <div>
             <div class="text-uppercase text-warning fw-bold small mb-1">إجمالي القيمة (₪)</div>
-            <div class="h5 mb-0 fw-bold" id="stat-total-value">
+            <div class="h5 mb-0 fw-bold text-dark" id="stat-total-value">
               {% set values = [] %}
               {% for r in rows %}
                 {% set qty = r.total or 0 %}
@@ -273,23 +291,27 @@
               {{ "%.2f"|format(values|sum) }}
             </div>
           </div>
-          <i class="fas fa-dollar-sign fa-2x text-warning opacity-50"></i>
+          <div class="rounded-circle p-3 bg-warning text-dark" style="background: linear-gradient(135deg, #ffc107 0%, #ffca2c 100%);">
+            <i class="fas fa-dollar-sign fa-2x"></i>
+          </div>
         </div>
       </div>
     </div>
   </div>
   
   <div class="col-lg-3 col-md-6 mb-3">
-    <div class="card stat-card danger shadow-sm h-100 py-2">
+    <div class="card stat-card shadow-sm h-100 py-2 border-0 card-hover">
       <div class="card-body">
         <div class="d-flex justify-content-between align-items-center">
           <div>
             <div class="text-uppercase text-danger fw-bold small mb-1">منتجات نفدت</div>
-            <div class="h5 mb-0 fw-bold" id="stat-out-of-stock">
+            <div class="h5 mb-0 fw-bold text-dark" id="stat-out-of-stock">
               {% set out_of_stock = rows|selectattr('total', 'equalto', 0)|list|length %}{{ out_of_stock }}
             </div>
           </div>
-          <i class="fas fa-exclamation-triangle fa-2x text-danger opacity-50"></i>
+          <div class="rounded-circle p-3 bg-danger text-white" style="background: linear-gradient(135deg, #dc3545 0%, #b02a37 100%);">
+            <i class="fas fa-exclamation-triangle fa-2x"></i>
+          </div>
         </div>
       </div>
     </div>
@@ -297,14 +319,14 @@
 </div>
 
 <!-- Filter Form -->
-<div class="card mb-4 shadow-sm">
+<div class="card mb-4 shadow-lg rounded-4 border-0 card-hover">
   <div class="card-body">
     <form id="filter-form" class="row g-3 align-items-end" method="get">
-      <div class="col-lg-6">
+      <div class="col-lg-5">
         <label for="warehouse_ids" class="form-label">
           <i class="fas fa-warehouse ml-1"></i>اختر المستودعات
         </label>
-        <select id="warehouse_ids" class="custom-select" name="warehouse_ids" multiple size="4">
+        <select id="warehouse_ids" class="form-select form-control-modern" name="warehouse_ids" multiple size="4">
           {% for w in warehouses %}
             <option value="{{ w.id }}" {% if w.id in selected_ids %}selected{% endif %}>{{ w.name }}</option>
           {% endfor %}
@@ -317,52 +339,57 @@
         <label for="q" class="form-label">
           <i class="fas fa-search ml-1"></i>بحث
         </label>
-        <input id="q" name="q" type="search" class="form-control" value="{{ search }}" 
+        <input id="q" name="q" type="search" class="form-control form-control-modern" value="{{ search }}" 
                placeholder="الاسم أو SKU أو رقم القطعة أو الماركة">
       </div>
-      <div class="col-lg-2 d-flex gap-2">
+      <div class="col-lg-3 d-flex gap-2">
         <button class="btn btn-primary flex-fill" type="submit">
           <i class="fas fa-filter ml-1"></i>تطبيق
         </button>
-        <a class="btn btn-secondary flex-fill" href="{{ url_for('warehouse_bp.detail', warehouse_id=active_warehouse_id) }}">
-          <i class="fas fa-arrow-right ml-1"></i>رجوع
-        </a>
+        <div class="btn-group flex-fill">
+            <button type="button" onclick="window.history.back()" class="btn btn-secondary" title="رجوع">
+                <i class="fas fa-arrow-right"></i>
+            </button>
+            <button type="button" onclick="window.history.forward()" class="btn btn-secondary" title="تقدم">
+                <i class="fas fa-arrow-left"></i>
+            </button>
+        </div>
       </div>
     </form>
   </div>
 </div>
 
 <!-- Products Table -->
-<div class="card shadow-sm">
-  <div class="card-header bg-light">
+<div class="card shadow-sm card-hover">
+  <div class="card-header gradient-header text-white">
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
       <h6 class="mb-0">
         <i class="fas fa-boxes ml-2"></i>قائمة المنتجات
-        <span class="badge bg-primary ms-2">{{ rows|length }}</span>
+        <span class="badge bg-white text-primary ms-2">{{ rows|length }}</span>
       </h6>
-      
-      <div class="btn-group btn-group-sm" role="group">
-        <button type="button" class="btn btn-outline-secondary" onclick="toggleColumn('sku')">
-          <i class="fas fa-tag"></i> SKU
-        </button>
-        <button type="button" class="btn btn-outline-secondary" onclick="toggleColumn('part_number')">
-          <i class="fas fa-hashtag"></i> رقم القطعة
-        </button>
-        <button type="button" class="btn btn-outline-secondary" onclick="toggleColumn('brand')">
-          <i class="fas fa-star"></i> الماركة
-        </button>
-        <button type="button" class="btn btn-outline-secondary" onclick="toggleColumn('purchase_price')">
-          <i class="fas fa-shopping-cart"></i> التكلفة
+      <div class="d-flex gap-2 no-print">
+        <div class="btn-group btn-group-sm" role="group">
+          <button type="button" class="btn btn-outline-light" onclick="toggleColumn('sku')">
+            <i class="fas fa-tag"></i> SKU
+          </button>
+          <button type="button" class="btn btn-outline-light" onclick="toggleColumn('part_number')">
+            <i class="fas fa-barcode"></i> رقم القطعة
+          </button>
+          <button type="button" class="btn btn-outline-light" onclick="toggleColumn('brand')">
+            <i class="fas fa-copyright"></i> الماركة
+          </button>
+          <button type="button" class="btn btn-outline-light" onclick="toggleColumn('purchase_price')">
+            <i class="fas fa-shopping-cart"></i> التكلفة
+          </button>
+        </div>
+        <button type="button" class="btn btn-light btn-sm text-primary fw-bold shadow-sm" onclick="window.print()">
+          <i class="fas fa-print ml-1"></i>طباعة
         </button>
       </div>
-      
-      <button type="button" class="btn btn-success btn-sm" onclick="window.print()">
-        <i class="fas fa-print ml-1"></i>طباعة
-      </button>
     </div>
   </div>
   
-  <div class="card-body p-0">
+  <div class="card-body p-0 table-rounded">
     <div class="table-responsive">
       <table class="table table-striped table-hover mb-0" id="products-table">
         <thead class="table-light">

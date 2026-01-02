@@ -7,15 +7,30 @@
   
   {% include 'advanced/_navigation.html' %}
   
-  <div class="alert alert-info border-0 shadow-sm mb-4">
-    <i class="fas fa-shield-alt"></i> <strong>لوحة التحكم المالي:</strong> إعدادات حساسة - للمالك فقط
+  <div class="alert alert-info border-0 shadow-sm mb-4 d-flex justify-content-between align-items-center">
+    <div>
+      <i class="fas fa-shield-alt"></i> <strong>لوحة التحكم المالي:</strong> إعدادات حساسة - للمالك فقط
+    </div>
+    <div class="d-flex gap-2">
+      <div class="btn-group shadow-sm rounded-pill overflow-hidden bg-white">
+          <button onclick="window.history.back()" class="btn btn-sm text-primary fw-bold border-end" title="رجوع">
+              <i class="fas fa-arrow-right"></i>
+          </button>
+          <button onclick="window.history.forward()" class="btn btn-sm text-primary fw-bold" title="تقدم">
+              <i class="fas fa-arrow-left"></i>
+          </button>
+      </div>
+      <a href="{{ url_for('advanced.owner_hub') }}" class="btn btn-sm btn-light shadow-sm text-primary fw-bold">
+        <i class="fas fa-home me-1"></i> لوحة المالك
+      </a>
+    </div>
   </div>
 
   <div class="row g-4">
     
     <div class="col-lg-6">
-      <div class="card border-0 shadow-sm h-100">
-        <div class="card-header bg-primary text-white">
+      <div class="card border-0 shadow-sm h-100 card-hover">
+        <div class="card-header text-white" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);">
           <h5 class="mb-0"><i class="fas fa-chart-line"></i> وحدة الميزانية</h5>
         </div>
         <div class="card-body">
@@ -38,7 +53,7 @@
 
             <div class="mb-3">
               <label class="form-label">بداية السنة المالية</label>
-              <select name="fiscal_year_start_month" class="custom-select">
+              <select name="fiscal_year_start_month" class="custom-select form-control form-control-modern">
                 <option value="1" {% if budget_settings.fiscal_year_start_month == 1 %}selected{% endif %}>يناير (ميلادي)</option>
                 <option value="3" {% if budget_settings.fiscal_year_start_month == 3 %}selected{% endif %}>مارس</option>
                 <option value="7" {% if budget_settings.fiscal_year_start_month == 7 %}selected{% endif %}>يوليو</option>
@@ -48,7 +63,7 @@
 
             <div class="mb-3">
               <label class="form-label">مستوى الميزانية</label>
-              <select name="budget_level" class="custom-select">
+              <select name="budget_level" class="custom-select form-control form-control-modern">
                 <option value="ACCOUNT" {% if budget_settings.budget_level == 'ACCOUNT' %}selected{% endif %}>حساب فقط</option>
                 <option value="ACCOUNT_BRANCH" {% if budget_settings.budget_level == 'ACCOUNT_BRANCH' %}selected{% endif %}>حساب + فرع</option>
                 <option value="ACCOUNT_BRANCH_SITE" {% if budget_settings.budget_level == 'ACCOUNT_BRANCH_SITE' %}selected{% endif %}>حساب + فرع + موقع</option>
@@ -57,7 +72,7 @@
 
             <div class="mb-3">
               <label class="form-label">نظام الالتزامات</label>
-              <select name="commitment_mode" class="custom-select">
+              <select name="commitment_mode" class="custom-select form-control form-control-modern">
                 <option value="NONE" {% if budget_settings.commitment_mode == 'NONE' %}selected{% endif %}>معطل</option>
                 <option value="EXPENSE" {% if budget_settings.commitment_mode == 'EXPENSE' %}selected{% endif %}>النفقات فقط</option>
                 <option value="PURCHASE" {% if budget_settings.commitment_mode == 'PURCHASE' %}selected{% endif %}>طلبات الشراء فقط</option>
@@ -77,12 +92,12 @@
             <div class="row">
               <div class="col-md-6 mb-3">
                 <label class="form-label">عتبة التحذير (%)</label>
-                <input type="number" name="budget_threshold_warning" class="form-control" 
+                <input type="number" name="budget_threshold_warning" class="form-control form-control-modern" 
                        value="{{ budget_settings.budget_threshold_warning }}" min="0" max="100" step="1">
               </div>
               <div class="col-md-6 mb-3">
                 <label class="form-label">عتبة الخطر (%)</label>
-                <input type="number" name="budget_threshold_critical" class="form-control" 
+                <input type="number" name="budget_threshold_critical" class="form-control form-control-modern" 
                        value="{{ budget_settings.budget_threshold_critical }}" min="0" max="100" step="1">
               </div>
             </div>
@@ -98,9 +113,9 @@
 
             <div class="alert alert-light border">
               <strong>الإحصائيات:</strong><br>
-              <span class="badge bg-secondary">{{ budget_stats.total_budgets }}</span> ميزانية إجمالي
-              <span class="badge bg-success">{{ budget_stats.active_budgets }}</span> نشطة
-              <span class="badge bg-info">{{ budget_stats.current_year_budgets }}</span> السنة الحالية
+              <span class="badge bg-secondary rounded-pill">{{ budget_stats.total_budgets }}</span> ميزانية إجمالي
+              <span class="badge bg-success rounded-pill">{{ active_budgets }}</span> نشطة
+              <span class="badge bg-info rounded-pill">{{ current_year_budgets }}</span> السنة الحالية
             </div>
 
             <button type="submit" class="btn btn-primary w-100">
@@ -111,9 +126,10 @@
       </div>
     </div>
 
-    <div class="col-lg-6">
-      <div class="card border-0 shadow-sm h-100">
-        <div class="card-header bg-success text-white">
+    <!-- Fixed Assets Module -->
+    <div class="col-lg-6 mb-4">
+      <div class="card border-0 shadow-sm h-100 card-hover">
+        <div class="card-header bg-success text-white" style="background: linear-gradient(135deg, #198754 0%, #157347 100%);">
           <h5 class="mb-0"><i class="fas fa-building"></i> وحدة الأصول الثابتة</h5>
         </div>
         <div class="card-body">
@@ -153,7 +169,7 @@
 
             <div class="mb-3">
               <label class="form-label">يوم احتساب الاستهلاك (من الشهر)</label>
-              <input type="number" name="depreciation_day_of_month" class="form-control" 
+              <input type="number" name="depreciation_day_of_month" class="form-control form-control-modern" 
                      value="{{ asset_settings.depreciation_day_of_month }}" min="1" max="28" step="1">
             </div>
 
@@ -169,16 +185,16 @@
 
             <div class="mb-3">
               <label class="form-label">حد الرسملة (₪)</label>
-              <input type="number" name="asset_capitalization_threshold" class="form-control" 
+              <input type="number" name="asset_capitalization_threshold" class="form-control form-control-modern" 
                      value="{{ asset_settings.asset_capitalization_threshold }}" min="0" step="100">
               <small class="text-muted">النفقات الأكبر من هذا المبلغ تتحول لأصول ثابتة</small>
             </div>
 
             <div class="alert alert-light border">
               <strong>الإحصائيات:</strong><br>
-              <span class="badge bg-secondary">{{ asset_stats.total_assets }}</span> أصل إجمالي
-              <span class="badge bg-success">{{ asset_stats.active_assets }}</span> نشط
-              <span class="badge bg-info">{{ asset_stats.total_categories }}</span> فئة
+              <span class="badge bg-secondary rounded-pill">{{ asset_stats.total_assets }}</span> أصل إجمالي
+              <span class="badge bg-success rounded-pill">{{ asset_stats.active_assets }}</span> نشط
+              <span class="badge bg-info rounded-pill">{{ asset_stats.total_categories }}</span> فئة
             </div>
 
             <button type="submit" class="btn btn-success w-100">
@@ -193,8 +209,8 @@
 
   <div class="row mt-4">
     <div class="col-12">
-      <div class="card border-0 shadow-sm">
-        <div class="card-header bg-dark text-white">
+      <div class="card border-0 shadow-sm card-hover">
+        <div class="card-header bg-dark text-white" style="background: linear-gradient(135deg, #212529 0%, #343a40 100%);">
           <h5 class="mb-0"><i class="fas fa-link"></i> روابط سريعة</h5>
         </div>
         <div class="card-body">

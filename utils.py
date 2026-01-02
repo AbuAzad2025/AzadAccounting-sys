@@ -1085,7 +1085,7 @@ def permission_required(*permission_names):
             if is_super():
                 return f(*args, **kwargs)
             if not getattr(current_user, "is_authenticated", False):
-                abort(403)
+                return current_app.login_manager.unauthorized()
             if hasattr(current_user, "__tablename__") and current_user.__tablename__ == "customers":
                 return f(*args, **kwargs)
             needed = set(base_needed)

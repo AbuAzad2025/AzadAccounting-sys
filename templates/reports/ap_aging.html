@@ -14,22 +14,36 @@
   <div class="mb-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
     <h4 class="fw-bold m-0"><i class="fas fa-industry"></i> {{ FIELD_LABELS.get("ap_aging", "أعمار الذمم (الموردون)") }}</h4>
     <div class="d-flex gap-2 align-items-end">
-      <form class="row g-2 align-items-end" method="get">
-        <div class="col-auto">
-          <label class="form-label">{{ FIELD_LABELS.get("start_date", "من تاريخ") }}</label>
-          <input type="date" name="start" value="{{ start or '' }}" class="form-control form-control-sm">
+       <div class="btn-group shadow-sm rounded-pill overflow-hidden bg-white ms-2">
+          <button onclick="window.history.back()" class="btn btn-sm text-primary fw-bold border-end" title="رجوع">
+              <i class="fas fa-arrow-right"></i>
+          </button>
+          <button onclick="window.history.forward()" class="btn btn-sm text-primary fw-bold" title="تقدم">
+              <i class="fas fa-arrow-left"></i>
+          </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card shadow-sm mb-4">
+    <div class="card-header text-white" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);">
+        <i class="fas fa-filter"></i> فلاتر التقرير
+    </div>
+    <div class="card-body">
+      <form class="row g-3 align-items-end" method="get">
+        <div class="col-md-3">
+          <label class="form-label fw-bold">{{ FIELD_LABELS.get("start_date", "من تاريخ") }}</label>
+          <input type="date" name="start" value="{{ start or '' }}" class="form-control form-control-modern">
         </div>
-        <div class="col-auto">
-          <label class="form-label">{{ FIELD_LABELS.get("end_date", "إلى تاريخ") }}</label>
-          <input type="date" name="end" value="{{ end or '' }}" class="form-control form-control-sm">
+        <div class="col-md-3">
+          <label class="form-label fw-bold">{{ FIELD_LABELS.get("end_date", "إلى تاريخ") }}</label>
+          <input type="date" name="end" value="{{ end or '' }}" class="form-control form-control-modern">
         </div>
-        <div class="col-auto">
-          <button type="submit" class="btn btn-primary btn-sm">
+        <div class="col-md-6 d-flex gap-2">
+          <button type="submit" class="btn btn-primary">
             <i class="fas fa-sync-alt"></i> {{ FIELD_LABELS.get("refresh", "تحديث") }}
           </button>
-        </div>
-        <div class="col-auto">
-          <a class="btn btn-outline-secondary btn-sm"
+          <a class="btn btn-outline-secondary"
              href="{{ url_for('reports_bp.export_ap_aging_csv', start=start, end=end) }}">
             <i class="fas fa-file-csv"></i> تصدير CSV
           </a>

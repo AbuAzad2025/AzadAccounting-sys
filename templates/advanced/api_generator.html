@@ -7,14 +7,28 @@
   
   {% include 'advanced/_navigation.html' %}
   
-  <div class="alert alert-info border-0 shadow-sm">
+  <div class="d-flex justify-content-between mb-3">
+    <div class="btn-group" role="group">
+      <button type="button" class="btn btn-outline-primary rounded-pill me-2" onclick="window.history.back()">
+        <i class="fas fa-arrow-right me-1"></i> رجوع
+      </button>
+      <button type="button" class="btn btn-outline-primary rounded-pill" onclick="window.history.forward()">
+        تقدم <i class="fas fa-arrow-left ms-1"></i>
+      </button>
+    </div>
+    <a href="{{ url_for('advanced.owner_hub') }}" class="btn btn-primary shadow-sm rounded-pill">
+        <i class="fas fa-home fa-sm text-white-50"></i> عودة للوحة المالك
+    </a>
+  </div>
+  
+  <div class="alert alert-info border-0 shadow-sm" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%); color: white;">
     <i class="fas fa-magic"></i> <strong>مولد API:</strong> إنشاء REST API تلقائياً لأي جدول
   </div>
 
   <div class="row">
     <div class="col-md-8 mx-auto">
       <div class="card border-0 shadow-lg">
-        <div class="card-header" style="background: linear-gradient(135deg, #4776E6 0%, #8E54E9 100%); color: white;">
+        <div class="card-header" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%); color: white;">
           <h5 class="mb-0"><i class="fas fa-code"></i> إنشاء API</h5>
         </div>
         <div class="card-body">
@@ -23,7 +37,7 @@
             
             <div class="mb-4">
               <label class="form-label fw-bold">اختر الجدول</label>
-              <select name="table_name" class="custom-select" required>
+              <select name="table_name" class="custom-select form-control-modern" required>
                 <option value="">-- اختر جدول --</option>
                 {% for table in tables %}
                   <option value="{{ table }}">{{ table }}</option>
@@ -71,7 +85,7 @@
               </div>
             </div>
             
-            <button type="submit" class="btn btn-lg w-100" style="background: linear-gradient(135deg, #4776E6 0%, #8E54E9 100%); color: white;">
+            <button type="submit" class="btn btn-lg w-100" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%); color: white;">
               <i class="fas fa-magic"></i> إنشاء API تلقائياً
             </button>
           </form>

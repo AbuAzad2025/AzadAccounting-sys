@@ -114,47 +114,47 @@
   </div>
 
   <div class="card audit-card shadow">
-    <div class="card-header bg-gradient-primary text-white">
-      <h5 class="mb-0"><i class="fas fa-search"></i> فلاتر البحث</h5>
+    <div class="card-header bg-white border-bottom py-3">
+      <h5 class="mb-0 font-weight-bold text-primary"><i class="fas fa-search ml-2"></i> فلاتر البحث</h5>
     </div>
     <div class="card-body">
-      <form method="get" class="row g-3">
-        <div class="col-md-2">
+      <form method="get" class="row">
+        <div class="col-md-2 mb-3">
           <label class="form-label"><i class="fas fa-table"></i> الجدول <small class="text-muted">(اختياري)</small></label>
-          <select name="model" class="form-select">
+          <select name="model" class="form-control">
             <option value="">الكل</option>
             {% for model in all_models %}
             <option value="{{ model }}" {% if filters.model == model %}selected{% endif %}>{{ model }}</option>
             {% endfor %}
           </select>
         </div>
-        <div class="col-md-2">
+        <div class="col-md-2 mb-3">
           <label class="form-label"><i class="fas fa-user"></i> المستخدم <small class="text-muted">(اختياري)</small></label>
-          <select name="user" class="form-select">
+          <select name="user" class="form-control">
             <option value="">الكل</option>
             {% for user in all_users %}
             <option value="{{ user.id }}" {% if filters.user == user.id %}selected{% endif %}>{{ user.username }}</option>
             {% endfor %}
           </select>
         </div>
-        <div class="col-md-2">
+        <div class="col-md-2 mb-3">
           <label class="form-label"><i class="fas fa-cog"></i> الإجراء <small class="text-muted">(اختياري)</small></label>
-          <select name="action" class="form-select">
+          <select name="action" class="form-control">
             <option value="">الكل</option>
             {% for action in all_actions %}
             <option value="{{ action }}" {% if filters.action == action %}selected{% endif %}>{{ action }}</option>
             {% endfor %}
           </select>
         </div>
-        <div class="col-md-2">
+        <div class="col-md-2 mb-3">
           <label class="form-label"><i class="fas fa-calendar"></i> من تاريخ <small class="text-muted">(اختياري)</small></label>
           <input type="date" name="start_date" class="form-control" value="{{ filters.start_date }}">
         </div>
-        <div class="col-md-2">
+        <div class="col-md-2 mb-3">
           <label class="form-label"><i class="fas fa-calendar"></i> إلى تاريخ <small class="text-muted">(اختياري)</small></label>
           <input type="date" name="end_date" class="form-control" value="{{ filters.end_date }}">
         </div>
-        <div class="col-md-2 d-flex align-items-end">
+        <div class="col-md-2 mb-3 d-flex align-items-end">
           <button type="submit" class="btn btn-primary w-100"><i class="fas fa-search"></i> بحث</button>
         </div>
       </form>

@@ -6,53 +6,89 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/shipments.css') }}">
   <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap4.min.css">
   <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.1/css/buttons.bootstrap4.min.css">
+  <style>
+    .table-rounded {
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .table-rounded thead th {
+      background-color: #f8f9fa;
+      border-bottom: 2px solid #e9ecef;
+    }
+    .card-hover {
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .card-hover:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 10px 20px rgba(0,0,0,0.15) !important;
+    }
+  </style>
 {% endblock %}
 
 {% block content %}
 <div class="mb-3 d-flex justify-content-between align-items-center">
-  <h3 class="mb-0">الشحنات{% if warehouse %} في {{ warehouse.name }}{% endif %}</h3>
-  <a href="{{ url_for('shipments_bp.create_shipment', destination_id=warehouse.id) if warehouse else url_for('shipments_bp.create_shipment') }}" class="btn btn-success btn-sm">
+  <div class="d-flex align-items-center gap-2">
+      <h3 class="mb-0">الشحنات{% if warehouse %} في {{ warehouse.name }}{% endif %}</h3>
+      <div class="btn-group shadow-sm rounded-pill overflow-hidden bg-white ms-3">
+          <button onclick="window.history.back()" class="btn btn-sm text-primary fw-bold border-end" title="رجوع">
+              <i class="fas fa-arrow-right"></i>
+          </button>
+          <button onclick="window.history.forward()" class="btn btn-sm text-primary fw-bold" title="تقدم">
+              <i class="fas fa-arrow-left"></i>
+          </button>
+      </div>
+  </div>
+  <a href="{{ url_for('shipments_bp.create_shipment', destination_id=warehouse.id) if warehouse else url_for('shipments_bp.create_shipment') }}" class="btn btn-success btn-sm btn-modern">
     <i class="fa fa-plus"></i> إضافة شحنة
   </a>
 </div>
 
-<form id="shipmentsFilters" class="row g-2 mb-3" autocomplete="off" novalidate>
+<div class="card shadow-sm mb-4 card-hover">
+  <div class="card-header bg-light cursor-pointer text-white" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);" data-bs-toggle="collapse" data-bs-target="#filterSection">
+    <h5 class="mb-0"><i class="fas fa-filter"></i> تصفية الشحنات</h5>
+  </div>
+  <div class="collapse show" id="filterSection">
+    <div class="card-body">
+      <form id="shipmentsFilters" class="row g-2" autocomplete="off" novalidate>
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-  <div class="col-md-2">
-    <label for="fStatus" class="form-label">الحالة</label>
-    <select id="fStatus" class="custom-select" name="status">
-      <option value="">الكل</option>
-      <option value="DRAFT">مسودة</option>
-      <option value="PENDING">قيد الانتظار</option>
-      <option value="IN_TRANSIT">قيد النقل</option>
-      <option value="IN_CUSTOMS">في الجمارك</option>
-      <option value="ARRIVED">وصلت</option>
-      <option value="DELIVERED">تم التسليم</option>
-      <option value="CANCELLED">ملغاة</option>
-      <option value="RETURNED">مرتجعة</option>
-    </select>
+        <div class="col-md-2">
+          <label for="fStatus" class="form-label">الحالة</label>
+          <select id="fStatus" class="custom-select form-control-modern" name="status">
+            <option value="">الكل</option>
+            <option value="DRAFT">مسودة</option>
+            <option value="PENDING">قيد الانتظار</option>
+            <option value="IN_TRANSIT">قيد النقل</option>
+            <option value="IN_CUSTOMS">في الجمارك</option>
+            <option value="ARRIVED">وصلت</option>
+            <option value="DELIVERED">تم التسليم</option>
+            <option value="CANCELLED">ملغاة</option>
+            <option value="RETURNED">مرتجعة</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label for="fFrom" class="form-label">من تاريخ</label>
+          <input type="date" id="fFrom" class="form-control form-control-modern" name="from">
+        </div>
+        <div class="col-md-2">
+          <label for="fTo" class="form-label">إلى تاريخ</label>
+          <input type="date" id="fTo" class="form-control form-control-modern" name="to">
+        </div>
+        <div class="col-md-3">
+          <label for="fDestination" class="form-label">الوجهة</label>
+          <input type="text" id="fDestination" class="form-control form-control-modern" name="destination" placeholder="اسم المستودع/الوجهة"{% if warehouse %} value="{{ warehouse.name }}"{% endif %}>
+        </div>
+        <div class="col-md-3">
+          <label for="fSearch" class="form-label">بحث عام</label>
+          <input type="text" id="fSearch" class="form-control form-control-modern" name="search" placeholder="رقم الشحنة / شركة النقل / تتبع">
+        </div>
+      </form>
+    </div>
   </div>
-  <div class="col-md-2">
-    <label for="fFrom" class="form-label">من تاريخ</label>
-    <input type="date" id="fFrom" class="form-control" name="from">
-  </div>
-  <div class="col-md-2">
-    <label for="fTo" class="form-label">إلى تاريخ</label>
-    <input type="date" id="fTo" class="form-control" name="to">
-  </div>
-  <div class="col-md-3">
-    <label for="fDestination" class="form-label">الوجهة</label>
-    <input type="text" id="fDestination" class="form-control" name="destination" placeholder="اسم المستودع/الوجهة"{% if warehouse %} value="{{ warehouse.name }}"{% endif %}>
-  </div>
-  <div class="col-md-3">
-    <label for="fSearch" class="form-label">بحث عام</label>
-    <input type="text" id="fSearch" class="form-control" name="search" placeholder="رقم الشحنة / شركة النقل / تتبع">
-  </div>
-</form>
+</div>
 
 <div class="table-responsive">
-  <table id="shipmentsTable" class="table table-striped table-bordered table-hover align-middle w-100">
-    <thead class="table-light">
+  <table id="shipmentsTable" class="table table-striped table-bordered table-hover align-middle w-100 table-rounded">
+    <thead class="text-white" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);">
       <tr>
         <th>#</th>
         <th>رقم الشحنة</th>
@@ -108,7 +144,7 @@
           { data: 'destination' },
           { data: 'expected_arrival', render: function(d){ return d ? new Date(d).toLocaleString('en-US').split(',')[0] : ''; } },
           { data: 'status' },
-          { data: 'currency', className: 'text-center', render: function(d){ return d ? '<span class="badge badge-secondary">' + d + '</span>' : '<span class="badge badge-secondary">ILS</span>'; } },
+          { data: 'currency', className: 'text-center', render: function(d){ return d ? '<span class="badge badge-secondary rounded-pill">' + d + '</span>' : '<span class="badge badge-secondary rounded-pill">ILS</span>'; } },
           { 
             data: null, 
             className: 'text-center',

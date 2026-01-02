@@ -11,21 +11,35 @@
 <div class="container-fluid" dir="rtl">
 
   <div class="mb-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
-    <h4 class="fw-bold m-0">
-      <i class="fas fa-truck-loading"></i>
-      {{ FIELD_LABELS.get("suppliers", "الموردون") }}
-    </h4>
+    <div class="d-flex align-items-center gap-3">
+      <h4 class="fw-bold m-0">
+        <i class="fas fa-truck-loading"></i>
+        {{ FIELD_LABELS.get("suppliers", "الموردون") }}
+      </h4>
+      <div class="btn-group shadow-sm rounded-pill overflow-hidden bg-white">
+          <a href="javascript:window.history.back()" class="btn btn-sm text-primary fw-bold border-end" title="رجوع">
+              <i class="fas fa-arrow-right"></i>
+          </a>
+          <a href="javascript:window.history.forward()" class="btn btn-sm text-primary fw-bold" title="تقدم">
+              <i class="fas fa-arrow-left"></i>
+          </a>
+      </div>
+    </div>
   </div>
 
-  <form class="card shadow-sm mb-3" method="get">
-    <div class="card-body row g-3 align-items-end">
+  <div class="card shadow-sm mb-3 card-hover">
+    <div class="card-header text-white" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);">
+        <i class="fas fa-filter"></i> فلاتر التقرير
+    </div>
+    <div class="card-body">
+      <form class="row g-3 align-items-end" method="get">
       <div class="col-md-6">
         <label class="form-label fw-semibold"><i class="fas fa-search"></i> بحث عن مورد</label>
-        <input type="text" class="form-control" name="q" value="{{ search or '' }}" placeholder="الاسم، الهاتف، البريد">
+        <input type="text" class="form-control form-control-modern" name="q" value="{{ search or '' }}" placeholder="الاسم، الهاتف، البريد">
       </div>
       <div class="col-md-3">
         <label class="form-label fw-semibold"><i class="fas fa-filter"></i> حالة الرصيد</label>
-        <select name="balance" class="form-select">
+        <select name="balance" class="form-select form-control-modern">
           <option value="">الكل</option>
           <option value="positive" {% if balance_filter == 'positive' %}selected{% endif %}>له علينا</option>
           <option value="negative" {% if balance_filter == 'negative' %}selected{% endif %}>عليه لنا</option>
@@ -45,8 +59,9 @@
           <i class="fas fa-times"></i> إعادة ضبط
         </a>
       </div>
+      </form>
     </div>
-  </form>
+  </div>
 
   {% if totals %}
   <div class="row g-3 mb-3">

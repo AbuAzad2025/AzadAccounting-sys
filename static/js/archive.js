@@ -1,199 +1,8 @@
-﻿
-function archiveCustomer(customerId) {
-    const reason = prompt('أدخل سبب أرشفة هذا العميل:');
-    if (!reason) {
-        return;
-    }
-    if (confirm('هل أنت متأكد من أرشفة هذا العميل؟')) {
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = `/customers/archive/${customerId}`;
-        const csrfToken = document.createElement('input');
-        csrfToken.type = 'hidden';
-        csrfToken.name = 'csrf_token';
-        csrfToken.value = getCSRFToken();
-        form.appendChild(csrfToken);
-        
-        const reasonInput = document.createElement('input');
-        reasonInput.type = 'hidden';
-        reasonInput.name = 'reason';
-        reasonInput.value = reason;
-        form.appendChild(reasonInput);
-        document.body.appendChild(form);
-        form.addEventListener('submit', function(e) {
-        });
-        
-        form.submit();
-    } else {
-    }
-}
-function archiveSale(saleId) {
-    const reason = prompt('أدخل سبب أرشفة هذه المبيعة:');
-    if (!reason) {
-        return;
-    }
-    if (confirm('هل أنت متأكد من أرشفة هذه المبيعة؟')) {
-        // إظهار رسالة تحميل
-        const loadingMsg = document.createElement('div');
-        loadingMsg.innerHTML = '<div class="alert alert-info">جاري أرشفة المبيعة...</div>';
-        document.body.appendChild(loadingMsg);
-        
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = `/sales/archive/${saleId}`;
-        const csrfToken = document.createElement('input');
-        csrfToken.type = 'hidden';
-        csrfToken.name = 'csrf_token';
-        csrfToken.value = getCSRFToken();
-        form.appendChild(csrfToken);
-        
-        const reasonInput = document.createElement('input');
-        reasonInput.type = 'hidden';
-        reasonInput.name = 'reason';
-        reasonInput.value = reason;
-        form.appendChild(reasonInput);
-        document.body.appendChild(form);
-        // إضافة event listener لمراقبة إرسال النموذج
-        form.addEventListener('submit', function(e) {
-        });
-        
-        form.submit();
-    } else {
-    }
-}
 
-// أرشفة النفقة
-function archiveExpense(expenseId) {
-    const reason = prompt('أدخل سبب أرشفة هذه النفقة:');
-    if (!reason) {
-        return;
-    }
-    if (confirm('هل أنت متأكد من أرشفة هذه النفقة؟')) {
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = `/expenses/archive/${expenseId}`;
-        const csrfToken = document.createElement('input');
-        csrfToken.type = 'hidden';
-        csrfToken.name = 'csrf_token';
-        csrfToken.value = getCSRFToken();
-        form.appendChild(csrfToken);
-        
-        const reasonInput = document.createElement('input');
-        reasonInput.type = 'hidden';
-        reasonInput.name = 'reason';
-        reasonInput.value = reason;
-        form.appendChild(reasonInput);
-        document.body.appendChild(form);
-        // إضافة event listener لمراقبة إرسال النموذج
-        form.addEventListener('submit', function(e) {
-        });
-        
-        form.submit();
-    } else {
-    }
-}
-
-// أرشفة طلب الصيانة
-function archiveService(serviceId) {
-    const reason = prompt('أدخل سبب أرشفة هذا طلب الصيانة:');
-    if (!reason) {
-        return;
-    }
-    if (confirm('هل أنت متأكد من أرشفة هذا طلب الصيانة؟')) {
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = `/service/archive/${serviceId}`;
-        const csrfToken = document.createElement('input');
-        csrfToken.type = 'hidden';
-        csrfToken.name = 'csrf_token';
-        csrfToken.value = getCSRFToken();
-        form.appendChild(csrfToken);
-        
-        const reasonInput = document.createElement('input');
-        reasonInput.type = 'hidden';
-        reasonInput.name = 'reason';
-        reasonInput.value = reason;
-        form.appendChild(reasonInput);
-        document.body.appendChild(form);
-        // إضافة event listener لمراقبة إرسال النموذج
-        form.addEventListener('submit', function(e) {
-        });
-        
-        form.submit();
-    } else {
-    }
-}
-
-// أرشفة المورد
-function archiveSupplier(supplierId) {
-    const reason = prompt('أدخل سبب أرشفة هذا المورد:');
-    if (!reason) {
-        return;
-    }
-    if (confirm('هل أنت متأكد من أرشفة هذا المورد؟')) {
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = `/vendors/suppliers/archive/${supplierId}`;
-        const csrfToken = document.createElement('input');
-        csrfToken.type = 'hidden';
-        csrfToken.name = 'csrf_token';
-        csrfToken.value = getCSRFToken();
-        form.appendChild(csrfToken);
-        
-        const reasonInput = document.createElement('input');
-        reasonInput.type = 'hidden';
-        reasonInput.name = 'reason';
-        reasonInput.value = reason;
-        form.appendChild(reasonInput);
-        document.body.appendChild(form);
-        // إضافة event listener لمراقبة إرسال النموذج
-        form.addEventListener('submit', function(e) {
-        });
-        
-        form.submit();
-    } else {
-    }
-}
-
-// أرشفة الشريك
-function archivePartner(partnerId) {
-    const reason = prompt('أدخل سبب أرشفة هذا الشريك:');
-    if (!reason) {
-        return;
-    }
-    if (confirm('هل أنت متأكد من أرشفة هذا الشريك؟')) {
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = `/vendors/partners/archive/${partnerId}`;
-        const csrfToken = document.createElement('input');
-        csrfToken.type = 'hidden';
-        csrfToken.name = 'csrf_token';
-        csrfToken.value = getCSRFToken();
-        form.appendChild(csrfToken);
-        
-        const reasonInput = document.createElement('input');
-        reasonInput.type = 'hidden';
-        reasonInput.name = 'reason';
-        reasonInput.value = reason;
-        form.appendChild(reasonInput);
-        document.body.appendChild(form);
-        // إضافة event listener لمراقبة إرسال النموذج
-        form.addEventListener('submit', function(e) {
-        });
-        
-        form.submit();
-    } else {
-    }
-}
-
-// ✅ getCSRFToken نُقلت إلى csrf-utils.js (global)
-
-// أرشفة الدفعة
 function archivePayment(paymentId) {
     const reason = prompt('أدخل سبب أرشفة هذه الدفعة:');
-    if (!reason) {
-        return;
-    }
+    if (!reason) return;
+    
     if (confirm('هل أنت متأكد من أرشفة هذه الدفعة؟')) {
         const form = document.createElement('form');
         form.method = 'POST';
@@ -202,30 +11,23 @@ function archivePayment(paymentId) {
         csrfToken.type = 'hidden';
         csrfToken.name = 'csrf_token';
         csrfToken.value = getCSRFToken();
-        form.appendChild(csrfToken);
-        
         const reasonInput = document.createElement('input');
         reasonInput.type = 'hidden';
         reasonInput.name = 'reason';
         reasonInput.value = reason;
+        form.appendChild(csrfToken);
         form.appendChild(reasonInput);
-        document.body.appendChild(form);
-        form.addEventListener('submit', function(e) {
-        });
         
+        document.body.appendChild(form);
         form.submit();
-    } else {
     }
 }
 
-// ===== وظائف الاستعادة =====
-
-// استعادة العميل
-function restoreCustomer(customerId) {
-    if (confirm('هل أنت متأكد من استعادة هذا العميل؟')) {
+function restorePayment(paymentId) {
+    if (confirm('هل أنت متأكد من استعادة هذه الدفعة؟')) {
         const form = document.createElement('form');
         form.method = 'POST';
-        form.action = `/customers/restore/${customerId}`;
+        form.action = `/payments/restore/${paymentId}`;
         const csrfToken = document.createElement('input');
         csrfToken.type = 'hidden';
         csrfToken.name = 'csrf_token';
@@ -234,65 +36,33 @@ function restoreCustomer(customerId) {
         
         document.body.appendChild(form);
         form.submit();
-    } else {
     }
 }
 
-// استعادة المبيعة
-function restoreSale(saleId) {
-    if (confirm('هل أنت متأكد من استعادة هذه المبيعة؟')) {
+function archiveSupplier(supplierId) {
+    const reason = prompt('أدخل سبب أرشفة هذا المورد:');
+    if (!reason) return;
+    
+    if (confirm('هل أنت متأكد من أرشفة هذا المورد؟')) {
         const form = document.createElement('form');
         form.method = 'POST';
-        form.action = `/sales/restore/${saleId}`;
+        form.action = `/vendors/suppliers/archive/${supplierId}`;
         const csrfToken = document.createElement('input');
         csrfToken.type = 'hidden';
         csrfToken.name = 'csrf_token';
         csrfToken.value = getCSRFToken();
+        const reasonInput = document.createElement('input');
+        reasonInput.type = 'hidden';
+        reasonInput.name = 'reason';
+        reasonInput.value = reason;
         form.appendChild(csrfToken);
+        form.appendChild(reasonInput);
         
         document.body.appendChild(form);
         form.submit();
-    } else {
     }
 }
 
-// استعادة النفقة
-function restoreExpense(expenseId) {
-    if (confirm('هل أنت متأكد من استعادة هذه النفقة؟')) {
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = `/expenses/restore/${expenseId}`;
-        const csrfToken = document.createElement('input');
-        csrfToken.type = 'hidden';
-        csrfToken.name = 'csrf_token';
-        csrfToken.value = getCSRFToken();
-        form.appendChild(csrfToken);
-        
-        document.body.appendChild(form);
-        form.submit();
-    } else {
-    }
-}
-
-// استعادة طلب الصيانة
-function restoreService(serviceId) {
-    if (confirm('هل أنت متأكد من استعادة هذا طلب الصيانة؟')) {
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = `/service/restore/${serviceId}`;
-        const csrfToken = document.createElement('input');
-        csrfToken.type = 'hidden';
-        csrfToken.name = 'csrf_token';
-        csrfToken.value = getCSRFToken();
-        form.appendChild(csrfToken);
-        
-        document.body.appendChild(form);
-        form.submit();
-    } else {
-    }
-}
-
-// استعادة المورد
 function restoreSupplier(supplierId) {
     if (confirm('هل أنت متأكد من استعادة هذا المورد؟')) {
         const form = document.createElement('form');
@@ -306,11 +76,33 @@ function restoreSupplier(supplierId) {
         
         document.body.appendChild(form);
         form.submit();
-    } else {
     }
 }
 
-// استعادة الشريك
+function archivePartner(partnerId) {
+    const reason = prompt('أدخل سبب أرشفة هذا الشريك:');
+    if (!reason) return;
+    
+    if (confirm('هل أنت متأكد من أرشفة هذا الشريك؟')) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/vendors/partners/archive/${partnerId}`;
+        const csrfToken = document.createElement('input');
+        csrfToken.type = 'hidden';
+        csrfToken.name = 'csrf_token';
+        csrfToken.value = getCSRFToken();
+        const reasonInput = document.createElement('input');
+        reasonInput.type = 'hidden';
+        reasonInput.name = 'reason';
+        reasonInput.value = reason;
+        form.appendChild(csrfToken);
+        form.appendChild(reasonInput);
+        
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+
 function restorePartner(partnerId) {
     if (confirm('هل أنت متأكد من استعادة هذا الشريك؟')) {
         const form = document.createElement('form');
@@ -324,6 +116,190 @@ function restorePartner(partnerId) {
         
         document.body.appendChild(form);
         form.submit();
-    } else {
     }
 }
+
+function archiveSale(saleId) {
+    const reason = prompt('أدخل سبب أرشفة هذه المبيعة:');
+    if (!reason) return;
+    
+    if (confirm('هل أنت متأكد من أرشفة هذه المبيعة؟')) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/sales/archive/${saleId}`;
+        const csrfToken = document.createElement('input');
+        csrfToken.type = 'hidden';
+        csrfToken.name = 'csrf_token';
+        csrfToken.value = getCSRFToken();
+        const reasonInput = document.createElement('input');
+        reasonInput.type = 'hidden';
+        reasonInput.name = 'reason';
+        reasonInput.value = reason;
+        form.appendChild(csrfToken);
+        form.appendChild(reasonInput);
+        
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+
+function restoreSale(saleId) {
+    if (confirm('هل أنت متأكد من استعادة هذه المبيعة؟')) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/sales/restore/${saleId}`;
+        const csrfToken = document.createElement('input');
+        csrfToken.type = 'hidden';
+        csrfToken.name = 'csrf_token';
+        csrfToken.value = getCSRFToken();
+        form.appendChild(csrfToken);
+        
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+
+function archiveService(serviceId) {
+    const reason = prompt('أدخل سبب أرشفة طلب الصيانة هذا:');
+    if (!reason) return;
+    
+    if (confirm('هل أنت متأكد من أرشفة طلب الصيانة هذا؟')) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/service/archive/${serviceId}`;
+        const csrfToken = document.createElement('input');
+        csrfToken.type = 'hidden';
+        csrfToken.name = 'csrf_token';
+        csrfToken.value = getCSRFToken();
+        const reasonInput = document.createElement('input');
+        reasonInput.type = 'hidden';
+        reasonInput.name = 'reason';
+        reasonInput.value = reason;
+        form.appendChild(csrfToken);
+        form.appendChild(reasonInput);
+        
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+
+function restoreService(serviceId) {
+    if (confirm('هل أنت متأكد من استعادة طلب الصيانة هذا؟')) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/service/restore/${serviceId}`;
+        const csrfToken = document.createElement('input');
+        csrfToken.type = 'hidden';
+        csrfToken.name = 'csrf_token';
+        csrfToken.value = getCSRFToken();
+        form.appendChild(csrfToken);
+        
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+
+function archiveCustomer(customerId) {
+    const reason = prompt('أدخل سبب أرشفة هذا العميل:');
+    if (!reason) return;
+    
+    if (confirm('هل أنت متأكد من أرشفة هذا العميل؟')) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/customers/archive/${customerId}`;
+        const csrfToken = document.createElement('input');
+        csrfToken.type = 'hidden';
+        csrfToken.name = 'csrf_token';
+        csrfToken.value = getCSRFToken();
+        const reasonInput = document.createElement('input');
+        reasonInput.type = 'hidden';
+        reasonInput.name = 'reason';
+        reasonInput.value = reason;
+        form.appendChild(csrfToken);
+        form.appendChild(reasonInput);
+        
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+
+function restoreCustomer(customerId) {
+    if (confirm('هل أنت متأكد من استعادة هذا العميل؟')) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/customers/restore/${customerId}`;
+        const csrfToken = document.createElement('input');
+        csrfToken.type = 'hidden';
+        csrfToken.name = 'csrf_token';
+        csrfToken.value = getCSRFToken();
+        form.appendChild(csrfToken);
+        
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+
+// Generic event delegation for archive/restore buttons
+document.addEventListener('DOMContentLoaded', function() {
+    // Restore Buttons
+    document.body.addEventListener('click', function(e) {
+        const btn = e.target.closest('.restore-btn');
+        if (btn) {
+            e.preventDefault();
+            const url = btn.dataset.restoreUrl;
+            if (url) {
+                if (confirm('هل أنت متأكد من الاستعادة؟')) {
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = url;
+                    
+                    const csrfToken = document.createElement('input');
+                    csrfToken.type = 'hidden';
+                    csrfToken.name = 'csrf_token';
+                    csrfToken.value = typeof getCSRFToken === 'function' ? getCSRFToken() : 
+                              (document.querySelector('input[name="csrf_token"]')?.value || '');
+                    
+                    form.appendChild(csrfToken);
+                    document.body.appendChild(form);
+                    form.submit();
+                }
+            }
+        }
+    });
+
+    // Archive Buttons
+    document.body.addEventListener('click', function(e) {
+        const btn = e.target.closest('.archive-btn');
+        if (btn) {
+            e.preventDefault();
+            const url = btn.dataset.archiveUrl;
+            if (url) {
+                const reason = prompt('أدخل سبب الأرشفة:');
+                if (!reason) return;
+                
+                if (confirm('هل أنت متأكد من الأرشفة؟')) {
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = url;
+                    
+                    const csrfToken = document.createElement('input');
+                    csrfToken.type = 'hidden';
+                    csrfToken.name = 'csrf_token';
+                    csrfToken.value = typeof getCSRFToken === 'function' ? getCSRFToken() : 
+                              (document.querySelector('input[name="csrf_token"]')?.value || '');
+                    
+                    const reasonInput = document.createElement('input');
+                    reasonInput.type = 'hidden';
+                    reasonInput.name = 'reason';
+                    reasonInput.value = reason;
+                    
+                    form.appendChild(csrfToken);
+                    form.appendChild(reasonInput);
+                    
+                    document.body.appendChild(form);
+                    form.submit();
+                }
+            }
+        }
+    });
+});

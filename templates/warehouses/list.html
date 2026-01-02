@@ -11,7 +11,7 @@
 <!-- إحصائيات سريعة -->
 <div class="row mb-4">
   <div class="col-lg-3 col-md-6 mb-3">
-    <div class="card border-0 shadow-sm bg-primary text-white">
+    <div class="card border-0 shadow-sm bg-primary text-white card-hover" style="background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);">
       <div class="card-body">
         <div class="d-flex justify-content-between">
           <div>
@@ -19,7 +19,7 @@
             <h3 class="mb-0 fw-bold">{{ warehouses|length if warehouses else 0 }}</h3>
           </div>
           <div class="align-self-center">
-            <i class="fas fa-warehouse fa-2x opacity-75"></i>
+            <i class="fas fa-warehouse fa-2x opacity-50"></i>
           </div>
         </div>
       </div>
@@ -27,7 +27,7 @@
   </div>
   
   <div class="col-lg-3 col-md-6 mb-3">
-    <div class="card border-0 shadow-sm bg-success text-white">
+    <div class="card border-0 shadow-sm bg-success text-white card-hover" style="background: linear-gradient(135deg, #198754 0%, #157347 100%);">
       <div class="card-body">
         <div class="d-flex justify-content-between">
           <div>
@@ -35,7 +35,7 @@
             <h3 class="mb-0 fw-bold">{{ warehouses|selectattr('is_active')|list|length if warehouses else 0 }}</h3>
           </div>
           <div class="align-self-center">
-            <i class="fas fa-check-circle fa-2x opacity-75"></i>
+            <i class="fas fa-check-circle fa-2x opacity-50"></i>
           </div>
         </div>
       </div>
@@ -43,7 +43,7 @@
   </div>
   
   <div class="col-lg-3 col-md-6 mb-3">
-    <div class="card border-0 shadow-sm bg-info text-white">
+    <div class="card border-0 shadow-sm bg-info text-white card-hover" style="background: linear-gradient(135deg, #0dcaf0 0%, #0aa2c0 100%);">
       <div class="card-body">
         <div class="d-flex justify-content-between">
           <div>
@@ -51,7 +51,7 @@
             <h3 class="mb-0 fw-bold">{{ warehouses|selectattr('warehouse_type', 'equalto', 'MAIN')|list|length if warehouses else 0 }}</h3>
           </div>
           <div class="align-self-center">
-            <i class="fas fa-building fa-2x opacity-75"></i>
+            <i class="fas fa-building fa-2x opacity-50"></i>
           </div>
         </div>
       </div>
@@ -59,15 +59,15 @@
   </div>
   
   <div class="col-lg-3 col-md-6 mb-3">
-    <div class="card border-0 shadow-sm bg-warning text-white">
+    <div class="card border-0 shadow-sm bg-warning text-white card-hover" style="background: linear-gradient(135deg, #ffc107 0%, #ffca2c 100%);">
       <div class="card-body">
         <div class="d-flex justify-content-between">
           <div>
             <h6 class="card-title text-white-50 mb-1">مستودعات الشركاء</h6>
-            <h3 class="mb-0 fw-bold">{{ warehouses|selectattr('warehouse_type', 'equalto', 'PARTNER')|list|length if warehouses else 0 }}</h3>
+            <h3 class="mb-0 fw-bold text-white">{{ warehouses|selectattr('warehouse_type', 'equalto', 'PARTNER')|list|length if warehouses else 0 }}</h3>
           </div>
           <div class="align-self-center">
-            <i class="fas fa-handshake fa-2x opacity-75"></i>
+            <i class="fas fa-handshake fa-2x opacity-50"></i>
           </div>
         </div>
       </div>
@@ -75,13 +75,36 @@
   </div>
 </div>
 
-<div class="card shadow-sm">
+<div class="card shadow-lg rounded-4 border-0 card-hover">
+  <div class="card-header gradient-header text-white">
+    <div class="d-flex justify-content-between align-items-center">
+      <h5 class="mb-0 fw-bold"><i class="fas fa-warehouse ml-2"></i>قائمة المستودعات</h5>
+      <div class="no-print d-flex gap-2">
+        <div class="btn-group shadow-sm rounded-pill overflow-hidden">
+            <button onclick="window.history.back()" class="btn btn-light btn-sm fw-bold border-end" title="رجوع">
+                <i class="fas fa-arrow-right"></i>
+            </button>
+            <button onclick="window.history.forward()" class="btn btn-light btn-sm fw-bold" title="تقدم">
+                <i class="fas fa-arrow-left"></i>
+            </button>
+        </div>
+        <a href="{{ url_for('main.dashboard') }}" class="btn btn-light btn-sm shadow-sm text-primary fw-bold">
+          <i class="fas fa-home ml-1"></i> الرئيسية
+        </a>
+        {% if current_user.has_permission('manage_warehouses') %}
+        <a href="{{ url_for('warehouse_bp.create') }}" class="btn btn-light btn-sm shadow-sm text-primary fw-bold">
+          <i class="fas fa-plus ml-1"></i>إضافة مستودع
+        </a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
   <div class="card-body">
 
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
       <form class="row g-2 flex-grow-1" method="get" action="{{ url_for('warehouse_bp.list') }}">
         <div class="col-md-3">
-<select class="custom-select" name="type">
+<select class="form-select form-control-modern" name="type">
   <option value="">{{ 'كل الأنواع' }}</option>
   <option value="MAIN"      {{ 'selected' if (filter_type|upper) == 'MAIN' }}>رئيسي</option>
   <option value="PARTNER"   {{ 'selected' if (filter_type|upper) == 'PARTNER' }}>شريك</option>
@@ -92,18 +115,18 @@
 
         </div>
         <div class="col-md-5">
-          <input class="form-control" type="text" name="search" placeholder="ابحث بالاسم" value="{{ search or '' }}">
+          <input class="form-control form-control-modern" type="text" name="search" placeholder="ابحث بالاسم" value="{{ search or '' }}">
         </div>
         <div class="col-md-2">
-          <button class="btn btn-primary w-100" type="submit">تصفية</button>
+          <button class="btn btn-primary btn-modern w-100" type="submit">تصفية</button>
         </div>
         <div class="col-md-2">
-          <a class="btn btn-light w-100" href="{{ url_for('warehouse_bp.list') }}">إلغاء</a>
+          <a class="btn btn-light btn-modern w-100" href="{{ url_for('warehouse_bp.list') }}">إلغاء</a>
         </div>
       </form>
 
       {% if current_user.has_permission('manage_warehouses') %}
-      <a href="{{ url_for('warehouse_bp.create') }}" class="btn btn-action-add">
+      <a href="{{ url_for('warehouse_bp.create') }}" class="btn btn-action-add btn-modern">
         <i class="fas fa-plus"></i> مستودع جديد
       </a>
       {% endif %}
@@ -111,8 +134,8 @@
 
     {% if warehouses and warehouses|length %}
       <div class="table-responsive">
-        <table class="table table-striped table-hover align-middle" id="warehouses-table" style="width:100%">
-          <thead class="table-light">
+        <table class="table table-striped table-hover align-middle table-rounded" id="warehouses-table" style="width:100%">
+          <thead class="text-white" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);">
             <tr>
               <th class="text-center" style="width:90px">رقم</th>
               <th>الاسم</th>
@@ -138,8 +161,14 @@
                   </a>
                 </div>
               </td>
-              <td>{{ ar_label('warehouse_type', w.warehouse_type) if ar_label else w.warehouse_type }}</td>
-              <td>{{ '✓' if w.is_active else '✗' }}</td>
+              <td><span class="badge bg-secondary rounded-pill">{{ ar_label('warehouse_type', w.warehouse_type) if ar_label else w.warehouse_type }}</span></td>
+              <td>
+                {% if w.is_active %}
+                  <span class="badge bg-success rounded-pill">نشط</span>
+                {% else %}
+                  <span class="badge bg-danger rounded-pill">غير نشط</span>
+                {% endif %}
+              </td>
               <td class="text-nowrap">
                 <div class="table-actions">
                   <a class="btn btn-action-view btn-action-sm" href="{{ url_for('warehouse_bp.detail', warehouse_id=w.id) }}" title="تفاصيل">

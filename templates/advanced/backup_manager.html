@@ -16,6 +16,13 @@
 .backup-status-card small {
   display: block;
 }
+.card-hover {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.card-hover:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.15) !important;
+}
 </style>
 {% endblock %}
 
@@ -26,10 +33,24 @@
   
   {% include 'advanced/_navigation.html' %}
   
+  <div class="d-flex justify-content-end mb-3 gap-2">
+      <div class="btn-group shadow-sm rounded-pill overflow-hidden bg-white">
+          <button onclick="window.history.back()" class="btn btn-sm text-primary fw-bold border-end" title="رجوع">
+              <i class="fas fa-arrow-right"></i>
+          </button>
+          <button onclick="window.history.forward()" class="btn btn-sm text-primary fw-bold" title="تقدم">
+              <i class="fas fa-arrow-left"></i>
+          </button>
+      </div>
+      <a href="{{ url_for('advanced.owner_hub') }}" class="btn btn-primary shadow-sm">
+          <i class="fas fa-arrow-right fa-sm text-white-50"></i> عودة للوحة المالك
+      </a>
+  </div>
+
   <!-- بطاقات إحصائية سريعة -->
   <div class="row g-3 mb-4">
     <div class="col-lg-3 col-md-6">
-      <div class="card border-0 shadow-sm bg-primary text-white h-100">
+      <div class="card border-0 shadow-sm bg-primary text-white h-100 card-hover" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center">
             <div>
@@ -44,7 +65,7 @@
     </div>
     
     <div class="col-lg-3 col-md-6">
-      <div class="card border-0 shadow-sm bg-success text-white h-100">
+      <div class="card border-0 shadow-sm bg-success text-white h-100 card-hover" style="background: linear-gradient(135deg, #198754 0%, #157347 100%);">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center">
             <div>
@@ -59,7 +80,7 @@
     </div>
     
     <div class="col-lg-3 col-md-6">
-      <div class="card border-0 shadow-sm bg-{{ schedule_status.color }} text-white h-100 backup-status-card">
+      <div class="card border-0 shadow-sm bg-{{ schedule_status.color }} text-white h-100 backup-status-card card-hover">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center">
             <div>
@@ -74,7 +95,7 @@
     </div>
     
     <div class="col-lg-3 col-md-6">
-      <div class="card border-0 shadow-sm bg-{{ backup_summary.color }} text-white h-100 backup-status-card">
+      <div class="card border-0 shadow-sm bg-{{ backup_summary.color }} text-white h-100 backup-status-card card-hover">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center">
             <div>
@@ -100,7 +121,7 @@
       <div class="card border-0 shadow-sm h-100">
         <div class="card-header bg-light d-flex justify-content-between align-items-center">
           <span><i class="fas fa-history"></i> أحدث النسخ</span>
-          <span class="badge bg-secondary">{{ recent_backups|length }}</span>
+          <span class="badge bg-secondary rounded-pill">{{ recent_backups|length }}</span>
         </div>
         <div class="card-body p-0">
           <ul class="list-group list-group-flush">
@@ -110,7 +131,7 @@
                 <strong>{{ backup.name }}</strong>
                 <div class="small text-muted">{{ backup.date }}</div>
               </div>
-              <span class="badge bg-info">{{ backup.size }}</span>
+              <span class="badge bg-info rounded-pill">{{ backup.size }}</span>
             </li>
             {% else %}
             <li class="list-group-item text-center text-muted">لا توجد نسخ بعد</li>
@@ -123,7 +144,7 @@
       <div class="card border-0 shadow-sm h-100">
         <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
           <span><i class="fas fa-exclamation-circle"></i> تنبيهات الفشل</span>
-          <span class="badge bg-light text-dark">{{ backup_failures|length }}</span>
+          <span class="badge bg-light text-dark rounded-pill">{{ backup_failures|length }}</span>
         </div>
         <div class="card-body">
           {% if backup_failures %}
@@ -212,14 +233,14 @@
 
         <!-- قائمة النسخ الاحتياطية -->
         <div class="col-md-8">
-          <div class="card shadow-sm">
-            <div class="card-header bg-primary text-white">
+          <div class="card border-0 shadow-sm card-hover">
+            <div class="card-header bg-gradient-primary text-white">
               <h5 class="mb-0"><i class="fas fa-history"></i> النسخ الاحتياطية المتوفرة ({{ backups|length }})</h5>
             </div>
             <div class="card-body">
               {% if backups %}
               <div class="table-responsive">
-                <table class="table table-hover">
+                <table class="table table-hover table-rounded">
                   <thead class="table-light">
                     <tr>
                       <th>اسم الملف</th>
@@ -233,7 +254,7 @@
                     {% for backup in backups %}
                     <tr>
                       <td><code>{{ backup.name }}</code></td>
-                      <td><span class="badge bg-info">{{ backup.size }}</span></td>
+                      <td><span class="badge bg-info rounded-pill">{{ backup.size }}</span></td>
                       <td>{{ backup.date }}</td>
                       <td>{{ backup.age_hours }}</td>
                       <td>
@@ -364,7 +385,7 @@
 
             {% if json_backups %}
             <div class="table-responsive">
-            <table class="table table-hover align-middle">
+            <table class="table table-hover align-middle table-rounded">
                 <thead class="table-dark">
                 <tr>
                     <th>اسم الملف</th>
@@ -385,7 +406,7 @@
                     <div>{{ backup.date }}</div>
                     <small class="text-muted">{{ backup.timestamp }}</small>
                     </td>
-                    <td><span class="badge bg-secondary">{{ backup.size }}</span></td>
+                    <td><span class="badge bg-secondary rounded-pill">{{ backup.size }}</span></td>
                     <td>{{ backup.age_hours }}</td>
                     <td class="text-center">
                     <div class="d-flex justify-content-center gap-2">

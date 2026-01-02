@@ -307,8 +307,13 @@ document.addEventListener('DOMContentLoaded', function() {
         }
       }
       var actionsHtml = '<div class="btn-group btn-group-sm" role="group">' +
-        '<a href="' + viewLink + '" class="btn btn-info">عرض</a>' +
-        '<button type="button" class="btn btn-warning btn-archive" data-id="' + sanitizeAttr(p.id) + '" title="أرشفة الدفعة">أرشفة</button>';
+        '<a href="' + viewLink + '" class="btn btn-info">عرض</a>';
+      
+      if (p.is_archived) {
+          actionsHtml += '<button type="button" class="btn btn-success btn-restore" data-id="' + sanitizeAttr(p.id) + '" title="استعادة الدفعة">استعادة</button>';
+      } else {
+          actionsHtml += '<button type="button" class="btn btn-warning btn-archive" data-id="' + sanitizeAttr(p.id) + '" title="أرشفة الدفعة">أرشفة</button>';
+      }
 
       var st = String(p.status || '').toUpperCase();
       var isSplit = false;
@@ -431,6 +436,38 @@ document.addEventListener('DOMContentLoaded', function() {
         alert('تم أرشفة سند الدفع بنجاح');
       } else {
         alert('تعذر الأرشفة: ' + (j.message || 'خطأ غير معروف'));
+      }
+    } catch (err) {
+      alert('خطأ في الاتصال بالخادم.');
+    }
+  });
+
+  document.addEventListener('click', async function (e) {
+    const btn = e.target.closest('.btn-restore');
+    if (!btn) return;
+    const id = btn.dataset.id;
+    if (!id) return;
+    
+    if (!confirm('هل أنت متأكد من استعادة سند الدفع #' + id + '؟')) return;
+    
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || document.getElementById('csrf_token')?.value || '';
+    try {
+      const r = await fetch('/payments/restore/' + id, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
+        },
+        body: new URLSearchParams({ 
+          csrf_token: csrf
+        }).toString()
+      });
+      const j = await r.json().catch(() => ({}));
+      if (r.ok && (j.status === 'success' || j.success || j.ok)) {
+        loadPayments();
+        alert('تم استعادة سند الدفع بنجاح');
+      } else {
+        alert('تعذر الاستعادة: ' + (j.message || 'خطأ غير معروف'));
       }
     } catch (err) {
       alert('خطأ في الاتصال بالخادم.');

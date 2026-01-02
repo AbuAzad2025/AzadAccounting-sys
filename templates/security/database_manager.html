@@ -23,63 +23,104 @@
 {% endblock %}
 
 {% block security_content %}
+<style>
+  /* Custom Styles for Database Manager */
+  .nav-pills .nav-link {
+    border-radius: 50px;
+    margin: 0 5px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+  }
+  .nav-pills .nav-link.active {
+    background-color: #0d6efd;
+    box-shadow: 0 4px 6px rgba(13, 110, 253, 0.3);
+  }
+  .nav-pills .nav-link:hover:not(.active) {
+    background-color: #e9ecef;
+  }
+  .code-editor {
+    font-family: 'Fira Code', 'Consolas', 'Monaco', monospace;
+    background-color: #1e1e1e !important;
+    color: #d4d4d4 !important;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 15px;
+    line-height: 1.6;
+    font-size: 14px;
+    resize: vertical;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+  }
+  .code-editor:focus {
+    outline: none;
+    border-color: #0d6efd;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.5), 0 0 0 2px rgba(13, 110, 253, 0.25);
+  }
+  .table-hover tbody tr:hover {
+    background-color: rgba(13, 110, 253, 0.05);
+  }
+  .action-btn-group {
+    display: flex;
+    gap: 5px;
+    justify-content: center;
+  }
+</style>
 
   <div class="card shadow-lg border-0">
-    <div class="card-body p-0">
+    <div class="card-body p-3">
       
-      <ul class="nav nav-tabs nav-fill" id="dbTabs" role="tablist">
+      <ul class="nav nav-pills nav-fill mb-4 p-2 bg-light rounded" id="dbTabs" role="tablist">
         <li class="nav-item">
           <a class="nav-link {% if active_tab == 'browse' %}active{% endif %}" 
              id="tab-trigger-browse"
              data-tab="browse"
-             data-toggle="tab"
+             data-toggle="pill"
              href="#browse"
              role="tab"
              aria-controls="browse"
              aria-selected="{% if active_tab == 'browse' %}true{% else %}false{% endif %}"
              title="تصفح جميع الجداول والبيانات">
-            تصفح
+            <i class="fas fa-table me-2"></i> تصفح
           </a>
         </li>
         <li class="nav-item">
           <a class="nav-link {% if active_tab == 'edit' %}active{% endif %}" 
              id="tab-trigger-edit"
              data-tab="edit"
-             data-toggle="tab"
+             data-toggle="pill"
              href="#edit"
              role="tab"
              aria-controls="edit"
              aria-selected="{% if active_tab == 'edit' %}true{% else %}false{% endif %}"
              title="تحرير البيانات مباشرة">
-            تحرير
+            <i class="fas fa-edit me-2"></i> تحرير
           </a>
         </li>
         <li class="nav-item">
           <a class="nav-link {% if active_tab == 'schema' %}active{% endif %}" 
              id="tab-trigger-schema"
              data-tab="schema"
-             data-toggle="tab"
+             data-toggle="pill"
              href="#schema"
              role="tab"
              aria-controls="schema"
              aria-selected="{% if active_tab == 'schema' %}true{% else %}false{% endif %}"
              title="عرض هيكل قاعدة البيانات والعلاقات">
-            هيكل
+            <i class="fas fa-project-diagram me-2"></i> هيكل
           </a>
         </li>
         <li class="nav-item">
           <a class="nav-link {% if active_tab == 'indexes' %}active{% endif %}" 
              id="tab-trigger-indexes"
              data-tab="indexes"
-             data-toggle="tab"
+             data-toggle="pill"
              href="#indexes"
              role="tab"
              aria-controls="indexes"
              aria-selected="{% if active_tab == 'indexes' %}true{% else %}false{% endif %}"
              title="إدارة الفهارس لتسريع الأداء">
-            فهارس
+            <i class="fas fa-key me-2"></i> فهارس
             {% if indexes_stats and indexes_stats.total_indexes %}
-            <span data-tab-count="indexes" data-count="{{ indexes_stats.total_indexes }}"></span>
+            <span class="badge bg-light text-dark ms-1" data-tab-count="indexes" data-count="{{ indexes_stats.total_indexes }}"></span>
             {% endif %}
           </a>
         </li>
@@ -87,91 +128,91 @@
           <a class="nav-link {% if active_tab == 'logs' %}active{% endif %}" 
              id="tab-trigger-logs"
              data-tab="logs"
-             data-toggle="tab"
+             data-toggle="pill"
              href="#logs"
              role="tab"
              aria-controls="logs"
              aria-selected="{% if active_tab == 'logs' %}true{% else %}false{% endif %}"
              title="عرض سجلات النظام والأخطاء">
-            سجلات
+            <i class="fas fa-history me-2"></i> سجلات
           </a>
         </li>
         <li class="nav-item">
           <a class="nav-link {% if active_tab == 'sql' %}active{% endif %}" 
              id="tab-trigger-sql"
              data-tab="sql"
-             data-toggle="tab"
+             data-toggle="pill"
              href="#sql"
              role="tab"
              aria-controls="sql"
              aria-selected="{% if active_tab == 'sql' %}true{% else %}false{% endif %}"
              title="محرر SQL احترافي مع Autocomplete">
-            SQL
+            <i class="fas fa-database me-2"></i> SQL
           </a>
         </li>
         <li class="nav-item">
           <a class="nav-link {% if active_tab == 'python' %}active{% endif %}" 
              id="tab-trigger-python"
              data-tab="python"
-             data-toggle="tab"
+             data-toggle="pill"
              href="#python"
              role="tab"
              aria-controls="python"
              aria-selected="{% if active_tab == 'python' %}true{% else %}false{% endif %}"
              title="تنفيذ أكواد Python مباشرة">
-            Python
+            <i class="fab fa-python me-2"></i> Python
           </a>
         </li>
         <li class="nav-item">
           <a class="nav-link {% if active_tab == 'maintenance' %}active{% endif %}" 
              id="tab-trigger-maintenance"
              data-tab="maintenance"
-             data-toggle="tab"
+             data-toggle="pill"
              href="#maintenance"
              role="tab"
              aria-controls="maintenance"
              aria-selected="{% if active_tab == 'maintenance' %}true{% else %}false{% endif %}"
              title="صيانة وتحسين قاعدة البيانات">
-            صيانة
+            <i class="fas fa-tools me-2"></i> صيانة
           </a>
         </li>
         <li class="nav-item">
           <a class="nav-link {% if active_tab == 'restore' %}active{% endif %}" 
              id="tab-trigger-restore"
              data-tab="restore"
-             data-toggle="tab"
+             data-toggle="pill"
              href="#restore"
              role="tab"
              aria-controls="restore"
              aria-selected="{% if active_tab == 'restore' %}true{% else %}false{% endif %}"
              title="استعادة النسخ الاحتياطية">
-            استعادة
+            <i class="fas fa-undo me-2"></i> استعادة
           </a>
         </li>
         <li class="nav-item">
           <a class="nav-link {% if active_tab == 'tools' %}active{% endif %}" 
              id="tab-trigger-tools"
              data-tab="tools"
-             data-toggle="tab"
+             data-toggle="pill"
              href="#tools"
              role="tab"
              aria-controls="tools"
              aria-selected="{% if active_tab == 'tools' %}true{% else %}false{% endif %}"
              title="أدوات إضافية متقدمة">
-            أدوات
+            <i class="fas fa-cogs me-2"></i> أدوات
           </a>
         </li>
         <li class="nav-item">
           <a class="nav-link {% if active_tab == 'archive' %}active{% endif %}" 
              id="tab-trigger-archive"
              data-tab="archive"
-             data-toggle="tab"
+             data-toggle="pill"
              href="#archive"
              role="tab"
              aria-controls="archive"
              aria-selected="{% if active_tab == 'archive' %}true{% else %}false{% endif %}"
              title="الجداول المؤرشفة المحذوفة">
-            أرشيفات
+            <i class="fas fa-archive me-2"></i> أرشيفات
           </a>
         </li>
       </ul>
@@ -215,8 +256,8 @@
                   </h6>
                 </div>
                 <div class="card-body p-0">
-                  <div class="table-responsive" style="max-height: 600px;">
-                    <table class="table table-sm table-hover mb-0">
+                  <div class="table-responsive border rounded" style="max-height: 600px;">
+                    <table class="table table-sm table-striped table-hover mb-0">
                       <thead class="table-dark sticky-top">
                         <tr>
                           {% for col in columns %}
@@ -278,35 +319,40 @@
               </div>
               
               <!-- أزرار الإجراءات -->
-              <div class="btn-group mb-3" role="group">
-                <button type="button" class="btn btn-success" data-toggle="modal" data-target="#addColumnModal">
-                  <i class="fas fa-plus"></i> إضافة عمود
-                </button>
-                <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#addRowModal">
-                  <i class="fas fa-plus-circle"></i> إضافة صف
-                </button>
-                <button type="button" class="btn btn-warning" data-toggle="modal" data-target="#renameTableModal">
-                  <i class="fas fa-i-cursor"></i> إعادة تسمية
-                </button>
+              <div class="d-flex justify-content-between mb-3 align-items-center bg-light p-2 rounded">
+                <div>
+                  <h5 class="mb-0"><i class="fas fa-edit text-primary"></i> تحرير: {{ selected_table }}</h5>
+                </div>
+                <div class="btn-group" role="group">
+                  <button type="button" class="btn btn-success btn-sm" data-toggle="modal" data-target="#addColumnModal">
+                    <i class="fas fa-plus"></i> عمود
+                  </button>
+                  <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#addRowModal">
+                    <i class="fas fa-plus-circle"></i> صف
+                  </button>
+                  <button type="button" class="btn btn-warning btn-sm" data-toggle="modal" data-target="#renameTableModal">
+                    <i class="fas fa-i-cursor"></i> تسمية
+                  </button>
+                </div>
               </div>
               
               <!-- جدول البيانات -->
-              <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
-                <table id="db-edit-table" class="table table-bordered table-hover">
+              <div class="table-responsive shadow-sm border rounded" style="max-height: 600px; overflow-y: auto;">
+                <table id="db-edit-table" class="table table-bordered table-hover table-striped mb-0">
                   <thead class="table-dark sticky-top">
                     <tr>
-                      <th>#</th>
+                      <th style="width: 50px;">#</th>
                       {% for col in columns %}
                       <th>{{ col }}</th>
                       {% endfor %}
-                      <th>إجراءات</th>
+                      <th style="width: 120px;">إجراءات</th>
                     </tr>
                   </thead>
                   <tbody>
                     {% for row in data %}
                     <tr data-row-index="{{ loop.index0 }}">
-                      <td class="text-center">
-                        <button type="button" class="btn btn-sm btn-outline-primary row-marker" data-row-index="{{ loop.index0 }}">{{ loop.index }}</button>
+                      <td class="text-center align-middle bg-light">
+                        <small class="text-muted">{{ loop.index }}</small>
                       </td>
                       {% for col in columns %}
                       <td contenteditable="true" class="editable-cell" 
@@ -316,36 +362,39 @@
                         {{ row.get(col, '') }}
                       </td>
                       {% endfor %}
-                      <td>
-                        <button class="btn btn-sm btn-success save-row-btn" 
-                                title="حفظ التعديلات"
-                                data-row-index="{{ loop.index0 }}"
-                                style="display: none;"
-                                onclick="saveRow(this)">
-                          <i class="fas fa-save"></i> حفظ
-                        </button>
-                        <button class="btn btn-sm btn-secondary cancel-row-btn" 
-                                title="إلغاء التعديلات"
-                                data-row-index="{{ loop.index0 }}"
-                                style="display: none;"
-                                onclick="cancelRowEdit(this)">
-                          <i class="fas fa-times"></i> إلغاء
-                        </button>
-                        <button class="btn btn-sm btn-danger" title="حذف"
-                                onclick="if(confirm('حذف هذا السجل؟')) {
-                                  const row = this.closest('tr');
-                                  const firstCell = row.querySelector('.editable-cell');
-                                  const primaryKey = firstCell ? firstCell.dataset.rowPrimaryKey : '';
-                                  fetch('/security/db-editor/delete-row/{{ selected_table }}/' + encodeURIComponent(primaryKey), {
-                                    method: 'POST',
-                                    headers: {
-                                      'Content-Type': 'application/x-www-form-urlencoded',
-                                      'X-CSRFToken': getCsrfToken()
-                                    }
-                                  }).then(() => location.reload());
-                                }">
-                          <i class="fas fa-trash"></i>
-                        </button>
+                      <td class="text-center align-middle">
+                        <div class="action-btn-group">
+                          <button class="btn btn-sm btn-success save-row-btn rounded-circle" 
+                                  title="حفظ التعديلات"
+                                  data-row-index="{{ loop.index0 }}"
+                                  style="display: none; width: 32px; height: 32px; padding: 0;"
+                                  onclick="saveRow(this)">
+                            <i class="fas fa-check"></i>
+                          </button>
+                          <button class="btn btn-sm btn-secondary cancel-row-btn rounded-circle" 
+                                  title="إلغاء التعديلات"
+                                  data-row-index="{{ loop.index0 }}"
+                                  style="display: none; width: 32px; height: 32px; padding: 0;"
+                                  onclick="cancelRowEdit(this)">
+                            <i class="fas fa-times"></i>
+                          </button>
+                          <button class="btn btn-sm btn-outline-danger rounded-circle" title="حذف السجل"
+                                  style="width: 32px; height: 32px; padding: 0;"
+                                  onclick="if(confirm('هل أنت متأكد من حذف هذا السجل نهائياً؟')) {
+                                    const row = this.closest('tr');
+                                    const firstCell = row.querySelector('.editable-cell');
+                                    const primaryKey = firstCell ? firstCell.dataset.rowPrimaryKey : '';
+                                    fetch('/security/db-editor/delete-row/{{ selected_table }}/' + encodeURIComponent(primaryKey), {
+                                      method: 'POST',
+                                      headers: {
+                                        'Content-Type': 'application/x-www-form-urlencoded',
+                                        'X-CSRFToken': getCsrfToken()
+                                      }
+                                    }).then(() => location.reload());
+                                  }">
+                            <i class="fas fa-trash-alt"></i>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                     {% endfor %}
@@ -404,8 +453,8 @@
                   </h6>
                 </div>
                 <div class="card-body">
-                  <div class="table-responsive">
-                    <table class="table table-bordered">
+                  <div class="table-responsive border rounded">
+                    <table class="table table-bordered table-striped table-hover mb-0">
                       <thead class="table-dark">
                         <tr>
                           <th>اسم العمود</th>
@@ -521,8 +570,8 @@
                 </div>
                 <div class="card-body">
                   {% if table.indexes and table.indexes|length > 0 %}
-                  <div class="table-responsive">
-                    <table class="table table-sm table-hover mb-0">
+                  <div class="table-responsive border rounded">
+                    <table class="table table-sm table-striped table-hover mb-0">
                       <thead>
                         <tr>
                           <th>اسم الفهرس</th>
@@ -746,18 +795,24 @@
         <div class="tab-pane fade {% if active_tab == 'sql' %}show active{% endif %}" 
              id="sql" 
              role="tabpanel" aria-labelledby="tab-trigger-sql">
-        <form method="POST" action="{{ url_for('security.database_manager', tab='sql') }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <div class="mb-3">
-            <label class="form-label"><i class="fas fa-code"></i> <strong>SQL Console</strong></label>
-            <textarea name="sql_query" class="form-control" rows="10" 
-                      style="font-family: 'Courier New', monospace; background: #f8f9fa;"
-                      placeholder="SELECT * FROM customers LIMIT 10;"></textarea>
-          </div>
-          <button type="submit" class="btn btn-primary">
-            <i class="fas fa-play"></i> تنفيذ
-          </button>
-        </form>
+        <div class="container-fluid p-4">
+          <form method="POST" action="{{ url_for('security.database_manager', tab='sql') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="mb-3">
+              <label class="form-label d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-code"></i> <strong>SQL Console</strong></span>
+                <span class="text-muted small">Use Ctrl+Enter to execute</span>
+              </label>
+              <textarea name="sql_query" class="form-control code-editor" rows="12" 
+                        placeholder="SELECT * FROM customers LIMIT 10;"></textarea>
+            </div>
+            <div class="d-flex justify-content-end">
+              <button type="submit" class="btn btn-success px-4">
+                <i class="fas fa-play me-2"></i> تنفيذ الاستعلام
+              </button>
+            </div>
+          </form>
+        </div>
         
         {% if sql_result %}
         <div class="alert alert-success mt-3">
@@ -802,18 +857,24 @@
         <div class="tab-pane fade {% if active_tab == 'python' %}show active{% endif %}" 
              id="python" 
              role="tabpanel" aria-labelledby="tab-trigger-python">
-        <form method="POST" action="{{ url_for('security.database_manager', tab='python') }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <div class="mb-3">
-            <label class="form-label"><i class="fab fa-python"></i> <strong>Python Console</strong></label>
-            <textarea name="python_code" class="form-control" rows="10" 
-                      style="font-family: 'Courier New', monospace; background: #f8f9fa;"
-                      placeholder="# مثال&#10;from models import Customer&#10;customers = Customer.query.limit(5).all()&#10;output = f'عدد العملاء: {len(customers)}'"></textarea>
-          </div>
-          <button type="submit" class="btn btn-success">
-            <i class="fas fa-play"></i> تنفيذ
-          </button>
-        </form>
+        <div class="container-fluid p-4">
+          <form method="POST" action="{{ url_for('security.database_manager', tab='python') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="mb-3">
+              <label class="form-label d-flex justify-content-between align-items-center">
+                <span><i class="fab fa-python"></i> <strong>Python Console</strong></span>
+                <span class="text-muted small">Access 'models' context directly</span>
+              </label>
+              <textarea name="python_code" class="form-control code-editor" rows="12" 
+                        placeholder="# مثال&#10;from models import Customer&#10;customers = Customer.query.limit(5).all()&#10;output = f'عدد العملاء: {len(customers)}'"></textarea>
+            </div>
+            <div class="d-flex justify-content-end">
+              <button type="submit" class="btn btn-success px-4">
+                <i class="fas fa-play me-2"></i> تنفيذ الكود
+              </button>
+            </div>
+          </form>
+        </div>
         
         {% if python_result %}
         <div class="alert alert-success mt-3">

@@ -311,7 +311,51 @@ def owner_smoke_checklist():
 @advanced_bp.route('/db-merger', methods=['GET', 'POST'])
 @permission_required('access_owner_dashboard')
 def db_merger():
-    abort(404)
+    """معالج دمج قواعد البيانات"""
+    
+    # Calculate basic stats for the template
+    stats = {
+        'current_db_size': 'N/A',
+        'total_tables': 0,
+        'total_records': 0
+    }
+    
+    try:
+        from sqlalchemy import text, inspect
+        # Size
+        try:
+            size_bytes = db.session.execute(text("SELECT pg_database_size(current_database())")).scalar()
+            size_mb = round(size_bytes / (1024 * 1024), 2)
+            stats['current_db_size'] = f"{size_mb} MB"
+        except:
+            stats['current_db_size'] = "Unknown"
+
+        # Tables
+        try:
+            inspector = inspect(db.engine)
+            tables = inspector.get_table_names()
+            stats['total_tables'] = len(tables)
+        except:
+            pass
+        
+    except Exception as e:
+        print(f"Error in db_merger stats: {e}")
+
+    preview = None
+    if request.method == 'POST':
+        action = request.form.get('action')
+        if action == 'preview':
+            # Dummy preview logic for now since real logic is complex
+            preview = {
+                'file_name': 'dummy.sql',
+                'comparison': []
+            }
+            flash('This is a simulation. Merge logic needs implementation.', 'info')
+        elif action == 'execute':
+             flash('Merge executed (simulation).', 'success')
+             return redirect(url_for('advanced.db_merger'))
+
+    return render_template('advanced/db_merger.html', stats=stats, preview=preview)
 
 
 @advanced_bp.route('/multi-tenant', methods=['GET', 'POST'])
@@ -636,12 +680,18 @@ def module_manager():
                 names = ', '.join(MODULE_LOOKUP.get(dep, {}).get('name', dep) for dep in unmet)
                 flash(f'❌ يجب تفعيل الوحدات: {names} قبل تفعيل {module_key}', 'danger')
                 return redirect(url_for('advanced.module_manager'))
-        setting = SystemSettings.query.filter_by(key=f'module_{module_key}_enabled').first()
-        if setting:
-            setting.value = str(enabled)
-        else:
-            db.session.add(SystemSettings(key=f'module_{module_key}_enabled', value=str(enabled)))
-        db.session.commit()
+        
+        # Use centralized setter for consistency and cache management
+        SystemSettings.set_setting(
+            key=f'module_{module_key}_enabled',
+            value=enabled,
+            data_type='boolean',
+            description=f'Enable/Disable {module_key} module'
+        )
+        
+        # Log the action
+        _log_owner_action('module.toggle', module_key, {'enabled': enabled})
+        
         flash(f'✅ تم تحديث: {module_key}', 'success')
         return redirect(url_for('advanced.module_manager'))
     
@@ -682,7 +732,7 @@ def _get_module_states():
 @advanced_bp.route('/backup-manager', methods=['GET', 'POST'])
 @permission_required('backup_database')
 def backup_manager():
-    backup_dir = current_app.config.get("BACKUP_DB_DIR") or os.path.join(current_app.instance_path, "backups", "db")
+    backup_dir = current_app.config.get("BACKUP_DB_DIR") or os.path.join(current_app.instance_path, "backups")
     
     if request.method == 'POST':
         action = request.form.get('action')
@@ -764,7 +814,7 @@ def backup_manager():
     now = datetime.now()
     if os.path.exists(backup_dir):
         for filename in sorted(os.listdir(backup_dir), reverse=True):
-            if filename.endswith('.dump'):
+            if filename.endswith(('.dump', '.sql')):
                 filepath = os.path.join(backup_dir, filename)
                 size = os.path.getsize(filepath) / (1024 * 1024)
                 mtime = datetime.fromtimestamp(os.path.getmtime(filepath))
@@ -837,7 +887,7 @@ def download_backup(filename):
             exports_dir = os.path.join(current_app.root_path, 'exports')
             filepath = os.path.join(exports_dir, secure_filename(filename))
         else:
-            backup_dir = current_app.config.get("BACKUP_DB_DIR") or os.path.join(current_app.instance_path, "backups", "db")
+            backup_dir = current_app.config.get("BACKUP_DB_DIR") or os.path.join(current_app.instance_path, "backups")
             filepath = os.path.join(backup_dir, secure_filename(filename))
         
         if os.path.exists(filepath):
@@ -900,7 +950,7 @@ def restore_json_backup(filename):
 def restore_backup(filename):
     """استعادة نسخة احتياطية"""
     try:
-        backup_dir = current_app.config.get("BACKUP_DB_DIR") or os.path.join(current_app.instance_path, "backups", "db")
+        backup_dir = current_app.config.get("BACKUP_DB_DIR") or os.path.join(current_app.instance_path, "backups")
         backup_path = os.path.join(backup_dir, secure_filename(filename))
         confirm_token = request.form.get('confirm_token')
         
@@ -1283,13 +1333,13 @@ def _collect_system_health_checks():
 
 
 def _get_latest_backup_snapshot():
-    backup_dir = os.path.join(current_app.root_path, 'instance', 'backups', 'db')
+    backup_dir = os.path.join(current_app.root_path, 'instance', 'backups')
     latest = None
     if os.path.exists(backup_dir):
         backups = sorted(
             [
                 filename for filename in os.listdir(backup_dir)
-                if filename.endswith(('.dump',))
+                if filename.endswith(('.dump', '.sql'))
             ],
             reverse=True
         )

@@ -3,7 +3,34 @@
 {% block page_title %}🔒 التحكم بالأمان - IP Whitelist & Country Blocking{% endblock %}
 
 {% block content %}
+<style>
+.card-hover {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.card-hover:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.15) !important;
+}
+</style>
 <div class="container-fluid">
+  {% include 'advanced/_navigation.html' %}
+
+  <div class="d-flex justify-content-between align-items-center mb-4">
+      <h4 class="mb-0 text-gray-800"><i class="fas fa-shield-alt me-2"></i> التحكم بالأمان</h4>
+      <div class="d-flex gap-2">
+          <div class="btn-group shadow-sm rounded-pill overflow-hidden bg-white">
+              <button onclick="window.history.back()" class="btn btn-sm text-primary fw-bold border-end" title="رجوع">
+                  <i class="fas fa-arrow-right"></i>
+              </button>
+              <button onclick="window.history.forward()" class="btn btn-sm text-primary fw-bold" title="تقدم">
+                  <i class="fas fa-arrow-left"></i>
+              </button>
+          </div>
+          <a href="{{ url_for('advanced.owner_hub') }}" class="btn btn-primary shadow-sm">
+              <i class="fas fa-home fa-sm text-white-50 me-1"></i> لوحة المالك
+          </a>
+      </div>
+  </div>
   
   <form method="POST" action="{{ url_for('security_control.security_control') }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -11,7 +38,7 @@
     
     <div class="row mb-4">
       <div class="col-md-4">
-        <div class="card border-0 shadow-sm">
+        <div class="card border-0 shadow-sm card-hover">
           <div class="card-body text-center">
             <h6 class="text-muted">القائمة البيضاء</h6>
             <h3 class="text-success">{{ stats.whitelist_count }}</h3>
@@ -20,7 +47,7 @@
         </div>
       </div>
       <div class="col-md-4">
-        <div class="card border-0 shadow-sm">
+        <div class="card border-0 shadow-sm card-hover">
           <div class="card-body text-center">
             <h6 class="text-muted">القائمة السوداء</h6>
             <h3 class="text-danger">{{ stats.blacklist_count }}</h3>
@@ -29,7 +56,7 @@
         </div>
       </div>
       <div class="col-md-4">
-        <div class="card border-0 shadow-sm">
+        <div class="card border-0 shadow-sm card-hover">
           <div class="card-body text-center">
             <h6 class="text-muted">دول محظورة</h6>
             <h3 class="text-warning">{{ stats.blocked_countries_count }}</h3>
@@ -41,8 +68,8 @@
 
     <div class="row">
       <div class="col-md-6 mb-4">
-        <div class="card border-0 shadow-sm">
-          <div class="card-header bg-success text-white">
+        <div class="card border-0 shadow-sm card-hover">
+          <div class="card-header text-white" style="background: linear-gradient(135deg, #1cc88a 0%, #13855c 100%);">
             <h5 class="mb-0"><i class="fas fa-shield-alt"></i> القائمة البيضاء (IP Whitelist)</h5>
           </div>
           <div class="card-body">
@@ -56,7 +83,7 @@
             </div>
             
             <label class="form-label">عناوين IP المسموحة (سطر لكل IP):</label>
-            <textarea name="whitelist_ips" class="form-control font-monospace" rows="8" 
+            <textarea name="whitelist_ips" class="form-control form-control-modern font-monospace" rows="8" 
                       style="font-size: 0.9rem;">{% for ip in whitelist %}{{ ip }}
 {% endfor %}</textarea>
             <small class="form-text text-muted">
@@ -68,7 +95,7 @@
 
       <div class="col-md-6 mb-4">
         <div class="card border-0 shadow-sm">
-          <div class="card-header bg-danger text-white">
+          <div class="card-header text-white" style="background: linear-gradient(135deg, #e74a3b 0%, #be2617 100%);">
             <h5 class="mb-0"><i class="fas fa-ban"></i> القائمة السوداء (IP Blacklist)</h5>
           </div>
           <div class="card-body">
@@ -82,7 +109,7 @@
             </div>
             
             <label class="form-label">عناوين IP المحظورة (سطر لكل IP):</label>
-            <textarea name="blacklist_ips" class="form-control font-monospace" rows="8" 
+            <textarea name="blacklist_ips" class="form-control form-control-modern font-monospace" rows="8" 
                       style="font-size: 0.9rem;">{% for ip in blacklist %}{{ ip }}
 {% endfor %}</textarea>
             <small class="form-text text-muted">
@@ -143,8 +170,8 @@
 
   <div class="row mt-5">
     <div class="col-md-12">
-      <div class="card border-0 shadow-sm border-info">
-        <div class="card-header bg-info text-white">
+      <div class="card border-0 shadow-sm border-info card-hover">
+        <div class="card-header text-white" style="background: linear-gradient(135deg, #36b9cc 0%, #258391 100%);">
           <h5 class="mb-0"><i class="fas fa-flask"></i> اختبار IP</h5>
         </div>
         <div class="card-body">
@@ -152,8 +179,8 @@
             <div class="col-md-6">
               <label class="form-label">أدخل IP للاختبار:</label>
               <div class="input-group">
-                <input type="text" id="testIpInput" class="form-control" placeholder="192.168.1.1">
-                <button type="button" class="btn btn-info" onclick="testIP()">
+                <input type="text" id="testIpInput" class="form-control form-control-modern" placeholder="192.168.1.1">
+                <button type="button" class="btn btn-info text-white" onclick="testIP()">
                   <i class="fas fa-search"></i> اختبار
                 </button>
               </div>

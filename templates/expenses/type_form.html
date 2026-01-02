@@ -14,34 +14,44 @@
 
   <form method="post" class="needs-validation" novalidate>
     {{ form.hidden_tag() }}
-    <div class="card card-outline card-primary shadow-sm">
-      <div class="card-header">
-        <h5 class="card-title mb-0">📝 بيانات نوع المصروف</h5>
+    <div class="card border-0 shadow-sm card-hover">
+      <div class="card-header text-white" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);">
+        <div class="d-flex justify-content-between align-items-center">
+            <h5 class="card-title mb-0"><i class="fas fa-edit me-2"></i>بيانات نوع المصروف</h5>
+            <div class="btn-group shadow-sm rounded-pill overflow-hidden bg-white">
+                <button type="button" onclick="window.history.back()" class="btn btn-sm text-primary fw-bold border-end" title="رجوع">
+                    <i class="fas fa-arrow-right"></i>
+                </button>
+                <button type="button" onclick="window.history.forward()" class="btn btn-sm text-primary fw-bold" title="تقدم">
+                    <i class="fas fa-arrow-left"></i>
+                </button>
+            </div>
+        </div>
       </div>
       <div class="card-body">
         <div class="row g-3">
           <div class="col-md-6">
             {{ form.name.label(class="form-label") }}
-            {{ form.name(class=("form-control is-invalid" if form.name.errors else "form-control"), placeholder="مثال: رواتب، جمارك، كهرباء...", autofocus=True, maxlength="100") }}
+            {{ form.name(class=("form-control form-control-modern is-invalid" if form.name.errors else "form-control form-control-modern"), placeholder="مثال: رواتب، جمارك، كهرباء...", autofocus=True, maxlength="100") }}
             {% for e in form.name.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}
           </div>
 
           <div class="col-md-6">
             {{ form.description.label(class="form-label") }}
-            {{ form.description(class=("form-control is-invalid" if form.description.errors else "form-control"), rows="3", placeholder="وصف اختياري حتى 500 حرف") }}
+            {{ form.description(class=("form-control form-control-modern is-invalid" if form.description.errors else "form-control form-control-modern"), rows="3", placeholder="وصف اختياري حتى 500 حرف") }}
             {% for e in form.description.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}
           </div>
 
           <div class="col-md-6">
             {{ form.gl_account_code.label(class="form-label") }}
-            {{ form.gl_account_code(class=("form-select is-invalid" if form.gl_account_code.errors else "form-select")) }}
+            {{ form.gl_account_code(class=("form-select form-control-modern is-invalid" if form.gl_account_code.errors else "form-select form-control-modern")) }}
             {% for e in form.gl_account_code.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}
           </div>
 
           {% if form.show_fields_meta %}
           <div class="col-12">
             {{ form.fields_meta.label(class="form-label") }}
-            {{ form.fields_meta(class=("form-control is-invalid" if form.fields_meta.errors else "form-control"), rows="6", placeholder="{}") }}
+            {{ form.fields_meta(class=("form-control form-control-modern is-invalid" if form.fields_meta.errors else "form-control form-control-modern"), rows="6", placeholder="{}") }}
             {% for e in form.fields_meta.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}
           </div>
           {% endif %}

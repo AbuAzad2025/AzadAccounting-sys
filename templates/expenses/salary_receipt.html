@@ -211,8 +211,18 @@
   </style>
 </head>
 <body>
-
-<div class="receipt-container">
+  <div class="no-print" style="position: fixed; top: 20px; left: 20px; z-index: 1000;">
+      <div class="btn-group shadow-sm rounded-pill overflow-hidden bg-white">
+           <button onclick="window.history.back()" class="btn btn-sm text-primary fw-bold border-end" style="padding: 8px 15px; border: 1px solid #ddd;" title="رجوع">
+               <i class="fas fa-arrow-right"></i> رجوع
+           </button>
+           <button onclick="window.print()" class="btn btn-sm text-success fw-bold" style="padding: 8px 15px; border: 1px solid #ddd; border-right: none;" title="طباعة">
+               <i class="fas fa-print"></i> طباعة
+           </button>
+      </div>
+  </div>
+  
+  <div class="receipt-container">
   
   <!-- الرأس -->
   <div class="header">

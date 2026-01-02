@@ -28,17 +28,29 @@
                 <small><strong>ℹ️</strong> قائمة جميع التسويات المالية المعتمدة للموردين</small>
             </div>
 
-            <div class="card">
-                <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                    <h3 class="card-title mb-0">
-                        <i class="fas fa-list-alt"></i> قائمة التسويات المعتمدة
-                        <span class="badge bg-primary">{{ settlements|length }}</span>
-                    </h3>
-                    <button class="btn btn-sm btn-outline-success no-print" onclick="window.print()">
-                        <i class="fas fa-print"></i> طباعة القائمة
-                    </button>
+            <div class="card shadow-lg rounded-4 border-0 card-hover">
+                <div class="card-header gradient-header text-white py-3" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center">
+                            <h3 class="card-title fw-bold mb-0 me-3">
+                                <i class="fas fa-list-alt"></i> قائمة التسويات المعتمدة
+                                <span class="badge bg-white text-primary ms-2">{{ settlements|length }}</span>
+                            </h3>
+                            <div class="btn-group shadow-sm rounded-pill overflow-hidden bg-white">
+                                <a href="javascript:window.history.back()" class="btn btn-sm text-primary fw-bold border-end" title="رجوع">
+                                    <i class="fas fa-arrow-right"></i>
+                                </a>
+                                <a href="javascript:window.history.forward()" class="btn btn-sm text-primary fw-bold" title="تقدم">
+                                    <i class="fas fa-arrow-left"></i>
+                                </a>
+                            </div>
+                        </div>
+                        <button class="btn btn-sm btn-light fw-bold text-primary no-print" onclick="window.print()">
+                            <i class="fas fa-print"></i> طباعة القائمة
+                        </button>
+                    </div>
                 </div>
-                <div class="card-body">
+                <div class="card-body p-4">
                     {% if settlements %}
                     <div class="table-responsive">
                         <table class="table table-sm table-bordered table-hover">

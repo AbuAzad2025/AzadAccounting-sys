@@ -1,355 +1,349 @@
-{% extends 'security/base_security.html' %}
-{% block tour_name %}system_cleanup{% endblock %}
-{% block security_title %}System Cleanup{% endblock %}
-{% block security_icon %}<i class="fas fa-broom"></i>{% endblock %}
-{% block security_description %}تنظيف آمن للبيانات القديمة وتحسين الأداء{% endblock %}
-{% block security_breadcrumb %}<li class="breadcrumb-item active">System Cleanup</li>{% endblock %}
-
-{% block extra_css %}
-<style>
-  .cleanup-section {
-    border: 2px solid #e0e0e0;
-    border-radius: 10px;
-    padding: 20px;
-    margin-bottom: 20px;
-    background: #f8f9fa;
-  }
-  .cleanup-section-header {
-    font-size: 1.1rem;
-    font-weight: bold;
-    margin-bottom: 15px;
-    padding-bottom: 10px;
-    border-bottom: 2px solid #dee2e6;
-  }
-  .table-checkbox {
-    padding: 12px;
-    border-radius: 8px;
-    transition: all 0.3s;
-    border: 1px solid transparent;
-  }
-  .table-checkbox:hover {
-    background: #fff;
-    border-color: #007bff;
-    box-shadow: 0 2px 8px rgba(0,123,255,0.1);
-  }
-  .table-checkbox input:checked ~ label {
-    font-weight: bold;
-    color: #dc3545;
-  }
-  .stats-box {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    padding: 20px;
-    border-radius: 10px;
-    text-align: center;
-    margin-bottom: 20px;
-  }
-  .stats-box h3 {
-    font-size: 2.5rem;
-    margin: 0;
-  }
-  .stats-box p {
-    margin: 5px 0 0 0;
-    opacity: 0.9;
-  }
-  .confirm-box {
-    background: #fff3cd;
-    border: 3px solid #ffc107;
-    padding: 25px;
-    border-radius: 10px;
-    margin: 20px 0;
-  }
-  .danger-zone {
-    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-    color: white;
-    padding: 15px;
-    border-radius: 8px;
-    margin-bottom: 20px;
-  }
-  .action-buttons {
-    position: sticky;
-    bottom: 20px;
-    background: white;
-    padding: 20px;
-    border-radius: 10px;
-    box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
-    z-index: 100;
-  }
-</style>
-{% endblock %}
+{% extends 'base.html' %}
+{% block title %}تنظيف النظام{% endblock %}
+{% block page_title %}🧹 تنظيف وصيانة النظام - System Cleanup{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
-  
-  {% include 'security/_navigation.html' %}
-  
-  <!-- تحذير خطير -->
-  <div class="danger-zone">
-    <div class="d-flex align-items-center">
-      <i class="fas fa-exclamation-triangle fa-3x ml-3"></i>
-      <div>
-        <h4 class="mb-1">⚠️ تحذير خطير جداً!</h4>
-        <p class="mb-0">هذه العملية ستحذف البيانات بشكل نهائي ولا يمكن التراجع عنها! تأكد من عمل نسخة احتياطية أولاً.</p>
-      </div>
-    </div>
-  </div>
-
-  <!-- إحصائيات -->
-  <div class="row mb-4">
-    <div class="col-md-3">
-      <div class="stats-box" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-        <h3 id="selected-count">0</h3>
-        <p>جدول محدد</p>
-      </div>
-    </div>
-    <div class="col-md-3">
-      <div class="stats-box" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
-        <h3>{{ stats.total_tables if stats else tables|length }}</h3>
-        <p>إجمالي الجداول</p>
-      </div>
-    </div>
-    <div class="col-md-3">
-      <div class="stats-box" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);">
-        <h3 id="high-danger-count">{{ stats.high_danger_tables if stats else 0 }}</h3>
-        <p>خطر عالي</p>
-      </div>
-    </div>
-    <div class="col-md-3">
-      <div class="stats-box" style="background: linear-gradient(135deg, #30cfd0 0%, #330867 100%);">
-        <h3>{{ stats.medium_danger_tables if stats else '⚠️' }}</h3>
-        <p>جداول متوسطة الخطورة</p>
-      </div>
-    </div>
-  </div>
-
-  <div class="card shadow">
-    <div class="card-header bg-gradient-danger text-white">
-      <div class="d-flex justify-content-between align-items-center">
-        <h5 class="mb-0">
-          <i class="fas fa-broom ml-2"></i>
-          تنظيف جداول النظام
-        </h5>
+    
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-          <button type="button" class="btn btn-light btn-sm" onclick="selectAll()">
-            <i class="fas fa-check-double"></i> اختيار الكل
-          </button>
-          <button type="button" class="btn btn-outline-light btn-sm" onclick="deselectAll()">
-            <i class="fas fa-times"></i> إلغاء الكل
-          </button>
-          <button type="button" class="btn btn-warning btn-sm" onclick="selectHighDanger()">
-            <i class="fas fa-exclamation-triangle"></i> الخطرة فقط
-          </button>
+            <h1 class="h3 text-gray-800">System Cleanup</h1>
+            <p class="text-muted">أدوات تنظيف وصيانة النظام وتحسين الأداء</p>
         </div>
-      </div>
+        <a href="{{ url_for('security.index') }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> عودة
+        </a>
     </div>
-    <div class="card-body">
-      <form method="POST" id="cleanup-form" onsubmit="return confirmCleanup();">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <!-- Tabs -->
+    <ul class="nav nav-tabs mb-4" id="cleanupTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link {{ 'active' if request.args.get('tab') != 'reset' else '' }}" id="maintenance-tab" data-toggle="tab" data-target="#maintenance" type="button" role="tab">
+                <i class="fas fa-tools text-primary"></i> صيانة النظام
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link {{ 'active' if request.args.get('tab') == 'reset' else '' }}" id="reset-tab" data-toggle="tab" data-target="#reset" type="button" role="tab">
+                <i class="fas fa-eraser text-danger"></i> تصفير البيانات (Reset)
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content" id="cleanupTabsContent">
         
-        {% if categories is defined and categories %}
-          {% set category_list = categories %}
-        {% else %}
-          {% set fallback_high = tables | selectattr('danger', 'equalto', 'high') | list | length %}
-          {% set category_list = [{
-            'name': 'أخرى',
-            'tables': tables,
-            'icon': 'fas fa-folder text-muted',
-            'danger_zone': False,
-            'description': '',
-            'total': tables|length,
-            'high_danger': fallback_high
-          }] %}
-        {% endif %}
-        {% for category in category_list %}
-          {% set outer_index = loop.index0 %}
-          <div class="cleanup-section {% if category.danger_zone %}border-danger{% endif %}" {% if category.danger_zone %}style="border-color:#dc3545;background:#fff5f5;"{% endif %}>
-            <div class="cleanup-section-header d-flex justify-content-between align-items-center {% if category.danger_zone %}text-danger{% endif %}">
-              <div>
-                <i class="{{ category.icon }}"></i>
-                {{ category.name }}
-                <small class="text-muted">({{ category.total }} جدول)</small>
-              </div>
-              {% if category.high_danger %}
-                <span class="badge bg-danger">⚠️ {{ category.high_danger }} جداول عالية الخطورة</span>
-              {% endif %}
-            </div>
-            {% if category.description %}
-            <p class="text-muted small">{{ category.description }}</p>
-            {% endif %}
-            {% if category.danger_zone %}
-            <div class="alert alert-danger mb-3">
-              <i class="fas fa-skull-crossbones ml-2"></i>
-              <strong>منطقة خطرة:</strong> حذف هذه البيانات قد يعطل كامل النظام.
-            </div>
-            {% endif %}
-            <div class="row gx-3 gy-2">
-              {% for table in category.tables %}
-              <div class="col-lg-6">
-                <div class="form-check table-checkbox h-100">
-                  {% set checkbox_id = 'table_' ~ outer_index ~ '_' ~ loop.index0 %}
-                  <input class="form-check-input table-item" type="checkbox" name="tables"
-                         value="{{ table.name }}" id="{{ checkbox_id }}"
-                         data-danger="{{ table.danger }}" data-category="{{ category.name }}"
-                         data-display="{{ table.display }}">
-                  <label class="form-check-label w-100" for="{{ checkbox_id }}">
-                    <span class="ml-2">{{ table.display }}</span>
-                    {% if table.danger == 'high' %}
-                      <span class="badge bg-danger">خطر عالي 🔴</span>
-                    {% elif table.danger == 'medium' %}
-                      <span class="badge bg-warning text-dark">خطر متوسط 🟡</span>
-                    {% else %}
-                      <span class="badge bg-success">خطر منخفض 🟢</span>
-                    {% endif %}
-                  </label>
+        <!-- Maintenance Tab -->
+        <div class="tab-pane fade {{ 'show active' if request.args.get('tab') != 'reset' else '' }}" id="maintenance" role="tabpanel">
+            
+            <!-- System Health Overview -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card border-0 shadow-sm bg-gradient-primary text-white overflow-hidden">
+                        <div class="card-body p-4 position-relative">
+                            <div class="row align-items-center position-relative" style="z-index: 1;">
+                                <div class="col-md-8">
+                                    <h4 class="font-weight-bold mb-2">حالة النظام</h4>
+                                    <p class="mb-0 opacity-8">نظرة عامة على استهلاك الموارد والملفات المؤقتة</p>
+                                </div>
+                                <div class="col-md-4 text-left">
+                                    <span class="badge badge-light text-primary p-2 px-3 shadow-sm" style="font-size: 0.9rem;">
+                                        <i class="fas fa-check-circle mr-1"></i> النظام يعمل بكفاءة
+                                    </span>
+                                </div>
+                            </div>
+                            <!-- Background Decoration -->
+                            <i class="fas fa-server position-absolute text-white opacity-1" style="font-size: 10rem; left: -20px; bottom: -40px; transform: rotate(15deg);"></i>
+                        </div>
+                    </div>
                 </div>
-              </div>
-              {% endfor %}
             </div>
-          </div>
-        {% endfor %}
 
-        <!-- صندوق التأكيد -->
-        <div class="confirm-box">
-          <h5 class="text-warning mb-3">
-            <i class="fas fa-shield-alt ml-2"></i>
-            تأكيد العملية
-          </h5>
-          
-          <div class="mb-3">
-            <label class="form-label fw-bold">
-              <i class="fas fa-keyboard ml-1"></i>
-              اكتب <code class="text-danger fs-5">FORMAT_SYSTEM</code> للتأكيد *
-            </label>
-            <input type="text" name="confirm" id="confirm-input" class="form-control form-control-lg" 
-                   placeholder="FORMAT_SYSTEM" required autocomplete="off">
-            <small class="text-muted">يجب كتابة النص بالضبط كما هو موضح</small>
-          </div>
+            <!-- Stats Cards -->
+            <div class="row mb-4">
+                <!-- Temp Files -->
+                <div class="col-xl-4 col-md-6 mb-4">
+                    <div class="card border-0 shadow-sm h-100 py-2 card-hover-effect">
+                        <div class="card-body">
+                            <div class="row no-gutters align-items-center">
+                                <div class="col mr-2">
+                                    <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">ملفات مؤقتة</div>
+                                    <div class="h3 mb-0 font-weight-bold text-gray-800">{{ cleanup_stats.temp_files_count|default(0) }} <small class="text-muted text-xs">ملف</small></div>
+                                </div>
+                                <div class="col-auto">
+                                    <div class="icon-circle bg-warning-light text-warning">
+                                        <i class="fas fa-file-alt fa-lg"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mt-3">
+                                <div class="progress progress-sm mr-2">
+                                    <div class="progress-bar bg-warning" role="progressbar" style="width: {{ (cleanup_stats.temp_files_count|default(0) / 1000) * 100 }}%" aria-valuenow="50" aria-valuemin="0" aria-valuemax="100"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Logs Size -->
+                <div class="col-xl-4 col-md-6 mb-4">
+                    <div class="card border-0 shadow-sm h-100 py-2 card-hover-effect">
+                        <div class="card-body">
+                            <div class="row no-gutters align-items-center">
+                                <div class="col mr-2">
+                                    <div class="text-xs font-weight-bold text-info text-uppercase mb-1">حجم السجلات</div>
+                                    <div class="h3 mb-0 font-weight-bold text-gray-800">{{ cleanup_stats.logs_size|default('0 MB') }}</div>
+                                </div>
+                                <div class="col-auto">
+                                    <div class="icon-circle bg-info-light text-info">
+                                        <i class="fas fa-history fa-lg"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mt-3">
+                                <small class="text-muted"><i class="fas fa-clock mr-1"></i> آخر تحديث: الآن</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
-          <div class="form-check mb-3">
-            <input class="form-check-input" type="checkbox" id="double-confirm" required>
-            <label class="form-check-label fw-bold" for="double-confirm">
-              <i class="fas fa-check-circle ml-1"></i>
-              أؤكد أنني قمت بعمل نسخة احتياطية وأتحمل المسؤولية الكاملة
-            </label>
-          </div>
+                <!-- Cache Items -->
+                <div class="col-xl-4 col-md-6 mb-4">
+                    <div class="card border-0 shadow-sm h-100 py-2 card-hover-effect">
+                        <div class="card-body">
+                            <div class="row no-gutters align-items-center">
+                                <div class="col mr-2">
+                                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">ذاكرة الكاش</div>
+                                    <div class="h3 mb-0 font-weight-bold text-gray-800">{{ cleanup_stats.cache_items|default(0) }} <small class="text-muted text-xs">عنصر</small></div>
+                                </div>
+                                <div class="col-auto">
+                                    <div class="icon-circle bg-success-light text-success">
+                                        <i class="fas fa-memory fa-lg"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mt-3">
+                                <small class="text-muted"><i class="fas fa-bolt mr-1"></i> الأداء الأمثل</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-          <div id="preview-box" class="alert alert-info" style="display: none;">
-            <h6><i class="fas fa-eye ml-2"></i>معاينة العملية:</h6>
-            <div id="preview-content"></div>
-          </div>
+            <!-- Maintenance Actions Grid -->
+            <h5 class="mb-3 text-gray-800 font-weight-bold border-bottom pb-2">أدوات الصيانة</h5>
+            <div class="row">
+                <!-- Cache Cleaner -->
+                <div class="col-md-6 col-lg-3 mb-4">
+                    <div class="card border-0 shadow-sm h-100 text-center hover-lift">
+                        <div class="card-body d-flex flex-column">
+                            <div class="icon-box mb-3 mx-auto bg-primary-light text-primary rounded-circle d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+                                <i class="fas fa-broom fa-2x"></i>
+                            </div>
+                            <h5 class="card-title font-weight-bold">تنظيف الكاش</h5>
+                            <p class="card-text text-muted small flex-grow-1">مسح ذاكرة التخزين المؤقت لحل مشاكل العرض وتحديث البيانات.</p>
+                            <form method="POST" class="mt-3">
+                                <input type="hidden" name="action" value="clear_cache">
+                                <button type="submit" class="btn btn-outline-primary btn-block btn-sm rounded-pill">
+                                    <i class="fas fa-play mr-1"></i> تشغيل
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Temp Files Cleaner -->
+                <div class="col-md-6 col-lg-3 mb-4">
+                    <div class="card border-0 shadow-sm h-100 text-center hover-lift">
+                        <div class="card-body d-flex flex-column">
+                            <div class="icon-box mb-3 mx-auto bg-warning-light text-warning rounded-circle d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+                                <i class="fas fa-trash-alt fa-2x"></i>
+                            </div>
+                            <h5 class="card-title font-weight-bold">ملفات مؤقتة</h5>
+                            <p class="card-text text-muted small flex-grow-1">حذف الملفات المؤقتة وجلسات المستخدمين المنتهية لتوفير المساحة.</p>
+                            <form method="POST" class="mt-3">
+                                <input type="hidden" name="action" value="cleanup_temp">
+                                <button type="submit" class="btn btn-outline-warning btn-block btn-sm rounded-pill">
+                                    <i class="fas fa-play mr-1"></i> تشغيل
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Database Optimizer -->
+                <div class="col-md-6 col-lg-3 mb-4">
+                    <div class="card border-0 shadow-sm h-100 text-center hover-lift">
+                        <div class="card-body d-flex flex-column">
+                            <div class="icon-box mb-3 mx-auto bg-info-light text-info rounded-circle d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+                                <i class="fas fa-database fa-2x"></i>
+                            </div>
+                            <h5 class="card-title font-weight-bold">تحسين القاعدة</h5>
+                            <p class="card-text text-muted small flex-grow-1">إعادة فهرسة الجداول (Vacuum/Reindex) لتحسين سرعة الاستجابة.</p>
+                            <form method="POST" onsubmit="return confirm('هل أنت متأكد؟');" class="mt-3">
+                                <input type="hidden" name="action" value="optimize_db">
+                                <button type="submit" class="btn btn-outline-info btn-block btn-sm rounded-pill">
+                                    <i class="fas fa-play mr-1"></i> تشغيل
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Logs Purge -->
+                <div class="col-md-6 col-lg-3 mb-4">
+                    <div class="card border-0 shadow-sm h-100 text-center hover-lift">
+                        <div class="card-body d-flex flex-column">
+                            <div class="icon-box mb-3 mx-auto bg-danger-light text-danger rounded-circle d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+                                <i class="fas fa-burn fa-2x"></i>
+                            </div>
+                            <h5 class="card-title font-weight-bold">حذف السجلات</h5>
+                            <p class="card-text text-muted small flex-grow-1">حذف سجلات النظام القديمة (أكثر من 30 يوم) لتقليل حجم القاعدة.</p>
+                            <form method="POST" onsubmit="return confirm('هل أنت متأكد؟ هذا الإجراء قد يستغرق وقتاً ولا يمكن التراجع عنه.');" class="mt-3">
+                                <input type="hidden" name="action" value="purge_logs">
+                                <button type="submit" class="btn btn-outline-danger btn-block btn-sm rounded-pill">
+                                    <i class="fas fa-play mr-1"></i> تشغيل
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <style>
+                .bg-primary-light { background-color: rgba(78, 115, 223, 0.1); }
+                .bg-warning-light { background-color: rgba(246, 194, 62, 0.1); }
+                .bg-info-light { background-color: rgba(54, 185, 204, 0.1); }
+                .bg-success-light { background-color: rgba(28, 200, 138, 0.1); }
+                .bg-danger-light { background-color: rgba(231, 74, 59, 0.1); }
+                
+                .icon-circle {
+                    height: 3rem;
+                    width: 3rem;
+                    border-radius: 100%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                }
+                
+                .hover-lift {
+                    transition: transform 0.2s ease, box-shadow 0.2s ease;
+                }
+                .hover-lift:hover {
+                    transform: translateY(-5px);
+                    box-shadow: 0 .5rem 1rem rgba(0,0,0,.15)!important;
+                }
+                
+                .card-hover-effect {
+                    transition: all 0.3s ease;
+                }
+                .card-hover-effect:hover {
+                    transform: translateY(-3px);
+                }
+                
+                .opacity-8 { opacity: 0.8; }
+                .opacity-1 { opacity: 0.1; }
+            </style>
         </div>
 
-        <!-- أزرار الإجراءات -->
-        <div class="action-buttons">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <button type="submit" class="btn btn-danger btn-lg" id="submit-btn" disabled>
-                <i class="fas fa-trash-alt ml-2"></i>
-                تنظيف الجداول المحددة
-              </button>
-              <a href="{{ url_for('security.index') }}" class="btn btn-secondary btn-lg">
-                <i class="fas fa-arrow-right ml-2"></i>
-                إلغاء والعودة
-              </a>
+        <!-- Reset Tab (Functional) -->
+        <div class="tab-pane fade {{ 'show active' if request.args.get('tab') == 'reset' else '' }}" id="reset" role="tabpanel">
+            <div class="alert alert-danger mb-4 shadow-sm">
+                <div class="d-flex">
+                    <div class="mr-3"><i class="fas fa-exclamation-triangle fa-2x"></i></div>
+                    <div>
+                        <h5 class="alert-heading font-weight-bold">منطقة الخطر - حذف البيانات</h5>
+                        <p class="mb-0">هذه الأدوات تقوم بحذف البيانات بشكل نهائي. لا يمكن التراجع عن هذه العملية. يرجى أخذ نسخة احتياطية قبل المتابعة.</p>
+                    </div>
+                </div>
             </div>
-            <div class="text-end">
-              <small class="text-muted d-block">آخر تحديث: {{ now().strftime('%Y-%m-%d %H:%M') }}</small>
-              <small class="text-danger d-block">⚠️ عملية لا رجعة فيها</small>
-            </div>
-          </div>
-        </div>
 
-      </form>
+            <form method="POST" action="{{ url_for('security.system_cleanup', tab='reset') }}">
+                <div class="accordion" id="accordionTables">
+                    {% for cat in categories %}
+                    {% set outer_loop_index = loop.index %}
+                    <div class="card mb-3 border-bottom-{{ 'danger' if cat.danger_zone else 'primary' }} shadow-sm">
+                        <div class="card-header bg-white py-2" id="heading{{ loop.index }}">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h2 class="mb-0 w-100">
+                                    <button class="btn btn-link btn-block text-right text-decoration-none text-dark d-flex align-items-center justify-content-between" type="button" data-toggle="collapse" data-target="#collapse{{ loop.index }}">
+                                        <div>
+                                            <i class="{{ cat.icon }} ml-2 text-muted"></i>
+                                            <span class="font-weight-bold">{{ cat.name }}</span>
+                                        </div>
+                                        <div>
+                                            <span class="badge badge-pill badge-light ml-2">{{ cat.total }} جداول</span>
+                                            {% if cat.high_danger > 0 %}
+                                            <span class="badge badge-danger">خطر عالي</span>
+                                            {% endif %}
+                                        </div>
+                                    </button>
+                                </h2>
+                                <div class="custom-control custom-checkbox ml-3">
+                                    <input type="checkbox" class="custom-control-input select-all-cat" id="catCheck{{ loop.index }}" data-cat="{{ loop.index }}">
+                                    <label class="custom-control-label" for="catCheck{{ loop.index }}"></label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="collapse{{ loop.index }}" class="collapse {{ 'show' if loop.first else '' }}" data-parent="#accordionTables">
+                            <div class="card-body bg-light">
+                                {% if cat.description %}
+                                <p class="text-muted small mb-3">{{ cat.description }}</p>
+                                {% endif %}
+                                
+                                <div class="row">
+                                    {% for table in cat.tables %}
+                                    <div class="col-md-4 col-sm-6 mb-3">
+                                        <div class="custom-control custom-checkbox bg-white p-2 rounded border">
+                                            <input type="checkbox" class="custom-control-input cat-check-{{ outer_loop_index }}" 
+                                                   id="tbl_{{ table.name }}" name="tables" value="{{ table.name }}">
+                                            <label class="custom-control-label w-100 d-flex justify-content-between align-items-center" for="tbl_{{ table.name }}">
+                                                <span class="text-dark">{{ table.display }}</span>
+                                                {% if table.danger == 'high' %}
+                                                <i class="fas fa-exclamation-circle text-danger small" title="بيانات حساسة"></i>
+                                                {% endif %}
+                                            </label>
+                                        </div>
+                                        <small class="text-muted mr-4 d-block mt-1 code-font">{{ table.name }}</small>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <div class="card border-danger mt-4 shadow">
+                    <div class="card-body">
+                        <h5 class="text-danger font-weight-bold mb-3"><i class="fas fa-user-shield"></i> تأكيد العملية</h5>
+                        <div class="form-group">
+                            <label class="font-weight-bold">اكتب <code class="user-select-all">FORMAT_SYSTEM</code> لتأكيد الحذف:</label>
+                            <input type="text" name="confirm" class="form-control form-control-lg border-danger" placeholder="FORMAT_SYSTEM" required autocomplete="off">
+                            <small class="form-text text-muted">هذا الإجراء سيقوم بحذف جميع البيانات في الجداول المحددة وإعادة ضبط العدادات (Sequences).</small>
+                        </div>
+                        <button type="submit" class="btn btn-danger btn-lg btn-block">
+                            <i class="fas fa-trash-alt ml-2"></i> تنفيذ الحذف المحدد
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
     </div>
-  </div>
 
 </div>
 
 <script>
-// تحديث العدادات
-function updateCounters() {
-  const checked = document.querySelectorAll('.table-item:checked');
-  const highDanger = Array.from(checked).filter(cb => cb.dataset.danger === 'high');
-  
-  document.getElementById('selected-count').textContent = checked.length;
-  document.getElementById('high-danger-count').textContent = highDanger.length;
-  
-  // تفعيل/تعطيل زر الإرسال
-  const confirmInput = document.getElementById('confirm-input').value;
-  const doubleConfirm = document.getElementById('double-confirm').checked;
-  const submitBtn = document.getElementById('submit-btn');
-  
-  if (checked.length > 0 && confirmInput === 'FORMAT_SYSTEM' && doubleConfirm) {
-    submitBtn.disabled = false;
-  } else {
-    submitBtn.disabled = true;
-  }
-  
-  // معاينة
-  if (checked.length > 0) {
-    const preview = Array.from(checked).map(cb => {
-      const name = cb.dataset.display || cb.value;
-      const category = cb.dataset.category ? ` <small class="text-muted">(${cb.dataset.category})</small>` : '';
-      return `<li>${name}${category}</li>`;
-    }).join('');
-    document.getElementById('preview-content').innerHTML = `<ul class="mb-0">${preview}</ul>`;
-    document.getElementById('preview-box').style.display = 'block';
-  } else {
-    document.getElementById('preview-box').style.display = 'none';
-  }
-}
-
-// اختيار الكل
-function selectAll() {
-  document.querySelectorAll('.table-item').forEach(cb => cb.checked = true);
-  updateCounters();
-}
-
-// إلغاء الكل
-function deselectAll() {
-  document.querySelectorAll('.table-item').forEach(cb => cb.checked = false);
-  updateCounters();
-}
-
-// اختيار الخطرة فقط
-function selectHighDanger() {
-  document.querySelectorAll('.table-item').forEach(cb => {
-    cb.checked = cb.dataset.danger === 'high';
-  });
-  updateCounters();
-}
-
-// تأكيد قبل الإرسال
-function confirmCleanup() {
-  const checked = document.querySelectorAll('.table-item:checked');
-  const count = checked.length;
-  
-  if (count === 0) {
-    alert('❌ يجب اختيار جدول واحد على الأقل!');
-    return false;
-  }
-  
-  const confirmText = document.getElementById('confirm-input').value;
-  if (confirmText !== 'FORMAT_SYSTEM') {
-    alert('❌ يجب كتابة "FORMAT_SYSTEM" بالضبط للتأكيد!');
-    return false;
-  }
-  
-  const message = `⚠️ تحذير نهائي!\n\nأنت على وشك حذف ${count} جدول بشكل نهائي.\n\nهل أنت متأكد 100%؟`;
-  return confirm(message);
-}
-
-// مراقبة التغييرات
 document.addEventListener('DOMContentLoaded', function() {
-  document.querySelectorAll('.table-item').forEach(cb => {
-    cb.addEventListener('change', updateCounters);
-  });
-  
-  document.getElementById('confirm-input').addEventListener('input', updateCounters);
-  document.getElementById('double-confirm').addEventListener('change', updateCounters);
-  
-  updateCounters();
+    // Select all handler
+    document.querySelectorAll('.select-all-cat').forEach(cb => {
+        cb.addEventListener('change', function() {
+            const catId = this.dataset.cat;
+            document.querySelectorAll('.cat-check-' + catId).forEach(item => {
+                item.checked = this.checked;
+            });
+        });
+    });
 });
 </script>
-
 {% endblock %}

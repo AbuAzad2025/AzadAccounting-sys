@@ -43,6 +43,7 @@
             </p>
           </a>
           <ul class="nav nav-treeview">
+            {% if is_module_enabled('customers') %}
             {% if is_staff or has_perm('manage_customers') or has_perm('view_customers') %}
             <li class="nav-item">
               <a href="{{ url_for('customers_bp.list_customers') }}" class="nav-link {% if request.blueprint == 'customers_bp' %}active{% endif %}">
@@ -51,6 +52,8 @@
               </a>
             </li>
             {% endif %}
+            {% endif %}
+            {% if is_module_enabled('service') %}
             {% if is_staff or has_perm('manage_service') or has_perm('view_service') %}
             <li class="nav-item">
               <a href="{{ url_for('service.list_requests') }}" class="nav-link {% if request.blueprint == 'service' %}active{% endif %}">
@@ -59,6 +62,8 @@
               </a>
             </li>
             {% endif %}
+            {% endif %}
+            {% if is_module_enabled('warehouses') %}
             {% if is_staff or has_perm('view_warehouses') or has_perm('manage_warehouses') %}
             <li class="nav-item">
               <a href="{{ url_for('warehouse_bp.preorders_list') }}" class="nav-link {% if request.endpoint == 'warehouse_bp.preorders_list' %}active{% endif %}">
@@ -67,6 +72,8 @@
               </a>
             </li>
             {% endif %}
+            {% endif %}
+            {% if is_module_enabled('sales') %}
             {% if is_staff or has_perm('manage_sales') or has_perm('view_sales') %}
             <li class="nav-item">
               <a href="{{ url_for('sales_bp.list_sales') }}" class="nav-link {% if request.blueprint == 'sales_bp' %}active{% endif %}">
@@ -83,6 +90,7 @@
               </a>
             </li>
             {% endif %}
+            {% endif %}
           </ul>
         </li>
         {% endif %}
@@ -97,6 +105,7 @@
             </p>
           </a>
           <ul class="nav nav-treeview">
+            {% if is_module_enabled('warehouses') %}
             {% if is_staff or has_perm('view_warehouses') or has_perm('manage_warehouses') %}
             <li class="nav-item">
               <a href="{{ url_for('warehouse_bp.list') }}" class="nav-link {% if request.blueprint == 'warehouse_bp' %}active{% endif %}">
@@ -105,13 +114,17 @@
               </a>
             </li>
             {% endif %}
+            {% endif %}
             {% if has_perm('manage_vendors') %}
+            {% if is_module_enabled('vendors') %}
             <li class="nav-item">
               <a href="{{ url_for('vendors_bp.suppliers_list') }}" class="nav-link {% if request.endpoint == 'vendors_bp.suppliers_list' %}active{% endif %}">
                 <i class="far fa-circle nav-icon text-info"></i>
                 <p>الموردين</p>
               </a>
             </li>
+            {% endif %}
+            {% if is_module_enabled('partners') %}
             <li class="nav-item">
               <a href="{{ url_for('vendors_bp.partners_list') }}" class="nav-link {% if request.endpoint == 'vendors_bp.partners_list' %}active{% endif %}">
                 <i class="far fa-circle nav-icon text-warning"></i>
@@ -119,6 +132,8 @@
               </a>
             </li>
             {% endif %}
+            {% endif %}
+            {% if is_module_enabled('shipments') %}
             {% if has_perm('manage_shipments') %}
             <li class="nav-item">
               <a href="{{ url_for('shipments_bp.list_shipments') }}" class="nav-link {% if request.blueprint == 'shipments_bp' %}active{% endif %}">
@@ -126,6 +141,7 @@
                 <p>الشحنات</p>
               </a>
             </li>
+            {% endif %}
             {% endif %}
           </ul>
         </li>
@@ -141,6 +157,7 @@
             </p>
           </a>
           <ul class="nav nav-treeview">
+            {% if is_module_enabled('payments') %}
             {% if is_staff or has_perm('manage_payments') %}
             <li class="nav-item">
               <a href="{{ url_for('payments.index') }}" class="nav-link {% if request.blueprint == 'payments' %}active{% endif %}">
@@ -149,6 +166,8 @@
               </a>
             </li>
             {% endif %}
+            {% endif %}
+            {% if is_module_enabled('checks') %}
             {% if is_staff or has_perm('view_payments') or has_perm('manage_payments') %}
             <li class="nav-item">
               <a href="{{ url_for('checks.index') }}" class="nav-link {% if request.blueprint == 'checks' %}active{% endif %}">
@@ -157,6 +176,8 @@
               </a>
             </li>
             {% endif %}
+            {% endif %}
+            {% if is_module_enabled('expenses') %}
             {% if is_staff or has_perm('manage_expenses') %}
             <li class="nav-item has-treeview {% if request.blueprint == 'expenses_bp' %}menu-open{% endif %}">
               <a href="#" class="nav-link {% if request.blueprint == 'expenses_bp' %}active{% endif %}">
@@ -194,6 +215,8 @@
               </ul>
             </li>
             {% endif %}
+            {% endif %}
+            {% if is_module_enabled('ledger') %}
             {% if is_staff or has_perm('manage_ledger') %}
             <li class="nav-item">
               <a href="{{ url_for('ledger.index') }}" class="nav-link {% if request.blueprint == 'ledger' %}active{% endif %}">
@@ -202,6 +225,8 @@
               </a>
             </li>
             {% endif %}
+            {% endif %}
+            {% if is_module_enabled('currencies') %}
             {% if is_staff or has_perm('manage_currencies') %}
             <li class="nav-item">
               <a href="{{ url_for('currencies.list') }}" class="nav-link {% if request.blueprint == 'currencies' %}active{% endif %}">
@@ -209,6 +234,7 @@
                 <p>العملات</p>
               </a>
             </li>
+            {% endif %}
             {% endif %}
           </ul>
         </li>
@@ -425,7 +451,7 @@
         </li>
         {% endif %}
 
-        {% if has_perm('access_ai_assistant') %}
+        {% if has_perm('access_ai_assistant') and current_user.is_system %}
         <li class="nav-item">
           <a href="{{ url_for('ai.hub') }}" class="nav-link {% if request.blueprint == 'ai' %}active{% endif %}">
             <i class="nav-icon fas fa-robot" style="color: #a855f7;"></i>
@@ -470,7 +496,7 @@
         </li>
         {% endif %}
 
-        {% if has_perm('access_owner_dashboard') %}
+        {% if has_perm('access_owner_dashboard') and current_user.role_name_l == 'owner' %}
         <li class="nav-item has-treeview {% if request.blueprint in ['security', 'shop'] %}menu-open{% endif %}">
           <a href="#" class="nav-link {% if request.blueprint in ['security', 'shop'] %}active{% endif %}">
             <i class="nav-icon fas fa-crown text-warning"></i>

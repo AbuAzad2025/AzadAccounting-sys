@@ -492,6 +492,19 @@ def create_app(config_object=Config) -> Flask:
                                 perms.add(str(v).strip().lower())
             return perms
 
+        def is_module_enabled(module_key: str) -> bool:
+            """Check if a module is globally enabled via SystemSettings."""
+            try:
+                # Use get_setting from SystemSettings which might be cached at model level
+                # But here we want a quick check.
+                # Since get_setting is available in jinja globals, we can use it, but
+                # let's make it robust.
+                # Default is True as per advanced_control.py logic
+                val = SystemSettings.get_setting(f'module_{module_key}_enabled', 'True')
+                return str(val).lower() != 'false'
+            except Exception:
+                return True
+
         def has_perm(code: str) -> bool:
             if not code:
                 return False
@@ -533,7 +546,7 @@ def create_app(config_object=Config) -> Flask:
                 pass
             return all(has_perm(c) for c in codes)
 
-        return {"has_perm": has_perm, "has_any": has_any, "has_all": has_all}
+        return {"has_perm": has_perm, "has_any": has_any, "has_all": has_all, "is_module_enabled": is_module_enabled}
 
     def url_for_any(*endpoints, **values):
         last_err = None

@@ -762,7 +762,8 @@ class PermissionsRegistry:
                 'hard_delete',
                 'manage_api',
                 'access_ai_assistant',
-                'train_ai'
+                'train_ai',
+                'manage_ai'
             ],
             'is_protected': True,
             'is_super': True,
@@ -797,7 +798,8 @@ class PermissionsRegistry:
                 'hard_delete',
                 'manage_api',
                 'access_ai_assistant',
-                'train_ai'
+                'train_ai',
+                'manage_ai'
             ],
             'is_protected': True,
             'is_super': True,

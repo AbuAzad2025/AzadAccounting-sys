@@ -361,224 +361,338 @@
              id="business" 
              role="tabpanel">
           
-          <div class="alert alert-primary border-0 shadow-sm">
-            <i class="fas fa-briefcase"></i> <strong>ثوابت الأعمال:</strong> قواعد العمل والحسابات التلقائية
-            <br><small class="text-muted">هذه الثوابت تُستخدم في الوحدات المالية والمحاسبية</small>
+          <div class="alert alert-primary border-0 shadow-sm mb-4">
+            <div class="d-flex align-items-center">
+              <div class="fs-1 me-3 text-primary"><i class="fas fa-briefcase"></i></div>
+              <div>
+                <h5 class="alert-heading fw-bold mb-1">ثوابت الأعمال وقواعد النظام</h5>
+                <p class="mb-0 text-muted">تحكم في القواعد المالية، الضرائب، الرواتب، وسلوك النظام الآلي. تفعيل هذه الوحدات يؤثر مباشرة على العمليات اليومية.</p>
+              </div>
+            </div>
           </div>
           
-          <form method="POST" novalidate>
+          <form method="POST" novalidate id="businessSettingsForm">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="active_tab" value="business">
             <style>
               .constants-section {
-                transition: opacity 0.2s ease;
+                transition: all 0.3s ease;
               }
               .constants-section.constants-disabled {
-                opacity: 0.5;
+                opacity: 0.6;
                 pointer-events: none;
+                filter: grayscale(0.8);
               }
-              .constants-card {
-                border: 1px solid #e9ecef;
-                border-radius: 14px;
-                padding: 16px;
+              .module-card {
+                border: 0;
+                border-radius: 16px;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.04);
+                transition: transform 0.2s, box-shadow 0.2s;
                 height: 100%;
-                box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+                overflow: hidden;
                 background: #fff;
+                border-top: 4px solid transparent;
+              }
+              .module-card:hover {
+                transform: translateY(-5px);
+                box-shadow: 0 12px 30px rgba(0,0,0,0.1);
+              }
+              .module-card .card-body {
+                padding: 1.5rem;
+              }
+              .module-icon {
+                width: 56px;
+                height: 56px;
+                border-radius: 14px;
                 display: flex;
-                flex-direction: column;
-                gap: 8px;
+                align-items: center;
+                justify-content: center;
+                font-size: 1.75rem;
+                margin-bottom: 1.25rem;
+                transition: transform 0.2s;
               }
-              .constants-card h6 {
-                font-weight: 700;
-                font-size: 0.95rem;
+              .module-card:hover .module-icon {
+                transform: scale(1.1);
               }
-              .constants-card p {
-                margin-bottom: 0;
-                font-size: 0.85rem;
+              .accordion-button:not(.collapsed) {
+                background-color: #f0f7ff;
+                color: #0d6efd;
+                box-shadow: inset 0 -1px 0 rgba(0,0,0,.125);
               }
-              .constants-toggle-wrapper {
-                display: none;
+              .accordion-button::after {
+                background-size: 1rem;
               }
+              .form-label {
+                font-weight: 600;
+                font-size: 0.9rem;
+                color: #495057;
+              }
+              .input-group-text {
+                background-color: #f8f9fa;
+                border-color: #ced4da;
+              }
+              .floating-save-btn {
+                position: fixed;
+                bottom: 30px;
+                left: 30px;
+                z-index: 1000;
+                box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+                border-radius: 50px;
+                padding: 12px 25px;
+                font-weight: bold;
+                transition: all 0.3s;
+                opacity: 0.9;
+              }
+              .floating-save-btn:hover {
+                transform: scale(1.05);
+                opacity: 1;
+              }
+              /* Card Specific Colors */
+              .card-tax { border-top-color: var(--bs-primary); }
+              .card-payroll { border-top-color: var(--bs-success); }
+              .card-assets { border-top-color: var(--bs-info); }
+              .card-accounting { border-top-color: var(--bs-warning); }
+              .card-notifications { border-top-color: var(--bs-danger); }
+              .card-rules { border-top-color: var(--bs-dark); }
+              .card-saas { border-top-color: var(--bs-secondary); }
             </style>
             
-            <div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3 mb-4">
+            <h6 class="text-muted fw-bold text-uppercase mb-3 small"><i class="fas fa-th-large me-1"></i> وحدات النظام (System Modules)</h6>
+            <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-4 mb-5">
+              <!-- 1. Tax Module -->
               <div class="col">
-                <div class="constants-card border border-primary">
-                  <div class="d-flex justify-content-between align-items-start">
-                    <div>
-                      <h6><i class="fas fa-percentage text-primary me-1"></i> الضرائب</h6>
-                      <p class="text-muted">VAT, دخل الشركات، الخصم من المنبع</p>
+                <div class="card module-card card-tax">
+                  <div class="card-body">
+                    <div class="d-flex justify-content-between mb-2">
+                      <div class="module-icon bg-primary bg-opacity-10 text-primary">
+                        <i class="fas fa-percentage"></i>
+                      </div>
+                      <div class="form-check form-switch">
+                        <input class="form-check-input constants-toggle fs-4" type="checkbox"
+                               data-target="#tax-constants-section"
+                               data-bs-target="#collapseTax"
+                               name="enable_tax_constants"
+                               id="toggle_tax"
+                               {% if data.business.enable_tax_constants %}checked{% endif %}>
+                      </div>
                     </div>
-                    <div class="form-check form-switch m-0">
-                      <input class="form-check-input constants-toggle" type="checkbox"
-                             data-target="#tax-constants-section"
-                             name="enable_tax_constants"
-                             {% if data.business.enable_tax_constants %}checked{% endif %}>
-                      <label class="form-check-label">مفعل</label>
-                    </div>
+                    <h5 class="card-title fw-bold">الضرائب</h5>
+                    <p class="card-text text-muted small">إعدادات ضريبة القيمة المضافة (VAT)، ضريبة الدخل، والخصم من المنبع.</p>
+                    <span class="badge bg-primary bg-opacity-10 text-primary rounded-pill px-3">
+                      {% if data.business.enable_tax_constants %}مفعّل{% else %}معطّل{% endif %}
+                    </span>
                   </div>
                 </div>
               </div>
               
+              <!-- 2. Payroll Module -->
               <div class="col">
-                <div class="constants-card border border-success">
-                  <div class="d-flex justify-content-between align-items-start">
-                    <div>
-                      <h6><i class="fas fa-user-clock text-success me-1"></i> الرواتب</h6>
-                      <p class="text-muted">التأمينات، ساعات العمل، الأوفر تايم</p>
+                <div class="card module-card card-payroll">
+                  <div class="card-body">
+                    <div class="d-flex justify-content-between mb-2">
+                      <div class="module-icon bg-success bg-opacity-10 text-success">
+                        <i class="fas fa-user-clock"></i>
+                      </div>
+                      <div class="form-check form-switch">
+                        <input class="form-check-input constants-toggle fs-4" type="checkbox"
+                               data-target="#payroll-constants-section"
+                               data-bs-target="#collapsePayroll"
+                               name="enable_payroll_constants"
+                               id="toggle_payroll"
+                               {% if data.business.enable_payroll_constants %}checked{% endif %}>
+                      </div>
                     </div>
-                    <div class="form-check form-switch m-0">
-                      <input class="form-check-input constants-toggle" type="checkbox"
-                             data-target="#payroll-constants-section"
-                             name="enable_payroll_constants"
-                             {% if data.business.enable_payroll_constants %}checked{% endif %}>
-                      <label class="form-check-label">مفعل</label>
-                    </div>
+                    <h5 class="card-title fw-bold">الرواتب</h5>
+                    <p class="card-text text-muted small">حسابات التأمينات الاجتماعية، ساعات العمل، ومعدلات الأوفر تايم.</p>
+                    <span class="badge bg-success bg-opacity-10 text-success rounded-pill px-3">
+                      {% if data.business.enable_payroll_constants %}مفعّل{% else %}معطّل{% endif %}
+                    </span>
                   </div>
                 </div>
               </div>
               
+              <!-- 3. Assets Module -->
               <div class="col">
-                <div class="constants-card border border-info">
-                  <div class="d-flex justify-content-between align-items-start">
-                    <div>
-                      <h6><i class="fas fa-building text-info me-1"></i> الأصول الثابتة</h6>
-                      <p class="text-muted">الاستهلاك التلقائي وحد الترسمل</p>
+                <div class="card module-card card-assets">
+                  <div class="card-body">
+                    <div class="d-flex justify-content-between mb-2">
+                      <div class="module-icon bg-info bg-opacity-10 text-info">
+                        <i class="fas fa-building"></i>
+                      </div>
+                      <div class="form-check form-switch">
+                        <input class="form-check-input constants-toggle fs-4" type="checkbox"
+                               data-target="#assets-constants-section"
+                               data-bs-target="#collapseAssets"
+                               name="enable_asset_constants"
+                               id="toggle_assets"
+                               {% if data.business.enable_asset_constants %}checked{% endif %}>
+                      </div>
                     </div>
-                    <div class="form-check form-switch m-0">
-                      <input class="form-check-input constants-toggle" type="checkbox"
-                             data-target="#assets-constants-section"
-                             name="enable_asset_constants"
-                             {% if data.business.enable_asset_constants %}checked{% endif %}>
-                      <label class="form-check-label">مفعل</label>
-                    </div>
+                    <h5 class="card-title fw-bold">الأصول الثابتة</h5>
+                    <p class="card-text text-muted small">إدارة الأصول، الاستهلاك التلقائي الشهري، وحدود الرسملة.</p>
+                    <span class="badge bg-info bg-opacity-10 text-info rounded-pill px-3">
+                      {% if data.business.enable_asset_constants %}مفعّل{% else %}معطّل{% endif %}
+                    </span>
                   </div>
                 </div>
               </div>
               
+              <!-- 4. Accounting Module -->
               <div class="col">
-                <div class="constants-card border border-warning">
-                  <div class="d-flex justify-content-between align-items-start">
-                    <div>
-                      <h6><i class="fas fa-balance-scale text-warning me-1"></i> المحاسبة</h6>
-                      <p class="text-muted">مراكز التكلفة، الموازنات، بداية السنة</p>
+                <div class="card module-card card-accounting">
+                  <div class="card-body">
+                    <div class="d-flex justify-content-between mb-2">
+                      <div class="module-icon bg-warning bg-opacity-10 text-warning">
+                        <i class="fas fa-balance-scale"></i>
+                      </div>
+                      <div class="form-check form-switch">
+                        <input class="form-check-input constants-toggle fs-4" type="checkbox"
+                               data-target="#accounting-constants-section"
+                               data-bs-target="#collapseAccounting"
+                               name="enable_accounting_constants"
+                               id="toggle_accounting"
+                               {% if data.business.enable_accounting_constants %}checked{% endif %}>
+                      </div>
                     </div>
-                    <div class="form-check form-switch m-0">
-                      <input class="form-check-input constants-toggle" type="checkbox"
-                             data-target="#accounting-constants-section"
-                             name="enable_accounting_constants"
-                             {% if data.business.enable_accounting_constants %}checked{% endif %}>
-                      <label class="form-check-label">مفعل</label>
-                    </div>
+                    <h5 class="card-title fw-bold">المحاسبة</h5>
+                    <p class="card-text text-muted small">مراكز التكلفة، الموازنات التقديرية، وتحديد بداية السنة المالية.</p>
+                    <span class="badge bg-warning bg-opacity-10 text-warning rounded-pill px-3">
+                      {% if data.business.enable_accounting_constants %}مفعّل{% else %}معطّل{% endif %}
+                    </span>
                   </div>
                 </div>
               </div>
-              
+
+              <!-- 5. Notifications Module -->
               <div class="col">
-                <div class="constants-card border border-danger">
-                  <div class="d-flex justify-content-between align-items-start">
-                    <div>
-                      <h6><i class="fas fa-bell text-danger me-1"></i> الإشعارات</h6>
-                      <p class="text-muted">التذكير بالدفع، اكتمال الخدمة، المخزون</p>
+                <div class="card module-card card-notifications">
+                  <div class="card-body">
+                    <div class="d-flex justify-content-between mb-2">
+                      <div class="module-icon bg-danger bg-opacity-10 text-danger">
+                        <i class="fas fa-bell"></i>
+                      </div>
+                      <div class="form-check form-switch">
+                        <input class="form-check-input constants-toggle fs-4" type="checkbox"
+                               data-target="#notification-constants-section"
+                               name="enable_notification_constants"
+                               id="toggle_notifications"
+                               {% if data.business.enable_notification_constants %}checked{% endif %}>
+                      </div>
                     </div>
-                    <div class="form-check form-switch m-0">
-                      <input class="form-check-input constants-toggle" type="checkbox"
-                             data-target="#notification-constants-section"
-                             name="enable_notification_constants"
-                             {% if data.business.enable_notification_constants %}checked{% endif %}>
-                      <label class="form-check-label">مفعل</label>
-                    </div>
+                    <h5 class="card-title fw-bold">الإشعارات</h5>
+                    <p class="card-text text-muted small">تنبيهات الدفع، اكتمال الخدمات، ونقص المخزون.</p>
+                    <span class="badge bg-danger bg-opacity-10 text-danger rounded-pill px-3">
+                      {% if data.business.enable_notification_constants %}مفعّل{% else %}معطّل{% endif %}
+                    </span>
                   </div>
                 </div>
               </div>
-              
+
+              <!-- 6. Business Rules Module -->
               <div class="col">
-                <div class="constants-card border border-dark">
-                  <div class="d-flex justify-content-between align-items-start">
-                    <div>
-                      <h6><i class="fas fa-cogs text-dark me-1"></i> قواعد العمل</h6>
-                      <p class="text-muted">المخزون السالب، سقف الخصم، الموافقات</p>
+                <div class="card module-card card-rules">
+                  <div class="card-body">
+                    <div class="d-flex justify-content-between mb-2">
+                      <div class="module-icon bg-dark bg-opacity-10 text-dark">
+                        <i class="fas fa-cogs"></i>
+                      </div>
+                      <div class="form-check form-switch">
+                        <input class="form-check-input constants-toggle fs-4" type="checkbox"
+                               data-target="#business-rules-constants-section"
+                               data-bs-target="#collapseRules"
+                               name="enable_business_rules_constants"
+                               id="toggle_rules"
+                               {% if data.business.enable_business_rules_constants %}checked{% endif %}>
+                      </div>
                     </div>
-                    <div class="form-check form-switch m-0">
-                      <input class="form-check-input constants-toggle" type="checkbox"
-                             data-target="#business-rules-constants-section"
-                             name="enable_business_rules_constants"
-                             {% if data.business.enable_business_rules_constants %}checked{% endif %}>
-                      <label class="form-check-label">مفعل</label>
-                    </div>
+                    <h5 class="card-title fw-bold">قواعد العمل</h5>
+                    <p class="card-text text-muted small">سياسات المخزون، حدود الائتمان، وسقوف الخصومات.</p>
+                    <span class="badge bg-dark bg-opacity-10 text-dark rounded-pill px-3">
+                      {% if data.business.enable_business_rules_constants %}مفعّل{% else %}معطّل{% endif %}
+                    </span>
                   </div>
                 </div>
               </div>
-              
+
+              <!-- 7. SaaS Module -->
               <div class="col">
-                <div class="constants-card border border-secondary">
-                  <div class="d-flex justify-content-between align-items-start">
-                    <div>
-                      <h6><i class="fas fa-cloud text-secondary me-1"></i> التعددية (SaaS)</h6>
-                      <p class="text-muted">وضع المستأجرين، الفترة التجريبية</p>
+                <div class="card module-card card-saas">
+                  <div class="card-body">
+                    <div class="d-flex justify-content-between mb-2">
+                      <div class="module-icon bg-secondary bg-opacity-10 text-secondary">
+                        <i class="fas fa-cloud"></i>
+                      </div>
+                      <div class="form-check form-switch">
+                        <input class="form-check-input constants-toggle fs-4" type="checkbox"
+                               data-target="#multi-tenancy-constants-section"
+                               data-bs-target="#collapseTenancy"
+                               name="enable_multi_tenancy_constants"
+                               id="toggle_saas"
+                               {% if data.business.enable_multi_tenancy_constants %}checked{% endif %}>
+                      </div>
                     </div>
-                    <div class="form-check form-switch m-0">
-                      <input class="form-check-input constants-toggle" type="checkbox"
-                             data-target="#multi-tenancy-constants-section"
-                             name="enable_multi_tenancy_constants"
-                             {% if data.business.enable_multi_tenancy_constants %}checked{% endif %}>
-                      <label class="form-check-label">مفعل</label>
-                    </div>
+                    <h5 class="card-title fw-bold">Multi-Tenancy</h5>
+                    <p class="card-text text-muted small">إعدادات النظام متعدد المستأجرين والفترات التجريبية.</p>
+                    <span class="badge bg-secondary bg-opacity-10 text-secondary rounded-pill px-3">
+                      {% if data.business.enable_multi_tenancy_constants %}مفعّل{% else %}معطّل{% endif %}
+                    </span>
                   </div>
                 </div>
               </div>
             </div>
             
+            <h6 class="text-muted fw-bold text-uppercase mb-3 small"><i class="fas fa-sliders-h me-1"></i> تفاصيل الإعدادات (Configuration)</h6>
+            
             <!-- Accordion للثوابت -->
-            <div class="accordion" id="businessConstantsAccordion">
+            <div class="accordion accordion-flush shadow-sm rounded overflow-hidden border" id="businessConstantsAccordion">
               
               <!-- 1. Tax Settings -->
               <div class="accordion-item">
                 <h2 class="accordion-header" id="headingTax">
-                  <button class="accordion-button" type="button" data-toggle="collapse" data-target="#collapseTax" aria-expanded="true" aria-controls="collapseTax">
-                    💰 ثوابت الضرائب (Tax Settings)
+                  <button class="accordion-button fw-bold" type="button" data-toggle="collapse" data-target="#collapseTax" aria-expanded="true" aria-controls="collapseTax">
+                    <i class="fas fa-percentage text-primary me-2"></i> إعدادات الضرائب (Tax Settings)
                   </button>
                 </h2>
                 <div id="collapseTax" class="accordion-collapse collapse show" data-parent="#businessConstantsAccordion">
-                  <div class="accordion-body">
-                    <div id="tax-constants-section" class="constants-section {% if not data.business.enable_tax_constants %}constants-disabled{% endif %}">
-                      <div class="row">
+                  <div class="accordion-body bg-light bg-opacity-25">
+                    <div id="tax-constants-section" class="constants-section p-3">
+                      <div class="row g-4">
                       <div class="col-md-6">
-                        <div class="mb-3">
-                          <label class="form-label"><strong>نسبة VAT الافتراضية (%)</strong></label>
+                        <label class="form-label">نسبة ضريبة القيمة المضافة (VAT) %</label>
+                        <div class="input-group">
                           <input type="number" name="default_vat_rate" class="form-control" 
                                  value="{{ data.business.default_vat_rate }}" step="0.01" min="0" max="100">
-                          <small class="text-muted">الافتراضي: 16.0% (فلسطين)</small>
+                          <span class="input-group-text">%</span>
                         </div>
+                        <div class="form-text">النسبة الافتراضية في فلسطين هي 16%</div>
                       </div>
                       
                       <div class="col-md-6">
-                        <div class="mb-3">
-                          <div class="form-check form-switch mt-4">
-                            <input class="form-check-input" type="checkbox" name="vat_enabled" id="vat_enabled" 
+                         <label class="form-label d-block mb-3">&nbsp;</label>
+                         <div class="form-check form-switch p-2 border rounded bg-white">
+                            <input class="form-check-input ms-0 me-2" type="checkbox" name="vat_enabled" id="vat_enabled" 
                                    {% if data.business.vat_enabled %}checked{% endif %}>
-                            <label class="form-check-label" for="vat_enabled">
-                              <strong>تفعيل ضريبة القيمة المضافة (VAT)</strong>
+                            <label class="form-check-label fw-bold" for="vat_enabled">
+                              تفعيل حساب الضريبة في الفواتير
                             </label>
                           </div>
-                        </div>
                       </div>
                       
                       <div class="col-md-6">
-                        <div class="mb-3">
-                          <label class="form-label"><strong>ضريبة دخل الشركات (%)</strong></label>
+                        <label class="form-label">ضريبة دخل الشركات %</label>
+                        <div class="input-group">
                           <input type="number" name="income_tax_rate" class="form-control" 
                                  value="{{ data.business.income_tax_rate }}" step="0.01" min="0" max="100">
-                          <small class="text-muted">الافتراضي: 15.0%</small>
+                          <span class="input-group-text">%</span>
                         </div>
                       </div>
                       
                       <div class="col-md-6">
-                        <div class="mb-3">
-                          <label class="form-label"><strong>الخصم من المنبع (%)</strong></label>
+                        <label class="form-label">نسبة الخصم من المنبع %</label>
+                        <div class="input-group">
                           <input type="number" name="withholding_tax_rate" class="form-control" 
                                  value="{{ data.business.withholding_tax_rate }}" step="0.01" min="0" max="100">
-                          <small class="text-muted">الافتراضي: 5.0%</small>
+                          <span class="input-group-text">%</span>
                         </div>
                       </div>
                       </div>
@@ -590,59 +704,58 @@
               <!-- 2. Payroll Settings -->
               <div class="accordion-item">
                 <h2 class="accordion-header" id="headingPayroll">
-                  <button class="accordion-button collapsed" type="button" data-toggle="collapse" data-target="#collapsePayroll" aria-expanded="false" aria-controls="collapsePayroll">
-                    👥 ثوابت الرواتب (Payroll Settings)
+                  <button class="accordion-button collapsed fw-bold" type="button" data-toggle="collapse" data-target="#collapsePayroll" aria-expanded="false" aria-controls="collapsePayroll">
+                    <i class="fas fa-user-clock text-success me-2"></i> إعدادات الرواتب (Payroll Settings)
                   </button>
                 </h2>
                 <div id="collapsePayroll" class="accordion-collapse collapse" data-parent="#businessConstantsAccordion">
-                  <div class="accordion-body">
-                    <div id="payroll-constants-section" class="constants-section {% if not data.business.enable_payroll_constants %}constants-disabled{% endif %}">
-                      <div class="row">
-                      <div class="col-md-12">
-                        <div class="mb-3">
-                          <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" name="social_insurance_enabled" id="social_insurance_enabled" 
+                  <div class="accordion-body bg-light bg-opacity-25">
+                    <div id="payroll-constants-section" class="constants-section p-3">
+                      <div class="row g-4">
+                      <div class="col-12">
+                        <div class="form-check form-switch p-2 border rounded bg-white w-50">
+                            <input class="form-check-input ms-0 me-2" type="checkbox" name="social_insurance_enabled" id="social_insurance_enabled" 
                                    {% if data.business.social_insurance_enabled %}checked{% endif %}>
-                            <label class="form-check-label" for="social_insurance_enabled">
-                              <strong>تفعيل التأمينات الاجتماعية</strong>
+                            <label class="form-check-label fw-bold" for="social_insurance_enabled">
+                              تفعيل حسابات التأمين الاجتماعي
                             </label>
-                          </div>
                         </div>
                       </div>
                       
                       <div class="col-md-6">
-                        <div class="mb-3">
-                          <label class="form-label"><strong>نسبة التأمين - الشركة (%)</strong></label>
+                        <label class="form-label">نسبة مساهمة الشركة (تأمين) %</label>
+                        <div class="input-group">
                           <input type="number" name="social_insurance_company" class="form-control" 
                                  value="{{ data.business.social_insurance_company }}" step="0.1" min="0" max="100">
-                          <small class="text-muted">الافتراضي: 7.5%</small>
+                          <span class="input-group-text">%</span>
                         </div>
                       </div>
                       
                       <div class="col-md-6">
-                        <div class="mb-3">
-                          <label class="form-label"><strong>نسبة التأمين - الموظف (%)</strong></label>
+                        <label class="form-label">نسبة مساهمة الموظف (تأمين) %</label>
+                        <div class="input-group">
                           <input type="number" name="social_insurance_employee" class="form-control" 
                                  value="{{ data.business.social_insurance_employee }}" step="0.1" min="0" max="100">
-                          <small class="text-muted">الافتراضي: 7.0%</small>
+                          <span class="input-group-text">%</span>
                         </div>
                       </div>
                       
                       <div class="col-md-6">
-                        <div class="mb-3">
-                          <label class="form-label"><strong>معدل العمل الإضافي (×)</strong></label>
+                        <label class="form-label">معدل احتساب العمل الإضافي</label>
+                        <div class="input-group">
+                          <span class="input-group-text">x</span>
                           <input type="number" name="overtime_rate_normal" class="form-control" 
                                  value="{{ data.business.overtime_rate_normal }}" step="0.1" min="1" max="5">
-                          <small class="text-muted">الافتراضي: 1.5× (وقت عادي)</small>
                         </div>
+                        <div class="form-text">مثلاً 1.5 يعني الساعة بساعة ونصف</div>
                       </div>
                       
                       <div class="col-md-6">
-                        <div class="mb-3">
-                          <label class="form-label"><strong>ساعات العمل اليومية</strong></label>
+                        <label class="form-label">ساعات العمل الرسمية يومياً</label>
+                        <div class="input-group">
                           <input type="number" name="working_hours_per_day" class="form-control" 
                                  value="{{ data.business.working_hours_per_day }}" min="1" max="24">
-                          <small class="text-muted">الافتراضي: 8 ساعات</small>
+                          <span class="input-group-text">ساعة</span>
                         </div>
                       </div>
                       </div>
@@ -654,45 +767,33 @@
               <!-- 3. Fixed Assets Settings -->
               <div class="accordion-item">
                 <h2 class="accordion-header" id="headingAssets">
-                  <button class="accordion-button collapsed" type="button" data-toggle="collapse" data-target="#collapseAssets" aria-expanded="false" aria-controls="collapseAssets">
-                    🏢 ثوابت الأصول الثابتة (Fixed Assets)
+                  <button class="accordion-button collapsed fw-bold" type="button" data-toggle="collapse" data-target="#collapseAssets" aria-expanded="false" aria-controls="collapseAssets">
+                    <i class="fas fa-building text-info me-2"></i> إعدادات الأصول الثابتة (Fixed Assets)
                   </button>
                 </h2>
                 <div id="collapseAssets" class="accordion-collapse collapse" data-parent="#businessConstantsAccordion">
-                  <div class="accordion-body">
-                    <div class="constants-toggle-wrapper d-flex justify-content-between align-items-center">
-                      <div>
-                        <strong>تفعيل ثوابت الأصول الثابتة</strong>
-                        <small class="text-muted d-block">تعطيلها يوقف الاستهلاك التلقائي وحد المبلغ</small>
-                      </div>
-                      <div class="form-check form-switch m-0">
-                        <input class="form-check-input constants-toggle" type="checkbox" data-target="#assets-constants-section"
-                               name="enable_asset_constants" {% if data.business.enable_asset_constants %}checked{% endif %}>
-                        <label class="form-check-label">مفعّل</label>
-                      </div>
-                    </div>
-                    <div id="assets-constants-section" class="constants-section {% if not data.business.enable_asset_constants %}constants-disabled{% endif %}">
-                      <div class="row">
+                  <div class="accordion-body bg-light bg-opacity-25">
+                    <div id="assets-constants-section" class="constants-section p-3">
+                      <div class="row g-4">
                       <div class="col-md-6">
-                        <div class="mb-3">
-                          <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" name="asset_auto_depreciation" id="asset_auto_depreciation" 
+                        <div class="form-check form-switch p-2 border rounded bg-white h-100 d-flex align-items-center">
+                            <input class="form-check-input ms-0 me-2" type="checkbox" name="asset_auto_depreciation" id="asset_auto_depreciation" 
                                    {% if data.business.asset_auto_depreciation %}checked{% endif %}>
-                            <label class="form-check-label" for="asset_auto_depreciation">
-                              <strong>استهلاك تلقائي شهري</strong><br>
-                              <small class="text-muted">حساب الاستهلاك تلقائياً كل شهر</small>
-                            </label>
-                          </div>
+                            <div>
+                              <label class="form-check-label fw-bold" for="asset_auto_depreciation">تشغيل الاستهلاك التلقائي</label>
+                              <div class="small text-muted">سيقوم النظام بحساب قيد الاستهلاك شهرياً</div>
+                            </div>
                         </div>
                       </div>
                       
                       <div class="col-md-6">
-                        <div class="mb-3">
-                          <label class="form-label"><strong>حد مبلغ الأصول</strong></label>
+                        <label class="form-label">الحد الأدنى لرسملة الأصول</label>
+                        <div class="input-group">
                           <input type="number" name="asset_threshold_amount" class="form-control" 
                                  value="{{ data.business.asset_threshold_amount }}" step="10" min="0">
-                          <small class="text-muted">أقل من هذا المبلغ = مصروف مباشر (افتراضي: 500)</small>
+                          <span class="input-group-text">{{ data.company.CURRENCY_SYMBOL or '$' }}</span>
                         </div>
+                        <div class="form-text">المشتريات أقل من هذا المبلغ تعتبر مصروفاً مباشراً</div>
                       </div>
                       </div>
                     </div>
@@ -703,49 +804,41 @@
               <!-- 4. Accounting Settings -->
               <div class="accordion-item">
                 <h2 class="accordion-header" id="headingAccounting">
-                  <button class="accordion-button collapsed" type="button" data-toggle="collapse" data-target="#collapseAccounting" aria-expanded="false" aria-controls="collapseAccounting">
-                    📊 ثوابت المحاسبة (Accounting Settings)
+                  <button class="accordion-button collapsed fw-bold" type="button" data-toggle="collapse" data-target="#collapseAccounting" aria-expanded="false" aria-controls="collapseAccounting">
+                    <i class="fas fa-balance-scale text-warning me-2"></i> إعدادات المحاسبة (Accounting)
                   </button>
                 </h2>
                 <div id="collapseAccounting" class="accordion-collapse collapse" data-parent="#businessConstantsAccordion">
-                  <div class="accordion-body">
-                    <div id="accounting-constants-section" class="constants-section {% if not data.business.enable_accounting_constants %}constants-disabled{% endif %}">
-                      <div class="row">
+                  <div class="accordion-body bg-light bg-opacity-25">
+                    <div id="accounting-constants-section" class="constants-section p-3">
+                      <div class="row g-4">
                       <div class="col-md-4">
-                        <div class="mb-3">
-                          <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" name="cost_centers_enabled" id="cost_centers_enabled" 
+                        <div class="form-check form-switch p-3 border rounded bg-white h-100">
+                            <input class="form-check-input mb-2" type="checkbox" name="cost_centers_enabled" id="cost_centers_enabled" 
                                    {% if data.business.cost_centers_enabled %}checked{% endif %}>
-                            <label class="form-check-label" for="cost_centers_enabled">
-                              <strong>تفعيل مراكز التكلفة</strong>
-                            </label>
-                          </div>
+                            <label class="form-check-label fw-bold d-block" for="cost_centers_enabled">تفعيل مراكز التكلفة</label>
+                            <small class="text-muted">ربط المصاريف والإيرادات بمراكز تكلفة محددة</small>
                         </div>
                       </div>
                       
                       <div class="col-md-4">
-                        <div class="mb-3">
-                          <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" name="budgeting_enabled" id="budgeting_enabled" 
+                        <div class="form-check form-switch p-3 border rounded bg-white h-100">
+                            <input class="form-check-input mb-2" type="checkbox" name="budgeting_enabled" id="budgeting_enabled" 
                                    {% if data.business.budgeting_enabled %}checked{% endif %}>
-                            <label class="form-check-label" for="budgeting_enabled">
-                              <strong>تفعيل الموازنات التقديرية</strong>
-                            </label>
-                          </div>
+                            <label class="form-check-label fw-bold d-block" for="budgeting_enabled">تفعيل الموازنات</label>
+                            <small class="text-muted">مقارنة الأداء الفعلي مع المخطط له</small>
                         </div>
                       </div>
                       
                       <div class="col-md-4">
-                        <div class="mb-3">
-                          <label class="form-label"><strong>بداية السنة المالية (شهر)</strong></label>
-                          <select name="fiscal_year_start_month" class="custom-select">
+                        <label class="form-label">بداية السنة المالية</label>
+                        <select name="fiscal_year_start_month" class="form-select">
                             {% for m in range(1, 13) %}
                             <option value="{{ m }}" {% if data.business.fiscal_year_start_month == m %}selected{% endif %}>
-                              {{ m }} - {% if m == 1 %}يناير{% elif m == 2 %}فبراير{% elif m == 3 %}مارس{% elif m == 4 %}أبريل{% elif m == 5 %}مايو{% elif m == 6 %}يونيو{% elif m == 7 %}يوليو{% elif m == 8 %}أغسطس{% elif m == 9 %}سبتمبر{% elif m == 10 %}أكتوبر{% elif m == 11 %}نوفمبر{% else %}ديسمبر{% endif %}
+                              شهر {{ m }} ({% if m == 1 %}يناير{% elif m == 2 %}فبراير{% elif m == 3 %}مارس{% elif m == 4 %}أبريل{% elif m == 5 %}مايو{% elif m == 6 %}يونيو{% elif m == 7 %}يوليو{% elif m == 8 %}أغسطس{% elif m == 9 %}سبتمبر{% elif m == 10 %}أكتوبر{% elif m == 11 %}نوفمبر{% else %}ديسمبر{% endif %})
                             </option>
                             {% endfor %}
-                          </select>
-                        </div>
+                        </select>
                       </div>
                       </div>
                     </div>
@@ -756,62 +849,46 @@
               <!-- 5. Notification Settings -->
               <div class="accordion-item">
                 <h2 class="accordion-header" id="headingNotifications">
-                  <button class="accordion-button collapsed" type="button" data-toggle="collapse" data-target="#collapseNotifications" aria-expanded="false" aria-controls="collapseNotifications">
-                    📧 ثوابت الإشعارات (Notification Settings)
+                  <button class="accordion-button collapsed fw-bold" type="button" data-toggle="collapse" data-target="#collapseNotifications" aria-expanded="false" aria-controls="collapseNotifications">
+                    <i class="fas fa-bell text-danger me-2"></i> إعدادات الإشعارات (Notifications)
                   </button>
                 </h2>
                 <div id="collapseNotifications" class="accordion-collapse collapse" data-parent="#businessConstantsAccordion">
-                  <div class="accordion-body">
-                    <div class="alert alert-info">
-                      <i class="fas fa-info-circle"></i> <small>إعدادات SMTP موجودة في config.py - هذه فقط للتفعيل والقواعد</small>
-                    </div>
-                    <div id="notification-constants-section" class="constants-section {% if not data.business.enable_notification_constants %}constants-disabled{% endif %}">
-                      <div class="row">
+                  <div class="accordion-body bg-light bg-opacity-25">
+                    <div id="notification-constants-section" class="constants-section p-3">
+                      <div class="row g-4">
                       <div class="col-md-4">
-                        <div class="mb-3">
-                          <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" name="notify_on_service_complete" id="notify_service" 
+                        <div class="form-check form-switch p-3 border rounded bg-white h-100">
+                            <input class="form-check-input mb-2" type="checkbox" name="notify_on_service_complete" id="notify_service" 
                                    {% if data.business.notify_on_service_complete %}checked{% endif %}>
-                            <label class="form-check-label" for="notify_service">
-                              <strong>إشعار اكتمال الصيانة</strong><br>
-                              <small class="text-muted">إرسال Email/SMS تلقائي</small>
-                            </label>
-                          </div>
+                            <label class="form-check-label fw-bold d-block" for="notify_service">إشعار انتهاء الصيانة</label>
+                            <small class="text-muted">إبلاغ العميل عند جاهزية المركبة</small>
                         </div>
                       </div>
                       
                       <div class="col-md-4">
-                        <div class="mb-3">
-                          <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" name="notify_on_payment_due" id="notify_payment" 
+                        <div class="form-check form-switch p-3 border rounded bg-white h-100">
+                            <input class="form-check-input mb-2" type="checkbox" name="notify_on_payment_due" id="notify_payment" 
                                    {% if data.business.notify_on_payment_due %}checked{% endif %}>
-                            <label class="form-check-label" for="notify_payment">
-                              <strong>إشعار استحقاق الدفعات</strong><br>
-                              <small class="text-muted">تذكير تلقائي</small>
-                            </label>
-                          </div>
+                            <label class="form-check-label fw-bold d-block" for="notify_payment">تذكير الدفعات</label>
+                            <small class="text-muted">تنبيه قبل موعد الاستحقاق</small>
                         </div>
                       </div>
                       
                       <div class="col-md-4">
-                        <div class="mb-3">
-                          <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" name="notify_on_low_stock" id="notify_stock" 
+                        <div class="form-check form-switch p-3 border rounded bg-white h-100">
+                            <input class="form-check-input mb-2" type="checkbox" name="notify_on_low_stock" id="notify_stock" 
                                    {% if data.business.notify_on_low_stock %}checked{% endif %}>
-                            <label class="form-check-label" for="notify_stock">
-                              <strong>تنبيه انخفاض المخزون</strong><br>
-                              <small class="text-muted">تنبيه تلقائي عند انخفاض المخزون</small>
-                            </label>
-                          </div>
+                            <label class="form-check-label fw-bold d-block" for="notify_stock">تنبيه المخزون</label>
+                            <small class="text-muted">عند وصول الصنف لحد الطلب</small>
                         </div>
                       </div>
                       
-                      <div class="col-md-6">
-                        <div class="mb-3">
-                          <label class="form-label"><strong>التذكير قبل استحقاق الدفعة (أيام)</strong></label>
-                          <input type="number" name="payment_reminder_days" class="form-control" 
-                                 value="{{ data.business.payment_reminder_days }}" min="0" max="30">
-                          <small class="text-muted">الافتراضي: 3 أيام</small>
+                      <div class="col-md-12">
+                        <label class="form-label">إرسال تذكير الدفع قبل (أيام)</label>
+                        <div class="w-25">
+                            <input type="number" name="payment_reminder_days" class="form-control" 
+                                   value="{{ data.business.payment_reminder_days }}" min="0" max="30">
                         </div>
                       </div>
                       </div>
@@ -823,66 +900,47 @@
               <!-- 6. Business Rules -->
               <div class="accordion-item">
                 <h2 class="accordion-header" id="headingRules">
-                  <button class="accordion-button collapsed" type="button" data-toggle="collapse" data-target="#collapseRules" aria-expanded="false" aria-controls="collapseRules">
-                    ⚙️ قواعد العمل (Business Rules)
+                  <button class="accordion-button collapsed fw-bold" type="button" data-toggle="collapse" data-target="#collapseRules" aria-expanded="false" aria-controls="collapseRules">
+                    <i class="fas fa-cogs text-dark me-2"></i> قواعد العمل (Business Rules)
                   </button>
                 </h2>
                 <div id="collapseRules" class="accordion-collapse collapse" data-parent="#businessConstantsAccordion">
-                  <div class="accordion-body">
-                    <div class="constants-toggle-wrapper d-flex justify-content-between align-items-center">
-                      <div>
-                        <strong>تفعيل قواعد العمل</strong>
-                        <small class="text-muted d-block">تعطيلها يعطل فحص المخزون والخصومات</small>
-                      </div>
-                      <div class="form-check form-switch m-0">
-                        <input class="form-check-input constants-toggle" type="checkbox" data-target="#business-rules-constants-section"
-                               name="enable_business_rules_constants" {% if data.business.enable_business_rules_constants %}checked{% endif %}>
-                        <label class="form-check-label">مفعّل</label>
-                      </div>
-                    </div>
-                    <div id="business-rules-constants-section" class="constants-section {% if not data.business.enable_business_rules_constants %}constants-disabled{% endif %}">
-                      <div class="row">
+                  <div class="accordion-body bg-light bg-opacity-25">
+                    <div id="business-rules-constants-section" class="constants-section p-3">
+                      <div class="row g-4">
                       <div class="col-md-6">
-                        <div class="mb-3">
-                          <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" name="allow_negative_stock" id="allow_negative" 
+                        <div class="form-check form-switch p-3 border rounded bg-white h-100 border-danger">
+                            <input class="form-check-input mb-2" type="checkbox" name="allow_negative_stock" id="allow_negative" 
                                    {% if data.business.allow_negative_stock %}checked{% endif %}>
-                            <label class="form-check-label" for="allow_negative">
-                              <strong>السماح بالمخزون السالب</strong><br>
-                              <small class="text-danger">⚠️ غير موصى به!</small>
-                            </label>
-                          </div>
+                            <label class="form-check-label fw-bold text-danger d-block" for="allow_negative">السماح بالمخزون السالب</label>
+                            <small class="text-muted">السماح بالبيع حتى لو الكمية 0 (غير موصى به)</small>
                         </div>
                       </div>
                       
                       <div class="col-md-6">
-                        <div class="mb-3">
-                          <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" name="credit_limit_check" id="credit_check" 
+                        <div class="form-check form-switch p-3 border rounded bg-white h-100">
+                            <input class="form-check-input mb-2" type="checkbox" name="credit_limit_check" id="credit_check" 
                                    {% if data.business.credit_limit_check %}checked{% endif %}>
-                            <label class="form-check-label" for="credit_check">
-                              <strong>فحص حد الائتمان</strong><br>
-                              <small class="text-muted">منع البيع عند تجاوز حد الائتمان</small>
-                            </label>
-                          </div>
+                            <label class="form-check-label fw-bold d-block" for="credit_check">تفعيل فحص حد الائتمان</label>
+                            <small class="text-muted">منع الفوترة للعميل المتجاوز للحد</small>
                         </div>
                       </div>
                       
                       <div class="col-md-6">
-                        <div class="mb-3">
-                          <label class="form-label"><strong>طلب موافقة للمبيعات أعلى من</strong></label>
+                        <label class="form-label">طلب موافقة للمبيعات التي تتجاوز</label>
+                        <div class="input-group">
                           <input type="number" name="require_approval_for_sales_above" class="form-control" 
                                  value="{{ data.business.require_approval_for_sales_above }}" step="100" min="0">
-                          <small class="text-muted">الافتراضي: 10,000</small>
+                          <span class="input-group-text">{{ data.company.CURRENCY_SYMBOL or '$' }}</span>
                         </div>
                       </div>
                       
                       <div class="col-md-6">
-                        <div class="mb-3">
-                          <label class="form-label"><strong>الحد الأقصى للخصم (%)</strong></label>
+                        <label class="form-label">الحد الأقصى المسموح للخصم</label>
+                        <div class="input-group">
                           <input type="number" name="discount_max_percent" class="form-control" 
                                  value="{{ data.business.discount_max_percent }}" min="0" max="100">
-                          <small class="text-muted">الافتراضي: 50%</small>
+                          <span class="input-group-text">%</span>
                         </div>
                       </div>
                       </div>
@@ -894,47 +952,32 @@
               <!-- 7. Multi-Tenancy Settings -->
               <div class="accordion-item">
                 <h2 class="accordion-header" id="headingTenancy">
-                  <button class="accordion-button collapsed" type="button" data-toggle="collapse" data-target="#collapseTenancy" aria-expanded="false" aria-controls="collapseTenancy">
-                    🏢 ثوابت SaaS (Multi-Tenancy Settings)
+                  <button class="accordion-button collapsed fw-bold" type="button" data-toggle="collapse" data-target="#collapseTenancy" aria-expanded="false" aria-controls="collapseTenancy">
+                    <i class="fas fa-cloud text-secondary me-2"></i> إعدادات SaaS (Multi-Tenancy)
                   </button>
                 </h2>
                 <div id="collapseTenancy" class="accordion-collapse collapse" data-parent="#businessConstantsAccordion">
-                  <div class="accordion-body">
-                    <div class="alert alert-warning">
-                      <i class="fas fa-exclamation-triangle"></i> <strong>تحذير:</strong> تفعيل Multi-Tenancy يحتاج migration للقاعدة!
-                    </div>
-                    <div class="constants-toggle-wrapper d-flex justify-content-between align-items-center">
-                      <div>
-                        <strong>تفعيل ثوابت التعددية</strong>
-                        <small class="text-muted d-block">تعطيلها يخفي خيارات SaaS</small>
-                      </div>
-                      <div class="form-check form-switch m-0">
-                        <input class="form-check-input constants-toggle" type="checkbox" data-target="#multi-tenancy-constants-section"
-                               name="enable_multi_tenancy_constants" {% if data.business.enable_multi_tenancy_constants %}checked{% endif %}>
-                        <label class="form-check-label">مفعّل</label>
-                      </div>
-                    </div>
-                    <div id="multi-tenancy-constants-section" class="constants-section {% if not data.business.enable_multi_tenancy_constants %}constants-disabled{% endif %}">
-                      <div class="row">
+                  <div class="accordion-body bg-light bg-opacity-25">
+                    <div id="multi-tenancy-constants-section" class="constants-section p-3">
+                        <div class="alert alert-warning small">
+                            <i class="fas fa-exclamation-triangle me-1"></i> تفعيل هذه الخاصية يتطلب إجراءات فنية إضافية على قاعدة البيانات.
+                        </div>
+                      <div class="row g-4">
                       <div class="col-md-6">
-                        <div class="mb-3">
-                          <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" name="multi_tenancy_enabled" id="multi_tenancy" 
+                        <div class="form-check form-switch p-3 border rounded bg-white h-100">
+                            <input class="form-check-input mb-2" type="checkbox" name="multi_tenancy_enabled" id="multi_tenancy" 
                                    {% if data.business.multi_tenancy_enabled %}checked{% endif %}>
-                            <label class="form-check-label" for="multi_tenancy">
-                              <strong>تفعيل تعدد المستأجرين (SaaS Mode)</strong><br>
-                              <small class="text-muted">كل ورشة بيانات منفصلة</small>
-                            </label>
-                          </div>
+                            <label class="form-check-label fw-bold d-block" for="multi_tenancy">تفعيل وضع تعدد المستأجرين</label>
+                            <small class="text-muted">عزل بيانات العملاء بشكل كامل</small>
                         </div>
                       </div>
                       
                       <div class="col-md-6">
-                        <div class="mb-3">
-                          <label class="form-label"><strong>مدة الفترة التجريبية (أيام)</strong></label>
+                        <label class="form-label">الفترة التجريبية الافتراضية</label>
+                        <div class="input-group">
                           <input type="number" name="trial_period_days" class="form-control" 
                                  value="{{ data.business.trial_period_days }}" min="0" max="365">
-                          <small class="text-muted">الافتراضي: 30 يوم</small>
+                          <span class="input-group-text">يوم</span>
                         </div>
                       </div>
                       </div>
@@ -945,11 +988,16 @@
               
             </div>
             
-            <div class="d-grid gap-2 mt-4">
-              <button type="submit" class="btn btn-success btn-lg">
-                <i class="fas fa-save"></i> حفظ ثوابت الأعمال (22 ثابت)
+            <div class="d-grid gap-2 mt-5 mb-5">
+              <button type="submit" class="btn btn-primary btn-lg shadow p-3">
+                <i class="fas fa-save me-2"></i> حفظ ثوابت الأعمال وتحديث النظام
               </button>
             </div>
+            
+            <!-- Floating Save Button -->
+            <button type="submit" class="btn btn-primary floating-save-btn">
+              <i class="fas fa-save me-2"></i> حفظ التغييرات
+            </button>
           </form>
         </div>
         
@@ -998,10 +1046,31 @@ document.addEventListener('DOMContentLoaded', function() {
     section.querySelectorAll('input, select, textarea').forEach(el => {
       el.disabled = !enabled;
     });
+    
+    // Handle Collapse Logic (BS5/BS4 Compatible)
+    const collapseSelector = toggle.getAttribute('data-bs-target') || toggle.getAttribute('data-target');
+    if (collapseSelector) {
+        // Try BS5 API first, then jQuery
+        try {
+            const collapseEl = document.querySelector(collapseSelector);
+            if (window.bootstrap && window.bootstrap.Collapse) {
+                const bsCollapse = bootstrap.Collapse.getInstance(collapseEl) || new bootstrap.Collapse(collapseEl, {toggle: false});
+                if (enabled) bsCollapse.show();
+                else bsCollapse.hide();
+            } else if (window.jQuery) {
+                $(collapseSelector).collapse(enabled ? 'show' : 'hide');
+            }
+        } catch (e) {
+            console.error('Collapse error:', e);
+        }
+    }
   };
   
   document.querySelectorAll('.constants-toggle').forEach(toggle => {
+    // Initial State
     updateConstantSection(toggle);
+    
+    // Change Listener
     toggle.addEventListener('change', () => updateConstantSection(toggle));
   });
 });

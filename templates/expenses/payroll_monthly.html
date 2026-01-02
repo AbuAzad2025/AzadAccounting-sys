@@ -41,13 +41,21 @@
 <div class="container-fluid px-4 py-3">
 
   <div class="row mb-3">
-    <div class="col">
+    <div class="col d-flex justify-content-between align-items-center">
       <nav aria-label="breadcrumb">
-        <ol class="breadcrumb">
+        <ol class="breadcrumb mb-0">
           <li class="breadcrumb-item"><a href="{{ url_for('expenses_bp.list_expenses') }}"><i class="fas fa-wallet"></i> النفقات</a></li>
           <li class="breadcrumb-item active">كشف الرواتب</li>
         </ol>
       </nav>
+      <div class="btn-group shadow-sm rounded-pill overflow-hidden bg-white">
+           <button onclick="window.history.back()" class="btn btn-sm text-primary fw-bold border-end" title="رجوع">
+               <i class="fas fa-arrow-right"></i>
+           </button>
+           <button onclick="window.history.forward()" class="btn btn-sm text-primary fw-bold" title="تقدم">
+               <i class="fas fa-arrow-left"></i>
+           </button>
+      </div>
     </div>
   </div>
 
@@ -89,15 +97,15 @@
   </div>
 
   <div class="card payroll-card shadow">
-    <div class="card-header bg-gradient-primary text-white d-flex justify-content-between align-items-center">
+    <div class="card-header text-white d-flex justify-content-between align-items-center" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);">
       <h5 class="mb-0"><i class="fas fa-calendar-alt"></i> كشف الرواتب - 
-        <select id="monthSelect" class="form-control d-inline-block w-auto ml-2" onchange="changeMonth()" style="color: #333;">
+        <select id="monthSelect" class="form-control form-control-modern d-inline-block w-auto ml-2" onchange="changeMonth()" style="color: #333;">
           {% for m in range(1, 13) %}
           <option value="{{ m }}" {% if m == month %}selected{% endif %}>{{ m }}</option>
           {% endfor %}
         </select>
         /
-        <select id="yearSelect" class="form-control d-inline-block w-auto" onchange="changeMonth()" style="color: #333;">
+        <select id="yearSelect" class="form-control form-control-modern d-inline-block w-auto" onchange="changeMonth()" style="color: #333;">
           {% for y in range(2020, 2031) %}
           <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
           {% endfor %}
@@ -187,15 +195,15 @@
           </div>
           <div class="form-group">
             <label><i class="fas fa-calendar"></i> الشهر <span class="text-danger">*</span></label>
-            <input type="number" name="month" class="form-control" value="{{ month }}" min="1" max="12" required>
+            <input type="number" name="month" class="form-control form-control-modern" value="{{ month }}" min="1" max="12" required>
           </div>
           <div class="form-group">
             <label><i class="fas fa-calendar"></i> السنة <span class="text-danger">*</span></label>
-            <input type="number" name="year" class="form-control" value="{{ year }}" min="2020" max="2030" required>
+            <input type="number" name="year" class="form-control form-control-modern" value="{{ year }}" min="2020" max="2030" required>
           </div>
           <div class="form-group">
             <label><i class="fas fa-calendar-check"></i> تاريخ الدفع <span class="text-danger">*</span></label>
-            <input type="date" name="payment_date" class="form-control" value="{{ now().strftime('%Y-%m-%d') }}" required>
+            <input type="date" name="payment_date" class="form-control form-control-modern" value="{{ now().strftime('%Y-%m-%d') }}" required>
           </div>
         </div>
         <div class="modal-footer">

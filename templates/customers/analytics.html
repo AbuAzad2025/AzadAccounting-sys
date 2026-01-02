@@ -3,13 +3,23 @@
 {% block title %}تحليلات العميل{% endblock %}
 
 {% block breadcrumb %}
-<nav aria-label="breadcrumb">
-  <ol class="breadcrumb bg-white px-3 py-2 rounded mb-4">
-    <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">الرئيسية</a></li>
-    <li class="breadcrumb-item"><a href="{{ url_for('customers_bp.list_customers') }}">العملاء</a></li>
-    <li class="breadcrumb-item active">تحليلات {{ customer.name }}</li>
-  </ol>
-</nav>
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <nav aria-label="breadcrumb" class="flex-grow-1">
+    <ol class="breadcrumb bg-white px-3 py-2 rounded mb-0">
+      <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">الرئيسية</a></li>
+      <li class="breadcrumb-item"><a href="{{ url_for('customers_bp.list_customers') }}">العملاء</a></li>
+      <li class="breadcrumb-item active">تحليلات {{ customer.name }}</li>
+    </ol>
+  </nav>
+  <div class="btn-group shadow-sm rounded-pill overflow-hidden bg-white ms-3">
+      <a href="javascript:window.history.back()" class="btn btn-sm text-primary fw-bold border-end" title="رجوع">
+          <i class="fas fa-arrow-right"></i>
+      </a>
+      <a href="javascript:window.history.forward()" class="btn btn-sm text-primary fw-bold" title="تقدم">
+          <i class="fas fa-arrow-left"></i>
+      </a>
+  </div>
+</div>
 {% endblock %}
 
 {% block styles %}
@@ -26,32 +36,32 @@
   <div class="row g-4">
 
     <div class="col-md-4">
-      <div class="card shadow-sm h-100">
+      <div class="card shadow-sm h-100 card-hover bg-primary text-white" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);">
         <div class="card-body text-center">
-          <div class="h6 text-muted mb-2">إجمالي المشتريات</div>
+          <div class="h6 text-white-50 mb-2">إجمالي المشتريات</div>
           <div class="display-6 fw-bold">{{ total_purchases|format_currency }}</div>
         </div>
       </div>
     </div>
     <div class="col-md-4">
-      <div class="card shadow-sm h-100">
+      <div class="card shadow-sm h-100 card-hover bg-success text-white" style="background: linear-gradient(135deg, #198754 0%, #157347 100%);">
         <div class="card-body text-center">
-          <div class="h6 text-muted mb-2">إجمالي الدفعات</div>
+          <div class="h6 text-white-50 mb-2">إجمالي الدفعات</div>
           <div class="display-6 fw-bold">{{ total_payments|format_currency }}</div>
         </div>
       </div>
     </div>
     <div class="col-md-4">
-      <div class="card shadow-sm h-100">
+      <div class="card shadow-sm h-100 card-hover bg-info text-white" style="background: linear-gradient(135deg, #0dcaf0 0%, #0aa2c0 100%);">
         <div class="card-body text-center">
-          <div class="h6 text-muted mb-2">متوسط قيمة الفاتورة</div>
+          <div class="h6 text-white-50 mb-2">متوسط قيمة الفاتورة</div>
           <div class="display-6 fw-bold">{{ avg_purchase|format_currency }}</div>
         </div>
       </div>
     </div>
 
     <div class="col-md-6">
-      <div class="card shadow-sm rounded h-100">
+      <div class="card shadow-sm rounded h-100 card-hover">
         <div class="card-body">
           <h6 class="mb-3"><i class="fas fa-chart-line ml-1"></i>مخطط المشتريات الشهري</h6>
           <div class="chart-wrap">
@@ -62,7 +72,7 @@
     </div>
 
     <div class="col-md-6">
-      <div class="card shadow-sm rounded h-100">
+      <div class="card shadow-sm rounded h-100 card-hover">
         <div class="card-body">
           <h6 class="mb-3"><i class="fas fa-chart-line ml-1"></i>مخطط الدفعات الشهري</h6>
           <div class="chart-wrap">
@@ -73,7 +83,7 @@
     </div>
 
     <div class="col-12">
-      <div class="card shadow-sm rounded">
+      <div class="card shadow-sm rounded table-rounded">
         <div class="card-body">
           <h5 class="mb-3"><i class="fas fa-list-ul ml-1"></i>فئات المشتريات</h5>
           <div class="table-responsive">

@@ -271,6 +271,7 @@ def _serialize_payment_min(p, *, full=False):
     
     d = {
         "id": p.id,
+        "is_archived": getattr(p, "is_archived", False),
         "payment_date": (payment_date.isoformat() if payment_date else None),
         "total_amount": int(q0(getattr(p, "total_amount", 0) or 0)),
         "currency": getattr(p, "currency", "ILS") or "ILS",
@@ -3470,6 +3471,9 @@ def refund_split(split_id: int):
     except Exception as e:
         db.session.rollback()
         return jsonify(error="refund_failed", message=str(e)), 500
+
+
+
 
 
 @payments_bp.route("/refund/<int:payment_id>", methods=["POST"], endpoint="refund_payment")

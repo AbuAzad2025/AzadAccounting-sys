@@ -137,11 +137,17 @@ def log_customer_action(cust, action, old_data=None, new_data=None):
 @customers_bp.route("/", methods=["GET"], endpoint="list_customers")
 @login_required
 def list_customers():
-    # عرض جميع العملاء بدون أي فلتر افتراضي على is_archived
+    # عرض جميع العملاء مع فلتر افتراضي لاستبعاد المؤرشفين إلا إذا طلب خلاف ذلك
     q = Customer.query.options(
         selectinload(Customer.supplier_link).load_only(Supplier.id, Supplier.name),
         selectinload(Customer.partner_link).load_only(Partner.id, Partner.name),
     )
+
+    # تطبيق فلتر الأرشفة إلا إذا تم طلب عرض الأرشيف صراحة
+    if request.args.get('show_archived') == '1':
+        pass # عرض الكل (أو يمكن فلتر is_archived=True فقط إذا أردنا عرض الأرشيف فقط)
+    else:
+        q = q.filter(Customer.is_archived == False)
 
     if name := request.args.get("name"):
         q = q.filter(Customer.name.ilike(f"%{name}%"))
@@ -448,7 +454,8 @@ def customer_detail(customer_id):
     )
 
 
-@customers_bp.route("/<int:customer_id>/analytics", methods=["GET"], endpoint="customer_analytics")
+
+@customers_bp.route("/<int:customer_id>/analytics", methods=["GET"])
 @login_required
 def customer_analytics(customer_id):
     try:
@@ -2690,7 +2697,6 @@ def export_contacts():
 @customers_bp.route("/archive/<int:customer_id>", methods=["POST"])
 @login_required
 def archive_customer(customer_id):
-    
     try:
         from models import Archive
         
@@ -2699,23 +2705,30 @@ def archive_customer(customer_id):
         reason = request.form.get('reason', 'أرشفة تلقائية')
         
         utils.archive_record(customer, reason, current_user.id)
+        
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': True, 'message': f'تم أرشفة العميل {customer.name} بنجاح'})
+            
         flash(f'تم أرشفة العميل {customer.name} بنجاح', 'success')
         return redirect(url_for('customers_bp.list_customers'))
         
     except Exception as e:
-        
         db.session.rollback()
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'message': f'خطأ في أرشفة العميل: {str(e)}'}), 500
+            
         flash(f'خطأ في أرشفة العميل: {str(e)}', 'error')
         return redirect(url_for('customers_bp.list_customers'))
 
 @customers_bp.route('/restore/<int:customer_id>', methods=['POST'])
 @login_required
 def restore_customer(customer_id):
-    
     try:
         customer = Customer.query.get_or_404(customer_id)
         
         if not customer.is_archived:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'success': False, 'message': 'العميل غير مؤرشف'}), 400
             flash('العميل غير مؤرشف', 'warning')
             return redirect(url_for('customers_bp.list_customers'))
         
@@ -2727,12 +2740,23 @@ def restore_customer(customer_id):
         
         if archive:
             utils.restore_record(archive.id)
+        else:
+            # Fallback logic if archive record is missing
+            customer.is_archived = False
+            customer.archived_at = None
+            db.session.commit()
+            
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': True, 'message': f'تم استعادة العميل {customer.name} بنجاح'})
+            
         flash(f'تم استعادة العميل {customer.name} بنجاح', 'success')
         return redirect(url_for('customers_bp.list_customers'))
         
     except Exception as e:
-        
         db.session.rollback()
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'message': f'خطأ في استعادة العميل: {str(e)}'}), 500
+            
         flash(f'خطأ في استعادة العميل: {str(e)}', 'error')
         return redirect(url_for('customers_bp.list_customers'))
 

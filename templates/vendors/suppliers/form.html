@@ -2,48 +2,22 @@
 {% block title %}{{ form.name.data and 'تعديل' or 'إضافة' }} مورد{% endblock %}
 
 {% block content %}
-<style>
-.card-header-gradient {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border: none;
-}
-.section-card {
-  border: none;
-  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-  border-radius: 15px !important;
-  transition: all 0.3s ease;
-}
-.section-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 16px rgba(0,0,0,0.1);
-}
-.form-control-modern {
-  border-radius: 10px;
-  border: 2px solid #e0e6ed;
-  transition: all 0.3s ease;
-}
-.form-control-modern:focus {
-  border-color: #667eea;
-  box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
-}
-.input-group-modern .input-group-text {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border: none;
-  border-radius: 10px 0 0 10px;
-}
-</style>
-
 <div class="container py-5">
-  <div class="row justify-content-center">
-    <div class="col-md-9">
-      <div class="card shadow-lg rounded-4 border-0">
-        <div class="card-header card-header-gradient text-white py-4">
-          <div class="d-flex flex-wrap align-items-center justify-content-between">
-            <h3 class="mb-0 mr-2 fw-bold">
-              <i class="fas fa-truck-loading ml-2"></i>{{ form.name.data and 'تعديل' or 'إضافة' }} مورد
-            </h3>
-
+  <div class="card shadow-lg rounded-4 border-0 card-hover">
+    <div class="card-header gradient-header text-white py-4" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);">
+      <div class="d-flex flex-wrap align-items-center justify-content-between">
+        <h3 class="mb-0 mr-2 fw-bold">
+          <i class="fas fa-truck-loading ml-2"></i>{{ form.name.data and 'تعديل' or 'إضافة' }} مورد
+        </h3>
+        <div class="d-flex gap-2">
+            <div class="btn-group shadow-sm rounded-pill overflow-hidden bg-white">
+                <a href="javascript:window.history.back()" class="btn btn-sm text-primary fw-bold border-end" title="رجوع">
+                    <i class="fas fa-arrow-right"></i>
+                </a>
+                <a href="javascript:window.history.forward()" class="btn btn-sm text-primary fw-bold" title="تقدم">
+                    <i class="fas fa-arrow-left"></i>
+                </a>
+            </div>
             {% if supplier %}
             <div class="d-flex flex-wrap">
               <a href="{{ url_for('vendors_bp.suppliers_statement', supplier_id=supplier.id) }}"
@@ -90,8 +64,9 @@
               </button>
             </div>
             {% endif %}
-          </div>
         </div>
+      </div>
+    </div>
 
         <div class="card-body p-4">
           <form method="post" autocomplete="off">
@@ -254,8 +229,6 @@
               </a>
             </div>
           </form>
-        </div>
-      </div>
     </div>
   </div>
 </div>
@@ -266,34 +239,36 @@
 <!-- مودال التسوية (مضمن) -->
 <div class="modal fade" id="settlementModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content rounded-4">
-      <div class="modal-header bg-light">
+    <div class="modal-content rounded-4 border-0 shadow-lg">
+      <div class="modal-header gradient-header text-white">
         <h5 class="modal-title"><i class="fas fa-scale-balanced ml-2"></i> تسوية رصيد</h5>
-        <button type="button" class="close" data-dismiss="modal" aria-label="إغلاق"></button>
+        <button type="button" class="close text-white" data-dismiss="modal" aria-label="إغلاق" style="opacity: 1;">
+            <span aria-hidden="true">&times;</span>
+        </button>
       </div>
-      <div class="modal-body">
-        <div class="mb-2 text-muted small">الجهة: <span id="stlName"></span></div>
-        <div class="d-flex justify-content-between align-items-center mb-3">
+      <div class="modal-body p-4">
+        <div class="mb-2 text-muted small">الجهة: <span id="stlName" class="fw-bold text-dark"></span></div>
+        <div class="d-flex justify-content-between align-items-center mb-3 bg-light p-3 rounded-3">
           <div>الرصيد الحالي:</div>
-          <div id="stlBalance" class="fw-bold"></div>
+          <div id="stlBalance" class="fw-bold fs-5"></div>
         </div>
         <div class="mb-3">
-          <label class="form-label">المبلغ للتسوية</label>
-          <input type="number" step="0.01" min="0" inputmode="decimal" class="form-control" id="stlAmount">
+          <label class="form-label fw-bold">المبلغ للتسوية</label>
+          <input type="number" step="0.01" min="0" inputmode="decimal" class="form-control form-control-lg form-control-modern" id="stlAmount" placeholder="0.00">
         </div>
         <div class="row g-2 mb-3">
           <div class="col-md-6">
-            <label class="form-label">الاتجاه</label>
-            <div id="stlDirectionBadge"></div>
+            <label class="form-label fw-bold">الاتجاه</label>
+            <div id="stlDirectionBadge" class="w-100"></div>
           </div>
           <div class="col-md-6">
-            <label class="form-label">العملة</label>
-            <input type="text" class="form-control" id="stlCurrency" readonly>
+            <label class="form-label fw-bold">العملة</label>
+            <input type="text" class="form-control form-control-modern" id="stlCurrency" readonly>
           </div>
         </div>
         <div class="mb-3">
-          <label class="form-label">طريقة الدفع</label>
-          <select id="stlMethod" class="custom-select">
+          <label class="form-label fw-bold">طريقة الدفع</label>
+          <select id="stlMethod" class="custom-select form-control form-control-modern">
             <option value="cash">نقداً</option>
             <option value="bank">تحويل بنكي</option>
             <option value="cheque">شيك</option>
@@ -304,9 +279,9 @@
         <input type="hidden" id="stlEntityType">
         <input type="hidden" id="stlEntityId">
       </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-outline-secondary" id="stlPrint"><i class="fas fa-print ml-1"></i> طباعة</button>
-        <button type="button" class="btn btn-success" id="stlConfirm"><i class="fas fa-check ml-1"></i> إنشاء سند</button>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-outline-secondary rounded-pill px-4" id="stlPrint"><i class="fas fa-print ml-1"></i> طباعة</button>
+        <button type="button" class="btn btn-success rounded-pill px-4 shadow-sm" id="stlConfirm"><i class="fas fa-check ml-1"></i> إنشاء سند</button>
       </div>
     </div>
   </div>

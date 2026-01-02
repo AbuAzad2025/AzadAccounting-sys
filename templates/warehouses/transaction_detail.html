@@ -18,7 +18,7 @@
                 <i class="fas fa-arrow-right ml-1"></i> رجوع
             </a>
             {% else %}
-            <a href="{{ url_for('warehouse_bp.index') }}" class="btn btn-outline-light">
+            <a href="{{ url_for('warehouse_bp.list') }}" class="btn btn-outline-light">
                 <i class="fas fa-arrow-right ml-1"></i> رجوع
             </a>
             {% endif %}
@@ -47,7 +47,7 @@
                 <dt class="col-sm-4 text-end">المنتج</dt>
                 <dd class="col-sm-8">
                     {% if transaction.product %}
-                        <a href="{{ url_for('warehouse_bp.product_details', product_id=transaction.product_id) }}" target="_blank">
+                        <a href="{{ url_for('warehouse_bp.product_card', product_id=transaction.product_id) }}" target="_blank">
                             {{ transaction.product.name }}
                         </a>
                         <span class="text-muted small">({{ transaction.product.part_number or '---' }})</span>
@@ -95,7 +95,7 @@
                 <dt class="col-sm-4 text-end">المورد</dt>
                 <dd class="col-sm-8">
                     {% if transaction.supplier %}
-                        <a href="{{ url_for('reports.supplier_detail_report', supplier_id=transaction.supplier_id) }}" target="_blank">
+                        <a href="{{ url_for('reports_bp.supplier_detail_report', supplier_id=transaction.supplier_id) }}" target="_blank">
                             {{ transaction.supplier.name }}
                         </a>
                     {% else %}—{% endif %}
@@ -104,7 +104,7 @@
                 <dt class="col-sm-4 text-end">الشريك</dt>
                 <dd class="col-sm-8">
                     {% if transaction.partner %}
-                        <a href="{{ url_for('reports.partner_detail_report', partner_id=transaction.partner_id) }}" target="_blank">
+                        <a href="{{ url_for('reports_bp.partner_detail_report', partner_id=transaction.partner_id) }}" target="_blank">
                             {{ transaction.partner.name }}
                         </a>
                     {% else %}—{% endif %}

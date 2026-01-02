@@ -4,203 +4,199 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/print.css') }}">
-<style>
-.control-card {
-    border: none;
-    border-radius: 15px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-    transition: all 0.3s ease;
-    overflow: hidden;
-}
+    <style>
+        .stat-box {
+            background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);
+            border-radius: 15px;
+            padding: 25px;
+            color: white;
+            text-align: center;
+            margin-bottom: 20px;
+            position: relative;
+            overflow: hidden;
+        }
 
-.control-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 8px 25px rgba(0,0,0,0.15);
-}
+        .stat-box::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 200%;
+            height: 200%;
+            background: rgba(255, 255, 255, 0.1);
+            transform: rotate(45deg);
+            transition: all 0.6s ease;
+        }
 
-.stat-box {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    border-radius: 15px;
-    padding: 25px;
-    color: white;
-    text-align: center;
-    margin-bottom: 20px;
-    position: relative;
-    overflow: hidden;
-}
+        .stat-box:hover::before {
+            right: 100%;
+        }
 
-.stat-box::before {
-    content: '';
-    position: absolute;
-    top: -50%;
-    right: -50%;
-    width: 200%;
-    height: 200%;
-    background: rgba(255,255,255,0.1);
-    transform: rotate(45deg);
-    transition: all 0.6s ease;
-}
+        .stat-number {
+            font-size: 3rem;
+            font-weight: bold;
+            margin: 10px 0;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+        }
 
-.stat-box:hover::before {
-    right: 100%;
-}
+        .stat-label {
+            font-size: 1rem;
+            opacity: 0.9;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
 
-.stat-number {
-    font-size: 3rem;
-    font-weight: bold;
-    margin: 10px 0;
-    text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
-}
+        .setting-toggle {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            transition: all 0.3s ease;
+        }
 
-.stat-label {
-    font-size: 1rem;
-    opacity: 0.9;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-}
+        .setting-toggle:hover {
+            background: #e9ecef;
+        }
 
-.quick-action-btn {
-    width: 100%;
-    padding: 15px;
-    border-radius: 10px;
-    border: 2px solid #e0e0e0;
-    background: white;
-    transition: all 0.3s ease;
-    margin-bottom: 10px;
-}
+        .toggle-switch {
+            position: relative;
+            width: 60px;
+            height: 30px;
+        }
 
-.quick-action-btn:hover {
-    border-color: #667eea;
-    background: #f8f9ff;
-    transform: translateX(-5px);
-}
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
 
-.setting-toggle {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 15px;
-    background: #f8f9fa;
-    border-radius: 10px;
-    margin-bottom: 10px;
-    transition: all 0.3s ease;
-}
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 30px;
+        }
 
-.setting-toggle:hover {
-    background: #e9ecef;
-}
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 22px;
+            width: 22px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
 
-.toggle-switch {
-    position: relative;
-    width: 60px;
-    height: 30px;
-}
+        input:checked+.slider {
+            background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);
+        }
 
-.toggle-switch input {
-    opacity: 0;
-    width: 0;
-    height: 0;
-}
+        input:checked+.slider:before {
+            transform: translateX(30px);
+        }
 
-.slider {
-    position: absolute;
-    cursor: pointer;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: #ccc;
-    transition: .4s;
-    border-radius: 30px;
-}
+        .alert-box {
+            border-left: 4px solid;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            animation: slideIn 0.5s ease;
+        }
 
-.slider:before {
-    position: absolute;
-    content: "";
-    height: 22px;
-    width: 22px;
-    left: 4px;
-    bottom: 4px;
-    background-color: white;
-    transition: .4s;
-    border-radius: 50%;
-}
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
 
-input:checked + .slider {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-}
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
 
-input:checked + .slider:before {
-    transform: translateX(30px);
-}
+        .progress-ring {
+            transform: rotate(-90deg);
+        }
 
-.alert-box {
-    border-left: 4px solid;
-    padding: 15px;
-    border-radius: 8px;
-    margin-bottom: 15px;
-    animation: slideIn 0.5s ease;
-}
+        .progress-ring-circle {
+            transition: stroke-dashoffset 0.5s ease;
+        }
 
-@keyframes slideIn {
-    from {
-        opacity: 0;
-        transform: translateX(-20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateX(0);
-    }
-}
+        .module-status {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-left: 8px;
+            animation: pulse 2s infinite;
+        }
 
-.progress-ring {
-    transform: rotate(-90deg);
-}
+        @keyframes pulse {
 
-.progress-ring-circle {
-    transition: stroke-dashoffset 0.5s ease;
-}
+            0%,
+            100% {
+                opacity: 1;
+            }
 
-.module-status {
-    display: inline-block;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    margin-left: 8px;
-    animation: pulse 2s infinite;
-}
+            50% {
+                opacity: 0.5;
+            }
+        }
 
-@keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
-}
+        .gradient-bg-1 {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
 
-.gradient-bg-1 { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
-.gradient-bg-2 { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
-.gradient-bg-3 { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
-.gradient-bg-4 { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
-.gradient-bg-5 { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
-.gradient-bg-6 { background: linear-gradient(135deg, #30cfd0 0%, #330867 100%); }
+        .gradient-bg-2 {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
 
-.audit-entry {
-    border-left: 3px solid #667eea;
-    padding: 10px 15px;
-    margin-bottom: 10px;
-    background: #f8f9fa;
-    border-radius: 5px;
-    transition: all 0.3s ease;
-}
+        .gradient-bg-3 {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
 
-.audit-entry:hover {
-    background: #e9ecef;
-    transform: translateX(5px);
-}
+        .gradient-bg-4 {
+            background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+        }
 
-.mini-chart {
-    height: 80px;
-    width: 100%;
-}
-</style>
+        .gradient-bg-5 {
+            background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+        }
+
+        .gradient-bg-6 {
+            background: linear-gradient(135deg, #30cfd0 0%, #330867 100%);
+        }
+
+        .audit-entry {
+            border-left: 3px solid #667eea;
+            padding: 10px 15px;
+            margin-bottom: 10px;
+            background: #f8f9fa;
+            border-radius: 5px;
+            transition: all 0.3s ease;
+        }
+
+        .audit-entry:hover {
+            background: #e9ecef;
+            transform: translateX(5px);
+        }
+
+        .mini-chart {
+            height: 80px;
+            width: 100%;
+        }
+    </style>
 {% endblock %}
 
 {% block content %}
@@ -242,6 +238,17 @@ input:checked + .slider:before {
                             <small>جميع الإجراءات محمية ومسجلة في Audit Trail</small>
                         </div>
                         <div>
+                            <div class="btn-group me-1">
+                                <button onclick="window.history.back()" class="btn btn-outline-light btn-sm" title="رجوع">
+                                    <i class="fas fa-arrow-right"></i>
+                                </button>
+                                <button onclick="window.history.forward()" class="btn btn-outline-light btn-sm" title="تقدم">
+                                    <i class="fas fa-arrow-left"></i>
+                                </button>
+                            </div>
+                            <a href="{{ url_for('advanced.owner_hub') }}" class="btn btn-outline-light btn-sm me-1">
+                                <i class="fas fa-home"></i> الرئيسية
+                            </a>
                             <button class="btn btn-light btn-sm" onclick="exportSettings()">
                                 <i class="fas fa-download"></i> تصدير الإعدادات
                             </button>
@@ -303,10 +310,10 @@ input:checked + .slider:before {
         <div class="row">
             <div class="col-lg-9">
                 
-                <div class="card control-card">
-                    <div class="card-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                <div class="card control-card card-hover">
+                    <div class="card-header text-white" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);">
                         <h3 class="card-title">
-                            <i class="fas fa-cogs"></i> إعدادات الوحدات
+                            <i class="fas fa-cogs me-2"></i> إعدادات الوحدات
                         </h3>
                         <div class="card-tools">
                             <button type="button" class="btn btn-tool text-white" data-card-widget="collapse">
@@ -315,33 +322,39 @@ input:checked + .slider:before {
                         </div>
                     </div>
                     <div class="card-body">
-                        <ul class="nav nav-pills mb-3" id="modules-tab" role="tablist">
+                        <ul class="nav nav-pills mb-3 gap-2" id="modules-tab" role="tablist">
                             <li class="nav-item">
-                                <a class="nav-link active" data-toggle="pill" href="#bank-settings">
-                                    <i class="fas fa-university"></i> البنوك
-                                    <span class="module-status bg-{{ 'success' if bank_settings.enable_bank_reconciliation else 'warning' }}"></span>
+                                <a class="nav-link active rounded-pill" data-toggle="pill" href="#bank-settings">
+                                    <i class="fas fa-university me-1"></i> البنوك
+                                    <span class="badge rounded-pill bg-{{ 'success' if bank_settings.enable_bank_reconciliation else 'warning' }} ms-1">
+                                        <i class="fas fa-circle fa-xs"></i>
+                                    </span>
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link" data-toggle="pill" href="#cc-settings">
-                                    <i class="fas fa-project-diagram"></i> مراكز التكلفة
-                                    <span class="module-status bg-{{ 'success' if cost_center_settings.enable_cost_centers else 'warning' }}"></span>
+                                <a class="nav-link rounded-pill" data-toggle="pill" href="#cc-settings">
+                                    <i class="fas fa-project-diagram me-1"></i> مراكز التكلفة
+                                    <span class="badge rounded-pill bg-{{ 'success' if cost_center_settings.enable_cost_centers else 'warning' }} ms-1">
+                                        <i class="fas fa-circle fa-xs"></i>
+                                    </span>
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link" data-toggle="pill" href="#proj-settings">
-                                    <i class="fas fa-tasks"></i> المشاريع
-                                    <span class="module-status bg-{{ 'success' if project_settings.enable_projects else 'warning' }}"></span>
+                                <a class="nav-link rounded-pill" data-toggle="pill" href="#proj-settings">
+                                    <i class="fas fa-tasks me-1"></i> المشاريع
+                                    <span class="badge rounded-pill bg-{{ 'success' if project_settings.enable_projects else 'warning' }} ms-1">
+                                        <i class="fas fa-circle fa-xs"></i>
+                                    </span>
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link" data-toggle="pill" href="#automation">
-                                    <i class="fas fa-robot"></i> الأتمتة
+                                <a class="nav-link rounded-pill" data-toggle="pill" href="#automation">
+                                    <i class="fas fa-robot me-1"></i> الأتمتة
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link" data-toggle="pill" href="#security-settings">
-                                    <i class="fas fa-shield-alt"></i> الأمان
+                                <a class="nav-link rounded-pill" data-toggle="pill" href="#security-settings">
+                                    <i class="fas fa-shield-alt me-1"></i> الأمان
                                 </a>
                             </li>
                         </ul>
@@ -391,7 +404,7 @@ input:checked + .slider:before {
                                                 <label>
                                                     <i class="fas fa-percentage"></i> نسبة التسامح في المطابقة
                                                 </label>
-                                                <input type="number" class="form-control" name="auto_match_tolerance"
+                                                <input type="number" class="form-control form-control-modern" name="auto_match_tolerance"
                                                        value="{{ bank_settings.auto_match_tolerance }}"
                                                        step="0.01" min="0" max="1">
                                                 <small class="text-muted">الفرق المقبول بين المبالغ (0.01 = 1%)</small>
@@ -402,7 +415,7 @@ input:checked + .slider:before {
                                                 <label>
                                                     <i class="fas fa-calendar-alt"></i> فترة المطابقة (بالأيام)
                                                 </label>
-                                                <input type="number" class="form-control" name="match_date_range" value="{{ bank_settings.match_date_range }}" min="1" max="30">
+                                                <input type="number" class="form-control form-control-modern" name="match_date_range" value="{{ bank_settings.match_date_range }}" min="1" max="30">
                                                 <small class="text-muted">الفرق الأقصى بين تواريخ المعاملات</small>
                                             </div>
                                         </div>
@@ -414,7 +427,7 @@ input:checked + .slider:before {
                                                 <label>
                                                     <i class="fas fa-book"></i> حساب رسوم البنوك
                                                 </label>
-                                                <input type="text" class="form-control" name="bank_charges_account" value="{{ bank_settings.bank_charges_account }}">
+                                                <input type="text" class="form-control form-control-modern" name="bank_charges_account" value="{{ bank_settings.bank_charges_account }}">
                                             </div>
                                         </div>
                                         <div class="col-md-6">
@@ -422,7 +435,7 @@ input:checked + .slider:before {
                                                 <label>
                                                     <i class="fas fa-book"></i> حساب فوائد البنوك
                                                 </label>
-                                                <input type="text" class="form-control" name="bank_interest_account" value="{{ bank_settings.bank_interest_account }}">
+                                                <input type="text" class="form-control form-control-modern" name="bank_interest_account" value="{{ bank_settings.bank_interest_account }}">
                                             </div>
                                         </div>
                                     </div>
@@ -455,7 +468,7 @@ input:checked + .slider:before {
                                         <label>
                                             <i class="fas fa-dollar-sign"></i> حد التنبيه للمعاملات الكبيرة
                                         </label>
-                                        <input type="number" class="form-control" name="large_transaction_threshold" value="{{ bank_settings.large_transaction_threshold }}" step="1000">
+                                        <input type="number" class="form-control form-control-modern" name="large_transaction_threshold" value="{{ bank_settings.large_transaction_threshold }}" step="1000">
                                         <small class="text-muted">القيمة بالشيكل</small>
                                     </div>
 
@@ -521,7 +534,7 @@ input:checked + .slider:before {
                                                 <label>
                                                     <i class="fas fa-exclamation-triangle text-warning"></i> حد التحذير (%)
                                                 </label>
-                                                <input type="number" class="form-control" name="budget_warning_threshold" value="{{ cost_center_settings.budget_warning_threshold }}" min="50" max="100">
+                                                <input type="number" class="form-control form-control-modern" name="budget_warning_threshold" value="{{ cost_center_settings.budget_warning_threshold }}" min="50" max="100">
                                                 <small class="text-muted">تنبيه أصفر عند الوصول لهذه النسبة</small>
                                             </div>
                                         </div>
@@ -530,7 +543,7 @@ input:checked + .slider:before {
                                                 <label>
                                                     <i class="fas fa-exclamation-circle text-danger"></i> حد الخطر (%)
                                                 </label>
-                                                <input type="number" class="form-control" name="budget_danger_threshold" value="{{ cost_center_settings.budget_danger_threshold }}" min="80" max="100">
+                                                <input type="number" class="form-control form-control-modern" name="budget_danger_threshold" value="{{ cost_center_settings.budget_danger_threshold }}" min="80" max="100">
                                                 <small class="text-muted">تنبيه أحمر عند الوصول لهذه النسبة</small>
                                             </div>
                                         </div>
@@ -539,7 +552,7 @@ input:checked + .slider:before {
                                                 <label>
                                                     <i class="fas fa-ban text-danger"></i> حد المنع (%)
                                                 </label>
-                                                <input type="number" class="form-control" name="budget_block_threshold" value="{{ cost_center_settings.budget_block_threshold }}" min="90" max="120">
+                                                <input type="number" class="form-control form-control-modern" name="budget_block_threshold" value="{{ cost_center_settings.budget_block_threshold }}" min="90" max="120">
                                                 <small class="text-muted">منع الصرف عند الوصول لهذه النسبة</small>
                                             </div>
                                         </div>
@@ -573,7 +586,7 @@ input:checked + .slider:before {
                                         <label>
                                             <i class="fas fa-book"></i> حساب GL الافتراضي للتكاليف
                                         </label>
-                                        <input type="text" class="form-control" name="default_expense_account" value="{{ cost_center_settings.default_expense_account }}">
+                                        <input type="text" class="form-control form-control-modern" name="default_expense_account" value="{{ cost_center_settings.default_expense_account }}">
                                     </div>
 
                                     <button type="submit" class="btn btn-success btn-lg btn-block">
@@ -626,7 +639,7 @@ input:checked + .slider:before {
                                                 <label>
                                                     <i class="fas fa-hashtag"></i> بادئة ترقيم المشاريع
                                                 </label>
-                                        <input type="text" class="form-control" name="project_numbering_prefix"
+                                        <input type="text" class="form-control form-control-modern" name="project_numbering_prefix"
                                                value="{{ project_settings.project_numbering_prefix }}">
                                                 <small class="text-muted">مثال: PRJ-001, PRJ-002</small>
                                             </div>
@@ -636,7 +649,7 @@ input:checked + .slider:before {
                                                 <label>
                                                     <i class="fas fa-percent"></i> حد الانحراف المقبول (%)
                                                 </label>
-                                                <input type="number" class="form-control" name="project_variance_threshold" value="{{ project_settings.project_variance_threshold }}" min="5" max="50">
+                                                <input type="number" class="form-control form-control-modern" name="project_variance_threshold" value="{{ project_settings.project_variance_threshold }}" min="5" max="50">
                                                 <small class="text-muted">نسبة الانحراف عن الموازنة</small>
                                             </div>
                                         </div>
@@ -648,7 +661,7 @@ input:checked + .slider:before {
                                                 <label>
                                                     <i class="fas fa-book"></i> حساب إيرادات المشاريع
                                                 </label>
-                                                <input type="text" class="form-control" name="projects_revenue_account" value="{{ project_settings.projects_revenue_account }}">
+                                                <input type="text" class="form-control form-control-modern" name="projects_revenue_account" value="{{ project_settings.projects_revenue_account }}">
                                             </div>
                                         </div>
                                         <div class="col-md-6">
@@ -656,7 +669,7 @@ input:checked + .slider:before {
                                                 <label>
                                                     <i class="fas fa-book"></i> حساب تكاليف المشاريع
                                                 </label>
-                                                <input type="text" class="form-control" name="projects_cost_account" value="{{ project_settings.projects_cost_account }}">
+                                                <input type="text" class="form-control form-control-modern" name="projects_cost_account" value="{{ project_settings.projects_cost_account }}">
                                             </div>
                                         </div>
                                     </div>
@@ -764,7 +777,7 @@ input:checked + .slider:before {
                                         <label>
                                             <i class="fas fa-clock"></i> وقت النسخ الاحتياطي
                                         </label>
-                                        <input type="time" class="form-control" name="backup_time" value="{{ automation_settings.backup_time }}">
+                                        <input type="time" class="form-control form-control-modern" name="backup_time" value="{{ automation_settings.backup_time }}">
                                         <small class="text-muted">الوقت المفضل لإجراء النسخ الاحتياطي</small>
                                     </div>
 
@@ -835,7 +848,7 @@ input:checked + .slider:before {
                                         <label>
                                             <i class="fas fa-calendar-alt"></i> فترة القفل (بالأيام)
                                         </label>
-                                        <input type="number" class="form-control" name="lock_period_days" value="{{ security_settings.lock_period_days }}" min="7" max="365">
+                                        <input type="number" class="form-control form-control-modern" name="lock_period_days" value="{{ security_settings.lock_period_days }}" min="7" max="365">
                                         <small class="text-muted">السجلات الأقدم من هذه المدة لن يمكن تعديلها</small>
                                     </div>
 
@@ -843,7 +856,7 @@ input:checked + .slider:before {
                                         <label>
                                             <i class="fas fa-trash-alt"></i> مدة الاحتفاظ بسجل التدقيق (أيام)
                                         </label>
-                                        <input type="number" class="form-control" name="audit_retention_days" value="{{ security_settings.audit_retention_days }}" min="30" max="3650">
+                                        <input type="number" class="form-control form-control-modern" name="audit_retention_days" value="{{ security_settings.audit_retention_days }}" min="30" max="3650">
                                         <small class="text-muted">سيتم حذف السجلات الأقدم من هذه المدة</small>
                                     </div>
 
@@ -860,44 +873,44 @@ input:checked + .slider:before {
 
             <div class="col-lg-3">
                 
-                <div class="card control-card mb-3">
-                    <div class="card-header bg-gradient-primary text-white">
+                <div class="card shadow-lg rounded-4 border-0 mb-3">
+                    <div class="card-header gradient-header text-white" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
                         <h5 class="mb-0">
                             <i class="fas fa-bolt"></i> إجراءات سريعة
                         </h5>
                     </div>
                     <div class="card-body">
-                        <button class="quick-action-btn" onclick="window.location.href='{{ url_for('bank.accounts') }}'">
+                        <button class="btn btn-light w-100 mb-2 text-start p-3 shadow-sm border" onclick="window.location.href='{{ url_for('bank.accounts') }}'">
                             <i class="fas fa-university text-primary"></i>
                             <strong class="d-block">إدارة البنوك</strong>
                             <small class="text-muted">عرض وإدارة الحسابات</small>
                         </button>
 
-                        <button class="quick-action-btn" onclick="window.location.href='{{ url_for('cost_centers.index') }}'">
+                        <button class="btn btn-light w-100 mb-2 text-start p-3 shadow-sm border" onclick="window.location.href='{{ url_for('cost_centers.index') }}'">
                             <i class="fas fa-project-diagram text-success"></i>
                             <strong class="d-block">مراكز التكلفة</strong>
                             <small class="text-muted">الهيكل والميزانيات</small>
                         </button>
 
-                        <button class="quick-action-btn" onclick="window.location.href='{{ url_for('projects.index') }}'">
+                        <button class="btn btn-light w-100 mb-2 text-start p-3 shadow-sm border" onclick="window.location.href='{{ url_for('projects.index') }}'">
                             <i class="fas fa-tasks text-info"></i>
                             <strong class="d-block">المشاريع</strong>
                             <small class="text-muted">تتبع وتحليل</small>
                         </button>
 
-                        <button class="quick-action-btn" onclick="runSystemCheck()">
+                        <button class="btn btn-light w-100 mb-2 text-start p-3 shadow-sm border" onclick="runSystemCheck()">
                             <i class="fas fa-check-circle text-success"></i>
                             <strong class="d-block">فحص النظام</strong>
                             <small class="text-muted">التحقق من السلامة</small>
                         </button>
 
-                        <button class="quick-action-btn" onclick="generateReport()">
+                        <button class="btn btn-light w-100 mb-2 text-start p-3 shadow-sm border" onclick="generateReport()">
                             <i class="fas fa-file-pdf text-danger"></i>
                             <strong class="d-block">تقرير شامل</strong>
                             <small class="text-muted">PDF كامل</small>
                         </button>
 
-                        <button class="quick-action-btn" onclick="backupNow()">
+                        <button class="btn btn-light w-100 mb-2 text-start p-3 shadow-sm border" onclick="backupNow()">
                             <i class="fas fa-database text-warning"></i>
                             <strong class="d-block">نسخ احتياطي فوري</strong>
                             <small class="text-muted">حفظ البيانات الآن</small>
@@ -905,8 +918,8 @@ input:checked + .slider:before {
                     </div>
                 </div>
 
-                <div class="card control-card">
-                    <div class="card-header bg-gradient-success text-white">
+                <div class="card shadow-lg rounded-4 border-0">
+                    <div class="card-header gradient-header text-white" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%);">
                         <h5 class="mb-0">
                             <i class="fas fa-chart-line"></i> صحة النظام
                         </h5>
@@ -994,8 +1007,8 @@ input:checked + .slider:before {
             </div>
 
             <div class="col-lg-6">
-                <div class="card control-card">
-                    <div class="card-header bg-gradient-info text-white">
+                <div class="card shadow-lg rounded-4 border-0">
+                    <div class="card-header gradient-header text-white" style="background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);">
                         <h5 class="mb-0">
                             <i class="fas fa-history"></i> آخر الإجراءات
                         </h5>

@@ -296,6 +296,76 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
+  // Archive Payment
+  document.body.addEventListener('click', async function (e) {
+      const btn = e.target.closest('.btn-archive');
+      if (!btn) return;
+      const id = btn.dataset.id;
+      if (!id) return;
+      
+      const reason = prompt('أدخل سبب أرشفة هذه الدفعة:');
+      if (!reason) return;
+      
+      if (!confirm('هل أنت متأكد من أرشفة سند الدفع #' + id + '؟')) return;
+      
+      const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || document.getElementById('csrf_token')?.value || '';
+      try {
+          const r = await fetch('/payments/archive/' + id, {
+              method: 'POST',
+              headers: {
+                  'Accept': 'application/json',
+                  'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
+              },
+              body: new URLSearchParams({ 
+                  csrf_token: csrf,
+                  reason: reason
+              }).toString()
+          });
+          const j = await r.json().catch(() => ({}));
+          if (r.ok && (j.status === 'success' || j.ok)) {
+              alert('تم أرشفة سند الدفع بنجاح');
+              location.reload();
+          } else {
+              alert('تعذر الأرشفة: ' + (j.message || 'خطأ غير معروف'));
+          }
+      } catch (err) {
+          alert('خطأ في الاتصال بالخادم.');
+      }
+  });
+
+  // Restore Payment
+  document.body.addEventListener('click', async function (e) {
+      const btn = e.target.closest('.btn-restore');
+      if (!btn) return;
+      const id = btn.dataset.id;
+      if (!id) return;
+      
+      if (!confirm('هل أنت متأكد من استعادة سند الدفع #' + id + '؟')) return;
+      
+      const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || document.getElementById('csrf_token')?.value || '';
+      try {
+          const r = await fetch('/payments/restore/' + id, {
+              method: 'POST',
+              headers: {
+                  'Accept': 'application/json',
+                  'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
+              },
+              body: new URLSearchParams({ 
+                  csrf_token: csrf
+              }).toString()
+          });
+          const j = await r.json().catch(() => ({}));
+          if (r.ok && (j.status === 'success' || j.ok)) {
+              alert('تم استعادة سند الدفع بنجاح');
+              location.reload();
+          } else {
+              alert('تعذر الاستعادة: ' + (j.message || 'خطأ غير معروف'));
+          }
+      } catch (err) {
+          alert('خطأ في الاتصال بالخادم.');
+      }
+  });
+
   
 
   

@@ -4,9 +4,18 @@
 {% block content %}
 <div class="container mt-4" dir="rtl">
   <div class="d-flex justify-content-between align-items-center mb-3">
-    <div>
-      <h3 class="mb-0"><i class="fas fa-print ml-2"></i> تقرير المصاريف</h3>
-      <div class="text-muted small mt-1">
+    <div class="d-flex align-items-center">
+      <div class="btn-group shadow-sm rounded-pill overflow-hidden bg-white ml-3 d-print-none">
+           <button onclick="window.history.back()" class="btn btn-sm text-primary fw-bold border-end" title="رجوع">
+               <i class="fas fa-arrow-right"></i>
+           </button>
+           <button onclick="window.history.forward()" class="btn btn-sm text-primary fw-bold" title="تقدم">
+               <i class="fas fa-arrow-left"></i>
+           </button>
+      </div>
+      <div>
+        <h3 class="mb-0"><i class="fas fa-print ml-2"></i> تقرير المصاريف</h3>
+        <div class="text-muted small mt-1">
         {% if search %}بحث: <strong>{{ search }}</strong> · {% endif %}
         {% if start %}من: <strong>{{ start.strftime('%Y-%m-%d') }}</strong> · {% endif %}
         {% if end %}إلى: <strong>{{ end.strftime('%Y-%m-%d') }}</strong> · {% endif %}

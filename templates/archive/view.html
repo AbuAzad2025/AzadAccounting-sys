@@ -144,7 +144,7 @@
     {% if can('hard_delete') %}
     <div class="col-md-4">
       <div class="d-grid">
-        <form method="POST" action="{{ url_for('archive.delete_archive', archive_id=archive.id) }}" onsubmit="return confirm('هل أنت متأكد من حذف هذا الأرشيف نهائياً؟')">
+        <form method="POST" action="{{ url_for('archive.delete_archive', archive_id=archive.id) }}" data-confirm="هل أنت متأكد من حذف هذا الأرشيف نهائياً؟">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button type="submit" class="btn btn-danger fw-bold w-100">
             <i class="fas fa-trash"></i> حذف نهائي

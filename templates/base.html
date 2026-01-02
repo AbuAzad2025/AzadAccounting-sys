@@ -17,6 +17,7 @@
   <meta name="keywords" content="نظام إدارة الكراج، إدارة المركبات، صيانة السيارات، {{ system_settings.company_name or 'شركة ازاد' }}">
   <meta name="author" content="{{ system_settings.company_name or 'شركة ازاد للأنظمة الذكية' }}">
   <meta name="csrf-token" content="{{ csrf_token() }}">
+  <script src="{{ url_for('static', filename='js/archive.js') }}"></script>
   <script>
   (function(){
     try{
@@ -146,6 +147,7 @@
   <!-- Custom CSS -->
   <link rel="preload" href="{{ static_url('css/style.css') }}" as="style">
   <link rel="stylesheet" href="{{ static_url('css/style.css') }}">
+  <link rel="stylesheet" href="{{ static_url('css/security_dark_mode.css') }}">
   
   <!-- Mobile Optimizations CSS -->
   <link rel="stylesheet" href="{{ static_url('css/mobile.css') }}">
@@ -560,6 +562,48 @@
     }
     
     /* Enhanced DataTables */
+    .card-hover {
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .card-hover:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 10px 20px rgba(0,0,0,0.15) !important;
+    }
+    .table-rounded {
+      border-radius: 15px;
+      overflow: hidden;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    }
+    .table-rounded thead th {
+      background: linear-gradient(45deg, #4e73df, #224abe);
+      color: white;
+      border: none;
+    }
+    .form-control-modern {
+      border-radius: 10px;
+      padding: 12px;
+      border: 1px solid #e3e6f0;
+      transition: all 0.3s;
+    }
+    .form-control-modern:focus {
+      box-shadow: 0 0 0 3px rgba(78,115,223,0.1);
+      border-color: #4e73df;
+    }
+    .btn-modern {
+      border-radius: 10px;
+      padding: 10px 25px;
+      font-weight: 600;
+      transition: all 0.3s;
+    }
+    .btn-modern:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    }
+    .gradient-header {
+      background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);
+      color: white;
+    }
+
     .dataTables_wrapper .dataTables_length,
     .dataTables_wrapper .dataTables_filter,
     .dataTables_wrapper .dataTables_info,

@@ -3,6 +3,16 @@
 {% block page_title %}تقرير المبيعات الشامل{% endblock %}
 {% block reports_breadcrumb_extra %}
 <li class="breadcrumb-item active">تقرير المبيعات</li>
+<li class="ms-auto">
+    <div class="btn-group shadow-sm rounded-pill overflow-hidden bg-white">
+        <button onclick="window.history.back()" class="btn btn-sm text-primary fw-bold border-end" title="رجوع">
+            <i class="fas fa-arrow-right"></i>
+        </button>
+        <button onclick="window.history.forward()" class="btn btn-sm text-primary fw-bold" title="تقدم">
+            <i class="fas fa-arrow-left"></i>
+        </button>
+    </div>
+</li>
 {% endblock %}
 
 {% block report_content %}
@@ -13,7 +23,7 @@
 </div>
 <div class="row g-3 mb-4">
   <div class="col-md-2">
-    <div class="card summary-card border-primary h-100">
+    <div class="card summary-card border-primary h-100 card-hover">
       <div class="card-body text-center">
         <div class="text-primary mb-2"><i class="fas fa-shopping-cart fa-2x"></i></div>
         <h3 class="mb-0 text-primary">{{ summary.total_sales }}</h3>
@@ -23,7 +33,7 @@
   </div>
   
   <div class="col-md-2">
-    <div class="card summary-card border-success h-100">
+    <div class="card summary-card border-success h-100 card-hover">
       <div class="card-body text-center">
         <div class="text-success mb-2"><i class="fas fa-dollar-sign fa-2x"></i></div>
         <h5 class="mb-0 text-success">{{ "{:,.2f}".format(summary.total_revenue) }} ₪</h5>
@@ -33,7 +43,7 @@
   </div>
   
   <div class="col-md-2">
-    <div class="card summary-card border-info h-100">
+    <div class="card summary-card border-info h-100 card-hover">
       <div class="card-body text-center">
         <div class="text-info mb-2"><i class="fas fa-chart-line fa-2x"></i></div>
         <h5 class="mb-0 text-info">{{ "{:,.2f}".format(summary.avg_sale) }} ₪</h5>
@@ -43,7 +53,7 @@
   </div>
   
   <div class="col-md-2">
-    <div class="card summary-card border-warning h-100">
+    <div class="card summary-card border-warning h-100 card-hover">
       <div class="card-body text-center">
         <div class="text-warning mb-2"><i class="fas fa-boxes fa-2x"></i></div>
         <h3 class="mb-0 text-warning">{{ summary.total_items }}</h3>
@@ -53,7 +63,7 @@
   </div>
   
   <div class="col-md-2">
-    <div class="card summary-card border-danger h-100">
+    <div class="card summary-card border-danger h-100 card-hover">
       <div class="card-body text-center">
         <div class="text-danger mb-2"><i class="fas fa-cubes fa-2x"></i></div>
         <h3 class="mb-0 text-danger">{{ summary.total_quantity }}</h3>
@@ -63,7 +73,7 @@
   </div>
   
   <div class="col-md-2">
-    <div class="card summary-card border-secondary h-100">
+    <div class="card summary-card border-secondary h-100 card-hover">
       <div class="card-body text-center">
         <div class="text-secondary mb-2"><i class="fas fa-star fa-2x"></i></div>
         <h5 class="mb-0">{{ "{:,.2f}".format(summary.avg_item_value) }} ₪</h5>
@@ -73,23 +83,23 @@
   </div>
 </div>
 
-<div class="card shadow-sm mb-3">
-  <div class="card-header bg-info text-white">
+<div class="card shadow-sm mb-3 card-hover">
+  <div class="card-header text-white" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);">
     <i class="fas fa-filter"></i> فلاتر التقرير
   </div>
   <div class="card-body">
     <form method="get" class="row g-3">
 <div class="col-md-3">
   <label class="form-label"><i class="fas fa-calendar"></i> من تاريخ</label>
-  <input type="date" name="start_date" value="{{ request.args.get('start_date', '') }}" class="form-control">
+  <input type="date" name="start_date" value="{{ request.args.get('start_date', '') }}" class="form-control form-control-modern">
 </div>
 <div class="col-md-3">
   <label class="form-label"><i class="fas fa-calendar"></i> إلى تاريخ</label>
-  <input type="date" name="end_date" value="{{ request.args.get('end_date', '') }}" class="form-control">
+  <input type="date" name="end_date" value="{{ request.args.get('end_date', '') }}" class="form-control form-control-modern">
 </div>
 <div class="col-md-3">
   <label class="form-label"><i class="fas fa-user"></i> العميل</label>
-  <select name="customer_id" class="form-select">
+  <select name="customer_id" class="form-select form-control-modern">
     <option value="">جميع العملاء</option>
     {% for cust in all_customers %}
     <option value="{{ cust.id }}" {% if request.args.get('customer_id') == cust.id|string %}selected{% endif %}>{{ cust.name }}</option>
@@ -98,7 +108,7 @@
 </div>
 <div class="col-md-3">
   <label class="form-label"><i class="fas fa-tag"></i> الحالة</label>
-  <select name="status" class="form-select">
+  <select name="status" class="form-select form-control-modern">
     <option value="">جميع الحالات</option>
     <option value="CONFIRMED" {% if request.args.get('status') == 'CONFIRMED' %}selected{% endif %}>مؤكد</option>
     <option value="PENDING" {% if request.args.get('status') == 'PENDING' %}selected{% endif %}>معلق</option>
@@ -107,7 +117,7 @@
 </div>
 <div class="col-md-3">
   <label class="form-label"><i class="fas fa-user-tie"></i> البائع (الموظف)</label>
-  <select name="employee_id" class="form-select">
+  <select name="employee_id" class="form-select form-control-modern">
     <option value="">جميع الموظفين</option>
     {% for emp in employees %}
     <option value="{{ emp.id }}" {% if selected_employee_id and selected_employee_id == emp.id %}selected{% endif %}>{{ emp.name }}</option>
@@ -115,7 +125,7 @@
   </select>
 </div>
 <div class="col-md-12">
-  <button type="submit" class="btn btn-primary">
+  <button type="submit" class="btn btn-primary btn-modern">
     <i class="fas fa-sync-alt"></i> تحديث
   </button>
 </div>
@@ -123,7 +133,7 @@
 </div>
 </div>
 
-<div class="card shadow-sm">
+<div class="card shadow-sm card-hover">
   <div class="card-header bg-success text-white">
     <h5 class="mb-0"><i class="fas fa-list"></i> قائمة المبيعات التفصيلية</h5>
   </div>
@@ -230,8 +240,8 @@
     </div>
   </div>
   <div class="col-md-6">
-    <div class="card shadow-sm">
-      <div class="card-header bg-success text-white">
+    <div class="card shadow-sm card-hover">
+      <div class="card-header text-white" style="background: linear-gradient(135deg, #1cc88a 0%, #13855c 100%);">
         <h5 class="mb-0"><i class="fas fa-trophy"></i> أفضل 5 منتجات</h5>
       </div>
       <div class="card-body">

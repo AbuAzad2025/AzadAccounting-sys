@@ -1,14 +1,3 @@
-  {% if total_pages > 1 %}
-  <nav aria-label="Tenants pagination" class="mt-3">
-    <ul class="pagination justify-content-center">
-      {% for p in range(1, total_pages + 1) %}
-      <li class="page-item {% if p == page %}active{% endif %}">
-        <a class="page-link" href="{{ url_for('advanced.multi_tenant', page=p, q=filters.search, status=filters.status, module=filters.module) }}">{{ p }}</a>
-      </li>
-      {% endfor %}
-    </ul>
-  </nav>
-  {% endif %}
 {% extends 'base.html' %}
 {% block title %}Multi-Tenant المتقدم{% endblock %}
 {% block page_title %}🏢 Multi-Tenant - إدارة نسخ متعددة متقدمة{% endblock %}
@@ -20,20 +9,25 @@
   transition: all 0.3s ease;
   border-left: 5px solid transparent;
 }
+.tenant-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 20px rgba(0,0,0,0.1) !important;
+}
 .tenant-card.active {
   border-left-color: #28a745;
   background: linear-gradient(135deg, #e8f5e9 0%, #f1f8e9 100%);
 }
 .tenant-card.inactive {
   border-left-color: #dc3545;
-  opacity: 0.7;
+  opacity: 0.8;
 }
 .module-badge {
   display: inline-block;
-  padding: 0.25rem 0.5rem;
+  padding: 0.25rem 0.6rem;
   margin: 0.1rem;
-  border-radius: 0.25rem;
+  border-radius: 50rem;
   font-size: 0.75rem;
+  font-weight: 500;
 }
 </style>
 {% endblock %}
@@ -43,40 +37,55 @@
   
   {% include 'advanced/_navigation.html' %}
   
-  <div class="alert border-0 shadow-lg" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
-    <h5><i class="fas fa-building"></i> <strong>Multi-Tenant المتقدم</strong></h5>
-    <p class="mb-0">إدارة نسخ متعددة من النظام لعملاء مختلفين - كل عميل بقاعدة بيانات ووحدات مستقلة</p>
+  <div class="alert border-0 shadow-lg d-flex justify-content-between align-items-center" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+    <div>
+      <h5><i class="fas fa-building"></i> <strong>Multi-Tenant المتقدم</strong></h5>
+      <p class="mb-0">إدارة نسخ متعددة من النظام لعملاء مختلفين - كل عميل بقاعدة بيانات ووحدات مستقلة</p>
+    </div>
+    <div class="d-flex gap-2">
+      <div class="btn-group shadow-sm rounded-pill overflow-hidden bg-white">
+          <button onclick="window.history.back()" class="btn btn-sm text-primary fw-bold border-end" title="رجوع">
+              <i class="fas fa-arrow-right"></i>
+          </button>
+          <button onclick="window.history.forward()" class="btn btn-sm text-primary fw-bold" title="تقدم">
+              <i class="fas fa-arrow-left"></i>
+          </button>
+      </div>
+      <a href="{{ url_for('advanced.owner_hub') }}" class="btn btn-sm btn-light shadow-sm text-primary fw-bold">
+        <i class="fas fa-home me-1"></i> لوحة المالك
+      </a>
+    </div>
   </div>
 
   <div class="row g-3 mb-4">
     <div class="col-md-3">
-      <div class="card border-0 shadow-sm bg-primary text-white">
+      <div class="card border-0 shadow-sm bg-primary text-white card-hover" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);">
         <div class="card-body text-center">
-          <h2 class="mb-0">{{ stats.total_tenants }}</h2>
+          <h2 class="mb-0 fw-bold">{{ stats.total_tenants }}</h2>
           <p class="mb-0">إجمالي Tenants</p>
         </div>
       </div>
     </div>
     <div class="col-md-3">
-      <div class="card border-0 shadow-sm bg-success text-white">
+      <div class="card border-0 shadow-sm bg-success text-white card-hover" style="background: linear-gradient(135deg, #198754 0%, #157347 100%);">
         <div class="card-body text-center">
-          <h2 class="mb-0">{{ stats.active_tenants }}</h2>
+          <h2 class="mb-0 fw-bold">{{ stats.active_tenants }}</h2>
           <p class="mb-0">مفعّل</p>
         </div>
       </div>
     </div>
     <div class="col-md-3">
-      <div class="card border-0 shadow-sm bg-danger text-white">
+      <div class="card border-0 shadow-sm bg-danger text-white card-hover" style="background: linear-gradient(135deg, #dc3545 0%, #b02a37 100%);">
         <div class="card-body text-center">
-          <h2 class="mb-0">{{ stats.inactive_tenants }}</h2>
+          <h2 class="mb-0 fw-bold">{{ stats.inactive_tenants }}</h2>
           <p class="mb-0">معطّل</p>
         </div>
       </div>
     </div>
     <div class="col-md-3">
-      <div class="card border-0 shadow-sm bg-info text-white">
+      <div class="card border-0 shadow-sm bg-info text-white card-hover" style="background: linear-gradient(135deg, #0dcaf0 0%, #0aa2c0 100%);">
         <div class="card-body text-center">
-          <h2 class="mb-0">{{ stats.total_users_limit }}</h2>
+          <h2 class="mb-0 fw-bold">{{ stats.total_users_limit }}</h2>
           <p class="mb-0">حد المستخدمين</p>
           <small class="d-block">بدون نطاق: {{ stats.missing_domain }}</small>
         </div>
@@ -97,11 +106,11 @@
           <form method="GET" class="row g-3 align-items-end">
             <div class="col-md-4">
               <label class="form-label fw-bold">بحث</label>
-              <input type="text" name="q" value="{{ filters.search }}" class="form-control" placeholder="اسم، نطاق، قاعدة">
+              <input type="text" name="q" value="{{ filters.search }}" class="form-control form-control-modern" placeholder="اسم، نطاق، قاعدة">
             </div>
             <div class="col-md-3">
               <label class="form-label fw-bold">الحالة</label>
-              <select name="status" class="custom-select">
+              <select name="status" class="custom-select form-control form-control-modern">
                 <option value="all" {% if filters.status == 'all' %}selected{% endif %}>الكل</option>
                 <option value="active" {% if filters.status == 'active' %}selected{% endif %}>نشط</option>
                 <option value="inactive" {% if filters.status == 'inactive' %}selected{% endif %}>موقوف</option>
@@ -109,7 +118,7 @@
             </div>
             <div class="col-md-3">
               <label class="form-label fw-bold">الوحدة</label>
-              <select name="module" class="custom-select">
+              <select name="module" class="custom-select form-control form-control-modern">
                 <option value="all" {% if filters.module == 'all' %}selected{% endif %}>كل الوحدات</option>
                 {% for module in available_modules %}
                 <option value="{{ module.key }}" {% if filters.module == module.key %}selected{% endif %}>
@@ -133,17 +142,17 @@
       </div>
     </div>
     <div class="col-lg-4">
-      <div class="card border-0 shadow-sm h-100 mb-3">
-        <div class="card-header bg-light d-flex justifyوقيت-content-between align-items-center">
+      <div class="card border-0 shadow-sm h-100 mb-3 card-hover">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center">
           <span><i class="fas fa-layer-group"></i> أكثر الوحدات استخداماً</span>
-          <span class="badge bg-secondary">{{ module_usage|length }}</span>
+          <span class="badge bg-secondary rounded-pill">{{ module_usage|length }}</span>
         </div>
         <div class="card-body" style="max-height: 250px; overflow-y: auto;">
           {% for module in module_usage %}
             {% if loop.index <= 8 %}
             <div class="d-flex justify-content-between align-items-center mb-2">
               <span><i class="fas fa-{{ module.icon }}"></i> {{ module.name }}</span>
-              <span class="badge bg-primary">{{ module.count }}</span>
+              <span class="badge bg-primary rounded-pill">{{ module.count }}</span>
             </div>
             {% endif %}
           {% else %}
@@ -151,22 +160,22 @@
           {% endfor %}
         </div>
       </div>
-      <div class="card border-0 shadow-sm">
+      <div class="card border-0 shadow-sm card-hover">
         <div class="card-header bg-light">
           <span><i class="fas fa-heartbeat"></i> حالة التنشيط</span>
         </div>
         <div class="card-body">
           <div class="d-flex justify-content-between mb-2">
             <span>نشط</span>
-            <span class="badge bg-success">{{ stats.active_tenants }}</span>
+            <span class="badge bg-success rounded-pill">{{ stats.active_tenants }}</span>
           </div>
           <div class="d-flex justify-content-between mb-2">
             <span>معطّل</span>
-            <span class="badge bg-warning text-dark">{{ stats.inactive_tenants }}</span>
+            <span class="badge bg-warning text-dark rounded-pill">{{ stats.inactive_tenants }}</span>
           </div>
           <div class="d-flex justify-content-between">
             <span>بدون نطاق</span>
-            <span class="badge bg-secondary">{{ stats.missing_domain }}</span>
+            <span class="badge bg-secondary rounded-pill">{{ stats.missing_domain }}</span>
           </div>
         </div>
       </div>
@@ -175,7 +184,7 @@
 
   <div class="row">
     <div class="col-md-4">
-      <div class="card border-0 shadow-lg">
+      <div class="card border-0 shadow-lg card-hover">
         <div class="card-header" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white;">
           <h5 class="mb-0"><i class="fas fa-plus"></i> إضافة Tenant جديد</h5>
         </div>
@@ -188,7 +197,7 @@
               <label class="form-label fw-bold">
                 <i class="fas fa-tag"></i> اسم العميل/الفرع
               </label>
-              <input type="text" name="tenant_name" class="form-control" 
+              <input type="text" name="tenant_name" class="form-control form-control-modern" 
                      placeholder="مثال: branch_ramallah" required>
               <small class="text-muted">بدون مسافات - استخدم _ أو -</small>
             </div>
@@ -197,7 +206,7 @@
               <label class="form-label fw-bold">
                 <i class="fas fa-database"></i> قاعدة البيانات
               </label>
-              <input type="text" name="tenant_db" class="form-control" 
+              <input type="text" name="tenant_db" class="form-control form-control-modern" 
                      placeholder="postgresql://user:password@host:5432/tenant_db" required>
               <small class="text-muted">يجب أن تكون PostgreSQL (postgresql://...)</small>
             </div>
@@ -254,7 +263,7 @@
     </div>
 
     <div class="col-md-8">
-      <div class="card border-0 shadow-sm">
+      <div class="card border-0 shadow-sm card-hover">
         <div class="card-header bg-gradient-primary text-white d-flex justify-content-between align-items-center">
           <h5 class="mb-0"><i class="fas fa-list"></i> Tenants المسجلة ({{ visible_count }})</h5>
           {% if total_pages > 1 %}
@@ -293,19 +302,19 @@
                     </div>
                   </div>
                   
-                  <div class="mb-2">
-                    <strong>الوحدات المفعّلة:</strong><br>
+                  <div class="mb-3">
+                    <h6 class="small text-muted mb-2">الوحدات المفعّلة:</h6>
                     {% if tenant.modules %}
                       {% for mod_key in tenant.modules %}
                         {% set module = module_lookup.get(mod_key) %}
                         {% if module %}
-                        <span class="module-badge bg-primary text-white">
+                        <span class="module-badge bg-primary text-white rounded-pill shadow-sm">
                           <i class="fas fa-{{ module.icon }}"></i> {{ module.name }}
                         </span>
                         {% endif %}
                       {% endfor %}
                     {% else %}
-                      <span class="text-muted">جميع الوحدات</span>
+                      <span class="text-muted small fst-italic">جميع الوحدات (افتراضي)</span>
                     {% endif %}
                   </div>
                   
@@ -321,9 +330,9 @@
                   <div class="mt-2">
                     {% for issue in tenant.issues %}
                       {% if issue == 'missing_domain' %}
-                        <span class="badge bg-warning text-dark">بدون نطاق</span>
+                        <span class="badge bg-warning text-dark rounded-pill">بدون نطاق</span>
                       {% elif issue == 'missing_logo' %}
-                        <span class="badge bg-secondary">بدون شعار</span>
+                        <span class="badge bg-secondary rounded-pill">بدون شعار</span>
                       {% endif %}
                     {% endfor %}
                   </div>
@@ -333,9 +342,9 @@
                 <div class="col-md-4 text-end">
                   <div class="mb-2">
                     {% if tenant.active %}
-                      <span class="badge bg-success">مفعّل</span>
+                      <span class="badge bg-success rounded-pill">مفعّل</span>
                     {% else %}
-                      <span class="badge bg-danger">معطّل</span>
+                      <span class="badge bg-danger rounded-pill">معطّل</span>
                     {% endif %}
                   </div>
                   

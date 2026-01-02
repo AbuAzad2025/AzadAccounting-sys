@@ -5,7 +5,7 @@
 {{ super() }}
 <style>
   .stock-info-card {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);
     color: white;
     border-radius: 10px;
     padding: 20px;
@@ -157,8 +157,22 @@
   {{ form.hidden_tag() }}
   <input type="hidden" name="source_id" value="{{ warehouse.id }}">
 
-  <div class="card shadow-sm mb-3">
-    <div class="card-body">
+  <div class="card shadow-lg rounded-4 border-0 mb-4">
+    <div class="card-header text-white d-flex align-items-center justify-content-between" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);">
+      <h5 class="mb-0">
+        <i class="fas fa-random ml-2"></i>
+        تسجيل تحويل جديد
+      </h5>
+      <div class="btn-group shadow-sm rounded-pill overflow-hidden bg-white">
+          <button onclick="window.history.back()" class="btn btn-sm text-primary fw-bold border-end" title="رجوع">
+              <i class="fas fa-arrow-right"></i>
+          </button>
+          <button onclick="window.history.forward()" class="btn btn-sm text-primary fw-bold" title="تقدم">
+              <i class="fas fa-arrow-left"></i>
+          </button>
+      </div>
+    </div>
+    <div class="card-body p-4">
       
       <!-- قسم 1: معلومات المرجع والتاريخ -->
       <div class="card-section">
@@ -175,7 +189,7 @@
                  data-toggle="tooltip" 
                  title="اتركه فارغاً للإنشاء التلقائي (مثال: TRF20241020AB12CD34)"></i>
             </label>
-            {{ form.reference(class="form-control", placeholder="اتركه فارغاً للتوليد التلقائي") }}
+            {{ form.reference(class="form-control form-control-modern", placeholder="اتركه فارغاً للتوليد التلقائي") }}
             <div class="reference-preview" id="referencePreview"></div>
           </div>
           
@@ -184,7 +198,7 @@
               <i class="fas fa-calendar-alt field-icon"></i>
               {{ form.transfer_date.label }}
             </label>
-            {{ form.transfer_date(class="form-control", type="datetime-local") }}
+            {{ form.transfer_date(class="form-control form-control-modern", type="datetime-local") }}
             <small class="form-text text-muted">الافتراضي: التاريخ والوقت الحالي</small>
           </div>
         </div>
@@ -202,7 +216,7 @@
               <i class="fas fa-cube field-icon"></i>
               {{ form.product_id.label }} <span class="text-danger">*</span>
             </label>
-            {{ form.product_id(class="form-control", required=True) }}
+            {{ form.product_id(class="form-control form-control-modern select2", required=True) }}
           </div>
         </div>
       </div>
@@ -219,7 +233,7 @@
               <i class="fas fa-warehouse field-icon text-danger"></i>
               {{ form.source_id.label }}
             </label>
-            {{ form.source_id(class="form-control", id="source_id", disabled=True) }}
+            {{ form.source_id(class="form-control form-control-modern", id="source_id", disabled=True) }}
             <small class="form-text text-muted">
               <i class="fas fa-lock ml-1"></i>
               مثبت على: {{ warehouse.name }}
@@ -231,7 +245,7 @@
               <i class="fas fa-warehouse field-icon text-success"></i>
               {{ form.destination_id.label }} <span class="text-danger">*</span>
             </label>
-            {{ form.destination_id(class="form-control", required=True) }}
+            {{ form.destination_id(class="form-control form-control-modern select2", required=True) }}
         </div>
 
         <div class="col-md-4">
@@ -239,7 +253,7 @@
               <i class="fas fa-sort-numeric-up field-icon"></i>
               {{ form.quantity.label }} <span class="text-danger">*</span>
             </label>
-            {{ form.quantity(class="form-control", min="1", type="number", required=True) }}
+            {{ form.quantity(class="form-control form-control-modern", min="1", type="number", required=True) }}
             <div class="stock-warning" id="stockWarning">
               <i class="fas fa-exclamation-triangle ml-2"></i>
               <span id="warningMessage"></span>
@@ -260,7 +274,7 @@
               <i class="fas fa-comment field-icon"></i>
               {{ form.notes.label }}
             </label>
-            {{ form.notes(class="form-control", rows="3", placeholder="أضف أي ملاحظات أو تفاصيل إضافية عن التحويل...") }}
+            {{ form.notes(class="form-control form-control-modern", rows="3", placeholder="أضف أي ملاحظات أو تفاصيل إضافية عن التحويل...") }}
             <small class="form-text text-muted">اختياري - الحد الأقصى 2000 حرف</small>
         </div>
         </div>

@@ -19,6 +19,12 @@
       </button>
     </li>
 
+    <li class="nav-item">
+      <button class="nav-link btn btn-link text-white nav-strong" onclick="toggleDarkMode()" title="تبديل الوضع الليلي" style="border: none; background: none;" id="darkModeToggleNavbar">
+        <i class="fas fa-moon"></i>
+      </button>
+    </li>
+
     {% if current_user.is_authenticated and (has_perm('view_shop') or has_perm('manage_shop')) %}
     <li class="nav-item">
       <a class="nav-link nav-strong" href="{{ url_for('shop.catalog') }}" target="_blank" title="المتجر">
@@ -31,7 +37,7 @@
       {% set ai_enabled_value = get_setting('ai_enabled', True) %}
       {% set ai_enabled = (ai_enabled_value|string).lower() == 'true' %}
       {% if ai_enabled %}
-        {% if can('access_ai_assistant') %}
+        {% if can('access_ai_assistant') and current_user.is_system %}
         <li class="nav-item">
           <a class="nav-link nav-strong" href="{{ url_for('ai.assistant') }}" title="المساعد الذكي">
             <i class="fas fa-robot"></i>
@@ -171,18 +177,39 @@
         
         <!-- تسجيل الخروج -->
         <div class="px-3 py-2">
-          <form action="{{ url_for('auth.logout') }}" method="post">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button type="submit" class="btn btn-danger btn-block" style="font-weight: 700; font-size: 15px; padding: 10px; border-radius: 8px;">
-              <i class="fas fa-sign-out-alt mr-2"></i> <strong>تسجيل خروج</strong>
-            </button>
-          </form>
+          <button type="button" class="btn btn-danger btn-block" style="font-weight: 700; font-size: 15px; padding: 10px; border-radius: 8px;" data-toggle="modal" data-target="#logoutModalNavbar">
+            <i class="fas fa-sign-out-alt mr-2"></i> <strong>تسجيل خروج</strong>
+          </button>
         </div>
       </div>
     </li>
   </ul>
   {% endif %}
 </nav>
+
+<!-- Logout Modal -->
+<div class="modal fade" id="logoutModalNavbar" tabindex="-1" role="dialog" aria-labelledby="logoutModalLabel" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header bg-danger text-white">
+        <h5 class="modal-title" id="logoutModalLabel">تأكيد تسجيل الخروج</h5>
+        <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        هل أنت متأكد أنك تريد تسجيل الخروج من النظام؟
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">إلغاء</button>
+        <form action="{{ url_for('auth.logout') }}" method="post" data-no-confirm="true">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-danger">تسجيل خروج</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
 
 <style>
 /* تحسينات الأفاتار والمستخدم */

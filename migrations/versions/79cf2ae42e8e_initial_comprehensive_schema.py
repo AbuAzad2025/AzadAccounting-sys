@@ -1,8 +1,8 @@
-"""Initial_Setup
+"""initial_comprehensive_schema
 
-Revision ID: 121683435140
+Revision ID: 79cf2ae42e8e
 Revises: 
-Create Date: 2025-12-27 00:03:24.386686
+Create Date: 2026-01-02 19:07:41.191545
 
 """
 from alembic import op
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '121683435140'
-down_revision = 'a1b2c3d4e5f6'
+revision = '79cf2ae42e8e'
+down_revision = None
 branch_labels = None
 depends_on = None
 
@@ -56,9 +56,6 @@ def upgrade():
     sa.Column('archive_reason', sa.String(length=200), nullable=True),
     sa.Column('created_at', sa.DateTime(), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
     sa.Column('updated_at', sa.DateTime(), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
-    sa.ForeignKeyConstraint(['archived_by'], ['users.id'], ),
-    sa.ForeignKeyConstraint(['manager_employee_id'], ['employees.id'], ),
-    sa.ForeignKeyConstraint(['manager_user_id'], ['users.id'], ),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('code')
     )
@@ -81,6 +78,34 @@ def upgrade():
     sa.Column('is_active', sa.Boolean(), server_default=sa.text('(true)'), nullable=False),
     sa.PrimaryKeyConstraint('code')
     )
+    op.create_table('employees',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('name', sa.String(length=100), nullable=False),
+    sa.Column('position', sa.String(length=100), nullable=True),
+    sa.Column('salary', sa.Numeric(precision=15, scale=2), nullable=True),
+    sa.Column('phone', sa.String(length=20), nullable=True),
+    sa.Column('email', sa.String(length=120), nullable=True),
+    sa.Column('hire_date', sa.Date(), nullable=True),
+    sa.Column('bank_name', sa.String(length=100), nullable=True),
+    sa.Column('account_number', sa.String(length=100), nullable=True),
+    sa.Column('notes', sa.Text(), nullable=True),
+    sa.Column('currency', sa.String(length=10), server_default=sa.text("'ILS'"), nullable=False),
+    sa.Column('branch_id', sa.Integer(), nullable=False),
+    sa.Column('site_id', sa.Integer(), nullable=True),
+    sa.Column('created_at', sa.DateTime(), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+    sa.ForeignKeyConstraint(['branch_id'], ['branches.id'], ),
+    sa.ForeignKeyConstraint(['site_id'], ['sites.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    with op.batch_alter_table('employees', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_employees_branch_id'), ['branch_id'], unique=False)
+        batch_op.create_index(batch_op.f('ix_employees_created_at'), ['created_at'], unique=False)
+        batch_op.create_index(batch_op.f('ix_employees_email'), ['email'], unique=True)
+        batch_op.create_index(batch_op.f('ix_employees_hire_date'), ['hire_date'], unique=False)
+        batch_op.create_index(batch_op.f('ix_employees_name'), ['name'], unique=False)
+        batch_op.create_index(batch_op.f('ix_employees_site_id'), ['site_id'], unique=False)
+        batch_op.create_index(batch_op.f('ix_employees_updated_at'), ['updated_at'], unique=False)
 
     op.create_table('engineering_skills',
     sa.Column('id', sa.Integer(), nullable=False),
@@ -166,6 +191,7 @@ def upgrade():
         batch_op.create_index(batch_op.f('ix_gl_batches_status'), ['status'], unique=False)
         batch_op.create_index(batch_op.f('ix_gl_batches_updated_at'), ['updated_at'], unique=False)
         batch_op.create_index('ix_gl_entity', ['entity_type', 'entity_id'], unique=False)
+        batch_op.create_index('ix_gl_posted_status', ['status', 'posted_at'], unique=False)
         batch_op.create_index('ix_gl_status_source', ['status', 'source_type', 'source_id'], unique=False)
 
     op.create_table('permissions',
@@ -200,6 +226,15 @@ def upgrade():
         batch_op.create_index(batch_op.f('ix_product_categories_name'), ['name'], unique=False)
         batch_op.create_index(batch_op.f('ix_product_categories_updated_at'), ['updated_at'], unique=False)
 
+    op.create_table('roles',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('name', sa.String(length=50), nullable=False),
+    sa.Column('description', sa.String(length=200), nullable=True),
+    sa.Column('is_default', sa.Boolean(), nullable=False),
+    sa.PrimaryKeyConstraint('id')
+    )
+    with op.batch_alter_table('roles', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_roles_name'), ['name'], unique=True)
 
     op.create_table('saas_plans',
     sa.Column('id', sa.Integer(), nullable=False),
@@ -261,9 +296,6 @@ def upgrade():
         batch_op.create_index(batch_op.f('ix_sites_manager_user_id'), ['manager_user_id'], unique=False)
         batch_op.create_index(batch_op.f('ix_sites_name'), ['name'], unique=False)
         batch_op.create_index(batch_op.f('ix_sites_updated_at'), ['updated_at'], unique=False)
-
-    op.create_foreign_key('fk_employees_branch_id_branches', 'employees', 'branches', ['branch_id'], ['id'])
-    op.create_foreign_key('fk_employees_site_id_sites', 'employees', 'sites', ['site_id'], ['id'])
 
     op.create_table('system_settings',
     sa.Column('id', sa.Integer(), nullable=False),
@@ -407,6 +439,32 @@ def upgrade():
     sa.ForeignKeyConstraint(['role_id'], ['roles.id'], ),
     sa.PrimaryKeyConstraint('role_id', 'permission_id')
     )
+    op.create_table('users',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('username', sa.String(length=50), nullable=False),
+    sa.Column('email', sa.String(length=120), nullable=False),
+    sa.Column('password_hash', sa.String(length=255), nullable=False),
+    sa.Column('role_id', sa.Integer(), nullable=True),
+    sa.Column('is_active', sa.Boolean(), server_default=sa.text('(true)'), nullable=False),
+    sa.Column('is_system_account', sa.Boolean(), server_default=sa.text('(false)'), nullable=False),
+    sa.Column('last_login', sa.DateTime(), nullable=True),
+    sa.Column('last_seen', sa.DateTime(), nullable=True),
+    sa.Column('last_login_ip', sa.String(length=64), nullable=True),
+    sa.Column('login_count', sa.Integer(), server_default=sa.text('0'), nullable=False),
+    sa.Column('avatar_url', sa.String(length=500), nullable=True),
+    sa.Column('notes_text', sa.Text(), nullable=True),
+    sa.Column('created_at', sa.DateTime(), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+    sa.ForeignKeyConstraint(['role_id'], ['roles.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    with op.batch_alter_table('users', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_users_created_at'), ['created_at'], unique=False)
+        batch_op.create_index(batch_op.f('ix_users_email'), ['email'], unique=True)
+        batch_op.create_index(batch_op.f('ix_users_is_system_account'), ['is_system_account'], unique=False)
+        batch_op.create_index(batch_op.f('ix_users_role_id'), ['role_id'], unique=False)
+        batch_op.create_index(batch_op.f('ix_users_updated_at'), ['updated_at'], unique=False)
+        batch_op.create_index(batch_op.f('ix_users_username'), ['username'], unique=True)
 
     op.create_table('archives',
     sa.Column('id', sa.Integer(), nullable=False),
@@ -590,10 +648,28 @@ def upgrade():
     sa.UniqueConstraint('phone')
     )
     with op.batch_alter_table('customers', schema=None) as batch_op:
+        batch_op.create_index('ix_customers_active_name', ['is_active', 'name'], unique=False)
         batch_op.create_index(batch_op.f('ix_customers_archived_at'), ['archived_at'], unique=False)
         batch_op.create_index(batch_op.f('ix_customers_archived_by'), ['archived_by'], unique=False)
+        batch_op.create_index('ix_customers_checks_in_balance', ['checks_in_balance'], unique=False)
+        batch_op.create_index('ix_customers_checks_out_balance', ['checks_out_balance'], unique=False)
         batch_op.create_index(batch_op.f('ix_customers_created_at'), ['created_at'], unique=False)
+        batch_op.create_index('ix_customers_credit_limit', ['credit_limit'], unique=False)
         batch_op.create_index(batch_op.f('ix_customers_current_balance'), ['current_balance'], unique=False)
+        batch_op.create_index('ix_customers_expenses_balance', ['expenses_balance'], unique=False)
+        batch_op.create_index('ix_customers_invoices_balance', ['invoices_balance'], unique=False)
+        batch_op.create_index('ix_customers_online_active', ['is_online', 'is_active'], unique=False)
+        batch_op.create_index('ix_customers_online_orders_balance', ['online_orders_balance'], unique=False)
+        batch_op.create_index('ix_customers_opening_balance', ['opening_balance'], unique=False)
+        batch_op.create_index('ix_customers_payments_in_balance', ['payments_in_balance'], unique=False)
+        batch_op.create_index('ix_customers_payments_out_balance', ['payments_out_balance'], unique=False)
+        batch_op.create_index('ix_customers_preorders_balance', ['preorders_balance'], unique=False)
+        batch_op.create_index('ix_customers_returned_checks_in_balance', ['returned_checks_in_balance'], unique=False)
+        batch_op.create_index('ix_customers_returned_checks_out_balance', ['returned_checks_out_balance'], unique=False)
+        batch_op.create_index('ix_customers_returns_balance', ['returns_balance'], unique=False)
+        batch_op.create_index('ix_customers_sales_balance', ['sales_balance'], unique=False)
+        batch_op.create_index('ix_customers_service_expenses_balance', ['service_expenses_balance'], unique=False)
+        batch_op.create_index('ix_customers_services_balance', ['services_balance'], unique=False)
         batch_op.create_index(batch_op.f('ix_customers_updated_at'), ['updated_at'], unique=False)
 
     op.create_table('deletion_logs',
@@ -1095,6 +1171,7 @@ def upgrade():
         batch_op.create_index(batch_op.f('ix_partners_email'), ['email'], unique=True)
         batch_op.create_index(batch_op.f('ix_partners_is_archived'), ['is_archived'], unique=False)
         batch_op.create_index(batch_op.f('ix_partners_name'), ['name'], unique=False)
+        batch_op.create_index('ix_partners_opening_balance', ['opening_balance'], unique=False)
         batch_op.create_index(batch_op.f('ix_partners_updated_at'), ['updated_at'], unique=False)
 
     op.create_table('projects',
@@ -1288,6 +1365,16 @@ def upgrade():
         batch_op.create_index(batch_op.f('ix_service_requests_status'), ['status'], unique=False)
         batch_op.create_index(batch_op.f('ix_service_requests_updated_at'), ['updated_at'], unique=False)
         batch_op.create_index(batch_op.f('ix_service_requests_vehicle_type_id'), ['vehicle_type_id'], unique=False)
+        batch_op.create_index('ix_srv_chassis', ['chassis_number'], unique=False)
+        batch_op.create_index('ix_srv_completed_at', ['completed_at'], unique=False)
+        batch_op.create_index('ix_srv_cost_center', ['cost_center_id'], unique=False)
+        batch_op.create_index('ix_srv_created_status', ['created_at', 'status'], unique=False)
+        batch_op.create_index('ix_srv_cust_status', ['customer_id', 'status'], unique=False)
+        batch_op.create_index('ix_srv_expected_delivery', ['expected_delivery'], unique=False)
+        batch_op.create_index('ix_srv_mech_status', ['mechanic_id', 'status'], unique=False)
+        batch_op.create_index('ix_srv_total_amount', ['total_amount'], unique=False)
+        batch_op.create_index('ix_srv_vehicle_model', ['vehicle_model'], unique=False)
+        batch_op.create_index('ix_srv_vehicle_vrn', ['vehicle_vrn'], unique=False)
 
     op.create_table('suppliers',
     sa.Column('id', sa.Integer(), nullable=False),
@@ -1329,6 +1416,9 @@ def upgrade():
     sa.UniqueConstraint('identity_number')
     )
     with op.batch_alter_table('suppliers', schema=None) as batch_op:
+        batch_op.create_index('ix_supp_contact', ['contact'], unique=False)
+        batch_op.create_index('ix_supp_name_active', ['name', 'is_archived'], unique=False)
+        batch_op.create_index('ix_supp_opening_balance', ['opening_balance'], unique=False)
         batch_op.create_index(batch_op.f('ix_suppliers_archived_at'), ['archived_at'], unique=False)
         batch_op.create_index(batch_op.f('ix_suppliers_archived_by'), ['archived_by'], unique=False)
         batch_op.create_index(batch_op.f('ix_suppliers_created_at'), ['created_at'], unique=False)
@@ -1626,6 +1716,9 @@ def upgrade():
     sa.PrimaryKeyConstraint('id')
     )
     with op.batch_alter_table('partner_settlements', schema=None) as batch_op:
+        batch_op.create_index('ix_partner_settle_closing_balance', ['closing_balance'], unique=False)
+        batch_op.create_index('ix_partner_settle_opening_balance', ['opening_balance'], unique=False)
+        batch_op.create_index('ix_partner_settle_total_due', ['total_due'], unique=False)
         batch_op.create_index(batch_op.f('ix_partner_settlements_code'), ['code'], unique=True)
         batch_op.create_index(batch_op.f('ix_partner_settlements_created_at'), ['created_at'], unique=False)
         batch_op.create_index(batch_op.f('ix_partner_settlements_from_date'), ['from_date'], unique=False)
@@ -1839,6 +1932,9 @@ def upgrade():
     sa.PrimaryKeyConstraint('id')
     )
     with op.batch_alter_table('supplier_settlements', schema=None) as batch_op:
+        batch_op.create_index('ix_supplier_settle_closing_balance', ['closing_balance'], unique=False)
+        batch_op.create_index('ix_supplier_settle_opening_balance', ['opening_balance'], unique=False)
+        batch_op.create_index('ix_supplier_settle_total_due', ['total_due'], unique=False)
         batch_op.create_index(batch_op.f('ix_supplier_settlements_code'), ['code'], unique=True)
         batch_op.create_index(batch_op.f('ix_supplier_settlements_created_at'), ['created_at'], unique=False)
         batch_op.create_index(batch_op.f('ix_supplier_settlements_from_date'), ['from_date'], unique=False)
@@ -1925,6 +2021,10 @@ def upgrade():
         batch_op.create_index(batch_op.f('ix_warehouses_branch_id'), ['branch_id'], unique=False)
         batch_op.create_index(batch_op.f('ix_warehouses_created_at'), ['created_at'], unique=False)
         batch_op.create_index(batch_op.f('ix_warehouses_name'), ['name'], unique=False)
+        batch_op.create_index('ix_warehouses_parent', ['parent_id'], unique=False)
+        batch_op.create_index('ix_warehouses_partner', ['partner_id'], unique=False)
+        batch_op.create_index('ix_warehouses_share_percent', ['share_percent'], unique=False)
+        batch_op.create_index('ix_warehouses_supplier', ['supplier_id'], unique=False)
         batch_op.create_index(batch_op.f('ix_warehouses_updated_at'), ['updated_at'], unique=False)
         batch_op.create_index(batch_op.f('ix_warehouses_warehouse_type'), ['warehouse_type'], unique=False)
 
@@ -2207,9 +2307,13 @@ def upgrade():
         batch_op.create_index('ix_products_brand_part', ['brand', 'part_number'], unique=False)
         batch_op.create_index('ix_products_category_active', ['category_id', 'is_active'], unique=False)
         batch_op.create_index(batch_op.f('ix_products_created_at'), ['created_at'], unique=False)
+        batch_op.create_index('ix_products_is_published', ['is_published'], unique=False)
         batch_op.create_index(batch_op.f('ix_products_name'), ['name'], unique=False)
         batch_op.create_index(batch_op.f('ix_products_part_number'), ['part_number'], unique=False)
+        batch_op.create_index('ix_products_supplier', ['supplier_id'], unique=False)
         batch_op.create_index(batch_op.f('ix_products_updated_at'), ['updated_at'], unique=False)
+        batch_op.create_index('ix_products_vehicle_type', ['vehicle_type_id'], unique=False)
+        batch_op.create_index('ix_products_warehouse', ['warehouse_id'], unique=False)
         batch_op.create_index('uq_products_barcode', ['barcode'], unique=True, postgresql_where=sa.text('barcode IS NOT NULL'))
 
     op.create_table('project_costs',
@@ -2428,6 +2532,8 @@ def upgrade():
     sa.PrimaryKeyConstraint('id')
     )
     with op.batch_alter_table('partner_settlement_lines', schema=None) as batch_op:
+        batch_op.create_index('ix_partner_settle_line_product', ['product_id'], unique=False)
+        batch_op.create_index('ix_partner_settle_line_warehouse', ['warehouse_id'], unique=False)
         batch_op.create_index(batch_op.f('ix_partner_settlement_lines_created_at'), ['created_at'], unique=False)
         batch_op.create_index(batch_op.f('ix_partner_settlement_lines_settlement_id'), ['settlement_id'], unique=False)
         batch_op.create_index(batch_op.f('ix_partner_settlement_lines_source_id'), ['source_id'], unique=False)
@@ -2483,9 +2589,12 @@ def upgrade():
         batch_op.create_index(batch_op.f('ix_preorders_created_at'), ['created_at'], unique=False)
         batch_op.create_index('ix_preorders_cust_status', ['customer_id', 'status'], unique=False)
         batch_op.create_index(batch_op.f('ix_preorders_customer_id'), ['customer_id'], unique=False)
+        batch_op.create_index('ix_preorders_date_status', ['preorder_date', 'status'], unique=False)
         batch_op.create_index(batch_op.f('ix_preorders_idempotency_key'), ['idempotency_key'], unique=True)
         batch_op.create_index('ix_preorders_partner_status', ['partner_id', 'status'], unique=False)
+        batch_op.create_index('ix_preorders_pay_method', ['payment_method'], unique=False)
         batch_op.create_index(batch_op.f('ix_preorders_preorder_date'), ['preorder_date'], unique=False)
+        batch_op.create_index('ix_preorders_prepaid', ['prepaid_amount'], unique=False)
         batch_op.create_index('ix_preorders_prod_wh', ['product_id', 'warehouse_id'], unique=False)
         batch_op.create_index(batch_op.f('ix_preorders_product_id'), ['product_id'], unique=False)
         batch_op.create_index(batch_op.f('ix_preorders_reference'), ['reference'], unique=True)
@@ -2737,6 +2846,7 @@ def upgrade():
         batch_op.create_index(batch_op.f('ix_stock_levels_updated_at'), ['updated_at'], unique=False)
         batch_op.create_index(batch_op.f('ix_stock_levels_warehouse_id'), ['warehouse_id'], unique=False)
         batch_op.create_index('ix_stock_product_wh', ['product_id', 'warehouse_id'], unique=False)
+        batch_op.create_index('ix_stock_quantity', ['quantity'], unique=False)
 
     op.create_table('supplier_settlement_lines',
     sa.Column('id', sa.Integer(), nullable=False),
@@ -2757,6 +2867,7 @@ def upgrade():
     sa.PrimaryKeyConstraint('id')
     )
     with op.batch_alter_table('supplier_settlement_lines', schema=None) as batch_op:
+        batch_op.create_index('ix_supplier_settle_line_product', ['product_id'], unique=False)
         batch_op.create_index(batch_op.f('ix_supplier_settlement_lines_created_at'), ['created_at'], unique=False)
         batch_op.create_index(batch_op.f('ix_supplier_settlement_lines_needs_pricing'), ['needs_pricing'], unique=False)
         batch_op.create_index(batch_op.f('ix_supplier_settlement_lines_settlement_id'), ['settlement_id'], unique=False)
@@ -2815,6 +2926,7 @@ def upgrade():
         batch_op.create_index(batch_op.f('ix_warehouse_partner_shares_updated_at'), ['updated_at'], unique=False)
         batch_op.create_index(batch_op.f('ix_warehouse_partner_shares_warehouse_id'), ['warehouse_id'], unique=False)
         batch_op.create_index('ix_wps_partner_wh_prod', ['partner_id', 'warehouse_id', 'product_id'], unique=False)
+        batch_op.create_index('ix_wps_share_percentage', ['share_percentage'], unique=False)
 
     op.create_table('product_rating_helpful',
     sa.Column('id', sa.Integer(), nullable=False),
@@ -2928,8 +3040,10 @@ def upgrade():
     sa.PrimaryKeyConstraint('id')
     )
     with op.batch_alter_table('sales', schema=None) as batch_op:
+        batch_op.create_index('ix_sales_archived', ['is_archived', 'archived_at'], unique=False)
         batch_op.create_index(batch_op.f('ix_sales_archived_at'), ['archived_at'], unique=False)
         batch_op.create_index(batch_op.f('ix_sales_archived_by'), ['archived_by'], unique=False)
+        batch_op.create_index('ix_sales_balance_due', ['balance_due'], unique=False)
         batch_op.create_index(batch_op.f('ix_sales_cancelled_at'), ['cancelled_at'], unique=False)
         batch_op.create_index(batch_op.f('ix_sales_cancelled_by'), ['cancelled_by'], unique=False)
         batch_op.create_index(batch_op.f('ix_sales_cost_center_id'), ['cost_center_id'], unique=False)
@@ -2944,9 +3058,11 @@ def upgrade():
         batch_op.create_index(batch_op.f('ix_sales_refund_of_id'), ['refund_of_id'], unique=False)
         batch_op.create_index(batch_op.f('ix_sales_sale_date'), ['sale_date'], unique=False)
         batch_op.create_index(batch_op.f('ix_sales_sale_number'), ['sale_number'], unique=True)
+        batch_op.create_index('ix_sales_seller_date', ['seller_id', 'sale_date'], unique=False)
         batch_op.create_index(batch_op.f('ix_sales_seller_employee_id'), ['seller_employee_id'], unique=False)
         batch_op.create_index(batch_op.f('ix_sales_seller_id'), ['seller_id'], unique=False)
         batch_op.create_index(batch_op.f('ix_sales_status'), ['status'], unique=False)
+        batch_op.create_index('ix_sales_total_amount', ['total_amount'], unique=False)
         batch_op.create_index(batch_op.f('ix_sales_updated_at'), ['updated_at'], unique=False)
 
     op.create_table('supplier_loan_settlements',
@@ -3014,6 +3130,10 @@ def upgrade():
     sa.PrimaryKeyConstraint('id')
     )
     with op.batch_alter_table('invoices', schema=None) as batch_op:
+        batch_op.create_index('ix_inv_cust_cancelled', ['customer_id', 'cancelled_at'], unique=False)
+        batch_op.create_index('ix_inv_customer_date', ['customer_id', 'invoice_date'], unique=False)
+        batch_op.create_index('ix_inv_kind_date', ['kind', 'invoice_date'], unique=False)
+        batch_op.create_index('ix_inv_total_amount', ['total_amount'], unique=False)
         batch_op.create_index(batch_op.f('ix_invoices_cancelled_at'), ['cancelled_at'], unique=False)
         batch_op.create_index(batch_op.f('ix_invoices_cancelled_by'), ['cancelled_by'], unique=False)
         batch_op.create_index(batch_op.f('ix_invoices_created_at'), ['created_at'], unique=False)
@@ -3325,6 +3445,7 @@ def upgrade():
     sa.UniqueConstraint('stock_adjustment_id', name='uq_expenses_stock_adjustment_id')
     )
     with op.batch_alter_table('expenses', schema=None) as batch_op:
+        batch_op.create_index('ix_expense_amount', ['amount'], unique=False)
         batch_op.create_index('ix_expense_customer_date', ['customer_id', 'date'], unique=False)
         batch_op.create_index('ix_expense_partner_date', ['partner_id', 'date'], unique=False)
         batch_op.create_index('ix_expense_shipment_date', ['shipment_id', 'date'], unique=False)
@@ -3718,16 +3839,23 @@ def upgrade():
     )
     with op.batch_alter_table('payments', schema=None) as batch_op:
         batch_op.create_index('ix_pay_created_at', ['payment_date'], unique=False)
+        batch_op.create_index('ix_pay_created_by', ['created_by'], unique=False)
         batch_op.create_index('ix_pay_currency', ['currency'], unique=False)
+        batch_op.create_index('ix_pay_cust_stat_dir', ['customer_id', 'status', 'direction'], unique=False)
         batch_op.create_index('ix_pay_dir_stat_type', ['direction', 'status', 'entity_type'], unique=False)
         batch_op.create_index('ix_pay_direction', ['direction'], unique=False)
+        batch_op.create_index('ix_pay_exp_stat_dir', ['expense_id', 'status', 'direction'], unique=False)
         batch_op.create_index('ix_pay_inv_status_dir', ['invoice_id', 'status', 'direction'], unique=False)
+        batch_op.create_index('ix_pay_method_date', ['method', 'payment_date'], unique=False)
         batch_op.create_index('ix_pay_partner_status_dir', ['partner_id', 'status', 'direction'], unique=False)
         batch_op.create_index('ix_pay_preorder_status_dir', ['preorder_id', 'status', 'direction'], unique=False)
         batch_op.create_index('ix_pay_reversal', ['refund_of_id'], unique=False)
         batch_op.create_index('ix_pay_sale_status_dir', ['sale_id', 'status', 'direction'], unique=False)
+        batch_op.create_index('ix_pay_shp_stat_dir', ['shipment_id', 'status', 'direction'], unique=False)
+        batch_op.create_index('ix_pay_srv_stat_dir', ['service_id', 'status', 'direction'], unique=False)
         batch_op.create_index('ix_pay_status', ['status'], unique=False)
         batch_op.create_index('ix_pay_supplier_status_dir', ['supplier_id', 'status', 'direction'], unique=False)
+        batch_op.create_index('ix_pay_total_amount', ['total_amount'], unique=False)
         batch_op.create_index(batch_op.f('ix_payments_archived_at'), ['archived_at'], unique=False)
         batch_op.create_index(batch_op.f('ix_payments_archived_by'), ['archived_by'], unique=False)
         batch_op.create_index(batch_op.f('ix_payments_created_at'), ['created_at'], unique=False)
@@ -3953,10 +4081,18 @@ def upgrade():
         batch_op.create_index(batch_op.f('ix_payment_splits_method'), ['method'], unique=False)
         batch_op.create_index(batch_op.f('ix_payment_splits_payment_id'), ['payment_id'], unique=False)
 
+    # ### Circular dependencies resolution ###
+    op.create_foreign_key('fk_branches_archived_by_users', 'branches', 'users', ['archived_by'], ['id'])
+    op.create_foreign_key('fk_branches_manager_employee_id_employees', 'branches', 'employees', ['manager_employee_id'], ['id'])
+    op.create_foreign_key('fk_branches_manager_user_id_users', 'branches', 'users', ['manager_user_id'], ['id'])
     # ### end Alembic commands ###
 
 
 def downgrade():
+    # ### Circular dependencies resolution ###
+    op.drop_constraint('fk_branches_manager_user_id_users', 'branches', type_='foreignkey')
+    op.drop_constraint('fk_branches_manager_employee_id_employees', 'branches', type_='foreignkey')
+    op.drop_constraint('fk_branches_archived_by_users', 'branches', type_='foreignkey')
     # ### commands auto generated by Alembic - please adjust! ###
     with op.batch_alter_table('payment_splits', schema=None) as batch_op:
         batch_op.drop_index(batch_op.f('ix_payment_splits_payment_id'))
@@ -4043,16 +4179,23 @@ def downgrade():
         batch_op.drop_index(batch_op.f('ix_payments_created_at'))
         batch_op.drop_index(batch_op.f('ix_payments_archived_by'))
         batch_op.drop_index(batch_op.f('ix_payments_archived_at'))
+        batch_op.drop_index('ix_pay_total_amount')
         batch_op.drop_index('ix_pay_supplier_status_dir')
         batch_op.drop_index('ix_pay_status')
+        batch_op.drop_index('ix_pay_srv_stat_dir')
+        batch_op.drop_index('ix_pay_shp_stat_dir')
         batch_op.drop_index('ix_pay_sale_status_dir')
         batch_op.drop_index('ix_pay_reversal')
         batch_op.drop_index('ix_pay_preorder_status_dir')
         batch_op.drop_index('ix_pay_partner_status_dir')
+        batch_op.drop_index('ix_pay_method_date')
         batch_op.drop_index('ix_pay_inv_status_dir')
+        batch_op.drop_index('ix_pay_exp_stat_dir')
         batch_op.drop_index('ix_pay_direction')
         batch_op.drop_index('ix_pay_dir_stat_type')
+        batch_op.drop_index('ix_pay_cust_stat_dir')
         batch_op.drop_index('ix_pay_currency')
+        batch_op.drop_index('ix_pay_created_by')
         batch_op.drop_index('ix_pay_created_at')
 
     op.drop_table('payments')
@@ -4183,6 +4326,7 @@ def downgrade():
         batch_op.drop_index('ix_expense_shipment_date')
         batch_op.drop_index('ix_expense_partner_date')
         batch_op.drop_index('ix_expense_customer_date')
+        batch_op.drop_index('ix_expense_amount')
 
     op.drop_table('expenses')
     with op.batch_alter_table('shipments', schema=None) as batch_op:
@@ -4229,6 +4373,10 @@ def downgrade():
         batch_op.drop_index(batch_op.f('ix_invoices_created_at'))
         batch_op.drop_index(batch_op.f('ix_invoices_cancelled_by'))
         batch_op.drop_index(batch_op.f('ix_invoices_cancelled_at'))
+        batch_op.drop_index('ix_inv_total_amount')
+        batch_op.drop_index('ix_inv_kind_date')
+        batch_op.drop_index('ix_inv_customer_date')
+        batch_op.drop_index('ix_inv_cust_cancelled')
 
     op.drop_table('invoices')
     with op.batch_alter_table('supplier_loan_settlements', schema=None) as batch_op:
@@ -4240,9 +4388,11 @@ def downgrade():
     op.drop_table('supplier_loan_settlements')
     with op.batch_alter_table('sales', schema=None) as batch_op:
         batch_op.drop_index(batch_op.f('ix_sales_updated_at'))
+        batch_op.drop_index('ix_sales_total_amount')
         batch_op.drop_index(batch_op.f('ix_sales_status'))
         batch_op.drop_index(batch_op.f('ix_sales_seller_id'))
         batch_op.drop_index(batch_op.f('ix_sales_seller_employee_id'))
+        batch_op.drop_index('ix_sales_seller_date')
         batch_op.drop_index(batch_op.f('ix_sales_sale_number'))
         batch_op.drop_index(batch_op.f('ix_sales_sale_date'))
         batch_op.drop_index(batch_op.f('ix_sales_refund_of_id'))
@@ -4257,8 +4407,10 @@ def downgrade():
         batch_op.drop_index(batch_op.f('ix_sales_cost_center_id'))
         batch_op.drop_index(batch_op.f('ix_sales_cancelled_by'))
         batch_op.drop_index(batch_op.f('ix_sales_cancelled_at'))
+        batch_op.drop_index('ix_sales_balance_due')
         batch_op.drop_index(batch_op.f('ix_sales_archived_by'))
         batch_op.drop_index(batch_op.f('ix_sales_archived_at'))
+        batch_op.drop_index('ix_sales_archived')
 
     op.drop_table('sales')
     with op.batch_alter_table('resource_time_logs', schema=None) as batch_op:
@@ -4284,6 +4436,7 @@ def downgrade():
 
     op.drop_table('product_rating_helpful')
     with op.batch_alter_table('warehouse_partner_shares', schema=None) as batch_op:
+        batch_op.drop_index('ix_wps_share_percentage')
         batch_op.drop_index('ix_wps_partner_wh_prod')
         batch_op.drop_index(batch_op.f('ix_warehouse_partner_shares_warehouse_id'))
         batch_op.drop_index(batch_op.f('ix_warehouse_partner_shares_updated_at'))
@@ -4304,9 +4457,11 @@ def downgrade():
         batch_op.drop_index(batch_op.f('ix_supplier_settlement_lines_settlement_id'))
         batch_op.drop_index(batch_op.f('ix_supplier_settlement_lines_needs_pricing'))
         batch_op.drop_index(batch_op.f('ix_supplier_settlement_lines_created_at'))
+        batch_op.drop_index('ix_supplier_settle_line_product')
 
     op.drop_table('supplier_settlement_lines')
     with op.batch_alter_table('stock_levels', schema=None) as batch_op:
+        batch_op.drop_index('ix_stock_quantity')
         batch_op.drop_index('ix_stock_product_wh')
         batch_op.drop_index(batch_op.f('ix_stock_levels_warehouse_id'))
         batch_op.drop_index(batch_op.f('ix_stock_levels_updated_at'))
@@ -4395,9 +4550,12 @@ def downgrade():
         batch_op.drop_index(batch_op.f('ix_preorders_reference'))
         batch_op.drop_index(batch_op.f('ix_preorders_product_id'))
         batch_op.drop_index('ix_preorders_prod_wh')
+        batch_op.drop_index('ix_preorders_prepaid')
         batch_op.drop_index(batch_op.f('ix_preorders_preorder_date'))
+        batch_op.drop_index('ix_preorders_pay_method')
         batch_op.drop_index('ix_preorders_partner_status')
         batch_op.drop_index(batch_op.f('ix_preorders_idempotency_key'))
+        batch_op.drop_index('ix_preorders_date_status')
         batch_op.drop_index(batch_op.f('ix_preorders_customer_id'))
         batch_op.drop_index('ix_preorders_cust_status')
         batch_op.drop_index(batch_op.f('ix_preorders_created_at'))
@@ -4411,6 +4569,8 @@ def downgrade():
         batch_op.drop_index(batch_op.f('ix_partner_settlement_lines_source_id'))
         batch_op.drop_index(batch_op.f('ix_partner_settlement_lines_settlement_id'))
         batch_op.drop_index(batch_op.f('ix_partner_settlement_lines_created_at'))
+        batch_op.drop_index('ix_partner_settle_line_warehouse')
+        batch_op.drop_index('ix_partner_settle_line_product')
 
     op.drop_table('partner_settlement_lines')
     with op.batch_alter_table('online_preorder_items', schema=None) as batch_op:
@@ -4488,9 +4648,13 @@ def downgrade():
     op.drop_table('project_costs')
     with op.batch_alter_table('products', schema=None) as batch_op:
         batch_op.drop_index('uq_products_barcode', postgresql_where=sa.text('barcode IS NOT NULL'))
+        batch_op.drop_index('ix_products_warehouse')
+        batch_op.drop_index('ix_products_vehicle_type')
         batch_op.drop_index(batch_op.f('ix_products_updated_at'))
+        batch_op.drop_index('ix_products_supplier')
         batch_op.drop_index(batch_op.f('ix_products_part_number'))
         batch_op.drop_index(batch_op.f('ix_products_name'))
+        batch_op.drop_index('ix_products_is_published')
         batch_op.drop_index(batch_op.f('ix_products_created_at'))
         batch_op.drop_index('ix_products_category_active')
         batch_op.drop_index('ix_products_brand_part')
@@ -4560,6 +4724,10 @@ def downgrade():
     with op.batch_alter_table('warehouses', schema=None) as batch_op:
         batch_op.drop_index(batch_op.f('ix_warehouses_warehouse_type'))
         batch_op.drop_index(batch_op.f('ix_warehouses_updated_at'))
+        batch_op.drop_index('ix_warehouses_supplier')
+        batch_op.drop_index('ix_warehouses_share_percent')
+        batch_op.drop_index('ix_warehouses_partner')
+        batch_op.drop_index('ix_warehouses_parent')
         batch_op.drop_index(batch_op.f('ix_warehouses_name'))
         batch_op.drop_index(batch_op.f('ix_warehouses_created_at'))
         batch_op.drop_index(batch_op.f('ix_warehouses_branch_id'))
@@ -4593,6 +4761,9 @@ def downgrade():
         batch_op.drop_index(batch_op.f('ix_supplier_settlements_from_date'))
         batch_op.drop_index(batch_op.f('ix_supplier_settlements_created_at'))
         batch_op.drop_index(batch_op.f('ix_supplier_settlements_code'))
+        batch_op.drop_index('ix_supplier_settle_total_due')
+        batch_op.drop_index('ix_supplier_settle_opening_balance')
+        batch_op.drop_index('ix_supplier_settle_closing_balance')
 
     op.drop_table('supplier_settlements')
     with op.batch_alter_table('service_tasks', schema=None) as batch_op:
@@ -4660,6 +4831,9 @@ def downgrade():
         batch_op.drop_index(batch_op.f('ix_partner_settlements_from_date'))
         batch_op.drop_index(batch_op.f('ix_partner_settlements_created_at'))
         batch_op.drop_index(batch_op.f('ix_partner_settlements_code'))
+        batch_op.drop_index('ix_partner_settle_total_due')
+        batch_op.drop_index('ix_partner_settle_opening_balance')
+        batch_op.drop_index('ix_partner_settle_closing_balance')
 
     op.drop_table('partner_settlements')
     with op.batch_alter_table('fixed_assets', schema=None) as batch_op:
@@ -4758,9 +4932,22 @@ def downgrade():
         batch_op.drop_index(batch_op.f('ix_suppliers_created_at'))
         batch_op.drop_index(batch_op.f('ix_suppliers_archived_by'))
         batch_op.drop_index(batch_op.f('ix_suppliers_archived_at'))
+        batch_op.drop_index('ix_supp_opening_balance')
+        batch_op.drop_index('ix_supp_name_active')
+        batch_op.drop_index('ix_supp_contact')
 
     op.drop_table('suppliers')
     with op.batch_alter_table('service_requests', schema=None) as batch_op:
+        batch_op.drop_index('ix_srv_vehicle_vrn')
+        batch_op.drop_index('ix_srv_vehicle_model')
+        batch_op.drop_index('ix_srv_total_amount')
+        batch_op.drop_index('ix_srv_mech_status')
+        batch_op.drop_index('ix_srv_expected_delivery')
+        batch_op.drop_index('ix_srv_cust_status')
+        batch_op.drop_index('ix_srv_created_status')
+        batch_op.drop_index('ix_srv_cost_center')
+        batch_op.drop_index('ix_srv_completed_at')
+        batch_op.drop_index('ix_srv_chassis')
         batch_op.drop_index(batch_op.f('ix_service_requests_vehicle_type_id'))
         batch_op.drop_index(batch_op.f('ix_service_requests_updated_at'))
         batch_op.drop_index(batch_op.f('ix_service_requests_status'))
@@ -4818,6 +5005,7 @@ def downgrade():
     op.drop_table('projects')
     with op.batch_alter_table('partners', schema=None) as batch_op:
         batch_op.drop_index(batch_op.f('ix_partners_updated_at'))
+        batch_op.drop_index('ix_partners_opening_balance')
         batch_op.drop_index(batch_op.f('ix_partners_name'))
         batch_op.drop_index(batch_op.f('ix_partners_is_archived'))
         batch_op.drop_index(batch_op.f('ix_partners_email'))
@@ -4992,10 +5180,28 @@ def downgrade():
     op.drop_table('deletion_logs')
     with op.batch_alter_table('customers', schema=None) as batch_op:
         batch_op.drop_index(batch_op.f('ix_customers_updated_at'))
+        batch_op.drop_index('ix_customers_services_balance')
+        batch_op.drop_index('ix_customers_service_expenses_balance')
+        batch_op.drop_index('ix_customers_sales_balance')
+        batch_op.drop_index('ix_customers_returns_balance')
+        batch_op.drop_index('ix_customers_returned_checks_out_balance')
+        batch_op.drop_index('ix_customers_returned_checks_in_balance')
+        batch_op.drop_index('ix_customers_preorders_balance')
+        batch_op.drop_index('ix_customers_payments_out_balance')
+        batch_op.drop_index('ix_customers_payments_in_balance')
+        batch_op.drop_index('ix_customers_opening_balance')
+        batch_op.drop_index('ix_customers_online_orders_balance')
+        batch_op.drop_index('ix_customers_online_active')
+        batch_op.drop_index('ix_customers_invoices_balance')
+        batch_op.drop_index('ix_customers_expenses_balance')
         batch_op.drop_index(batch_op.f('ix_customers_current_balance'))
+        batch_op.drop_index('ix_customers_credit_limit')
         batch_op.drop_index(batch_op.f('ix_customers_created_at'))
+        batch_op.drop_index('ix_customers_checks_out_balance')
+        batch_op.drop_index('ix_customers_checks_in_balance')
         batch_op.drop_index(batch_op.f('ix_customers_archived_by'))
         batch_op.drop_index(batch_op.f('ix_customers_archived_at'))
+        batch_op.drop_index('ix_customers_active_name')
 
     op.drop_table('customers')
     with op.batch_alter_table('cost_centers', schema=None) as batch_op:
@@ -5048,6 +5254,15 @@ def downgrade():
         batch_op.drop_index(batch_op.f('ix_archives_record_id'))
 
     op.drop_table('archives')
+    with op.batch_alter_table('users', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_users_username'))
+        batch_op.drop_index(batch_op.f('ix_users_updated_at'))
+        batch_op.drop_index(batch_op.f('ix_users_role_id'))
+        batch_op.drop_index(batch_op.f('ix_users_is_system_account'))
+        batch_op.drop_index(batch_op.f('ix_users_email'))
+        batch_op.drop_index(batch_op.f('ix_users_created_at'))
+
+    op.drop_table('users')
     op.drop_table('role_permissions')
     with op.batch_alter_table('gl_entries', schema=None) as batch_op:
         batch_op.drop_index(batch_op.f('ix_gl_entries_updated_at'))
@@ -5098,8 +5313,6 @@ def downgrade():
         batch_op.drop_index(batch_op.f('ix_system_settings_key'))
 
     op.drop_table('system_settings')
-    op.drop_constraint('fk_employees_site_id_sites', 'employees', type_='foreignkey')
-    op.drop_constraint('fk_employees_branch_id_branches', 'employees', type_='foreignkey')
     with op.batch_alter_table('sites', schema=None) as batch_op:
         batch_op.drop_index(batch_op.f('ix_sites_updated_at'))
         batch_op.drop_index(batch_op.f('ix_sites_name'))
@@ -5119,6 +5332,10 @@ def downgrade():
         batch_op.drop_index(batch_op.f('ix_saas_plans_created_at'))
 
     op.drop_table('saas_plans')
+    with op.batch_alter_table('roles', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_roles_name'))
+
+    op.drop_table('roles')
     with op.batch_alter_table('product_categories', schema=None) as batch_op:
         batch_op.drop_index(batch_op.f('ix_product_categories_updated_at'))
         batch_op.drop_index(batch_op.f('ix_product_categories_name'))
@@ -5133,6 +5350,7 @@ def downgrade():
     op.drop_table('permissions')
     with op.batch_alter_table('gl_batches', schema=None) as batch_op:
         batch_op.drop_index('ix_gl_status_source')
+        batch_op.drop_index('ix_gl_posted_status')
         batch_op.drop_index('ix_gl_entity')
         batch_op.drop_index(batch_op.f('ix_gl_batches_updated_at'))
         batch_op.drop_index(batch_op.f('ix_gl_batches_status'))
@@ -5168,6 +5386,16 @@ def downgrade():
         batch_op.drop_index(batch_op.f('ix_engineering_skills_code'))
 
     op.drop_table('engineering_skills')
+    with op.batch_alter_table('employees', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_employees_updated_at'))
+        batch_op.drop_index(batch_op.f('ix_employees_site_id'))
+        batch_op.drop_index(batch_op.f('ix_employees_name'))
+        batch_op.drop_index(batch_op.f('ix_employees_hire_date'))
+        batch_op.drop_index(batch_op.f('ix_employees_email'))
+        batch_op.drop_index(batch_op.f('ix_employees_created_at'))
+        batch_op.drop_index(batch_op.f('ix_employees_branch_id'))
+
+    op.drop_table('employees')
     op.drop_table('currencies')
     with op.batch_alter_table('branches', schema=None) as batch_op:
         batch_op.drop_index(batch_op.f('ix_branches_updated_at'))

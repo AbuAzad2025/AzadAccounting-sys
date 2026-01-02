@@ -55,10 +55,10 @@
   <div class="row mb-4">
     <div class="col-12">
       <div class="card border-0 shadow-sm">
-        <div class="card-header bg-gradient text-white" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+        <div class="card-header bg-white border-bottom py-3">
           <div class="d-flex justify-content-between align-items-center">
-            <h5 class="mb-0"><i class="fas fa-history"></i> آخر الإجراءات</h5>
-            <span class="badge bg-white text-primary">آخر 10 إجراءات</span>
+            <h5 class="mb-0 font-weight-bold text-primary"><i class="fas fa-history ml-2"></i> آخر الإجراءات</h5>
+            <span class="badge badge-light text-primary border">آخر 10 إجراءات</span>
           </div>
         </div>
         <div class="card-body p-0">
@@ -95,8 +95,8 @@
   </div>
 
   <!-- الإحصائيات -->
-  <div class="row g-3 mb-4">
-    <div class="col-lg-3 col-md-6">
+  <div class="row mb-4">
+    <div class="col-lg-3 col-md-6 mb-3">
       <div class="small-box bg-info" data-total-users="{{ stats.total_users }}">
         <div class="inner">
           <h3>{{ stats.total_users }}</h3>
@@ -110,7 +110,7 @@
       </div>
     </div>
     
-    <div class="col-lg-3 col-md-6">
+    <div class="col-lg-3 col-md-6 mb-3">
       <div class="small-box bg-success" data-active-users="{{ stats.active_users }}">
         <div class="inner">
           <h3>{{ stats.active_users }}</h3>
@@ -124,7 +124,7 @@
       </div>
     </div>
     
-    <div class="col-lg-3 col-md-6">
+    <div class="col-lg-3 col-md-6 mb-3">
       <div class="small-box bg-danger" data-blocked-users="{{ stats.blocked_users }}">
         <div class="inner">
           <h3>{{ stats.blocked_users }}</h3>
@@ -138,7 +138,7 @@
       </div>
     </div>
     
-    <div class="col-lg-3 col-md-6">
+    <div class="col-lg-3 col-md-6 mb-3">
       <div class="small-box bg-warning">
         <div class="inner">
           <h3>{{ stats.failed_logins_24h }}</h3>
@@ -153,43 +153,37 @@
     </div>
   </div>
 
-  <h4 class="mb-3"><i class="fas fa-crown text-warning"></i> المراكز الرئيسية - 7 مراكز</h4>
+  <h4 class="mb-3 font-weight-bold"><i class="fas fa-crown text-warning"></i> المراكز الرئيسية</h4>
   
-  <div class="row g-4 mb-4">
-    <div class="col-lg-4 col-md-6">
-      <div class="card border-0 shadow-lg h-100 hover-lift" style="background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);">
-        <div class="card-body text-white p-4">
-          <div class="d-flex justify-content-between align-items-start mb-3">
-            <div>
-              <i class="fas fa-database fa-3x" style="text-shadow: 0 2px 4px rgba(0,0,0,0.3);"></i>
-            </div>
-            <span class="badge bg-warning text-dark">11 أداة</span>
+  <div class="row mb-4">
+    <div class="col-lg-4 col-md-6 mb-4">
+      <div class="card card-security-module card-module-db h-100">
+        <div class="card-body text-center">
+          <div class="icon-wrapper">
+            <i class="fas fa-database"></i>
           </div>
-          <h5 class="fw-bold mb-2">Database Control</h5>
-          <p class="small opacity-75 mb-3">تصفح • تحرير • SQL • Python • فهارس • صيانة</p>
-          <a href="{{ url_for('security.database_manager') }}" class="btn btn-light btn-sm w-100">
+          <h5 class="mb-2">Database Control</h5>
+          <p class="small mb-4">تصفح • تحرير • SQL • Python • فهارس • صيانة</p>
+          <a href="{{ url_for('security.database_manager') }}" class="btn btn-primary btn-sm btn-block">
             <i class="fas fa-terminal"></i> فتح المركز
           </a>
         </div>
       </div>
     </div>
 
-    <div class="col-lg-4 col-md-6">
-      <div class="card border-0 shadow-lg h-100 hover-lift" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-        <div class="card-body text-white p-4">
-          <div class="d-flex justify-content-between align-items-start mb-3">
-            <div>
-              <i class="fas fa-robot fa-3x" style="text-shadow: 0 2px 4px rgba(0,0,0,0.3);"></i>
-            </div>
-            <span class="badge bg-success">AI</span>
+    <div class="col-lg-4 col-md-6 mb-4">
+      <div class="card card-security-module card-module-ai h-100">
+        <div class="card-body text-center">
+          <div class="icon-wrapper">
+            <i class="fas fa-robot"></i>
           </div>
-          <h5 class="fw-bold mb-2">AI Control Center</h5>
-          <p class="small opacity-75 mb-3">مساعد ذكي • تحليل • تنبؤات • تدريب</p>
-          <div class="d-grid gap-2">
-            <a href="{{ url_for('ai.hub') }}" class="btn btn-light btn-sm">
+          <h5 class="mb-2">AI Control Center</h5>
+          <p class="small mb-4">مساعد ذكي • تحليل • تنبؤات • تدريب</p>
+          <div class="d-flex justify-content-center">
+            <a href="{{ url_for('ai.hub') }}" class="btn btn-primary btn-sm ml-1 flex-fill">
               <i class="fas fa-comments"></i> AI Hub
             </a>
-            <a href="{{ url_for('ai_admin.ai_settings') }}" class="btn btn-outline-light btn-sm">
+            <a href="{{ url_for('ai_admin.ai_settings') }}" class="btn btn-outline-primary btn-sm mr-1 flex-fill">
               <i class="fas fa-cog"></i> الإعدادات
             </a>
           </div>
@@ -197,90 +191,75 @@
       </div>
     </div>
 
-    <div class="col-lg-4 col-md-6">
-      <div class="card border-0 shadow-lg h-100 hover-lift" style="background: linear-gradient(135deg, #FF512F 0%, #DD2476 100%);">
-        <div class="card-body text-white p-4">
-          <div class="d-flex justify-content-between align-items-start mb-3">
-            <div>
-              <i class="fas fa-shield-alt fa-3x" style="text-shadow: 0 2px 4px rgba(0,0,0,0.3);"></i>
-            </div>
-            <span class="badge bg-light text-danger">4 أدوات</span>
+    <div class="col-lg-4 col-md-6 mb-4">
+      <div class="card card-security-module card-module-security h-100">
+        <div class="card-body text-center">
+          <div class="icon-wrapper">
+            <i class="fas fa-shield-alt"></i>
           </div>
-          <h5 class="fw-bold mb-2">Security Center</h5>
-          <p class="small opacity-75 mb-3">مراقبة • جدار حماية • Audit • تنبيهات</p>
-          <a href="{{ url_for('security.security_center') }}" class="btn btn-light btn-sm w-100">
+          <h5 class="mb-2">Security Center</h5>
+          <p class="small mb-4">مراقبة • جدار حماية • Audit • تنبيهات</p>
+          <a href="{{ url_for('security.security_center') }}" class="btn btn-primary btn-sm btn-block">
             <i class="fas fa-lock"></i> فتح المركز
           </a>
         </div>
       </div>
     </div>
 
-    <div class="col-lg-4 col-md-6">
-      <div class="card border-0 shadow-lg h-100 hover-lift" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);">
-        <div class="card-body text-white p-4">
-          <div class="d-flex justify-content-between align-items-start mb-3">
-            <div>
-              <i class="fas fa-users-cog fa-3x" style="text-shadow: 0 2px 4px rgba(0,0,0,0.3);"></i>
-            </div>
-            <span class="badge bg-light text-success">{{ stats.total_users }}</span>
+    <div class="col-lg-4 col-md-6 mb-4">
+      <div class="card card-security-module card-module-users h-100">
+        <div class="card-body text-center">
+          <div class="icon-wrapper">
+            <i class="fas fa-users-cog"></i>
           </div>
-          <h5 class="fw-bold mb-2">Users Center</h5>
-          <p class="small opacity-75 mb-3">مستخدمين • صلاحيات • أدوار • تحكم كامل</p>
-          <a href="{{ url_for('security.users_center') }}" class="btn btn-light btn-sm w-100">
+          <h5 class="mb-2">Users Center</h5>
+          <p class="small mb-4">مستخدمين • صلاحيات • أدوار • تحكم كامل</p>
+          <a href="{{ url_for('security.users_center') }}" class="btn btn-primary btn-sm btn-block">
             <i class="fas fa-user-shield"></i> فتح المركز
           </a>
         </div>
       </div>
     </div>
 
-    <div class="col-lg-4 col-md-6">
-      <div class="card border-0 shadow-lg h-100 hover-lift" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);">
-        <div class="card-body text-white p-4">
-          <div class="d-flex justify-content-between align-items-start mb-3">
-            <div>
-              <i class="fas fa-cogs fa-3x" style="text-shadow: 0 2px 4px rgba(0,0,0,0.3);"></i>
-            </div>
-            <span class="badge bg-light text-dark">8 أدوات</span>
+    <div class="col-lg-4 col-md-6 mb-4">
+      <div class="card card-security-module card-module-settings h-100">
+        <div class="card-body text-center">
+          <div class="icon-wrapper">
+            <i class="fas fa-cogs"></i>
           </div>
-          <h5 class="fw-bold mb-2">Settings Center</h5>
-          <p class="small opacity-75 mb-3">ثيمات • شعارات • تخصيص • إعدادات</p>
-          <a href="{{ url_for('security.settings_center') }}" class="btn btn-light btn-sm w-100">
+          <h5 class="mb-2">Settings Center</h5>
+          <p class="small mb-4">ثيمات • شعارات • تخصيص • إعدادات</p>
+          <a href="{{ url_for('security.settings_center') }}" class="btn btn-primary btn-sm btn-block">
             <i class="fas fa-sliders-h"></i> فتح المركز
           </a>
         </div>
       </div>
     </div>
 
-    <div class="col-lg-4 col-md-6">
-      <div class="card border-0 shadow-lg h-100 hover-lift" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
-        <div class="card-body text-white p-4">
-          <div class="d-flex justify-content-between align-items-start mb-3">
-            <div>
-              <i class="fas fa-chart-bar fa-3x" style="text-shadow: 0 2px 4px rgba(0,0,0,0.3);"></i>
-            </div>
-            <span class="badge bg-light text-danger">Reports</span>
+    <div class="col-lg-4 col-md-6 mb-4">
+      <div class="card card-security-module card-module-reports h-100">
+        <div class="card-body text-center">
+          <div class="icon-wrapper">
+            <i class="fas fa-chart-bar"></i>
           </div>
-          <h5 class="fw-bold mb-2">Reports Center</h5>
-          <p class="small opacity-75 mb-3">تقارير • أداء • Grafana • تحليلات</p>
-          <a href="{{ url_for('security.reports_center') }}" class="btn btn-light btn-sm w-100">
+          <h5 class="mb-2">Reports Center</h5>
+          <p class="small mb-4">تقارير • أداء • Grafana • تحليلات</p>
+          <a href="{{ url_for('security.reports_center') }}" class="btn btn-primary btn-sm btn-block">
             <i class="fas fa-file-alt"></i> فتح المركز
           </a>
         </div>
       </div>
     </div>
 
-    <div class="col-lg-4 col-md-6">
-      <div class="card border-0 shadow-lg h-100 hover-lift" style="background: linear-gradient(135deg, #fc4a1a 0%, #f7b733 100%);">
-        <div class="card-body text-white p-4">
-          <div class="d-flex justify-content-between align-items-start mb-3">
-            <div>
-              <i class="fas fa-toolbox fa-3x" style="text-shadow: 0 2px 4px rgba(0,0,0,0.3);"></i>
-            </div>
-            <span class="badge bg-light text-warning">Tools</span>
+    <div class="col-lg-4 col-md-6 mb-4">
+      <div class="card card-security-module card-module-tools h-100">
+        <div class="card-body text-center">
+          <div class="icon-wrapper">
+            <i class="fas fa-toolbox"></i>
           </div>
-          <h5 class="fw-bold mb-2">Tools Center</h5>
-          <p class="small opacity-75 mb-3">تكاملات • بريد • فواتير • كروت</p>
-          <a href="{{ url_for('security.tools_center') }}" class="btn btn-light btn-sm w-100">
+          <h5 class="mb-2">Tools Center</h5>
+          <p class="small mb-4">تكاملات • بريد • فواتير • كروت</p>
+          <a href="{{ url_for('security.tools_center') }}" class="btn btn-primary btn-sm btn-block">
             <i class="fas fa-wrench"></i> فتح المركز
           </a>
         </div>
@@ -288,96 +267,48 @@
     </div>
   </div>
 
-  <h4 class="mt-5 mb-3"><i class="fas fa-layer-group text-info"></i> المحاسبة والمالية</h4>
+  <h4 class="mt-5 mb-3 font-weight-bold"><i class="fas fa-layer-group text-info"></i> المحاسبة والمالية</h4>
   
-  <div class="row g-4 mb-4">
-    <div class="col-lg-6">
-      <div class="card border-0 shadow-lg h-100 hover-lift" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-        <div class="card-body text-white p-4">
-          <div class="d-flex align-items-center mb-3">
-            <i class="fas fa-calculator fa-3x mr-3" style="text-shadow: 0 2px 4px rgba(0,0,0,0.3);"></i>
-            <div>
-              <h5 class="fw-bold mb-0">المحاسبة المتقدمة</h5>
-              <small class="opacity-75">Advanced Accounting Control</small>
-            </div>
+  <div class="row mb-4">
+    <div class="col-lg-4 col-md-6 mb-4">
+      <div class="card card-security-module card-module-accounting h-100">
+        <div class="card-body text-center">
+          <div class="icon-wrapper">
+            <i class="fas fa-calculator"></i>
           </div>
-          <div class="row g-2 mb-3">
-            <div class="col-4 text-center">
-              <i class="fas fa-university fa-2x mb-1"></i>
-              <br><small>البنوك</small>
-            </div>
-            <div class="col-4 text-center">
-              <i class="fas fa-project-diagram fa-2x mb-1"></i>
-              <br><small>المشاريع</small>
-            </div>
-            <div class="col-4 text-center">
-              <i class="fas fa-sitemap fa-2x mb-1"></i>
-              <br><small>مراكز التكلفة</small>
-            </div>
-          </div>
-          <a href="{{ url_for('advanced.accounting_control') }}" class="btn btn-light btn-sm w-100">
+          <h5 class="mb-2">المحاسبة المتقدمة</h5>
+          <p class="small mb-4">Advanced Accounting Control</p>
+          <a href="{{ url_for('advanced.accounting_control') }}" class="btn btn-primary btn-sm btn-block">
             <i class="fas fa-arrow-left"></i> فتح لوحة التحكم
           </a>
         </div>
       </div>
     </div>
     
-    <div class="col-lg-6">
-      <div class="card border-0 shadow-lg h-100 hover-lift" style="background: linear-gradient(135deg, #396afc 0%, #2948ff 100%);">
-        <div class="card-body text-white p-4">
-          <div class="d-flex align-items-center mb-3">
-            <i class="fas fa-book fa-3x mr-3" style="text-shadow: 0 2px 4px rgba(0,0,0,0.3);"></i>
-            <div>
-              <h5 class="fw-bold mb-0">Ledger Control</h5>
-              <small class="opacity-75">دفتر الأستاذ المحاسبي</small>
-            </div>
+    <div class="col-lg-4 col-md-6 mb-4">
+      <div class="card card-security-module card-module-ledger h-100">
+        <div class="card-body text-center">
+          <div class="icon-wrapper">
+            <i class="fas fa-book"></i>
           </div>
-          <div class="row g-2 mb-3">
-            <div class="col-4 text-center">
-              <i class="fas fa-coins fa-2x mb-1"></i>
-              <br><small>الحسابات</small>
-            </div>
-            <div class="col-4 text-center">
-              <i class="fas fa-file-invoice fa-2x mb-1"></i>
-              <br><small>القيود</small>
-            </div>
-            <div class="col-4 text-center">
-              <i class="fas fa-balance-scale fa-2x mb-1"></i>
-              <br><small>الأرصدة</small>
-            </div>
-          </div>
-          <a href="{{ url_for('ledger_control.index') }}" class="btn btn-light btn-sm w-100">
+          <h5 class="mb-2">Ledger Control</h5>
+          <p class="small mb-4">دفتر الأستاذ المحاسبي</p>
+          <a href="{{ url_for('ledger_control.index') }}" class="btn btn-primary btn-sm btn-block">
             <i class="fas fa-arrow-left"></i> فتح الوحدة
           </a>
         </div>
       </div>
     </div>
     
-    <div class="col-lg-6">
-      <div class="card border-0 shadow-lg h-100 hover-lift" style="background: linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%);">
-        <div class="card-body text-white p-4">
-          <div class="d-flex align-items-center mb-3">
-            <i class="fas fa-sliders-h fa-3x mr-3" style="text-shadow: 0 2px 4px rgba(0,0,0,0.3);"></i>
-            <div>
-              <h5 class="fw-bold mb-0">لوحة تحكم المصاريف</h5>
-              <small class="opacity-75">تحكم احترافي بالحقول والأنواع</small>
-            </div>
+    <div class="col-lg-4 col-md-6 mb-4">
+      <div class="card card-security-module card-module-expenses h-100">
+        <div class="card-body text-center">
+          <div class="icon-wrapper">
+            <i class="fas fa-sliders-h"></i>
           </div>
-          <div class="row g-2 mb-3">
-            <div class="col-4 text-center">
-              <i class="fas fa-tags fa-2x mb-1"></i>
-              <br><small>الأنواع</small>
-            </div>
-            <div class="col-4 text-center">
-              <i class="fas fa-toggle-on fa-2x mb-1"></i>
-              <br><small>الحقول</small>
-            </div>
-            <div class="col-4 text-center">
-              <i class="fas fa-layer-group fa-2x mb-1"></i>
-              <br><small>القوالب</small>
-            </div>
-          </div>
-          <a href="{{ url_for('security_expenses.control_panel') }}" class="btn btn-light btn-sm w-100">
+          <h5 class="mb-2">لوحة تحكم المصاريف</h5>
+          <p class="small mb-4">تحكم احترافي بالحقول والأنواع</p>
+          <a href="{{ url_for('security_expenses.control_panel') }}" class="btn btn-primary btn-sm btn-block">
             <i class="fas fa-arrow-left"></i> فتح لوحة التحكم
           </a>
         </div>
@@ -385,29 +316,33 @@
     </div>
   </div>
 
-  <h4 class="mt-5 mb-3"><i class="fas fa-bell text-primary"></i> الإشعارات والضرائب</h4>
+  <h4 class="mt-5 mb-3 font-weight-bold"><i class="fas fa-bell text-primary"></i> الإشعارات والضرائب</h4>
   
-  <div class="row g-4 mb-4">
-    <div class="col-lg-6">
-      <div class="card border-0 shadow-lg h-100 hover-lift" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
-        <div class="card-body text-white p-4">
-          <i class="fas fa-bell fa-3x mb-3" style="text-shadow: 0 2px 4px rgba(0,0,0,0.3);"></i>
-          <h5 class="fw-bold">Notifications Center</h5>
-          <p class="small opacity-75 mb-3">إدارة الإشعارات • Email • SMS</p>
-          <a href="{{ url_for('security.notifications_log') }}" class="btn btn-light btn-sm w-100">
+  <div class="row mb-4">
+    <div class="col-lg-4 col-md-6 mb-4">
+      <div class="card card-security-module card-module-notifications h-100">
+        <div class="card-body text-center">
+          <div class="icon-wrapper">
+            <i class="fas fa-bell"></i>
+          </div>
+          <h5 class="mb-2">Notifications Center</h5>
+          <p class="small mb-4">إدارة الإشعارات • Email • SMS</p>
+          <a href="{{ url_for('security.notifications_log') }}" class="btn btn-primary btn-sm btn-block">
             <i class="fas fa-envelope"></i> فتح المركز
           </a>
         </div>
       </div>
     </div>
     
-    <div class="col-lg-6">
-      <div class="card border-0 shadow-lg h-100 hover-lift" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
-        <div class="card-body text-white p-4">
-          <i class="fas fa-file-invoice-dollar fa-3x mb-3" style="text-shadow: 0 2px 4px rgba(0,0,0,0.3);"></i>
-          <h5 class="fw-bold">Tax Reports</h5>
-          <p class="small opacity-75 mb-3">VAT Tracking • إقرارات ضريبية</p>
-          <a href="{{ url_for('security.tax_reports') }}" class="btn btn-light btn-sm w-100">
+    <div class="col-lg-4 col-md-6 mb-4">
+      <div class="card card-security-module card-module-tax h-100">
+        <div class="card-body text-center">
+          <div class="icon-wrapper">
+            <i class="fas fa-file-invoice-dollar"></i>
+          </div>
+          <h5 class="mb-2">Tax Reports</h5>
+          <p class="small mb-4">VAT Tracking • إقرارات ضريبية</p>
+          <a href="{{ url_for('security.tax_reports') }}" class="btn btn-primary btn-sm btn-block">
             <i class="fas fa-calculator"></i> فتح المركز
           </a>
         </div>
@@ -415,73 +350,80 @@
     </div>
   </div>
 
-  <h4 class="mt-5 mb-3"><i class="fas fa-fire text-danger"></i> أدوات الطوارئ والأمان</h4>
+  <h4 class="mt-5 mb-3 font-weight-bold"><i class="fas fa-fire text-danger"></i> أدوات الطوارئ والأمان</h4>
   
-  <div class="row g-4 mb-4">
-    <div class="col-lg-6">
-      <div class="card border-0 shadow-lg h-100 hover-lift" style="background: linear-gradient(135deg, #ff0844 0%, #ffb199 100%);">
-        <div class="card-body text-white p-4">
-          <div class="d-flex align-items-center mb-3">
-            <i class="fas fa-exclamation-triangle fa-3x mr-3" style="text-shadow: 0 2px 4px rgba(0,0,0,0.3);"></i>
-            <div>
-              <h5 class="fw-bold mb-0">Emergency Tools</h5>
-              <small class="opacity-75">أدوات الطوارئ الحرجة</small>
-            </div>
+  <div class="row mb-4">
+    <div class="col-lg-4 col-md-6 mb-4">
+      <div class="card card-security-module card-module-emergency h-100">
+        <div class="card-body text-center">
+          <div class="icon-wrapper">
+            <i class="fas fa-exclamation-triangle"></i>
           </div>
-          <a href="{{ url_for('security.emergency_tools') }}" class="btn btn-light btn-sm w-100">
+          <h5 class="mb-2">Emergency Tools</h5>
+          <p class="small mb-4">أدوات الطوارئ الحرجة</p>
+          <a href="{{ url_for('security.emergency_tools') }}" class="btn btn-primary btn-sm btn-block">
             <i class="fas fa-fire-extinguisher"></i> فتح الأدوات
           </a>
         </div>
       </div>
     </div>
     
-    <div class="col-lg-6">
-      <div class="card border-0 shadow-lg h-100 hover-lift" style="background: linear-gradient(135deg, #56ab2f 0%, #a8e063 100%);">
-        <div class="card-body text-white p-4">
-          <div class="d-flex align-items-center mb-3">
-            <i class="fas fa-broom fa-3x mr-3" style="text-shadow: 0 2px 4px rgba(0,0,0,0.3);"></i>
-            <div>
-              <h5 class="fw-bold mb-0">System Cleanup</h5>
-              <small class="opacity-75">تنظيف وتحسين النظام</small>
-            </div>
+    <div class="col-lg-4 col-md-6 mb-4">
+      <div class="card card-security-module card-module-cleanup h-100">
+        <div class="card-body text-center">
+          <div class="icon-wrapper">
+            <i class="fas fa-broom"></i>
           </div>
-          <a href="{{ url_for('security.system_cleanup') }}" class="btn btn-light btn-sm w-100">
-            <i class="fas fa-trash-alt"></i> تنظيف آمن
+          <h5 class="mb-2">System Cleanup</h5>
+          <p class="small mb-4">تنظيف وتحسين النظام</p>
+          <a href="{{ url_for('security.system_cleanup') }}" class="btn btn-primary btn-sm btn-block">
+            <i class="fas fa-broom"></i> فتح الأدوات
           </a>
         </div>
       </div>
     </div>
   </div>
 
-  <h4 class="mt-5 mb-3"><i class="fas fa-ban text-danger"></i> جدار الحماية - Firewall</h4>
+  <h4 class="mt-5 mb-3 font-weight-bold"><i class="fas fa-ban text-danger"></i> جدار الحماية - Firewall</h4>
   
-  <div class="row g-4 mb-4">
-    <div class="col-lg-6">
-      <div class="card border-0 shadow-lg hover-lift" style="background: linear-gradient(135deg, #FF512F 0%, #DD2476 100%);">
-        <div class="card-body text-white p-4">
-          <div class="d-flex justify-content-between align-items-center mb-3">
-            <h5 class="fw-bold mb-0"><i class="fas fa-ban mr-2"></i> IPs محظورة</h5>
-            <span class="badge bg-warning text-dark fs-5">{{ stats.blocked_ips }}</span>
+  <div class="row mb-4">
+    <div class="col-lg-6 mb-4">
+      <div class="card card-security-module card-module-firewall h-100">
+        <div class="card-body">
+          <div class="text-center mb-4">
+            <div class="icon-wrapper">
+              <i class="fas fa-ban"></i>
+            </div>
+            <h5 class="mb-1">IPs محظورة</h5>
+            <span class="badge badge-danger badge-pill">{{ stats.blocked_ips }}</span>
           </div>
-          <div class="row text-center mb-3">
+          
+          <div class="row text-center mb-4">
             <div class="col-4">
-              <h3 class="fw-bold mb-0">{{ stats.blocked_ips }}</h3>
-              <small class="opacity-75">محظورة</small>
+              <div class="p-2 border rounded bg-light">
+                <h6 class="font-weight-bold mb-0 text-dark">{{ stats.blocked_ips }}</h6>
+                <small class="text-muted" style="font-size: 0.7rem;">محظورة</small>
+              </div>
             </div>
             <div class="col-4">
-              <h3 class="fw-bold mb-0">{{ stats.failed_logins_24h }}</h3>
-              <small class="opacity-75">فاشلة</small>
+              <div class="p-2 border rounded bg-light">
+                <h6 class="font-weight-bold mb-0 text-dark">{{ stats.failed_logins_24h }}</h6>
+                <small class="text-muted" style="font-size: 0.7rem;">فاشلة</small>
+              </div>
             </div>
             <div class="col-4">
-              <h3 class="fw-bold mb-0">{{ stats.suspicious_activities }}</h3>
-              <small class="opacity-75">مشبوهة</small>
+              <div class="p-2 border rounded bg-light">
+                <h6 class="font-weight-bold mb-0 text-dark">{{ stats.suspicious_activities }}</h6>
+                <small class="text-muted" style="font-size: 0.7rem;">مشبوهة</small>
+              </div>
             </div>
           </div>
-          <div class="d-grid gap-2">
-            <a href="{{ url_for('security.blocked_ips') }}" class="btn btn-light btn-sm">
+
+          <div class="d-flex justify-content-center">
+            <a href="{{ url_for('security.blocked_ips') }}" class="btn btn-primary btn-sm ml-1 flex-fill">
               <i class="fas fa-list"></i> القائمة الكاملة
             </a>
-            <a href="{{ url_for('security.block_ip') }}" class="btn btn-outline-light btn-sm">
+            <a href="{{ url_for('security.block_ip') }}" class="btn btn-outline-primary btn-sm mr-1 flex-fill">
               <i class="fas fa-plus"></i> حظر IP
             </a>
           </div>
@@ -489,32 +431,43 @@
       </div>
     </div>
     
-    <div class="col-lg-6">
-      <div class="card border-0 shadow-lg hover-lift" style="background: linear-gradient(135deg, #f12711 0%, #f5af19 100%);">
-        <div class="card-body text-white p-4">
-          <div class="d-flex justify-content-between align-items-center mb-3">
-            <h5 class="fw-bold mb-0"><i class="fas fa-globe mr-2"></i> دول محظورة</h5>
-            <span class="badge bg-danger fs-5">{{ stats.blocked_countries }}</span>
+    <div class="col-lg-6 mb-4">
+      <div class="card card-security-module card-module-firewall h-100">
+        <div class="card-body">
+          <div class="text-center mb-4">
+            <div class="icon-wrapper">
+              <i class="fas fa-globe"></i>
+            </div>
+            <h5 class="mb-1">دول محظورة</h5>
+            <span class="badge badge-danger badge-pill">{{ stats.blocked_countries }}</span>
           </div>
-          <div class="row text-center mb-3">
+          
+          <div class="row text-center mb-4">
             <div class="col-4">
-              <h3 class="fw-bold mb-0">{{ stats.blocked_countries }}</h3>
-              <small class="opacity-75">دول</small>
+              <div class="p-2 border rounded bg-light">
+                <h6 class="font-weight-bold mb-0 text-dark">{{ stats.blocked_countries }}</h6>
+                <small class="text-muted" style="font-size: 0.7rem;">دول</small>
+              </div>
             </div>
             <div class="col-4">
-              <h3 class="fw-bold mb-0">{{ stats.total_users }}</h3>
-              <small class="opacity-75">مستخدمين</small>
+              <div class="p-2 border rounded bg-light">
+                <h6 class="font-weight-bold mb-0 text-dark">{{ stats.total_users }}</h6>
+                <small class="text-muted" style="font-size: 0.7rem;">مستخدمين</small>
+              </div>
             </div>
             <div class="col-4">
-              <h3 class="fw-bold mb-0">{{ stats.active_users }}</h3>
-              <small class="opacity-75">نشطين</small>
+              <div class="p-2 border rounded bg-light">
+                <h6 class="font-weight-bold mb-0 text-dark">{{ stats.active_users }}</h6>
+                <small class="text-muted" style="font-size: 0.7rem;">نشطين</small>
+              </div>
             </div>
           </div>
-          <div class="d-grid gap-2">
-            <a href="{{ url_for('security.blocked_countries') }}" class="btn btn-light btn-sm">
+
+          <div class="d-flex justify-content-center">
+            <a href="{{ url_for('security.blocked_countries') }}" class="btn btn-primary btn-sm ml-1 flex-fill">
               <i class="fas fa-list"></i> القائمة الكاملة
             </a>
-            <a href="{{ url_for('security.block_country') }}" class="btn btn-outline-light btn-sm">
+            <a href="{{ url_for('security.block_country') }}" class="btn btn-outline-primary btn-sm mr-1 flex-fill">
               <i class="fas fa-plus"></i> حظر دولة
             </a>
           </div>
@@ -523,51 +476,63 @@
     </div>
   </div>
 
-  <h4 class="mt-5 mb-3"><i class="fas fa-link text-success"></i> أدوات سريعة</h4>
+  <h4 class="mt-5 mb-3 font-weight-bold"><i class="fas fa-link text-success"></i> أدوات سريعة</h4>
   
-  <div class="row g-3">
-    <div class="col-lg-3 col-md-6">
-      <div class="card border-0 shadow-sm h-100 hover-lift">
-        <div class="card-body text-center p-3">
-          <i class="fas fa-sitemap text-secondary fa-2x mb-2"></i>
-          <h6 class="fw-bold mb-2">خريطة الموقع</h6>
-          <a href="{{ url_for('security.sitemap') }}" class="btn btn-sm btn-outline-secondary w-100">
+  <div class="row mb-4">
+    <div class="col-lg-3 col-md-6 mb-4">
+      <div class="card card-security-module card-module-sitemap h-100">
+        <div class="card-body text-center">
+          <div class="icon-wrapper">
+            <i class="fas fa-sitemap"></i>
+          </div>
+          <h5 class="mb-2">خريطة الموقع</h5>
+          <p class="small mb-4">هيكل النظام الكامل</p>
+          <a href="{{ url_for('security.sitemap') }}" class="btn btn-primary btn-sm btn-block">
             <i class="fas fa-map"></i> عرض
           </a>
         </div>
       </div>
     </div>
     
-    <div class="col-lg-3 col-md-6">
-      <div class="card border-0 shadow-sm h-100 hover-lift">
-        <div class="card-body text-center p-3">
-          <i class="fas fa-question-circle text-info fa-2x mb-2"></i>
-          <h6 class="fw-bold mb-2">المساعدة</h6>
-          <a href="{{ url_for('security.help_page') }}" class="btn btn-sm btn-outline-info w-100">
+    <div class="col-lg-3 col-md-6 mb-4">
+      <div class="card card-security-module card-module-help h-100">
+        <div class="card-body text-center">
+          <div class="icon-wrapper">
+            <i class="fas fa-question-circle"></i>
+          </div>
+          <h5 class="mb-2">المساعدة</h5>
+          <p class="small mb-4">دليل الاستخدام والدعم</p>
+          <a href="{{ url_for('security.help_page') }}" class="btn btn-primary btn-sm btn-block">
             <i class="fas fa-book"></i> عرض
           </a>
         </div>
       </div>
     </div>
     
-    <div class="col-lg-3 col-md-6">
-      <div class="card border-0 shadow-sm h-100 hover-lift">
-        <div class="card-body text-center p-3">
-          <i class="fas fa-history text-primary fa-2x mb-2"></i>
-          <h6 class="fw-bold mb-2">Audit Log</h6>
-          <a href="{{ url_for('security.audit_log_viewer') }}" class="btn btn-sm btn-outline-primary w-100">
+    <div class="col-lg-3 col-md-6 mb-4">
+      <div class="card card-security-module card-module-audit h-100">
+        <div class="card-body text-center">
+          <div class="icon-wrapper">
+            <i class="fas fa-history"></i>
+          </div>
+          <h5 class="mb-2">Audit Log</h5>
+          <p class="small mb-4">سجل العمليات والأنشطة</p>
+          <a href="{{ url_for('security.audit_log_viewer') }}" class="btn btn-primary btn-sm btn-block">
             <i class="fas fa-eye"></i> عرض
           </a>
         </div>
       </div>
     </div>
     
-    <div class="col-lg-3 col-md-6">
-      <div class="card border-0 shadow-sm h-100 hover-lift">
-        <div class="card-body text-center p-3">
-          <i class="fas fa-bolt text-warning fa-2x mb-2"></i>
-          <h6 class="fw-bold mb-2">الفهارس</h6>
-          <a href="{{ url_for('security.database_manager', tab='indexes') }}" class="btn btn-sm btn-outline-warning w-100">
+    <div class="col-lg-3 col-md-6 mb-4">
+      <div class="card card-security-module card-module-db h-100">
+        <div class="card-body text-center">
+          <div class="icon-wrapper">
+            <i class="fas fa-bolt"></i>
+          </div>
+          <h5 class="mb-2">الفهارس</h5>
+          <p class="small mb-4">إدارة فهارس البيانات</p>
+          <a href="{{ url_for('security.database_manager', tab='indexes') }}" class="btn btn-primary btn-sm btn-block">
             <i class="fas fa-database"></i> إدارة
           </a>
         </div>
@@ -740,13 +705,13 @@
 (function() {
   const style = document.createElement('style');
   style.textContent = `
-    .card, .small-box {
+    .small-box {
       transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
     
-    .card:hover, .small-box:hover {
-      transform: translateY(-8px) scale(1.03);
-      box-shadow: 0 15px 40px rgba(0,0,0,0.25) !important;
+    .small-box:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.15) !important;
       z-index: 10;
     }
     

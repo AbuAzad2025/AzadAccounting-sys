@@ -43,7 +43,21 @@
   
   {% include 'advanced/_navigation.html' %}
   
-  <div class="alert border-0 shadow-lg" style="background: linear-gradient(135deg, #FA8BFF 0%, #2BD2FF 50%, #2BFF88 100%); color: white;">
+  <div class="d-flex justify-content-between mb-3">
+    <div class="btn-group" role="group">
+      <button type="button" class="btn btn-outline-primary rounded-pill me-2" onclick="window.history.back()">
+        <i class="fas fa-arrow-right me-1"></i> رجوع
+      </button>
+      <button type="button" class="btn btn-outline-primary rounded-pill" onclick="window.history.forward()">
+        تقدم <i class="fas fa-arrow-left ms-1"></i>
+      </button>
+    </div>
+    <a href="{{ url_for('advanced.owner_hub') }}" class="btn btn-primary shadow-sm rounded-pill">
+        <i class="fas fa-home fa-sm text-white-50"></i> عودة للوحة المالك
+    </a>
+  </div>
+  
+  <div class="alert border-0 shadow-lg" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%); color: white;">
     <h5><i class="fas fa-mobile-alt"></i> <strong>مولد تطبيقات الموبايل الأسطوري</strong></h5>
     <p class="mb-0">حوّل نظامك الكامل إلى تطبيق Android/iOS احترافي مع جميع الوحدات!</p>
     <small>✨ {{ modules|length }} وحدة متاحة - اختر ما تحتاج</small>
@@ -55,26 +69,26 @@
     <div class="row g-4 mb-4">
       <div class="col-md-4">
         <div class="card border-0 shadow-sm h-100">
-          <div class="card-header bg-gradient-primary text-white">
+          <div class="card-header text-white" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);">
             <h5 class="mb-0"><i class="fas fa-cog"></i> إعدادات التطبيق</h5>
           </div>
           <div class="card-body">
             <div class="mb-3">
               <label class="form-label fw-bold">اسم التطبيق</label>
-              <input type="text" name="app_name" class="form-control" 
+              <input type="text" name="app_name" class="form-control form-control-modern" 
                      placeholder="Azad Garage" required>
             </div>
             
             <div class="mb-3">
               <label class="form-label fw-bold">Package Name</label>
-              <input type="text" name="package_name" class="form-control" 
+              <input type="text" name="package_name" class="form-control form-control-modern" 
                      placeholder="com.azad.garage" required>
               <small class="text-muted">للنشر على Google Play / App Store</small>
             </div>
             
             <div class="mb-3">
               <label class="form-label fw-bold">أيقونة التطبيق</label>
-              <input type="file" name="app_icon" class="form-control" accept="image/*">
+              <input type="file" name="app_icon" class="form-control form-control-modern" accept="image/*">
               <small class="text-muted">PNG 1024x1024 (اختياري)</small>
             </div>
           </div>
@@ -83,7 +97,7 @@
 
       <div class="col-md-4">
         <div class="card border-0 shadow-sm h-100">
-          <div class="card-header bg-gradient-success text-white">
+          <div class="card-header text-white" style="background: linear-gradient(135deg, #1cc88a 0%, #13855c 100%);">
             <h5 class="mb-0"><i class="fas fa-mobile-alt"></i> اختر المنصة</h5>
           </div>
           <div class="card-body">
@@ -159,7 +173,7 @@
     </div>
 
     <div class="card border-0 shadow-lg mb-4">
-      <div class="card-header" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white;">
+      <div class="card-header" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%); color: white;">
         <h5 class="mb-0"><i class="fas fa-th"></i> اختر الوحدات ({{ modules|length }} متاح)</h5>
       </div>
       <div class="card-body">
@@ -189,9 +203,9 @@
           
           {% if cat_modules|length > 0 %}
           <div class="category-section">
-            <div class="category-header">
+            <div class="category-header" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);">
               <i class="fas fa-{{ cat_info.icon }}"></i> <strong>{{ cat_info.name }}</strong>
-              <span class="badge bg-white text-{{ cat_info.color }} float-end">{{ cat_modules|length }} وحدة</span>
+              <span class="badge bg-white text-primary float-end">{{ cat_modules|length }} وحدة</span>
             </div>
             
             <div class="row g-2">

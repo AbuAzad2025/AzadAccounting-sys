@@ -82,17 +82,17 @@
 <div class="row" id="accounts-list">
     {% for data in accounts %}
     <div class="col-md-6 col-lg-4 mb-4">
-        <div class="card bank-card {% if data.account.is_active %}active{% else %}inactive{% endif %} h-100">
-            <div class="card-header bg-gradient-primary">
-                <h3 class="card-title text-white">
-                    <i class="fas fa-university"></i>
-                    {{ data.account.code }} - {{ data.account.name }}
-                </h3>
-                <div class="card-tools">
+        <div class="card bank-card shadow-sm h-100">
+            <div class="card-header bg-gradient-primary text-white">
+                <div class="d-flex justify-content-between align-items-start">
+                    <h3 class="card-title h5 mb-0 font-weight-bold">
+                        <i class="fas fa-university mr-2"></i>
+                        {{ data.account.code }} - {{ data.account.name }}
+                    </h3>
                     {% if data.account.is_active %}
-                    <span class="badge badge-success">نشط</span>
+                    <span class="badge bg-white text-primary rounded-pill">نشط</span>
                     {% else %}
-                    <span class="badge badge-danger">معطل</span>
+                    <span class="badge bg-danger rounded-pill">معطل</span>
                     {% endif %}
                 </div>
             </div>

@@ -110,14 +110,11 @@
           </a>
         </li>
         <li>
-          <a href="#" class="sidebar-link text-danger" onclick="event.preventDefault();document.getElementById('logout-form-sidebar').submit();">
+          <a href="#" class="sidebar-link text-danger" data-toggle="modal" data-target="#logoutModalSidebar">
             <i class="fas fa-sign-out-alt"></i>
             <span>تسجيل الخروج</span>
           </a>
         </li>
-        <form id="logout-form-sidebar" action="{{ url_for('auth.logout') }}" method="POST" style="display:none;">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        </form>
         {% else %}
         <li>
           <a href="{{ url_for('auth.login') }}" class="sidebar-link">
@@ -166,6 +163,30 @@
     </div>
   </div>
 </aside>
+
+<!-- Logout Modal for Sidebar -->
+<div class="modal fade" id="logoutModalSidebar" tabindex="-1" role="dialog" aria-labelledby="logoutModalSidebarLabel" aria-hidden="true" style="z-index: 9999;">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header bg-danger text-white">
+        <h5 class="modal-title" id="logoutModalSidebarLabel">تأكيد تسجيل الخروج</h5>
+        <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        هل أنت متأكد أنك تريد تسجيل الخروج من المتجر؟
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">إلغاء</button>
+        <form action="{{ url_for('auth.logout') }}" method="post" data-no-confirm="true">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-danger">تسجيل خروج</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- Overlay للموبايل -->
 <div class="shop-sidebar-overlay" id="shopSidebarOverlay" onclick="toggleShopSidebar()"></div>

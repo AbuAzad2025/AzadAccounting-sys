@@ -295,9 +295,44 @@ def _safe_generate_number_after_flush(sale: Sale) -> None:
         sale.sale_number = f"INV-{datetime.utcnow():%Y%m%d}-{sale.id:04d}"
         db.session.flush()
 
-@sales_bp.route("/dashboard")
+@sales_bp.route("/<int:id>/archive", methods=["POST"])
 @login_required
-def dashboard():
+def archive_sale(id):
+    if not current_user.has_permission("archive_sale"):
+        return jsonify({"status": "error", "message": "ليس لديك صلاحية لأرشفة المبيعات"}), 403
+    
+    sale = Sale.query.get_or_404(id)
+    reason = request.form.get("reason")
+    
+    try:
+        archive_record(sale, Sale, reason=reason)
+        return jsonify({"status": "success", "message": "تم أرشفة عملية البيع بنجاح"})
+    except Exception as e:
+        db.session.rollback()
+        try:
+            sale.is_archived = True
+            db.session.commit()
+            return jsonify({"status": "success", "message": "تم أرشفة عملية البيع بنجاح (يدوي)"})
+        except:
+            return jsonify({"status": "error", "message": str(e)}), 500
+
+@sales_bp.route("/<int:id>/restore", methods=["POST"])
+@login_required
+def restore_sale(id):
+    if not current_user.has_permission("archive_sale"):
+        return jsonify({"status": "error", "message": "ليس لديك صلاحية لاستعادة المبيعات"}), 403
+        
+    try:
+        restore_record(id, Sale)
+        return jsonify({"status": "success", "message": "تم استعادة عملية البيع بنجاح"})
+    except Exception as e:
+        sale = Sale.query.get(id)
+        if sale:
+            sale.is_archived = False
+            db.session.commit()
+            return jsonify({"status": "success", "message": "تم استعادة عملية البيع بنجاح (يدوي)"})
+        return jsonify({"status": "error", "message": str(e)}), 500
+
     from decimal import Decimal
     from models import convert_amount
     
@@ -1476,55 +1511,4 @@ def generate_invoice(id: int):
         money_fmt=money_fmt,
     )
 
-@sales_bp.route("/archive/<int:sale_id>", methods=["POST"])
-@login_required
-def archive_sale(sale_id):
-    # Debug logging removed to avoid Unicode errors
-    
-    try:
-        from models import Archive
-        
-        sale = Sale.query.get_or_404(sale_id)
-        
-        reason = request.form.get('reason', 'أرشفة تلقائية')
-        
-        utils.archive_record(sale, reason, current_user.id)
-        flash(f'تم أرشفة المبيعة رقم {sale_id} بنجاح', 'success')
-        return redirect(url_for('sales_bp.list_sales'))
-        
-    except Exception as e:
-        db.session.rollback()
-        flash(f'خطأ في أرشفة المبيعة: {str(e)}', 'error')
-        return redirect(url_for('sales_bp.list_sales'))
 
-@sales_bp.route('/restore/<int:sale_id>', methods=['POST'])
-@login_required
-def restore_sale(sale_id):
-    """استعادة مبيعة"""
-    # Debug logging removed to avoid Unicode errors
-    
-    try:
-        sale = Sale.query.get_or_404(sale_id)
-        
-        if not sale.is_archived:
-            flash('المبيعة غير مؤرشفة', 'warning')
-            return redirect(url_for('sales_bp.list_sales'))
-        
-        # البحث عن الأرشيف
-        from models import Archive
-        archive = Archive.query.filter_by(
-            record_type='sales',
-            record_id=sale_id
-        ).first()
-        
-        if archive:
-            utils.restore_record(archive.id)
-        
-        flash(f'تم استعادة المبيعة رقم {sale_id} بنجاح', 'success')
-        return redirect(url_for('sales_bp.list_sales'))
-        
-    except Exception as e:
-        
-        db.session.rollback()
-        flash(f'خطأ في استعادة المبيعة: {str(e)}', 'error')
-        return redirect(url_for('sales_bp.list_sales'))

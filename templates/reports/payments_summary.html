@@ -8,8 +8,16 @@
 {% block report_content %}
 <div class="container-fluid" dir="rtl">
 
-<div class="mb-3">
+<div class="mb-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
   <h4 class="fw-bold m-0"><i class="fas fa-hand-holding-usd"></i> تقرير المدفوعات الشامل</h4>
+  <div class="btn-group shadow-sm rounded-pill overflow-hidden bg-white">
+      <button onclick="window.history.back()" class="btn btn-sm text-primary fw-bold border-end" title="رجوع">
+          <i class="fas fa-arrow-right"></i>
+      </button>
+      <button onclick="window.history.forward()" class="btn btn-sm text-primary fw-bold" title="تقدم">
+          <i class="fas fa-arrow-left"></i>
+      </button>
+  </div>
 </div>
 <div class="row g-3 mb-4">
   <div class="col-md-2">
@@ -74,22 +82,22 @@
 </div>
 
 <div class="card shadow-sm mb-3">
-  <div class="card-header bg-info text-white">
+  <div class="card-header text-white" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);">
     <i class="fas fa-filter"></i> فلاتر التقرير
   </div>
   <div class="card-body">
     <form method="get" class="row g-3">
 <div class="col-md-3">
   <label class="form-label"><i class="fas fa-calendar"></i> من تاريخ</label>
-  <input type="date" name="start_date" value="{{ request.args.get('start_date', '') }}" class="form-control">
+  <input type="date" name="start_date" value="{{ request.args.get('start_date', '') }}" class="form-control form-control-modern">
 </div>
 <div class="col-md-3">
   <label class="form-label"><i class="fas fa-calendar"></i> إلى تاريخ</label>
-  <input type="date" name="end_date" value="{{ request.args.get('end_date', '') }}" class="form-control">
+  <input type="date" name="end_date" value="{{ request.args.get('end_date', '') }}" class="form-control form-control-modern">
 </div>
 <div class="col-md-2">
   <label class="form-label"><i class="fas fa-exchange-alt"></i> الاتجاه</label>
-  <select name="direction" class="form-select">
+  <select name="direction" class="form-select form-control-modern">
     <option value="">الكل</option>
     <option value="IN" {% if request.args.get('direction') == 'IN' %}selected{% endif %}>وارد (IN)</option>
     <option value="OUT" {% if request.args.get('direction') == 'OUT' %}selected{% endif %}>صادر (OUT)</option>
@@ -97,7 +105,7 @@
 </div>
 <div class="col-md-2">
   <label class="form-label"><i class="fas fa-wallet"></i> طريقة الدفع</label>
-  <select name="method" class="form-select">
+  <select name="method" class="form-select form-control-modern">
     <option value="">الكل</option>
     <option value="cash" {% if request.args.get('method') == 'cash' %}selected{% endif %}>نقدي</option>
     <option value="bank" {% if request.args.get('method') == 'bank' %}selected{% endif %}>تحويل بنكي</option>
@@ -108,7 +116,7 @@
 </div>
 <div class="col-md-2">
   <label class="form-label"><i class="fas fa-info-circle"></i> الحالة</label>
-  <select name="status" class="form-select">
+  <select name="status" class="form-select form-control-modern">
     <option value="">الكل</option>
     <option value="COMPLETED" {% if request.args.get('status') == 'COMPLETED' %}selected{% endif %}>مكتمل</option>
     <option value="PENDING" {% if request.args.get('status') == 'PENDING' %}selected{% endif %}>معلق</option>
@@ -125,13 +133,13 @@
 </div>
 
 <div class="card shadow-sm">
-  <div class="card-header bg-success text-white">
+  <div class="card-header text-white" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);">
     <h5 class="mb-0"><i class="fas fa-list"></i> قائمة المدفوعات التفصيلية</h5>
   </div>
   <div class="card-body">
     <div class="table-responsive">
       <table class="table table-bordered table-striped table-hover" id="paymentsTable">
-        <thead class="table-dark">
+        <thead class="text-white" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);">
 <tr>
   <th class="text-center">#</th>
   <th>رقم الدفعة</th>
