@@ -72,10 +72,17 @@ def import_from_json(filename, app=None):
                 # User said "restore", usually implies replacing state.
                 # To be safe against duplicates, we should probably clear the table first.
                 try:
-                    connection.execute(text(f"TRUNCATE TABLE {table_name} CASCADE"))
+                    # Use a nested transaction for truncate to avoid aborting the main transaction on error
+                    with connection.begin_nested():
+                        connection.execute(text(f"TRUNCATE TABLE {table_name} CASCADE"))
                 except Exception:
                     # Fallback for SQLite or if CASCADE not supported
-                    connection.execute(text(f"DELETE FROM {table_name}"))
+                    # Also use nested transaction for delete
+                    try:
+                        with connection.begin_nested():
+                             connection.execute(text(f"DELETE FROM {table_name}"))
+                    except Exception as e:
+                        log(f"  Warning: Could not clear table {table_name}: {e}")
                 
                 # Bulk insert is tricky with raw SQL and varying columns, 
                 # but since it's a restore, we assume schema matches keys.
@@ -94,34 +101,39 @@ def import_from_json(filename, app=None):
                 chunk_size = 1000
                 for i in range(0, len(records), chunk_size):
                     chunk = records[i:i + chunk_size]
-                    connection.execute(table.insert(), chunk)
+                    try:
+                        connection.execute(table.insert(), chunk)
+                    except Exception as e:
+                        log(f"Error inserting chunk into {table_name}: {e}")
+                        # If a chunk fails, we might want to stop or continue?
+                        # For now, let's re-raise to rollback everything
+                        raise e
                     
             # 3. Reset Sequences (Postgres specific, crucial for ID auto-increment)
             if 'postgresql' in db.engine.url.drivername:
                 log("Resetting sequences...")
                 # Find all sequences and reset them to max(id)
                 # This is a complex SQL but necessary for a functional restore
-                seq_reset_query = """
-                SELECT 'SELECT setval(' || quote_literal(quote_ident(S.relname)) || ', MAX(' || quote_ident(C.attname) || ') ) FROM ' || quote_ident(T.relname) || ';'
-                FROM pg_class AS S, pg_depend AS D, pg_class AS T, pg_attribute AS C
-                WHERE S.relkind = 'S' AND S.oid = D.objid AND D.refobjid = T.oid AND D.refobjid = C.attrelid AND D.refobjsubid = C.attnum
-                """
-                # This query generates SQL statements to reset sequences. 
-                # We need to execute them.
-                # Simplified approach:
                 # We can try to guess sequence names usually table_id_seq
                 for table_name in data.keys():
                     try:
-                        # Check if table has 'id' column
-                        result = connection.execute(text(f"SELECT MAX(id) FROM {table_name}"))
-                        max_id = result.scalar()
-                        if max_id is not None:
-                            seq_name = f"{table_name}_id_seq"
-                            # Try reset
-                            try:
-                                connection.execute(text(f"SELECT setval('{seq_name}', {max_id}, true)"))
-                            except Exception:
-                                pass # Sequence might have different name
+                        # Use nested transaction for each sequence reset attempt
+                        # so one failure doesn't abort the whole process
+                        with connection.begin_nested():
+                            # Check if table has 'id' column
+                            result = connection.execute(text(f"SELECT MAX(id) FROM {table_name}"))
+                            max_id = result.scalar()
+                            if max_id is not None:
+                                seq_name = f"{table_name}_id_seq"
+                                # Try reset
+                                try:
+                                    connection.execute(text(f"SELECT setval('{seq_name}', {max_id}, true)"))
+                                except Exception:
+                                    # Try public schema prefix
+                                    try:
+                                        connection.execute(text(f"SELECT setval('public.{seq_name}', {max_id}, true)"))
+                                    except Exception:
+                                        pass # Sequence might have different name or not exist
                     except Exception:
                         pass
 
