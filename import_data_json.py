@@ -94,10 +94,22 @@ def import_from_json(filename, app=None):
                 columns = ", ".join(records[0].keys())
                 placeholders = ", ".join([f":{key}" for key in records[0].keys()])
                 
+                # Prepare records for insertion
+                prepared_records = []
+                import json
+                
+                for record in records:
+                    new_record = record.copy()
+                    for key, value in new_record.items():
+                        # Handle list/dict types that need to be JSON serialized for JSON columns
+                        if isinstance(value, (dict, list)):
+                            new_record[key] = json.dumps(value)
+                    prepared_records.append(new_record)
+
                 try:
                     # Use raw SQL for speed and simplicity
                     stmt = text(f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders})")
-                    connection.execute(stmt, records)
+                    connection.execute(stmt, prepared_records)
                     log(f"  Inserted {len(records)} rows into {table_name}")
                 except Exception as e:
                     log(f"Error importing {table_name}: {e}")
