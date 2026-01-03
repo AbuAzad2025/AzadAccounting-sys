@@ -2859,15 +2859,15 @@ class CheckActionService:
 
     def _is_cheque_payment(self, payment):
         method = getattr(payment.method, 'value', payment.method)
-        if method and method.upper() == PaymentMethod.CHEQUE.value:
+        if method and str(method).lower() == PaymentMethod.CHEQUE.value.lower():
             return True
-        if any(getattr(s.method, 'value', s.method) == PaymentMethod.CHEQUE.value for s in payment.splits or []):
+        if any(str(getattr(s.method, 'value', s.method)).lower() == PaymentMethod.CHEQUE.value.lower() for s in payment.splits or []):
             return True
         return False
 
     def _is_cheque_split(self, split):
         method = getattr(split.method, 'value', split.method)
-        return method == PaymentMethod.CHEQUE.value
+        return method and str(method).lower() == PaymentMethod.CHEQUE.value.lower()
 
     def _is_cheque_expense(self, expense):
         method = (expense.payment_method or '').lower()
