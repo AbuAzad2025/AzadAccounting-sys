@@ -96,14 +96,15 @@ def import_from_json(filename, app=None):
                 
                 # Prepare records for insertion
                 prepared_records = []
-                import json
+                # json is already imported at top level, but let's be safe
+                import json as json_lib
                 
                 for record in records:
                     new_record = record.copy()
                     for key, value in new_record.items():
                         # Handle list/dict types that need to be JSON serialized for JSON columns
                         if isinstance(value, (dict, list)):
-                            new_record[key] = json.dumps(value)
+                            new_record[key] = json_lib.dumps(value)
                     prepared_records.append(new_record)
 
                 try:
