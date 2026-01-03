@@ -6,7 +6,7 @@ from sqlalchemy import text, or_
 sys.path.append(os.getcwd())
 
 from app import create_app
-from garage_manager.models import db, Check, Payment, PaymentMethod
+from models import db, Check, Payment, PaymentMethod
 
 app = create_app()
 
