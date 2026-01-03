@@ -57,6 +57,7 @@ def export_to_json():
                             item_dict[col_name] = val
                         records.append(item_dict)
                     
+                    print(f"  Found {len(records)} records for {table_name}")
                     data[table_name] = records
                 except Exception as e:
                     print(f"Error exporting {table_name}: {e}")
