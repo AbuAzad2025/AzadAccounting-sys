@@ -104,7 +104,16 @@ def import_from_json(filename, app=None):
                 for i in range(0, len(records), chunk_size):
                     chunk = records[i:i + chunk_size]
                     try:
+                        # Ensure chunk is a list of dictionaries
+                        if not isinstance(chunk, list):
+                            log(f"Error: Chunk is not a list for {table_name}")
+                            continue
+                            
+                        # If table has 'method' column (enum), we might need to handle it?
+                        # SQLAlchemy usually handles string -> Enum mapping if the value matches.
+                        
                         connection.execute(table.insert(), chunk)
+                        log(f"  Inserted {len(chunk)} rows into {table_name}")
                     except Exception as e:
                         log(f"Error inserting chunk into {table_name}: {e}")
                         # If a chunk fails, we might want to stop or continue?
