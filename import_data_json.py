@@ -58,70 +58,57 @@ def import_from_json(filename, app=None):
             
             # 1. Disable Foreign Key Constraints
             # This allows us to insert data in any order without FK violations
-            if 'postgresql' in db.engine.url.drivername:
-                connection.execute(text("SET session_replication_role = 'replica';"))
-            elif 'sqlite' in db.engine.url.drivername:
-                connection.execute(text("PRAGMA foreign_keys = OFF;"))
-            # Add MySQL handling if needed
-            
-            # 2. Iterate through tables and insert data
-            for table_name, records in data.items():
-                if not records:
-                    continue
-                    
-                log(f"Importing {len(records)} records into {table_name}...")
-                
-                # Option: Truncate table before import?
-                # User said "restore", usually implies replacing state.
-                # To be safe against duplicates, we should probably clear the table first.
+            if 'postgresql' in connection.dialect.name:
                 try:
-                    # Use a nested transaction for truncate to avoid aborting the main transaction on error
+                    connection.execute(text("SET session_replication_role = 'replica';"))
+                except Exception as e:
+                    log(f"Warning: Could not set replication role: {e}")
+            elif 'sqlite' in connection.dialect.name:
+                connection.execute(text("PRAGMA foreign_keys = OFF;"))
+            
+            # Phase 1: Clear all tables
+            log("Clearing tables...")
+            tables_to_import = list(data.keys())
+            
+            for table_name in tables_to_import:
+                try:
+                    # Use a nested transaction for truncate
                     with connection.begin_nested():
                         connection.execute(text(f"TRUNCATE TABLE {table_name} CASCADE"))
                 except Exception:
                     # Fallback for SQLite or if CASCADE not supported
-                    # Also use nested transaction for delete
                     try:
                         with connection.begin_nested():
                              connection.execute(text(f"DELETE FROM {table_name}"))
                     except Exception as e:
                         log(f"  Warning: Could not clear table {table_name}: {e}")
-                
-                # Bulk insert is tricky with raw SQL and varying columns, 
-                # but since it's a restore, we assume schema matches keys.
-                # We'll use SQLAlchemy's insert.
-                
-                # Get table object
-                from sqlalchemy import MetaData, Table
-                metadata = MetaData()
-                try:
-                    table = Table(table_name, metadata, autoload_with=connection)
-                except Exception as e:
-                    log(f"  Warning: Could not load table {table_name}: {e}")
-                    continue
 
-                # Insert in chunks
-                chunk_size = 1000
-                for i in range(0, len(records), chunk_size):
-                    chunk = records[i:i + chunk_size]
-                    try:
-                        # Ensure chunk is a list of dictionaries
-                        if not isinstance(chunk, list):
-                            log(f"Error: Chunk is not a list for {table_name}")
-                            continue
-                            
-                        # If table has 'method' column (enum), we might need to handle it?
-                        # SQLAlchemy usually handles string -> Enum mapping if the value matches.
-                        
-                        connection.execute(table.insert(), chunk)
-                        log(f"  Inserted {len(chunk)} rows into {table_name}")
-                        trans.commit()
-                        trans = connection.begin()
-                    except Exception as e:
-                        log(f"Error inserting chunk into {table_name}: {e}")
-                        # If a chunk fails, we might want to stop or continue?
-                        # For now, let's re-raise to rollback everything
-                        raise e
+            # Phase 2: Insert data
+            for table_name, records in data.items():
+                if not records:
+                    continue
+                
+                log(f"Importing {len(records)} records into {table_name}...")
+                
+                # Get columns from first record
+                columns = ", ".join(records[0].keys())
+                placeholders = ", ".join([f":{key}" for key in records[0].keys()])
+                
+                try:
+                    # Use raw SQL for speed and simplicity
+                    stmt = text(f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders})")
+                    connection.execute(stmt, records)
+                    log(f"  Inserted {len(records)} rows into {table_name}")
+                except Exception as e:
+                    log(f"Error importing {table_name}: {e}")
+                    raise e
+
+            # Re-enable FK checks (at the end)
+            if 'postgresql' in connection.dialect.name:
+                 try:
+                    connection.execute(text("SET session_replication_role = 'origin';"))
+                 except Exception:
+                    pass
                     
             # 3. Reset Sequences (Postgres specific, crucial for ID auto-increment)
             if 'postgresql' in db.engine.url.drivername:
