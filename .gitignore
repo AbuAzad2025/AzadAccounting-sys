@@ -91,3 +91,7 @@ test_*.py
 
 # Exports (Backups)
 exports/
+
+# Comparison Scripts
+verify_migration.py
+compare_*.py
