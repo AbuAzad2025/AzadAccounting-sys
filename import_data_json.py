@@ -32,6 +32,8 @@ def import_from_json(filename, app=None):
         # Handle absolute paths vs filenames
         if os.path.isabs(filename):
             filepath = filename
+        elif os.path.exists(filename):
+            filepath = filename
         else:
             filepath = os.path.join(os.getcwd(), 'exports', filename)
             
