@@ -12,7 +12,10 @@ app = create_app()
 
 def check_data():
     with app.app_context():
-        print("=== Checking Checks Table ===")
+        print("\n=== Database Connection Info ===")
+        print(f"DB URI: {app.config['SQLALCHEMY_DATABASE_URI']}")
+        
+        print("\n=== Checking Checks Table ===")
         checks = Check.query.all()
         print(f"Total Checks found: {len(checks)}")
         for c in checks:

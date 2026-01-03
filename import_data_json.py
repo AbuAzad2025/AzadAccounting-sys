@@ -53,6 +53,7 @@ def import_from_json(filename, app=None):
         trans = connection.begin()
         
         try:
+            log(f"DB URI: {app.config['SQLALCHEMY_DATABASE_URI']}")
             log("Preparing database for import...")
             
             # 1. Disable Foreign Key Constraints
