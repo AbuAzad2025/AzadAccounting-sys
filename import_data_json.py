@@ -114,6 +114,8 @@ def import_from_json(filename, app=None):
                         
                         connection.execute(table.insert(), chunk)
                         log(f"  Inserted {len(chunk)} rows into {table_name}")
+                        trans.commit()
+                        trans = connection.begin()
                     except Exception as e:
                         log(f"Error inserting chunk into {table_name}: {e}")
                         # If a chunk fails, we might want to stop or continue?
