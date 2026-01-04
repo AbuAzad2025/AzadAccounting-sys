@@ -3,7 +3,7 @@ from flask_login import login_required, current_user
 from functools import wraps
 from datetime import datetime, timedelta
 import json
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 
 from models import db, Account, GLBatch, GLEntry, Payment, PaymentMethod, PaymentStatus, Sale, Invoice, Check, CheckStatus, Partner, Supplier, Customer
 from routes.checks import create_check_record
