@@ -3545,6 +3545,7 @@ def refund_payment(payment_id: int):
             method=(original.method or PaymentMethod.CASH.value),
             reference=f"إرجاع كامل الدفعة #{original.id}",
             notes=original.notes,
+            refund_of_id=original.id,
         )
         _ensure_payment_number(refund)
         db.session.add(refund)

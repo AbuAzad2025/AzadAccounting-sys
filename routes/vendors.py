@@ -799,7 +799,7 @@ def suppliers_statement(supplier_id: int):
         .options(joinedload(Payment.related_check), joinedload(Payment.splits))
         .filter(
             Payment.supplier_id == supplier.id,
-            Payment.status.in_([PaymentStatus.COMPLETED.value, PaymentStatus.PENDING.value, PaymentStatus.FAILED.value, PaymentStatus.CANCELLED.value]),
+            Payment.status.in_([PaymentStatus.COMPLETED.value, PaymentStatus.PENDING.value, PaymentStatus.FAILED.value, PaymentStatus.CANCELLED.value, PaymentStatus.REFUNDED.value]),
         )
     )
     if df:
@@ -817,7 +817,7 @@ def suppliers_statement(supplier_id: int):
                 Expense.supplier_id == supplier.id,
                 and_(Expense.payee_type == "SUPPLIER", Expense.payee_entity_id == supplier.id)
             ),
-            Payment.status.in_([PaymentStatus.COMPLETED.value, PaymentStatus.PENDING.value, PaymentStatus.FAILED.value, PaymentStatus.CANCELLED.value]),
+            Payment.status.in_([PaymentStatus.COMPLETED.value, PaymentStatus.PENDING.value, PaymentStatus.FAILED.value, PaymentStatus.CANCELLED.value, PaymentStatus.REFUNDED.value]),
         )
     )
     if df:
@@ -834,7 +834,7 @@ def suppliers_statement(supplier_id: int):
             .options(joinedload(Payment.related_check), joinedload(Payment.splits))
             .filter(
                 Payment.customer_id == supplier.customer_id,
-                Payment.status.in_([PaymentStatus.COMPLETED.value, PaymentStatus.PENDING.value, PaymentStatus.FAILED.value, PaymentStatus.CANCELLED.value]),
+                Payment.status.in_([PaymentStatus.COMPLETED.value, PaymentStatus.PENDING.value, PaymentStatus.FAILED.value, PaymentStatus.CANCELLED.value, PaymentStatus.REFUNDED.value]),
             )
         )
         if df:
@@ -850,7 +850,7 @@ def suppliers_statement(supplier_id: int):
                 .options(joinedload(Payment.related_check), joinedload(Payment.splits))
                 .filter(
                     Payment.expense_id.isnot(None),
-                    Payment.status.in_([PaymentStatus.COMPLETED.value, PaymentStatus.PENDING.value, PaymentStatus.FAILED.value, PaymentStatus.CANCELLED.value]),
+                    Payment.status.in_([PaymentStatus.COMPLETED.value, PaymentStatus.PENDING.value, PaymentStatus.FAILED.value, PaymentStatus.CANCELLED.value, PaymentStatus.REFUNDED.value]),
                     or_(
                         Payment.customer_id == supplier.customer_id,
                         Payment.expense_id.in_(expense_ids_with_customer)
@@ -870,7 +870,7 @@ def suppliers_statement(supplier_id: int):
                 .filter(
                     Payment.expense_id.isnot(None),
                     Payment.customer_id == supplier.customer_id,
-                    Payment.status.in_([PaymentStatus.COMPLETED.value, PaymentStatus.PENDING.value, PaymentStatus.FAILED.value, PaymentStatus.CANCELLED.value]),
+                    Payment.status.in_([PaymentStatus.COMPLETED.value, PaymentStatus.PENDING.value, PaymentStatus.FAILED.value, PaymentStatus.CANCELLED.value, PaymentStatus.REFUNDED.value]),
                 )
             )
             if df:
@@ -1008,6 +1008,7 @@ def suppliers_statement(supplier_id: int):
             'is_bounced': is_bounced,
             'is_pending': is_pending,
             'is_cancelled': is_cancelled,
+            'is_refunded': (payment_status == 'REFUNDED'),
             'splits': split_details,
         }
         
@@ -1208,6 +1209,7 @@ def suppliers_statement(supplier_id: int):
                     'is_pending': split_is_pending,
                     'is_cashed': split_has_cashed,
                     'is_returned': split_has_returned,
+                    'is_refunded': (payment_status == 'REFUNDED'),
                     'splits': [],
                     'all_checks': [{
                         'check_number': split_check.check_number,
@@ -2388,7 +2390,7 @@ def partners_statement(partner_id: int):
         .options(joinedload(Payment.splits))
         .filter(
             Payment.partner_id == partner.id,
-            Payment.status.in_([PaymentStatus.COMPLETED.value, PaymentStatus.PENDING.value, PaymentStatus.FAILED.value]),
+            Payment.status.in_([PaymentStatus.COMPLETED.value, PaymentStatus.PENDING.value, PaymentStatus.FAILED.value, PaymentStatus.REFUNDED.value]),
         )
     )
     if df:
@@ -2406,7 +2408,7 @@ def partners_statement(partner_id: int):
                 Expense.partner_id == partner.id,
                 and_(Expense.payee_type == "PARTNER", Expense.payee_entity_id == partner.id)
             ),
-            Payment.status.in_([PaymentStatus.COMPLETED.value, PaymentStatus.PENDING.value, PaymentStatus.FAILED.value]),
+            Payment.status.in_([PaymentStatus.COMPLETED.value, PaymentStatus.PENDING.value, PaymentStatus.FAILED.value, PaymentStatus.REFUNDED.value]),
         )
     )
     if df:
@@ -2423,7 +2425,7 @@ def partners_statement(partner_id: int):
             .options(joinedload(Payment.splits))
             .filter(
                 Payment.customer_id == partner.customer_id,
-                Payment.status.in_([PaymentStatus.COMPLETED.value, PaymentStatus.PENDING.value, PaymentStatus.FAILED.value]),
+                Payment.status.in_([PaymentStatus.COMPLETED.value, PaymentStatus.PENDING.value, PaymentStatus.FAILED.value, PaymentStatus.REFUNDED.value]),
             )
         )
         if df:
@@ -2439,7 +2441,7 @@ def partners_statement(partner_id: int):
                 .options(joinedload(Payment.splits))
                 .filter(
                     Payment.expense_id.isnot(None),
-                    Payment.status.in_([PaymentStatus.COMPLETED.value, PaymentStatus.PENDING.value, PaymentStatus.FAILED.value]),
+                    Payment.status.in_([PaymentStatus.COMPLETED.value, PaymentStatus.PENDING.value, PaymentStatus.FAILED.value, PaymentStatus.REFUNDED.value]),
                     or_(
                         Payment.customer_id == partner.customer_id,
                         Payment.expense_id.in_(expense_ids_with_customer)
@@ -2459,7 +2461,7 @@ def partners_statement(partner_id: int):
                 .filter(
                     Payment.expense_id.isnot(None),
                     Payment.customer_id == partner.customer_id,
-                    Payment.status.in_([PaymentStatus.COMPLETED.value, PaymentStatus.PENDING.value, PaymentStatus.FAILED.value]),
+                    Payment.status.in_([PaymentStatus.COMPLETED.value, PaymentStatus.PENDING.value, PaymentStatus.FAILED.value, PaymentStatus.REFUNDED.value]),
                 )
             )
             if df:
@@ -2541,6 +2543,7 @@ def partners_statement(partner_id: int):
             'status': payment_status,
             'is_bounced': is_bounced,
             'is_pending': is_pending,
+            'is_refunded': (payment_status == 'REFUNDED'),
             'splits': split_details,
         }
         
@@ -2659,6 +2662,7 @@ def partners_statement(partner_id: int):
                         'is_pending': split_is_pending,
                         'is_cashed': split_has_cashed,
                         'is_returned': split_has_returned,
+                        'is_refunded': (payment_status == 'REFUNDED'),
                         'splits': [],
                         'all_checks': [{
                             'check_number': split_check.check_number,

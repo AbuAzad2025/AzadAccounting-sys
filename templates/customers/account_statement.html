@@ -479,7 +479,7 @@
               {# البيان الديناميكي #}
               <td style="border: 1px solid #dee2e6; padding: 8px; text-align: start;">
                 {# للدفعات - دفعة (طريقة) سند قبض - ليج (المستلم) #}
-                {% if (e.type in ['PAYMENT', 'CHECK_BOUNCED', 'CHECK_PENDING', 'CHECK_CASHED', 'CHECK_RESUBMITTED', 'CHECK_CANCELLED', 'CHECK_LEGAL', 'CHECK_SETTLED']) and e.get('payment_details') %}
+                {% if (e.type in ['PAYMENT', 'CHECK_BOUNCED', 'CHECK_PENDING', 'CHECK_CASHED', 'CHECK_RESUBMITTED', 'CHECK_CANCELLED', 'CHECK_LEGAL', 'CHECK_SETTLED', 'CHECK_RETURNED']) and e.get('payment_details') %}
                   {% set pd = e.payment_details %}
                   
                   {# حالات الشيك المختلفة #}
@@ -497,6 +497,8 @@
                     <span class="badge bg-secondary"><i class="fas fa-times-circle"></i> شيك ملغي</span>
                   {% elif e.type == 'CHECK_PENDING' %}
                     <span class="badge bg-warning text-dark"><i class="fas fa-clock"></i> شيك معلق</span>
+                  {% elif e.type == 'CHECK_RETURNED' %}
+                    <span class="badge bg-info"><i class="fas fa-undo"></i> إرجاع</span>
                   {% else %}
                     دفعة
                   {% endif %}
@@ -522,7 +524,7 @@
                     (نقداً)
                   {% endif %}
                   
-                  {% if e.type != 'CHECK_BOUNCED' %}
+                  {% if e.type not in ['CHECK_BOUNCED', 'CHECK_RETURNED'] %}
                     سند قبض
                   {% endif %}
                   
@@ -532,6 +534,14 @@
                   {% endif %}
                   {% if pd.receiver_name %}
                     - لـيـد ({{ pd.receiver_name }})
+                  {% endif %}
+                  
+                  {# وسم بصري للحالات الخاصة: مرجعة / إرجاع #}
+                  {% if pd.is_refunded %}
+                    <span class="badge bg-warning text-dark ms-2">مرجعة</span>
+                  {% endif %}
+                  {% if pd.is_refund_payment %}
+                    <span class="badge bg-info ms-1">إرجاع</span>
                   {% endif %}
                   
                   {# تفاصيل حالة الشيك #}

@@ -402,6 +402,9 @@
                   {% elif e.type == 'CHECK_PENDING' %}
                     <span class="badge bg-warning text-dark"><i class="fas fa-clock"></i> شيك معلق</span>
                   {% endif %}
+                  {% if pd.status == 'REFUNDED' or pd.is_refunded %}
+                    <span class="badge bg-secondary"><i class="fas fa-rotate-left"></i> مرجعة</span>
+                  {% endif %}
                   
                   <div class="small">
                     {{ e.statement }}
@@ -873,4 +876,3 @@
   }
 </script>
 {% endblock %}
-

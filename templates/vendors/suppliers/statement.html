@@ -478,6 +478,9 @@ section.content .container-fluid {
                   {% elif e.type == 'CHECK_CANCELLED' %}
                     <span class="badge bg-danger"><i class="fas fa-times-circle"></i> شيك ملغي</span>
                   {% endif %}
+                  {% if pd.status == 'REFUNDED' or pd.is_refunded %}
+                    <span class="badge bg-secondary"><i class="fas fa-rotate-left"></i> مرجعة</span>
+                  {% endif %}
                   
                   {# البيان الأساسي #}
                   <div class="small">

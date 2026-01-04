@@ -1304,10 +1304,10 @@ def account_statement(customer_id):
                 "notes": "دفعة مقدمة - طلب أونلاين",
             })
 
-    # ✅ فلترة الدفعات: COMPLETED + PENDING + الشيكات المرتدة (BOUNCED/FAILED)
+    # ✅ فلترة الدفعات: COMPLETED + PENDING + الشيكات المرتدة (BOUNCED/FAILED) + REFUNDED للعرض التاريخي
     # PENDING: الشيكات المعلقة تُحسب في الرصيد (حسب العرف المحلي)
     # BOUNCED/FAILED: الشيكات المرتدة تظهر لتوثيق عكس القيد
-    payment_statuses = ['COMPLETED', 'PENDING', 'BOUNCED', 'FAILED', 'REJECTED']
+    payment_statuses = ['COMPLETED', 'PENDING', 'BOUNCED', 'FAILED', 'REJECTED', 'REFUNDED']
     
     # ✅ إضافة joinedload(Payment.splits) لجميع استعلامات الدفعات لضمان تحميل splits
     # ✅ البحث عن جميع الدفعات المباشرة للعميل (بما في ذلك entity_type == 'CUSTOMER')
@@ -1941,6 +1941,8 @@ def account_statement(customer_id):
                         'is_pending': split_is_pending,
                         'is_cashed': split_has_cashed,
                         'is_returned': split_has_returned,
+                        'is_refunded': (str(payment_status).upper() == 'REFUNDED') or bool(getattr(split, 'details', {}) and getattr(split, 'details', {}).get('refunded')),
+                        'is_refund_payment': bool(getattr(p, 'refund_of_id', None)),
                         'splits': [],  # لا splits داخل split
                         'all_checks': [{
                             'check_number': split_check.check_number,
