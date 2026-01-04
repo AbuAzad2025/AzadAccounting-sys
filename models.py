@@ -7125,10 +7125,15 @@ def _payment_update_supplier_balance_on_delete(mapper, connection, target: "Paym
     except Exception:
         pass
 
-@event.listens_for(Payment, "after_insert")
 @event.listens_for(Payment, "after_update")
 def _payment_gl_batch_upsert(mapper, connection, target: "Payment"):
-    """إنشاء/تحديث GLBatch للدفعة تلقائياً"""
+    """
+    إنشاء/تحديث GLBatch للدفعة (للدفعات القديمة فقط).
+    
+    ⚠️ ملاحظة: تم إزالة `after_insert` لأن النظام الجديد يعتمد كلياً على `PaymentSplit`.
+    الدفعات الجديدة يجب أن تحتوي على splits، والتي بدورها ستنشئ قيودها الخاصة.
+    هذا يمنع ازدواجية القيود عند إنشاء دفعة جديدة.
+    """
     if hasattr(target, '_skip_gl_entry') and target._skip_gl_entry:
         return
     
@@ -7893,6 +7898,14 @@ def _payment_split_gl_batch_upsert(mapper, connection, target: "PaymentSplit"):
         
         if not payment_row:
             return
+        
+        # ✅ FIX: تنظيف GLBatch الخاص بالدفعة الأم إذا وُجد
+        # إذا تم إنشاء الدفعة أولاً (مما أنشأ GLBatch) ثم أضيفت الـ Splits،
+        # يجب حذف قيد الدفعة الأم لتجنب التكرار (Double Counting)، لأن الـ Splits ستنشئ قيودها الخاصة.
+        connection.execute(
+            sa_text("DELETE FROM gl_batches WHERE source_type = 'PAYMENT' AND source_id = :pid"),
+            {"pid": target.payment_id}
+        )
         
         payment_status = payment_row['status']
         

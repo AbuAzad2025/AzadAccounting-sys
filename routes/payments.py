@@ -1593,9 +1593,23 @@ def create_payment():
             _ensure_payment_number(payment)
             db.session.add(payment)
             db.session.flush()
-            for sp in parsed_splits:
-                sp.payment_id = payment.id
-                db.session.add(sp)
+            
+            # ✅ ضمان وجود Split واحد على الأقل لإنشاء القيود المحاسبية
+            if not parsed_splits:
+                default_split = PaymentSplit(
+                    payment_id=payment.id,
+                    amount=payment.total_amount,
+                    currency=payment.currency,
+                    method=payment.method,
+                    details={"auto_created": True}
+                )
+                db.session.add(default_split)
+                parsed_splits.append(default_split)
+            else:
+                for sp in parsed_splits:
+                    sp.payment_id = payment.id
+                    db.session.add(sp)
+            
             _sync_payment_method_with_splits(payment)
             db.session.add(payment)
             try:
@@ -1846,8 +1860,22 @@ def create_expense_payment(exp_id):
             created_by=getattr(current_user, "id", None),
         )
         _ensure_payment_number(payment)
-        for sp in parsed_splits:
-            payment.splits.append(sp)
+        
+        # ✅ ضمان وجود Split واحد على الأقل لإنشاء القيود المحاسبية
+        if not parsed_splits:
+            default_split = PaymentSplit(
+                payment=payment,
+                amount=payment.total_amount,
+                currency=payment.currency,
+                method=payment.method,
+                details={"auto_created": True}
+            )
+            db.session.add(default_split)
+            # لا حاجة لإضافة default_split لـ parsed_splits هنا لأنه لن يُستخدم لاحقاً في هذه الدالة
+        else:
+            for sp in parsed_splits:
+                payment.splits.append(sp)
+                
         db.session.add(payment)
         db.session.commit()
         utils.log_audit("Payment", payment.id, f"CREATE (expense #{exp.id})")
@@ -2682,6 +2710,16 @@ def shop_checkout():
         _ensure_payment_number(payment)
         db.session.add(payment)
         db.session.flush()
+        
+        # ✅ إنشاء Split تلقائي لطلب المتجر لضمان إنشاء القيود
+        shop_split = PaymentSplit(
+            payment_id=payment.id,
+            amount=payment.total_amount,
+            currency=payment.currency,
+            method=payment.method,
+            details={"shop_order": True}
+        )
+        db.session.add(shop_split)
         
         # إضافة تفاصيل المنتجات
         for item in items:
@@ -3549,8 +3587,13 @@ def refund_payment(payment_id: int):
                 converted_currency=(original.currency or "ILS"),
                 details={"refunded": True},
             ))
-        original.status = PaymentStatus.REFUNDED.value
-        db.session.add(original)
+        # FIX: Do NOT change original payment status to REFUNDED.
+        # Keeping it as COMPLETED ensures that:
+        # 1. GL entries for the original payment remain valid (accounting history).
+        # 2. Customer balance calculations (which often filter by COMPLETED status) include the original payment.
+        # The Refund payment (created above) acts as the contra-entry to zero out the balance.
+        # original.status = PaymentStatus.REFUNDED.value
+        # db.session.add(original)
         try:
             service = CheckActionService(current_user)
             cheque_splits = [sp for sp in splits if getattr(sp.method, 'value', sp.method) == PaymentMethod.CHEQUE.value]

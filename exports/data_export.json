@@ -6976,6 +6976,23 @@
       "updated_at": "2026-01-03T09:07:17.571017"
     },
     {
+      "id": 1,
+      "username": "__OWNER__",
+      "email": "rafideen.ahmadghannam@gmail.com",
+      "password_hash": "scrypt:32768:8:1$j4cnASh9xPPJjaWl$cd69195b533c1e6ccb7c8411fea76e8dc4d0e9f7509e8b69fd1f2c869533fda4ce9d80c8b2774264bea523c5453821da17b22b9bf1298cca13caeccba3d3e9f7",
+      "role_id": 7,
+      "is_active": true,
+      "is_system_account": true,
+      "last_login": "2025-12-25T11:06:06.002599",
+      "last_seen": "2026-01-03T10:17:21.926353",
+      "last_login_ip": "127.0.0.1",
+      "login_count": 225,
+      "avatar_url": null,
+      "notes_text": null,
+      "created_at": "2025-10-22T18:22:55",
+      "updated_at": "2026-01-03T21:40:53.463249"
+    },
+    {
       "id": 6,
       "username": "staff",
       "email": "staff@example.com",
@@ -6991,23 +7008,6 @@
       "notes_text": null,
       "created_at": "2025-12-18T14:28:53.945936",
       "updated_at": "2026-01-01T19:01:37.912758"
-    },
-    {
-      "id": 1,
-      "username": "__OWNER__",
-      "email": "rafideen.ahmadghannam@gmail.com",
-      "password_hash": "scrypt:32768:8:1$hBbbAhLFbywKaoY2$c0393eb43d68dbdc8cfbe5bfcfdc538227f903d3cce2ef633a11e32a61ba36048ee5fdc69ecf290bce629dadc509dd8d54e6a29b022d921209972c2dfdf779d3",
-      "role_id": 7,
-      "is_active": true,
-      "is_system_account": true,
-      "last_login": "2025-12-25T11:06:06.002599",
-      "last_seen": "2026-01-03T09:19:21.922873",
-      "last_login_ip": "127.0.0.1",
-      "login_count": 225,
-      "avatar_url": null,
-      "notes_text": null,
-      "created_at": "2025-10-22T18:22:55",
-      "updated_at": "2026-01-03T09:19:27.561635"
     }
   ],
   "gl_batches": [
