@@ -1001,7 +1001,7 @@ def create_app(config_object=Config) -> Flask:
         return resp
 
     @app.teardown_appcontext
-    def _cleanup(exception=None):
+    def shutdown_session(exception=None):
         db.session.remove()
 
     @app.teardown_request
@@ -1233,10 +1233,8 @@ def create_app(config_object=Config) -> Flask:
         except Exception:
             pass
         app.logger.exception("unhandled", extra={"event": "app.error", "path": request.path})
-        try:
-            return render_template("errors/500.html"), 500
-        except Exception:
-            return ("500 Internal Server Error", 500)
+        import traceback
+        return f"500 Internal Server Error: {str(e)}\n\n{traceback.format_exc()}", 500
 
     @app.errorhandler(502)
     def _bad_gateway(e):

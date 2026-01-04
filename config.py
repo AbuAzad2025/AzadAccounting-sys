@@ -5,6 +5,7 @@ from base64 import urlsafe_b64decode
 from datetime import timedelta
 from urllib.parse import quote_plus
 from dotenv import load_dotenv
+from sqlalchemy.pool import StaticPool
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 instance_dir = os.path.join(basedir, "instance")
@@ -162,6 +163,14 @@ class Config:
             "keepalives_interval": 10,
             "keepalives_count": 5,
         })
+    elif _db_uri.startswith("sqlite://"):
+        # SQLite يستخدم StaticPool عادةً، وخيارات مثل pool_size غير مدعومة
+        SQLALCHEMY_ENGINE_OPTIONS.update({
+            "poolclass": StaticPool,
+            "connect_args": {"check_same_thread": False},
+        })
+        for k in ("pool_size", "max_overflow", "pool_timeout"):
+            SQLALCHEMY_ENGINE_OPTIONS.pop(k, None)
     
     SQLALCHEMY_ECHO = False
     

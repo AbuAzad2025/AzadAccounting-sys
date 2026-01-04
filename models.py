@@ -3126,6 +3126,10 @@ class Partner(db.Model, TimestampMixin, AuditMixin):
     def balance(self):
         return float(self.current_balance or 0)
 
+    @balance.expression
+    def balance(cls):
+        return cls.current_balance
+
     @hybrid_property
     def balance_in_ils(self):
         return self.balance

@@ -748,12 +748,14 @@ def _check_create_payment_auto(mapper, connection, target):
             except Exception as e:
                 current_app.logger.warning(f"🔍 [CHECK_PAYMENT_AUTO] فشل تحويل Session إلى connection: {e} - استخدام connection جديد")
                 use_new_connection = True
+                connection_from_event = False
                 connection = db.engine.connect()
         else:
             try:
                 if hasattr(connection, 'closed') and connection.closed:
                     current_app.logger.warning(f"🔍 [CHECK_PAYMENT_AUTO] connection مغلق - استخدام connection جديد")
                     use_new_connection = True
+                    connection_from_event = False
                     connection = db.engine.connect()
             except:
                 pass

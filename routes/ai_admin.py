@@ -167,7 +167,15 @@ def reset_knowledge():
         
         # تشغيل التدريب في thread منفصل
         def run_training():
-            engine.run_full_training(force=True)
+            from app import create_app
+            app = create_app()
+            with app.app_context():
+                try:
+                    engine.run_full_training(force=True)
+                except Exception as e:
+                    app.logger.error(f"Training error: {e}")
+                finally:
+                    db.session.remove()
         
         training_thread = threading.Thread(target=run_training, daemon=True)
         training_thread.start()
@@ -291,8 +299,16 @@ def run_code_scan():
         import threading
         
         def run_scan():
-            monitor = get_code_monitor()
-            monitor.run_daily_scan()
+            from app import create_app
+            app = create_app()
+            with app.app_context():
+                try:
+                    monitor = get_code_monitor()
+                    monitor.run_daily_scan()
+                except Exception as e:
+                    app.logger.error(f"Scan error: {e}")
+                finally:
+                    db.session.remove()
         
         scan_thread = threading.Thread(target=run_scan, daemon=True)
         scan_thread.start()
@@ -545,26 +561,34 @@ def marathon_training():
         import threading
         
         def run_marathon():
-            from AI.engine.ai_intensive_trainer import get_intensive_trainer
-            from AI.engine.ai_specialized_training import get_specialized_training
-            from AI.engine.ai_marathon_trainer import get_marathon_trainer
-            from AI.engine.ai_heavy_equipment_expert import get_heavy_equipment_expert
-            from AI.engine.ai_system_deep_trainer import get_system_deep_trainer
-            
-            intensive = get_intensive_trainer()
-            intensive.start_intensive_training()
-            
-            specialized = get_specialized_training()
-            specialized.train_all_packages()
-            
-            marathon = get_marathon_trainer()
-            marathon.start_marathon_training()
-            
-            he_expert = get_heavy_equipment_expert()
-            he_expert.train_comprehensive()
-            
-            sys_trainer = get_system_deep_trainer()
-            sys_trainer.train_system_comprehensive()
+            from app import create_app
+            app = create_app()
+            with app.app_context():
+                from AI.engine.ai_intensive_trainer import get_intensive_trainer
+                from AI.engine.ai_specialized_training import get_specialized_training
+                from AI.engine.ai_marathon_trainer import get_marathon_trainer
+                from AI.engine.ai_heavy_equipment_expert import get_heavy_equipment_expert
+                from AI.engine.ai_system_deep_trainer import get_system_deep_trainer
+                
+                try:
+                    intensive = get_intensive_trainer()
+                    intensive.start_intensive_training()
+                    
+                    specialized = get_specialized_training()
+                    specialized.train_all_packages()
+                    
+                    marathon = get_marathon_trainer()
+                    marathon.start_marathon_training()
+                    
+                    he_expert = get_heavy_equipment_expert()
+                    he_expert.train_comprehensive()
+                    
+                    sys_trainer = get_system_deep_trainer()
+                    sys_trainer.train_system_comprehensive()
+                except Exception as e:
+                    app.logger.error(f"Marathon training error: {e}")
+                finally:
+                    db.session.remove()
         
         marathon_thread = threading.Thread(target=run_marathon, daemon=True)
         marathon_thread.start()

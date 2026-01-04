@@ -41,7 +41,16 @@ def _call_in_app_context(fn):
         except Exception:
             return fn(*args, **kwargs)
         with ctx:
-            return fn(*args, **kwargs)
+            try:
+                return fn(*args, **kwargs)
+            finally:
+                # Explicitly remove session to prevent connection leaks in background jobs
+                if hasattr(app, 'extensions') and 'sqlalchemy' in app.extensions:
+                    try:
+                        db = app.extensions['sqlalchemy'].db
+                        db.session.remove()
+                    except Exception:
+                        pass
     return _wrapped
 
 

@@ -96,3 +96,10 @@ backup_*.sql
 # Comparison Scripts
 verify_migration.py
 compare_*.py
+
+# Server configuration
+wsgi.py
+
+# Local helper scripts
+start_server.bat
+debug_config.py

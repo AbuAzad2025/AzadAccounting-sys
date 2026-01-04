@@ -1195,7 +1195,11 @@ def get_fiscal_periods():
             })
         
         # إنشاء فترات شهرية تلقائياً
-        start_date = oldest_batch.replace(day=1)
+        if isinstance(oldest_batch, date) and not isinstance(oldest_batch, datetime):
+            start_date = datetime.combine(oldest_batch, datetime.min.time()).replace(day=1)
+        else:
+            start_date = oldest_batch.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            
         end_date = datetime.now()
         
         periods = []
@@ -1204,9 +1208,11 @@ def get_fiscal_periods():
         while current <= end_date:
             # حساب نهاية الشهر
             if current.month == 12:
-                month_end = date(current.year + 1, 1, 1) - timedelta(days=1)
+                next_month_start = datetime(current.year + 1, 1, 1)
             else:
-                month_end = date(current.year, current.month + 1, 1) - timedelta(days=1)
+                next_month_start = datetime(current.year, current.month + 1, 1)
+            
+            month_end = next_month_start - timedelta(seconds=1)
             
             # حساب عدد القيود في هذه الفترة
             batches_count = GLBatch.query.filter(
@@ -1239,10 +1245,7 @@ def get_fiscal_periods():
             })
             
             # الانتقال للشهر التالي
-            if current.month == 12:
-                current = date(current.year + 1, 1, 1)
-            else:
-                current = date(current.year, current.month + 1, 1)
+            current = next_month_start
         
         return jsonify({
             'success': True,
