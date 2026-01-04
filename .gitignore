@@ -91,6 +91,7 @@ test_*.py
 
 # Exports (Backups)
 exports/
+backup_*.sql
 
 # Comparison Scripts
 verify_migration.py
