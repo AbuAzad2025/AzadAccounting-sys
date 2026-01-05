@@ -347,11 +347,11 @@
           <i class="fas fa-filter ml-1"></i>تطبيق
         </button>
         <div class="btn-group flex-fill">
-            <button type="button" onclick="window.history.back()" class="btn btn-secondary" title="رجوع">
-                <i class="fas fa-arrow-right"></i>
+            <button type="button" onclick="window.history.back()" class="btn btn-secondary">
+                <i class="fas fa-arrow-right" style="pointer-events: none;"></i>
             </button>
-            <button type="button" onclick="window.history.forward()" class="btn btn-secondary" title="تقدم">
-                <i class="fas fa-arrow-left"></i>
+            <button type="button" onclick="window.history.forward()" class="btn btn-secondary">
+                <i class="fas fa-arrow-left" style="pointer-events: none;"></i>
             </button>
         </div>
       </div>
@@ -451,8 +451,7 @@
                 <td class="text-center no-print">
                   <button class="btn btn-sm btn-success save-btn" 
                           data-id="{{ p.id }}" 
-                          onclick="saveProduct({{ p.id }})"
-                          title="حفظ التعديلات">
+                          onclick="saveProduct({{ p.id }})">
                     <i class="fas fa-save"></i>
                   </button>
                 </td>

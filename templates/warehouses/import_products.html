@@ -278,7 +278,7 @@
                 جاري الرفع...
               </span>
             </button>
-            <a class="btn btn-info" href="{{ url_for('warehouse_bp.import_runs', id=warehouse.id) }}" title="عرض سجل عمليات الاستيراد السابقة">
+            <a class="btn btn-info" href="{{ url_for('warehouse_bp.import_runs', id=warehouse.id) }}">
               <i class="fas fa-history ml-1"></i> سجل العمليات
             </a>
             <a class="btn btn-outline-secondary" href="{{ url_for('warehouse_bp.detail', warehouse_id=warehouse.id) }}">

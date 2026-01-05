@@ -86,16 +86,16 @@
           <i class="fas fa-barcode ml-1"></i> أدوات الباركود
         </h6>
         <div class="d-flex flex-wrap gap-2">
-          <button class="btn btn-primary btn-sm" onclick="openBarcodeScanner()" title="فتح ماسح الباركود">
+          <button class="btn btn-primary btn-sm" onclick="openBarcodeScanner()">
             <i class="fas fa-barcode ml-1"></i> ماسح الباركود
           </button>
-          <button class="btn btn-info btn-sm" onclick="openQuickStockUpdate()" title="تحديث سريع للمخزون">
+          <button class="btn btn-info btn-sm" onclick="openQuickStockUpdate()">
             <i class="fas fa-edit ml-1"></i> تحديث سريع
           </button>
-          <button class="btn btn-warning btn-sm" onclick="generateBarcodesForMissing()" title="توليد باركودات للمنتجات المفقودة">
+          <button class="btn btn-warning btn-sm" onclick="generateBarcodesForMissing()">
             <i class="fas fa-qrcode ml-1"></i> توليد باركودات
           </button>
-          <a href="{{ url_for('barcode_scanner.bulk_scan_page') }}" class="btn btn-outline-info btn-sm" title="مسح جماعي للمنتجات">
+          <a href="{{ url_for('barcode_scanner.bulk_scan_page') }}" class="btn btn-outline-info btn-sm">
             <i class="fas fa-barcode ml-1"></i> مسح جماعي
           </a>
         </div>
@@ -107,11 +107,11 @@
           <i class="fas fa-cogs ml-1"></i> أدوات الإدارة
         </h6>
         <div class="d-flex flex-wrap gap-2">
-          <a href="{{ url_for('warehouse_bp.add_product', id=warehouse.id) }}" class="btn btn-success btn-sm" title="إضافة منتج جديد للمستودع">
-            <i class="fas fa-plus ml-1"></i> إضافة منتج
+          <a href="{{ url_for('warehouse_bp.add_product', id=warehouse.id) }}" class="btn btn-success btn-sm">
+            <i class="fas fa-plus ml-1" style="pointer-events: none;"></i> <span style="pointer-events: none;">إضافة منتج</span>
           </a>
-          <a href="{{ url_for('warehouse_bp.import_products', id=warehouse.id) }}" class="btn btn-outline-secondary btn-sm" title="استيراد منتجات من ملف CSV">
-            <i class="fas fa-file-upload ml-1"></i> استيراد (CSV)
+          <a href="{{ url_for('warehouse_bp.import_products', id=warehouse.id) }}" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-file-upload ml-1" style="pointer-events: none;"></i> <span style="pointer-events: none;">استيراد (CSV)</span>
           </a>
         </div>
       </div>

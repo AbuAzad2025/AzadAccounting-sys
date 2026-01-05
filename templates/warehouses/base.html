@@ -84,8 +84,19 @@
     
     /* تأثير hover */
     .warehouse-nav-buttons .btn:hover {
-      transform: translateY(-2px) !important;
+      transform: none !important; /* فرض عدم التحرك */
       box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+    }
+    
+    /* منع تفاعل الماوس مع العناصر الداخلية لمنع الاهتزاز عند المرور فوق النص */
+    .warehouse-nav-buttons .btn *,
+    .table .btn * {
+      pointer-events: none;
+    }
+    
+    /* منع الاهتزاز في جميع الأزرار بشكل عام */
+    .btn:hover {
+        transform: none !important;
     }
   </style>
   {% block dt_styles %}{% endblock %}
@@ -106,46 +117,39 @@
   <!-- أزرار التنقل محسّنة -->
   <div class="warehouse-nav-buttons d-flex flex-wrap align-items-center gap-2 mb-3">
     <a class="btn btn-sm btn-primary shadow-sm fw-bold" 
-       href="{{ url_for('warehouse_bp.list') }}"
-       title="عرض قائمة جميع المستودعات">
+       href="{{ url_for('warehouse_bp.list') }}">
       <i class="fas fa-warehouse ml-1"></i> قائمة المستودعات
     </a>
 
     <a class="btn btn-sm btn-info text-white shadow-sm fw-bold" 
-       href="{{ url_for('warehouse_bp.products', id=(wid or DEFAULT_WID)) }}"
-       title="عرض جميع منتجات المستودع">
+       href="{{ url_for('warehouse_bp.products', id=(wid or DEFAULT_WID)) }}">
       <i class="fas fa-box-open ml-1"></i> منتجاتي
     </a>
 
     <a class="btn btn-sm btn-dark shadow-sm fw-bold" 
-       href="{{ url_for('warehouse_bp.inventory_summary') }}"
-       title="كشف شامل لجميع المخزون عبر المستودعات">
+       href="{{ url_for('warehouse_bp.inventory_summary') }}">
       <i class="fas fa-table ml-1"></i> كشف المخزون
     </a>
 
     <span class="text-muted mx-2">|</span>
 
     <a class="btn btn-sm btn-success shadow-sm fw-bold" 
-       href="{{ url_for('warehouse_bp.add_product', id=(wid or DEFAULT_WID)) }}"
-       title="إضافة منتج جديد للمستودع">
+       href="{{ url_for('warehouse_bp.add_product', id=(wid or DEFAULT_WID)) }}">
       <i class="fas fa-plus-circle ml-1"></i> إضافة منتج
     </a>
 
     <a class="btn btn-sm btn-outline-success shadow-sm" 
-       href="{{ url_for('warehouse_bp.create') }}"
-       title="إضافة مستودع جديد">
+       href="{{ url_for('warehouse_bp.create') }}">
       <i class="fas fa-plus ml-1"></i> مستودع جديد
     </a>
 
     <a class="btn btn-sm btn-warning text-dark shadow-sm" 
-       href="{{ url_for('warehouse_bp.preorders_list') }}"
-       title="عرض جميع حجوزات العملاء">
+       href="{{ url_for('warehouse_bp.preorders_list') }}">
       <i class="fas fa-clipboard-list ml-1"></i> الحجوزات
     </a>
 
     <a class="btn btn-sm btn-outline-warning shadow-sm" 
-       href="{{ url_for('warehouse_bp.preorder_create') }}"
-       title="إنشاء حجز جديد لعميل">
+       href="{{ url_for('warehouse_bp.preorder_create') }}">
       <i class="fas fa-file-signature ml-1"></i> إنشاء حجز
     </a>
   </div>

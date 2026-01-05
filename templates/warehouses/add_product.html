@@ -43,11 +43,11 @@
       </div>
       <div class="d-flex gap-2">
          <div class="btn-group shadow-sm rounded-pill overflow-hidden bg-white">
-            <button type="button" onclick="window.history.back()" class="btn btn-sm text-primary fw-bold border-end" title="رجوع">
-                <i class="fas fa-arrow-right"></i>
+            <button type="button" onclick="window.history.back()" class="btn btn-sm text-primary fw-bold border-end">
+                <i class="fas fa-arrow-right" style="pointer-events: none;"></i>
             </button>
-            <button type="button" onclick="window.history.forward()" class="btn btn-sm text-primary fw-bold" title="تقدم">
-                <i class="fas fa-arrow-left"></i>
+            <button type="button" onclick="window.history.forward()" class="btn btn-sm text-primary fw-bold">
+                <i class="fas fa-arrow-left" style="pointer-events: none;"></i>
             </button>
          </div>
          <a href="{{ url_for('warehouse_bp.detail', warehouse_id=warehouse.id) }}" class="btn btn-light btn-sm shadow-sm text-primary fw-bold">
@@ -297,7 +297,7 @@
                    placeholder="اختر المورد/التاجر",
                    **{'data-url': url_for('api.search_suppliers')}
                  ) }}
-              <a href="{{ url_for('vendors_bp.suppliers_create') }}" target="_blank" class="btn btn-outline-primary" title="إضافة مورد جديد">
+              <a href="{{ url_for('vendors_bp.suppliers_create') }}" target="_blank" class="btn btn-outline-primary">
                 <i class="fas fa-plus"></i>
               </a>
             </div>
@@ -611,7 +611,7 @@
         <div class="input-group">
           <select name="supplier_id" class="form-control select2" placeholder="اختر المورد/التاجر"
                   data-url="{{ url_for('api.search_suppliers') }}"></select>
-          <a href="{{ url_for('vendors_bp.suppliers_create') }}" target="_blank" class="btn btn-outline-primary" title="إضافة مورد جديد">
+          <a href="{{ url_for('vendors_bp.suppliers_create') }}" target="_blank" class="btn btn-outline-primary">
             <i class="fas fa-plus"></i>
           </a>
         </div>
