@@ -1296,6 +1296,14 @@ def edit_sale(id: int):
                 _reserve_stock(sale)
             _log(sale, "UPDATE", old, sale_to_dict(sale))
             db.session.commit()
+            
+            # تحديث رصيد العميل
+            try:
+                from utils.customer_balance_updater import update_customer_balance_components
+                update_customer_balance_components(sale.customer_id)
+            except Exception as e:
+                current_app.logger.error(f"Error updating customer balance: {e}")
+                
             flash("✅ تم التعديل بنجاح.", "success")
             return redirect(url_for("sales_bp.sale_detail", id=sale.id))
         except SQLAlchemyError as e:
@@ -1358,6 +1366,14 @@ def quick_sell():
             _reserve_stock(sale)
         _log(sale, "CREATE", None, sale_to_dict(sale))
         db.session.commit()
+        
+        # تحديث رصيد العميل
+        try:
+            from utils.customer_balance_updater import update_customer_balance_components
+            update_customer_balance_components(sale.customer_id)
+        except Exception as e:
+            current_app.logger.error(f"Error updating customer balance: {e}")
+            
         flash("✅ تم إنشاء فاتورة سريعة.", "success")
         return redirect(url_for("sales_bp.sale_detail", id=sale.id))
     except SQLAlchemyError as e:

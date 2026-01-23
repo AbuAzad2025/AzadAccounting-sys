@@ -511,7 +511,9 @@ def customer_analytics(customer_id):
         load_only(Sale.id, Sale.sale_date, Sale.total_amount, Sale.currency, Sale.status)
     ).all()
     services = ServiceRequest.query.filter_by(customer_id=customer_id).options(
-        load_only(ServiceRequest.id, ServiceRequest.received_at, ServiceRequest.total_amount, ServiceRequest.currency)
+        selectinload(ServiceRequest.parts),
+        selectinload(ServiceRequest.tasks),
+        load_only(ServiceRequest.id, ServiceRequest.received_at, ServiceRequest.total_amount, ServiceRequest.currency, ServiceRequest.parts_total, ServiceRequest.labor_total, ServiceRequest.discount_total, ServiceRequest.tax_rate)
     ).all()
 
     total_invoices = sum((D(inv.total_amount or 0)) for inv in invoices)
@@ -522,44 +524,27 @@ def customer_analytics(customer_id):
     docs_count = len(invoices) + len(sales) + len(services)
     avg_purchase = (total_purchases / docs_count) if docs_count else D(0)
 
-    payments_direct = Payment.query.filter_by(
-        customer_id=customer_id,
-        status=PaymentStatus.COMPLETED.value
+    # تحسين: استعلام واحد لجلب جميع الدفعات المكتملة للعميل (مباشرة أو مرتبطة)
+    all_payments = db.session.query(Payment).outerjoin(
+        Sale, Payment.sale_id == Sale.id
+    ).outerjoin(
+        Invoice, Payment.invoice_id == Invoice.id
+    ).outerjoin(
+        ServiceRequest, Payment.service_id == ServiceRequest.id
+    ).outerjoin(
+        PreOrder, Payment.preorder_id == PreOrder.id
+    ).filter(
+        Payment.status == PaymentStatus.COMPLETED.value,
+        or_(
+            Payment.customer_id == customer_id,
+            Sale.customer_id == customer_id,
+            Invoice.customer_id == customer_id,
+            ServiceRequest.customer_id == customer_id,
+            PreOrder.customer_id == customer_id
+        )
     ).options(
         load_only(Payment.id, Payment.total_amount, Payment.currency, Payment.payment_date)
-    ).all()
-    payments_from_sales = Payment.query.join(Sale, Payment.sale_id == Sale.id).filter(
-        Sale.customer_id == customer_id,
-        Payment.status == PaymentStatus.COMPLETED.value
-    ).options(
-        load_only(Payment.id, Payment.total_amount, Payment.currency, Payment.payment_date)
-    ).all()
-    payments_from_invoices = Payment.query.join(Invoice, Payment.invoice_id == Invoice.id).filter(
-        Invoice.customer_id == customer_id,
-        Payment.status == PaymentStatus.COMPLETED.value
-    ).options(
-        load_only(Payment.id, Payment.total_amount, Payment.currency, Payment.payment_date)
-    ).all()
-    payments_from_services = Payment.query.join(ServiceRequest, Payment.service_id == ServiceRequest.id).filter(
-        ServiceRequest.customer_id == customer_id,
-        Payment.status == PaymentStatus.COMPLETED.value
-    ).options(
-        load_only(Payment.id, Payment.total_amount, Payment.currency, Payment.payment_date)
-    ).all()
-    payments_from_preorders = Payment.query.join(PreOrder, Payment.preorder_id == PreOrder.id).filter(
-        PreOrder.customer_id == customer_id,
-        Payment.status == PaymentStatus.COMPLETED.value
-    ).options(
-        load_only(Payment.id, Payment.total_amount, Payment.currency, Payment.payment_date)
-    ).all()
-
-    seen = set()
-    all_payments = []
-    for p in payments_direct + payments_from_sales + payments_from_invoices + payments_from_services + payments_from_preorders:
-        if p.id in seen:
-            continue
-        seen.add(p.id)
-        all_payments.append(p)
+    ).distinct().all()
 
     total_payments = sum((D(p.total_amount or 0)) for p in all_payments)
 
@@ -596,49 +581,61 @@ def customer_analytics(customer_id):
                 paym[m] += (D(p.total_amount or 0))
     payments_months = [{"month": m, "total": float(paym[m])} for m in months]
 
+    # تحسين: جلب جميع مبيعات الأصناف دفعة واحدة بدلاً من تكرار الاستعلام لكل فئة
+    sale_lines_query = db.session.query(SaleLine, Product, ProductCategory).join(
+        Sale, SaleLine.sale_id == Sale.id
+    ).join(
+        Product, SaleLine.product_id == Product.id
+    ).join(
+        ProductCategory, Product.category_id == ProductCategory.id
+    ).filter(
+        Sale.customer_id == customer_id
+    ).options(
+        joinedload(SaleLine.sale)
+    ).all()
+
+    category_stats = {}
+    for line, product, category in sale_lines_query:
+        cat_name = category.name
+        if cat_name not in category_stats:
+            category_stats[cat_name] = {"count": 0, "total": Decimal(0)}
+        
+        category_stats[cat_name]["count"] += 1
+        
+        qty = Decimal(str(line.quantity or 0))
+        price = Decimal(str(line.unit_price or 0))
+        line_total = qty * price
+        
+        sale_currency = line.sale.currency
+        if sale_currency == "ILS":
+             pass
+        elif sale_currency:
+             try:
+                 line_total = convert_amount(line_total, sale_currency, "ILS", line.sale.sale_date)
+             except Exception:
+                 line_total = Decimal(0)
+        else:
+             line_total = Decimal(0)
+
+        category_stats[cat_name]["total"] += line_total
+
+    purchase_categories = [
+        {
+            "name": name,
+            "count": stats["count"],
+            "total": float(stats["total"]),
+            "percentage": (float(stats["total"]) / float(total_purchases) * 100.0) if total_purchases else 0.0,
+        }
+        for name, stats in category_stats.items()
+    ]
+
     return render_template(
         "customers/analytics.html",
         customer=customer,
         total_purchases=total_purchases,
         total_payments=total_payments,
         avg_purchase=avg_purchase,
-        purchase_categories=[
-            {
-                "name": name,
-                "count": count,
-                "total": total_ils,
-                "percentage": (float(total_ils) / float(total_purchases) * 100.0) if total_purchases else 0.0,
-            }
-            for name, count, total_ils in [
-                (
-                    cat.name,
-                    len(lines_in_cat),
-                    float(sum(
-                        (lambda line: (
-                            Decimal(str(line.quantity or 0)) * Decimal(str(line.unit_price or 0))
-                            if line.sale.currency == "ILS"
-                            else (
-                                convert_amount(
-                                    Decimal(str(line.quantity or 0)) * Decimal(str(line.unit_price or 0)),
-                                    line.sale.currency, "ILS", line.sale.sale_date
-                                ) if line.sale.currency else Decimal('0.00')
-                            )
-                        ))(line)
-                        for line in lines_in_cat
-                    ))
-                )
-                for cat in db.session.query(ProductCategory).all()
-                for lines_in_cat in [
-                    [
-                        line for line in db.session.query(SaleLine).join(Sale).join(Product).filter(
-                            Sale.customer_id == customer_id,
-                            Product.category_id == cat.id
-                        ).all()
-                    ]
-                ]
-                if len(lines_in_cat) > 0
-            ]
-        ],
+        purchase_categories=purchase_categories,
         purchases_months=purchases_months,
         payments_months=payments_months,
     )
@@ -978,7 +975,11 @@ def account_statement(customer_id):
     except Exception:
         start_date = datetime(2025, 1, 1)
     try:
-        end_date = datetime.strptime(end_date_arg, "%Y-%m-%d") if end_date_arg else datetime.now()
+        if end_date_arg:
+            end_date = datetime.strptime(end_date_arg, "%Y-%m-%d").replace(hour=23, minute=59, second=59)
+        else:
+            # Use end of current day to ensure we capture all transactions from today regardless of timezone differences
+            end_date = datetime.now().replace(hour=23, minute=59, second=59)
     except Exception:
         end_date = datetime.now()
 
@@ -995,7 +996,8 @@ def account_statement(customer_id):
                 "CREATE INDEX IF NOT EXISTS idx_expenses_customer_date ON expenses (customer_id, date)",
                 "CREATE INDEX IF NOT EXISTS idx_checks_payment ON checks (payment_id)",
                 "CREATE INDEX IF NOT EXISTS idx_checks_customer_date ON checks (customer_id, check_date)",
-                "CREATE INDEX IF NOT EXISTS idx_checks_status ON checks (status)"
+                "CREATE INDEX IF NOT EXISTS idx_checks_status ON checks (status)",
+                "CREATE INDEX IF NOT EXISTS idx_checks_ref ON checks (reference_number)"
             ]
             for sql in idx_sql:
                 try:
@@ -1061,6 +1063,7 @@ def account_statement(customer_id):
         .filter(Invoice.customer_id == customer_id)
         .filter(Invoice.invoice_date >= start_date)
         .filter(Invoice.invoice_date <= end_date)
+        .options(selectinload(Invoice.lines))
         .order_by(Invoice.invoice_date, Invoice.id)
         .all()
     )
@@ -1068,7 +1071,9 @@ def account_statement(customer_id):
         """توليد نص البيان حسب نوع العملية"""
         if entry_type == "INVOICE":
             notes = getattr(obj, 'notes', '') or ''
-            items_count = len(getattr(obj, 'items', []))
+            # Use lines instead of items as items is not defined in Invoice model
+            lines_list = getattr(obj, 'lines', []) or []
+            items_count = len(lines_list)
             return f"فاتورة بيع - {items_count} صنف - {notes[:50]}" if notes else f"فاتورة بيع - {items_count} صنف"
         
         elif entry_type == "SALE":
@@ -1127,21 +1132,23 @@ def account_statement(customer_id):
 
     sales = Sale.query.filter_by(customer_id=customer_id).options(
         joinedload(Sale.lines).load_only(SaleLine.id, SaleLine.quantity, SaleLine.unit_price, SaleLine.line_total, SaleLine.line_receiver, SaleLine.note),
-        joinedload(Sale.lines).joinedload(SaleLine.product).load_only(Product.id, Product.name)
+        joinedload(Sale.lines).joinedload(SaleLine.product).load_only(Product.id, Product.name),
+        joinedload(Sale.preorder).selectinload(PreOrder.payments)
     ).filter(Sale.sale_date >= start_date).filter(Sale.sale_date <= end_date).order_by(Sale.sale_date, Sale.id).all()
     
     for s in sales:
         if s.preorder_id:
-            preorder = PreOrder.query.get(s.preorder_id)
+            preorder = s.preorder
             if preorder:
                 prepaid_amount = D(preorder.prepaid_amount or 0)
                 if prepaid_amount > 0:
-                    prepaid_payment = Payment.query.filter(
-                        Payment.preorder_id == preorder.id,
-                        Payment.direction == 'IN',
-                        Payment.status.in_(['COMPLETED', 'PENDING']),
-                        Payment.sale_id.is_(None)
-                    ).first()
+                    # تحسين الأداء: استخدام البيانات المحملة مسبقاً بدلاً من الاستعلام
+                    prepaid_payment = next((
+                        p for p in getattr(preorder, 'payments', [])
+                        if (getattr(p, 'direction', None) == 'IN' or str(getattr(p, 'direction', 'IN')) == 'IN')
+                        and getattr(p, 'status', None) in ['COMPLETED', 'PENDING']
+                        and getattr(p, 'sale_id', None) is None
+                    ), None)
                     
                     if prepaid_payment:
                         prepaid_payment.sale_id = s.id
@@ -1149,8 +1156,7 @@ def account_statement(customer_id):
                             prepaid_payment.customer_id = s.customer_id
                         db.session.add(prepaid_payment)
     
-    db.session.flush()
-    db.session.expire_all()
+    # db.session.flush() and expire_all removed to prevent performance degradation
     
     for s in sales:
         sale_lines = getattr(s, 'lines', []) or []
@@ -1208,6 +1214,7 @@ def account_statement(customer_id):
         .filter(ServiceRequest.customer_id == customer_id)
         .filter(ServiceRequest.completed_at >= start_date)
         .filter(ServiceRequest.completed_at <= end_date)
+        .options(selectinload(ServiceRequest.parts), selectinload(ServiceRequest.tasks))
         .order_by(ServiceRequest.completed_at, ServiceRequest.id)
         .all()
     )
@@ -1232,7 +1239,7 @@ def account_statement(customer_id):
         PreOrder.customer_id == customer_id,
         PreOrder.status != 'CANCELLED',
         PreOrder.status != 'FULFILLED'
-    ).filter(PreOrder.created_at >= start_date).filter(PreOrder.created_at <= end_date).order_by(PreOrder.created_at, PreOrder.id).all()
+    ).options(joinedload(PreOrder.product)).filter(PreOrder.created_at >= start_date).filter(PreOrder.created_at <= end_date).order_by(PreOrder.created_at, PreOrder.id).all()
     
     for pre in preorders:
         prepaid_amount_raw = pre.prepaid_amount
@@ -1310,73 +1317,111 @@ def account_statement(customer_id):
     payment_statuses = ['COMPLETED', 'PENDING', 'BOUNCED', 'FAILED', 'REJECTED', 'REFUNDED']
     
     # ✅ إضافة joinedload(Payment.splits) لجميع استعلامات الدفعات لضمان تحميل splits
+    # ✅ إضافة selectinload(Payment.related_check) لتحميل الشيكات المرتبطة وتجنب N+1 queries
     # ✅ البحث عن جميع الدفعات المباشرة للعميل (بما في ذلك entity_type == 'CUSTOMER')
-    payments_direct = Payment.query.filter(
-        Payment.customer_id == customer_id,
-        Payment.status.in_(payment_statuses)
-    ).filter(Payment.payment_date >= start_date).filter(Payment.payment_date <= end_date).options(joinedload(Payment.splits)).all()
-    
-    payments_direct_filtered = []
-    for p in payments_direct:
-        if p.preorder_id and not p.sale_id:
-            preorder = PreOrder.query.get(p.preorder_id)
-            if preorder and preorder.status != 'FULFILLED':
-                continue
-        payments_direct_filtered.append(p)
-    payments_direct = payments_direct_filtered
-    
-    payments_from_sales = Payment.query.join(Sale, Payment.sale_id == Sale.id).filter(
-        Sale.customer_id == customer_id,
-        Payment.status.in_(payment_statuses)
-    ).filter(Payment.payment_date >= start_date).filter(Payment.payment_date <= end_date).options(joinedload(Payment.splits)).all()
-    
-    payments_from_invoices = Payment.query.join(Invoice, Payment.invoice_id == Invoice.id).filter(
-        Invoice.customer_id == customer_id,
-        Payment.status.in_(payment_statuses)
-    ).filter(Payment.payment_date >= start_date).filter(Payment.payment_date <= end_date).options(joinedload(Payment.splits)).all()
-    
-    payments_from_services = Payment.query.join(ServiceRequest, Payment.service_id == ServiceRequest.id).filter(
-        ServiceRequest.customer_id == customer_id,
-        Payment.status.in_(payment_statuses)
-    ).filter(Payment.payment_date >= start_date).filter(Payment.payment_date <= end_date).options(joinedload(Payment.splits)).all()
-    
-    payments_from_preorders = Payment.query.join(PreOrder, Payment.preorder_id == PreOrder.id).filter(
-        PreOrder.customer_id == customer_id,
-        Payment.status.in_(payment_statuses),
-        or_(
-            PreOrder.status == 'FULFILLED',
-            Payment.sale_id.isnot(None)
-        )
-    ).filter(Payment.payment_date >= start_date).filter(Payment.payment_date <= end_date).options(joinedload(Payment.splits)).all()
+    # تحسين كبير: استعلام واحد لجلب جميع الدفعات المرتبطة بالعميل
+    # يجمع الدفعات المباشرة، ودفعات المبيعات، والفواتير، والخدمات، والطلبات المسبقة، والمصاريف
+    # يستخدم Outer Joins لتجنب الاستعلامات المتعددة (N+1 queries are handled via eager loading)
     
     from models import Expense
+    # نحتاج لمعرفة مصاريف العميل لتضمين دفعاتها
     expense_ids_with_customer = [e.id for e in Expense.query.filter(Expense.customer_id == customer_id).all()]
-    if expense_ids_with_customer:
-        payments_from_expenses = Payment.query.filter(
-            Payment.expense_id.isnot(None),
-            Payment.status.in_(payment_statuses),
-            or_(
-                Payment.customer_id == customer_id,
-                Payment.expense_id.in_(expense_ids_with_customer)
-            )
-        ).filter(Payment.payment_date >= start_date).filter(Payment.payment_date <= end_date).options(joinedload(Payment.splits)).all()
-    else:
-        payments_from_expenses = Payment.query.filter(
-            Payment.expense_id.isnot(None),
-            Payment.customer_id == customer_id,
-            Payment.status.in_(payment_statuses)
-        ).filter(Payment.payment_date >= start_date).filter(Payment.payment_date <= end_date).options(joinedload(Payment.splits)).all()
-
-    seen = set()
-    all_payments = []
-    for p in payments_direct + payments_from_sales + payments_from_invoices + payments_from_services + payments_from_preorders + payments_from_expenses:
-        if p.id in seen:
-            continue
-        seen.add(p.id)
-        all_payments.append(p)
-
-    all_payments.sort(key=lambda x: (getattr(x, "payment_date", None) or getattr(x, "created_at", None) or datetime.min, x.id))
     
+    # بناء شروط البحث
+    payment_criteria = [
+        Payment.customer_id == customer_id,
+        Sale.customer_id == customer_id,
+        Invoice.customer_id == customer_id,
+        ServiceRequest.customer_id == customer_id,
+        # منطق الطلبات المسبقة: يجب أن يكون مكتمل أو مرتبط ببيع
+        and_(
+            PreOrder.customer_id == customer_id,
+            or_(
+                PreOrder.status == 'FULFILLED',
+                Payment.sale_id.isnot(None)
+            )
+        )
+    ]
+    
+    # منطق المصاريف
+    if expense_ids_with_customer:
+        payment_criteria.append(
+            and_(
+                Payment.expense_id.isnot(None),
+                or_(
+                    Payment.customer_id == customer_id,
+                    Payment.expense_id.in_(expense_ids_with_customer)
+                )
+            )
+        )
+    else:
+        payment_criteria.append(
+            and_(
+                Payment.expense_id.isnot(None),
+                Payment.customer_id == customer_id
+            )
+        )
+
+    all_payments_query = (
+        Payment.query
+        .outerjoin(Sale, Payment.sale_id == Sale.id)
+        .outerjoin(Invoice, Payment.invoice_id == Invoice.id)
+        .outerjoin(ServiceRequest, Payment.service_id == ServiceRequest.id)
+        .outerjoin(PreOrder, Payment.preorder_id == PreOrder.id)
+        .filter(
+            Payment.status.in_(payment_statuses),
+            Payment.payment_date >= start_date,
+            Payment.payment_date <= end_date,
+            or_(*payment_criteria)
+        )
+        .options(
+            joinedload(Payment.splits),
+            selectinload(Payment.related_check),
+            joinedload(Payment.sale),
+            joinedload(Payment.invoice),
+            joinedload(Payment.service),
+            joinedload(Payment.preorder)
+        )
+        .distinct()
+        .order_by(Payment.payment_date, Payment.id)
+    )
+
+    raw_payments = all_payments_query.all()
+    
+    # تصفية إضافية (Python-side) للدفعات المباشرة المرتبطة بطلبات مسبقة غير مكتملة
+    # (للحفاظ على المنطق الأصلي)
+    all_payments = []
+    for p in raw_payments:
+        if p.preorder_id and not p.sale_id:
+            # بما أننا قمنا بتحميل preorder مسبقاً (joinedload)، هذا الوصول سريع
+            if p.preorder and p.preorder.status != 'FULFILLED':
+                continue
+        all_payments.append(p)
+    
+    # تحسين الأداء: تحميل مسبق للشيكات المرتبطة بالتقسيم (Splits) لتجنب الاستعلام المتكرر داخل الحلقة
+    # هذا يعالج مشكلة N+1 queries عند البحث عن شيكات باستخدام reference_number (عمود غير مفهرس)
+    from collections import defaultdict
+    split_checks_map = defaultdict(list)
+    
+    # البحث فقط إذا كان هناك دفعات
+    if all_payments:
+        potential_split_checks = Check.query.filter(
+            Check.customer_id == customer_id,
+            Check.reference_number.like('PMT-SPLIT-%')
+        ).all()
+        
+        for c in potential_split_checks:
+            if c.reference_number:
+                # تخزين الشيك تحت الرقم المرجعي الكامل
+                split_checks_map[c.reference_number].append(c)
+                # وأيضاً تخزينه تحت الجزء الأساسي إذا كان هناك لاحقة
+                # مثلاً PMT-SPLIT-123-ABC نخزنه أيضاً تحت PMT-SPLIT-123
+                parts = c.reference_number.split('-')
+                if len(parts) >= 3 and parts[0] == 'PMT' and parts[1] == 'SPLIT':
+                    base_ref = f"{parts[0]}-{parts[1]}-{parts[2]}"
+                    if base_ref != c.reference_number:
+                        split_checks_map[base_ref].append(c)
+
     # تتبع الشيكات المعروضة لتجنب التكرار بين الدفعات المختلفة
     # نستخدم dictionary لتخزين أفضل دفعة لكل شيك (الأولوية للشيكات CASHED)
     seen_check_identifiers = {}  # key: (check_number, check_bank, check_due_date), value: (payment_id, has_cashed)
@@ -1384,7 +1429,8 @@ def account_statement(customer_id):
     for p in all_payments:
         payment_status = getattr(p, 'status', 'COMPLETED')
         
-        checks_related = Check.query.filter(Check.payment_id == p.id).all()
+        # استخدام العلاقة المحملة مسبقاً بدلاً من الاستعلام الجديد
+        checks_related = list(getattr(p, 'related_check', []) or [])
         
         splits = list(getattr(p, 'splits', []) or [])
         if splits:
@@ -1394,12 +1440,10 @@ def account_statement(customer_id):
                     split_method_val = split_method_val.value
                 split_method_raw = str(split_method_val or "").lower()
                 if 'check' in split_method_raw or 'cheque' in split_method_raw:
-                    split_checks = Check.query.filter(
-                        or_(
-                            Check.reference_number == f"PMT-SPLIT-{split.id}",
-                            Check.reference_number.like(f"PMT-SPLIT-{split.id}-%")
-                        )
-                    ).all()
+                    # استخدام الخريطة المحملة مسبقاً
+                    ref_key = f"PMT-SPLIT-{split.id}"
+                    split_checks = split_checks_map.get(ref_key, [])
+                    # إضافة الشيكات التي تبدأ بهذا المفتاح (تمت معالجتها في التحميل المسبق)
                     checks_related.extend(split_checks)
         
         # إزالة الشيكات المكررة بناءً على ID
@@ -1688,7 +1732,7 @@ def account_statement(customer_id):
         if splits:
             from models import PaymentMethod
             
-            payment_checks = Check.query.filter(Check.payment_id == p.id).all()
+            payment_checks = list(getattr(p, 'related_check', []) or [])
             
             split_checks = []
             for split in splits:
@@ -1697,12 +1741,8 @@ def account_statement(customer_id):
                     split_method_val = split_method_val.value
                 split_method_raw = str(split_method_val or "").lower()
                 if 'check' in split_method_raw or 'cheque' in split_method_raw:
-                    checks_for_split = Check.query.filter(
-                        or_(
-                            Check.reference_number == f"PMT-SPLIT-{split.id}",
-                            Check.reference_number.like(f"PMT-SPLIT-{split.id}-%")
-                        )
-                    ).all()
+                    ref_key = f"PMT-SPLIT-{split.id}"
+                    checks_for_split = split_checks_map.get(ref_key, [])
                     split_checks.extend(checks_for_split)
             
             all_checks_for_payment = list(set(payment_checks + split_checks))
@@ -1859,12 +1899,21 @@ def account_statement(customer_id):
                     split_check_for_cashed = None
                     split_checks = []
                     if 'check' in split_method_raw or 'cheque' in split_method_raw:
-                        split_checks = Check.query.filter(
-                            or_(
-                                Check.reference_number == f"PMT-SPLIT-{split.id}",
-                                Check.reference_number.like(f"PMT-SPLIT-{split.id}-%")
-                            )
-                        ).order_by(Check.updated_at.desc().nullslast(), Check.check_date.desc().nullslast(), Check.id.desc()).all()
+                        ref_key = f"PMT-SPLIT-{split.id}"
+                        # استخدام الخريطة المحملة مسبقاً بدلاً من الاستعلام
+                        split_checks_unsorted = split_checks_map.get(ref_key, [])
+                        
+                        # ترتيب الشيكات يدوياً كما كان في الاستعلام
+                        # order_by(Check.updated_at.desc().nullslast(), Check.check_date.desc().nullslast(), Check.id.desc())
+                        split_checks = sorted(
+                            split_checks_unsorted,
+                            key=lambda c: (
+                                getattr(c, 'updated_at', None) or datetime.min,
+                                getattr(c, 'check_date', None) or datetime.min,
+                                getattr(c, 'id', 0)
+                            ),
+                            reverse=True
+                        )
                     
                     if split_checks:
                         for chk in split_checks:

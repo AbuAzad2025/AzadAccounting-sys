@@ -2724,6 +2724,14 @@ def quick_sell_api():
         _reserve_stock(s)
     try:
         db.session.commit()
+        
+        # تحديث رصيد العميل
+        try:
+            from utils.customer_balance_updater import update_customer_balance_components
+            update_customer_balance_components(s.customer_id)
+        except Exception as e:
+            current_app.logger.error(f"Error updating customer balance: {e}")
+
         return jsonify({"success": True, "id": s.id, "sale_number": s.sale_number}), 201
     except Exception as e:
         db.session.rollback()

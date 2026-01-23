@@ -6,7 +6,7 @@ import json
 import uuid
 from datetime import datetime, timedelta, timezone, date
 from decimal import Decimal, ROUND_HALF_UP
-from functools import wraps
+from functools import wraps, lru_cache
 from flask import current_app, has_request_context, request
 from flask_login import UserMixin, current_user
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -1090,6 +1090,38 @@ def _get_payment_model():
     except Exception:
         return None
 
+@lru_cache(maxsize=2048)
+def _get_rate_cached(base: str, quote: str, date_str: str) -> Decimal | None:
+    """نسخة مخزنة مؤقتاً (Cached) لجلب سعر الصرف لليوم المحدد"""
+    try:
+        # نستخدم نهاية اليوم لضمان شمول أي سعر تم تحديده خلال اليوم
+        # date_str is YYYY-MM-DD
+        t = datetime.strptime(date_str, "%Y-%m-%d").replace(hour=23, minute=59, second=59)
+        
+        # 1. البحث المحلي
+        q = (
+            db.session.query(ExchangeRate.rate)
+            .filter(
+                ExchangeRate.base_code == base,
+                ExchangeRate.quote_code == quote,
+                ExchangeRate.is_active.is_(True),
+                ExchangeRate.valid_from <= t,
+            )
+            .order_by(ExchangeRate.valid_from.desc())
+        )
+        v = q.first()
+        if v:
+            return Decimal(str(v[0]))
+
+        # 2. البحث الخارجي (فقط إذا لم يوجد محلي)
+        online_rate = _fetch_external_fx_rate(base, quote, t)
+        if online_rate and online_rate > Decimal("0"):
+            return online_rate
+            
+    except Exception:
+        pass
+    return None
+
 def fx_rate(base: str, quote: str, at: datetime | None = None, raise_on_missing: bool = False) -> Decimal:
     """سعر الصرف الذكي - محلي أولاً، ثم عالمي
     
@@ -1106,36 +1138,19 @@ def fx_rate(base: str, quote: str, at: datetime | None = None, raise_on_missing:
     qv = ensure_currency(quote)
     if b == qv:
         return Decimal("1")
-    t = at or datetime.now(timezone.utc)
     
-    # 1. البحث عن سعر محلي (مدخل من الادمن)
+    t = at or datetime.now(timezone.utc)
+    # استخدام التاريخ كـ Key للكاش (يومياً)
+    date_key = t.strftime("%Y-%m-%d")
+    
     try:
-        q = (
-            db.session.query(ExchangeRate.rate)
-            .filter(
-                ExchangeRate.base_code == b,
-                ExchangeRate.quote_code == qv,
-                ExchangeRate.is_active.is_(True),
-                ExchangeRate.valid_from <= t,
-            )
-            .order_by(ExchangeRate.valid_from.desc())
-        )
-        v = q.first()
-        if v:
-            return Decimal(str(v[0]))
+        rate = _get_rate_cached(b, qv, date_key)
+        if rate is not None:
+            return rate
     except Exception:
         pass
 
-    # 2. في حال عدم وجود سعر محلي، جرب السيرفرات العالمية
-    try:
-        online_rate = _fetch_external_fx_rate(b, qv, t)
-        if online_rate and online_rate > Decimal("0"):
-            return online_rate
-    except Exception as e:
-        if raise_on_missing:
-            raise ValueError(f"⚠️ سعر الصرف غير متوفر لـ {b}/{qv}. يرجى:\n1. إدخال سعر يدوي من إعدادات العملات\n2. تفعيل السيرفر الأونلاين\n3. إعادة المحاولة لاحقاً")
-    
-    # 3. إذا فشل كل شيء
+    # إذا فشل الكاش أو لم يجد نتيجة
     if raise_on_missing:
         raise ValueError(f"⚠️ سعر الصرف غير متوفر لـ {b}/{qv}. يرجى:\n1. إدخال سعر يدوي من إعدادات العملات\n2. تفعيل السيرفر الأونلاين\n3. إعادة المحاولة لاحقاً")
     
