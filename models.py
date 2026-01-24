@@ -4988,6 +4988,8 @@ def _preorder_gl_batch_upsert(mapper, connection, target: "PreOrder"):
 
 @event.listens_for(PreOrder, "after_update")
 def _preorder_reservation_flow(mapper, connection, target: "PreOrder"):
+    if getattr(target, "_skip_reservation_flow", False):
+        return
     hist = inspect(target); h = hist.attrs['status'].history
     old_status = (h.deleted[0] if h.deleted else getattr(target, "status", "") or "").upper()
     new_status = (h.added[0] if h.added else getattr(target, "status", "") or "").upper()

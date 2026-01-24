@@ -93,6 +93,25 @@ def _update_service_totals(service):
     except Exception as e:
         current_app.logger.warning(f"خطأ في تحديث totals للصيانة {service.id}: {e}")
 
+def _refresh_service_related_balances(service) -> None:
+    try:
+        customer_id = getattr(service, "customer_id", None)
+        if customer_id:
+            from utils.customer_balance_updater import update_customer_balance_components
+            update_customer_balance_components(int(customer_id))
+    except Exception:
+        pass
+    try:
+        partner_ids = set()
+        for sp in (list(getattr(service, "parts", []) or []) + list(getattr(service, "tasks", []) or [])):
+            pid = getattr(sp, "partner_id", None)
+            if pid:
+                partner_ids.add(int(pid))
+        for pid in partner_ids:
+            utils.update_entity_balance("PARTNER", int(pid))
+    except Exception:
+        pass
+
 def _has_stock_action(service, action: str) -> bool:
     if not service or not getattr(service,"id",None): return False
     q = db.session.query(AuditLog.id).filter(AuditLog.model_name=="ServiceRequest", AuditLog.record_id==service.id, AuditLog.action==(action or "").strip().upper()).limit(1)
@@ -497,6 +516,7 @@ def create_request():
         db.session.add(service)
         try:
             db.session.commit(); log_service_action(service,"CREATE")
+            _refresh_service_related_balances(service)
             if customer.phone: utils.send_whatsapp_message(customer.phone, f"تم استلام طلب الصيانة رقم {service.service_number}.")
             flash("✅ تم إنشاء طلب الصيانة بنجاح","success")
             return redirect(url_for('service.view_request', rid=service.id))
@@ -553,6 +573,7 @@ def update_diagnosis(rid):
     try:
         db.session.commit()
         log_service_action(service,"DIAGNOSIS", old_data=old, new_data={'problem_description':service.problem_description,'diagnosis':service.diagnosis,'resolution':service.resolution,'estimated_duration':service.estimated_duration,'estimated_cost':str(service.estimated_cost or 0),'status':getattr(service.status,"value",service.status)})
+        _refresh_service_related_balances(service)
         if service.customer and service.customer.phone: utils.send_whatsapp_message(service.customer.phone, f"تم تحديث ملاحظات المهندس للمركبة {service.vehicle_vrn}.")
         flash('✅ تم تحديث الملاحظات بنجاح','success')
     except SQLAlchemyError as e:
@@ -613,6 +634,7 @@ def update_discount_tax(rid):
                               'discount_total': str(discount_total),
                               'tax_rate': str(tax_rate)
                           })
+        _refresh_service_related_balances(service)
         
         flash('✅ تم تحديث الخصم والضريبة بنجاح', 'success')
         
@@ -646,6 +668,7 @@ def toggle_service(rid, action):
                 service.completed_at=None
         else: abort(400)
         db.session.commit()
+        _refresh_service_related_balances(service)
         
         if action=='complete':
             if service.customer and service.customer.phone:
@@ -732,6 +755,7 @@ def add_part(rid):
         
         _update_service_totals(service)
         db.session.commit()
+        _refresh_service_related_balances(service)
         flash('✅ تمت إضافة القطعة بنجاح','success')
         
     except ValueError as ve:
@@ -769,6 +793,7 @@ def delete_part(pid):
         service.updated_at=datetime.utcnow()
         _update_service_totals(service)
         db.session.commit()
+        _refresh_service_related_balances(service)
         flash('✅ تم حذف القطعة ومعالجة المخزون','success')
     except SQLAlchemyError as e:
         db.session.rollback()
@@ -837,6 +862,7 @@ def add_task(rid):
         service.updated_at=datetime.utcnow()
         _update_service_totals(service)
         db.session.commit()
+        _refresh_service_related_balances(service)
         flash('✅ تمت إضافة المهمة بنجاح','success')
         
     except ValueError as ve:
@@ -865,6 +891,7 @@ def delete_task(tid):
         service.updated_at=datetime.utcnow()
         _update_service_totals(service)
         db.session.commit()
+        _refresh_service_related_balances(service)
         flash('✅ تم حذف المهمة','success')
     except SQLAlchemyError as e:
         db.session.rollback()
@@ -938,10 +965,27 @@ def export_pdf(rid):
 @login_required
 def delete_request(rid):
     service=_get_or_404(ServiceRequest, rid)
+    customer_id = getattr(service, "customer_id", None)
+    partner_ids = set()
+    try:
+        for sp in (list(getattr(service, "parts", []) or []) + list(getattr(service, "tasks", []) or [])):
+            pid = getattr(sp, "partner_id", None)
+            if pid:
+                partner_ids.add(int(pid))
+    except Exception:
+        partner_ids = set()
     try:
         with db.session.begin():
             _release_service_stock_once(service); db.session.delete(service)
         flash('✅ تم حذف الطلب ومعالجة المخزون','success')
+        try:
+            if customer_id:
+                from utils.customer_balance_updater import update_customer_balance_components
+                update_customer_balance_components(int(customer_id))
+            for pid in partner_ids:
+                utils.update_entity_balance("PARTNER", int(pid))
+        except Exception:
+            pass
     except SQLAlchemyError as e:
         db.session.rollback()
         _log_and_flash("service.delete_request", e, "تعذر حذف الطلب حالياً.")

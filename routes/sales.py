@@ -1427,6 +1427,14 @@ def change_status(id: int, status: str):
             _release_stock(sale)
             sale.status = "REFUNDED"
         db.session.commit()
+
+        # تحديث رصيد العميل فوراً
+        try:
+            from utils.customer_balance_updater import update_customer_balance_components
+            update_customer_balance_components(sale.customer_id)
+        except Exception as e:
+            current_app.logger.error(f"Error updating customer balance: {e}")
+
         flash("✅ تم تحديث الحالة.", "success")
     except (SQLAlchemyError, ValueError) as e:
         db.session.rollback()

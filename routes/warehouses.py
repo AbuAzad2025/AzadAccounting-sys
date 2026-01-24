@@ -3067,11 +3067,21 @@ def preorder_create():
                     current_app.logger.warning(f"⚠️ فشل إنشاء سجل شيك من حجز {preorder.id}: {str(e)}")
                     db.session.rollback()
                 
+                try:
+                    from utils.customer_balance_updater import update_customer_balance_components
+                    update_customer_balance_components(preorder.customer_id, db.session)
+                except Exception:
+                    pass
                 flash("تم إنشاء الحجز وتسجيل العربون", "success")
             except SQLAlchemyError as e:
                 db.session.rollback()
                 flash(f"تم إنشاء الحجز، لكن تعذر تسجيل الدفعة: {getattr(e, 'orig', e)}", "warning")
         else:
+            try:
+                from utils.customer_balance_updater import update_customer_balance_components
+                update_customer_balance_components(preorder.customer_id, db.session)
+            except Exception:
+                pass
             flash("تم إنشاء الحجز بنجاح", "success")
 
         return redirect(url_for("warehouse_bp.preorder_detail", preorder_id=preorder.id))
@@ -3173,33 +3183,27 @@ def preorder_convert_to_sale(preorder_id):
         sale.balance_due = Decimal(str(sale.total_amount or 0)) - Decimal(str(sale.total_paid or 0))
         db.session.add(sale)
         
-        # تحديث StockLevel
-        sl = StockLevel.query.filter_by(
-            product_id=preorder.product_id, 
-            warehouse_id=preorder.warehouse_id
-        ).with_for_update(nowait=False).first()
-        
+        preorder._skip_reservation_flow = True
+        sl = StockLevel.query.filter_by(product_id=preorder.product_id, warehouse_id=preorder.warehouse_id).with_for_update(nowait=False).first()
         if not sl:
             flash("لا يوجد مخزون لهذا المنتج في المستودع!", "danger")
             db.session.rollback()
             return redirect(url_for("warehouse_bp.preorder_detail", preorder_id=preorder_id))
-        
-        # تقليل reserved_quantity
         sl.reserved_quantity = max(int(sl.reserved_quantity or 0) - qty, 0)
-        
-        # تقليل quantity (شحن البضاعة)
         available = int(sl.quantity or 0)
         if available < qty:
             flash(f"الكمية المتاحة ({available}) غير كافية! المطلوب: {qty}", "danger")
             db.session.rollback()
             return redirect(url_for("warehouse_bp.preorder_detail", preorder_id=preorder_id))
-        
         sl.quantity = available - qty
-        
-        # ✅ تحديث حالة الحجز إلى منفذ فوراً لأن الكمية تم خصمها من المخزون
         preorder.status = "FULFILLED"
         
         db.session.commit()
+        try:
+            from utils.customer_balance_updater import update_customer_balance_components
+            update_customer_balance_components(preorder.customer_id, db.session)
+        except Exception:
+            pass
         
         flash(f"✅ تم إنشاء مبيعة #{sale.id} - أكمل الدفع لإتمام التسليم!", "success")
         
@@ -3240,6 +3244,7 @@ def preorder_fulfill(preorder_id):
     preorder = _get_or_404(PreOrder, preorder_id)
     if preorder.status != "FULFILLED":
         try:
+            preorder._skip_reservation_flow = True
             preorder.status = "FULFILLED"
             sl = StockLevel.query.filter_by(product_id=preorder.product_id, warehouse_id=preorder.warehouse_id).with_for_update(nowait=False).first()
             if not sl:
@@ -3255,6 +3260,11 @@ def preorder_fulfill(preorder_id):
                 return redirect(url_for("warehouse_bp.preorder_detail", preorder_id=preorder_id))
             sl.quantity = available - qty
             db.session.commit()
+            try:
+                from utils.customer_balance_updater import update_customer_balance_components
+                update_customer_balance_components(preorder.customer_id, db.session)
+            except Exception:
+                pass
             flash("تم تنفيذ الحجز وشحن الكمية", "success")
         except SQLAlchemyError as e:
             db.session.rollback()
@@ -3275,6 +3285,11 @@ def preorder_mark_fulfilled(preorder_id):
         try:
             preorder.status = "FULFILLED"
             db.session.commit()
+            try:
+                from utils.customer_balance_updater import update_customer_balance_components
+                update_customer_balance_components(preorder.customer_id, db.session)
+            except Exception:
+                pass
             flash("تم تحديث حالة الحجز إلى منفذ", "success")
         except SQLAlchemyError as e:
             db.session.rollback()
@@ -3291,6 +3306,7 @@ def preorder_cancel(preorder_id):
         flash("لا يمكن إلغاء هذا الحجز", "warning")
         return redirect(url_for("warehouse_bp.preorder_detail", preorder_id=preorder.id))
     try:
+        preorder._skip_reservation_flow = True
         sl = StockLevel.query.filter_by(product_id=preorder.product_id, warehouse_id=preorder.warehouse_id).with_for_update(nowait=False).first()
         if sl:
             sl.reserved_quantity = max(int(sl.reserved_quantity or 0) - int(preorder.quantity or 0), 0)
@@ -3302,6 +3318,11 @@ def preorder_cancel(preorder_id):
             pay.notes = f"استرداد عربون الحجز {ref}"
         preorder.status = "CANCELLED"
         db.session.commit()
+        try:
+            from utils.customer_balance_updater import update_customer_balance_components
+            update_customer_balance_components(preorder.customer_id, db.session)
+        except Exception:
+            pass
         flash("تم إلغاء الحجز واسترداد العربون", "success")
     except SQLAlchemyError:
         db.session.rollback()

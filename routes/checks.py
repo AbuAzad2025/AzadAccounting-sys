@@ -435,28 +435,6 @@ def _check_gl_batch_reverse(mapper, connection, target):
                     amount_ils = float(amount * float(rate))
             except Exception:
                 pass
-            try:
-                connection = db.engine.connect()
-                try:
-                    new_payment_status = PaymentStatusSyncService.sync_payment_status_from_check(check, connection)
-                    if new_payment_status:
-                        old_status_val = getattr(ctx.payment, 'status', None)
-                        old = getattr(old_status_val, 'value', old_status_val) if old_status_val else 'PENDING'
-                        old_upper = str(old).upper()
-                        new_upper = new_payment_status.upper()
-                        if old_upper != new_upper:
-                            allowed = _ALLOWED_TRANSITIONS.get(old_upper, set())
-                            if new_upper in allowed:
-                                ctx.payment.status = new_payment_status
-                            else:
-                                ctx.payment.notes = (ctx.payment.notes or '') + f"\n[SKIP_STATUS_SYNC] {old_upper} → {new_upper}"
-                finally:
-                    try:
-                        connection.close()
-                    except Exception:
-                        pass
-            except Exception:
-                pass
         
         bank_account = GL_ACCOUNTS.get("BANK", "1010_BANK")
         ar_account = GL_ACCOUNTS.get("AR", "1100_AR")

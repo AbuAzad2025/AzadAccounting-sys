@@ -2903,6 +2903,12 @@ def approve_settlement(partner_id):
         current_app.logger.warning(f"⚠️ تحذير: فشل إنشاء قيد GL للتسوية: {str(e)}")
     
     db.session.commit()
+
+    try:
+        import utils
+        utils.update_entity_balance("PARTNER", partner_id)
+    except Exception as e:
+        current_app.logger.error(f"❌ فشل تحديث رصيد الشريك بعد اعتماد التسوية {getattr(settlement, 'code', '')}: {e}")
     
     flash("تم اعتماد التسوية بنجاح ✅ وإنشاء القيد المحاسبي", "success")
     return redirect(url_for("partner_settlements_bp.partner_settlement", partner_id=partner_id))

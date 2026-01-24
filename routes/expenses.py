@@ -2034,6 +2034,17 @@ def add():
                 current_app.logger.error(f"❌ فشل إنشاء سجل شيك من مصروف {exp.id}: {str(e)}")
                 db.session.commit()
             
+            # تحديث أرصدة الجهات المرتبطة بشكل فوري
+            try:
+                if exp.customer_id:
+                    utils.update_entity_balance("CUSTOMER", exp.customer_id)
+                if exp.supplier_id:
+                    utils.update_entity_balance("SUPPLIER", exp.supplier_id)
+                if exp.partner_id:
+                    utils.update_entity_balance("PARTNER", exp.partner_id)
+            except Exception as e:
+                current_app.logger.error(f"❌ فشل تحديث أرصدة الجهات بعد إضافة المصروف: {e}")
+
             return redirect(url_for("expenses_bp.list_expenses"))
         except Exception as err:
             db.session.rollback()
@@ -2115,6 +2126,13 @@ def quick_supplier_service():
     exp.payment_details = None
     db.session.add(exp)
     db.session.commit()
+
+    # تحديث رصيد المورد فوراً
+    try:
+        utils.update_entity_balance("SUPPLIER", supplier.id)
+    except Exception as e:
+        current_app.logger.error(f"❌ فشل تحديث رصيد المورد بعد الخدمة السريعة: {e}")
+
     return jsonify(
         {
             "success": True,
@@ -2238,6 +2256,13 @@ def quick_partner_service():
     exp.payment_details = None
     db.session.add(exp)
     db.session.commit()
+
+    # تحديث رصيد الشريك فوراً
+    try:
+        utils.update_entity_balance("PARTNER", partner.id)
+    except Exception as e:
+        current_app.logger.error(f"❌ فشل تحديث رصيد الشريك بعد الخدمة السريعة: {e}")
+
     return jsonify(
         {
             "success": True,
@@ -2404,6 +2429,27 @@ def edit(exp_id):
             db.session.flush()
             _create_partial_payments(exp, partial_entries)
             db.session.commit()
+
+            # تحديث أرصدة الجهات المرتبطة بشكل فوري
+            try:
+                # تحديث الجهات القديمة إذا تغيرت
+                if old_customer_id and old_customer_id != exp.customer_id:
+                    utils.update_entity_balance("CUSTOMER", old_customer_id)
+                if old_supplier_id and old_supplier_id != exp.supplier_id:
+                    utils.update_entity_balance("SUPPLIER", old_supplier_id)
+                if old_partner_id and old_partner_id != exp.partner_id:
+                    utils.update_entity_balance("PARTNER", old_partner_id)
+                
+                # تحديث الجهات الحالية
+                if exp.customer_id:
+                    utils.update_entity_balance("CUSTOMER", exp.customer_id)
+                if exp.supplier_id:
+                    utils.update_entity_balance("SUPPLIER", exp.supplier_id)
+                if exp.partner_id:
+                    utils.update_entity_balance("PARTNER", exp.partner_id)
+            except Exception as e:
+                current_app.logger.error(f"❌ فشل تحديث أرصدة الجهات بعد تعديل المصروف: {e}")
+
             flash("✅ تم تعديل المصروف", "success")
             return redirect(url_for("expenses_bp.list_expenses"))
         except ValueError as perr:
@@ -2420,9 +2466,26 @@ def edit(exp_id):
 def delete(exp_id):
     exp = _get_or_404(Expense, exp_id)
     
+    # حفظ القيم لتحديث الأرصدة بعد الحذف
+    customer_id = exp.customer_id
+    supplier_id = exp.supplier_id
+    partner_id = exp.partner_id
+    
     try:
         db.session.delete(exp)
         db.session.commit()
+        
+        # تحديث أرصدة الجهات المرتبطة بشكل فوري
+        try:
+            if customer_id:
+                utils.update_entity_balance("CUSTOMER", customer_id)
+            if supplier_id:
+                utils.update_entity_balance("SUPPLIER", supplier_id)
+            if partner_id:
+                utils.update_entity_balance("PARTNER", partner_id)
+        except Exception as e:
+            current_app.logger.error(f"❌ فشل تحديث أرصدة الجهات بعد حذف المصروف: {e}")
+
         flash("✅ تم حذف المصروف", "success")
     except SQLAlchemyError as err:
         db.session.rollback()

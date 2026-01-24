@@ -1494,12 +1494,16 @@ def create_payment():
                 if expense:
                     related_supplier_id = getattr(expense, "supplier_id", None)
                     related_partner_id = getattr(expense, "partner_id", None)
+                    related_customer_id = getattr(expense, "customer_id", None)
                     if related_supplier_id:
                         s = db.session.get(Supplier, related_supplier_id)
                         person_name = getattr(s, "name", None)
                     elif related_partner_id:
                         p = db.session.get(Partner, related_partner_id)
                         person_name = getattr(p, "name", None)
+                    elif related_customer_id:
+                        c = db.session.get(Customer, related_customer_id)
+                        person_name = getattr(c, "name", None)
                     elif expense.payee_name:
                         person_name = expense.payee_name
             elif etype == "SHIPMENT" and target_id:
@@ -1646,7 +1650,17 @@ def create_payment():
                         db.session.add(sale)
                         
                         # خصم المخزون عند اكتمال الدفع (إذا كانت مؤكدة ومدفوعة)
-                        if sale.status == SaleStatus.CONFIRMED and sale.payment_status == PaymentProgress.PAID.value and old_paid < float(sale.total or 0):
+                        preorder_already_fulfilled = False
+                        try:
+                            if getattr(sale, "preorder_id", None):
+                                po = db.session.get(PreOrder, int(sale.preorder_id))
+                                st = getattr(po, "status", None) if po else None
+                                st = getattr(st, "value", st) if st is not None else None
+                                preorder_already_fulfilled = str(st or "").upper() == "FULFILLED"
+                        except Exception:
+                            preorder_already_fulfilled = False
+
+                        if sale.status == SaleStatus.CONFIRMED and sale.payment_status == PaymentProgress.PAID.value and old_paid < float(sale.total or 0) and not preorder_already_fulfilled:
                             from routes.sales import _deduct_stock
                             try:
                                 _deduct_stock(sale)
@@ -1666,11 +1680,11 @@ def create_payment():
                         inv.update_status()
                         db.session.add(inv)
                 if payment.status == PaymentStatus.COMPLETED.value:
-                    if related_customer_id:
+                    if payment.customer_id:
                         from utils.customer_balance_updater import update_customer_balance_components
-                        update_customer_balance_components(related_customer_id, db.session)
-                    if related_supplier_id:
-                        utils.update_entity_balance("supplier", related_supplier_id)
+                        update_customer_balance_components(payment.customer_id, db.session)
+                    if payment.supplier_id:
+                        utils.update_entity_balance("supplier", payment.supplier_id)
                     if payment.partner_id:
                         utils.update_entity_balance("partner", payment.partner_id)
                     if payment.loan_settlement_id:
@@ -1835,7 +1849,8 @@ def create_expense_payment(exp_id):
         deliverer_val = (form.deliverer_name.data or "").strip() if hasattr(form, "deliverer_name") else ""
         receiver_val = (form.receiver_name.data or "").strip() if hasattr(form, "receiver_name") else ""
         user_display = _resolve_user_display()
-        counterparty_name = _resolve_counterparty_name(person_name=payee, supplier_id=getattr(exp, "supplier_id", None), partner_id=getattr(exp, "partner_id", None), fallback=payee)
+        payee = exp.payee_name or exp.paid_to or exp.beneficiary_name or (getattr(exp.employee, "name", None) if getattr(exp, "employee", None) else None) or "غير محدد"
+        counterparty_name = _resolve_counterparty_name(person_name=payee, supplier_id=getattr(exp, "supplier_id", None), partner_id=getattr(exp, "partner_id", None), customer_id=getattr(exp, "customer_id", None), fallback=payee)
         if not deliverer_val:
             deliverer_val = user_display
         if not receiver_val:
@@ -1847,6 +1862,7 @@ def create_expense_payment(exp_id):
             expense_id=exp.id,
             supplier_id=getattr(exp, "supplier_id", None),
             partner_id=getattr(exp, "partner_id", None),
+            customer_id=getattr(exp, "customer_id", None),
             total_amount=q0(actual_amount_expense),
             currency="ILS",
             method=getattr(method_val, "value", method_val),
@@ -1878,6 +1894,18 @@ def create_expense_payment(exp_id):
                 
         db.session.add(payment)
         db.session.commit()
+        
+        # تحديث الأرصدة بشكل فوري
+        try:
+            if payment.supplier_id:
+                utils.update_entity_balance("SUPPLIER", payment.supplier_id)
+            if payment.partner_id:
+                utils.update_entity_balance("PARTNER", payment.partner_id)
+            if payment.customer_id:
+                utils.update_entity_balance("CUSTOMER", payment.customer_id)
+        except Exception as e:
+            current_app.logger.error(f"❌ فشل تحديث الأرصدة بعد دفع المصروف {payment.id}: {e}")
+
         utils.log_audit("Payment", payment.id, f"CREATE (expense #{exp.id})")
         if _wants_json():
             return jsonify(status="success", payment=_serialize_payment(payment, full=True)), 201
@@ -1910,6 +1938,24 @@ def delete_split(split_id):
                 pmt.total_amount = _sum_splits_decimal(rem) if rem else q0(0)
                 db.session.add(pmt)
         db.session.commit()
+        try:
+            customer_id = getattr(pmt, "customer_id", None) if pmt else None
+            supplier_id = getattr(pmt, "supplier_id", None) if pmt else None
+            partner_id = getattr(pmt, "partner_id", None) if pmt else None
+            if pmt and getattr(pmt, "expense_id", None) and not (customer_id or supplier_id or partner_id):
+                exp = db.session.get(Expense, int(pmt.expense_id))
+                if exp:
+                    customer_id = getattr(exp, "customer_id", None)
+                    supplier_id = getattr(exp, "supplier_id", None)
+                    partner_id = getattr(exp, "partner_id", None)
+            if customer_id:
+                utils.update_entity_balance("CUSTOMER", customer_id)
+            if supplier_id:
+                utils.update_entity_balance("SUPPLIER", supplier_id)
+            if partner_id:
+                utils.update_entity_balance("PARTNER", partner_id)
+        except Exception as e:
+            current_app.logger.error(f"❌ فشل تحديث الأرصدة بعد حذف جزء دفعة {split_id}: {e}")
         current_app.logger.info("payment.split_deleted", extra={"event": "payments.split.delete", "payment_id": payment_id, "split_id": split_id})
         return jsonify(status="success")
     except SQLAlchemyError as e:
@@ -3505,6 +3551,18 @@ def refund_split(split_id: int):
                     pass
         finally:
             db.session.commit()
+
+        # تحديث الأرصدة بعد استرجاع الدفعة
+        try:
+            if refund.supplier_id:
+                utils.update_entity_balance("SUPPLIER", refund.supplier_id)
+            if refund.partner_id:
+                utils.update_entity_balance("PARTNER", refund.partner_id)
+            if refund.customer_id:
+                utils.update_entity_balance("CUSTOMER", refund.customer_id)
+        except Exception as e:
+            current_app.logger.error(f"❌ فشل تحديث الأرصدة بعد استرجاع جزء دفعة {split_id}: {e}")
+
         return jsonify(success=True, refund_id=refund.id)
     except Exception as e:
         db.session.rollback()
@@ -3625,6 +3683,25 @@ def refund_payment(payment_id: int):
                         pass
         finally:
             db.session.commit()
+        
+        try:
+            customer_id = getattr(refund, "customer_id", None)
+            supplier_id = getattr(refund, "supplier_id", None)
+            partner_id = getattr(refund, "partner_id", None)
+            if getattr(refund, "expense_id", None) and not (customer_id or supplier_id or partner_id):
+                exp = db.session.get(Expense, int(refund.expense_id))
+                if exp:
+                    customer_id = getattr(exp, "customer_id", None)
+                    supplier_id = getattr(exp, "supplier_id", None)
+                    partner_id = getattr(exp, "partner_id", None)
+            if customer_id:
+                utils.update_entity_balance("CUSTOMER", customer_id)
+            if supplier_id:
+                utils.update_entity_balance("SUPPLIER", supplier_id)
+            if partner_id:
+                utils.update_entity_balance("PARTNER", partner_id)
+        except Exception as e:
+            current_app.logger.error(f"❌ فشل تحديث الأرصدة بعد استرجاع الدفعة {payment_id}: {e}")
         return jsonify(success=True, refund_id=refund.id)
     except Exception as e:
         db.session.rollback()

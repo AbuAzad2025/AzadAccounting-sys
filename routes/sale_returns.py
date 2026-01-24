@@ -8,6 +8,7 @@ from flask_login import login_required, current_user
 from sqlalchemy import or_, func, desc
 from datetime import datetime, timezone
 from decimal import Decimal
+from typing import Optional
 
 from extensions import db
 from models import (
@@ -19,6 +20,55 @@ from utils import permission_required
 
 # إنشاء Blueprint
 returns_bp = Blueprint('returns', __name__, url_prefix='/returns')
+
+def _refresh_related_balances(customer_id: Optional[int], lines) -> None:
+    try:
+        if customer_id:
+            from utils.customer_balance_updater import update_customer_balance_components
+            update_customer_balance_components(int(customer_id))
+    except Exception:
+        pass
+    try:
+        partner_ids = set()
+        supplier_ids = set()
+        warehouse_ids = set()
+        product_ids = set()
+        for ln in (lines or []):
+            wid = getattr(ln, "warehouse_id", None)
+            if wid:
+                warehouse_ids.add(int(wid))
+            pid = getattr(ln, "product_id", None)
+            if pid:
+                product_ids.add(int(pid))
+        wh_to_partner = {}
+        if warehouse_ids:
+            for wid, partner_id in db.session.query(Warehouse.id, Warehouse.partner_id).filter(Warehouse.id.in_(warehouse_ids)).all():
+                if partner_id:
+                    wh_to_partner[int(wid)] = int(partner_id)
+        for wid in warehouse_ids:
+            partner_id = wh_to_partner.get(int(wid))
+            if partner_id:
+                partner_ids.add(int(partner_id))
+        prod_to_supplier = {}
+        if product_ids:
+            for pid, supplier_id in db.session.query(Product.id, Product.supplier_id).filter(Product.id.in_(product_ids)).all():
+                if supplier_id:
+                    prod_to_supplier[int(pid)] = int(supplier_id)
+        for ln in (lines or []):
+            condition = (getattr(ln, "condition", None) or "GOOD").upper()
+            liability = (getattr(ln, "liability_party", None) or "").upper()
+            if condition in ("DAMAGED", "UNUSABLE") and liability == "SUPPLIER":
+                sid = prod_to_supplier.get(int(getattr(ln, "product_id", 0) or 0))
+                if sid:
+                    supplier_ids.add(int(sid))
+        if partner_ids or supplier_ids:
+            import utils
+            for pid in partner_ids:
+                utils.update_entity_balance("PARTNER", int(pid))
+            for sid in supplier_ids:
+                utils.update_entity_balance("SUPPLIER", int(sid))
+    except Exception:
+        pass
 
 
 @returns_bp.route('/')
@@ -208,6 +258,7 @@ def create_return(sale_id=None):
             except Exception:
                 pass  # لا نريد أن يفشل الحفظ بسبب الـ audit log
             
+            _refresh_related_balances(sale_return.customer_id, list(sale_return.lines or []))
             flash('تم إنشاء المرتجع بنجاح', 'success')
             return redirect(url_for('returns.view_return', return_id=sale_return.id))
             
@@ -364,6 +415,7 @@ def edit_return(return_id):
             except Exception:
                 pass
             
+            _refresh_related_balances(sale_return.customer_id, list(sale_return.lines or []))
             flash('تم تحديث المرتجع بنجاح', 'success')
             return redirect(url_for('returns.view_return', return_id=return_id))
             
@@ -420,6 +472,7 @@ def confirm_return(return_id):
         except Exception:
             pass
         
+        _refresh_related_balances(sale_return.customer_id, list(sale_return.lines or []))
         flash('تم تأكيد المرتجع بنجاح. تم إرجاع المخزون.', 'success')
         
     except Exception as e:
@@ -463,6 +516,7 @@ def cancel_return(return_id):
         except Exception:
             pass
         
+        _refresh_related_balances(sale_return.customer_id, list(sale_return.lines or []))
         flash('تم إلغاء المرتجع بنجاح', 'success')
         
     except Exception as e:
@@ -500,6 +554,7 @@ def delete_return(return_id):
         
         db.session.delete(sale_return)
         db.session.commit()
+        _refresh_related_balances(getattr(sale_return, "customer_id", None), list(getattr(sale_return, "lines", []) or []))
         
         flash('تم حذف المرتجع بنجاح', 'success')
         return redirect(url_for('returns.list_returns'))

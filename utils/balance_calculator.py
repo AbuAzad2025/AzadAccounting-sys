@@ -1,6 +1,6 @@
 from decimal import Decimal
 from sqlalchemy import func, or_, and_
-from sqlalchemy.orm import object_session, selectinload
+from sqlalchemy.orm import object_session, selectinload, joinedload
 from models import (
     Customer, Sale, SaleReturn, Invoice, ServiceRequest, PreOrder, OnlinePreOrder,
     Payment, PaymentSplit, Check, PaymentDirection, PaymentStatus, PaymentMethod, Expense, ExpenseType
