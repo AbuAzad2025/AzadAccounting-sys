@@ -103,3 +103,4 @@ wsgi.py
 # Local helper scripts
 start_server.bat
 debug_config.py
+run_backup.bat
