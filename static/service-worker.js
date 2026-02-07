@@ -13,7 +13,7 @@ const STATIC_FILES = [
   '/static/css/mobile.css',
   '/static/js/ux-enhancements.js',
   '/static/img/logo.png',
-  '/static/img/azad_logo.png',
+  '/static/img/logo.png',
   '/static/adminlte/css/adminlte.min.css',
   '/static/adminlte/plugins/fontawesome-free/css/all.min.css',
   'https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;600;700;800&display=swap'

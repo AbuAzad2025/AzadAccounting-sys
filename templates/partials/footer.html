@@ -1,39 +1,39 @@
 <footer class="main-footer enhanced-footer text-center" dir="rtl">
   <div class="container">
     <div class="footer-brand">
-      <img src="{{ url_for('static', filename='img/azad_logo.png') }}"
-           alt="Azad Logo"
-           class="footer-logo">
+      {% if system_settings and system_settings.custom_logo %}
+        <img src="{{ url_for('static', filename=system_settings.custom_logo.replace('static/', '')) }}"
+             alt="Logo"
+             class="footer-logo">
+      {% else %}
+        <img src="{{ url_for('static', filename='img/logo.png') }}"
+             alt="Logo"
+             class="footer-logo">
+      {% endif %}
       <div class="footer-company">
-        <strong class="footer-company-name">{{ system_settings.company_name or 'AZAD Systems' }}</strong>
+        <strong class="footer-company-name">{{ system_settings.company_name or system_settings.system_name or 'النظام' }}</strong>
         <small class="footer-system-name">{{ system_settings.system_name or 'نظام إدارة متكامل' }}</small>
       </div>
-      <span class="footer-flag">
-        <span class="flag-icon">🇵🇸</span>
-        <span class="flag-text">فلسطين</span>
-      </span>
     </div>
     
     <div class="footer-contact">
       <div class="row text-center">
+        {% if system_settings and system_settings.COMPANY_PHONE %}
         <div class="col-md-4 mb-2 mb-md-0">
-          <a href="tel:+970562150193" class="footer-contact-link">
+          <a href="tel:{{ system_settings.COMPANY_PHONE }}" class="footer-contact-link">
             <i class="fas fa-phone"></i>
-            <span>+970-562-150-193</span>
+            <span>{{ system_settings.COMPANY_PHONE }}</span>
           </a>
         </div>
+        {% endif %}
+        {% if system_settings and system_settings.COMPANY_EMAIL %}
         <div class="col-md-4 mb-2 mb-md-0">
-          <a href="https://wa.me/970562150193?text=مرحباً" target="_blank" class="footer-contact-link">
-            <i class="fab fa-whatsapp"></i>
-            <span>واتساب (دعم فوري)</span>
-          </a>
-        </div>
-        <div class="col-md-4">
-          <a href="mailto:rafideen.ahmadghannam@gmail.com" class="footer-contact-link">
+          <a href="mailto:{{ system_settings.COMPANY_EMAIL }}" class="footer-contact-link">
             <i class="fas fa-envelope"></i>
-            <span>rafideen.ahmadghannam@gmail.com</span>
+            <span>{{ system_settings.COMPANY_EMAIL }}</span>
           </a>
         </div>
+        {% endif %}
       </div>
     </div>
     

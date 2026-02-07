@@ -6,10 +6,10 @@
       <img src="{{ url_for('static', filename=system_settings.custom_logo.replace('static/', '')) }}" 
            alt="Logo" class="mr-3" style="max-height: 50px;">
       {% else %}
-      <img src="{{ url_for('static', filename='img/azad_logo.png') }}" 
-           alt="Azad Logo" class="mr-3" style="max-height: 50px;">
+      <img src="{{ url_for('static', filename='img/logo.png') }}" 
+           alt="Logo" class="mr-3" style="max-height: 50px;">
       {% endif %}
-      <h4 class="mb-0 fw-bold text-primary">{{ system_settings.company_name or 'شركة أزاد للأنظمة الذكية' }}</h4>
+      <h4 class="mb-0 fw-bold text-primary">{{ system_settings.company_name or system_settings.system_name or 'النظام' }}</h4>
     </div>
     
     <div class="row">
@@ -71,20 +71,22 @@
     </div>
     
     <!-- روابط التواصل الاجتماعي -->
+    {% if system_settings.COMPANY_PHONE or system_settings.COMPANY_EMAIL %}
     <div class="mt-3 pt-3 border-top">
-      <div class="d-flex justify-content-center gap-2">
-        <a href="https://wa.me/970562150193?text=مرحباً" target="_blank" 
-           class="btn btn-success btn-sm" title="واتساب">
-          <i class="fab fa-whatsapp"></i> واتساب
+      <div class="d-flex justify-content-center gap-2 flex-wrap">
+        {% if system_settings.COMPANY_PHONE %}
+        <a href="tel:{{ system_settings.COMPANY_PHONE }}" class="btn btn-primary btn-sm" title="اتصال">
+          <i class="fas fa-phone"></i> اتصال
         </a>
-        <a href="tel:+970562150193" class="btn btn-primary btn-sm" title="اتصال">
-          <i class="fas fa-phone"></i> اتصل الآن
+        {% endif %}
+        {% if system_settings.COMPANY_EMAIL %}
+        <a href="mailto:{{ system_settings.COMPANY_EMAIL }}" class="btn btn-info btn-sm" title="بريد">
+          <i class="fas fa-envelope"></i> بريد
         </a>
-        <a href="mailto:rafideen.ahmadghannam@gmail.com" class="btn btn-info btn-sm" title="بريد">
-          <i class="fas fa-envelope"></i> راسلنا
-        </a>
+        {% endif %}
       </div>
     </div>
+    {% endif %}
   </div>
 </div>
 

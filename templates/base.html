@@ -17,7 +17,6 @@
   <meta name="keywords" content="نظام إدارة الكراج، إدارة المركبات، صيانة السيارات، {{ system_settings.company_name or 'شركة ازاد' }}">
   <meta name="author" content="{{ system_settings.company_name or 'شركة ازاد للأنظمة الذكية' }}">
   <meta name="csrf-token" content="{{ csrf_token() }}">
-  <script src="{{ url_for('static', filename='js/archive.js') }}"></script>
   <script>
   (function(){
     try{
@@ -122,14 +121,10 @@
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/logo.png') }}">
   <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='img/logo.png') }}">
   {% endif %}
+
+  <meta name="gm-company-name" content="{{ system_settings.company_name or system_settings.system_name or 'النظام' }}">
+  <meta name="gm-logo-url" content="{% if system_settings.custom_logo %}{{ url_for('static', filename=system_settings.custom_logo.replace('static/', '')) }}{% else %}{{ url_for('static', filename='img/logo.png') }}{% endif %}">
   
-  <!-- Fonts - Local Fallback -->
-  <style>
-    /* استخدام الخطوط المحلية كـ fallback */
-    body {
-      font-family: 'Tajawal', 'Arial', 'Segoe UI', 'Tahoma', sans-serif;
-    }
-  </style>
   <!-- Google Fonts - Async Loading -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -137,26 +132,22 @@
   <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;600;700;800&display=swap"></noscript>
   
   <!-- CSS Libraries - Preload Critical -->
-  <link rel="preload" href="{{ url_for('static', filename='adminlte/css/adminlte.min.css') }}" as="style">
-  <link rel="preload" href="{{ url_for('static', filename='adminlte/plugins/fontawesome-free/css/all.min.css') }}" as="style">
-  <link rel="stylesheet" href="{{ url_for('static', filename='adminlte/plugins/fontawesome-free/css/all.min.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='adminlte/plugins/overlayScrollbars/css/OverlayScrollbars.min.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='adminlte/css/adminlte.min.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='adminlte/plugins/select2/css/select2.min.css') }}">
+  <link rel="preload" href="{{ static_url('adminlte/css/adminlte.min.css') }}" as="style">
+  <link rel="preload" href="{{ static_url('adminlte/plugins/fontawesome-free/css/all.min.css') }}" as="style">
+  <link rel="stylesheet" href="{{ static_url('adminlte/plugins/fontawesome-free/css/all.min.css') }}">
+  <link rel="stylesheet" href="{{ static_url('adminlte/plugins/overlayScrollbars/css/OverlayScrollbars.min.css') }}">
+  <link rel="stylesheet" href="{{ static_url('adminlte/css/adminlte.min.css') }}">
+  <link rel="stylesheet" href="{{ static_url('adminlte/plugins/select2/css/select2.min.css') }}">
   
   <!-- Custom CSS -->
   <link rel="preload" href="{{ static_url('css/style.css') }}" as="style">
   <link rel="stylesheet" href="{{ static_url('css/style.css') }}">
+  <link rel="preload" href="{{ static_url('css/ui.css') }}" as="style">
+  <link rel="stylesheet" href="{{ static_url('css/ui.css') }}">
   <link rel="stylesheet" href="{{ static_url('css/security_dark_mode.css') }}">
-  
-  <!-- Mobile Optimizations CSS -->
-  <link rel="stylesheet" href="{{ static_url('css/mobile.css') }}">
   
   <!-- Numbers Fix CSS - Force English Numbers -->
   <link rel="stylesheet" href="{{ static_url('css/numbers-fix.css') }}">
-  
-  <!-- Safe Enhancements CSS -->
-  <link rel="stylesheet" href="{{ static_url('css/enhancements.css') }}">
   
   <!-- Print Styles - A4 Professional Format -->
   <link rel="stylesheet" href="{{ static_url('css/print.css') }}" media="print">
@@ -164,6 +155,9 @@
   <!-- Performance & Event Utilities (loaded early for all pages) -->
   <script src="{{ static_url('js/csrf-utils.js') }}" defer></script>
   <script src="{{ static_url('js/event-utils.js') }}" defer></script>
+  {% if config.get('SOCKETIO_ENABLED', False) %}
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js" integrity="sha384-/KNQL8Nu5gCHLqwqfQjA689Hhoqgi2S84SNUxC3roTe4EhJ9AfLkp8QiQcU8AMzI" crossorigin="anonymous" defer></script>
+  {% endif %}
   <script src="{{ static_url('js/balance-loading.js') }}" defer></script>
   <script src="{{ static_url('js/balance-realtime.js') }}" defer></script>
   <script src="{{ static_url('js/common-utils.js') }}" defer></script>
@@ -195,17 +189,9 @@
       background-color: {{ system_settings.primary_color }} !important;
       border-color: {{ system_settings.primary_color }} !important;
     }
-    
-    a, .nav-link.active, .sidebar .nav-link.active {
-      color: {{ system_settings.primary_color }} !important;
-    }
-    
-    .content-header {
-      background: linear-gradient(135deg, {{ system_settings.primary_color }} 0%, {{ system_settings.primary_color }} 100%) !important;
-    }
-    
-    .main-sidebar {
-      background-color: {{ system_settings.primary_color }} !important;
+
+    :root {
+      --theme-primary: {{ system_settings.primary_color }};
     }
   </style>
   {% endif %}
@@ -213,6 +199,7 @@
   {% block styles %}{% endblock %}
   {% block head_extra %}{% endblock %}
   
+  {% if False %}
   <!-- Enhanced Styles -->
   <style>
     /* ضمان عدم اختفاء المحتوى */
@@ -221,18 +208,19 @@
     .content-wrapper .container-fluid {
       width: 100% !important;
       max-width: 100% !important;
-      overflow-x: visible !important;
+      overflow-x: hidden !important;
+      overflow-y: visible !important;
     }
     
     .content-wrapper .container-fluid {
-      padding-left: 5px !important;
-      padding-right: 5px !important;
+      padding-left: 12px !important;
+      padding-right: 12px !important;
     }
     
     @media (min-width: 992px) {
       .content-wrapper .container-fluid {
-        padding-left: 10px !important;
-        padding-right: 10px !important;
+        padding-left: 16px !important;
+        padding-right: 16px !important;
       }
     }
     
@@ -242,9 +230,7 @@
       width: 100% !important;
     }
     
-    .content-wrapper .card,
-    .content-wrapper .row,
-    .content-wrapper .col {
+    .content-wrapper .card {
       max-width: 100% !important;
     }
     
@@ -340,12 +326,16 @@
     
     /* ==================== RESPONSIVE DESIGN ==================== */
     
-    /* Mobile (< 576px) */
-    @media (max-width: 575.98px) {
+    /* Mobile + Tablet (< 992px) */
+    @media (max-width: 991.98px) {
       .main-sidebar {
-        width: 100% !important;
+        width: 280px !important;
         transform: translateX(-100%);
         transition: transform 0.3s ease;
+      }
+      
+      body[data-sidebar-position="right"] .main-sidebar {
+        transform: translateX(100%);
       }
       
       body.sidebar-open .main-sidebar {
@@ -361,7 +351,6 @@
         max-width: 100% !important;
       }
       
-      /* إخفاء بعض العناصر على الموبايل */
       .breadcrumb {
         font-size: 12px;
       }
@@ -369,39 +358,6 @@
       .card {
         margin-bottom: 15px;
       }
-      
-    }
-    
-    /* Tablet (576px - 991px) */
-    @media (min-width: 576px) and (max-width: 991.98px) {
-      .main-sidebar {
-        width: 250px !important;
-      }
-      
-      body[data-sidebar-position="left"] .content-wrapper {
-        margin-left: 250px !important;
-        width: calc(100% - 250px) !important;
-        max-width: calc(100% - 250px) !important;
-      }
-      
-      body[data-sidebar-position="left"] .main-footer,
-      body[data-sidebar-position="left"] .main-header.navbar {
-        margin-left: 250px !important;
-        width: calc(100% - 250px) !important;
-      }
-      
-      body[data-sidebar-position="right"] .content-wrapper {
-        margin-right: 250px !important;
-        width: calc(100% - 250px) !important;
-        max-width: calc(100% - 250px) !important;
-      }
-      
-      body[data-sidebar-position="right"] .main-footer,
-      body[data-sidebar-position="right"] .main-header.navbar {
-        margin-right: 250px !important;
-        width: calc(100% - 250px) !important;
-      }
-      
     }
     
     /* Desktop (992px - 1399px) */
@@ -624,111 +580,111 @@
     }
     
     /* Enhanced Buttons */
-    .btn {
+    body:not(.ui-v2) .btn {
       border-radius: 0.5rem;
       font-weight: 500;
       transition: all 0.3s ease;
     }
-    .btn:hover {
+    body:not(.ui-v2) .btn:hover {
       transform: translateY(-1px);
     }
     
     /* Enhanced Alerts */
-    .alert {
+    body:not(.ui-v2) .alert {
       border: none;
       border-radius: 0.75rem;
       font-weight: 500;
     }
     
     /* Enhanced Breadcrumb */
-    .breadcrumb {
+    body:not(.ui-v2) .breadcrumb {
       background: transparent;
       padding: 0;
       margin: 0;
     }
-    .breadcrumb-item + .breadcrumb-item::before {
+    body:not(.ui-v2) .breadcrumb-item + .breadcrumb-item::before {
       content: "›";
       color: #6c757d;
       font-weight: bold;
     }
     
     /* Enhanced Content Header - Harmonized with AdminLTE */
-    .content-header {
+    body:not(.ui-v2) .content-header {
       background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
       color: #ffffff;
       border-radius: 0 0 0.5rem 0.5rem;
       margin-bottom: 1.5rem;
       box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
-    .content-header h1 {
+    body:not(.ui-v2) .content-header h1 {
       color: #ffffff;
       text-shadow: 0 1px 2px rgba(0,0,0,0.3);
       font-weight: 600;
     }
     
     /* Enhanced Breadcrumb - Harmonized with AdminLTE */
-    .breadcrumb {
+    body:not(.ui-v2) .breadcrumb {
       background: transparent;
       padding: 0;
       margin: 0;
     }
-    .breadcrumb-item {
+    body:not(.ui-v2) .breadcrumb-item {
       color: #6c757d;
       font-weight: 400;
     }
-    .breadcrumb-item + .breadcrumb-item::before {
+    body:not(.ui-v2) .breadcrumb-item + .breadcrumb-item::before {
       content: "›";
       color: #adb5bd;
       font-weight: normal;
     }
-    .breadcrumb-item a {
+    body:not(.ui-v2) .breadcrumb-item a {
       color: #007bff;
       text-decoration: none;
       font-weight: 400;
     }
-    .breadcrumb-item a:hover {
+    body:not(.ui-v2) .breadcrumb-item a:hover {
       color: #0056b3;
       text-decoration: underline;
     }
     
     /* Enhanced Text Contrast - Harmonized with AdminLTE */
-    body {
+    body:not(.ui-v2) {
       color: #495057;
       background-color: #f4f6f9;
     }
     
-    .text-muted {
+    body:not(.ui-v2) .text-muted {
       color: #6c757d !important;
     }
     
-    .text-dark {
+    body:not(.ui-v2) .text-dark {
       color: #343a40 !important;
     }
     
-    .text-primary {
+    body:not(.ui-v2) .text-primary {
       color: #007bff !important;
     }
     
     /* Enhanced Card Text - Harmonized with AdminLTE */
-    .card:not([style]) {
+    body:not(.ui-v2) .card:not([style]) {
       background: #ffffff;
       color: #495057;
       border: 1px solid #dee2e6;
     }
     
     /* تم تعطيل .card-header العام لصالح التنسيقات المخصصة */
-    .card-header:not([style]) {
+    body:not(.ui-v2) .card-header:not([style]) {
       background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
       color: #ffffff;
       border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     }
     
-    .card-body {
+    body:not(.ui-v2) .card-body {
       color: #495057;
     }
     
     /* Enhanced Table Text - Harmonized with AdminLTE */
-    .table {
+    body:not(.ui-v2) .table {
       color: #495057;
     }
     
@@ -742,6 +698,7 @@
       color: #495057;
     }
   </style>
+  {% endif %}
   {% block extra_css %}{% endblock %}
   <script>
   (function(){
@@ -760,12 +717,12 @@
   })();
   </script>
 </head>
-<body class="hold-transition sidebar-mini layout-fixed text-sm layout-navbar-fixed sidebar-collapse-left {% block body_class %}{% endblock %}">
+<body class="hold-transition sidebar-mini layout-fixed text-sm layout-navbar-fixed sidebar-collapse-left ui-v2 {% block body_class %}{% endblock %}">
 <div class="wrapper">
   {% include 'partials/navbar.html' %}
   {% include 'partials/sidebar.html' %}
   <div class="content-wrapper">
-    <div class="content-header border-bottom mb-3 pb-2 bg-light">
+    <div class="content-header">
       <div class="container-fluid">
         <div class="row align-items-center">
           <div class="col-sm-6">
@@ -800,11 +757,10 @@
   {% include 'partials/footer.html' %}
 </div>
 
-<script src="{{ url_for('static', filename='adminlte/plugins/jquery/jquery.min.js') }}"></script>
-<script src="{{ url_for('static', filename='adminlte/plugins/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
+<script src="{{ url_for('static', filename='adminlte/plugins/jquery/jquery.min.js') }}" defer></script>
+<script src="{{ url_for('static', filename='adminlte/plugins/bootstrap/js/bootstrap.bundle.min.js') }}" defer></script>
 <script src="{{ url_for('static', filename='adminlte/plugins/overlayScrollbars/js/jquery.overlayScrollbars.min.js') }}" defer></script>
 <script src="{{ url_for('static', filename='adminlte/js/adminlte.min.js') }}" defer></script>
-<script src="{{ url_for('static', filename='adminlte/plugins/select2/js/select2.full.min.js') }}" defer></script>
 <script src="{{ static_url('js/datatables-arabic.js') }}" defer></script>
 <script src="{{ static_url('js/archive.js') }}" defer></script>
 
@@ -836,13 +792,10 @@
   })();
 </script>
 
-<!-- Socket.IO for real-time notifications - فقط إذا كان مُفعل -->
-{% if config.get('SOCKETIO_ENABLED', False) %}
-<script src="https://cdn.socket.io/4.5.4/socket.io.min.js" integrity="sha384-/KNQL8Nu5gCHLqwqfQjA689Hhoqgi2S84SNUxC3roTe4EhJ9AfLkp8QiQcU8AMzI" crossorigin="anonymous" defer></script>
-{% endif %}
-
 <script src="{{ static_url('js/fx_utils.js') }}" defer></script>
+{% if show_charts %}
 <script src="{{ static_url('js/charts.js') }}" defer></script>
+{% endif %}
 <script src="{{ static_url('js/app.js') }}" defer></script>
 <script src="{{ static_url('js/ux-enhancements.js') }}" defer></script>
 <script src="{{ static_url('js/confirm_dangerous_operations.js') }}" defer></script>
@@ -855,21 +808,11 @@
 {% block extra_js %}{% endblock %}
 
 <script>
-(function() {
-  const originalAlert = window.alert;
-  window.alert = function(message) {
-    console.log('[Alert]', message);
-    return originalAlert.call(window, message);
-  };
-})();
-
 // ========== تبديل موقع Sidebar يمين/يسار ==========
 function toggleSidebarPosition() {
   const body = document.body;
   const currentPosition = localStorage.getItem('sidebarPosition') || 'left';
   const newPosition = currentPosition === 'left' ? 'right' : 'left';
-  
-  console.log('🔄 تبديل Sidebar من', currentPosition, 'إلى', newPosition);
   
   // حفظ الموقع الجديد
   localStorage.setItem('sidebarPosition', newPosition);
@@ -895,13 +838,11 @@ function applySidebarPosition(position) {
   const footer = document.querySelector('.main-footer');
   
   if (!sidebar) {
-    console.error('❌ Sidebar not found!');
     return;
   }
   
   // CHECK FOR FULL HIDDEN STATE
   if (body.classList.contains('sidebar-hidden')) {
-    console.log('🙈 Sidebar is fully hidden - forcing 100% width');
     if (contentWrapper) {
       contentWrapper.style.setProperty('margin-left', '0', 'important');
       contentWrapper.style.setProperty('margin-right', '0', 'important');
@@ -954,8 +895,6 @@ function applySidebarPosition(position) {
       sidebarWidth = '320px';
       break;
   }
-  
-  console.log('📐 Breakpoint:', breakpoint, '- Screen Width:', screenWidth, '- Sidebar Width:', sidebarWidth);
   
   // تطبيق التغييرات فوراً على العناصر
   if (breakpoint === 'mobile') {
@@ -1011,31 +950,17 @@ function applySidebarPosition(position) {
     }
   }
   
-  console.log('✅ Sidebar على', position === 'left' ? 'اليسار' : 'اليمين', '- العرض:', sidebarWidth);
-  
-  // لوگ للتأكد
-  setTimeout(() => {
-    if (contentWrapper) {
-      console.log('🔍 التحقق من الموقع:', {
-        position: position,
-        contentMarginLeft: contentWrapper.style.marginLeft,
-        contentMarginRight: contentWrapper.style.marginRight
-      });
-    }
-  }, 100);
 }
 
 // تطبيق الموقع المحفوظ قبل تحميل الصفحة لمنع الـ flash
 (function() {
   const savedPosition = localStorage.getItem('sidebarPosition') || 'left';
   document.body.setAttribute('data-sidebar-position', savedPosition);
-  console.log('⚡ تطبيق سريع للموقع:', savedPosition);
 })();
 
 // تطبيق الموقع المحفوظ عند تحميل الصفحة
 document.addEventListener('DOMContentLoaded', function() {
   const savedPosition = localStorage.getItem('sidebarPosition') || 'left';
-  console.log('📍 الموقع المحفوظ:', savedPosition);
   applySidebarPosition(savedPosition);
   
   // تحديث النص في الزر
@@ -1051,7 +976,6 @@ window.addEventListener('resize', function() {
   clearTimeout(resizeTimeout);
   resizeTimeout = setTimeout(function() {
     const savedPosition = localStorage.getItem('sidebarPosition') || 'left';
-    console.log('🔄 Resize detected, recalculating sidebar...');
     applySidebarPosition(savedPosition);
   }, 150);
 });
@@ -1064,7 +988,6 @@ const desktopQuery = window.matchMedia('(min-width: 992px)');
 function handleBreakpointChange(query, name) {
   query.addEventListener('change', function(e) {
     if (e.matches) {
-      console.log('📐 Breakpoint changed to:', name);
       const savedPosition = localStorage.getItem('sidebarPosition') || 'left';
       applySidebarPosition(savedPosition);
     }
@@ -1110,21 +1033,14 @@ handleBreakpointChange(desktopQuery, 'desktop');
     };
   }
   
-  // طباعة معلومات الشاشة في Console للمطورين
-  if (window.location.search.includes('debug=screen')) {
-    console.log('📱 Screen Info:', getScreenSize());
-    window.addEventListener('resize', () => {
-      console.log('📱 Screen Info (after resize):', getScreenSize());
-    });
-  }
-  
   // تهيئة للموبايل
   function initMobile() {
     if (!isMobile()) return;
     
     const body = document.body;
     const sidebar = document.querySelector('.main-sidebar');
-    const pushmenuBtn = document.querySelector('[data-widget="pushmenu"]');
+    const pushmenuBtns = Array.from(document.querySelectorAll('[data-widget="pushmenu"]'));
+    body.classList.add('gm-mobile');
     
     // إغلاق Sidebar افتراضياً على الموبايل
     if (sidebar && !body.classList.contains('sidebar-open')) {
@@ -1132,42 +1048,70 @@ handleBreakpointChange(desktopQuery, 'desktop');
     }
     
     // التعامل مع فتح/إغلاق Sidebar
-    if (pushmenuBtn) {
-      pushmenuBtn.addEventListener('click', function(e) {
+    pushmenuBtns.forEach(btn => {
+      if (!btn || btn.dataset.gmPushmenuBound === '1') return;
+      btn.addEventListener('click', function(e) {
         e.preventDefault();
         body.classList.toggle('sidebar-open');
       });
-    }
+      btn.dataset.gmPushmenuBound = '1';
+    });
     
     // إغلاق Sidebar عند النقر على الـ Overlay
-    body.addEventListener('click', function(e) {
-      if (body.classList.contains('sidebar-open') && 
-          !sidebar.contains(e.target) && 
-          !pushmenuBtn.contains(e.target)) {
-        body.classList.remove('sidebar-open');
-      }
-    });
-    
-    // منع إغلاق Sidebar عند النقر داخله
-    if (sidebar) {
-      sidebar.addEventListener('click', function(e) {
-        e.stopPropagation();
-      });
-    }
-    
-    // إغلاق Sidebar عند اختيار رابط
-    const sidebarLinks = document.querySelectorAll('.main-sidebar .nav-link');
-    sidebarLinks.forEach(link => {
-      link.addEventListener('click', function() {
-        if (isMobile()) {
-          setTimeout(() => {
-            body.classList.remove('sidebar-open');
-          }, 300);
+    if (body.dataset.gmMobileListeners !== '1') {
+      body.addEventListener('click', function(e) {
+        const currentBtns = Array.from(document.querySelectorAll('[data-widget="pushmenu"]'));
+        const clickedPush = currentBtns.some(btn => btn && btn.contains(e.target));
+        const currentSidebar = document.querySelector('.main-sidebar');
+        if (body.classList.contains('sidebar-open') && currentSidebar && !currentSidebar.contains(e.target) && !clickedPush) {
+          body.classList.remove('sidebar-open');
         }
       });
-    });
+      
+      if (sidebar) {
+        sidebar.addEventListener('click', function(e) {
+          e.stopPropagation();
+        });
+      }
+      
+      const sidebarLinks = document.querySelectorAll('.main-sidebar .nav-link');
+      sidebarLinks.forEach(link => {
+        link.addEventListener('click', function() {
+          if (isMobile()) {
+            setTimeout(() => {
+              body.classList.remove('sidebar-open');
+            }, 300);
+          }
+        });
+      });
+      body.dataset.gmMobileListeners = '1';
+    }
     
-    console.log('📱 تم تفعيل تحسينات الموبايل');
+  }
+
+  function initMobileBottomNavActive() {
+    const nav = document.querySelector('.gm-mobile-bottom-nav');
+    if (!nav) return;
+    const links = Array.from(nav.querySelectorAll('a.gm-tab[href]'));
+    const currentPath = window.location.pathname || '/';
+    let best = null;
+    let bestLen = -1;
+    links.forEach(a => {
+      try {
+        const href = a.getAttribute('href') || '';
+        if (!href || href === '#') return;
+        const p = new URL(href, window.location.origin).pathname;
+        if (!p) return;
+        if (currentPath === p || (p !== '/' && currentPath.startsWith(p))) {
+          if (p.length > bestLen) {
+            best = a;
+            bestLen = p.length;
+          }
+        }
+      } catch (e) {}
+    });
+    links.forEach(a => a.classList.remove('active'));
+    if (best) best.classList.add('active');
   }
   
   // تحسينات اللمس
@@ -1277,6 +1221,7 @@ handleBreakpointChange(desktopQuery, 'desktop');
     initMobile();
     enhanceTouchInteractions();
     enhanceTables();
+    initMobileBottomNavActive();
     smoothScroll();
     lazyLoadImages();
     
@@ -1288,6 +1233,7 @@ handleBreakpointChange(desktopQuery, 'desktop');
         if (isMobile()) {
           initMobile();
           enhanceTables();
+          initMobileBottomNavActive();
         }
       }, 250);
     });
@@ -1298,7 +1244,6 @@ handleBreakpointChange(desktopQuery, 'desktop');
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     deferredPrompt = e;
-    console.log('📱 يمكن إضافة التطبيق للشاشة الرئيسية');
     
     // عرض زر تثبيت مخصص (اختياري)
     const installBtn = document.getElementById('install-app-btn');
@@ -1308,7 +1253,6 @@ handleBreakpointChange(desktopQuery, 'desktop');
         if (deferredPrompt) {
           deferredPrompt.prompt();
           const { outcome } = await deferredPrompt.userChoice;
-          console.log(`📱 نتيجة التثبيت: ${outcome}`);
           deferredPrompt = null;
           installBtn.style.display = 'none';
         }
@@ -1321,25 +1265,19 @@ handleBreakpointChange(desktopQuery, 'desktop');
     const disableSW = /\/security\//.test(window.location.pathname);
     if (!disableSW) {
       if (navigator.serviceWorker.controller) {
-        console.log('✅ Service Worker already active');
       } else {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('/static/service-worker.js')
           .then((registration) => {
-            console.log('✅ Service Worker registered:', registration.scope);
-            
             registration.addEventListener('updatefound', () => {
               const newWorker = registration.installing;
               newWorker.addEventListener('statechange', () => {
                 if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                  console.log('🔄 تحديث جديد متاح');
                 }
               });
             });
           })
-          .catch((error) => {
-            console.error('❌ Service Worker registration failed:', error);
-          });
+          .catch(() => {});
         });
       }
       let refreshing = false;
@@ -1350,7 +1288,6 @@ handleBreakpointChange(desktopQuery, 'desktop');
         }
       });
     } else {
-      console.log('⛔ SW disabled on security pages');
       try {
         if (navigator.serviceWorker.controller) {
           navigator.serviceWorker.controller.postMessage({ type: 'CLEAR_CACHE' });

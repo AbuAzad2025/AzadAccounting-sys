@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app, abort
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app, abort, session
 from flask_login import login_required, current_user
 from sqlalchemy import text, func, and_
 from sqlalchemy.exc import SAWarning
@@ -327,10 +327,10 @@ def api_saas_create_subscription():
         start_date_str = data.get('start_date')
         if not customer_id or not plan_id or not start_date_str:
             return jsonify({'success': False, 'error': 'حقول مطلوبة ناقصة'}), 400
-        customer = Customer.query.get(customer_id)
+        customer = db.session.get(Customer, customer_id)
         if not customer:
             return jsonify({'success': False, 'error': 'العميل غير موجود'}), 404
-        plan = SaaSPlan.query.get(plan_id)
+        plan = db.session.get(SaaSPlan, plan_id)
         if not plan:
             return jsonify({'success': False, 'error': 'الباقة غير موجودة'}), 404
         start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
@@ -357,7 +357,7 @@ def api_saas_mark_paid(invoice_id):
     from models import SaaSInvoice
     
     try:
-        invoice = SaaSInvoice.query.get_or_404(invoice_id)
+        invoice = db.get_or_404(SaaSInvoice, invoice_id)
         invoice.status = 'paid'
         invoice.paid_at = datetime.now(timezone.utc)
         db.session.commit()
@@ -375,7 +375,7 @@ def api_saas_cancel_subscription(sub_id):
     from models import SaaSSubscription
     
     try:
-        sub = SaaSSubscription.query.get_or_404(sub_id)
+        sub = db.get_or_404(SaaSSubscription, sub_id)
         sub.status = 'cancelled'
         sub.cancelled_at = datetime.now(timezone.utc)
         sub.cancelled_by = current_user.id
@@ -395,7 +395,7 @@ def api_saas_renew_subscription(sub_id):
     from models import SaaSSubscription
     
     try:
-        sub = SaaSSubscription.query.get_or_404(sub_id)
+        sub = db.get_or_404(SaaSSubscription, sub_id)
         
         if sub.status == 'cancelled':
             return jsonify({'success': False, 'error': 'لا يمكن تجديد اشتراك ملغي'}), 400
@@ -419,7 +419,7 @@ def api_saas_update_plan(plan_id):
     from models import SaaSPlan
     
     try:
-        plan = SaaSPlan.query.get_or_404(plan_id)
+        plan = db.get_or_404(SaaSPlan, plan_id)
         data = request.get_json(silent=True) or {}
         
         if 'name' in data:
@@ -466,7 +466,7 @@ def api_saas_create_invoice():
         subscription_id = data.get('subscription_id')
         if not subscription_id:
             return jsonify({'success': False, 'error': 'الاشتراك مطلوب'}), 400
-        sub = SaaSSubscription.query.get(subscription_id)
+        sub = db.session.get(SaaSSubscription, subscription_id)
         if not sub:
             return jsonify({'success': False, 'error': 'اشتراك غير موجود'}), 404
         try:
@@ -508,16 +508,16 @@ def api_saas_send_reminder(invoice_id):
     from utils import send_notification_email
     
     try:
-        invoice = SaaSInvoice.query.get_or_404(invoice_id)
+        invoice = db.get_or_404(SaaSInvoice, invoice_id)
         
         if invoice.status == 'paid':
             return jsonify({'success': False, 'error': 'الفاتورة مدفوعة بالفعل'}), 400
         
-        subscription = SaaSSubscription.query.get(invoice.subscription_id)
+        subscription = db.session.get(SaaSSubscription, invoice.subscription_id)
         if not subscription:
             return jsonify({'success': False, 'error': 'اشتراك غير موجود'}), 404
         
-        customer = Customer.query.get(subscription.customer_id)
+        customer = db.session.get(Customer, subscription.customer_id)
         if not customer or not customer.email:
             return jsonify({'success': False, 'error': 'لا يوجد بريد إلكتروني للعميل'}), 400
         html_body = f"""
@@ -565,8 +565,8 @@ def api_saas_get_subscription(sub_id):
     from models import SaaSSubscription, Customer
     
     try:
-        sub = SaaSSubscription.query.get_or_404(sub_id)
-        customer = Customer.query.get(sub.customer_id)
+        sub = db.get_or_404(SaaSSubscription, sub_id)
+        customer = db.session.get(Customer, sub.customer_id)
         
         # حساب الأيام المتبقية
         days_left = 0
@@ -601,7 +601,7 @@ def api_saas_update_subscription(sub_id):
     from models import SaaSSubscription
     
     try:
-        sub = SaaSSubscription.query.get_or_404(sub_id)
+        sub = db.get_or_404(SaaSSubscription, sub_id)
         data = request.get_json(silent=True) or {}
         
         if 'status' in data:
@@ -625,11 +625,12 @@ def api_saas_invoice_pdf(invoice_id):
     """API: تحميل فاتورة PDF"""
     from models import SaaSInvoice, SaaSSubscription, Customer
     from flask import make_response
+    from werkzeug.exceptions import HTTPException
     
     try:
-        invoice = SaaSInvoice.query.get_or_404(invoice_id)
-        subscription = SaaSSubscription.query.get(invoice.subscription_id)
-        customer = Customer.query.get(subscription.customer_id) if subscription else None
+        invoice = db.get_or_404(SaaSInvoice, invoice_id)
+        subscription = db.session.get(SaaSSubscription, invoice.subscription_id)
+        customer = db.session.get(Customer, subscription.customer_id) if subscription else None
         
         # إنشاء HTML للفاتورة
         html_content = f"""
@@ -680,7 +681,7 @@ def api_saas_invoice_pdf(invoice_id):
             
             <div class="footer">
                 <p>شكراً لثقتكم بنا | تم الإنشاء بواسطة SaaS Manager</p>
-                <p>© 2025 Azad Systems</p>
+                <p>© 2025</p>
             </div>
         </body>
         </html>
@@ -698,6 +699,8 @@ def api_saas_invoice_pdf(invoice_id):
             response.headers['Content-Type'] = 'text/html; charset=utf-8'
             response.headers['Content-Disposition'] = f'attachment; filename=invoice_{invoice.id}.html'
             return response
+    except HTTPException:
+        raise
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400
 
@@ -776,12 +779,12 @@ def index_old():
     suspicious_activities = 0
     try:
         suspicious_activities = db.session.query(
-            func.count(AuthAudit.ip_address)
+            func.count(AuthAudit.ip)
         ).filter(
             AuthAudit.event == AuthEvent.LOGIN_FAIL.value,
             AuthAudit.created_at >= day_ago
-        ).group_by(AuthAudit.ip_address).having(
-            func.count(AuthAudit.ip_address) >= 5
+        ).group_by(AuthAudit.ip).having(
+            func.count(AuthAudit.ip) >= 5
         ).count()
     except Exception:
         pass
@@ -900,7 +903,7 @@ def blocked_countries():
 @permission_required('manage_users')
 def block_user(user_id):
     """حظر مستخدم معين"""
-    user = User.query.get_or_404(user_id)
+    user = db.get_or_404(User, user_id)
     
     if utils.is_super() and user.id == current_user.id:
         flash('❌ لا يمكنك حظر نفسك!', 'danger')
@@ -1123,7 +1126,7 @@ def security_center():
                 'enabled': _get_setting('sms_enabled', False),
             }
         }
-    
+
     stats = get_cached_security_stats()
     return render_template('security/security_center.html',
                           active_tab=tab,
@@ -1135,6 +1138,12 @@ def security_center():
                           recent_audit_logs=recent_audit_logs,
                           integrations=integrations_data,
                           stats=stats)
+
+
+@security_bp.route('/ultimate-control', methods=['GET'])
+@permission_required('access_owner_dashboard')
+def ultimate_control():
+    return render_template('security/ultimate_control.html')
 
 
 def _log_training_event(event_type, user_id, details=None):
@@ -1401,7 +1410,7 @@ def database_manager():
     if tab == 'python' and request.method == 'POST':
         if not current_user.has_permission('system_admin'):
             flash('⚠️ غير مصرح - تحتاج صلاحية system_admin', 'danger')
-            return redirect(url_for('security_bp.ultimate_control'))
+            return redirect(url_for('security.ultimate_control'))
         
         python_code = request.form.get('python_code', '').strip()
         
@@ -1520,7 +1529,7 @@ def users_center():
                     if str(user_id) == str(current_user.id):
                         continue
                         
-                    user = User.query.get(user_id)
+                    user = db.session.get(User, user_id)
                     if user and user.username != '__OWNER__':
                         # لا يمكن حذف حسابات النظام إلا للمالك
                         if getattr(user, 'is_system_account', False) and not current_user.has_role('owner'):
@@ -1619,7 +1628,7 @@ def settings_center():
     }
     
     branding_settings = {
-        'company_name': _get_setting('COMPANY_NAME', 'Azad Garage'),
+        'company_name': _get_setting('COMPANY_NAME', 'اسم الشركة'),
         'company_logo': _get_setting('custom_logo', ''),
         'primary_color': _get_setting('primary_color', '#007bff'),
         'custom_favicon': _get_setting('custom_favicon', ''),
@@ -2023,13 +2032,13 @@ def logo_manager():
                 upload_path = os.path.join(current_app.root_path, 'static', 'img')
                 
                 logo_mapping = {
-                    'main': 'azad_logo.png',
-                    'emblem': 'azad_logo_emblem.png',
-                    'white': 'azad_logo_white_on_dark.png',
-                    'favicon': 'azad_favicon.png'
+                    'main': 'logo.png',
+                    'emblem': 'logo.png',
+                    'white': 'logo.png',
+                    'favicon': 'logo.png'
                 }
                 
-                target_name = logo_mapping.get(logo_type, 'azad_logo.png')
+                target_name = logo_mapping.get(logo_type, 'logo.png')
                 filepath = os.path.join(upload_path, target_name)
                 
                 try:
@@ -2039,10 +2048,10 @@ def logo_manager():
                     flash(f'❌ خطأ: {str(e)}', 'danger')
     
     logos = {
-        'main': 'azad_logo.png',
-        'emblem': 'azad_logo_emblem.png',
-        'white': 'azad_logo_white_on_dark.png',
-        'favicon': 'azad_favicon.png'
+        'main': 'logo.png',
+        'emblem': 'logo.png',
+        'white': 'logo.png',
+        'favicon': 'logo.png'
     }
     
     return render_template('security/logo_manager.html', logos=logos)
@@ -2589,12 +2598,12 @@ def get_cached_security_stats():
     suspicious_activities = 0
     try:
         suspicious_activities = db.session.query(
-            func.count(AuthAudit.ip_address)
+            func.count(AuthAudit.ip)
         ).filter(
             AuthAudit.event == AuthEvent.LOGIN_FAIL.value,
             AuthAudit.created_at >= day_ago
-        ).group_by(AuthAudit.ip_address).having(
-            func.count(AuthAudit.ip_address) >= 5
+        ).group_by(AuthAudit.ip).having(
+            func.count(AuthAudit.ip) >= 5
         ).count()
     except Exception:
         pass
@@ -2711,7 +2720,7 @@ def _save_setting(key, value):
     setting = SystemSettings.query.filter_by(key=key).first()
     if setting:
         setting.value = str(value) if value is not None else ''
-        setting.updated_at = datetime.utcnow()
+        setting.updated_at = datetime.now(timezone.utc)
     else:
         setting = SystemSettings(key=key, value=str(value) if value is not None else '')
         db.session.add(setting)
@@ -3094,7 +3103,7 @@ def trigger_webhook(event_name, data):
                 payload = {
                     'event': event_name,
                     'data': data,
-                    'timestamp': datetime.utcnow().isoformat(),
+                    'timestamp': datetime.now(timezone.utc).isoformat(),
                     'source': 'garage_manager'
                 }
                 
@@ -3717,7 +3726,7 @@ def impersonate_user(user_id):
     """تسجيل الدخول كمستخدم آخر"""
     from flask_login import logout_user, login_user
     
-    target_user = User.query.get_or_404(user_id)
+    target_user = db.get_or_404(User, user_id)
     
     # منع التسجيل كنفس المستخدم
     if target_user.id == current_user.id:
@@ -3759,7 +3768,7 @@ def stop_impersonate():
     if session.get('impersonating'):
         original_user_id = session.get('original_user_id')
         if original_user_id:
-            original_user = User.query.get(original_user_id)
+            original_user = db.session.get(User, original_user_id)
             if original_user:
                 logout_user()
                 login_user(original_user)
@@ -3776,7 +3785,7 @@ def force_reset_password(user_id):
     """إعادة تعيين كلمة مرور المستخدم"""
     from werkzeug.security import generate_password_hash
     
-    user = User.query.get_or_404(user_id)
+    user = db.get_or_404(User, user_id)
     new_password = request.form.get('new_password', '123456')
     
     user.password = generate_password_hash(new_password)
@@ -3804,7 +3813,7 @@ def toggle_user_status(user_id):
         - Audit logging
         - حماية من تعطيل الذات
     """
-    user = User.query.get_or_404(user_id)
+    user = db.get_or_404(User, user_id)
     
     # حماية من تعطيل المالك لنفسه
     if user.id == current_user.id:
@@ -3859,7 +3868,7 @@ def delete_user(user_id):
         - حماية حسابات النظام
         - Full audit trail
     """
-    user = User.query.get_or_404(user_id)
+    user = db.get_or_404(User, user_id)
     
     # حماية من الحذف الذاتي
     if user.id == current_user.id:
@@ -3921,10 +3930,13 @@ def api_user_details(user_id):
             error: رسالة الخطأ (إن وُجد)
         }
     """
-    from models import Sale, Payment, ServiceRequest, AuditLog
+    from decimal import Decimal
+    from models import Sale, Payment, ServiceRequest, AuditLog, convert_amount
     
     try:
-        user = User.query.options(db.joinedload(User.role)).get_or_404(user_id)
+        user = db.session.get(User, user_id, options=[db.joinedload(User.role)])
+        if not user:
+            abort(404)
         
         # إحصائيات
         sales_count = Sale.query.filter_by(seller_id=user.id).count()
@@ -4233,7 +4245,7 @@ def update_user_role(user_id):
         - حماية المالك
         - Audit logging
     """
-    user = User.query.get_or_404(user_id)
+    user = db.get_or_404(User, user_id)
     
     if user.is_system_account:
         flash('🔒 لا يمكن تغيير دور حسابات النظام', 'warning')
@@ -4247,8 +4259,8 @@ def update_user_role(user_id):
     # Audit log
     try:
         from models import Role
-        old_role = Role.query.get(old_role_id) if old_role_id else None
-        new_role = Role.query.get(new_role_id) if new_role_id else None
+        old_role = db.session.get(Role, old_role_id) if old_role_id else None
+        new_role = db.session.get(Role, new_role_id) if new_role_id else None
         
         log = AuditLog(
             user_id=current_user.id,
@@ -4275,7 +4287,7 @@ def update_user_extra_permissions(user_id):
     """تحديث الصلاحيات الإضافية للمستخدم - Owner Only"""
     from models import User, Permission
     
-    user = User.query.get_or_404(user_id)
+    user = db.get_or_404(User, user_id)
     data = request.get_json()
     permission_codes = data.get('permissions', [])
     
@@ -4297,14 +4309,21 @@ def update_user_extra_permissions(user_id):
     
     utils.clear_user_permission_cache(user.id)
     
-    AuditLog.create(
-        model_name='User',
-        record_id=user.id,
-        action='UPDATE_EXTRA_PERMISSIONS',
-        user_id=current_user.id,
-        old_data='',
-        new_data=f'extra_permissions_count={len(permissions_to_add)}'
-    )
+    try:
+        db.session.add(AuditLog(
+            model_name="User",
+            record_id=int(user.id),
+            customer_id=getattr(current_user, "customer_id", None),
+            user_id=getattr(current_user, "id", None),
+            action="UPDATE_EXTRA_PERMISSIONS",
+            old_data=None,
+            new_data=f"extra_permissions_count={len(permissions_to_add)}",
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get("User-Agent"),
+        ))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
     
     return jsonify({
         'success': True,
@@ -4495,7 +4514,7 @@ def system_settings():
             'ENABLE_SMS_NOTIFICATIONS': _get_system_setting('ENABLE_SMS_NOTIFICATIONS', False),
         },
         'company': {
-            'COMPANY_NAME': _get_system_setting('COMPANY_NAME', 'Azad Garage'),
+            'COMPANY_NAME': _get_system_setting('COMPANY_NAME', 'اسم الشركة'),
             'COMPANY_ADDRESS': _get_system_setting('COMPANY_ADDRESS', ''),
             'COMPANY_PHONE': _get_system_setting('COMPANY_PHONE', ''),
             'COMPANY_EMAIL': _get_system_setting('COMPANY_EMAIL', ''),
@@ -6069,7 +6088,7 @@ def _log_integration_activity(integration_type, action, success):
             details=f'Integration {action}: {integration_type} - Success: {success}',
             ip_address=request.remote_addr,
             user_agent=request.headers.get('User-Agent', ''),
-            timestamp=datetime.utcnow()
+            timestamp=datetime.now(timezone.utc)
         )
         
         db.session.add(activity)
@@ -6391,7 +6410,9 @@ def api_auto_optimize_indexes():
             if table not in tables:
                 continue
             
-            existing_indexes = inspector.get_indexes(table)
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=SAWarning, message="Skipped unsupported reflection*")
+                existing_indexes = inspector.get_indexes(table)
             existing_index_names = {idx['name'] for idx in existing_indexes}
             
             for column in columns_to_index:
@@ -6429,7 +6450,9 @@ def api_auto_optimize_indexes():
             if table not in tables:
                 continue
             
-            existing_indexes = inspector.get_indexes(table)
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=SAWarning, message="Skipped unsupported reflection*")
+                existing_indexes = inspector.get_indexes(table)
             existing_index_names = {idx['name'] for idx in existing_indexes}
             
             if index_name in existing_index_names:
@@ -6474,7 +6497,9 @@ def api_clean_rebuild_indexes():
         created_count = 0
         
         for table in tables:
-            indexes = inspector.get_indexes(table)
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=SAWarning, message="Skipped unsupported reflection*")
+                indexes = inspector.get_indexes(table)
             
             for idx in indexes:
                 if idx['name'] and idx['name'].startswith('ix_'):
@@ -6714,7 +6739,10 @@ def api_maintenance_vacuum():
         dialect = getattr(db.engine, "dialect", None)
         dialect_name = (getattr(dialect, "name", "") or "").lower()
         if dialect_name != "postgresql":
-            raise ValueError("maintenance.vacuum_postgresql_only")
+            return jsonify({
+                'success': False,
+                'message': 'هذه العملية مدعومة فقط على PostgreSQL'
+            }), 400
 
         try:
             db.session.rollback()
@@ -6762,7 +6790,10 @@ def api_maintenance_checkpoint():
         dialect = getattr(db.engine, "dialect", None)
         dialect_name = (getattr(dialect, "name", "") or "").lower()
         if dialect_name != "postgresql":
-            raise ValueError("maintenance.checkpoint_postgresql_only")
+            return jsonify({
+                'success': False,
+                'message': 'هذه العملية مدعومة فقط على PostgreSQL'
+            }), 400
 
         try:
             db.session.rollback()
@@ -6785,6 +6816,18 @@ def api_maintenance_checkpoint():
 def api_maintenance_db_info():
     """الحصول على معلومات قاعدة البيانات"""
     try:
+        dialect = (getattr(getattr(db, "engine", None), "dialect", None) and db.engine.dialect.name) or ""
+        if str(dialect).lower() != "postgresql":
+            page_size = db.session.execute(text("PRAGMA page_size")).scalar()
+            page_count = db.session.execute(text("PRAGMA page_count")).scalar()
+            journal_mode = db.session.execute(text("PRAGMA journal_mode")).scalar()
+            size_bytes = int(page_size or 0) * int(page_count or 0)
+            return jsonify({
+                'success': True,
+                'db_size': f"{size_bytes} bytes" if size_bytes else 'N/A',
+                'wal_mode': journal_mode,
+                'page_size': f"{page_size} bytes" if page_size else 'N/A'
+            })
         size_row = db.session.execute(text("SELECT pg_size_pretty(pg_database_size(current_database()))")).fetchone()
         block_row = db.session.execute(text("SHOW block_size")).fetchone()
         return jsonify({
@@ -6965,7 +7008,7 @@ def data_quality_center():
                     if check_record and check_record.check_due_date:
                         payment.check_due_date = check_record.check_due_date
                     else:
-                        payment.check_due_date = (payment.payment_date or datetime.utcnow()) + timedelta(days=30)
+                        payment.check_due_date = (payment.payment_date or datetime.now(timezone.utc)) + timedelta(days=30)
                     fixed_count += 1
         
         if action in ['all', 'balances']:
@@ -7287,14 +7330,14 @@ def test_notification():
     if notification_type == 'sms':
         result = send_notification_sms(
             to=recipient,
-            message='🧪 رسالة اختبار من AZAD Garage',
+            message='🧪 رسالة اختبار من النظام',
             metadata={'type': 'test'}
         )
     elif notification_type == 'email':
         result = send_notification_email(
             to=recipient,
             subject='🧪 رسالة اختبار',
-            body_html='<h2>رسالة اختبار من AZAD Garage</h2><p>النظام يعمل بنجاح!</p>',
+            body_html='<h2>رسالة اختبار من النظام</h2><p>النظام يعمل بنجاح!</p>',
             metadata={'type': 'test'}
         )
     else:
@@ -7364,14 +7407,21 @@ def tax_reports():
 @security_bp.route('/tax-reports/export/<period>')
 @permission_required('manage_reports')
 def export_tax_report(period):
-    from flask import Response, send_file
+    from flask import Response, send_file, redirect, url_for
     from models import TaxEntry
     from decimal import Decimal
     import openpyxl
     from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
     import io
+    from datetime import datetime
     
-    year, month = period.split('-')
+    try:
+        year, month = period.split('-', 1)
+        int(year)
+        int(month)
+    except Exception:
+        valid_period = datetime.now().strftime('%Y-%m')
+        return redirect(url_for('security.tax_reports', period=valid_period))
     
     output_entries = TaxEntry.query.filter(
         TaxEntry.entry_type == 'OUTPUT_VAT',
@@ -7694,12 +7744,12 @@ def security_audit_report():
             ).count()
             
             top_failed_ips = db.session.query(
-                AuthAudit.ip_address,
+                AuthAudit.ip,
                 func.count(AuthAudit.id).label('count')
             ).filter(
                 AuthAudit.event == AuthEvent.LOGIN_FAIL.value,
                 AuthAudit.created_at >= last_7d
-            ).group_by(AuthAudit.ip_address).order_by(func.count(AuthAudit.id).desc()).limit(10).all()
+            ).group_by(AuthAudit.ip).order_by(func.count(AuthAudit.id).desc()).limit(10).all()
             
             report = {
                 'summary': {

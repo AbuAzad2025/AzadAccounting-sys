@@ -43,7 +43,16 @@
           </h5>
         </div>
         <div class="card-body">
-          <canvas id="salesChart" height="100"></canvas>
+          <canvas
+            class="chartjs-chart"
+            data-chart-type="line"
+            data-label="المبيعات"
+            data-labels='{{ monthly_sales_labels|default([])|tojson }}'
+            data-values='{{ monthly_sales_values|default([])|tojson }}'
+            data-fill="1"
+            data-smooth="1"
+            data-unit="₪">
+          </canvas>
         </div>
       </div>
     </div>
@@ -59,7 +68,21 @@
           </h5>
         </div>
         <div class="card-body">
-          <canvas id="customersChart" height="200"></canvas>
+          <canvas
+            class="chartjs-chart"
+            data-chart-type="doughnut"
+            data-labels='{{ customer_segment_labels|default([])|tojson }}'
+            data-datasets='{{ [
+              {
+                "label": "توزيع العملاء",
+                "data": customer_segment_values|default([]),
+                "backgroundColor": ["rgba(54,162,235,0.85)","rgba(75,192,192,0.85)","rgba(255,99,132,0.85)"],
+                "borderColor": ["rgba(54,162,235,1)","rgba(75,192,192,1)","rgba(255,99,132,1)"],
+                "borderWidth": 2,
+                "fill": false
+              }
+            ]|tojson }}'>
+          </canvas>
         </div>
       </div>
     </div>
@@ -141,7 +164,7 @@
       <div class="dashboard-stats-card text-white h-100" style="background:linear-gradient(135deg,#00c6ff,#0072ff)">
         <div class="card-body d-flex align-items-center justify-content-between">
           <div>
-            <div class="metric-value">{{ recent_services|length }}</div>
+            <div class="metric-value">{{ recent_services_count|default(0) }}</div>
             <div class="small">طلبات الصيانة المعلقة</div>
           </div>
           <i class="fas fa-tools fa-3x opacity-75"></i>
@@ -156,7 +179,7 @@
       <div class="dashboard-stats-card h-100 card-hover" style="background:linear-gradient(135deg,#fceabb,#f8b500)">
         <div class="card-body d-flex flex-column align-items-center justify-content-center text-center">
           <i class="fas fa-boxes fa-3x mb-3" style="color:#333;"></i>
-          <div class="metric-value" style="color:#000;">{{ low_stock|length }}</div>
+          <div class="metric-value" style="color:#000;">{{ low_stock_count|default(0) }}</div>
           <div class="small" style="color:#222;">قطع المخزون المنخفض</div>
         </div>
         <a href="{{ url_for('warehouse_bp.list') }}" class="card-footer text-center text-decoration-none" style="color:#000;">إدارة المستودعات <i class="fas fa-arrow-circle-left"></i></a>
@@ -394,94 +417,6 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // رسم بياني للمبيعات الشهرية
-    const salesCtx = document.getElementById('salesChart').getContext('2d');
-    const salesLabels = {{ monthly_sales_labels|default([], true)|tojson }};
-    const salesValues = {{ monthly_sales_values|default([], true)|tojson }};
-    const salesChart = new Chart(salesCtx, {
-        type: 'line',
-        data: {
-            labels: salesLabels.length ? salesLabels : ['لا بيانات'],
-            datasets: [{
-                label: 'المبيعات (شيكل)',
-                data: salesValues.length ? salesValues : [0],
-                borderColor: 'rgb(75, 192, 192)',
-                backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                tension: 0.4,
-                fill: true
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    display: true,
-                    position: 'top'
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: {
-                        callback: function(value) {
-                            return value.toLocaleString() + ' ₪';
-                        }
-                    }
-                }
-            }
-        }
-    });
-
-    // رسم بياني لتوزيع العملاء
-    const customersCtx = document.getElementById('customersChart').getContext('2d');
-    const customerLabels = {{ customer_segment_labels|default([], true)|tojson }};
-    const customerValues = {{ customer_segment_values|default([], true)|tojson }};
-    const customersChart = new Chart(customersCtx, {
-        type: 'doughnut',
-        data: {
-            labels: customerLabels.length ? customerLabels : ['لا بيانات'],
-            datasets: [{
-                data: customerValues.length ? customerValues : [0],
-                backgroundColor: [
-                    'rgba(54, 162, 235, 0.8)',
-                    'rgba(75, 192, 192, 0.8)',
-                    'rgba(255, 99, 132, 0.8)'
-                ],
-                borderColor: [
-                    'rgba(54, 162, 235, 1)',
-                    'rgba(75, 192, 192, 1)',
-                    'rgba(255, 99, 132, 1)'
-                ],
-                borderWidth: 2
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    position: 'bottom',
-                    labels: {
-                        padding: 20,
-                        usePointStyle: true
-                    }
-                }
-            }
-        }
-    });
-
-    // تحديث البيانات كل 30 ثانية
-    setInterval(function() {
-        // يمكن إضافة AJAX هنا لتحديث البيانات
-        console.log('تحديث البيانات...');
-    }, 30000);
-});
-
-</script>
 <style>
   .metric-value {
     font-size: 1.75rem;
@@ -528,7 +463,7 @@ function checkBackupStatus() {
         btn.parentElement.classList.remove('btn-success');
       }
     })
-    .catch(err => console.error('Error checking backup status:', err));
+    .catch(() => {});
 }
 
 function toggleAutomatedBackup() {

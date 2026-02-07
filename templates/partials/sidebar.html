@@ -3,8 +3,12 @@
   
   <div class="garage-brand-area">
     <a href="{{ url_for('main.dashboard') }}" class="garage-brand-link">
-      <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Garage Logo" class="garage-brand-image">
-      <span class="garage-brand-text">المهندس الفلسطيني للمعدات الثقيلة</span>
+      {% if system_settings and system_settings.custom_logo %}
+        <img src="{{ url_for('static', filename=system_settings.custom_logo.replace('static/', '')) }}" alt="Logo" class="garage-brand-image" loading="lazy" decoding="async">
+      {% else %}
+        <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Logo" class="garage-brand-image" loading="lazy" decoding="async">
+      {% endif %}
+      <span class="garage-brand-text">{{ system_settings.company_name or system_settings.system_name or 'النظام' }}</span>
     </a>
   </div>
   
@@ -16,7 +20,11 @@
         </a>
       </div>
       <div class="image">
-        <img src="{{ url_for('static', filename='img/azad_logo.png') }}" class="img-circle elevation-2" alt="User Image">
+        {% if system_settings and system_settings.custom_logo %}
+          <img src="{{ url_for('static', filename=system_settings.custom_logo.replace('static/', '')) }}" class="img-circle elevation-2" alt="Logo" loading="lazy" decoding="async">
+        {% else %}
+          <img src="{{ url_for('static', filename='img/logo.png') }}" class="img-circle elevation-2" alt="Logo" loading="lazy" decoding="async">
+        {% endif %}
       </div>
     </div>
 

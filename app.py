@@ -90,6 +90,7 @@ from routes.archive import archive_bp
 from routes.archive_routes import archive_routes_bp
 from routes.sale_returns import returns_bp
 from routes.balances_api import balances_api_bp
+from routes.performance import performance_bp
 
 
 class MyAnonymousUser(AnonymousUserMixin):
@@ -255,6 +256,15 @@ def create_app(config_object=Config) -> Flask:
     except Exception as e:
         try:
             app.logger.warning("utils_init_skipped: %s", e)
+        except Exception:
+            pass
+
+    try:
+        from utils.performance_monitor import init_perf_monitor
+        init_perf_monitor(app)
+    except Exception as e:
+        try:
+            app.logger.warning("perf_monitor_init_skipped: %s", e)
         except Exception:
             pass
 
@@ -466,42 +476,64 @@ def create_app(config_object=Config) -> Flask:
 
     @app.context_processor
     def inject_permissions():
-        ATTRS = ("code", "name", "slug", "perm", "permission", "value")
-
-        def _collect_user_perms(u):
-            perms = set()
-            role = getattr(u, "role", None)
-            if role is not None:
-                rp = getattr(role, "permissions", None)
-                if rp:
-                    for p in rp:
-                        for a in ATTRS:
-                            v = getattr(p, a, None)
-                            if v:
-                                perms.add(str(v).strip().lower())
-            up = getattr(u, "permissions", None) or getattr(u, "extra_permissions", None)
-            if up:
-                iterable = up.all() if hasattr(up, "all") else up
-                for p in iterable:
-                    if isinstance(p, str):
-                        perms.add(p.strip().lower())
-                    else:
-                        for a in ATTRS:
-                            v = getattr(p, a, None)
-                            if v:
-                                perms.add(str(v).strip().lower())
+        def _get_user_perms_cached(u) -> set:
+            if not getattr(u, "is_authenticated", False):
+                return set()
+            cached = getattr(g, "user_permissions_set", None)
+            if isinstance(cached, set):
+                return cached
+            fn = getattr(utils, "_get_user_permissions", None)
+            perms = fn(u) if callable(fn) else set()
+            try:
+                perms = {str(p).strip().lower() for p in (perms or set()) if str(p).strip()}
+            except Exception:
+                perms = set()
+            g.user_permissions_set = perms
             return perms
 
+        def _get_module_flags_cached() -> dict:
+            cached = getattr(g, "module_enabled_flags", None)
+            if isinstance(cached, dict):
+                return cached
+            cache_key = "system_settings:module_flags:v1"
+            flags = cache.get(cache_key)
+            if not isinstance(flags, dict):
+                keys = [
+                    "module_customers_enabled",
+                    "module_service_enabled",
+                    "module_warehouses_enabled",
+                    "module_sales_enabled",
+                    "module_vendors_enabled",
+                    "module_partners_enabled",
+                    "module_shipments_enabled",
+                    "module_payments_enabled",
+                    "module_checks_enabled",
+                    "module_expenses_enabled",
+                    "module_ledger_enabled",
+                    "module_currencies_enabled",
+                    "module_projects_enabled",
+                    "module_workflows_enabled",
+                ]
+                try:
+                    rows = SystemSettings.query.filter(SystemSettings.key.in_(keys)).all()
+                    raw_map = {r.key: (r.value if r else None) for r in rows}
+                    flags = {}
+                    for k in keys:
+                        v = raw_map.get(k)
+                        if v is None:
+                            flags[k] = True
+                        else:
+                            flags[k] = str(v).strip().lower() not in ("false", "0", "no")
+                except Exception:
+                    flags = {k: True for k in keys}
+                cache.set(cache_key, flags, timeout=600)
+            g.module_enabled_flags = flags
+            return flags
+
         def is_module_enabled(module_key: str) -> bool:
-            """Check if a module is globally enabled via SystemSettings."""
             try:
-                # Use get_setting from SystemSettings which might be cached at model level
-                # But here we want a quick check.
-                # Since get_setting is available in jinja globals, we can use it, but
-                # let's make it robust.
-                # Default is True as per advanced_control.py logic
-                val = SystemSettings.get_setting(f'module_{module_key}_enabled', 'True')
-                return str(val).lower() != 'false'
+                key = f"module_{(module_key or '').strip().lower()}_enabled"
+                return bool(_get_module_flags_cached().get(key, True))
             except Exception:
                 return True
 
@@ -516,18 +548,12 @@ def create_app(config_object=Config) -> Flask:
                     return True
             except Exception:
                 pass
-            fn = getattr(u, "has_permission", None)
-            if callable(fn):
-                try:
-                    return bool(fn(code))
-                except Exception:
-                    return False
             try:
                 from utils import _expand_perms
                 targets = {c.strip().lower() for c in _expand_perms(code)}
             except Exception:
                 targets = {str(code).strip().lower()}
-            perms_lower = _collect_user_perms(u)
+            perms_lower = _get_user_perms_cached(u)
             return bool(perms_lower & targets)
 
         def has_any(*codes):
@@ -729,8 +755,18 @@ def create_app(config_object=Config) -> Flask:
     attach_acl(payments_bp, read_perm="manage_payments", write_perm="manage_payments")
     attach_acl(expenses_bp, read_perm="manage_expenses", write_perm="manage_expenses")
     attach_acl(sales_bp, read_perm="manage_sales", write_perm="manage_sales")
-    attach_acl(service_bp, read_perm="manage_service", write_perm="manage_service")
-    attach_acl(reports_bp, read_perm="view_reports", write_perm="manage_reports")
+    attach_acl(service_bp, read_perm="view_service", write_perm="manage_service")
+    attach_acl(
+        reports_bp,
+        read_perm="view_reports",
+        write_perm="manage_reports",
+        read_like_prefixes=[
+            "/reports/dynamic",
+            "/reports/api/dynamic",
+            "/reports/export/dynamic.csv",
+        ],
+    )
+    attach_acl(financial_reports_bp, read_perm="view_reports", write_perm="manage_reports")
     attach_acl(roles_bp, read_perm="manage_roles", write_perm="manage_roles")
     attach_acl(permissions_bp, read_perm="manage_permissions", write_perm="manage_permissions")
     attach_acl(parts_bp, read_perm="view_parts", write_perm="manage_inventory")
@@ -745,6 +781,7 @@ def create_app(config_object=Config) -> Flask:
     attach_acl(notes_bp, read_perm="view_notes", write_perm="manage_notes")
     attach_acl(bp_barcode, read_perm="view_parts", write_perm=None)
     attach_acl(ledger_bp, read_perm="manage_ledger", write_perm="manage_ledger")
+    attach_acl(ledger_control_bp, read_perm="manage_ledger", write_perm="manage_ledger")
     attach_acl(currencies_bp, read_perm="manage_currencies", write_perm="manage_currencies")
     attach_acl(barcode_scanner_bp, read_perm="view_barcode", write_perm="manage_barcode")
     attach_acl(checks_bp, read_perm="manage_payments", write_perm="manage_payments")
@@ -854,6 +891,7 @@ def create_app(config_object=Config) -> Flask:
         recurring_bp,
         workflows_bp,
         balances_api_bp,
+        performance_bp,
     ]
     for bp in BLUEPRINTS:
         app.register_blueprint(bp)
@@ -1352,9 +1390,8 @@ def create_app(config_object=Config) -> Flask:
             return None
         
         try:
-            from models import SystemSettings
-            setting = SystemSettings.query.filter_by(key='maintenance_mode').first()
-            if not setting or setting.value.lower() not in ['true', '1', 'yes']:
+            val = SystemSettings.get_setting("maintenance_mode", "False")
+            if str(val).strip().lower() not in ['true', '1', 'yes']:
                 return None
         except Exception:
             return None
@@ -1420,6 +1457,12 @@ def create_app(config_object=Config) -> Flask:
             db.session.commit()
         except Exception:
             db.session.rollback()
+
+    try:
+        import notifications as _notifications_module
+        getattr(_notifications_module, "Notification", None)
+    except Exception:
+        pass
 
     return app
 

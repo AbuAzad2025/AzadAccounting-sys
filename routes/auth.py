@@ -287,8 +287,7 @@ def customer_register():
     form = CustomerFormOnline()
     if form.validate_on_submit():
         phone_val = (form.phone.data or "").strip()
-        # Default username/email: AZAD@<phone>
-        default_email = f"AZAD@{phone_val}" if phone_val else None
+        default_email = f"user@{phone_val}" if phone_val else None
         email_lower = (form.email.data or default_email or "").strip().lower()
         existing_user = User.query.filter(func.lower(User.email) == email_lower).first()
         existing_customer = Customer.query.filter(func.lower(Customer.email) == email_lower).first()

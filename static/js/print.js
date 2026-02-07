@@ -19,6 +19,14 @@ function escapeHtml(value) {
         .replace(/'/g, '&#39;');
 }
 
+function readMeta(name) {
+    try {
+        return document.querySelector('meta[name="' + name + '"]')?.getAttribute('content') || '';
+    } catch {
+        return '';
+    }
+}
+
 function printReport(targetSelector = 'body') {
     const printContent = document.querySelector(targetSelector);
     
@@ -56,13 +64,14 @@ function printReport(targetSelector = 'body') {
 function generatePrintHeader() {
     const title = document.title || 'تقرير';
     const currentPage = document.querySelector('h1')?.textContent || 'تقرير النظام';
+    const companyName = readMeta('gm-company-name') || title || 'تقرير';
+    const logoUrl = readMeta('gm-logo-url') || '/static/img/logo.png';
     
     return `
         <div class="print-header">
-            <img src="/static/img/azad_logo.png" alt="Logo" class="company-logo" style="max-height: 60px;">
-            <h1>AZAD Garage Manager</h1>
+            <img src="${escapeHtml(logoUrl)}" alt="Logo" class="company-logo" style="max-height: 60px;">
+            <h1>${escapeHtml(companyName)}</h1>
             <h2>${escapeHtml(currentPage)}</h2>
-            <div class="subtitle">المهندس الفلسطيني للمعدات الثقيلة</div>
         </div>
     `;
 }
@@ -108,11 +117,12 @@ function generatePrintFooter() {
     const now = new Date();
     const dateStr = now.toLocaleDateString('ar-EG');
     const timeStr = now.toLocaleTimeString('ar-EG');
+    const companyName = readMeta('gm-company-name') || 'النظام';
     
     return `
         <div class="print-footer">
             <p>
-                AZAD Garage Manager © 2025 | 
+                ${escapeHtml(companyName)} © 2025 | 
                 تاريخ الطباعة: ${escapeHtml(dateStr)} ${escapeHtml(timeStr)} |
                 رام الله - فلسطين
             </p>
