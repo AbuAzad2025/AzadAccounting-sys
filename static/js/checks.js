@@ -43,27 +43,6 @@
         }
     };
 
-    function detectActualStatusFromNotes(notes) {
-        try {
-            const text = String(notes || '');
-            const lines = text.split(/\n+/).map(function(s){ return s.trim(); }).filter(function(s){ return s.length > 0; });
-            for (let i = lines.length - 1; i >= 0; i--) {
-                const ln = lines[i];
-                const idx = ln.indexOf('حالة الشيك:');
-                if (idx === -1) continue;
-                const label = ln.substring(idx + 'حالة الشيك:'.length).trim();
-                if (label.indexOf('مسحوب') !== -1 || label.indexOf('تم الصرف') !== -1) return 'CASHED';
-                if (label.indexOf('مرتجع') !== -1) return 'RETURNED';
-                if (label.indexOf('ملغي') !== -1) return 'CANCELLED';
-                if (label.indexOf('أعيد') !== -1 || label.indexOf('معاد') !== -1) return 'RESUBMITTED';
-                if (label.indexOf('معلق') !== -1) return 'PENDING';
-                if (label.indexOf('مرفوض') !== -1) return 'BOUNCED';
-                if (label.indexOf('مؤرشف') !== -1) return 'CANCELLED';
-            }
-        } catch(e) {}
-        return null;
-    }
-
     if (typeof window.showNotification !== 'function') {
         window.showNotification = function(message, type = 'info') {
             const normalizedType = (type || 'info').toLowerCase();
@@ -89,7 +68,7 @@
             },
             success: function(response) {
                     checksLoadErrorShown = false; // إعادة تعيين عند النجاح
-                    const checks = response.checks;
+                    const checks = Array.isArray(response.checks) ? response.checks : [];
                     try { window.checksByToken = {}; } catch(e) {}
                     if (Array.isArray(checks)) {
                         checks.forEach(function(c){
@@ -113,34 +92,23 @@
                     
                     checks.forEach(function(check) {
                         const status = (check.status || '').toUpperCase();
-                        const daysUntilDue = check.days_until_due || 0;
-                        const isOverdue = daysUntilDue < 0;
-                        
-                    const notes = (check.notes || '');
-                    const isSettled = check.is_settled || notes.indexOf('[settled=true]'.toLowerCase()) !== -1;
-                    const isLegal = check.is_legal || notes.indexOf('دائرة قانونية') !== -1;
-                    let actualStatus = status;
-                    const detected = detectActualStatusFromNotes(notes);
-                    if (detected) {
-                        actualStatus = detected;
-                    }
-                    if (actualStatus === 'RESUBMITTED') {
-                        actualStatus = 'PENDING';
-                    }
-                        
+                        const normalizedStatus = status === 'RESUBMITTED' ? 'PENDING' : status;
+                        const isSettled = Boolean(check.is_settled);
+                        const isLegal = Boolean(check.is_legal);
+
                         if (isLegal) {
                             categorized.legal.push(check);
                         } else if (isSettled) {
                             categorized.settled.push(check);
-                        } else if (isOverdue && (actualStatus === 'PENDING' || actualStatus === 'DUE_SOON' || actualStatus === 'RESUBMITTED')) {
+                        } else if (normalizedStatus === 'OVERDUE') {
                             categorized.overdue.push(check);
-                        } else if (actualStatus === 'CASHED') {
+                        } else if (normalizedStatus === 'CASHED') {
                             categorized.cashed.push(check);
-                        } else if (actualStatus === 'RETURNED' || actualStatus === 'BOUNCED') {
+                        } else if (normalizedStatus === 'RETURNED' || normalizedStatus === 'BOUNCED') {
                             categorized.returned.push(check);
-                        } else if (actualStatus === 'CANCELLED') {
+                        } else if (normalizedStatus === 'CANCELLED') {
                             categorized.cancelled.push(check);
-                        } else if (actualStatus === 'PENDING' || actualStatus === 'DUE_SOON' || actualStatus === 'RESUBMITTED') {
+                        } else if (normalizedStatus === 'PENDING' || normalizedStatus === 'DUE_SOON') {
                             categorized.pending.push(check);
                         } else {
                             categorized.pending.push(check);
@@ -246,7 +214,7 @@
             const dueDateValue = (check.check_due_date || '').split('T')[0] || '';
             const bankValue = check.check_bank || '';
             const notes = (check.notes || '');
-            const isSettled = notes.indexOf('[settled=true]'.toLowerCase()) !== -1;
+            const isSettled = Boolean(check.is_settled);
             const canSettle = IS_OWNER && Boolean(entityTypeCode && entityId);
             // تحديد لون الصف
             let rowClass = '';
@@ -263,14 +231,7 @@
             let actionButtons = '<button class="btn btn-sm btn-info" onclick="viewCheckDetails(\'' + (viewId || '') + '\')" title="عرض"><i class="fas fa-eye"></i></button> ';
             
             const status = (check.status || '').toUpperCase();
-            let actualStatus = status;
-            const detectedForButtons = detectActualStatusFromNotes(notes);
-            if (detectedForButtons) {
-                actualStatus = detectedForButtons;
-            }
-            if (actualStatus === 'RESUBMITTED') {
-                actualStatus = 'PENDING';
-            }
+            const actualStatus = status === 'RESUBMITTED' ? 'PENDING' : status;
             
             if (!isSettled && (actualStatus === 'PENDING' || actualStatus === 'OVERDUE' || actualStatus === 'DUE_SOON')) {
                 // شيكات معلقة (بما فيها المُعادة للبنك): سحب | إرجاع | إلغاء
@@ -427,17 +388,17 @@
         $.get('/checks/api/statistics', function(response) {
             if (response.success && response.statistics) {
                 const stats = response.statistics;
+                const incoming = stats.incoming || {};
+                const outgoing = stats.outgoing || {};
+                const overdueCount = (incoming.overdue_count || 0) + (outgoing.overdue_count || 0);
+                const overdueAmount = (incoming.overdue_amount || 0) + (outgoing.overdue_amount || 0);
                 
                 // تحديث المبلغ المتأخر في التحذير
-                if (stats.incoming && stats.incoming.overdue_amount) {
-                    $('#overdue-amount-alert').text(formatCurrency(stats.incoming.overdue_amount) + ' ₪');
-                }
+                $('#overdue-amount-alert').text(formatCurrency(overdueAmount || 0) + ' ₪');
                 
                 // تحديث الإحصائيات العامة
-                if (stats.incoming) {
-                    $('#stat-overdue-count').text(stats.incoming.overdue_count || 0);
-                    $('#stat-overdue-amount').text(formatCurrency(stats.incoming.overdue_amount || 0) + ' ₪');
-                }
+                $('#stat-overdue-count').text(overdueCount || 0);
+                $('#stat-overdue-amount').text(formatCurrency(overdueAmount || 0) + ' ₪');
             }
         }).fail(function() {
             // تجاهل الأخطاء بصمت - لا حاجة لإزعاج المستخدم
@@ -613,7 +574,7 @@
                                 ${check.currency && check.currency != 'ILS' && check.status === 'CASHED' && check.fx_rate_cash ? (function() { var rate = parseFloat(check.fx_rate_cash) || 0; var amt = (check.amount || 0) * (rate || 1); return '<tr class="bg-success text-white"><th>💰 سعر الصرف (صرف):</th><td><strong>' + (isNaN(rate) ? '0.0000' : rate.toFixed(4)) + '</strong> ' + (check.fx_rate_cash_source === 'online' ? '🌐' : check.fx_rate_cash_source === 'manual' ? '✍️' : '⚙️') + ' <small>(' + (check.fx_rate_cash_timestamp || '-') + ')</small><br><small>المبلغ الفعلي: <strong>' + formatCurrency(amt) + ' ₪</strong></small></td></tr>'; })() : ''}
                                 ${check.currency && check.currency != 'ILS' && check.fx_rate_issue && check.fx_rate_cash && check.fx_rate_cash !== check.fx_rate_issue ? '<tr class="bg-warning"><th>📊 فرق سعر الصرف:</th><td><strong>' + formatCurrency((check.amount || 0) * (check.fx_rate_cash - check.fx_rate_issue)) + ' ₪</strong> ' + ((check.fx_rate_cash > check.fx_rate_issue) ? '<span class="badge badge-success">ربح ✓</span>' : '<span class="badge badge-danger">خسارة ✗</span>') + '</td></tr>' : ''}
                                 <tr><th>تاريخ الاستحقاق:</th><td>${check.due_date_formatted || check.check_due_date || '-'}</td></tr>
-                                ${check.days_until_due ? '<tr><th>الأيام المتبقية:</th><td><span class="badge badge-' + (check.days_until_due < 0 ? 'danger' : check.days_until_due <= 7 ? 'warning' : 'info') + '">' + check.days_until_due + ' يوم</span></td></tr>' : ''}
+                                ${(check.days_until_due !== null && typeof check.days_until_due !== 'undefined') ? '<tr><th>الأيام المتبقية:</th><td><span class="badge badge-' + (check.days_until_due < 0 ? 'danger' : check.days_until_due <= 7 ? 'warning' : 'info') + '">' + check.days_until_due + ' يوم</span></td></tr>' : ''}
                                 <tr><th>رمز المتابعة:</th><td><code>${tokenReference || '-'}</code></td></tr>
                             </table>
                             

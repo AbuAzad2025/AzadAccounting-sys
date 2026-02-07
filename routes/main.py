@@ -92,7 +92,7 @@ def dashboard():
             )
             .outerjoin(StockLevel, StockLevel.product_id == Product.id)
             .filter(Product.is_active.is_(True))
-            .group_by(Product.id)
+            .group_by(Product.id, Product.min_qty)
             .subquery()
         )
         inventory_total = int(db.session.query(func.coalesce(func.sum(subq.c.qty), 0)).scalar() or 0)

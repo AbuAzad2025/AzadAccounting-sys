@@ -2969,11 +2969,11 @@ def get_checks():
     المصادر: Payment + Expense + Check (اليدوي)
     """
     try:
-        direction = request.args.get('direction')
-        status = request.args.get('status')
+        direction = (request.args.get('direction') or '').strip().lower()
+        status = (request.args.get('status') or '').strip().lower()
         from_date = request.args.get('from_date')
         to_date = request.args.get('to_date')
-        source_filter = request.args.get('source')
+        source_filter = (request.args.get('source') or '').strip().lower()
 
         parsed_from = None
         parsed_to = None
@@ -3123,36 +3123,75 @@ def get_checks():
                 Payment.id.asc()
             ).all()
 
-            # تحسين الأداء: جلب جميع الشيكات المرتبطة بـ Splits في استعلام واحد
             all_split_ids = []
             for payment in payments:
                 for split in payment.splits or []:
                     split_method = getattr(split.method, 'value', split.method)
                     if split_method == PaymentMethod.CHEQUE.value:
                         all_split_ids.append(split.id)
-            
-            # جلب جميع الشيكات المرتبطة بـ Splits في استعلام واحد
+
+            def _as_date(val):
+                if not val:
+                    return None
+                if isinstance(val, datetime):
+                    return val.date()
+                return val
+
+            payment_ids = [p.id for p in payments if getattr(p, "id", None) is not None]
             split_checks_map = {}
-            if all_split_ids:
-                # بناء شروط البحث بشكل صحيح
-                conditions = []
-                for sid in all_split_ids:
-                    conditions.append(Check.reference_number == f"PMT-SPLIT-{sid}")
-                    conditions.append(Check.reference_number.like(f"PMT-SPLIT-{sid}-%"))
-                
-                if conditions:
-                    split_checks = Check.query.filter(or_(*conditions)).all()
-                    # إنشاء map للبحث السريع: split_id -> check
-                    for check in split_checks:
-                        ref = check.reference_number or ''
-                        if ref.startswith('PMT-SPLIT-'):
-                            split_id_str = ref.replace('PMT-SPLIT-', '').split('-')[0]
-                            try:
-                                split_id = int(split_id_str)
-                                if split_id not in split_checks_map:
-                                    split_checks_map[split_id] = check
-                            except ValueError:
-                                pass
+            payment_checks_map = {}
+            payment_checks_by_number = {}
+            payment_checks_candidates = {}
+            split_ids_set = set(int(x) for x in all_split_ids if x is not None)
+
+            if payment_ids:
+                all_checks = (
+                    Check.query.filter(Check.payment_id.in_(payment_ids))
+                    .order_by(Check.id.asc())
+                    .all()
+                )
+                for chk in all_checks:
+                    pid = getattr(chk, "payment_id", None)
+                    if not pid:
+                        continue
+                    ref = (getattr(chk, "reference_number", None) or "").strip()
+                    if ref.startswith("PMT-SPLIT-"):
+                        split_id_str = ref.replace("PMT-SPLIT-", "", 1).split("-")[0]
+                        try:
+                            split_id = int(split_id_str)
+                        except Exception:
+                            split_id = None
+                        if split_id is not None and (not split_ids_set or split_id in split_ids_set):
+                            split_checks_map[split_id] = chk
+                        continue
+
+                    payment_checks_candidates.setdefault(pid, []).append(chk)
+                    num = (getattr(chk, "check_number", None) or "").strip()
+                    if num:
+                        per_pid = payment_checks_by_number.setdefault(pid, {})
+                        prev = per_pid.get(num)
+                        if prev is None:
+                            per_pid[num] = chk
+                        else:
+                            prev_rank = getattr(prev, "updated_at", None) or getattr(prev, "id", 0) or 0
+                            cur_rank = getattr(chk, "updated_at", None) or getattr(chk, "id", 0) or 0
+                            if cur_rank >= prev_rank:
+                                per_pid[num] = chk
+
+                for pid, items in payment_checks_candidates.items():
+                    best = None
+                    best_due = None
+                    for chk in items:
+                        due = _as_date(getattr(chk, "check_due_date", None))
+                        if best is None:
+                            best = chk
+                            best_due = due
+                            continue
+                        if due and (not best_due or due < best_due):
+                            best = chk
+                            best_due = due
+                    if best is not None:
+                        payment_checks_map[pid] = best
 
             processed_split_count = 0
             for payment in payments:
@@ -3172,7 +3211,14 @@ def get_checks():
                 elif payment.payment_date and isinstance(payment.payment_date, datetime):
                     base_due = payment.payment_date.date()
 
-                manual_status = _extract_manual_status(payment.notes)
+                linked_payment_check = payment_checks_map.get(payment.id)
+                if linked_payment_check is not None:
+                    linked_status = getattr(linked_payment_check, "status", None)
+                    manual_status = linked_status.value if hasattr(linked_status, "value") else str(linked_status or "")
+                else:
+                    manual_status = _extract_manual_status(payment.notes)
+
+                assigned_check_ids = set()
 
                 has_cheque_splits = any(
                     getattr(s.method, 'value', s.method) == PaymentMethod.CHEQUE.value
@@ -3181,7 +3227,13 @@ def get_checks():
 
                 # عرض شيك الدفعة الرئيسي فقط إذا لم يكن هناك شيكات جزئية
                 if payment.method == PaymentMethod.CHEQUE.value and not has_cheque_splits:
-                    due_date = base_due or today
+                    due_date = None
+                    if linked_payment_check is not None:
+                        raw_due = getattr(linked_payment_check, "check_due_date", None)
+                        if raw_due:
+                            due_date = raw_due.date() if isinstance(raw_due, datetime) else raw_due
+                    if not due_date:
+                        due_date = base_due or today
                     days_until_due = (due_date - today).days if due_date else None
                     check_status, status_ar, badge_color = _status_snapshot(manual_status, status_value, days_until_due)
 
@@ -3202,14 +3254,16 @@ def get_checks():
                         if key in check_ids:
                             continue
                         check_ids.add(key)
+                        check_number_value = payment.check_number or (getattr(linked_payment_check, "check_number", None) if linked_payment_check is not None else "") or ""
+                        check_bank_value = payment.check_bank or (getattr(linked_payment_check, "check_bank", None) if linked_payment_check is not None else "") or ""
                         checks.append({
                             'token': f'payment-{payment.id}',
                             'id': payment.id,
                             'type': 'payment',
                             'source': 'دفعة',
                             'source_badge': 'primary',
-                            'check_number': payment.check_number or '',
-                            'check_bank': payment.check_bank or '',
+                            'check_number': check_number_value,
+                            'check_bank': check_bank_value,
                             'check_due_date': due_date.strftime('%Y-%m-%d') if due_date else '',
                             'due_date_formatted': due_date.strftime('%d/%m/%Y') if due_date else '',
                             'amount': float(payment.total_amount or 0),
@@ -3245,16 +3299,52 @@ def get_checks():
                         })
 
                 # دمج الشيكات المكررة حسب رقم الشيك داخل نفس الدفعة
+                cheque_splits = [
+                    s for s in (payment.splits or [])
+                    if getattr(s.method, 'value', s.method) == PaymentMethod.CHEQUE.value
+                ]
+                single_cheque_split = len(cheque_splits) == 1
                 split_agg_map = {}
-                for split in payment.splits or []:
-                    split_method = getattr(split.method, 'value', split.method)
-                    if split_method != PaymentMethod.CHEQUE.value:
-                        continue
+                for split in cheque_splits:
+
+                    details = getattr(split, 'details', {}) or {}
+                    if isinstance(details, str):
+                        try:
+                            details = json.loads(details)
+                        except Exception:
+                            details = {}
 
                     # التحقق من حالة الشيك الفعلية من جدول checks إذا كان موجوداً
                     split_manual_status = manual_status  # نبدأ بالحالة من payment.notes
                     # استخدام الـ map للبحث السريع بدلاً من استعلام منفصل
                     split_check = split_checks_map.get(split.id)
+                    if not split_check:
+                        num_key = (details.get('check_number') or '').strip()
+                        if num_key:
+                            split_check = (payment_checks_by_number.get(payment.id) or {}).get(num_key)
+                    if not split_check and single_cheque_split:
+                        split_check = linked_payment_check
+                    if not split_check:
+                        target_due = _split_due_date(payment, split) or base_due or today
+                        best = None
+                        best_diff = None
+                        for cand in (payment_checks_candidates.get(payment.id) or []):
+                            cid = getattr(cand, "id", None)
+                            if cid and cid in assigned_check_ids:
+                                continue
+                            cand_due = _as_date(getattr(cand, "check_due_date", None))
+                            if not cand_due:
+                                continue
+                            diff = abs((cand_due - target_due).days) if target_due else 0
+                            if best is None or best_diff is None or diff < best_diff:
+                                best = cand
+                                best_diff = diff
+                        if best is not None:
+                            split_check = best
+
+                    cid = getattr(split_check, "id", None) if split_check is not None else None
+                    if cid:
+                        assigned_check_ids.add(cid)
                     if split_check:
                         # استخراج حالة الشيك من enum - CheckStatus هو str, enum.Enum
                         check_status_obj = getattr(split_check, 'status', None)
@@ -3271,12 +3361,6 @@ def get_checks():
                     
                     # إذا لم يكن هناك شيك في جدول checks، نتحقق من details
                     if not split_check:
-                        details = getattr(split, 'details', {}) or {}
-                        if isinstance(details, str):
-                            try:
-                                details = json.loads(details)
-                            except Exception:
-                                details = {}
                         split_details_status = details.get('check_status')
                         if split_details_status:
                             split_details_status = str(split_details_status).upper()
@@ -3285,7 +3369,13 @@ def get_checks():
                             elif split_details_status in ['RETURNED', 'BOUNCED', 'CANCELLED', 'RESUBMITTED']:
                                 split_manual_status = split_details_status
 
-                    due_date = _split_due_date(payment, split) or today
+                    due_date = None
+                    if split_check:
+                        raw_due = getattr(split_check, "check_due_date", None)
+                        if raw_due:
+                            due_date = raw_due.date() if isinstance(raw_due, datetime) else raw_due
+                    if not due_date:
+                        due_date = _split_due_date(payment, split) or today
                     days_until_due = (due_date - today).days if due_date else None
                     check_status, status_ar, badge_color = _status_snapshot(split_manual_status, status_value, days_until_due)
 
@@ -3300,15 +3390,8 @@ def get_checks():
                     if status == 'overdue' and check_status != 'OVERDUE':
                         continue
 
-                    details = getattr(split, 'details', {}) or {}
-                    if isinstance(details, str):
-                        try:
-                            details = json.loads(details)
-                        except Exception:
-                            details = {}
-
-                    check_number = details.get('check_number') or getattr(payment, 'check_number', '')
-                    check_bank = details.get('check_bank') or getattr(payment, 'check_bank', '')
+                    check_number = details.get('check_number') or getattr(split_check, 'check_number', None) or getattr(payment, 'check_number', '')
+                    check_bank = details.get('check_bank') or getattr(split_check, 'check_bank', None) or getattr(payment, 'check_bank', '')
                     split_currency = (getattr(split, 'currency', None) or getattr(payment, 'currency', 'ILS') or 'ILS').upper()
                     converted_currency = (getattr(split, 'converted_currency', None) or getattr(payment, 'currency', 'ILS') or 'ILS').upper()
                     amount = float(getattr(split, 'amount', 0) or 0)
