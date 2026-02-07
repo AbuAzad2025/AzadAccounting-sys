@@ -1,5 +1,5 @@
 
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 from flask import Blueprint, Response, current_app, jsonify, request, render_template, abort
@@ -170,7 +170,11 @@ def api_index():
     try:
         return render_template("api/index.html")
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        try:
+            current_app.logger.exception("API index render failed")
+        except Exception:
+            pass
+        return api_error_response("خطأ داخلي في الخادم", 500)
 
 @bp.route("/docs", methods=["GET"], endpoint="docs")
 @login_required
@@ -179,7 +183,11 @@ def api_docs():
     try:
         return render_template("api/index.html")
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        try:
+            current_app.logger.exception("API docs render failed")
+        except Exception:
+            pass
+        return api_error_response("خطأ داخلي في الخادم", 500)
 
 @bp.route("/health", methods=["GET"], endpoint="health")
 def api_health():
@@ -197,7 +205,7 @@ def api_health():
         return api_success_response({
             'status': 'healthy',
             'database': 'connected',
-            'timestamp': datetime.utcnow().isoformat(),
+            'timestamp': datetime.now(timezone.utc).isoformat(),
             'stats': {
                 'customers': total_customers,
                 'suppliers': total_suppliers,
@@ -207,7 +215,11 @@ def api_health():
         })
         
     except Exception as e:
-        return api_error_response('API غير صحي', 500, {'error': str(e)})
+        try:
+            current_app.logger.exception("API health check failed")
+        except Exception:
+            pass
+        return api_error_response('API غير صحي', 500)
 
 @bp.route("/exchange-rates", methods=["GET"], endpoint="get_exchange_rates")
 @limiter.limit("20/minute")  # حماية: فقط 20 طلب في الدقيقة لكل IP
@@ -244,13 +256,13 @@ def get_current_exchange_rates():
             usd_rate = None
             jod_rate = None
             try:
-                r = _fetch_external_fx_rate('USD', 'ILS', datetime.utcnow())
+                r = _fetch_external_fx_rate('USD', 'ILS', datetime.now(timezone.utc))
                 if r and r > 0:
                     usd_rate = float(r)
             except Exception:
                 usd_rate = None
             try:
-                r = _fetch_external_fx_rate('JOD', 'ILS', datetime.utcnow())
+                r = _fetch_external_fx_rate('JOD', 'ILS', datetime.now(timezone.utc))
                 if r and r > 0:
                     jod_rate = float(r)
             except Exception:
@@ -382,7 +394,7 @@ def _err(code="error", detail="", status=400, errors: Optional[dict] = None):
     payload = {
         "success": False, 
         "error": code,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "request_id": getattr(request, 'id', None) if request else None
     }
     if detail:
@@ -655,10 +667,16 @@ def _landed_allocation(items, extras_total):
     return alloc
 
 def _apply_arrival_items(items):
+    from models import Warehouse, WarehouseType
     for it in items:
         pid, wid, qty = int(it.get("product_id") or 0), int(it.get("warehouse_id") or 0), int(it.get("quantity") or 0)
         if not (pid and wid and qty > 0):
             continue
+        warehouse = db.session.get(Warehouse, wid)
+        if not warehouse:
+            continue
+        if warehouse.warehouse_type == WarehouseType.PARTNER.value and not warehouse.partner_id:
+            raise ValueError("partner_warehouse_not_linked")
         sl = (
             db.session.query(StockLevel)
             .filter_by(product_id=pid, warehouse_id=wid)
@@ -677,10 +695,16 @@ def _apply_arrival_items(items):
         db.session.flush()
 
 def _reverse_arrival_items(items):
+    from models import Warehouse, WarehouseType
     for it in items:
         pid, wid, qty = int(it.get("product_id") or 0), int(it.get("warehouse_id") or 0), int(it.get("quantity") or 0)
         if not (pid and wid and qty > 0):
             continue
+        warehouse = db.session.get(Warehouse, wid)
+        if not warehouse:
+            continue
+        if warehouse.warehouse_type == WarehouseType.PARTNER.value and not warehouse.partner_id:
+            raise ValueError("partner_warehouse_not_linked")
         sl = (
             db.session.query(StockLevel)
             .filter_by(product_id=pid, warehouse_id=wid)
@@ -706,9 +730,22 @@ def _items_snapshot(sh):
         for i in sh.items
     ]
 
+def _status_applies_stock(status: str) -> bool:
+    return (status or "").upper() in ("ARRIVED", "DELIVERED")
+
+def _snapshot_key(items):
+    return sorted(
+        (
+            int(it.get("product_id") or 0),
+            int(it.get("warehouse_id") or 0),
+            int(it.get("quantity") or 0),
+        )
+        for it in (items or [])
+    )
+
 def _safe_generate_number_after_flush(sale: Sale) -> None:
     if not getattr(sale, "sale_number", None):
-        sale.sale_number = f"INV-{datetime.utcnow():%Y%m%d}-{sale.id:04d}"
+        sale.sale_number = f"INV-{datetime.now(timezone.utc):%Y%m%d}-{sale.id:04d}"
         db.session.flush()
 
 def sale_to_dict(s: Sale) -> Dict[str, Any]:
@@ -945,7 +982,7 @@ def create_supplier():
 @limiter.limit("60/minute")
 @permission_required("manage_vendors", "add_supplier")
 def get_supplier(id):
-    s = Supplier.query.get_or_404(id)
+    s = db.get_or_404(Supplier, id)
     return jsonify(
         {
             "id": s.id,
@@ -963,7 +1000,7 @@ def get_supplier(id):
 @permission_required("manage_vendors", "add_supplier")
 @limiter.limit("30/minute")
 def update_supplier(id):
-    s = Supplier.query.get_or_404(id)
+    s = db.get_or_404(Supplier, id)
     data = request.get_json(silent=True) or request.form or {}
     s.name = (data.get("name") or s.name).strip()
     s.phone = (data.get("phone") or s.phone).strip()
@@ -983,7 +1020,7 @@ def update_supplier(id):
 @permission_required("manage_vendors", "add_supplier")
 @limiter.limit("30/minute")
 def delete_supplier(id):
-    s = Supplier.query.get_or_404(id)
+    s = db.get_or_404(Supplier, id)
 
     w_count = db.session.query(Warehouse.id).filter(Warehouse.supplier_id == id).count()
     pay_count = db.session.query(Payment.id).filter(Payment.supplier_id == id).count()
@@ -1073,7 +1110,7 @@ def search_partners():
 @permission_required("manage_vendors")
 @limiter.limit("30/minute")
 def api_update_partner(id):
-    p = Partner.query.get_or_404(id)
+    p = db.get_or_404(Partner, id)
     d = request.get_json(silent=True) or request.form or {}
     if "name" in d:
         p.name = (d.get("name") or "").strip() or p.name
@@ -1099,7 +1136,7 @@ def api_update_partner(id):
 @permission_required("manage_vendors")
 @limiter.limit("30/minute")
 def api_delete_partner(id):
-    p = Partner.query.get_or_404(id)
+    p = db.get_or_404(Partner, id)
     try:
         linked_wh = db.session.query(Warehouse).filter(Warehouse.partner_id == p.id).all()
         bad_wh = [w for w in linked_wh if getattr(w.warehouse_type, "value", w.warehouse_type) == WarehouseType.PARTNER.value]
@@ -1304,7 +1341,7 @@ def api_warehouses():
 @limiter.limit("60/minute")
 def api_warehouse_products_stocked(id):
     """Get products available in a specific warehouse"""
-    w = Warehouse.query.get_or_404(id)
+    w = db.get_or_404(Warehouse, id)
     q = (request.args.get("q") or "").strip()
     limit = _limit_from_request(20, 50)
     
@@ -1351,7 +1388,7 @@ def api_warehouse_products_stocked(id):
 @permission_required("manage_warehouses")
 @limiter.limit("30/minute")
 def api_update_warehouse(id):
-    w = Warehouse.query.get_or_404(id)
+    w = db.get_or_404(Warehouse, id)
     data = request.get_json(silent=True) or request.form or {}
 
     def _i(v):
@@ -1408,7 +1445,7 @@ def api_update_warehouse(id):
 @permission_required("manage_warehouses")
 @limiter.limit("30/minute")
 def api_delete_warehouse(id):
-    w = Warehouse.query.get_or_404(id)
+    w = db.get_or_404(Warehouse, id)
     try:
         db.session.delete(w)
         db.session.commit()
@@ -1639,7 +1676,7 @@ def api_inventory_summary():
 @permission_required("manage_inventory")
 @limiter.limit("30/minute")
 def update_product(id: int):
-    p = Product.query.get_or_404(id)
+    p = db.get_or_404(Product, id)
     data = request.get_json(silent=True) or {}
 
     def _num(v):
@@ -2259,13 +2296,16 @@ def update_shipment_api(id: int):
     new_items = _items_snapshot(sh)
     new_status = (sh.status or "").upper()
     try:
-        if old_status == "ARRIVED" and new_status != "ARRIVED":
+        old_applies = _status_applies_stock(old_status)
+        new_applies = _status_applies_stock(new_status)
+        if old_applies and not new_applies:
             _reverse_arrival_items(old_items)
-        elif old_status != "ARRIVED" and new_status == "ARRIVED":
+        elif not old_applies and new_applies:
             _apply_arrival_items(new_items)
-        elif old_status == "ARRIVED" and new_status == "ARRIVED":
-            _reverse_arrival_items(old_items)
-            _apply_arrival_items(new_items)
+        elif old_applies and new_applies:
+            if _snapshot_key(old_items) != _snapshot_key(new_items):
+                _reverse_arrival_items(old_items)
+                _apply_arrival_items(new_items)
         db.session.commit()
         return jsonify({"success": True, "id": sh.id})
     except Exception as e:
@@ -2280,12 +2320,20 @@ def api_mark_arrived(id: int):
     sh = db.session.query(Shipment).filter_by(id=id).first()
     if not sh:
         return jsonify({"error": "Not Found"}), 404
-    if (sh.status or "").upper() == "ARRIVED":
+    st = (sh.status or "").upper()
+    if st == "ARRIVED":
         return jsonify({"success": True, "message": "already_arrived"})
+    if st == "DELIVERED":
+        return jsonify({"success": False, "error": "already_delivered"}), 400
     try:
+        for item in (sh.items or []):
+            if not item.warehouse_id:
+                raise ValueError("item_missing_warehouse")
+            if not item.quantity or item.quantity <= 0:
+                raise ValueError("item_missing_quantity")
         _apply_arrival_items(_items_snapshot(sh))
         sh.status = "ARRIVED"
-        sh.actual_arrival = sh.actual_arrival or datetime.utcnow()
+        sh.actual_arrival = sh.actual_arrival or datetime.now(timezone.utc)
         _compute_shipment_totals(sh)
         db.session.commit()
         return jsonify({"success": True})
@@ -2302,7 +2350,10 @@ def api_cancel_shipment(id: int):
     if not sh:
         return jsonify({"error": "Not Found"}), 404
     try:
-        if (sh.status or "").upper() == "ARRIVED":
+        st = (sh.status or "").upper()
+        if st == "DELIVERED":
+            return jsonify({"success": False, "error": "already_delivered"}), 400
+        if _status_applies_stock(st):
             _reverse_arrival_items(_items_snapshot(sh))
         sh.status = "CANCELLED"
         db.session.commit()
@@ -2320,7 +2371,7 @@ def delete_shipment_api(id: int):
     if not sh:
         return jsonify({"error": "Not Found"}), 404
     try:
-        if (sh.status or "").upper() == "ARRIVED":
+        if _status_applies_stock(sh.status):
             _reverse_arrival_items(_items_snapshot(sh))
         sh.partners.clear()
         sh.items.clear()
@@ -2484,7 +2535,7 @@ def create_sale_api():
         customer_id=customer_id,
         seller_id=seller_id,
         seller_employee_id=seller_employee_id,
-        sale_date=d.get("sale_date") or datetime.utcnow(),
+        sale_date=d.get("sale_date") or datetime.now(timezone.utc),
         status=status,
         currency=(d.get("currency") or "ILS").upper(),
         tax_rate=_as_float(d.get("tax_rate")) or 0.0,
@@ -2711,7 +2762,7 @@ def quick_sell_api():
         customer_id=customer_id,
         seller_id=seller_id,
         seller_employee_id=seller_employee_id,
-        sale_date=datetime.utcnow(),
+        sale_date=datetime.now(timezone.utc),
         status=status,
         currency=(d.get("currency") or "ILS").upper(),
     )
@@ -2740,7 +2791,7 @@ def quick_sell_api():
 # ---------------- Exchange Transactions ----------------
 
 def _ensure_exchange_warehouse(wid: int) -> Warehouse:
-    wh = Warehouse.query.get(wid)
+    wh = db.session.get(Warehouse, wid)
     if not wh:
         raise ValueError("warehouse_not_found")
     wt = getattr(wh.warehouse_type, "value", wh.warehouse_type)
@@ -2823,7 +2874,7 @@ def create_exchange_transaction():
         return jsonify({"success": False, "error": "invalid"}), 400
     
     # التحقق من وجود المستودع والحصول على نوعه
-    wh = Warehouse.query.get(wid)
+    wh = db.session.get(Warehouse, wid)
     if not wh:
         logging.error(f"❌ [Exchange API] المستودع {wid} غير موجود")
         return jsonify({"success": False, "error": "المستودع غير موجود"}), 404
@@ -2910,7 +2961,7 @@ def create_exchange_transaction():
 @login_required
 @limiter.limit("60/minute")
 def get_exchange_transaction(id: int):
-    x = ExchangeTransaction.query.get(id)
+    x = db.session.get(ExchangeTransaction, id)
     if not x:
         return jsonify({"error": "Not Found"}), 404
     return jsonify(
@@ -2932,7 +2983,7 @@ def get_exchange_transaction(id: int):
 @permission_required("manage_inventory", "manage_warehouses")
 @limiter.limit("30/minute")
 def delete_exchange_transaction(id: int):
-    x = ExchangeTransaction.query.get(id)
+    x = db.session.get(ExchangeTransaction, id)
     if not x:
         return jsonify({"error": "Not Found"}), 404
     pid = int(getattr(x, "product_id", 0) or 0)
@@ -3235,7 +3286,7 @@ def api_get_archive(archive_id):
 def api_restore_archive(archive_id):
     """استعادة الأرشيف عبر API"""
     try:
-        archive = Archive.query.get_or_404(archive_id)
+        archive = db.get_or_404(Archive, archive_id)
         
         # تحديد الجدول المناسب
         model_map = {
@@ -3253,7 +3304,7 @@ def api_restore_archive(archive_id):
             return jsonify({'success': False, 'error': 'نوع السجل غير مدعوم للاستعادة'}), 400
         
         # البحث عن السجل الأصلي
-        original_record = model_class.query.get(archive.record_id)
+        original_record = db.session.get(model_class, archive.record_id)
         
         if original_record:
             # استعادة السجل
@@ -3288,7 +3339,7 @@ def api_restore_archive(archive_id):
 def api_delete_archive(archive_id):
     """حذف الأرشيف نهائياً عبر API"""
     try:
-        archive = Archive.query.get_or_404(archive_id)
+        archive = db.get_or_404(Archive, archive_id)
         
         db.session.delete(archive)
         db.session.commit()
@@ -3345,7 +3396,7 @@ def api_archive_stats():
 def api_archive_customer(customer_id):
     """أرشفة عميل عبر API"""
     try:
-        customer = Customer.query.get_or_404(customer_id)
+        customer = db.get_or_404(Customer, customer_id)
         
         if customer.is_archived:
             return jsonify({'success': False, 'error': 'العميل مؤرشف بالفعل'}), 400
@@ -3361,7 +3412,7 @@ def api_archive_customer(customer_id):
         
         # تحديث حالة العميل
         customer.is_archived = True
-        customer.archived_at = datetime.utcnow()
+        customer.archived_at = datetime.now(timezone.utc)
         customer.archived_by = current_user.id
         customer.archive_reason = reason
         
@@ -3385,7 +3436,7 @@ def api_archive_customer(customer_id):
 def api_archive_supplier(supplier_id):
     """أرشفة مورد عبر API"""
     try:
-        supplier = Supplier.query.get_or_404(supplier_id)
+        supplier = db.get_or_404(Supplier, supplier_id)
         
         if supplier.is_archived:
             return jsonify({'success': False, 'error': 'المورد مؤرشف بالفعل'}), 400
@@ -3401,7 +3452,7 @@ def api_archive_supplier(supplier_id):
         
         # تحديث حالة المورد
         supplier.is_archived = True
-        supplier.archived_at = datetime.utcnow()
+        supplier.archived_at = datetime.now(timezone.utc)
         supplier.archived_by = current_user.id
         supplier.archive_reason = reason
         
@@ -3425,7 +3476,7 @@ def api_archive_supplier(supplier_id):
 def api_archive_partner(partner_id):
     """أرشفة شريك عبر API"""
     try:
-        partner = Partner.query.get_or_404(partner_id)
+        partner = db.get_or_404(Partner, partner_id)
         
         if partner.is_archived:
             return jsonify({'success': False, 'error': 'الشريك مؤرشف بالفعل'}), 400
@@ -3441,7 +3492,7 @@ def api_archive_partner(partner_id):
         
         # تحديث حالة الشريك
         partner.is_archived = True
-        partner.archived_at = datetime.utcnow()
+        partner.archived_at = datetime.now(timezone.utc)
         partner.archived_by = current_user.id
         partner.archive_reason = reason
         
@@ -3465,7 +3516,7 @@ def api_archive_partner(partner_id):
 def api_archive_sale(sale_id):
     """أرشفة مبيعة عبر API"""
     try:
-        sale = Sale.query.get_or_404(sale_id)
+        sale = db.get_or_404(Sale, sale_id)
         
         if sale.is_archived:
             return jsonify({'success': False, 'error': 'المبيعة مؤرشفة بالفعل'}), 400
@@ -3481,7 +3532,7 @@ def api_archive_sale(sale_id):
         
         # تحديث حالة المبيعة
         sale.is_archived = True
-        sale.archived_at = datetime.utcnow()
+        sale.archived_at = datetime.now(timezone.utc)
         sale.archived_by = current_user.id
         sale.archive_reason = reason
         
@@ -3505,7 +3556,7 @@ def api_archive_sale(sale_id):
 def api_archive_expense(expense_id):
     """أرشفة نفقة عبر API"""
     try:
-        expense = Expense.query.get_or_404(expense_id)
+        expense = db.get_or_404(Expense, expense_id)
         
         if expense.is_archived:
             return jsonify({'success': False, 'error': 'النفقة مؤرشفة بالفعل'}), 400
@@ -3521,7 +3572,7 @@ def api_archive_expense(expense_id):
         
         # تحديث حالة النفقة
         expense.is_archived = True
-        expense.archived_at = datetime.utcnow()
+        expense.archived_at = datetime.now(timezone.utc)
         expense.archived_by = current_user.id
         expense.archive_reason = reason
         
@@ -3545,7 +3596,7 @@ def api_archive_expense(expense_id):
 def api_archive_service(service_id):
     """أرشفة طلب صيانة عبر API"""
     try:
-        service = ServiceRequest.query.get_or_404(service_id)
+        service = db.get_or_404(ServiceRequest, service_id)
         
         if service.is_archived:
             return jsonify({'success': False, 'error': 'طلب الصيانة مؤرشف بالفعل'}), 400
@@ -3561,7 +3612,7 @@ def api_archive_service(service_id):
         
         # تحديث حالة طلب الصيانة
         service.is_archived = True
-        service.archived_at = datetime.utcnow()
+        service.archived_at = datetime.now(timezone.utc)
         service.archived_by = current_user.id
         service.archive_reason = reason
         
@@ -3585,7 +3636,7 @@ def api_archive_service(service_id):
 def api_archive_payment(payment_id):
     """أرشفة دفعة عبر API"""
     try:
-        payment = Payment.query.get_or_404(payment_id)
+        payment = db.get_or_404(Payment, payment_id)
         
         if payment.is_archived:
             return jsonify({'success': False, 'error': 'الدفعة مؤرشفة بالفعل'}), 400
@@ -3601,7 +3652,7 @@ def api_archive_payment(payment_id):
         
         # تحديث حالة الدفعة
         payment.is_archived = True
-        payment.archived_at = datetime.utcnow()
+        payment.archived_at = datetime.now(timezone.utc)
         payment.archived_by = current_user.id
         payment.archive_reason = reason
         
@@ -3627,7 +3678,7 @@ def api_archive_payment(payment_id):
 def api_restore_customer(customer_id):
     """استعادة عميل عبر API"""
     try:
-        customer = Customer.query.get_or_404(customer_id)
+        customer = db.get_or_404(Customer, customer_id)
         
         if not customer.is_archived:
             return jsonify({'success': False, 'error': 'العميل غير مؤرشف'}), 400
@@ -3666,7 +3717,7 @@ def api_restore_customer(customer_id):
 def api_restore_supplier(supplier_id):
     """استعادة مورد عبر API"""
     try:
-        supplier = Supplier.query.get_or_404(supplier_id)
+        supplier = db.get_or_404(Supplier, supplier_id)
         
         if not supplier.is_archived:
             return jsonify({'success': False, 'error': 'المورد غير مؤرشف'}), 400
@@ -3705,7 +3756,7 @@ def api_restore_supplier(supplier_id):
 def api_restore_partner(partner_id):
     """استعادة شريك عبر API"""
     try:
-        partner = Partner.query.get_or_404(partner_id)
+        partner = db.get_or_404(Partner, partner_id)
         
         if not partner.is_archived:
             return jsonify({'success': False, 'error': 'الشريك غير مؤرشف'}), 400
@@ -3744,7 +3795,7 @@ def api_restore_partner(partner_id):
 def api_restore_sale(sale_id):
     """استعادة مبيعة عبر API"""
     try:
-        sale = Sale.query.get_or_404(sale_id)
+        sale = db.get_or_404(Sale, sale_id)
         
         if not sale.is_archived:
             return jsonify({'success': False, 'error': 'المبيعة غير مؤرشفة'}), 400
@@ -3783,7 +3834,7 @@ def api_restore_sale(sale_id):
 def api_restore_expense(expense_id):
     """استعادة نفقة عبر API"""
     try:
-        expense = Expense.query.get_or_404(expense_id)
+        expense = db.get_or_404(Expense, expense_id)
         
         if not expense.is_archived:
             return jsonify({'success': False, 'error': 'النفقة غير مؤرشفة'}), 400
@@ -3822,7 +3873,7 @@ def api_restore_expense(expense_id):
 def api_restore_service(service_id):
     """استعادة طلب صيانة عبر API"""
     try:
-        service = ServiceRequest.query.get_or_404(service_id)
+        service = db.get_or_404(ServiceRequest, service_id)
         
         if not service.is_archived:
             return jsonify({'success': False, 'error': 'طلب الصيانة غير مؤرشف'}), 400
@@ -3861,7 +3912,7 @@ def api_restore_service(service_id):
 def api_restore_payment(payment_id):
     """استعادة دفعة عبر API"""
     try:
-        payment = Payment.query.get_or_404(payment_id)
+        payment = db.get_or_404(Payment, payment_id)
         
         if not payment.is_archived:
             return jsonify({'success': False, 'error': 'الدفعة غير مؤرشفة'}), 400
@@ -3906,7 +3957,7 @@ def get_product_stock(product_id):
         warehouse_id = request.args.get('warehouse_id', type=int)
         
         # التحقق من وجود المنتج
-        product = Product.query.get(product_id)
+        product = db.session.get(Product, product_id)
         if not product:
             return jsonify({
                 'success': False,
@@ -3952,7 +4003,7 @@ def get_product_stock(product_id):
 def get_warehouse_info(warehouse_id):
     """جلب معلومات المستودع بما فيها النوع"""
     try:
-        warehouse = Warehouse.query.get(warehouse_id)
+        warehouse = db.session.get(Warehouse, warehouse_id)
         if not warehouse:
             return jsonify({
                 'success': False,

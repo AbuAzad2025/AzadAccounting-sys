@@ -4,33 +4,16 @@
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/print.css') }}">
 {% endblock %}
-{% block page_title %}⚖️ تسوية {{ reconciliation.reconciliation_number }}{% endblock %}
+{% block page_title %}<i class="fas fa-balance-scale text-primary"></i> تسوية {{ reconciliation.reconciliation_number }}{% endblock %}
+
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}"><i class="fas fa-home"></i> الرئيسية</a></li>
+  <li class="breadcrumb-item"><a href="{{ url_for('advanced.accounting_control') }}"><i class="fas fa-sliders-h"></i> المحاسبة المتقدمة</a></li>
+  <li class="breadcrumb-item"><a href="{{ url_for('bank.accounts') }}">الحسابات البنكية</a></li>
+  <li class="breadcrumb-item active">عرض التسوية</li>
+{% endblock %}
 
 {% block content %}
-<div class="content-header">
-    <div class="container-fluid">
-        <div class="row mb-2">
-            <div class="col-sm-6">
-                <h1 class="m-0">
-                    <i class="fas fa-balance-scale text-primary"></i> 
-                    عرض التسوية
-                </h1>
-            </div>
-            <div class="col-sm-6">
-                <ol class="breadcrumb float-sm-left">
-                    <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}"><i class="fas fa-home"></i> الرئيسية</a></li>
-                    <li class="breadcrumb-item"><a href="{{ url_for('advanced.accounting_control') }}"><i class="fas fa-sliders-h"></i> المحاسبة المتقدمة</a></li>
-                    <li class="breadcrumb-item"><a href="{{ url_for('bank.accounts') }}">الحسابات البنكية</a></li>
-                    <li class="breadcrumb-item active">عرض التسوية</li>
-                </ol>
-            </div>
-        </div>
-    </div>
-</div>
-
-<section class="content">
-<div class="container-fluid">
-  
   <div class="row mb-3 no-print">
     <div class="col-12">
       <div class="btn-toolbar">
@@ -109,8 +92,8 @@
               {% for tx in book_transactions %}
               <tr>
                 <td>{{ tx.payment_date.strftime('%Y-%m-%d') }}</td>
-                <td>{{ tx.description or tx.entity_name or '-' }}</td>
-                <td>{{ "{:,.2f}".format(tx.amount) }}</td>
+                <td>{{ tx.reference or tx.payment_number or '-' }}</td>
+                <td>{{ "{:,.2f}".format(tx.total_amount or 0) }}</td>
               </tr>
               {% endfor %}
             </tbody>
@@ -150,11 +133,8 @@
     </div>
   </div>
 
-</div>
-</section>
 {% endblock %}
 
 {% block extra_js %}
 <script src="{{ url_for('static', filename='js/print.js') }}"></script>
 {% endblock %}
-

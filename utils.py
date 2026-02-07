@@ -240,7 +240,6 @@ def init_app(app):
     app.context_processor(_acl_ctx)
 
     _install_acl_cache_listeners()
-    _install_accounting_listeners()
 
 def send_email_notification(subject: str, recipients: List[str], body: str, html: Optional[str] = None):
     mail.send(Message(subject=subject, recipients=recipients, body=body, html=html))
@@ -488,7 +487,7 @@ def _apply_stock_delta(product_id: int, warehouse_id: int, delta: int) -> int:
     if rec is None:
         if delta < 0:
             raise ValueError("insufficient stock")
-        rec = StockLevel(product_id=product_id, warehouse_id=warehouse_id, quantity=0)
+        rec = StockLevel(product_id=product_id, warehouse_id=warehouse_id, quantity=0, reserved_quantity=0)
         db.session.add(rec)
         db.session.flush()
 
@@ -766,7 +765,7 @@ def get_cached_exchange_rates():
 def get_cached_customer_balance(customer_id):
     """الحصول على رصيد العميل من التخزين المؤقت"""
     from models import Customer
-    customer = Customer.query.get(customer_id)
+    customer = db.session.get(Customer, customer_id)
     if customer:
         return float(customer.balance_in_ils)
     return 0.0
@@ -963,6 +962,19 @@ def _fetch_permissions_from_db(user) -> set:
 def _get_user_permissions(user) -> set:
     if not user:
         return set()
+    try:
+        from flask import has_request_context, g
+        if has_request_context():
+            cache_map = getattr(g, "_user_permissions_cache", None)
+            if not isinstance(cache_map, dict):
+                cache_map = {}
+                g._user_permissions_cache = cache_map
+            uid = getattr(user, "id", None)
+            if uid is not None and uid in cache_map and isinstance(cache_map.get(uid), set):
+                return cache_map.get(uid) or set()
+    except Exception:
+        cache_map = None
+        uid = None
     key = f"user_permissions:{user.id}"
     rc = redis_client
     if rc:
@@ -980,7 +992,13 @@ def _get_user_permissions(user) -> set:
                     except Exception:
                         return v.decode(errors="ignore")
                 return str(v)
-            return {_to_text(x).lower() for x in cached}
+            perms = {_to_text(x).lower() for x in cached}
+            try:
+                if cache_map is not None and uid is not None:
+                    cache_map[uid] = perms
+            except Exception:
+                pass
+            return perms
 
     perms = _fetch_permissions_from_db(user)
     try:
@@ -989,6 +1007,11 @@ def _get_user_permissions(user) -> set:
             if perms:
                 rc.sadd(key, *list(perms))
             rc.expire(key, 300)
+    except Exception:
+        pass
+    try:
+        if cache_map is not None and uid is not None:
+            cache_map[uid] = set(perms or set())
     except Exception:
         pass
     return perms
@@ -1377,11 +1400,33 @@ def update_entity_balance(entity: str, eid: int) -> float:
     entity = entity.upper()
     try:
         if entity == "SUPPLIER":
-            from utils.supplier_balance_updater import update_supplier_balance_components
+            from sqlalchemy.orm import sessionmaker
+            from helpers.balance_events import emit_balance_update
             from models import Supplier
-            update_supplier_balance_components(eid)
-            supplier = db.session.get(Supplier, eid)
-            return float(supplier.current_balance or 0) if supplier else 0.0
+            from utils.supplier_balance_updater import update_supplier_balance_components
+            SessionFactory = sessionmaker(bind=db.engine)
+            session = SessionFactory()
+            try:
+                update_supplier_balance_components(eid, session, emit=False)
+                session.commit()
+                supplier = session.get(Supplier, eid)
+                balance = float(supplier.current_balance or 0) if supplier else 0.0
+            except Exception:
+                try:
+                    session.rollback()
+                except Exception:
+                    pass
+                return 0.0
+            finally:
+                try:
+                    session.close()
+                except Exception:
+                    pass
+            try:
+                emit_balance_update("supplier", eid, balance)
+            except Exception:
+                pass
+            return balance
         elif entity == "CUSTOMER":
             from utils.customer_balance_updater import update_customer_balance_components
             from models import Customer
@@ -1389,11 +1434,33 @@ def update_entity_balance(entity: str, eid: int) -> float:
             customer = db.session.get(Customer, eid)
             return float(customer.current_balance or 0) if customer else 0.0
         elif entity == "PARTNER":
-            from utils.partner_balance_updater import update_partner_balance_components
+            from sqlalchemy.orm import sessionmaker
+            from helpers.balance_events import emit_balance_update
             from models import Partner
-            update_partner_balance_components(eid)
-            partner = db.session.get(Partner, eid)
-            return float(partner.current_balance or 0) if partner else 0.0
+            from utils.partner_balance_updater import update_partner_balance_components
+            SessionFactory = sessionmaker(bind=db.engine)
+            session = SessionFactory()
+            try:
+                update_partner_balance_components(eid, session, emit=False)
+                session.commit()
+                partner = session.get(Partner, eid)
+                balance = float(partner.current_balance or 0) if partner else 0.0
+            except Exception:
+                try:
+                    session.rollback()
+                except Exception:
+                    pass
+                return 0.0
+            finally:
+                try:
+                    session.close()
+                except Exception:
+                    pass
+            try:
+                emit_balance_update("partner", eid, balance)
+            except Exception:
+                pass
+            return balance
         return 0.0
     except Exception:
         return 0.0
@@ -1660,7 +1727,7 @@ def restore_record(archive_id):
     import json
     
     try:
-        archive = Archive.query.get_or_404(archive_id)
+        archive = db.get_or_404(Archive, archive_id)
         
         model_map = {
             'service_requests': 'ServiceRequest',
@@ -2274,7 +2341,7 @@ def notify_service_completed(service_id: int) -> dict:
         return {'success': False, 'reason': 'Notifications disabled'}
     
     try:
-        service = Service.query.get(service_id)
+        service = db.session.get(Service, service_id)
         if not service or not service.customer:
             return {'success': False, 'error': 'Service or customer not found'}
         

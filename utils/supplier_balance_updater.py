@@ -1,5 +1,5 @@
 from decimal import Decimal
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import func, or_, and_
 from sqlalchemy.orm import Session, joinedload
 from extensions import db
@@ -28,7 +28,7 @@ def calculate_supplier_balance_components(supplier_id, session=None):
         return None
     
     from models import (
-        Supplier, ExchangeTransaction, Sale, SaleReturn, SaleReturnLine, ServiceRequest, PreOrder,
+        Supplier, ExchangeTransaction, Sale, SaleReturn, SaleReturnLine, ServiceRequest, PreOrder, Invoice,
         Payment, PaymentDirection, PaymentStatus, PaymentMethod, PaymentEntityType, Check, CheckStatus,
         Expense, ExpenseType, Warehouse, WarehouseType, Product
     )
@@ -218,39 +218,46 @@ def calculate_supplier_balance_components(supplier_id, session=None):
             result['payments_in_balance'] += amt
         
         if supplier.customer_id:
-            customer_payments_in = session.query(Payment).outerjoin(
-                Check, Check.payment_id == Payment.id
-            ).outerjoin(
-                PreOrder, Payment.preorder_id == PreOrder.id
-            ).filter(
-                Payment.customer_id == supplier.customer_id,
-                Payment.direction == PaymentDirection.IN,
-                Payment.status.in_([PaymentStatus.COMPLETED, PaymentStatus.PENDING]),
-                or_(
-                    Payment.preorder_id.is_(None),
-                    Payment.sale_id.isnot(None),
-                    PreOrder.status == 'FULFILLED',
-                    and_(
-                        Payment.preorder_id.isnot(None),
-                        or_(
-                            PreOrder.status.is_(None),
-                            PreOrder.status != 'FULFILLED'
-                        )
-                    )
+            seen_ids = {p.id for p in direct_payments_in}
+            customer_payments_in = (
+                session.query(Payment)
+                .outerjoin(Check, Check.payment_id == Payment.id)
+                .outerjoin(Sale, Payment.sale_id == Sale.id)
+                .outerjoin(Invoice, Payment.invoice_id == Invoice.id)
+                .outerjoin(ServiceRequest, Payment.service_id == ServiceRequest.id)
+                .outerjoin(PreOrder, Payment.preorder_id == PreOrder.id)
+                .outerjoin(Expense, Payment.expense_id == Expense.id)
+                .filter(
+                    Payment.direction == PaymentDirection.IN,
+                    Payment.status.in_([PaymentStatus.COMPLETED, PaymentStatus.PENDING]),
+                    or_(
+                        Payment.customer_id == supplier.customer_id,
+                        Sale.customer_id == supplier.customer_id,
+                        Invoice.customer_id == supplier.customer_id,
+                        ServiceRequest.customer_id == supplier.customer_id,
+                        PreOrder.customer_id == supplier.customer_id,
+                        Expense.customer_id == supplier.customer_id,
+                    ),
+                    or_(
+                        Payment.preorder_id.is_(None),
+                        Payment.sale_id.isnot(None),
+                        PreOrder.status == 'FULFILLED',
+                    ),
                 )
-            ).all()
-            
-            seen_ids = set()
+                .distinct()
+                .all()
+            )
             for p in customer_payments_in:
-                if p.id not in seen_ids:
-                    seen_ids.add(p.id)
-                    amt = Decimal(str(p.total_amount or 0))
-                    if p.currency != "ILS":
-                        try:
-                            amt = convert_amount(amt, p.currency, "ILS", p.payment_date)
-                        except Exception:
-                            pass
-                    result['payments_in_balance'] += amt
+                if p.id in seen_ids:
+                    continue
+                seen_ids.add(p.id)
+                amt = Decimal(str(p.total_amount or 0))
+                if p.currency != "ILS":
+                    try:
+                        amt = convert_amount(amt, p.currency, "ILS", p.payment_date)
+                    except Exception:
+                        pass
+                result['payments_in_balance'] += amt
         
         direct_payments_out = session.query(Payment).outerjoin(
             Check, Check.payment_id == Payment.id
@@ -298,91 +305,46 @@ def calculate_supplier_balance_components(supplier_id, session=None):
                 result['payments_out_balance'] += amt
         
         if supplier.customer_id:
-            customer_payments_out = session.query(Payment).outerjoin(
-                Check, Check.payment_id == Payment.id
-            ).filter(
-                Payment.customer_id == supplier.customer_id,
-                Payment.direction == PaymentDirection.OUT,
-                Payment.status.in_([PaymentStatus.COMPLETED, PaymentStatus.PENDING])
-            ).all()
-            
-            seen_ids = set()
-            for p in customer_payments_out:
-                if p.id not in seen_ids:
-                    seen_ids.add(p.id)
-                    amt = Decimal(str(p.total_amount or 0))
-                    if p.currency != "ILS":
-                        try:
-                            amt = convert_amount(amt, p.currency, "ILS", p.payment_date)
-                        except Exception:
-                            pass
-                    result['payments_out_balance'] += amt
-            
-            expense_ids_with_customer = [
-                e.id for e in session.query(Expense).filter(
-                    Expense.customer_id == supplier.customer_id,
-                    Expense.supplier_id.is_(None),
-                    or_(
-                        Expense.payee_type.is_(None),
-                        Expense.payee_type != "SUPPLIER",
-                        Expense.payee_entity_id != supplier_id
-                    )
-                ).all()
-            ]
-            if expense_ids_with_customer:
-                customer_expense_payments_in = session.query(Payment).outerjoin(
-                    Check, Check.payment_id == Payment.id
-                ).outerjoin(
-                    PreOrder, Payment.preorder_id == PreOrder.id
-                ).filter(
-                    Payment.expense_id.isnot(None),
-                    Payment.direction == PaymentDirection.IN,
-                    Payment.status.in_([PaymentStatus.COMPLETED, PaymentStatus.PENDING]),
-                    or_(
-                        Payment.customer_id == supplier.customer_id,
-                        Payment.expense_id.in_(expense_ids_with_customer)
-                    ),
-                    or_(
-                        Payment.preorder_id.is_(None),
-                        Payment.sale_id.isnot(None),
-                        PreOrder.status == 'FULFILLED'
-                    )
-                ).all()
-                
-                for p in customer_expense_payments_in:
-                    if p.id not in seen_ids:
-                        seen_ids.add(p.id)
-                        amt = Decimal(str(p.total_amount or 0))
-                        if p.currency != "ILS":
-                            try:
-                                amt = convert_amount(amt, p.currency, "ILS", p.payment_date)
-                            except Exception:
-                                pass
-                        result['payments_in_balance'] += amt
-                
-                customer_expense_payments_out = session.query(Payment).outerjoin(
-                    Check, Check.payment_id == Payment.id
-                ).filter(
-                    Payment.expense_id.isnot(None),
+            seen_ids = {p.id for p in direct_payments_out} | {p.id for p in expense_payments_out}
+            customer_payments_out = (
+                session.query(Payment)
+                .outerjoin(Check, Check.payment_id == Payment.id)
+                .outerjoin(Sale, Payment.sale_id == Sale.id)
+                .outerjoin(Invoice, Payment.invoice_id == Invoice.id)
+                .outerjoin(ServiceRequest, Payment.service_id == ServiceRequest.id)
+                .outerjoin(PreOrder, Payment.preorder_id == PreOrder.id)
+                .outerjoin(Expense, Payment.expense_id == Expense.id)
+                .filter(
                     Payment.direction == PaymentDirection.OUT,
                     Payment.status.in_([PaymentStatus.COMPLETED, PaymentStatus.PENDING]),
                     or_(
                         Payment.customer_id == supplier.customer_id,
-                        Payment.expense_id.in_(expense_ids_with_customer)
-                    )
-                ).all()
-                
-                seen_out_ids = {p.id for p in customer_payments_out}
-                for p in customer_expense_payments_out:
-                    if p.id not in seen_out_ids:
-                        seen_out_ids.add(p.id)
-                        amt = Decimal(str(p.total_amount or 0))
-                        if p.currency != "ILS":
-                            try:
-                                amt = convert_amount(amt, p.currency, "ILS", p.payment_date)
-                            except Exception:
-                                pass
-                        result['payments_out_balance'] += amt
+                        Sale.customer_id == supplier.customer_id,
+                        Invoice.customer_id == supplier.customer_id,
+                        ServiceRequest.customer_id == supplier.customer_id,
+                        PreOrder.customer_id == supplier.customer_id,
+                        Expense.customer_id == supplier.customer_id,
+                    ),
+                    or_(
+                        Payment.preorder_id.is_(None),
+                        Payment.sale_id.isnot(None),
+                        PreOrder.status == 'FULFILLED',
+                    ),
+                )
+                .distinct()
+                .all()
+            )
+            for p in customer_payments_out:
+                if p.id in seen_ids:
+                    continue
+                seen_ids.add(p.id)
+                amt = Decimal(str(p.total_amount or 0))
+                if p.currency != "ILS":
+                    try:
+                        amt = convert_amount(amt, p.currency, "ILS", p.payment_date)
+                    except Exception:
+                        pass
+                result['payments_out_balance'] += amt
         
         returned_checks_in_conditions = [Payment.supplier_id == supplier_id]
         if supplier.customer_id:
@@ -596,7 +558,7 @@ def calculate_supplier_balance_components(supplier_id, session=None):
                 product_currency = getattr(damaged.product, 'currency', 'ILS') or 'ILS'
                 if product_currency != 'ILS':
                     try:
-                        value_ils = convert_amount(value_ils, product_currency, "ILS", damaged.sale_return.created_at if damaged.sale_return else datetime.utcnow())
+                        value_ils = convert_amount(value_ils, product_currency, "ILS", damaged.sale_return.created_at if damaged.sale_return else datetime.now(timezone.utc).replace(tzinfo=None))
                     except Exception:
                         pass
                 result['exchange_items_balance'] -= value_ils
@@ -635,7 +597,7 @@ def calculate_supplier_balance_components(supplier_id, session=None):
     return result
 
 
-def update_supplier_balance_components(supplier_id, session=None):
+def update_supplier_balance_components(supplier_id, session=None, emit: bool = True):
     if not supplier_id:
         return
     
@@ -651,7 +613,6 @@ def update_supplier_balance_components(supplier_id, session=None):
         from sqlalchemy.orm import Session
         
         if isinstance(session, Connection):
-            from extensions import db
             session = Session(bind=session)
         
         if isinstance(session, Session):
@@ -704,6 +665,12 @@ def update_supplier_balance_components(supplier_id, session=None):
             supplier.current_balance = current_balance
             
             session.flush()
+            if emit:
+                try:
+                    from helpers.balance_events import emit_balance_update
+                    emit_balance_update('supplier', supplier_id, float(current_balance))
+                except Exception:
+                    pass
         else:
             components = calculate_supplier_balance_components(supplier_id, session)
             
@@ -780,6 +747,12 @@ def update_supplier_balance_components(supplier_id, session=None):
                     "returned_checks_out": float(components.get('returned_checks_out_balance', 0))
                 }
             )
+            if emit:
+                try:
+                    from helpers.balance_events import emit_balance_update
+                    emit_balance_update('supplier', supplier_id, float(current_balance))
+                except Exception:
+                    pass
     except Exception as e:
         try:
             from flask import current_app

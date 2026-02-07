@@ -133,7 +133,7 @@ def create_return(sale_id=None):
     
     # إذا تم تمرير sale_id، حمل بيانات البيع
     if sale_id:
-        sale = Sale.query.get_or_404(sale_id)
+        sale = db.get_or_404(Sale, sale_id)
         
         if request.method == 'GET':
             form.sale_id.data = sale.id
@@ -180,6 +180,7 @@ def create_return(sale_id=None):
             
             returned_dict = {}
             sale_dict = {}
+            sale_line_map = {}
             if sale_return.sale_id:
                 from sqlalchemy import func
                 confirmed_returns = (
@@ -196,9 +197,14 @@ def create_return(sale_id=None):
                     .all()
                 )
                 returned_dict = {int(pid): int(qty) for pid, qty in confirmed_returns}
-                sale = Sale.query.get(sale_return.sale_id)
+                sale = db.session.get(Sale, sale_return.sale_id)
                 if sale:
                     sale_dict = {line.product_id: int(line.quantity or 0) for line in sale.lines}
+                    for ln in (sale.lines or []):
+                        try:
+                            sale_line_map[(int(ln.product_id), int(ln.warehouse_id))] = ln
+                        except Exception:
+                            continue
             
             per_product_totals = {}
             total_amount = Decimal('0.00')
@@ -215,7 +221,7 @@ def create_return(sale_id=None):
                         cumulative_qty = per_product_totals.get(product_id, 0) + new_qty
                         if original_qty and (already_returned + cumulative_qty) > original_qty:
                             db.session.rollback()
-                            product = Product.query.get(product_id)
+                            product = db.session.get(Product, product_id)
                             product_name = product.name if product else f'المنتج #{product_id}'
                             available = max(0, original_qty - already_returned)
                             flash(
@@ -225,7 +231,14 @@ def create_return(sale_id=None):
                             )
                             return redirect(url_for('returns.create_return'))
                         per_product_totals[product_id] = cumulative_qty
+                    wh_id = int(line_data.get('warehouse_id') or sale_return.warehouse_id or 0)
                     price = Decimal(str(line_data.get('unit_price', 0) or 0))
+                    if sale_return.sale_id and sale_line_map and wh_id:
+                        sl = sale_line_map.get((int(product_id), int(wh_id)))
+                        if sl is not None:
+                            base = Decimal(str(sl.unit_price or 0))
+                            dr = Decimal(str(getattr(sl, "discount_rate", 0) or 0))
+                            price = base * (Decimal("1") - (dr / Decimal("100")))
                     total_amount += Decimal(new_qty) * price
                     
                     line = SaleReturnLine(
@@ -233,7 +246,7 @@ def create_return(sale_id=None):
                         product_id=product_id,
                         warehouse_id=line_data.get('warehouse_id') or sale_return.warehouse_id,
                         quantity=new_qty,
-                        unit_price=line_data.get('unit_price', 0),
+                        unit_price=float(price),
                         condition=line_data.get('condition', 'GOOD') or 'GOOD',
                         liability_party=line_data.get('liability_party') or None,
                         notes=line_data.get('notes', '').strip() or None
@@ -288,11 +301,53 @@ def create_return(sale_id=None):
 def view_return(return_id):
     """عرض تفاصيل مرتجع"""
     
-    sale_return = SaleReturn.query.get_or_404(return_id)
+    sale_return = db.get_or_404(SaleReturn, return_id)
+    breakdown = None
+    try:
+        if sale_return.sale_id and sale_return.sale:
+            sale = sale_return.sale
+            sale_subtotal = Decimal("0.00")
+            for ln in (sale.lines or []):
+                base = Decimal(str(getattr(ln, "unit_price", 0) or 0))
+                qty = Decimal(str(getattr(ln, "quantity", 0) or 0))
+                dr = Decimal(str(getattr(ln, "discount_rate", 0) or 0))
+                sale_subtotal += (base * qty) * (Decimal("1") - (dr / Decimal("100")))
+            items_total = Decimal("0.00")
+            for ln in (sale_return.lines or []):
+                items_total += Decimal(str(getattr(ln, "unit_price", 0) or 0)) * Decimal(str(getattr(ln, "quantity", 0) or 0))
+            if sale_subtotal > Decimal("0"):
+                ratio = items_total / sale_subtotal
+            else:
+                ratio = Decimal("1") if items_total > Decimal("0") else Decimal("0")
+            if ratio < Decimal("0"):
+                ratio = Decimal("0")
+            if ratio > Decimal("1"):
+                ratio = Decimal("1")
+            disc = Decimal(str(getattr(sale, "discount_total", 0) or 0))
+            ship = Decimal(str(getattr(sale, "shipping_cost", 0) or 0))
+            disc_share = disc * ratio
+            ship_share = ship * ratio
+            base_after_discount = items_total - disc_share
+            if base_after_discount < Decimal("0"):
+                base_after_discount = Decimal("0")
+            base_for_tax = base_after_discount + ship_share
+            tr = Decimal(str(getattr(sale, "tax_rate", 0) or 0))
+            tax_amount = base_for_tax * tr / Decimal("100") if tr > 0 else Decimal("0")
+            breakdown = {
+                "items_total": float(items_total),
+                "discount_share": float(disc_share),
+                "shipping_share": float(ship_share),
+                "tax_rate": float(tr),
+                "tax_amount": float(tax_amount),
+                "final_total": float((base_for_tax + tax_amount)),
+            }
+    except Exception:
+        breakdown = None
     
     return render_template(
         'sale_returns/detail.html',
-        sale_return=sale_return
+        sale_return=sale_return,
+        breakdown=breakdown,
     )
 
 
@@ -301,7 +356,7 @@ def view_return(return_id):
 def edit_return(return_id):
     """تعديل مرتجع"""
     
-    sale_return = SaleReturn.query.get_or_404(return_id)
+    sale_return = db.get_or_404(SaleReturn, return_id)
     
     if sale_return.status == 'CANCELLED':
         flash('لا يمكن تعديل مرتجع ملغي', 'warning')
@@ -352,12 +407,21 @@ def edit_return(return_id):
                     .all()
                 )
                 returned_dict = {int(pid): int(qty) for pid, qty in confirmed_returns}
-                sale = Sale.query.get(sale_return.sale_id)
+                sale = db.session.get(Sale, sale_return.sale_id)
                 if sale:
                     sale_dict = {line.product_id: int(line.quantity or 0) for line in sale.lines}
             
             per_product_totals = {}
             total_amount = Decimal('0.00')
+            sale_line_map = {}
+            if sale_return.sale_id:
+                sale = db.session.get(Sale, sale_return.sale_id)
+                if sale:
+                    for ln in (sale.lines or []):
+                        try:
+                            sale_line_map[(int(ln.product_id), int(ln.warehouse_id))] = ln
+                        except Exception:
+                            continue
             
             # حذف السطور القديمة
             for line in sale_return.lines:
@@ -375,7 +439,7 @@ def edit_return(return_id):
                         cumulative_qty = per_product_totals.get(product_id, 0) + new_qty
                         if original_qty and (already_returned + cumulative_qty) > original_qty:
                             db.session.rollback()
-                            product = Product.query.get(product_id)
+                            product = db.session.get(Product, product_id)
                             product_name = product.name if product else f'المنتج #{product_id}'
                             available = max(0, original_qty - already_returned)
                             flash(
@@ -385,7 +449,14 @@ def edit_return(return_id):
                             )
                             return redirect(url_for('returns.edit_return', return_id=return_id))
                         per_product_totals[product_id] = cumulative_qty
+                    wh_id = int(line_data.get('warehouse_id') or sale_return.warehouse_id or 0)
                     price = Decimal(str(line_data.get('unit_price', 0) or 0))
+                    if sale_return.sale_id and sale_line_map and wh_id:
+                        sl = sale_line_map.get((int(product_id), int(wh_id)))
+                        if sl is not None:
+                            base = Decimal(str(sl.unit_price or 0))
+                            dr = Decimal(str(getattr(sl, "discount_rate", 0) or 0))
+                            price = base * (Decimal("1") - (dr / Decimal("100")))
                     total_amount += Decimal(new_qty) * price
                     
                     line = SaleReturnLine(
@@ -393,7 +464,7 @@ def edit_return(return_id):
                         product_id=product_id,
                         warehouse_id=line_data.get('warehouse_id') or sale_return.warehouse_id,
                         quantity=new_qty,
-                        unit_price=line_data.get('unit_price', 0),
+                        unit_price=float(price),
                         notes=line_data.get('notes', '').strip() or None
                     )
                     db.session.add(line)
@@ -445,7 +516,7 @@ def edit_return(return_id):
 def confirm_return(return_id):
     """تأكيد المرتجع"""
     
-    sale_return = SaleReturn.query.get_or_404(return_id)
+    sale_return = db.get_or_404(SaleReturn, return_id)
     
     if sale_return.status == 'CONFIRMED':
         flash('المرتجع مؤكد مسبقاً', 'info')
@@ -487,7 +558,7 @@ def confirm_return(return_id):
 def cancel_return(return_id):
     """إلغاء المرتجع"""
     
-    sale_return = SaleReturn.query.get_or_404(return_id)
+    sale_return = db.get_or_404(SaleReturn, return_id)
     
     if sale_return.status == 'CANCELLED':
         flash('المرتجع ملغي مسبقاً', 'info')
@@ -531,7 +602,7 @@ def cancel_return(return_id):
 def delete_return(return_id):
     """حذف المرتجع"""
     
-    sale_return = SaleReturn.query.get_or_404(return_id)
+    sale_return = db.get_or_404(SaleReturn, return_id)
     
     # فقط المسودات يمكن حذفها
     if sale_return.status != 'DRAFT':
@@ -574,7 +645,7 @@ def delete_return(return_id):
 def get_sale_items(sale_id):
     """الحصول على بنود البيع لتسهيل إنشاء المرتجع"""
     try:
-        sale = Sale.query.get_or_404(sale_id)
+        sale = db.get_or_404(Sale, sale_id)
 
         # احسب الكمية المتاحة للإرجاع = كمية البيع - مجموع المرتجعات المؤكدة
         confirmed_returns = (

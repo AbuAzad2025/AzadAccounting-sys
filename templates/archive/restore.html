@@ -1,6 +1,12 @@
 {% extends "base.html" %}
 {% block title %}استعادة الأرشيف{% endblock %}
-{% block page_header %}🔄 استعادة الأرشيف #{{ archive.id }}{% endblock %}
+{% block page_title %}<i class="fas fa-undo"></i> استعادة الأرشيف #{{ archive.id }}{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}"><i class="fas fa-home"></i> الرئيسية</a></li>
+<li class="breadcrumb-item"><a href="{{ url_for('archive.index') }}">الأرشيفات</a></li>
+<li class="breadcrumb-item active">استعادة #{{ archive.id }}</li>
+{% endblock %}
 
 {% block content %}
 <div class="container my-4">

@@ -89,7 +89,8 @@
                         </div>
                         <div class="col-sm-6">
                             <strong>الرصيد الحالي:</strong> 
-                            <span class="badge {% if current_balance > 0 %}bg-danger{% elif current_balance < 0 %}bg-success{% else %}bg-secondary{% endif %} fs-6">
+                            <span class="badge {% if current_balance > 0 %}bg-danger{% elif current_balance < 0 %}bg-success{% else %}bg-secondary{% endif %} fs-6"
+                                  data-balance-partner="{{ partner.id }}">
                                 {{ current_balance|format_currency }}
                             </span><br>
                             <strong>نسبة المشاركة:</strong> {{ partner.share_percentage or 0 }}%<br>
@@ -213,7 +214,7 @@
                     <div class="table-responsive">
                         <table class="table table-sm table-borderless align-middle mb-0">
                             <tbody>
-                                {% for item in partner_breakdown.rights.items %}
+                                {% for item in partner_breakdown.rights.get('items', []) %}
                                     {% if item.amount %}
                                     <tr>
                                         <td>{{ item.label }}</td>
@@ -235,7 +236,7 @@
                     <div class="table-responsive">
                         <table class="table table-sm table-borderless align-middle mb-0">
                             <tbody>
-                                {% for item in partner_breakdown.obligations.items %}
+                                {% for item in partner_breakdown.obligations.get('items', []) %}
                                     {% if item.amount %}
                                     <tr>
                                         <td>{{ item.label }}</td>
@@ -287,10 +288,13 @@
             <div class="d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">
                     <i class="fas fa-shopping-cart ml-2"></i>
-                    🛒 المبيعات للشريك - {{ sales|length }} فاتورة
+                    🛒 المبيعات للشريك - {{ sales_count|default(sales|length) }} فاتورة
                 </h5>
                 <div>
                     <span class="badge bg-light text-dark ml-2">{{ total_sales|format_currency }}</span>
+                    {% if sales_count and limit_rows and sales_count > limit_rows %}
+                    <a class="btn btn-sm btn-outline-light" href="{{ url_for('reports_bp.partner_detail_report', partner_id=partner.id, start=start_date, end=end_date, limit=(limit_rows * 2)) }}">عرض المزيد</a>
+                    {% endif %}
                     <i class="fas fa-chevron-down collapse-icon ms-2"></i>
                 </div>
             </div>
@@ -351,10 +355,13 @@
             <div class="d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">
                     <i class="fas fa-wrench ml-2"></i>
-                    🔧 الصيانة للشريك - {{ services|length }} طلب
+                    🔧 الصيانة للشريك - {{ services_count|default(services|length) }} طلب
                 </h5>
                 <div>
                     <span class="badge bg-light text-dark ml-2">{{ total_services|format_currency }}</span>
+                    {% if services_count and limit_rows and services_count > limit_rows %}
+                    <a class="btn btn-sm btn-outline-light" href="{{ url_for('reports_bp.partner_detail_report', partner_id=partner.id, start=start_date, end=end_date, limit=(limit_rows * 2)) }}">عرض المزيد</a>
+                    {% endif %}
                     <i class="fas fa-chevron-down collapse-icon ms-2"></i>
                 </div>
             </div>
@@ -426,10 +433,13 @@
             <div class="d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">
                     <i class="fas fa-calendar-check ml-2"></i>
-                    📅 الحجوزات المسبقة (حصة الشريك) - {{ preorders|length }} حجز
+                    📅 الحجوزات المسبقة (حصة الشريك) - {{ preorders_count|default(preorders|length) }} حجز
                 </h5>
                 <div>
                     <span class="badge bg-light text-dark ml-2">{{ total_preorders|format_currency }}</span>
+                    {% if preorders_count and limit_rows and preorders_count > limit_rows %}
+                    <a class="btn btn-sm btn-outline-light" href="{{ url_for('reports_bp.partner_detail_report', partner_id=partner.id, start=start_date, end=end_date, limit=(limit_rows * 2)) }}">عرض المزيد</a>
+                    {% endif %}
                     <i class="fas fa-chevron-down collapse-icon ms-2"></i>
                 </div>
             </div>
@@ -485,10 +495,13 @@
             <div class="d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">
                     <i class="fas fa-cogs ml-2"></i>
-                    🔩 قطع الغيار في الصيانة - {{ service_parts|length }} قطعة
+                    🔩 قطع الغيار في الصيانة - {{ service_parts_count|default(service_parts|length) }} قطعة
                 </h5>
                 <div>
                     <span class="badge bg-light text-dark ml-2">{{ total_service_parts|format_currency }}</span>
+                    {% if service_parts_count and limit_rows and service_parts_count > limit_rows %}
+                    <a class="btn btn-sm btn-outline-light" href="{{ url_for('reports_bp.partner_detail_report', partner_id=partner.id, start=start_date, end=end_date, limit=(limit_rows * 2)) }}">عرض المزيد</a>
+                    {% endif %}
                     <i class="fas fa-chevron-down collapse-icon ms-2"></i>
                 </div>
             </div>
@@ -705,10 +718,13 @@
             <div class="d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">
                     <i class="fas fa-receipt ml-2"></i>
-                    💼 المصاريف - {{ expenses|length }} مصروف
+                    💼 المصاريف - {{ expenses_count|default(expenses|length) }} مصروف
                 </h5>
                 <div>
                     <span class="badge bg-light text-dark ml-2">{{ total_expenses|format_currency }}</span>
+                    {% if expenses_count and limit_rows and expenses_count > limit_rows %}
+                    <a class="btn btn-sm btn-outline-light" href="{{ url_for('reports_bp.partner_detail_report', partner_id=partner.id, start=start_date, end=end_date, limit=(limit_rows * 2)) }}">عرض المزيد</a>
+                    {% endif %}
                     <i class="fas fa-chevron-down collapse-icon ms-2"></i>
                 </div>
             </div>
@@ -938,7 +954,7 @@ function printPartnerFullReport() {
     {% for preorder in preorders %}
     printWindow.document.write('<tr>');
     printWindow.document.write('<td>{{ preorder.id }}</td>');
-    printWindow.document.write('<td>{{ preorder.preorder_date.strftime("%Y-%m-%d") if preorder.preorder_date else "-" }}</td>');
+    printWindow.document.write('<td>{{ preorder.created_at.strftime("%Y-%m-%d") if preorder.created_at else (preorder.preorder_date.strftime("%Y-%m-%d") if preorder.preorder_date else "-") }}</td>');
     printWindow.document.write('<td>{{ preorder.product.name if preorder.product else "غير محدد" }}</td>');
     printWindow.document.write('<td>{{ preorder.quantity }}</td>');
     printWindow.document.write('<td>{{ preorder.unit_price|format_currency }}</td>');
@@ -947,6 +963,70 @@ function printPartnerFullReport() {
     {% endfor %}
     printWindow.document.write('</tbody>');
     printWindow.document.write('<tfoot><tr><th colspan="5">الإجمالي:</th><th>{{ total_preorders|format_currency }}</th></tr></tfoot>');
+    printWindow.document.write('</table>');
+    printWindow.document.write('</div>');
+    {% endif %}
+
+    {% if service_parts %}
+    printWindow.document.write('<div class="section">');
+    printWindow.document.write('<h3>🔩 قطع الغيار في الصيانة ({{ service_parts|length }} قطعة) - {{ total_service_parts|format_currency }}</h3>');
+    printWindow.document.write('<table>');
+    printWindow.document.write('<thead><tr><th>رقم الصيانة</th><th>التاريخ</th><th>القطعة</th><th>الكمية</th><th>السعر</th><th>الإجمالي</th><th>النسبة</th></tr></thead>');
+    printWindow.document.write('<tbody>');
+    {% for sp in service_parts %}
+    printWindow.document.write('<tr>');
+    printWindow.document.write('<td>{{ sp.request.service_number if sp.request else sp.service_id }}</td>');
+    printWindow.document.write('<td>{{ sp.created_at.strftime("%Y-%m-%d") if sp.created_at else "-" }}</td>');
+    printWindow.document.write('<td>{{ sp.part.name if sp.part else "غير محدد" }}</td>');
+    printWindow.document.write('<td>{{ sp.quantity }}</td>');
+    printWindow.document.write('<td>{{ sp.unit_price|format_currency }}</td>');
+    printWindow.document.write('<td>{{ (sp.quantity * sp.unit_price)|format_currency }}</td>');
+    printWindow.document.write('<td>{{ sp.share_percentage or 0 }}%</td>');
+    printWindow.document.write('</tr>');
+    {% endfor %}
+    printWindow.document.write('</tbody>');
+    printWindow.document.write('<tfoot><tr><th colspan="5">الإجمالي:</th><th colspan="2">{{ total_service_parts|format_currency }}</th></tr></tfoot>');
+    printWindow.document.write('</table>');
+    printWindow.document.write('</div>');
+    {% endif %}
+
+    {% if inventory %}
+    printWindow.document.write('<div class="section">');
+    printWindow.document.write('<h3>📦 المخزون ({{ inventory|length }} منتج) - {{ total_inventory|format_currency }} ₪</h3>');
+    printWindow.document.write('<table>');
+    printWindow.document.write('<thead><tr><th>#</th><th>المنتج</th><th>النسبة</th><th>قيمة النصيب</th><th>ملاحظات</th></tr></thead>');
+    printWindow.document.write('<tbody>');
+    {% for item in inventory %}
+    printWindow.document.write('<tr>');
+    printWindow.document.write('<td>{{ item.product.id if item.product else "-" }}</td>');
+    printWindow.document.write('<td>{{ item.product.name if item.product else "منتج غير معروف" }}</td>');
+    printWindow.document.write('<td>{{ "%.1f"|format(item.share_percent or 0) }}%</td>');
+    printWindow.document.write('<td>{{ item.share_amount|format_currency }} ₪</td>');
+    printWindow.document.write('<td>{{ item.notes or "-" }}</td>');
+    printWindow.document.write('</tr>');
+    {% endfor %}
+    printWindow.document.write('</tbody>');
+    printWindow.document.write('<tfoot><tr><th colspan="3">الإجمالي:</th><th colspan="2">{{ total_inventory|format_currency }} ₪</th></tr></tfoot>');
+    printWindow.document.write('</table>');
+    printWindow.document.write('</div>');
+    {% endif %}
+
+    {% if expenses %}
+    printWindow.document.write('<div class="section">');
+    printWindow.document.write('<h3>💼 المصاريف ({{ expenses|length }} مصروف) - {{ total_expenses|format_currency }}</h3>');
+    printWindow.document.write('<table>');
+    printWindow.document.write('<thead><tr><th>#</th><th>التاريخ</th><th>المبلغ</th><th>الوصف</th></tr></thead>');
+    printWindow.document.write('<tbody>');
+    {% for expense in expenses %}
+    printWindow.document.write('<tr>');
+    printWindow.document.write('<td>{{ expense.id }}</td>');
+    printWindow.document.write('<td>{{ expense.date.strftime("%Y-%m-%d") if expense.date else "-" }}</td>');
+    printWindow.document.write('<td>{{ expense.amount|format_currency }}</td>');
+    printWindow.document.write('<td>{{ expense.desc or "-" }}</td>');
+    printWindow.document.write('</tr>');
+    {% endfor %}
+    printWindow.document.write('</tbody>');
+    printWindow.document.write('<tfoot><tr><th colspan="2">الإجمالي:</th><th colspan="2">{{ total_expenses|format_currency }}</th></tr></tfoot>');
     printWindow.document.write('</table>');
     printWindow.document.write('</div>');
     {% endif %}

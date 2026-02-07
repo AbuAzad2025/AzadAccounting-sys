@@ -2,20 +2,14 @@
 {% block title %}جدولة الفواتير{% endblock %}
 {% block page_title %}جدولة الفواتير - {{ template.template_name }}{% endblock %}
 
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}"><i class="fas fa-home"></i> الرئيسية</a></li>
+<li class="breadcrumb-item"><a href="{{ url_for('recurring.index') }}"><i class="fas fa-repeat"></i> الفواتير المتكررة</a></li>
+<li class="breadcrumb-item active">الجدولة</li>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid px-4 py-3">
-
-  <div class="row mb-3">
-    <div class="col">
-      <nav aria-label="breadcrumb">
-        <ol class="breadcrumb">
-          <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}"><i class="fas fa-home"></i> الرئيسية</a></li>
-          <li class="breadcrumb-item"><a href="{{ url_for('recurring.index') }}"><i class="fas fa-repeat"></i> الفواتير المتكررة</a></li>
-          <li class="breadcrumb-item active">الجدولة</li>
-        </ol>
-      </nav>
-    </div>
-  </div>
 
   <div class="card shadow mb-4">
     <div class="card-header bg-primary text-white">

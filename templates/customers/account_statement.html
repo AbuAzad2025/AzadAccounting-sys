@@ -459,7 +459,7 @@
         </button>
       </div>
       <div class="table-responsive table-rounded">
-        <table class="table table-bordered table-sm align-middle" id="statementTable" data-no-export="true" style="border: 2px solid #dee2e6; border-collapse: collapse;">
+        <table class="table table-bordered table-sm align-middle" id="statementTable" data-no-export="true" data-realtime-statement-customer="{{ customer.id }}" style="border: 2px solid #dee2e6; border-collapse: collapse;">
           <thead class="table-light" style="background-color: #f8f9fa;">
             <tr>
               <th style="width: 100px; border: 1px solid #dee2e6; padding: 12px; font-weight: bold; text-align: center;">التاريخ</th>
@@ -764,21 +764,33 @@
 {% if not pdf_export %}
 <script>
   {% if ledger_entries|length > 10 %}
-  try {
-    $('#statementTable').DataTable({
-      language: {
-        url: '{{ url_for("static", filename="datatables/Arabic.json") }}'
-      },
-      pageLength: 25,
-      order: [[0, 'desc']],
-      dom: 'frtip',
-      searching: true,
-      paging: true,
-      info: true
-    });
-  } catch (err) {
-    console.warn('DataTables initialization skipped:', err);
-  }
+  (function(){
+    function initStatementTable() {
+      try {
+        $('#statementTable').DataTable({
+          language: {
+            url: '{{ url_for("static", filename="datatables/Arabic.json") }}'
+          },
+          responsive: true,
+          autoWidth: false,
+          scrollX: $('#statementTable thead th').length > 8,
+          pageLength: 25,
+          order: [[0, 'desc']],
+          dom: 'frtip',
+          searching: true,
+          paging: true,
+          info: true
+        });
+      } catch (err) {
+      }
+    }
+
+    if (window.jQuery && typeof window.ensureDataTables === 'function' && !(jQuery.fn && jQuery.fn.DataTable)) {
+      window.ensureDataTables().then(initStatementTable);
+    } else {
+      initStatementTable();
+    }
+  })();
   {% endif %}
 
   // Function to open transaction details

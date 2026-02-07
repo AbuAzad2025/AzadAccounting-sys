@@ -151,9 +151,9 @@
 }
 
 
-.btn:hover {
-  opacity: 0.9;
-  transform: scale(1.02);
+.btn-sale:hover {
+  opacity: 0.95;
+  transform: translateY(-1px);
   transition: all 0.2s ease-in-out;
 }
 

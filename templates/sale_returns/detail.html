@@ -204,6 +204,24 @@
                       </strong>
                     </td>
                   </tr>
+                  {% if breakdown %}
+                  <tr>
+                    <th>قيمة البضاعة:</th>
+                    <td>{{ '{:,.2f}'.format(breakdown.items_total or 0) }} {{ sale_return.currency }}</td>
+                  </tr>
+                  <tr>
+                    <th>حصة الخصم:</th>
+                    <td>- {{ '{:,.2f}'.format(breakdown.discount_share or 0) }} {{ sale_return.currency }}</td>
+                  </tr>
+                  <tr>
+                    <th>حصة الشحن:</th>
+                    <td>{{ '{:,.2f}'.format(breakdown.shipping_share or 0) }} {{ sale_return.currency }}</td>
+                  </tr>
+                  <tr>
+                    <th>الضريبة ({{ '{:.2f}'.format(breakdown.tax_rate or 0) }}%):</th>
+                    <td>{{ '{:,.2f}'.format(breakdown.tax_amount or 0) }} {{ sale_return.currency }}</td>
+                  </tr>
+                  {% endif %}
                   <tr>
                     <th>العملة:</th>
                     <td>{{ sale_return.currency }}</td>
@@ -394,4 +412,3 @@
   </div>
 </section>
 {% endblock %}
-

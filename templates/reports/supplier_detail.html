@@ -90,7 +90,8 @@
                         </div>
                         <div class="col-sm-6">
                             <strong>الرصيد الحالي:</strong> 
-                            <span class="badge {% if current_balance > 0 %}bg-success{% elif current_balance < 0 %}bg-danger{% else %}bg-secondary{% endif %} fs-6">
+                            <span class="badge {% if current_balance > 0 %}bg-success{% elif current_balance < 0 %}bg-danger{% else %}bg-secondary{% endif %} fs-6"
+                                  data-balance-supplier="{{ supplier.id }}">
                                 {{ current_balance|format_currency }}
                             </span><br>
                             <strong>العنوان:</strong> {{ supplier.address or 'غير محدد' }}<br>
@@ -205,7 +206,7 @@
                     <div class="table-responsive">
                         <table class="table table-sm table-borderless align-middle mb-0">
                             <tbody>
-                                {% for item in supplier_breakdown.rights.items %}
+                                {% for item in supplier_breakdown.rights.get('items', []) %}
                                     {% if item.amount %}
                                     <tr>
                                         <td>{{ item.label }}</td>
@@ -227,7 +228,7 @@
                     <div class="table-responsive">
                         <table class="table table-sm table-borderless align-middle mb-0">
                             <tbody>
-                                {% for item in supplier_breakdown.obligations.items %}
+                                {% for item in supplier_breakdown.obligations.get('items', []) %}
                                     {% if item.amount %}
                                     <tr>
                                         <td>{{ item.label }}</td>
@@ -281,10 +282,13 @@
             <div class="d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">
                     <i class="fas fa-box-open ml-2"></i>
-                    📦 حركات التوريد (IN) - {{ exchange_in|length }} حركة
+                    📦 حركات التوريد (IN) - {{ exchange_in_count|default(exchange_in|length) }} حركة
                 </h5>
                 <div>
                     <span class="badge bg-light text-dark ml-2">{{ total_exchange_in|format_currency }}</span>
+                    {% if exchange_in_count and limit_rows and exchange_in_count > limit_rows %}
+                    <a class="btn btn-sm btn-outline-light" href="{{ url_for('reports_bp.supplier_detail_report', supplier_id=supplier.id, start=start_date, end=end_date, limit=(limit_rows * 2)) }}">عرض المزيد</a>
+                    {% endif %}
                     <i class="fas fa-chevron-down collapse-icon ms-2"></i>
                 </div>
             </div>
@@ -346,10 +350,13 @@
             <div class="d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">
                     <i class="fas fa-undo ml-2"></i>
-                    📤 المرتجعات للمورد (OUT) - {{ exchange_out|length }} حركة
+                    📤 المرتجعات للمورد (OUT) - {{ exchange_out_count|default(exchange_out|length) }} حركة
                 </h5>
                 <div>
                     <span class="badge bg-light text-dark ml-2">{{ total_exchange_out|format_currency }}</span>
+                    {% if exchange_out_count and limit_rows and exchange_out_count > limit_rows %}
+                    <a class="btn btn-sm btn-outline-light" href="{{ url_for('reports_bp.supplier_detail_report', supplier_id=supplier.id, start=start_date, end=end_date, limit=(limit_rows * 2)) }}">عرض المزيد</a>
+                    {% endif %}
                     <i class="fas fa-chevron-down collapse-icon ms-2"></i>
                 </div>
             </div>
@@ -406,10 +413,13 @@
             <div class="d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">
                     <i class="fas fa-shopping-cart ml-2"></i>
-                    🛒 المبيعات للمورد - {{ sales|length }} فاتورة
+                    🛒 المبيعات للمورد - {{ sales_count|default(sales|length) }} فاتورة
                 </h5>
                 <div>
                     <span class="badge bg-light text-dark ml-2">{{ total_sales|format_currency }}</span>
+                    {% if sales_count and limit_rows and sales_count > limit_rows %}
+                    <a class="btn btn-sm btn-outline-light" href="{{ url_for('reports_bp.supplier_detail_report', supplier_id=supplier.id, start=start_date, end=end_date, limit=(limit_rows * 2)) }}">عرض المزيد</a>
+                    {% endif %}
                     <i class="fas fa-chevron-down collapse-icon ms-2"></i>
                 </div>
             </div>
@@ -470,10 +480,13 @@
             <div class="d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">
                     <i class="fas fa-wrench ml-2"></i>
-                    🔧 الصيانة للمورد - {{ services|length }} طلب
+                    🔧 الصيانة للمورد - {{ services_count|default(services|length) }} طلب
                 </h5>
                 <div>
                     <span class="badge bg-light text-dark ml-2">{{ total_services|format_currency }}</span>
+                    {% if services_count and limit_rows and services_count > limit_rows %}
+                    <a class="btn btn-sm btn-outline-light" href="{{ url_for('reports_bp.supplier_detail_report', supplier_id=supplier.id, start=start_date, end=end_date, limit=(limit_rows * 2)) }}">عرض المزيد</a>
+                    {% endif %}
                     <i class="fas fa-chevron-down collapse-icon ms-2"></i>
                 </div>
             </div>
@@ -545,10 +558,13 @@
             <div class="d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">
                     <i class="fas fa-calendar-check ml-2"></i>
-                    📅 الحجوزات المسبقة - {{ preorders|length }} حجز
+                    📅 الحجوزات المسبقة - {{ preorders_count|default(preorders|length) }} حجز
                 </h5>
                 <div>
                     <span class="badge bg-light text-dark ml-2">{{ total_preorders|format_currency }}</span>
+                    {% if preorders_count and limit_rows and preorders_count > limit_rows %}
+                    <a class="btn btn-sm btn-outline-light" href="{{ url_for('reports_bp.supplier_detail_report', supplier_id=supplier.id, start=start_date, end=end_date, limit=(limit_rows * 2)) }}">عرض المزيد</a>
+                    {% endif %}
                     <i class="fas fa-chevron-down collapse-icon ms-2"></i>
                 </div>
             </div>
@@ -602,10 +618,13 @@
             <div class="d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">
                     <i class="fas fa-hand-holding-usd ml-2"></i>
-                    💰 الدفعات الواردة (دفع لنا) - {{ payments_in|length }} دفعة
+                    💰 الدفعات الواردة (دفع لنا) - {{ payments_in_count|default(payments_in|length) }} دفعة
                 </h5>
                 <div>
                     <span class="badge bg-light text-dark ml-2">{{ total_payments_in|format_currency }}</span>
+                    {% if payments_in_count and limit_rows and payments_in_count > limit_rows %}
+                    <a class="btn btn-sm btn-outline-light" href="{{ url_for('reports_bp.supplier_detail_report', supplier_id=supplier.id, start=start_date, end=end_date, limit=(limit_rows * 2)) }}">عرض المزيد</a>
+                    {% endif %}
                     <i class="fas fa-chevron-down collapse-icon ms-2"></i>
                 </div>
             </div>
@@ -657,10 +676,13 @@
             <div class="d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">
                     <i class="fas fa-money-bill-wave ml-2"></i>
-                    💸 الدفعات الصادرة (دفعنا له) - {{ payments_out|length }} دفعة
+                    💸 الدفعات الصادرة (دفعنا له) - {{ payments_out_count|default(payments_out|length) }} دفعة
                 </h5>
                 <div>
                     <span class="badge bg-light text-dark ml-2">{{ total_payments_out|format_currency }}</span>
+                    {% if payments_out_count and limit_rows and payments_out_count > limit_rows %}
+                    <a class="btn btn-sm btn-outline-light" href="{{ url_for('reports_bp.supplier_detail_report', supplier_id=supplier.id, start=start_date, end=end_date, limit=(limit_rows * 2)) }}">عرض المزيد</a>
+                    {% endif %}
                     <i class="fas fa-chevron-down collapse-icon ms-2"></i>
                 </div>
             </div>
@@ -712,10 +734,13 @@
             <div class="d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">
                     <i class="fas fa-receipt ml-2"></i>
-                    💼 المصاريف - {{ expenses|length }} مصروف
+                    💼 المصاريف - {{ expenses_count|default(expenses|length) }} مصروف
                 </h5>
                 <div>
                     <span class="badge bg-light text-dark ml-2">{{ total_expenses|format_currency }}</span>
+                    {% if expenses_count and limit_rows and expenses_count > limit_rows %}
+                    <a class="btn btn-sm btn-outline-light" href="{{ url_for('reports_bp.supplier_detail_report', supplier_id=supplier.id, start=start_date, end=end_date, limit=(limit_rows * 2)) }}">عرض المزيد</a>
+                    {% endif %}
                     <i class="fas fa-chevron-down collapse-icon ms-2"></i>
                 </div>
             </div>

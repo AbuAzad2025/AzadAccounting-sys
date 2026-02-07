@@ -5,8 +5,8 @@ from decimal import Decimal
 from typing import Any, Dict, List, Optional
 from werkzeug.exceptions import BadRequest
 from flask import Blueprint, Response, flash, jsonify, render_template, request, current_app, redirect, url_for
-from sqlalchemy.orm import class_mapper, joinedload
-from sqlalchemy import func, cast, Date, desc, or_, and_
+from sqlalchemy.orm import class_mapper, joinedload, load_only
+from sqlalchemy import func, cast, Date, desc, or_, and_, case
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy import inspect as sa_inspect
 from extensions import db
@@ -17,7 +17,7 @@ import inspect as pyinspect
 
 from models import (
     Customer, Supplier, Partner, Product, Warehouse, StockLevel, Expense,
-    OnlinePreOrder, OnlinePayment, OnlineCart, Sale, SaleStatus, ServiceRequest, ServiceStatus, InvoiceStatus, Invoice, Payment,
+    OnlinePreOrder, OnlinePayment, OnlineCart, Sale, SaleLine, SaleReturn, SaleStatus, ServiceRequest, ServiceStatus, InvoiceStatus, Invoice, Payment,
     Shipment, PaymentDirection, PaymentStatus, PaymentSplit, PreOrder, ServicePart, ServiceTask, Employee, User, convert_amount
 )
 from utils.supplier_balance_updater import build_supplier_balance_view
@@ -425,6 +425,8 @@ def _to_ils(amount, currency, ref_date):
 
 @reports_bp.route("/", methods=["GET"], endpoint="universal")
 @reports_bp.route("", methods=["GET"], endpoint="index")
+@login_required
+@utils.permission_required("view_reports")
 def reports_index():
     summary_counts = {
         "total": len(REPORT_CARDS),
@@ -443,6 +445,8 @@ def reports_index():
     )
 
 @reports_bp.route("/dynamic", methods=["GET", "POST"])
+@login_required
+@utils.permission_required("manage_reports")
 def dynamic_report():
     model_names = list(_MODEL_LOOKUP.keys())
     if request.method == "POST":
@@ -484,6 +488,7 @@ def dynamic_report():
 
 @reports_bp.route("/below_min_stock", endpoint="below_min_stock_report")
 @login_required
+@utils.permission_required("view_reports")
 def below_min_stock_report():
     try:
         from models import Warehouse
@@ -536,6 +541,7 @@ def below_min_stock_report():
 
 @reports_bp.route("/shipments", methods=["GET"], endpoint="shipments")
 @login_required
+@utils.permission_required("view_reports")
 def shipments_report():
     start_str = request.args.get("start")
     end_str = request.args.get("end")
@@ -571,6 +577,7 @@ def shipments_report():
 
 @reports_bp.route("/online", endpoint="online")
 @login_required
+@utils.permission_required("view_reports")
 def online_report():
     orders_count = db.session.query(func.count(OnlinePreOrder.id)).scalar() or 0
     orders_total = db.session.query(func.coalesce(func.sum(OnlinePreOrder.total_amount), 0)).scalar() or 0
@@ -587,17 +594,20 @@ def online_report():
 
 @reports_bp.route("/sales", methods=["GET"])
 @login_required
+@utils.permission_required("view_reports")
 def sales():
     return sales_advanced_report()
 
 @reports_bp.route("/payments-summary", methods=["GET"], strict_slashes=False)
 @login_required
+@utils.permission_required("view_reports")
 def payments_summary():
     return payments_advanced_report()
 
 
 @reports_bp.route("/invoices", methods=["GET"], strict_slashes=False)
 @login_required
+@utils.permission_required("view_reports")
 def invoices_report():
     from datetime import datetime
     from decimal import Decimal
@@ -679,6 +689,7 @@ def invoices_report():
 
 @reports_bp.route("/preorders", methods=["GET"], strict_slashes=False)
 @login_required
+@utils.permission_required("view_reports")
 def preorders_report():
     from datetime import datetime
     from decimal import Decimal
@@ -737,6 +748,7 @@ def preorders_report():
 
 @reports_bp.route("/profit-loss", methods=["GET"], strict_slashes=False)
 @login_required
+@utils.permission_required("view_reports")
 def profit_loss_report():
     from datetime import datetime, timedelta
     from decimal import Decimal
@@ -820,6 +832,7 @@ def profit_loss_report():
 
 @reports_bp.route("/cash-flow", methods=["GET"], strict_slashes=False)
 @login_required
+@utils.permission_required("view_reports")
 def cash_flow_report():
     from datetime import datetime
     from decimal import Decimal
@@ -906,89 +919,112 @@ def cash_flow_report():
 
 @reports_bp.route("/payments/advanced", methods=["GET"], endpoint="payments_advanced_report")
 @login_required
+@utils.permission_required("view_reports")
 def payments_advanced_report():
     """تقرير المدفوعات الشامل الاحترافي"""
-    from decimal import Decimal
-    from collections import defaultdict
-    
     sd = _parse_date(request.args.get("start_date"))
     ed = _parse_date(request.args.get("end_date"))
     direction_filter = (request.args.get("direction") or "").strip()
     method_filter = (request.args.get("method") or "").strip()
     status_filter = (request.args.get("status") or "").strip()
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 50, type=int)
+    per_page = min(200, max(10, per_page))
     
     if sd and ed and ed < sd:
         sd, ed = ed, sd
-    
-    query = Payment.query.options(
+
+    base_q = Payment.query.options(
         db.joinedload(Payment.customer),
         db.joinedload(Payment.supplier),
-        db.joinedload(Payment.partner)
+        db.joinedload(Payment.partner),
     )
     
     if sd:
         start_dt = datetime.combine(sd, datetime.min.time())
-        query = query.filter(Payment.payment_date >= start_dt)
+        base_q = base_q.filter(Payment.payment_date >= start_dt)
     if ed:
         end_dt = datetime.combine(ed, datetime.max.time())
-        query = query.filter(Payment.payment_date <= end_dt)
+        base_q = base_q.filter(Payment.payment_date <= end_dt)
     
     if direction_filter:
         direction_val = direction_filter.upper()
         try:
-            from models import PaymentDirection as _PD
-            query = query.filter(Payment.direction == _PD(direction_val))
+            base_q = base_q.filter(Payment.direction == PaymentDirection(direction_val).value)
         except Exception:
-            query = query.filter(Payment.direction == direction_val)
+            base_q = base_q.filter(Payment.direction == direction_val)
     
     if method_filter:
         try:
-            from models import PaymentMethod as _PM
-            query = query.filter(Payment.method == _PM(method_filter.lower()))
+            base_q = base_q.filter(Payment.method == PaymentMethod(method_filter.lower()).value)
         except Exception:
-            query = query.filter(Payment.method == method_filter.lower())
+            base_q = base_q.filter(Payment.method == method_filter.lower())
     
     if status_filter:
         status_val = status_filter.upper()
         try:
-            from models import PaymentStatus as _PS
-            query = query.filter(Payment.status == _PS(status_val))
+            base_q = base_q.filter(Payment.status == PaymentStatus(status_val).value)
         except Exception:
-            query = query.filter(Payment.status == status_val)
+            base_q = base_q.filter(Payment.status == status_val)
     else:
-        query = query.filter(Payment.status == PaymentStatus.COMPLETED)
-    
-    payments = query.order_by(Payment.payment_date.desc()).all()
-    
-    total_in = Decimal('0.00')
-    total_out = Decimal('0.00')
-    total_amount = Decimal('0.00')
-    completed_count = 0
-    method_stats_dict = defaultdict(lambda: Decimal('0.00'))
+        base_q = base_q.filter(Payment.status == PaymentStatus.COMPLETED.value)
 
-    def _enum_val(v):
-        return getattr(v, "value", v)
-    
-    for payment in payments:
-        amount_ils = _to_ils(payment.total_amount or 0, getattr(payment, "currency", "ILS"), payment.payment_date)
-        payment.amount_ils = float(amount_ils)
-        total_amount += amount_ils
-        
-        status_v = str(_enum_val(getattr(payment, "status", None)) or "")
-        direction_v = str(_enum_val(getattr(payment, "direction", None)) or "")
-        method_v = str(_enum_val(getattr(payment, "method", None)) or "")
+    pagination = base_q.order_by(Payment.payment_date.desc(), Payment.id.desc()).paginate(
+        page=page, per_page=per_page, error_out=False
+    )
+    payments = list(pagination.items or [])
 
-        if status_v.upper() == PaymentStatus.COMPLETED.value:
-            completed_count += 1
-            
-        if direction_v.upper() == PaymentDirection.IN.value:
-            total_in += amount_ils
-        else:
-            total_out += amount_ils
-        
-        method_key = (method_v or "other").lower()
-        method_stats_dict[method_key] += amount_ils
-    
+    def _fast_to_ils(amount, currency, fx_used, ref_date):
+        value = Decimal(str(amount or 0))
+        code = (currency or "ILS").upper()
+        if code == "ILS":
+            return value
+        if fx_used:
+            try:
+                return value * Decimal(str(fx_used))
+            except Exception:
+                pass
+        return _to_ils(value, code, ref_date)
+
+    for p in payments:
+        try:
+            p.amount_ils = float(_fast_to_ils(p.total_amount, getattr(p, "currency", "ILS"), getattr(p, "fx_rate_used", None), p.payment_date))
+        except Exception:
+            p.amount_ils = float(p.total_amount or 0)
+
+    fx_mult = case(
+        (func.upper(func.coalesce(Payment.currency, "ILS")) == "ILS", 1),
+        else_=func.coalesce(Payment.fx_rate_used, 1),
+    )
+    amount_ils_expr = func.coalesce(Payment.total_amount, 0) * fx_mult
+
+    status_up = func.upper(func.coalesce(Payment.status, ""))
+    direction_up = func.upper(func.coalesce(Payment.direction, ""))
+
+    agg = base_q.with_entities(
+        func.count(Payment.id).label("total_payments"),
+        func.coalesce(func.sum(case((direction_up == PaymentDirection.IN.value, amount_ils_expr), else_=0)), 0).label("total_in"),
+        func.coalesce(func.sum(case((direction_up == PaymentDirection.OUT.value, amount_ils_expr), else_=0)), 0).label("total_out"),
+        func.coalesce(func.sum(amount_ils_expr), 0).label("total_amount"),
+        func.coalesce(func.sum(case((status_up == PaymentStatus.COMPLETED.value, 1), else_=0)), 0).label("completed_count"),
+    ).first()
+
+    total_payments = int(getattr(agg, "total_payments", 0) or 0)
+    total_in = float(getattr(agg, "total_in", 0) or 0)
+    total_out = float(getattr(agg, "total_out", 0) or 0)
+    total_amount = float(getattr(agg, "total_amount", 0) or 0)
+    completed_count = int(getattr(agg, "completed_count", 0) or 0)
+
+    method_stats_rows = (
+        base_q.with_entities(
+            func.lower(func.coalesce(Payment.method, "other")).label("method"),
+            func.coalesce(func.sum(amount_ils_expr), 0).label("total"),
+        )
+        .group_by("method")
+        .order_by(func.coalesce(func.sum(amount_ils_expr), 0).desc())
+        .all()
+    )
+
     method_labels = {
         'cash': 'نقدي',
         'bank': 'تحويل بنكي',
@@ -999,32 +1035,41 @@ def payments_advanced_report():
     }
     
     method_stats = [
-        {'method': k, 'label': method_labels.get(str(k).lower(), str(k)), 'total': float(v)}
-        for k, v in sorted(method_stats_dict.items(), key=lambda x: x[1], reverse=True)
+        {'method': m, 'label': method_labels.get(str(m).lower(), str(m)), 'total': float(t or 0)}
+        for m, t in method_stats_rows
     ]
     
     summary = {
-        'total_payments': len(payments),
-        'total_in': float(total_in),
-        'total_out': float(total_out),
+        'total_payments': total_payments,
+        'total_in': total_in,
+        'total_out': total_out,
         'net_flow': float(total_in - total_out),
-        'total_amount': float(total_amount),
-        'avg_payment': float(total_amount / len(payments)) if len(payments) > 0 else 0,
-        'completed_count': completed_count
+        'total_amount': total_amount,
+        'avg_payment': (float(total_amount) / float(total_payments)) if total_payments > 0 else 0,
+        'completed_count': completed_count,
     }
+
+    query_args = request.args.to_dict()
+    query_args.pop("page", None)
+    query_args.pop("per_page", None)
     
     return render_template(
         "reports/payments_summary.html",
         payments=payments,
+        pagination=pagination,
+        per_page=per_page,
         summary=summary,
         method_stats=method_stats,
         show_charts=True,
                          FIELD_LABELS=FIELD_LABELS, 
-        MODEL_LABELS=MODEL_LABELS
+        MODEL_LABELS=MODEL_LABELS,
+        query_args=query_args,
     )
 
 
 @reports_bp.route("/payments-summary-old", methods=["GET"], strict_slashes=False)
+@login_required
+@utils.permission_required("view_reports")
 def payments_summary_old():
     start = _parse_date(request.args.get("start"))
     end = _parse_date(request.args.get("end"))
@@ -1048,6 +1093,8 @@ def payments_summary_old():
     )
 
 @reports_bp.route("/ar-aging", methods=["GET"])
+@login_required
+@utils.permission_required("view_reports")
 def ar_aging():
     start = _parse_date(request.args.get("start"))
     end = _parse_date(request.args.get("end"))
@@ -1056,6 +1103,7 @@ def ar_aging():
 
 @reports_bp.route("/inventory", methods=["GET"], endpoint="inventory")
 @login_required
+@utils.permission_required("view_reports")
 def inventory_report():
     from models import Warehouse, StockLevel, Product
     from sqlalchemy.orm import joinedload
@@ -1287,6 +1335,8 @@ def inventory_report():
     )
 
 @reports_bp.route("/top-products", methods=["GET"])
+@login_required
+@utils.permission_required("view_reports")
 def top_products():
     start = _parse_date(request.args.get("start"))
     end = _parse_date(request.args.get("end"))
@@ -1333,10 +1383,15 @@ def top_products():
     )
 
 @reports_bp.route("/suppliers", methods=["GET"], endpoint="suppliers_report")
+@login_required
+@utils.permission_required("view_reports")
 def suppliers_report():
     search = (request.args.get("q") or "").strip()
     balance_filter = (request.args.get("balance") or "").strip()
     export_format = (request.args.get("format") or "").lower()
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 50, type=int)
+    per_page = min(200, max(10, per_page))
 
     q = Supplier.query.order_by(Supplier.name.asc())
     if search:
@@ -1349,28 +1404,25 @@ def suppliers_report():
             )
         )
 
-    suppliers = q.all()
-    data = []
-    total_balance = 0.0
-    for supplier in suppliers:
-        db.session.refresh(supplier)
-        balance = float(supplier.balance or 0)
-        if balance_filter == "positive" and balance <= 0:
-            continue
-        if balance_filter == "negative" and balance >= 0:
-            continue
-        if balance_filter == "zero" and balance != 0:
-            continue
-        data.append(
-            {
-                "id": supplier.id,
-                "name": supplier.name,
-                "balance": balance,
-            }
-        )
-        total_balance += balance
+    balance_col = Supplier.current_balance
+    if balance_filter == "positive":
+        q = q.filter(balance_col > 0)
+    elif balance_filter == "negative":
+        q = q.filter(balance_col < 0)
+    elif balance_filter == "zero":
+        q = q.filter(balance_col == 0)
 
+    total_balance = float((q.order_by(None).with_entities(func.coalesce(func.sum(balance_col), 0)).scalar()) or 0)
     totals = {"balance": total_balance}
+
+    pagination = None
+    if export_format != "csv":
+        pagination = q.paginate(page=page, per_page=per_page, error_out=False)
+        suppliers = list(pagination.items or [])
+    else:
+        suppliers = q.limit(20000).all()
+
+    data = [{"id": s.id, "name": s.name, "balance": float(getattr(s, "current_balance", None) or getattr(s, "balance", 0) or 0)} for s in suppliers]
 
     if export_format == "csv":
         import csv
@@ -1393,11 +1445,16 @@ def suppliers_report():
         totals=totals,
         search=search,
         balance_filter=balance_filter,
+        pagination=pagination,
+        per_page=per_page,
+        query_args={k: v for k, v in request.args.to_dict().items() if k not in ("page", "per_page")},
         FIELD_LABELS=FIELD_LABELS,
         MODEL_LABELS=MODEL_LABELS,
     )
 
 @reports_bp.route("/partners", methods=["GET"], endpoint="partners_report")
+@login_required
+@utils.permission_required("view_reports")
 def partners_report():
     from datetime import datetime
     from utils import get_entity_balance_in_ils
@@ -1405,6 +1462,9 @@ def partners_report():
     search = (request.args.get("q") or "").strip()
     balance_filter = (request.args.get("balance") or "").strip()
     export_format = (request.args.get("format") or "").lower()
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 50, type=int)
+    per_page = min(200, max(10, per_page))
 
     q = Partner.query.order_by(Partner.name.asc())
     if search:
@@ -1417,7 +1477,19 @@ def partners_report():
             )
         )
 
-    partners = q.all()
+    if balance_filter == "positive":
+        q = q.filter(Partner.current_balance > 0)
+    elif balance_filter == "negative":
+        q = q.filter(Partner.current_balance < 0)
+    elif balance_filter == "zero":
+        q = q.filter(Partner.current_balance == 0)
+
+    pagination = None
+    if export_format != "csv":
+        pagination = q.paginate(page=page, per_page=per_page, error_out=False)
+        partners = list(pagination.items or [])
+    else:
+        partners = q.limit(20000).all()
     data = []
     total_balance = 0.0
 
@@ -1428,14 +1500,7 @@ def partners_report():
         except Exception:
             smart_balance = None
 
-        balance = smart_balance if smart_balance is not None else float(partner.balance or 0)
-
-        if balance_filter == "positive" and balance <= 0:
-            continue
-        if balance_filter == "negative" and balance >= 0:
-            continue
-        if balance_filter == "zero" and balance != 0:
-            continue
+        balance = smart_balance if smart_balance is not None else float(partner.current_balance or 0)
 
         data.append(
             {
@@ -1471,252 +1536,374 @@ def partners_report():
         totals=totals,
         search=search,
         balance_filter=balance_filter,
+        pagination=pagination,
+        per_page=per_page,
+        query_args={k: v for k, v in request.args.to_dict().items() if k not in ("page", "per_page")},
         FIELD_LABELS=FIELD_LABELS,
         MODEL_LABELS=MODEL_LABELS,
     )
 
 @reports_bp.route("/customers", methods=["GET"], endpoint="customers_report")
 @login_required
+@utils.permission_required("view_reports")
 def customers_report():
     return customers_advanced_report()
 
 
 @reports_bp.route("/customers/advanced", methods=["GET"], endpoint="customers_advanced_report")
 @login_required
+@utils.permission_required("view_reports")
 def customers_advanced_report():
     """تقرير العملاء الشامل الاحترافي"""
-    from decimal import Decimal
-    from models import convert_amount
+    from datetime import datetime
     from sqlalchemy import or_
-    
-    search = request.args.get('search', '').strip()
-    balance_status = request.args.get('balance_status', '')
-    
-    query = Customer.query
-    
+
+    start = _parse_date(request.args.get("start"))
+    end = _parse_date(request.args.get("end"))
+    search = (request.args.get("search") or request.args.get("q") or "").strip()
+    balance_status = (request.args.get("balance_status") or "").strip()
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 50, type=int)
+    per_page = min(200, max(10, per_page))
+
+    cust_filters = []
     if search:
-        query = query.filter(
+        cust_filters.append(
             or_(
-                Customer.name.ilike(f'%{search}%'),
-                Customer.phone.ilike(f'%{search}%'),
-                Customer.email.ilike(f'%{search}%')
+                Customer.name.ilike(f"%{search}%"),
+                Customer.phone.ilike(f"%{search}%"),
+                Customer.email.ilike(f"%{search}%"),
             )
         )
-    
-    all_customers = query.limit(10000).all()
-    customers_data = []
-    
-    total_invoiced_sum = Decimal('0.00')
-    total_paid_sum = Decimal('0.00')
-    total_invoices_count = 0
-    
-    for cust in all_customers:
-        invoiced_ils = Decimal('0.00')
-        paid_ils = Decimal('0.00')
-        invoice_count = 0
-        last_transaction = None
-        
-        invoices = db.session.query(Invoice).filter(
-            Invoice.customer_id == cust.id,
-            Invoice.cancelled_at.is_(None)
-        ).limit(10000).all()
-        invoice_count += len(invoices)
-        for inv in invoices:
-            amt = Decimal(str(inv.total_amount or 0))
-            invoiced_ils += amt
-            if not last_transaction or (inv.invoice_date and inv.invoice_date > last_transaction):
-                last_transaction = inv.invoice_date
-        
-        payments = db.session.query(Payment).filter(
-            Payment.customer_id == cust.id,
-            Payment.direction == PaymentDirection.IN.value,
-            Payment.status == PaymentStatus.COMPLETED.value
-        ).limit(10000).all()
-        for p in payments:
-            amt = Decimal(str(p.total_amount or 0))
-            paid_ils += amt
-            if not last_transaction or (p.payment_date and p.payment_date > last_transaction):
-                last_transaction = p.payment_date
-        
-        db.session.refresh(cust)
-        balance = Decimal(str(cust.current_balance or 0))
-        
-        if balance_status == 'debit' and balance <= 0:
-            continue
-        elif balance_status == 'credit' and balance >= 0:
-            continue
-        elif balance_status == 'zero' and balance != 0:
-            continue
-        
-        if invoiced_ils != 0 or paid_ils != 0 or balance != 0:
-            total_invoiced_sum += invoiced_ils
-            total_paid_sum += paid_ils
-            total_invoices_count += invoice_count
-            
-            customers_data.append({
-                'id': cust.id,
-                'name': cust.name,
-                'phone': cust.phone or '',
-                'email': cust.email or '',
-                'stats': {
-                    'total_invoiced': float(invoiced_ils),
-                    'total_paid': float(paid_ils),
-                    'balance': float(balance),
-                    'invoice_count': invoice_count,
-                    'last_transaction': last_transaction
-                }
-            })
-    
-    total_balance_sum = Decimal('0.00')
-    for c in customers_data:
-        total_balance_sum += Decimal(str(c['stats']['balance']))
-    
-    customers_data.sort(key=lambda x: abs(x['stats']['balance']), reverse=True)
-    
-    summary = {
-        'total_customers': len(customers_data),
-        'total_invoiced': float(total_invoiced_sum),
-        'total_paid': float(total_paid_sum),
-        'total_balance': float(total_balance_sum),
-        'avg_invoice': float(total_invoiced_sum / len(customers_data)) if len(customers_data) > 0 else 0,
-        'payment_ratio': float(total_paid_sum / total_invoiced_sum * 100) if total_invoiced_sum > 0 else 0,
-        'total_invoices': total_invoices_count
-    }
-    
-    top_customers = sorted(customers_data, key=lambda x: x['stats']['total_invoiced'], reverse=True)[:5]
-    
-    all_customers_data = []
-    for c in customers_data:
-        all_customers_data.append({
-            'id': c['id'],
-            'name': c['name'],
-            'phone': c['phone'],
-            'email': c['email'],
-            'total_invoiced': c['stats']['total_invoiced'],
-            'total_paid': c['stats']['total_paid'],
-            'balance': c['stats']['balance'],
-        })
-    
+    if balance_status == "debit":
+        cust_filters.append(Customer.current_balance > 0)
+    elif balance_status == "credit":
+        cust_filters.append(Customer.current_balance < 0)
+    elif balance_status == "zero":
+        cust_filters.append(Customer.current_balance == 0)
+
+    customer_q = Customer.query
+    if cust_filters:
+        customer_q = customer_q.filter(*cust_filters)
+    customer_q = customer_q.order_by(func.abs(func.coalesce(Customer.current_balance, 0)).desc(), Customer.id.desc())
+
+    pagination = customer_q.paginate(page=page, per_page=per_page, error_out=False)
+    customers = list(pagination.items or [])
+    customer_ids = [c.id for c in customers if getattr(c, "id", None)]
+
+    inv_start_dt = datetime.combine(start, datetime.min.time()) if start else None
+    inv_end_dt = datetime.combine(end, datetime.max.time()) if end else None
+
+    inv_fx = case(
+        (func.upper(func.coalesce(Invoice.currency, "ILS")) == "ILS", 1),
+        else_=func.coalesce(Invoice.fx_rate_used, 1),
+    )
+    inv_amount_ils = func.coalesce(Invoice.total_amount, 0) * inv_fx
+
+    inv_q = db.session.query(
+        Invoice.customer_id.label("cid"),
+        func.coalesce(func.sum(inv_amount_ils), 0).label("total_invoiced"),
+        func.count(Invoice.id).label("invoice_count"),
+        func.max(Invoice.invoice_date).label("last_invoice"),
+    ).filter(Invoice.cancelled_at.is_(None))
+    if customer_ids:
+        inv_q = inv_q.filter(Invoice.customer_id.in_(customer_ids))
+    if inv_start_dt:
+        inv_q = inv_q.filter(Invoice.invoice_date >= inv_start_dt)
+    if inv_end_dt:
+        inv_q = inv_q.filter(Invoice.invoice_date <= inv_end_dt)
+    inv_rows = inv_q.group_by(Invoice.customer_id).all() if customer_ids else []
+    inv_map = {int(r.cid): r for r in inv_rows}
+
+    pay_fx = case(
+        (func.upper(func.coalesce(Payment.currency, "ILS")) == "ILS", 1),
+        else_=func.coalesce(Payment.fx_rate_used, 1),
+    )
+    pay_amount_ils = func.coalesce(Payment.total_amount, 0) * pay_fx
+    pay_q = db.session.query(
+        Payment.customer_id.label("cid"),
+        func.coalesce(func.sum(pay_amount_ils), 0).label("total_paid"),
+        func.max(Payment.payment_date).label("last_payment"),
+    ).filter(
+        Payment.direction == PaymentDirection.IN.value,
+        Payment.status == PaymentStatus.COMPLETED.value,
+    )
+    if customer_ids:
+        pay_q = pay_q.filter(Payment.customer_id.in_(customer_ids))
+    if inv_start_dt:
+        pay_q = pay_q.filter(Payment.payment_date >= inv_start_dt)
+    if inv_end_dt:
+        pay_q = pay_q.filter(Payment.payment_date <= inv_end_dt)
+    pay_rows = pay_q.group_by(Payment.customer_id).all() if customer_ids else []
+    pay_map = {int(r.cid): r for r in pay_rows}
+
+    data = []
+    for c in customers:
+        cid = int(c.id)
+        inv_r = inv_map.get(cid)
+        pay_r = pay_map.get(cid)
+        total_invoiced = float(getattr(inv_r, "total_invoiced", 0) or 0)
+        total_paid = float(getattr(pay_r, "total_paid", 0) or 0)
+        balance = float(getattr(c, "current_balance", 0) or 0)
+        data.append(
+            {
+                "id": cid,
+                "name": c.name,
+                "phone": c.phone or "",
+                "email": c.email or "",
+                "total_invoiced": total_invoiced,
+                "total_paid": total_paid,
+                "balance": balance,
+            }
+        )
+
+    total_customers = int((Customer.query.filter(*cust_filters).with_entities(func.count(Customer.id)).scalar()) or 0) if cust_filters else int(db.session.query(func.count(Customer.id)).scalar() or 0)
+    total_balance = float((Customer.query.filter(*cust_filters).with_entities(func.coalesce(func.sum(Customer.current_balance), 0)).scalar()) or 0) if cust_filters else float(db.session.query(func.coalesce(func.sum(Customer.current_balance), 0)).scalar() or 0)
+
+    inv_total_q = db.session.query(func.coalesce(func.sum(inv_amount_ils), 0)).select_from(Invoice).join(Customer, Customer.id == Invoice.customer_id).filter(Invoice.cancelled_at.is_(None))
+    if cust_filters:
+        inv_total_q = inv_total_q.filter(*cust_filters)
+    if inv_start_dt:
+        inv_total_q = inv_total_q.filter(Invoice.invoice_date >= inv_start_dt)
+    if inv_end_dt:
+        inv_total_q = inv_total_q.filter(Invoice.invoice_date <= inv_end_dt)
+    total_invoiced = float(inv_total_q.scalar() or 0)
+
+    pay_total_q = db.session.query(func.coalesce(func.sum(pay_amount_ils), 0)).select_from(Payment).join(Customer, Customer.id == Payment.customer_id).filter(
+        Payment.direction == PaymentDirection.IN.value,
+        Payment.status == PaymentStatus.COMPLETED.value,
+    )
+    if cust_filters:
+        pay_total_q = pay_total_q.filter(*cust_filters)
+    if inv_start_dt:
+        pay_total_q = pay_total_q.filter(Payment.payment_date >= inv_start_dt)
+    if inv_end_dt:
+        pay_total_q = pay_total_q.filter(Payment.payment_date <= inv_end_dt)
+    total_paid = float(pay_total_q.scalar() or 0)
+
+    query_args = request.args.to_dict()
+    query_args.pop("page", None)
+    query_args.pop("per_page", None)
+
     return render_template(
         "reports/customers.html",
-        data=all_customers_data,
-        totals={
-            'invoiced': summary['total_invoiced'],
-            'paid': summary['total_paid'],
-            'balance': summary['total_balance']
-        },
-        start=request.args.get("start_date", ""),
-        end=request.args.get("end_date", ""),
+        data=data,
+        totals={"invoiced": total_invoiced, "paid": total_paid, "balance": total_balance},
+        total_customers=total_customers,
+        start=request.args.get("start", ""),
+        end=request.args.get("end", ""),
+        search=search,
+        balance_status=balance_status,
+        pagination=pagination,
+        per_page=per_page,
+        query_args=query_args,
         FIELD_LABELS=FIELD_LABELS,
-        MODEL_LABELS=MODEL_LABELS
+        MODEL_LABELS=MODEL_LABELS,
     )
 
 
 @reports_bp.route("/sales/advanced", methods=["GET"], endpoint="sales_advanced_report")
 @login_required
+@utils.permission_required("view_reports")
 def sales_advanced_report():
     """تقرير المبيعات الشامل الاحترافي"""
-    from decimal import Decimal
-    from collections import defaultdict
-    from sqlalchemy.orm import joinedload
     from datetime import datetime, timedelta
-    
+    from sqlalchemy.orm import load_only
+
     sd = _parse_date(request.args.get("start_date"))
     ed = _parse_date(request.args.get("end_date"))
     customer_id = request.args.get("customer_id")
     status_filter = request.args.get("status")
-    try:
-        limit_rows = int(request.args.get("limit") or 1000)
-    except Exception:
-        limit_rows = 1000
-    limit_rows = max(100, min(limit_rows, 5000))
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 50, type=int)
+    per_page = min(200, max(10, per_page))
     
     if sd and ed and ed < sd:
         sd, ed = ed, sd
     if not sd and not ed:
         sd = (datetime.now().date() - timedelta(days=90))
     
-    query = Sale.query.options(
-        joinedload(Sale.customer),
-        joinedload(Sale.lines),
-        joinedload(Sale.seller_employee),
-        joinedload(Sale.seller),
+    base_q = Sale.query.options(
+        db.joinedload(Sale.customer),
+        db.joinedload(Sale.seller_employee),
+        db.joinedload(Sale.seller),
     )
     
     if sd:
         start_dt = datetime.combine(sd, datetime.min.time())
-        query = query.filter(Sale.sale_date >= start_dt)
+        base_q = base_q.filter(Sale.sale_date >= start_dt)
     if ed:
         end_dt = datetime.combine(ed, datetime.max.time())
-        query = query.filter(Sale.sale_date <= end_dt)
+        base_q = base_q.filter(Sale.sale_date <= end_dt)
     
     if customer_id:
         try:
-            query = query.filter(Sale.customer_id == int(customer_id))
+            base_q = base_q.filter(Sale.customer_id == int(customer_id))
         except Exception:
             pass
     
     employee_id = request.args.get("employee_id")
 
     if status_filter:
-        query = query.filter(Sale.status == status_filter)
+        base_q = base_q.filter(Sale.status == status_filter)
     else:
-        query = query.filter(Sale.status == SaleStatus.CONFIRMED)
+        base_q = base_q.filter(Sale.status == SaleStatus.CONFIRMED.value)
 
     if employee_id:
         try:
-            query = query.filter(Sale.seller_employee_id == int(employee_id))
+            base_q = base_q.filter(Sale.seller_employee_id == int(employee_id))
         except Exception:
             pass
     
-    sales = query.order_by(Sale.sale_date.desc()).limit(limit_rows).all()
-    
-    total_revenue = Decimal('0.00')
-    total_items = 0
-    total_quantity = 0
-    daily_sales_dict = defaultdict(lambda: Decimal('0.00'))
-    product_sales_dict = defaultdict(lambda: {'quantity': 0, 'revenue': Decimal('0.00')})
-    
-    for sale in sales:
-        sale_total = _to_ils(sale.total_amount or 0, getattr(sale, "currency", "ILS"), sale.sale_date)
-        total_revenue += sale_total
-        total_items += len(sale.lines)
-        
-        for line in sale.lines:
-            total_quantity += line.quantity or 0
-            line_amount = _to_ils(line.net_amount or 0, getattr(sale, "currency", "ILS"), sale.sale_date)
-            
-            if sale.sale_date:
-                date_key = sale.sale_date.date().isoformat()
-                daily_sales_dict[date_key] += line_amount
-            
-            if line.product:
-                product_sales_dict[line.product.id]['name'] = line.product.name
-                product_sales_dict[line.product.id]['quantity'] += line.quantity or 0
-                product_sales_dict[line.product.id]['revenue'] += line_amount
-    
+    fx_mult = case(
+        (func.upper(func.coalesce(Sale.currency, "ILS")) == "ILS", 1),
+        else_=func.coalesce(Sale.fx_rate_used, 1),
+    )
+    total_amount_ils = func.coalesce(Sale.total_amount, 0) * fx_mult
+
+    agg_sales = base_q.with_entities(
+        func.count(Sale.id).label("total_sales"),
+        func.coalesce(func.sum(total_amount_ils), 0).label("total_revenue"),
+    ).first()
+
+    total_sales = int(getattr(agg_sales, "total_sales", 0) or 0)
+    total_revenue = float(getattr(agg_sales, "total_revenue", 0) or 0)
+
+    items_q = (
+        db.session.query(
+            func.count(SaleLine.id).label("total_items"),
+            func.coalesce(func.sum(SaleLine.quantity), 0).label("total_quantity"),
+        )
+        .join(Sale, SaleLine.sale_id == Sale.id)
+    )
+    if sd:
+        items_q = items_q.filter(Sale.sale_date >= datetime.combine(sd, datetime.min.time()))
+    if ed:
+        items_q = items_q.filter(Sale.sale_date <= datetime.combine(ed, datetime.max.time()))
+    if customer_id:
+        try:
+            items_q = items_q.filter(Sale.customer_id == int(customer_id))
+        except Exception:
+            pass
+    if status_filter:
+        items_q = items_q.filter(Sale.status == status_filter)
+    else:
+        items_q = items_q.filter(Sale.status == SaleStatus.CONFIRMED.value)
+    if employee_id:
+        try:
+            items_q = items_q.filter(Sale.seller_employee_id == int(employee_id))
+        except Exception:
+            pass
+
+    items_row = items_q.first()
+    total_items = int(getattr(items_row, "total_items", 0) or 0)
+    total_quantity = int(getattr(items_row, "total_quantity", 0) or 0)
+
+    pagination = base_q.order_by(Sale.sale_date.desc(), Sale.id.desc()).paginate(
+        page=page, per_page=per_page, error_out=False
+    )
+    sales = list(pagination.items or [])
+
+    sale_ids = [s.id for s in sales if getattr(s, "id", None)]
+    line_counts = {}
+    if sale_ids:
+        lc_rows = (
+            db.session.query(SaleLine.sale_id, func.count(SaleLine.id))
+            .filter(SaleLine.sale_id.in_(sale_ids))
+            .group_by(SaleLine.sale_id)
+            .all()
+        )
+        line_counts = {sid: int(cnt or 0) for sid, cnt in lc_rows}
+
+    for s in sales:
+        try:
+            setattr(s, "line_count", int(line_counts.get(s.id, 0)))
+        except Exception:
+            pass
+        try:
+            if (getattr(s, "currency", "ILS") or "ILS").upper() == "ILS":
+                s.total_amount_ils = float(s.total_amount or 0)
+            elif getattr(s, "fx_rate_used", None):
+                s.total_amount_ils = float(Decimal(str(s.total_amount or 0)) * Decimal(str(s.fx_rate_used)))
+            else:
+                s.total_amount_ils = float(_to_ils(s.total_amount or 0, getattr(s, "currency", "ILS"), s.sale_date))
+        except Exception:
+            s.total_amount_ils = float(s.total_amount or 0)
+
     summary = {
-        'total_sales': len(sales),
+        'total_sales': total_sales,
         'total_revenue': float(total_revenue),
-        'avg_sale': float(total_revenue / len(sales)) if len(sales) > 0 else 0,
+        'avg_sale': float(total_revenue / total_sales) if total_sales > 0 else 0,
         'total_items': total_items,
         'total_quantity': total_quantity,
-        'avg_item_value': float(total_revenue / total_items) if total_items > 0 else 0
+        'avg_item_value': float(total_revenue / total_items) if total_items > 0 else 0,
     }
-    
-    daily_sales = [{'date': d, 'total': float(v)} for d, v in sorted(daily_sales_dict.items())]
-    
-    top_products = sorted([
-        {'id': pid, 'name': pdata.get('name', 'منتج'), 'quantity': pdata['quantity'], 'revenue': float(pdata['revenue'])}
-        for pid, pdata in product_sales_dict.items()
-    ], key=lambda x: x['revenue'], reverse=True)[:5]
-    
-    all_customers = Customer.query.order_by(Customer.name).all()
-    employees = Employee.query.order_by(Employee.name).all()
+
+    daily_rows = (
+        base_q.with_entities(
+            func.date(Sale.sale_date).label("day"),
+            func.coalesce(func.sum(total_amount_ils), 0).label("total"),
+        )
+        .group_by("day")
+        .order_by("day")
+        .all()
+    )
+    daily_sales = [{"date": str(d), "total": float(t or 0)} for d, t in daily_rows]
+
+    line_total_expr = (
+        (SaleLine.quantity * SaleLine.unit_price)
+        * (1 - (func.coalesce(SaleLine.discount_rate, 0) / 100.0))
+        * (1 + (func.coalesce(SaleLine.tax_rate, 0) / 100.0))
+    )
+    top_rows = (
+        db.session.query(
+            Product.id.label("id"),
+            Product.name.label("name"),
+            func.coalesce(func.sum(SaleLine.quantity), 0).label("qty"),
+            func.coalesce(func.sum(line_total_expr * fx_mult), 0).label("rev"),
+        )
+        .join(SaleLine, SaleLine.product_id == Product.id)
+        .join(Sale, Sale.id == SaleLine.sale_id)
+        .filter(Sale.id.isnot(None))
+    )
+    if sd:
+        top_rows = top_rows.filter(Sale.sale_date >= datetime.combine(sd, datetime.min.time()))
+    if ed:
+        top_rows = top_rows.filter(Sale.sale_date <= datetime.combine(ed, datetime.max.time()))
+    if customer_id:
+        try:
+            top_rows = top_rows.filter(Sale.customer_id == int(customer_id))
+        except Exception:
+            pass
+    if status_filter:
+        top_rows = top_rows.filter(Sale.status == status_filter)
+    else:
+        top_rows = top_rows.filter(Sale.status == SaleStatus.CONFIRMED.value)
+    if employee_id:
+        try:
+            top_rows = top_rows.filter(Sale.seller_employee_id == int(employee_id))
+        except Exception:
+            pass
+    top_rows = (
+        top_rows.group_by(Product.id, Product.name)
+        .order_by(func.coalesce(func.sum(line_total_expr * fx_mult), 0).desc())
+        .limit(5)
+        .all()
+    )
+    top_products = [{"id": pid, "name": pname or "منتج", "quantity": int(qty or 0), "revenue": float(rev or 0)} for pid, pname, qty, rev in top_rows]
+
+    all_customers = Customer.query.options(load_only(Customer.id, Customer.name)).order_by(Customer.name).all()
+    employees = Employee.query.options(load_only(Employee.id, Employee.name)).order_by(Employee.name).all()
+
+    query_args = request.args.to_dict()
+    query_args.pop("page", None)
+    query_args.pop("per_page", None)
     
     return render_template(
         "reports/sales.html",
         sales=sales,
+        pagination=pagination,
+        per_page=per_page,
         summary=summary,
         daily_sales=daily_sales,
         top_products=top_products,
@@ -1725,34 +1912,24 @@ def sales_advanced_report():
         selected_employee_id=int(employee_id) if employee_id else None,
         show_charts=True,
         FIELD_LABELS=FIELD_LABELS,
-        MODEL_LABELS=MODEL_LABELS
+        MODEL_LABELS=MODEL_LABELS,
+        query_args=query_args,
     )
 
 
 @reports_bp.route("/expenses", methods=["GET"], endpoint="expenses_report")
+@login_required
+@utils.permission_required("view_reports")
 def expenses_report():
     from decimal import Decimal
     from models import Warehouse, Partner, ExpenseType, convert_amount
-    try:
-        from sqlalchemy import text as sa_text
-        idx_sql = [
-            "CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses (date)",
-            "CREATE INDEX IF NOT EXISTS idx_expenses_type ON expenses (type_id)",
-            "CREATE INDEX IF NOT EXISTS idx_expenses_partner_date ON expenses (partner_id, date)",
-            "CREATE INDEX IF NOT EXISTS idx_expenses_warehouse_date ON expenses (warehouse_id, date)",
-        ]
-        for sql in idx_sql:
-            try:
-                db.session.execute(sa_text(sql))
-            except Exception:
-                pass
-        db.session.commit()
-    except Exception:
-        pass
 
     start = _parse_date(request.args.get("start"))
     end = _parse_date(request.args.get("end"))
     tab = (request.args.get("tab") or "expenses").strip()
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 50, type=int)
+    per_page = min(200, max(10, per_page))
 
     expense_type = (request.args.get("type") or "").strip()
     warehouse_id = request.args.get("warehouse_id")
@@ -1788,35 +1965,87 @@ def expenses_report():
     elif is_paid in ["false", "0"]:
         q = q.filter(Expense.is_paid.is_(False))
 
-    q = q.order_by(Expense.date.desc())
-    rows = q.all()
+    q = q.order_by(Expense.date.desc(), Expense.id.desc())
 
-    def _to_ils(amount, currency, ref_date):
+    fx_mult = case(
+        (func.upper(func.coalesce(Expense.currency, "ILS")) == "ILS", 1),
+        else_=func.coalesce(Expense.fx_rate_used, 1),
+    )
+    amount_ils_expr = func.coalesce(Expense.amount, 0) * fx_mult
+
+    agg = q.with_entities(
+        func.count(Expense.id).label("cnt"),
+        func.coalesce(func.sum(amount_ils_expr), 0).label("total_amount"),
+    ).first()
+    total_count = int(getattr(agg, "cnt", 0) or 0)
+    total_amount = float(getattr(agg, "total_amount", 0) or 0)
+
+    pagination = None
+    rows = []
+    if tab == "expenses":
+        pagination = q.options(
+            db.joinedload(Expense.type),
+            db.joinedload(Expense.employee),
+            db.joinedload(Expense.warehouse),
+            db.joinedload(Expense.partner),
+        ).paginate(page=page, per_page=per_page, error_out=False)
+        rows = list(pagination.items or [])
+    else:
+        rows = []
+
+    def _to_ils(amount, currency, fx_used, ref_date):
         value = Decimal(str(amount or 0))
-        if currency and currency != "ILS":
+        code = (currency or "ILS").upper()
+        if code == "ILS":
+            return value
+        if fx_used:
             try:
-                value = convert_amount(value, currency, "ILS", ref_date)
+                return value * Decimal(str(fx_used))
             except Exception:
                 pass
-        return value
+        try:
+            return convert_amount(value, code, "ILS", ref_date)
+        except Exception:
+            return value
 
-    total = Decimal("0.00")
-    by_type = {}
-    by_emp = {}
     for e in rows:
-        amount_ils = _to_ils(e.amount, e.currency, getattr(e, "date", None))
-        setattr(e, "amount_ils", float(amount_ils))
-        total += amount_ils
-        type_label = e.type.name if e.type else "غير محدد"
-        by_type[type_label] = by_type.get(type_label, Decimal("0.00")) + amount_ils
-        emp_label = e.employee.name if e.employee else "غير محدد"
-        by_emp[emp_label] = by_emp.get(emp_label, Decimal("0.00")) + amount_ils
+        try:
+            e.amount_ils = float(_to_ils(e.amount, e.currency, getattr(e, "fx_rate_used", None), getattr(e, "date", None)))
+        except Exception:
+            e.amount_ils = float(e.amount or 0)
 
-    type_labels = list(by_type.keys())
-    type_values = [float(v) for v in by_type.values()]
-    emp_labels = list(by_emp.keys())
-    emp_values = [float(v) for v in by_emp.values()]
-    total_amount = float(total)
+    type_labels = []
+    type_values = []
+    emp_labels = []
+    emp_values = []
+    if tab == "expenses":
+        by_type_rows = (
+            q.join(ExpenseType, Expense.type_id == ExpenseType.id, isouter=True)
+            .with_entities(
+                func.coalesce(ExpenseType.name, "غير محدد").label("label"),
+                func.coalesce(func.sum(amount_ils_expr), 0).label("total"),
+            )
+            .group_by("label")
+            .order_by(func.coalesce(func.sum(amount_ils_expr), 0).desc())
+            .limit(20)
+            .all()
+        )
+        type_labels = [str(lbl) for lbl, _ in by_type_rows]
+        type_values = [float(t or 0) for _, t in by_type_rows]
+
+        by_emp_rows = (
+            q.join(Employee, Expense.employee_id == Employee.id, isouter=True)
+            .with_entities(
+                func.coalesce(Employee.name, "غير محدد").label("label"),
+                func.coalesce(func.sum(amount_ils_expr), 0).label("total"),
+            )
+            .group_by("label")
+            .order_by(func.coalesce(func.sum(amount_ils_expr), 0).desc())
+            .limit(20)
+            .all()
+        )
+        emp_labels = [str(lbl) for lbl, _ in by_emp_rows]
+        emp_values = [float(t or 0) for _, t in by_emp_rows]
 
     warehouses = Warehouse.query.order_by(Warehouse.name).all()
     partners = Partner.query.order_by(Partner.name).all()
@@ -1870,8 +2099,14 @@ def expenses_report():
             ])
             return Response(csv_text, mimetype="text/csv; charset=utf-8", headers={"Content-Disposition": "attachment; filename=receipts_by_user.csv"})
         csv_rows = []
-        for e in rows:
-            amount_ils = getattr(e, "amount_ils", float(_to_ils(e.amount, e.currency, getattr(e, "date", None))))
+        export_rows = q.options(
+            db.joinedload(Expense.type),
+            db.joinedload(Expense.employee),
+            db.joinedload(Expense.warehouse),
+            db.joinedload(Expense.partner),
+        ).limit(20000).all()
+        for e in export_rows:
+            amount_ils = float(_to_ils(e.amount, e.currency, getattr(e, "fx_rate_used", None), getattr(e, "date", None)))
             csv_rows.append({
                 "id": e.id,
                 "date": (e.date.strftime('%Y-%m-%d') if getattr(e, 'date', None) else ''),
@@ -1887,10 +2122,18 @@ def expenses_report():
         csv_text = _csv_from_rows(csv_rows)
         return Response(csv_text, mimetype="text/csv; charset=utf-8", headers={"Content-Disposition": "attachment; filename=expenses.csv"})
 
+    query_args = request.args.to_dict()
+    query_args.pop("page", None)
+    query_args.pop("per_page", None)
+
     return render_template(
         "reports/expenses.html",
         data=rows,
         total_amount=total_amount,
+        total_count=total_count,
+        pagination=pagination,
+        per_page=per_page,
+        query_args=query_args,
         start=request.args.get("start", ""),
         end=request.args.get("end", ""),
         tab=tab,
@@ -1912,6 +2155,8 @@ def expenses_report():
     )
 
 @reports_bp.route("/ap-aging", methods=["GET"])
+@login_required
+@utils.permission_required("view_reports")
 def ap_aging():
     start = _parse_date(request.args.get("start"))
     end = _parse_date(request.args.get("end"))
@@ -1919,6 +2164,8 @@ def ap_aging():
     return render_template("reports/ap_aging.html", data=rpt.get("data", []), totals=rpt.get("totals", {}), as_of=rpt.get("as_of"), start=request.args.get("start", ""), end=request.args.get("end", ""), FIELD_LABELS=FIELD_LABELS, MODEL_LABELS=MODEL_LABELS)
 
 @reports_bp.route("/api/model_fields", methods=["GET"])
+@login_required
+@utils.permission_required("manage_reports")
 def model_fields():
     model_name = (request.args.get("model") or "").strip()
     if not model_name:
@@ -1934,18 +2181,30 @@ def model_fields():
     return jsonify({"columns": columns, "date_fields": date_fields, "all_fields": all_fields}), 200
 
 @reports_bp.route("/service-reports", methods=["GET"])
+@login_required
+@utils.permission_required("view_reports")
 def service_reports():
     start = _parse_date(request.args.get("start"))
     end = _parse_date(request.args.get("end"))
     status_filter = (request.args.get("status") or "").strip().upper()
     mechanic_id = request.args.get("mechanic_id", type=int)
     customer_id = request.args.get("customer_id", type=int)
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 50, type=int)
+    per_page = min(200, max(10, per_page))
     valid_statuses = {s.value for s in ServiceStatus}
     if status_filter and status_filter not in valid_statuses:
         status_filter = None
 
-    rpt = service_reports_report(start, end, status=status_filter, mechanic_id=mechanic_id, customer_id=customer_id)
     if (request.args.get("format") or "").lower() == "csv":
+        rpt = service_reports_report(
+            start,
+            end,
+            status=status_filter,
+            mechanic_id=mechanic_id,
+            customer_id=customer_id,
+            export=True,
+        )
         csv_rows = [
             {
                 "number": row.get("number"),
@@ -1954,7 +2213,7 @@ def service_reports():
                 "received_at": row.get("received_at"),
                 "customer": row.get("customer_name"),
                 "mechanic": row.get("mechanic_name"),
-                "total": row.get("total"),
+                "total_ils": row.get("total_ils"),
             }
             for row in rpt.get("data", [])
         ]
@@ -1965,9 +2224,23 @@ def service_reports():
             headers={"Content-Disposition": "attachment; filename=service_reports.csv"},
         )
 
-    mechanics = User.query.order_by(User.username.asc()).all()
-    customers = Customer.query.order_by(Customer.name.asc()).all()
+    rpt = service_reports_report(
+        start,
+        end,
+        status=status_filter,
+        mechanic_id=mechanic_id,
+        customer_id=customer_id,
+        page=page,
+        per_page=per_page,
+    )
+
+    mechanics = User.query.options(load_only(User.id, User.username)).order_by(User.username.asc()).all()
+    customers = Customer.query.options(load_only(Customer.id, Customer.name)).order_by(Customer.name.asc()).all()
     status_choices = [(s.value, s.label) for s in ServiceStatus]
+
+    query_args = request.args.to_dict()
+    query_args.pop("page", None)
+    query_args.pop("per_page", None)
 
     return render_template(
         "reports/service_reports.html",
@@ -1977,6 +2250,9 @@ def service_reports():
         parts=rpt.get("parts", 0.0),
         labor=rpt.get("labor", 0.0),
         data=rpt.get("data", []),
+        pagination=rpt.get("pagination"),
+        per_page=per_page,
+        query_args=query_args,
         start=request.args.get("start", ""),
         end=request.args.get("end", ""),
         mechanics=mechanics,
@@ -1990,6 +2266,8 @@ def service_reports():
     )
 
 @reports_bp.route("/api/dynamic", methods=["POST"])
+@login_required
+@utils.permission_required("manage_reports")
 def api_dynamic():
     payload = request.get_json(silent=True) or {}
     table = (payload.get("table") or "").strip()
@@ -2031,6 +2309,8 @@ def _csv_from_rows(rows: List[Dict[str, Any]]):
     return output.getvalue()
 
 @reports_bp.route("/export/dynamic.csv", methods=["POST"])
+@login_required
+@utils.permission_required("manage_reports")
 def export_dynamic_csv():
     table = (request.form.get("table") or "").strip()
     model = _ensure_model(table)
@@ -2051,6 +2331,8 @@ def export_dynamic_csv():
     return Response(csv_text, mimetype="text/csv; charset=utf-8", headers={"Content-Disposition": "attachment; filename=dynamic_report.csv"})
 
 @reports_bp.route("/export/ar_aging.csv", methods=["GET"])
+@login_required
+@utils.permission_required("view_reports")
 def export_ar_aging_csv():
     start = _parse_date(request.args.get("start"))
     end = _parse_date(request.args.get("end"))
@@ -2070,6 +2352,8 @@ def export_ar_aging_csv():
     return Response(csv_text, mimetype="text/csv; charset=utf-8", headers={"Content-Disposition": "attachment; filename=ar_aging.csv"})
 
 @reports_bp.route("/export/ap_aging.csv", methods=["GET"])
+@login_required
+@utils.permission_required("view_reports")
 def export_ap_aging_csv():
     start = _parse_date(request.args.get("start"))
     end = _parse_date(request.args.get("end"))
@@ -2090,8 +2374,11 @@ def export_ap_aging_csv():
 
 @reports_bp.route("/customer-detail/<int:customer_id>", methods=["GET"])
 @login_required
+@utils.permission_required("view_reports")
 def customer_detail_report(customer_id):
-    customer = Customer.query.get_or_404(customer_id)
+    from sqlalchemy.orm import load_only
+
+    customer = db.get_or_404(Customer, customer_id)
     balance_data = None
     try:
         balance_data = build_customer_balance_view(customer_id, db.session)
@@ -2100,103 +2387,115 @@ def customer_detail_report(customer_id):
 
     start_date = _parse_date(request.args.get("start"))
     end_date = _parse_date(request.args.get("end"))
-    sales_query = Sale.query.filter(Sale.customer_id == customer_id).options(
-        joinedload(Sale.lines).joinedload(SaleLine.product),
-        joinedload(Sale.lines).joinedload(SaleLine.warehouse),
-        joinedload(Sale.payments)
+    limit_rows = request.args.get("limit", 200, type=int)
+    limit_rows = min(5000, max(50, limit_rows))
+
+    start_dt = datetime.combine(start_date, datetime.min.time()) if start_date else None
+    end_dt = datetime.combine(end_date, datetime.max.time()) if end_date else None
+
+    base_sales_q = Sale.query.filter(Sale.customer_id == customer_id)
+    if start_dt:
+        base_sales_q = base_sales_q.filter(Sale.sale_date >= start_dt)
+    if end_dt:
+        base_sales_q = base_sales_q.filter(Sale.sale_date <= end_dt)
+    sales_count = int(base_sales_q.order_by(None).with_entities(func.count(Sale.id)).scalar() or 0)
+    sale_fx = case(
+        (func.upper(func.coalesce(Sale.currency, "ILS")) == "ILS", 1),
+        else_=func.coalesce(Sale.fx_rate_used, 1),
     )
-    if start_date:
-        sales_query = sales_query.filter(Sale.sale_date >= start_date)
-    if end_date:
-        sales_query = sales_query.filter(Sale.sale_date <= end_date)
-    sales = sales_query.order_by(Sale.sale_date.desc()).all()
-
-    invoices_query = Invoice.query.filter(Invoice.customer_id == customer_id)
-    if start_date:
-        invoices_query = invoices_query.filter(Invoice.invoice_date >= start_date)
-    if end_date:
-        invoices_query = invoices_query.filter(Invoice.invoice_date <= end_date)
-    invoices = invoices_query.order_by(Invoice.invoice_date.desc()).all()
-
-    services_query = ServiceRequest.query.filter(ServiceRequest.customer_id == customer_id).options(
-        joinedload(ServiceRequest.parts).joinedload(ServicePart.part),
-        joinedload(ServiceRequest.parts).joinedload(ServicePart.warehouse),
-        joinedload(ServiceRequest.tasks),
-        joinedload(ServiceRequest.payments)
+    total_sales = float((base_sales_q.order_by(None).with_entities(func.coalesce(func.sum(func.coalesce(Sale.total_amount, 0) * sale_fx), 0)).scalar()) or 0)
+    sales = (
+        base_sales_q.options(
+            load_only(Sale.id, Sale.sale_number, Sale.sale_date, Sale.status, Sale.payment_status, Sale.total_amount, Sale.currency, Sale.fx_rate_used),
+        )
+        .order_by(Sale.sale_date.desc(), Sale.id.desc())
+        .limit(limit_rows)
+        .all()
     )
-    if start_date:
-        services_query = services_query.filter(ServiceRequest.received_at >= start_date)
-    if end_date:
-        services_query = services_query.filter(ServiceRequest.received_at <= end_date)
-    services = services_query.order_by(ServiceRequest.received_at.desc()).all()
 
-    payments_query = Payment.query.filter(
+    base_inv_q = Invoice.query.filter(Invoice.customer_id == customer_id)
+    if start_dt:
+        base_inv_q = base_inv_q.filter(Invoice.invoice_date >= start_dt)
+    if end_dt:
+        base_inv_q = base_inv_q.filter(Invoice.invoice_date <= end_dt)
+    invoices_count = int(base_inv_q.order_by(None).with_entities(func.count(Invoice.id)).scalar() or 0)
+    inv_fx = case(
+        (func.upper(func.coalesce(Invoice.currency, "ILS")) == "ILS", 1),
+        else_=func.coalesce(Invoice.fx_rate_used, 1),
+    )
+    total_invoices = float((base_inv_q.order_by(None).with_entities(func.coalesce(func.sum(func.coalesce(Invoice.total_amount, 0) * inv_fx), 0)).scalar()) or 0)
+    invoices = (
+        base_inv_q.options(
+            load_only(Invoice.id, Invoice.invoice_number, Invoice.invoice_date, Invoice.currency, Invoice.fx_rate_used, Invoice.total_amount, Invoice.cancelled_at),
+        )
+        .order_by(Invoice.invoice_date.desc(), Invoice.id.desc())
+        .limit(limit_rows)
+        .all()
+    )
+
+    base_srv_q = ServiceRequest.query.filter(ServiceRequest.customer_id == customer_id)
+    if start_dt:
+        base_srv_q = base_srv_q.filter(ServiceRequest.received_at >= start_dt)
+    if end_dt:
+        base_srv_q = base_srv_q.filter(ServiceRequest.received_at <= end_dt)
+    services_count = int(base_srv_q.order_by(None).with_entities(func.count(ServiceRequest.id)).scalar() or 0)
+    srv_fx = case(
+        (func.upper(func.coalesce(ServiceRequest.currency, "ILS")) == "ILS", 1),
+        else_=func.coalesce(ServiceRequest.fx_rate_used, 1),
+    )
+    total_services = float((base_srv_q.order_by(None).with_entities(func.coalesce(func.sum(func.coalesce(ServiceRequest.total_amount, 0) * srv_fx), 0)).scalar()) or 0)
+    services = (
+        base_srv_q.options(
+            load_only(ServiceRequest.id, ServiceRequest.received_at, ServiceRequest.priority, ServiceRequest.mechanic_id, ServiceRequest.total_amount, ServiceRequest.status),
+        )
+        .order_by(ServiceRequest.received_at.desc(), ServiceRequest.id.desc())
+        .limit(limit_rows)
+        .all()
+    )
+
+    base_pay_q = Payment.query.filter(
         Payment.customer_id == customer_id,
         Payment.direction == PaymentDirection.IN.value,
-        Payment.status == PaymentStatus.COMPLETED.value
+        Payment.status == PaymentStatus.COMPLETED.value,
     )
-    if start_date:
-        payments_query = payments_query.filter(Payment.payment_date >= start_date)
-    if end_date:
-        payments_query = payments_query.filter(Payment.payment_date <= end_date)
-    payments = payments_query.order_by(Payment.payment_date.desc()).all()
+    if start_dt:
+        base_pay_q = base_pay_q.filter(Payment.payment_date >= start_dt)
+    if end_dt:
+        base_pay_q = base_pay_q.filter(Payment.payment_date <= end_dt)
+    payments_count = int(base_pay_q.order_by(None).with_entities(func.count(Payment.id)).scalar() or 0)
+    pay_fx = case(
+        (func.upper(func.coalesce(Payment.currency, "ILS")) == "ILS", 1),
+        else_=func.coalesce(Payment.fx_rate_used, 1),
+    )
+    total_payments = float((base_pay_q.order_by(None).with_entities(func.coalesce(func.sum(func.coalesce(Payment.total_amount, 0) * pay_fx), 0)).scalar()) or 0)
+    payments = (
+        base_pay_q.options(
+            load_only(Payment.id, Payment.payment_date, Payment.method, Payment.total_amount, Payment.currency, Payment.fx_rate_used, Payment.status, Payment.notes),
+        )
+        .order_by(Payment.payment_date.desc(), Payment.id.desc())
+        .limit(limit_rows)
+        .all()
+    )
 
-    preorders_query = OnlinePreOrder.query.filter(OnlinePreOrder.customer_id == customer_id)
-    if start_date:
-        preorders_query = preorders_query.filter(OnlinePreOrder.created_at >= start_date)
-    if end_date:
-        preorders_query = preorders_query.filter(OnlinePreOrder.created_at <= end_date)
-    preorders = preorders_query.order_by(OnlinePreOrder.created_at.desc()).all()
-
-    total_sales = Decimal('0.00')
-    for s in sales:
-        amt = Decimal(str(s.total_amount or 0))
-        if s.currency and s.currency != "ILS":
-            try:
-                amt = convert_amount(amt, s.currency, "ILS", s.sale_date)
-            except Exception:
-                pass
-        total_sales += amt
-    
-    total_invoices = Decimal('0.00')
-    for i in invoices:
-        amt = Decimal(str(i.total_amount or 0))
-        if i.currency and i.currency != "ILS":
-            try:
-                amt = convert_amount(amt, i.currency, "ILS", i.invoice_date)
-            except Exception:
-                pass
-        total_invoices += amt
-    
-    total_services = Decimal('0.00')
-    for s in services:
-        amt = Decimal(str(s.total_amount or 0))
-        if s.currency and s.currency != "ILS":
-            try:
-                amt = convert_amount(amt, s.currency, "ILS", s.received_at)
-            except Exception:
-                pass
-        total_services += amt
-    
-    total_payments = Decimal('0.00')
-    for p in payments:
-        amt = Decimal(str(p.total_amount or 0))
-        if p.currency and p.currency != "ILS":
-            try:
-                amt = convert_amount(amt, p.currency, "ILS", p.payment_date)
-            except Exception:
-                pass
-        total_payments += amt
-    
-    total_preorders = Decimal('0.00')
-    for p in preorders:
-        amt = Decimal(str(p.total_amount or 0))
-        if hasattr(p, 'currency') and p.currency and p.currency != "ILS":
-            try:
-                amt = convert_amount(amt, p.currency, "ILS", p.created_at)
-            except Exception:
-                pass
-        total_preorders += amt
+    base_po_q = OnlinePreOrder.query.filter(OnlinePreOrder.customer_id == customer_id)
+    if start_dt:
+        base_po_q = base_po_q.filter(OnlinePreOrder.created_at >= start_dt)
+    if end_dt:
+        base_po_q = base_po_q.filter(OnlinePreOrder.created_at <= end_dt)
+    preorders_count = int(base_po_q.order_by(None).with_entities(func.count(OnlinePreOrder.id)).scalar() or 0)
+    po_fx = case(
+        (func.upper(func.coalesce(OnlinePreOrder.currency, "ILS")) == "ILS", 1),
+        else_=func.coalesce(OnlinePreOrder.fx_rate_used, 1),
+    )
+    total_preorders = float((base_po_q.order_by(None).with_entities(func.coalesce(func.sum(func.coalesce(OnlinePreOrder.total_amount, 0) * po_fx), 0)).scalar()) or 0)
+    preorders = (
+        base_po_q.options(
+            load_only(OnlinePreOrder.id, OnlinePreOrder.created_at, OnlinePreOrder.total_amount, OnlinePreOrder.currency, OnlinePreOrder.fx_rate_used, OnlinePreOrder.status, OnlinePreOrder.notes),
+        )
+        .order_by(OnlinePreOrder.created_at.desc(), OnlinePreOrder.id.desc())
+        .limit(limit_rows)
+        .all()
+    )
 
     current_balance = float(customer.balance or 0)
     if balance_data and balance_data.get("success"):
@@ -2215,6 +2514,12 @@ def customer_detail_report(customer_id):
         total_services=total_services,
         total_payments=total_payments,
         total_preorders=total_preorders,
+        limit_rows=limit_rows,
+        sales_count=sales_count,
+        invoices_count=invoices_count,
+        services_count=services_count,
+        payments_count=payments_count,
+        preorders_count=preorders_count,
         current_balance=current_balance,
         balance_data=balance_data,
         start_date=request.args.get("start", ""),
@@ -2225,37 +2530,59 @@ def customer_detail_report(customer_id):
 
 @reports_bp.route("/supplier-detail/<int:supplier_id>", methods=["GET"])
 @login_required
+@utils.permission_required("view_reports")
 def supplier_detail_report(supplier_id):
-    supplier = Supplier.query.get_or_404(supplier_id)
+    from sqlalchemy.orm import load_only
+    from datetime import datetime
+
+    supplier = db.get_or_404(Supplier, supplier_id)
     db.session.refresh(supplier)
 
     start_date = _parse_date(request.args.get("start"))
     end_date = _parse_date(request.args.get("end"))
-    payments_out_query = Payment.query.options(
-        joinedload(Payment.sale)
-    ).filter(
+    limit_rows = request.args.get("limit", 200, type=int)
+    limit_rows = min(5000, max(50, limit_rows))
+
+    start_dt = datetime.combine(start_date, datetime.min.time()) if start_date else None
+    end_dt = datetime.combine(end_date, datetime.max.time()) if end_date else None
+
+    payments_out_query = Payment.query.filter(
         Payment.supplier_id == supplier_id,
         Payment.direction == PaymentDirection.OUT.value,
         Payment.status == PaymentStatus.COMPLETED.value
     )
-    if start_date:
-        payments_out_query = payments_out_query.filter(Payment.payment_date >= start_date)
-    if end_date:
-        payments_out_query = payments_out_query.filter(Payment.payment_date <= end_date)
-    payments_out = payments_out_query.order_by(Payment.payment_date.desc()).all()
+    if start_dt:
+        payments_out_query = payments_out_query.filter(Payment.payment_date >= start_dt)
+    if end_dt:
+        payments_out_query = payments_out_query.filter(Payment.payment_date <= end_dt)
+    payments_out_count = int(payments_out_query.order_by(None).with_entities(func.count(Payment.id)).scalar() or 0)
+    payments_out = (
+        payments_out_query.options(
+            load_only(Payment.id, Payment.payment_date, Payment.method, Payment.total_amount, Payment.currency, Payment.fx_rate_used, Payment.status, Payment.notes),
+        )
+        .order_by(Payment.payment_date.desc(), Payment.id.desc())
+        .limit(limit_rows)
+        .all()
+    )
     
-    payments_in_query = Payment.query.options(
-        joinedload(Payment.sale)
-    ).filter(
+    payments_in_query = Payment.query.filter(
         Payment.supplier_id == supplier_id,
         Payment.direction == PaymentDirection.IN.value,
         Payment.status == PaymentStatus.COMPLETED.value
     )
-    if start_date:
-        payments_in_query = payments_in_query.filter(Payment.payment_date >= start_date)
-    if end_date:
-        payments_in_query = payments_in_query.filter(Payment.payment_date <= end_date)
-    payments_in = payments_in_query.order_by(Payment.payment_date.desc()).all()
+    if start_dt:
+        payments_in_query = payments_in_query.filter(Payment.payment_date >= start_dt)
+    if end_dt:
+        payments_in_query = payments_in_query.filter(Payment.payment_date <= end_dt)
+    payments_in_count = int(payments_in_query.order_by(None).with_entities(func.count(Payment.id)).scalar() or 0)
+    payments_in = (
+        payments_in_query.options(
+            load_only(Payment.id, Payment.payment_date, Payment.method, Payment.total_amount, Payment.currency, Payment.fx_rate_used, Payment.status, Payment.notes),
+        )
+        .order_by(Payment.payment_date.desc(), Payment.id.desc())
+        .limit(limit_rows)
+        .all()
+    )
 
     from models import ExchangeTransaction
     exchange_query = ExchangeTransaction.query.options(
@@ -2264,11 +2591,26 @@ def supplier_detail_report(supplier_id):
     ).filter(
         ExchangeTransaction.supplier_id == supplier_id
     )
-    if start_date:
-        exchange_query = exchange_query.filter(ExchangeTransaction.created_at >= start_date)
-    if end_date:
-        exchange_query = exchange_query.filter(ExchangeTransaction.created_at <= end_date)
-    exchange_transactions = exchange_query.order_by(ExchangeTransaction.created_at.desc()).all()
+    if start_dt:
+        exchange_query = exchange_query.filter(ExchangeTransaction.created_at >= start_dt)
+    if end_dt:
+        exchange_query = exchange_query.filter(ExchangeTransaction.created_at <= end_dt)
+    exchange_total_count = int(exchange_query.order_by(None).with_entities(func.count(ExchangeTransaction.id)).scalar() or 0)
+    exchange_transactions = exchange_query.order_by(ExchangeTransaction.created_at.desc(), ExchangeTransaction.id.desc()).limit(limit_rows).all()
+    exchange_in_count = int(
+        exchange_query.order_by(None)
+        .filter(ExchangeTransaction.direction.in_(["IN", "PURCHASE", "CONSIGN_IN"]))
+        .with_entities(func.count(ExchangeTransaction.id))
+        .scalar()
+        or 0
+    )
+    exchange_out_count = int(
+        exchange_query.order_by(None)
+        .filter(ExchangeTransaction.direction.in_(["OUT", "RETURN", "CONSIGN_OUT"]))
+        .with_entities(func.count(ExchangeTransaction.id))
+        .scalar()
+        or 0
+    )
 
     sales = []
     if supplier.customer_id:
@@ -2279,27 +2621,33 @@ def supplier_detail_report(supplier_id):
             Sale.customer_id == supplier.customer_id,
             Sale.status == SaleStatus.CONFIRMED.value
         )
-        if start_date:
-            sales_query = sales_query.filter(Sale.sale_date >= start_date)
-        if end_date:
-            sales_query = sales_query.filter(Sale.sale_date <= end_date)
-        sales = sales_query.order_by(Sale.sale_date.desc()).all()
+        if start_dt:
+            sales_query = sales_query.filter(Sale.sale_date >= start_dt)
+        if end_dt:
+            sales_query = sales_query.filter(Sale.sale_date <= end_dt)
+        sales_count = int(sales_query.order_by(None).with_entities(func.count(Sale.id)).scalar() or 0)
+        sales = sales_query.order_by(Sale.sale_date.desc(), Sale.id.desc()).limit(limit_rows).all()
+    else:
+        sales_count = 0
 
     services = []
     if supplier.customer_id:
         from models import ServiceRequest, ServiceTask
         services_query = ServiceRequest.query.options(
-            joinedload(ServiceRequest.parts),
-            joinedload(ServiceRequest.tasks)
+            joinedload(ServiceRequest.parts).joinedload(ServicePart.part),
+            joinedload(ServiceRequest.tasks),
         ).filter(
             ServiceRequest.customer_id == supplier.customer_id,
             ServiceRequest.status == ServiceStatus.COMPLETED.value
         )
-        if start_date:
-            services_query = services_query.filter(ServiceRequest.received_at >= start_date)
-        if end_date:
-            services_query = services_query.filter(ServiceRequest.received_at <= end_date)
-        services = services_query.order_by(ServiceRequest.received_at.desc()).all()
+        if start_dt:
+            services_query = services_query.filter(ServiceRequest.received_at >= start_dt)
+        if end_dt:
+            services_query = services_query.filter(ServiceRequest.received_at <= end_dt)
+        services_count = int(services_query.order_by(None).with_entities(func.count(ServiceRequest.id)).scalar() or 0)
+        services = services_query.order_by(ServiceRequest.received_at.desc(), ServiceRequest.id.desc()).limit(limit_rows).all()
+    else:
+        services_count = 0
 
     preorders = []
     if supplier.customer_id:
@@ -2309,11 +2657,15 @@ def supplier_detail_report(supplier_id):
             PreOrder.customer_id == supplier.customer_id,
             PreOrder.status.in_(['CONFIRMED', 'COMPLETED'])
         )
-        if start_date:
-            preorders_query = preorders_query.filter(PreOrder.preorder_date >= start_date)
-        if end_date:
-            preorders_query = preorders_query.filter(PreOrder.preorder_date <= end_date)
-        preorders = preorders_query.order_by(PreOrder.preorder_date.desc()).all()
+        if start_dt:
+            preorders_query = preorders_query.filter(PreOrder.preorder_date >= start_dt)
+        if end_dt:
+            preorders_query = preorders_query.filter(PreOrder.preorder_date <= end_dt)
+        preorders_count = int(preorders_query.order_by(None).with_entities(func.count(PreOrder.id)).scalar() or 0)
+        preorders = preorders_query.order_by(PreOrder.preorder_date.desc(), PreOrder.id.desc()).limit(limit_rows).all()
+    else:
+        preorders_query = None
+        preorders_count = 0
 
     expenses_query = Expense.query.filter(
         or_(
@@ -2321,14 +2673,14 @@ def supplier_detail_report(supplier_id):
             and_(Expense.payee_type == 'SUPPLIER', Expense.payee_entity_id == supplier_id)
         )
     )
-    if start_date:
-        expenses_query = expenses_query.filter(Expense.date >= start_date)
-    if end_date:
-        expenses_query = expenses_query.filter(Expense.date <= end_date)
-    expenses = expenses_query.order_by(Expense.date.desc()).all()
+    if start_dt:
+        expenses_query = expenses_query.filter(Expense.date >= start_dt)
+    if end_dt:
+        expenses_query = expenses_query.filter(Expense.date <= end_dt)
+    expenses_count = int(expenses_query.order_by(None).with_entities(func.count(Expense.id)).scalar() or 0)
+    expenses = expenses_query.order_by(Expense.date.desc(), Expense.id.desc()).limit(limit_rows).all()
 
     from routes.supplier_settlements import _calculate_smart_supplier_balance
-    from datetime import datetime
     from decimal import Decimal
     
     date_from = start_date if start_date else datetime(2024, 1, 1)
@@ -2350,82 +2702,95 @@ def supplier_detail_report(supplier_id):
         total_expenses = Decimal(str(balance_data.get("expenses", {}).get("total_ils", 0)))
         total_exchange_out = Decimal(str(balance_data.get("payments", {}).get("total_returns", 0)))
     else:
-        from models import convert_amount
-        total_payments_out = Decimal('0.00')
-        total_payments_in = Decimal('0.00')
-        for p in payments_out:
-            amt = Decimal(str(p.total_amount or 0))
-            if p.currency and p.currency != "ILS" and amt > 0:
-                try:
-                    amt = convert_amount(amt, p.currency, "ILS", p.payment_date)
-                except Exception:
-                    pass
-            total_payments_out += amt
-        
-        for p in payments_in:
-            amt = Decimal(str(p.total_amount or 0))
-            if p.currency and p.currency != "ILS" and amt > 0:
-                try:
-                    amt = convert_amount(amt, p.currency, "ILS", p.payment_date)
-                except Exception:
-                    pass
-            total_payments_in += amt
-        
-        total_exchange_in = Decimal('0.00')
-        total_exchange_out = Decimal('0.00')
-        for tx in exchange_transactions:
-            amt = Decimal(str((tx.quantity or 0) * (tx.unit_cost or 0)))
-            if tx.currency and tx.currency != "ILS" and amt > 0:
-                try:
-                    amt = convert_amount(amt, tx.currency, "ILS", tx.created_at)
-                except Exception:
-                    pass
-            if tx.direction in ['IN', 'PURCHASE', 'CONSIGN_IN']:
-                total_exchange_in += amt
-            elif tx.direction in ['OUT', 'RETURN', 'CONSIGN_OUT']:
-                total_exchange_out += amt
-        
-        total_sales = Decimal('0.00')
-        for s in sales:
-            amt = Decimal(str(s.total_amount or 0))
-            if s.currency and s.currency != "ILS" and amt > 0:
-                try:
-                    amt = convert_amount(amt, s.currency, "ILS", s.sale_date)
-                except Exception:
-                    pass
-            total_sales += amt
-        
-        total_services = Decimal('0.00')
-        for s in services:
-            amt = Decimal(str(s.total_amount or 0))
-            if s.currency and s.currency != "ILS" and amt > 0:
-                try:
-                    amt = convert_amount(amt, s.currency, "ILS", s.received_at)
-                except Exception:
-                    pass
-            total_services += amt
-        
-        total_preorders = Decimal('0.00')
-        for p in preorders:
-            amt = Decimal(str(p.total_amount or 0))
-            if p.currency and p.currency != "ILS" and amt > 0:
-                try:
-                    amt = convert_amount(amt, p.currency, "ILS", p.preorder_date)
-                except Exception:
-                    pass
-            total_preorders += amt
-        
+        pay_fx = case(
+            (func.upper(func.coalesce(Payment.currency, "ILS")) == "ILS", 1),
+            else_=func.coalesce(Payment.fx_rate_used, 1),
+        )
+        total_payments_out = Decimal(
+            str(
+                (payments_out_query.order_by(None).with_entities(func.coalesce(func.sum(func.coalesce(Payment.total_amount, 0) * pay_fx), 0)).scalar())
+                or 0
+            )
+        )
+        total_payments_in = Decimal(
+            str(
+                (payments_in_query.order_by(None).with_entities(func.coalesce(func.sum(func.coalesce(Payment.total_amount, 0) * pay_fx), 0)).scalar())
+                or 0
+            )
+        )
+
+        tx_amount = func.coalesce(ExchangeTransaction.quantity, 0) * func.coalesce(ExchangeTransaction.unit_cost, 0)
+        total_exchange_in = Decimal(
+            str(
+                (
+                    exchange_query.order_by(None)
+                    .filter(ExchangeTransaction.direction.in_(["IN", "PURCHASE", "CONSIGN_IN"]))
+                    .with_entities(func.coalesce(func.sum(tx_amount), 0))
+                    .scalar()
+                )
+                or 0
+            )
+        )
+        total_exchange_out = Decimal(
+            str(
+                (
+                    exchange_query.order_by(None)
+                    .filter(ExchangeTransaction.direction.in_(["OUT", "RETURN", "CONSIGN_OUT"]))
+                    .with_entities(func.coalesce(func.sum(tx_amount), 0))
+                    .scalar()
+                )
+                or 0
+            )
+        )
+
+        if supplier.customer_id:
+            sale_fx = case(
+                (func.upper(func.coalesce(Sale.currency, "ILS")) == "ILS", 1),
+                else_=func.coalesce(Sale.fx_rate_used, 1),
+            )
+            total_sales = Decimal(
+                str(
+                    (sales_query.order_by(None).with_entities(func.coalesce(func.sum(func.coalesce(Sale.total_amount, 0) * sale_fx), 0)).scalar())
+                    or 0
+                )
+            )
+            srv_fx = case(
+                (func.upper(func.coalesce(ServiceRequest.currency, "ILS")) == "ILS", 1),
+                else_=func.coalesce(ServiceRequest.fx_rate_used, 1),
+            )
+            total_services = Decimal(
+                str(
+                    (services_query.order_by(None).with_entities(func.coalesce(func.sum(func.coalesce(ServiceRequest.total_amount, 0) * srv_fx), 0)).scalar())
+                    or 0
+                )
+            )
+            po_fx = case(
+                (func.upper(func.coalesce(PreOrder.currency, "ILS")) == "ILS", 1),
+                else_=func.coalesce(PreOrder.fx_rate_used, 1),
+            )
+            total_preorders = Decimal(
+                str(
+                    (preorders_query.order_by(None).with_entities(func.coalesce(func.sum(func.coalesce(PreOrder.total_amount, 0) * po_fx), 0)).scalar())
+                    or 0
+                )
+            ) if preorders_query is not None else Decimal("0.00")
+        else:
+            total_sales = Decimal("0.00")
+            total_services = Decimal("0.00")
+            total_preorders = Decimal("0.00")
+
         total_obligations = total_sales + total_services + total_preorders
-        
-        total_expenses = Decimal('0.00')
-        for e in expenses:
-            amt = Decimal(str(e.amount or 0))
-            if e.currency and e.currency != "ILS" and amt > 0:
-                try:
-                    amt = convert_amount(amt, e.currency, "ILS", e.date)
-                except Exception:
-                    pass
-            total_expenses += amt
+
+        exp_fx = case(
+            (func.upper(func.coalesce(Expense.currency, "ILS")) == "ILS", 1),
+            else_=func.coalesce(Expense.fx_rate_used, 1),
+        )
+        total_expenses = Decimal(
+            str(
+                (expenses_query.order_by(None).with_entities(func.coalesce(func.sum(func.coalesce(Expense.amount, 0) * exp_fx), 0)).scalar())
+                or 0
+            )
+        )
 
     current_balance = balance_data.get('balance', {}).get('amount', 0) if balance_data.get('success') else float(supplier.balance or 0)
 
@@ -2459,6 +2824,16 @@ def supplier_detail_report(supplier_id):
         total_obligations=float(total_obligations),
         current_balance=current_balance,
         supplier_breakdown=supplier_breakdown,
+        limit_rows=limit_rows,
+        payments_in_count=payments_in_count,
+        payments_out_count=payments_out_count,
+        exchange_total_count=exchange_total_count,
+        exchange_in_count=exchange_in_count,
+        exchange_out_count=exchange_out_count,
+        sales_count=sales_count,
+        services_count=services_count,
+        preorders_count=preorders_count,
+        expenses_count=expenses_count,
         start_date=request.args.get("start", ""),
         end_date=request.args.get("end", ""),
         FIELD_LABELS=FIELD_LABELS,
@@ -2467,86 +2842,163 @@ def supplier_detail_report(supplier_id):
 
 @reports_bp.route("/partner-detail/<int:partner_id>", methods=["GET"])
 @login_required
+@utils.permission_required("view_reports")
 def partner_detail_report(partner_id):
-    partner = Partner.query.get_or_404(partner_id)
+    from sqlalchemy.orm import load_only
+
+    partner = db.get_or_404(Partner, partner_id)
 
     start_date = _parse_date(request.args.get("start"))
     end_date = _parse_date(request.args.get("end"))
-    payments_out_query = Payment.query.options(
-        joinedload(Payment.sale)
-    ).filter(
+    limit_rows = request.args.get("limit", 200, type=int)
+    limit_rows = min(5000, max(50, limit_rows))
+
+    from routes.partner_settlements import _calculate_smart_partner_balance
+    from datetime import datetime
+
+    date_from = start_date if start_date else datetime(2024, 1, 1)
+    date_to = end_date if end_date else datetime.now()
+
+    try:
+        balance_data = _calculate_smart_partner_balance(partner_id, date_from, date_to)
+    except Exception as exc:
+        balance_data = {"success": False, "error": str(exc)}
+
+    inventory = []
+    if isinstance(balance_data, dict) and balance_data.get("success"):
+        rights = balance_data.get("rights") if isinstance(balance_data.get("rights"), dict) else {}
+        sales_share = rights.get("sales_share")
+        if isinstance(sales_share, dict) and "sales" not in rights:
+            rights["sales"] = {
+                "items": sales_share.get("items") or [],
+                "count": int(sales_share.get("count") or 0),
+                "total_ils": float(
+                    sales_share.get("total_share_ils")
+                    or sales_share.get("total_ils")
+                    or sales_share.get("total")
+                    or 0
+                ),
+            }
+        balance_data["rights"] = rights
+
+        inv = rights.get("inventory")
+        if isinstance(inv, dict):
+            inv_items = inv.get("items") or []
+            try:
+                from types import SimpleNamespace
+
+                for item in inv_items:
+                    if not isinstance(item, dict):
+                        continue
+                    notes_parts = []
+                    if item.get("warehouse"):
+                        notes_parts.append(f"المستودع: {item.get('warehouse')}")
+                    if item.get("quantity") is not None:
+                        notes_parts.append(f"الكمية: {item.get('quantity')}")
+                    inventory.append(
+                        SimpleNamespace(
+                            product=SimpleNamespace(
+                                id=item.get("product_id"),
+                                name=item.get("product_name"),
+                            ),
+                            share_percent=item.get("share_percentage"),
+                            share_amount=item.get("partner_share"),
+                            notes=" - ".join(notes_parts) if notes_parts else None,
+                        )
+                    )
+            except Exception:
+                inventory = []
+
+    start_dt = datetime.combine(start_date, datetime.min.time()) if start_date else None
+    end_dt = datetime.combine(end_date, datetime.max.time()) if end_date else None
+
+    payments_out_query = Payment.query.filter(
         Payment.partner_id == partner_id,
         Payment.direction == PaymentDirection.OUT.value,
         Payment.status == PaymentStatus.COMPLETED.value
     )
-    if start_date:
-        payments_out_query = payments_out_query.filter(Payment.payment_date >= start_date)
-    if end_date:
-        payments_out_query = payments_out_query.filter(Payment.payment_date <= end_date)
-    payments_out = payments_out_query.order_by(Payment.payment_date.desc()).all()
+    if start_dt:
+        payments_out_query = payments_out_query.filter(Payment.payment_date >= start_dt)
+    if end_dt:
+        payments_out_query = payments_out_query.filter(Payment.payment_date <= end_dt)
+    payments_out_count = int(payments_out_query.order_by(None).with_entities(func.count(Payment.id)).scalar() or 0)
+    payments_out = (
+        payments_out_query.options(load_only(Payment.id, Payment.payment_date, Payment.method, Payment.total_amount, Payment.currency, Payment.fx_rate_used, Payment.notes))
+        .order_by(Payment.payment_date.desc(), Payment.id.desc())
+        .limit(limit_rows)
+        .all()
+    )
     
-    payments_in_query = Payment.query.options(
-        joinedload(Payment.sale)
-    ).filter(
+    payments_in_query = Payment.query.filter(
         Payment.partner_id == partner_id,
         Payment.direction == PaymentDirection.IN.value,
         Payment.status == PaymentStatus.COMPLETED.value
     )
-    if start_date:
-        payments_in_query = payments_in_query.filter(Payment.payment_date >= start_date)
-    if end_date:
-        payments_in_query = payments_in_query.filter(Payment.payment_date <= end_date)
-    payments_in = payments_in_query.order_by(Payment.payment_date.desc()).all()
+    if start_dt:
+        payments_in_query = payments_in_query.filter(Payment.payment_date >= start_dt)
+    if end_dt:
+        payments_in_query = payments_in_query.filter(Payment.payment_date <= end_dt)
+    payments_in_count = int(payments_in_query.order_by(None).with_entities(func.count(Payment.id)).scalar() or 0)
+    payments_in = (
+        payments_in_query.options(load_only(Payment.id, Payment.payment_date, Payment.method, Payment.total_amount, Payment.currency, Payment.fx_rate_used, Payment.notes))
+        .order_by(Payment.payment_date.desc(), Payment.id.desc())
+        .limit(limit_rows)
+        .all()
+    )
 
     sales = []
+    sales_count = 0
     if partner.customer_id:
-        from models import Sale, SaleStatus, SaleLine
         sales_query = Sale.query.options(
-            joinedload(Sale.lines).joinedload(SaleLine.product)
+            joinedload(Sale.lines).joinedload(SaleLine.product),
         ).filter(
             Sale.customer_id == partner.customer_id,
             Sale.status == SaleStatus.CONFIRMED.value
         )
-        if start_date:
-            sales_query = sales_query.filter(Sale.sale_date >= start_date)
-        if end_date:
-            sales_query = sales_query.filter(Sale.sale_date <= end_date)
-        sales = sales_query.order_by(Sale.sale_date.desc()).all()
+        if start_dt:
+            sales_query = sales_query.filter(Sale.sale_date >= start_dt)
+        if end_dt:
+            sales_query = sales_query.filter(Sale.sale_date <= end_dt)
+        sales_count = int(sales_query.order_by(None).with_entities(func.count(Sale.id)).scalar() or 0)
+        sales = sales_query.order_by(Sale.sale_date.desc(), Sale.id.desc()).limit(limit_rows).all()
 
     services = []
+    services_count = 0
     if partner.customer_id:
-        from models import ServiceRequest, ServiceTask
         services_query = ServiceRequest.query.options(
-            joinedload(ServiceRequest.parts),
-            joinedload(ServiceRequest.tasks)
+            joinedload(ServiceRequest.parts).joinedload(ServicePart.part),
+            joinedload(ServiceRequest.tasks),
         ).filter(
             ServiceRequest.customer_id == partner.customer_id,
             ServiceRequest.status == ServiceStatus.COMPLETED.value
         )
-        if start_date:
-            services_query = services_query.filter(ServiceRequest.received_at >= start_date)
-        if end_date:
-            services_query = services_query.filter(ServiceRequest.received_at <= end_date)
-        services = services_query.order_by(ServiceRequest.received_at.desc()).all()
+        if start_dt:
+            services_query = services_query.filter(ServiceRequest.received_at >= start_dt)
+        if end_dt:
+            services_query = services_query.filter(ServiceRequest.received_at <= end_dt)
+        services_count = int(services_query.order_by(None).with_entities(func.count(ServiceRequest.id)).scalar() or 0)
+        services = services_query.order_by(ServiceRequest.received_at.desc(), ServiceRequest.id.desc()).limit(limit_rows).all()
 
     preorders_query = PreOrder.query.options(
         joinedload(PreOrder.product)
     ).filter(PreOrder.partner_id == partner_id)
-    if start_date:
-        preorders_query = preorders_query.filter(PreOrder.created_at >= start_date)
-    if end_date:
-        preorders_query = preorders_query.filter(PreOrder.created_at <= end_date)
-    preorders = preorders_query.order_by(PreOrder.created_at.desc()).all()
+    if start_dt:
+        preorders_query = preorders_query.filter(PreOrder.created_at >= start_dt)
+    if end_dt:
+        preorders_query = preorders_query.filter(PreOrder.created_at <= end_dt)
+    preorders_count = int(preorders_query.order_by(None).with_entities(func.count(PreOrder.id)).scalar() or 0)
+    preorders = preorders_query.order_by(PreOrder.created_at.desc(), PreOrder.id.desc()).limit(limit_rows).all()
 
     service_parts_query = ServicePart.query.options(
         joinedload(ServicePart.part),
         joinedload(ServicePart.request)
     ).filter(ServicePart.partner_id == partner_id)
-    if start_date:
-        service_parts_query = service_parts_query.filter(ServicePart.created_at >= start_date)
-    if end_date:
-        service_parts_query = service_parts_query.filter(ServicePart.created_at <= end_date)
-    service_parts = service_parts_query.order_by(ServicePart.created_at.desc()).all()
+    if start_dt:
+        service_parts_query = service_parts_query.filter(ServicePart.created_at >= start_dt)
+    if end_dt:
+        service_parts_query = service_parts_query.filter(ServicePart.created_at <= end_dt)
+    service_parts_count = int(service_parts_query.order_by(None).with_entities(func.count(ServicePart.id)).scalar() or 0)
+    service_parts = service_parts_query.order_by(ServicePart.created_at.desc(), ServicePart.id.desc()).limit(limit_rows).all()
 
     expenses_query = Expense.query.filter(
         or_(
@@ -2554,16 +3006,19 @@ def partner_detail_report(partner_id):
             and_(Expense.payee_type == 'PARTNER', Expense.payee_entity_id == partner_id)
         )
     )
-    if start_date:
-        expenses_query = expenses_query.filter(Expense.date >= start_date)
-    if end_date:
-        expenses_query = expenses_query.filter(Expense.date <= end_date)
-    expenses = expenses_query.order_by(Expense.date.desc()).all()
-    
-    from decimal import Decimal
-    
-    total_payments_out = sum(Decimal(str(p.total_amount or 0)) for p in payments_out)
-    total_payments_in = sum(Decimal(str(p.total_amount or 0)) for p in payments_in)
+    if start_dt:
+        expenses_query = expenses_query.filter(Expense.date >= start_dt)
+    if end_dt:
+        expenses_query = expenses_query.filter(Expense.date <= end_dt)
+    expenses_count = int(expenses_query.order_by(None).with_entities(func.count(Expense.id)).scalar() or 0)
+    expenses = expenses_query.order_by(Expense.date.desc(), Expense.id.desc()).limit(limit_rows).all()
+
+    pay_fx = case(
+        (func.upper(func.coalesce(Payment.currency, "ILS")) == "ILS", 1),
+        else_=func.coalesce(Payment.fx_rate_used, 1),
+    )
+    total_payments_out = float((payments_out_query.order_by(None).with_entities(func.coalesce(func.sum(func.coalesce(Payment.total_amount, 0) * pay_fx), 0)).scalar()) or 0)
+    total_payments_in = float((payments_in_query.order_by(None).with_entities(func.coalesce(func.sum(func.coalesce(Payment.total_amount, 0) * pay_fx), 0)).scalar()) or 0)
     total_inventory = Decimal(str(partner.inventory_balance or 0))
     total_sales_share = Decimal(str(partner.sales_share_balance or 0))
     total_obligations = (
@@ -2572,22 +3027,54 @@ def partner_detail_report(partner_id):
         Decimal(str(partner.preorders_to_partner_balance or 0)) +
         Decimal(str(partner.damaged_items_balance or 0))
     )
-    inventory = []
-    
-    total_sales = sum(Decimal(str(s.total_amount or 0)) for s in sales)
-    total_services = sum(Decimal(str(s.total_amount or 0)) for s in services)
-    total_preorders = sum(Decimal(str(p.total_amount or 0)) for p in preorders)
-    total_service_parts = sum(Decimal(str(sp.quantity * sp.unit_price or 0)) for sp in service_parts)
-    
-    total_expenses = Decimal('0.00')
-    for e in expenses:
-        amt = Decimal(str(e.amount or 0))
-        if e.currency and e.currency != "ILS":
-            try:
-                amt = convert_amount(amt, e.currency, "ILS", e.date)
-            except Exception:
-                pass
-        total_expenses += amt
+
+    sale_total = 0.0
+    if partner.customer_id:
+        sale_fx = case(
+            (func.upper(func.coalesce(Sale.currency, "ILS")) == "ILS", 1),
+            else_=func.coalesce(Sale.fx_rate_used, 1),
+        )
+        total_sales = float((sales_query.order_by(None).with_entities(func.coalesce(func.sum(func.coalesce(Sale.total_amount, 0) * sale_fx), 0)).scalar()) or 0)
+    else:
+        total_sales = float(sale_total)
+
+    srv_total = 0.0
+    if partner.customer_id:
+        srv_fx = case(
+            (func.upper(func.coalesce(ServiceRequest.currency, "ILS")) == "ILS", 1),
+            else_=func.coalesce(ServiceRequest.fx_rate_used, 1),
+        )
+        total_services = float((services_query.order_by(None).with_entities(func.coalesce(func.sum(func.coalesce(ServiceRequest.total_amount, 0) * srv_fx), 0)).scalar()) or 0)
+    else:
+        total_services = float(srv_total)
+
+    po_fx = case(
+        (func.upper(func.coalesce(PreOrder.currency, "ILS")) == "ILS", 1),
+        else_=func.coalesce(PreOrder.fx_rate_used, 1),
+    )
+    total_preorders = float((preorders_query.order_by(None).with_entities(func.coalesce(func.sum(func.coalesce(PreOrder.total_amount, 0) * po_fx), 0)).scalar()) or 0)
+
+    total_service_parts = float(
+        (
+            service_parts_query.order_by(None)
+            .with_entities(func.coalesce(func.sum(func.coalesce(ServicePart.quantity, 0) * func.coalesce(ServicePart.unit_price, 0)), 0))
+            .scalar()
+        )
+        or 0
+    )
+
+    exp_fx = case(
+        (func.upper(func.coalesce(Expense.currency, "ILS")) == "ILS", 1),
+        else_=func.coalesce(Expense.fx_rate_used, 1),
+    )
+    total_expenses = float((expenses_query.order_by(None).with_entities(func.coalesce(func.sum(func.coalesce(Expense.amount, 0) * exp_fx), 0)).scalar()) or 0)
+
+    if isinstance(balance_data, dict) and balance_data.get("success"):
+        inv_total = balance_data.get("rights", {}).get("inventory", {}).get("total_ils", 0)
+        try:
+            total_inventory = Decimal(str(inv_total or 0))
+        except Exception:
+            pass
 
     partner_breakdown = None
     try:
@@ -2597,6 +3084,8 @@ def partner_detail_report(partner_id):
     current_balance = float(partner.balance or 0)
     if partner_breakdown and partner_breakdown.get("success"):
         current_balance = float(partner_breakdown.get("balance", {}).get("amount", current_balance))
+    if isinstance(balance_data, dict) and balance_data.get("success"):
+        current_balance = float(balance_data.get("balance", {}).get("amount", current_balance))
 
     partner_share = (float(partner.share_percentage or 0) / 100) * (float(total_preorders) + float(total_service_parts)) if partner.share_percentage else 0
 
@@ -2625,6 +3114,14 @@ def partner_detail_report(partner_id):
         total_obligations=float(total_obligations),
         partner_share=partner_share,
         current_balance=current_balance,
+        limit_rows=limit_rows,
+        payments_out_count=payments_out_count,
+        payments_in_count=payments_in_count,
+        sales_count=sales_count,
+        services_count=services_count,
+        preorders_count=preorders_count,
+        service_parts_count=service_parts_count,
+        expenses_count=expenses_count,
         start_date=request.args.get("start", ""),
         end_date=request.args.get("end", ""),
         FIELD_LABELS=FIELD_LABELS,

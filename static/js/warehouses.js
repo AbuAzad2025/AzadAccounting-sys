@@ -449,7 +449,12 @@
   }
 
   function initShipmentsTable() {
-    if (!(window.jQuery && jQuery.fn.DataTable)) return;
+    if (!(window.jQuery && jQuery.fn.DataTable)) {
+      if (window.jQuery && typeof window.ensureDataTables === 'function') {
+        window.ensureDataTables().then(initShipmentsTable);
+      }
+      return;
+    }
     var $tbl = jQuery('#shipments-table');
     if (!$tbl.length) return;
     if (jQuery.fn.DataTable.isDataTable($tbl)) return;
@@ -477,6 +482,9 @@
       $tbl.DataTable({
         pageLength: 10,
         order: [[2, 'desc']],
+        autoWidth: false,
+        responsive: true,
+        scrollX: headerCols > 8,
         language: { 
           url: '/static/datatables/Arabic.json',
           emptyTable: "لا توجد بيانات",
@@ -510,7 +518,12 @@
   }
 
   function initInventoryDataTable(){
-    if (!(window.jQuery && jQuery.fn.DataTable)) return;
+    if (!(window.jQuery && jQuery.fn.DataTable)) {
+      if (window.jQuery && typeof window.ensureDataTables === 'function') {
+        window.ensureDataTables().then(initInventoryDataTable);
+      }
+      return;
+    }
     var $tbl = jQuery('#inventory-table');
     if (!$tbl.length || jQuery.fn.DataTable.isDataTable($tbl)) return;
     
@@ -538,6 +551,8 @@
         pageLength: 50,
         order: [[3, 'asc']],
         scrollX: true,
+        autoWidth: false,
+        responsive: true,
         language: { 
           url: '/static/datatables/Arabic.json',
           emptyTable: "لا توجد بيانات",

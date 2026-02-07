@@ -128,7 +128,7 @@
                       <a href="{{ url_for('partners.partner_detail', partner_id=e.partner.id) }}">{{ e.partner.name }}</a>
                       <span class="badge bg-info text-dark">شريك</span>
                     {% elif e.supplier %}
-                      <a href="{{ url_for('reports.supplier_detail_report', supplier_id=e.supplier.id) }}">{{ e.supplier.name }}</a>
+                      <a href="{{ url_for('reports_bp.supplier_detail_report', supplier_id=e.supplier.id) }}">{{ e.supplier.name }}</a>
                       <span class="badge bg-secondary">مورد</span>
                     {% else %}
                       —

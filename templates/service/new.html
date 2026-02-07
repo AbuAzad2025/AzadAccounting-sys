@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% set edit_mode = form._obj is defined %}
 {% block title %}{{ edit_mode and 'تعديل طلب صيانة' or 'إضافة طلب صيانة' }}{% endblock %}
-{% block page_header %}{{ edit_mode and 'تعديل طلب صيانة' or 'إضافة طلب صيانة' }}{% endblock %}
+{% block page_title %}<i class="fas fa-tools"></i> {{ edit_mode and 'تعديل طلب صيانة' or 'إضافة طلب صيانة' }}{% endblock %}
 
 {% block head_extra %}
   {{ super() }}
@@ -258,13 +258,11 @@
       function initVehicleTypeSelect2() {
         var $vehicleType = $('#{{ form.vehicle_type_id.id }}');
         if (!$vehicleType.length || typeof $.fn.select2 === 'undefined') {
-          console.error('Vehicle type select or Select2 not found');
           return;
         }
         
         var endpoint = $vehicleType.attr('data-endpoint') || $vehicleType.data('endpoint');
         if (!endpoint) {
-          console.error('No endpoint found for vehicle type');
           return;
         }
         
@@ -292,16 +290,13 @@
             delay: 200,
             cache: false,
             data: function(params) {
-              console.log('Sending AJAX request with term:', params.term || '(empty)');
               return { q: params.term || '', limit: 50 };
             },
             processResults: function(data, params) {
-              console.log('AJAX response:', data);
               if (!data) {
                 return { results: [] };
               }
               var results = data.results || [];
-              console.log('Processing', results.length, 'results');
               return {
                 results: $.map(results, function(item) {
                   return {
@@ -312,15 +307,11 @@
               };
             },
             error: function(xhr, status, error) {
-              console.error('AJAX error:', status, error);
-              console.error('Status:', xhr.status);
-              console.error('Response:', xhr.responseText);
             }
           }
         });
         
         $vehicleType.on('select2:open', function() {
-          console.log('Select2 opened - triggering load');
           var select2Instance = $vehicleType.data('select2');
           if (select2Instance) {
             setTimeout(function() {
@@ -336,7 +327,6 @@
         });
         
         $vehicleType.data('s2-initialized', true);
-        console.log('Select2 initialized for vehicle type');
       }
       
       if (document.readyState === 'loading') {

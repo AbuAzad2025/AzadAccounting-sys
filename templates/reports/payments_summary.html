@@ -156,7 +156,7 @@
 <tbody>
 {% for payment in payments %}
 <tr>
-  <td class="text-center">{{ loop.index }}</td>
+  <td class="text-center">{{ ((pagination.page - 1) * pagination.per_page + loop.index) if pagination else loop.index }}</td>
   <td>
     <strong>{{ payment.payment_number or payment.id }}</strong>
   </td>
@@ -246,6 +246,34 @@
 </div>
 </div>
 </div>
+
+{% if pagination and pagination.pages > 1 %}
+<div class="mt-3">
+  <nav>
+    <ul class="pagination justify-content-center mb-0">
+      {% if pagination.has_prev %}
+      <li class="page-item">
+        <a class="page-link" href="{{ url_for('reports_bp.payments_advanced_report', page=pagination.prev_num, per_page=per_page, **query_args) }}">السابق</a>
+      </li>
+      {% endif %}
+      {% for num in pagination.iter_pages() %}
+        {% if num %}
+        <li class="page-item {% if num == pagination.page %}active{% endif %}">
+          <a class="page-link" href="{{ url_for('reports_bp.payments_advanced_report', page=num, per_page=per_page, **query_args) }}">{{ num }}</a>
+        </li>
+        {% else %}
+        <li class="page-item disabled"><span class="page-link">…</span></li>
+        {% endif %}
+      {% endfor %}
+      {% if pagination.has_next %}
+      <li class="page-item">
+        <a class="page-link" href="{{ url_for('reports_bp.payments_advanced_report', page=pagination.next_num, per_page=per_page, **query_args) }}">التالي</a>
+      </li>
+      {% endif %}
+    </ul>
+  </nav>
+</div>
+{% endif %}
 
 <div class="row g-3 mt-4">
   <div class="col-md-6">

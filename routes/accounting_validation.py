@@ -24,7 +24,7 @@ import json
 
 from models import (
     db, Account, GLBatch, GLEntry, Customer, Supplier, Partner,
-    Sale, Payment, Expense, Invoice, ServiceRequest, Check
+    Sale, Payment, PaymentSplit, Expense, Invoice, ServiceRequest, Check
 )
 from utils import permission_required
 
@@ -156,7 +156,10 @@ def entity_balance_verification():
                 ).scalar() or 0
                 
                 gl_balance = float(gl_debit) - float(gl_credit)
-                model_balance = float(customer.balance)
+                if getattr(customer, "current_balance", None) is not None:
+                    model_balance = -float(customer.current_balance or 0)
+                else:
+                    model_balance = float(customer.balance or 0)
                 difference = abs(gl_balance - model_balance)
                 
                 verification_results.append({
@@ -228,6 +231,39 @@ def transaction_integrity():
         
         payments_missing_gl = []
         for payment in payments_without_gl:
+            split_rows = db.session.query(PaymentSplit.id, PaymentSplit.amount).filter(
+                PaymentSplit.payment_id == payment.id
+            ).all()
+            
+            if split_rows:
+                split_ids = [int(r.id) for r in split_rows]
+                total_splits = sum(float(r.amount or 0) for r in split_rows)
+                
+                posted_split_ids = db.session.query(GLBatch.source_id).filter(
+                    GLBatch.source_type == 'PAYMENT_SPLIT',
+                    GLBatch.source_id.in_(split_ids),
+                    GLBatch.status == 'POSTED'
+                ).all()
+                posted_set = {int(r.source_id) for r in posted_split_ids}
+                missing_split_ids = sorted(set(split_ids) - posted_set)
+                
+                mismatch = abs(float(payment.total_amount or 0) - float(total_splits)) > 0.01
+                
+                if missing_split_ids or mismatch:
+                    payments_missing_gl.append({
+                        'payment_id': payment.id,
+                        'payment_number': payment.payment_number,
+                        'total_amount': float(payment.total_amount),
+                        'payment_date': payment.payment_date.isoformat() if payment.payment_date else None,
+                        'has_splits': True,
+                        'splits_total': total_splits,
+                        'splits_count': len(split_ids),
+                        'missing_split_gl_count': len(missing_split_ids),
+                        'missing_split_ids': missing_split_ids,
+                        'splits_amount_mismatch': mismatch,
+                    })
+                continue
+            
             gl_batch = db.session.query(GLBatch).filter(
                 GLBatch.source_type == 'PAYMENT',
                 GLBatch.source_id == payment.id,
@@ -239,7 +275,8 @@ def transaction_integrity():
                     'payment_id': payment.id,
                     'payment_number': payment.payment_number,
                     'total_amount': float(payment.total_amount),
-                    'payment_date': payment.payment_date.isoformat() if payment.payment_date else None
+                    'payment_date': payment.payment_date.isoformat() if payment.payment_date else None,
+                    'has_splits': False,
                 })
         
         integrity_results.append({

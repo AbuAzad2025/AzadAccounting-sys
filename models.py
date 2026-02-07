@@ -1004,7 +1004,8 @@ class ExchangeRate(db.Model):
 
 def _currency_codes_from_db() -> set[str]:
     try:
-        rows = db.session.query(Currency.code).filter(Currency.is_active.is_(True)).all()
+        with db.session.no_autoflush:
+            rows = db.session.query(Currency.code).filter(Currency.is_active.is_(True)).all()
         s = {str(r[0]).upper().strip() for r in rows}
         return {c for c in s if c}
     except Exception:
@@ -1019,7 +1020,8 @@ def currency_codes() -> set[str]:
 def currency_decimals(code: str | None) -> int:
     c = (code or "").upper().strip()
     try:
-        row = db.session.query(Currency.decimals).filter(Currency.code == c).one_or_none()
+        with db.session.no_autoflush:
+            row = db.session.query(Currency.decimals).filter(Currency.code == c).one_or_none()
         if row and isinstance(row[0], int):
             return row[0]
     except Exception:
@@ -1099,19 +1101,13 @@ def _get_rate_cached(base: str, quote: str, date_str: str) -> Decimal | None:
         t = datetime.strptime(date_str, "%Y-%m-%d").replace(hour=23, minute=59, second=59)
         
         # 1. البحث المحلي
-        q = (
-            db.session.query(ExchangeRate.rate)
-            .filter(
-                ExchangeRate.base_code == base,
-                ExchangeRate.quote_code == quote,
-                ExchangeRate.is_active.is_(True),
-                ExchangeRate.valid_from <= t,
-            )
-            .order_by(ExchangeRate.valid_from.desc())
-        )
-        v = q.first()
-        if v:
-            return Decimal(str(v[0]))
+        try:
+            with db.engine.connect() as conn:
+                local_rate = _fx_rate_local_via_connection(conn, base, quote, t)
+            if local_rate and local_rate > Decimal("0"):
+                return local_rate
+        except Exception:
+            pass
 
         # 2. البحث الخارجي (فقط إذا لم يوجد محلي)
         online_rate = _fetch_external_fx_rate(base, quote, t)
@@ -1121,6 +1117,30 @@ def _get_rate_cached(base: str, quote: str, date_str: str) -> Decimal | None:
     except Exception:
         pass
     return None
+
+
+def _fx_rate_local_via_connection(connection, base: str, quote: str, at: datetime | None = None) -> Decimal:
+    b = ensure_currency(base)
+    qv = ensure_currency(quote)
+    if b == qv:
+        return Decimal("1")
+    t = at or datetime.now(timezone.utc)
+    try:
+        from sqlalchemy import select as sa_select
+        row = connection.execute(
+            sa_select(ExchangeRate.rate)
+            .where(
+                ExchangeRate.base_code == b,
+                ExchangeRate.quote_code == qv,
+                ExchangeRate.is_active.is_(True),
+                ExchangeRate.valid_from <= t,
+            )
+            .order_by(ExchangeRate.valid_from.desc())
+            .limit(1)
+        ).scalar_one_or_none()
+        return Decimal(str(row)) if row is not None else Decimal("0")
+    except Exception:
+        return Decimal("0")
 
 def fx_rate(base: str, quote: str, at: datetime | None = None, raise_on_missing: bool = False) -> Decimal:
     """سعر الصرف الذكي - محلي أولاً، ثم عالمي
@@ -1371,17 +1391,18 @@ def get_fx_rate_with_fallback(base: str, quote: str, at: datetime | None = None)
         
         local_rate_value = None
         try:
-            q = (
-                db.session.query(ExchangeRate.rate)
-                .filter(
-                    ExchangeRate.base_code == b,
-                    ExchangeRate.quote_code == qv,
-                    ExchangeRate.is_active.is_(True),
-                    ExchangeRate.valid_from <= t,
+            with db.session.no_autoflush:
+                q = (
+                    db.session.query(ExchangeRate.rate)
+                    .filter(
+                        ExchangeRate.base_code == b,
+                        ExchangeRate.quote_code == qv,
+                        ExchangeRate.is_active.is_(True),
+                        ExchangeRate.valid_from <= t,
+                    )
+                    .order_by(ExchangeRate.valid_from.desc())
                 )
-                .order_by(ExchangeRate.valid_from.desc())
-            )
-            v = q.first()
+                v = q.first()
             if v:
                 local_rate_value = Decimal(str(v[0]))
                 if local_rate_value and local_rate_value > Decimal("0"):
@@ -1394,10 +1415,7 @@ def get_fx_rate_with_fallback(base: str, quote: str, at: datetime | None = None)
                         'success': True
                     }
         except Exception:
-            try:
-                db.session.rollback()
-            except Exception:
-                pass
+            pass
         
         try:
             online_rate = _fetch_external_fx_rate(b, qv, t)
@@ -1411,10 +1429,7 @@ def get_fx_rate_with_fallback(base: str, quote: str, at: datetime | None = None)
                     'success': True
                 }
         except Exception:
-            try:
-                db.session.rollback()
-            except Exception:
-                pass
+            pass
         
         return {
             'rate': 0.0,
@@ -1649,7 +1664,6 @@ def _auth_log(
 
     try:
         sess.add(rec)
-        sess.flush()
     except Exception:
         pass
 
@@ -2759,11 +2773,20 @@ class SupplierSettlement(db.Model, TimestampMixin, AuditMixin):
     def remaining(self):
         return float(q(self.total_due or 0) - q(self.total_paid or 0))
 
-    def ensure_code(self):
+    def ensure_code(self, connection=None):
         if self.code:
             return
         prefix = datetime.now(timezone.utc).strftime("SS-%Y%m")
-        cnt = db.session.query(func.count(SupplierSettlement.id)).filter(SupplierSettlement.code.like(f"{prefix}-%")).scalar() or 0
+        if connection is not None:
+            try:
+                cnt = connection.execute(
+                    sa_text("SELECT COUNT(1) FROM supplier_settlements WHERE code LIKE :like"),
+                    {"like": f"{prefix}-%"},
+                ).scalar() or 0
+            except Exception:
+                cnt = 0
+        else:
+            cnt = db.session.query(func.count(SupplierSettlement.id)).filter(SupplierSettlement.code.like(f"{prefix}-%")).scalar() or 0
         self.code = f"{prefix}-{cnt + 1:04d}"
 
     def mark_confirmed(self):
@@ -2868,11 +2891,35 @@ def _sync_loan_on_settlement(_m, connection, target: "SupplierLoanSettlement"):
 
 
 def _recompute_supplier_settlement_totals(connection, settlement_id: int):
-    gross_sum = connection.execute(
-        select(func.coalesce(func.sum(SupplierSettlementLine.gross_amount), 0)).where(SupplierSettlementLine.settlement_id == settlement_id)
-    ).scalar_one() or 0
+    mode = connection.execute(
+        select(SupplierSettlement.mode).where(SupplierSettlement.id == settlement_id)
+    ).scalar_one_or_none()
+    mode = (mode or SupplierSettlementMode.ON_RECEIPT.value).upper()
+
+    if mode == SupplierSettlementMode.ON_RECEIPT.value:
+        gross_sum = connection.execute(
+            select(func.coalesce(func.sum(SupplierSettlementLine.gross_amount), 0)).where(
+                SupplierSettlementLine.settlement_id == settlement_id,
+                SupplierSettlementLine.source_type != "EXCHANGE_RETURN",
+            )
+        ).scalar_one() or 0
+        returns_sum = connection.execute(
+            select(func.coalesce(func.sum(SupplierSettlementLine.gross_amount), 0)).where(
+                SupplierSettlementLine.settlement_id == settlement_id,
+                SupplierSettlementLine.source_type == "EXCHANGE_RETURN",
+            )
+        ).scalar_one() or 0
+        due_sum = Decimal(str(gross_sum or 0)) - Decimal(str(returns_sum or 0))
+    else:
+        gross_sum = connection.execute(
+            select(func.coalesce(func.sum(SupplierSettlementLine.gross_amount), 0)).where(SupplierSettlementLine.settlement_id == settlement_id)
+        ).scalar_one() or 0
+        due_sum = Decimal(str(gross_sum or 0))
+
     connection.execute(
-        update(SupplierSettlement).where(SupplierSettlement.id == settlement_id).values(total_gross=gross_sum, total_due=gross_sum)
+        update(SupplierSettlement)
+        .where(SupplierSettlement.id == settlement_id)
+        .values(total_gross=gross_sum, total_due=q(due_sum))
     )
 
 
@@ -2882,9 +2929,7 @@ def _ss_before_insert(_m, _c, t: SupplierSettlement):
     t.status = getattr(t.status, "value", t.status)
     t.mode = getattr(t.mode, "value", t.mode)
     if not t.code:
-        prefix = datetime.now(timezone.utc).strftime("SS-%Y%m")
-        cnt = db.session.query(func.count(SupplierSettlement.id)).filter(SupplierSettlement.code.like(f"{prefix}-%")).scalar() or 0
-        t.code = f"{prefix}-{cnt + 1:04d}"
+        t.ensure_code(connection=_c)
 
 @event.listens_for(SupplierSettlement, "before_update")
 def _ss_before_update(_m, connection, t: SupplierSettlement):
@@ -2932,7 +2977,7 @@ def _ss_after_update(_m, connection, t: SupplierSettlement):
             new_status = status_hist.added[0] if status_hist.added else getattr(t, 'status', None)
             if old_status != new_status and new_status == SupplierSettlementStatus.CONFIRMED.value:
                 if t.supplier_id:
-                    update_supplier_balance(t.supplier_id, connection)
+                    _queue_supplier_balance(t, t.supplier_id)
     except Exception:
         pass
 
@@ -3383,11 +3428,20 @@ class PartnerSettlement(db.Model, TimestampMixin, AuditMixin):
     def remaining(self):
         return float(q(self.total_due or 0) - q(self.total_paid or 0))
 
-    def ensure_code(self):
+    def ensure_code(self, connection=None):
         if self.code:
             return
         prefix = datetime.now(timezone.utc).strftime("PS-%Y%m")
-        cnt = db.session.query(func.count(PartnerSettlement.id)).filter(PartnerSettlement.code.like(f"{prefix}-%")).scalar() or 0
+        if connection is not None:
+            try:
+                cnt = connection.execute(
+                    sa_text("SELECT COUNT(1) FROM partner_settlements WHERE code LIKE :like"),
+                    {"like": f"{prefix}-%"},
+                ).scalar() or 0
+            except Exception:
+                cnt = 0
+        else:
+            cnt = db.session.query(func.count(PartnerSettlement.id)).filter(PartnerSettlement.code.like(f"{prefix}-%")).scalar() or 0
         self.code = f"{prefix}-{cnt + 1:04d}"
 
     def mark_confirmed(self):
@@ -3398,7 +3452,7 @@ class PartnerSettlement(db.Model, TimestampMixin, AuditMixin):
 def _ps_before_insert(_m, _c, t: PartnerSettlement):
     t.currency = (t.currency or "ILS").upper()
     if not t.code:
-        t.ensure_code()
+        t.ensure_code(connection=_c)
     if t.from_date and t.to_date and t.to_date < t.from_date:
         t.from_date, t.to_date = t.to_date, t.from_date
 
@@ -3406,7 +3460,7 @@ def _ps_before_insert(_m, _c, t: PartnerSettlement):
 def _ps_before_update(_m, _c, t: PartnerSettlement):
     t.currency = (t.currency or "ILS").upper()
     if not t.code:
-        t.ensure_code()
+        t.ensure_code(connection=_c)
     if t.from_date and t.to_date and t.to_date < t.from_date:
         t.from_date, t.to_date = t.to_date, t.from_date
 
@@ -3419,7 +3473,7 @@ def _ps_after_update_approved(mapper, connection, target: PartnerSettlement):
                 sa_text("UPDATE partners SET opening_balance = :ob WHERE id = :pid"),
                 {"ob": float(target.closing_balance or 0), "pid": target.partner_id}
             )
-            update_partner_balance(target.partner_id, connection)
+            _queue_partner_balance(target, target.partner_id)
     except Exception:
         pass
 
@@ -3434,7 +3488,7 @@ def _ps_after_update(mapper, connection, target: PartnerSettlement):
             new_status = status_hist.added[0] if status_hist.added else getattr(target, 'status', None)
             if old_status != new_status and new_status == PartnerSettlementStatus.CONFIRMED.value:
                 if target.partner_id:
-                    update_partner_balance(target.partner_id, connection)
+                    _queue_partner_balance(target, target.partner_id)
     except Exception:
         pass
 
@@ -4091,7 +4145,7 @@ class Branch(db.Model, TimestampMixin, AuditMixin):
     phone = db.Column(db.String(32))
     email = db.Column(db.String(120))
     manager_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), index=True)
-    manager_employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), index=True)
+    manager_employee_id = db.Column(db.Integer, db.ForeignKey('employees.id', use_alter=True, name='fk_branches_manager_employee_id'), index=True)
     timezone = db.Column(db.String(64))
     currency = db.Column(db.String(10), nullable=False, server_default=sa_text("'ILS'"))
     tax_id = db.Column(db.String(64))
@@ -4127,7 +4181,7 @@ class Site(db.Model, TimestampMixin, AuditMixin):
     geo_lat = db.Column(db.Numeric(10, 6))
     geo_lng = db.Column(db.Numeric(10, 6))
     manager_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), index=True)
-    manager_employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), index=True)
+    manager_employee_id = db.Column(db.Integer, db.ForeignKey('employees.id', use_alter=True, name='fk_sites_manager_employee_id'), index=True)
     notes = db.Column(db.Text)
     is_archived = db.Column(db.Boolean, nullable=False, server_default=sa_text("false"), index=True)
     archived_at = db.Column(db.DateTime, index=True)
@@ -4536,6 +4590,8 @@ class ExchangeTransaction(db.Model, TimestampMixin, AuditMixin):
         db.CheckConstraint('quantity > 0', name='chk_exchange_qty_positive'),
         db.Index('ix_exchange_prod_wh', 'product_id', 'warehouse_id'),
         db.Index('ix_exchange_supplier', 'supplier_id'),
+        db.Index('ix_exchange_supplier_dir_created_at', 'supplier_id', 'direction', 'created_at'),
+        db.Index('ix_exchange_partner_dir_created_at', 'partner_id', 'direction', 'created_at'),
         CheckConstraint('unit_cost IS NULL OR unit_cost >= 0', name='ck_exchange_unit_cost_non_negative'),
     )
     @validates('direction')
@@ -4575,7 +4631,7 @@ def _exchange_after_insert(mapper, connection, target: "ExchangeTransaction"):
     if delta: _apply_stock_delta(connection, target.product_id, target.warehouse_id, delta)
     _maybe_post_gl_exchange(connection, target)
     if target.supplier_id:
-        update_supplier_balance(target.supplier_id, connection)
+        _queue_supplier_balance(target, target.supplier_id)
 
 @event.listens_for(ExchangeTransaction, "after_update")
 def _exchange_after_update(mapper, connection, target: "ExchangeTransaction"):
@@ -4602,14 +4658,14 @@ def _exchange_after_update(mapper, connection, target: "ExchangeTransaction"):
         except:
             pass
     if supplier_id:
-        update_supplier_balance(supplier_id, connection)
+        _queue_supplier_balance(target, supplier_id)
 
 @event.listens_for(ExchangeTransaction, "after_delete")
 def _exchange_after_delete(mapper, connection, target: "ExchangeTransaction"):
     delta = -_ex_dir_sign(target.direction) * int(target.quantity or 0)
     if delta: _apply_stock_delta(connection, target.product_id, target.warehouse_id, delta)
     if target.supplier_id:
-        update_supplier_balance(target.supplier_id, connection)
+        _queue_supplier_balance(target, target.supplier_id)
 
 def _maybe_post_gl_exchange(connection, tx: "ExchangeTransaction"):
     try:
@@ -4890,14 +4946,14 @@ def _preorder_gl_batch_upsert(mapper, connection, target: "PreOrder"):
                 amount_ils = prepaid
                 if target.currency and target.currency != 'ILS':
                     try:
-                        rate = fx_rate(target.currency, 'ILS', target.preorder_date or datetime.utcnow(), raise_on_missing=False)
+                        rate = _fx_rate_local_via_connection(connection, target.currency, 'ILS', target.preorder_date or datetime.now(timezone.utc))
                         if rate and rate > 0:
                             amount_ils = float(prepaid * float(rate))
                     except Exception:
                         pass
                 
                 ar_account = GL_ACCOUNTS.get("AR", "1100_AR")
-                advance_account = GL_ACCOUNTS.get("ADVANCE", "2300_ADVANCE_PAYMENTS")
+                advance_account = GL_ACCOUNTS.get("ADVANCE", "2300_ADV_PAY")
                 
                 entries = [
                     (advance_account, amount_ils, 0),
@@ -4943,13 +4999,12 @@ def _preorder_gl_batch_upsert(mapper, connection, target: "PreOrder"):
         if payment_check > 0:
             return
         
-        from models import fx_rate
         from flask import current_app
         
         amount_ils = prepaid
         if target.currency and target.currency != 'ILS':
             try:
-                rate = fx_rate(target.currency, 'ILS', target.preorder_date or datetime.utcnow(), raise_on_missing=False)
+                rate = _fx_rate_local_via_connection(connection, target.currency, 'ILS', target.preorder_date or datetime.now(timezone.utc))
                 if rate and rate > 0:
                     amount_ils = float(prepaid * float(rate))
             except Exception as e:
@@ -4957,7 +5012,7 @@ def _preorder_gl_batch_upsert(mapper, connection, target: "PreOrder"):
                     current_app.logger.warning(f"⚠️ خطأ في تحويل العملة للحجز #{target.id}: {e}")
         
         ar_account = GL_ACCOUNTS.get("AR", "1100_AR")
-        advance_account = GL_ACCOUNTS.get("ADVANCE", "2300_ADVANCE_PAYMENTS")
+        advance_account = GL_ACCOUNTS.get("ADVANCE", "2300_ADV_PAY")
         
         entries = [
             (ar_account, amount_ils, 0),
@@ -5281,10 +5336,11 @@ def _sale_before_insert_ref(mapper, connection, target: "Sale"):
     
     if sale_currency != default_currency:
         try:
-            rate_info = get_fx_rate_with_fallback(sale_currency, default_currency)
-            if rate_info and rate_info.get('success'):
-                target.fx_rate_used = Decimal(str(rate_info.get('rate', 0)))
-                target.fx_rate_source = rate_info.get('source', 'unknown')
+            at = getattr(target, "sale_date", None) or getattr(target, "created_at", None) or datetime.now(timezone.utc)
+            rate = _fx_rate_local_via_connection(connection, sale_currency, default_currency, at)
+            if rate and rate > 0:
+                target.fx_rate_used = Decimal(str(rate))
+                target.fx_rate_source = "manual"
                 target.fx_rate_timestamp = datetime.now(timezone.utc)
                 target.fx_base_currency = sale_currency
                 target.fx_quote_currency = default_currency
@@ -5430,8 +5486,6 @@ def _sale_gl_batch_upsert(mapper, connection, target: "Sale"):
     
     try:
         with connection.begin_nested():
-            from models import fx_rate
-            
             # تحويل المبلغ للشيقل
             from decimal import Decimal
             amount = Decimal(str(target.total_amount or 0))
@@ -5444,7 +5498,7 @@ def _sale_gl_batch_upsert(mapper, connection, target: "Sale"):
 
             if target.currency and target.currency != 'ILS':
                 try:
-                    rate = fx_rate(target.currency, 'ILS', target.sale_date or datetime.utcnow(), raise_on_missing=False)
+                    rate = _fx_rate_local_via_connection(connection, target.currency, 'ILS', target.sale_date or datetime.now(timezone.utc))
                     if rate and rate > 0:
                         exchange_rate = Decimal(str(rate))
                         amount_ils = amount * exchange_rate
@@ -5643,7 +5697,7 @@ def _sale_gl_batch_upsert(mapper, connection, target: "Sale"):
                         amount_ils = amount
                         if target.currency and target.currency != 'ILS':
                             try:
-                                rate = fx_rate(target.currency, 'ILS', target.sale_date or datetime.utcnow(), raise_on_missing=False)
+                                rate = _fx_rate_local_via_connection(connection, target.currency, 'ILS', target.sale_date or datetime.now(timezone.utc))
                                 if rate and rate > 0:
                                     amount_ils = float(amount * float(rate))
                             except Exception:
@@ -5678,8 +5732,6 @@ def _sale_gl_batch_reverse(mapper, connection, target: "Sale"):
         if target.status != SaleStatus.CONFIRMED.value:
             return
         
-        from models import fx_rate
-        
         total_amount = float(target.total_amount or 0)
         if total_amount <= 0:
             return
@@ -5687,7 +5739,7 @@ def _sale_gl_batch_reverse(mapper, connection, target: "Sale"):
         amount_ils = total_amount
         if target.currency and target.currency != 'ILS':
             try:
-                rate = fx_rate(target.currency, 'ILS', target.sale_date or datetime.utcnow(), raise_on_missing=False)
+                rate = _fx_rate_local_via_connection(connection, target.currency, 'ILS', target.sale_date or datetime.now(timezone.utc))
                 if rate and rate > 0:
                     amount_ils = float(total_amount * float(rate))
             except Exception:
@@ -5830,7 +5882,7 @@ def _sale_line_touch_sale_total(mapper, connection, target: "SaleLine"):
                 
                 for partner_row in partner_results:
                     if partner_row[0]:
-                        update_partner_balance(partner_row[0], connection)
+                        _queue_partner_balance(target, partner_row[0])
         except Exception as e:
             pass
     if sid:
@@ -5932,6 +5984,7 @@ class SaleReturnLine(db.Model):
     )
 
 @event.listens_for(SaleReturnLine, "after_insert")
+@event.listens_for(SaleReturnLine, "after_update")
 def _srl_after_insert(mapper, connection, t: "SaleReturnLine"):
     # فقط المرتجعات بحالة GOOD تُضاف للمخزون القابل للبيع
     # الحالات الأخرى (DAMAGED, FOR_REPAIR, UNUSABLE) تُسجّل لكن لا تُعاد للمخزون
@@ -5940,10 +5993,95 @@ def _srl_after_insert(mapper, connection, t: "SaleReturnLine"):
     
     # حساب الإجمالي
     if t.sale_return_id:
-        total = connection.execute(
-            select(func.coalesce(func.sum(SaleReturnLine.quantity * SaleReturnLine.unit_price), 0)).where(SaleReturnLine.sale_return_id == t.sale_return_id)
-        ).scalar_one() or 0
-        connection.execute(update(SaleReturn).where(SaleReturn.id == t.sale_return_id).values(total_amount=q(total)))
+        sr = connection.execute(
+            select(SaleReturn.id, SaleReturn.sale_id).where(SaleReturn.id == t.sale_return_id)
+        ).first()
+        if sr and sr.sale_id:
+            items_total = connection.execute(
+                select(func.coalesce(func.sum(SaleReturnLine.quantity * SaleReturnLine.unit_price), 0)).where(SaleReturnLine.sale_return_id == t.sale_return_id)
+            ).scalar_one() or 0
+            sale_subtotal = connection.execute(
+                select(
+                    func.coalesce(
+                        func.sum(
+                            (SaleLine.quantity * SaleLine.unit_price)
+                            * (1 - (func.coalesce(SaleLine.discount_rate, 0) / 100.0))
+                        ),
+                        0.0,
+                    )
+                ).where(SaleLine.sale_id == sr.sale_id)
+            ).scalar_one() or 0
+            sale_row = connection.execute(
+                select(Sale.tax_rate, Sale.shipping_cost, Sale.discount_total).where(Sale.id == sr.sale_id)
+            ).first()
+            tr = Decimal(str((sale_row[0] if sale_row else 0) or 0))
+            sh = Decimal(str((sale_row[1] if sale_row else 0) or 0))
+            disc = Decimal(str((sale_row[2] if sale_row else 0) or 0))
+            items_total_d = Decimal(str(items_total or 0))
+            sale_subtotal_d = Decimal(str(sale_subtotal or 0))
+            if sale_subtotal_d > Decimal("0"):
+                ratio = items_total_d / sale_subtotal_d
+            else:
+                ratio = Decimal("1") if items_total_d > Decimal("0") else Decimal("0")
+            if ratio < Decimal("0"):
+                ratio = Decimal("0")
+            if ratio > Decimal("1"):
+                ratio = Decimal("1")
+            disc_share = disc * ratio
+            sh_share = sh * ratio
+            base = items_total_d - disc_share
+            if base < Decimal("0"):
+                base = Decimal("0")
+            base = base + sh_share
+            tax_amount = (base * tr / Decimal("100.0")) if tr > 0 else Decimal("0")
+            total_amount = base + tax_amount
+            if total_amount < Decimal("0"):
+                total_amount = Decimal("0")
+            connection.execute(
+                update(SaleReturn)
+                .where(SaleReturn.id == t.sale_return_id)
+                .values(
+                    total_amount=q(total_amount),
+                    tax_rate=q(tr),
+                    tax_amount=q(tax_amount),
+                )
+            )
+        else:
+            total = connection.execute(
+                select(func.coalesce(func.sum(SaleReturnLine.quantity * SaleReturnLine.unit_price), 0)).where(SaleReturnLine.sale_return_id == t.sale_return_id)
+            ).scalar_one() or 0
+            connection.execute(update(SaleReturn).where(SaleReturn.id == t.sale_return_id).values(total_amount=q(total)))
+        
+        sr_row = connection.execute(
+            sa_text("SELECT id, status, customer_id, total_amount FROM sale_returns WHERE id=:id"),
+            {"id": int(t.sale_return_id)},
+        ).mappings().first()
+        if sr_row and str(sr_row.get("status") or "").upper() == "CONFIRMED" and float(sr_row.get("total_amount") or 0) > 0:
+            amt = float(sr_row["total_amount"])
+            entries = [
+                (GL_ACCOUNTS.get("REV", "4000_SALES"), amt, 0.0),
+                (GL_ACCOUNTS.get("AR", "1100_AR"), 0.0, amt),
+            ]
+            _gl_upsert_batch_and_entries(
+                connection,
+                source_type="SALE_RETURN",
+                source_id=int(sr_row["id"]),
+                purpose="RETURN",
+                currency="ILS",
+                memo=f"مرتجع مبيعات - {sr_row.get('id')}",
+                entries=entries,
+                ref=str(f"RET-{sr_row.get('id')}"),
+                entity_type="CUSTOMER",
+                entity_id=int(sr_row.get("customer_id") or 0) or None,
+            )
+        else:
+            bids = connection.execute(
+                sa_text("SELECT id FROM gl_batches WHERE source_type='SALE_RETURN' AND source_id=:sid AND purpose='RETURN'"),
+                {"sid": int(t.sale_return_id)},
+            ).fetchall()
+            for (bid,) in bids:
+                connection.execute(sa_text("DELETE FROM gl_entries WHERE batch_id=:bid"), {"bid": int(bid)})
+                connection.execute(sa_text("DELETE FROM gl_batches WHERE id=:bid"), {"bid": int(bid)})
     
     # 🔥 المنتجات التالفة: تخصم من الجهة المسؤولة فقط
     # المنتجات السليمة: لا تأثير (البيع طبيعي والإرجاع طبيعي)
@@ -5967,7 +6105,7 @@ def _srl_after_insert(mapper, connection, t: "SaleReturnLine"):
                 
                 # خصم حسب الجهة المسؤولة
                 if liability == 'SUPPLIER' and supplier_id:
-                    update_supplier_balance(supplier_id, connection)
+                    _queue_supplier_balance(t, supplier_id)
                 
                 elif liability == 'PARTNER' and t.warehouse_id:
                     # الشريك مسؤول (سوء تخزين، إهمال)
@@ -5976,7 +6114,7 @@ def _srl_after_insert(mapper, connection, t: "SaleReturnLine"):
                     ).first()
                     
                     if wh_row and wh_row.partner_id:
-                        update_partner_balance(wh_row.partner_id, connection)
+                        _queue_partner_balance(t, wh_row.partner_id)
                 
                 elif liability == 'CUSTOMER':
                     # العميل مسؤول (سوء استخدام) - لا نخفض دينه، يدفع التعويض
@@ -5995,10 +6133,95 @@ def _srl_after_delete(mapper, connection, t: "SaleReturnLine"):
     if t.warehouse_id and (t.condition or 'GOOD') == 'GOOD':
         _apply_stock_delta(connection, t.product_id, t.warehouse_id, -int(t.quantity or 0))
     if t.sale_return_id:
-        total = connection.execute(
-            select(func.coalesce(func.sum(SaleReturnLine.quantity * SaleReturnLine.unit_price), 0)).where(SaleReturnLine.sale_return_id == t.sale_return_id)
-        ).scalar_one() or 0
-        connection.execute(update(SaleReturn).where(SaleReturn.id == t.sale_return_id).values(total_amount=q(total)))
+        sr = connection.execute(
+            select(SaleReturn.id, SaleReturn.sale_id).where(SaleReturn.id == t.sale_return_id)
+        ).first()
+        if sr and sr.sale_id:
+            items_total = connection.execute(
+                select(func.coalesce(func.sum(SaleReturnLine.quantity * SaleReturnLine.unit_price), 0)).where(SaleReturnLine.sale_return_id == t.sale_return_id)
+            ).scalar_one() or 0
+            sale_subtotal = connection.execute(
+                select(
+                    func.coalesce(
+                        func.sum(
+                            (SaleLine.quantity * SaleLine.unit_price)
+                            * (1 - (func.coalesce(SaleLine.discount_rate, 0) / 100.0))
+                        ),
+                        0.0,
+                    )
+                ).where(SaleLine.sale_id == sr.sale_id)
+            ).scalar_one() or 0
+            sale_row = connection.execute(
+                select(Sale.tax_rate, Sale.shipping_cost, Sale.discount_total).where(Sale.id == sr.sale_id)
+            ).first()
+            tr = Decimal(str((sale_row[0] if sale_row else 0) or 0))
+            sh = Decimal(str((sale_row[1] if sale_row else 0) or 0))
+            disc = Decimal(str((sale_row[2] if sale_row else 0) or 0))
+            items_total_d = Decimal(str(items_total or 0))
+            sale_subtotal_d = Decimal(str(sale_subtotal or 0))
+            if sale_subtotal_d > Decimal("0"):
+                ratio = items_total_d / sale_subtotal_d
+            else:
+                ratio = Decimal("1") if items_total_d > Decimal("0") else Decimal("0")
+            if ratio < Decimal("0"):
+                ratio = Decimal("0")
+            if ratio > Decimal("1"):
+                ratio = Decimal("1")
+            disc_share = disc * ratio
+            sh_share = sh * ratio
+            base = items_total_d - disc_share
+            if base < Decimal("0"):
+                base = Decimal("0")
+            base = base + sh_share
+            tax_amount = (base * tr / Decimal("100.0")) if tr > 0 else Decimal("0")
+            total_amount = base + tax_amount
+            if total_amount < Decimal("0"):
+                total_amount = Decimal("0")
+            connection.execute(
+                update(SaleReturn)
+                .where(SaleReturn.id == t.sale_return_id)
+                .values(
+                    total_amount=q(total_amount),
+                    tax_rate=q(tr),
+                    tax_amount=q(tax_amount),
+                )
+            )
+        else:
+            total = connection.execute(
+                select(func.coalesce(func.sum(SaleReturnLine.quantity * SaleReturnLine.unit_price), 0)).where(SaleReturnLine.sale_return_id == t.sale_return_id)
+            ).scalar_one() or 0
+            connection.execute(update(SaleReturn).where(SaleReturn.id == t.sale_return_id).values(total_amount=q(total)))
+        
+        sr_row = connection.execute(
+            sa_text("SELECT id, status, customer_id, total_amount FROM sale_returns WHERE id=:id"),
+            {"id": int(t.sale_return_id)},
+        ).mappings().first()
+        if sr_row and str(sr_row.get("status") or "").upper() == "CONFIRMED" and float(sr_row.get("total_amount") or 0) > 0:
+            amt = float(sr_row["total_amount"])
+            entries = [
+                (GL_ACCOUNTS.get("REV", "4000_SALES"), amt, 0.0),
+                (GL_ACCOUNTS.get("AR", "1100_AR"), 0.0, amt),
+            ]
+            _gl_upsert_batch_and_entries(
+                connection,
+                source_type="SALE_RETURN",
+                source_id=int(sr_row["id"]),
+                purpose="RETURN",
+                currency="ILS",
+                memo=f"مرتجع مبيعات - {sr_row.get('id')}",
+                entries=entries,
+                ref=str(f"RET-{sr_row.get('id')}"),
+                entity_type="CUSTOMER",
+                entity_id=int(sr_row.get("customer_id") or 0) or None,
+            )
+        else:
+            bids = connection.execute(
+                sa_text("SELECT id FROM gl_batches WHERE source_type='SALE_RETURN' AND source_id=:sid AND purpose='RETURN'"),
+                {"sid": int(t.sale_return_id)},
+            ).fetchall()
+            for (bid,) in bids:
+                connection.execute(sa_text("DELETE FROM gl_entries WHERE batch_id=:bid"), {"bid": int(bid)})
+                connection.execute(sa_text("DELETE FROM gl_batches WHERE id=:bid"), {"bid": int(bid)})
 
 # ═══════════════════════════════════════════════════════════════════════
 # 💰 Tax Listeners for SaleReturn - مستمعات الضرائب للمرتجعات
@@ -6310,10 +6533,11 @@ def _invoice_normalize_and_total_insert(mapper, connection, target: "Invoice"):
     
     if invoice_currency != default_currency:
         try:
-            rate_info = get_fx_rate_with_fallback(invoice_currency, default_currency)
-            if rate_info and rate_info.get('success'):
-                target.fx_rate_used = Decimal(str(rate_info.get('rate', 0)))
-                target.fx_rate_source = rate_info.get('source', 'unknown')
+            at = getattr(target, "invoice_date", None) or getattr(target, "created_at", None) or datetime.now(timezone.utc)
+            rate = _fx_rate_local_via_connection(connection, invoice_currency, default_currency, at)
+            if rate and rate > 0:
+                target.fx_rate_used = Decimal(str(rate))
+                target.fx_rate_source = "manual"
                 target.fx_rate_timestamp = datetime.now(timezone.utc)
                 target.fx_base_currency = invoice_currency
                 target.fx_quote_currency = default_currency
@@ -6489,7 +6713,7 @@ def _invoice_gl_batch_upsert(mapper, connection, target: "Invoice"):
                 amount_ils = amount
                 if target.currency and target.currency != 'ILS':
                     try:
-                        rate = fx_rate(target.currency, 'ILS', target.invoice_date or datetime.utcnow(), raise_on_missing=False)
+                        rate = _fx_rate_local_via_connection(connection, target.currency, 'ILS', target.invoice_date or datetime.now(timezone.utc))
                         if rate and rate > 0:
                             amount_ils = float(amount * float(rate))
                     except Exception:
@@ -6535,13 +6759,11 @@ def _invoice_gl_batch_upsert(mapper, connection, target: "Invoice"):
         return
     
     try:
-        from models import fx_rate
-        
         # تحويل العملة للشيقل
         amount_ils = amount
         if target.currency and target.currency != 'ILS':
             try:
-                rate = fx_rate(target.currency, 'ILS', target.invoice_date or datetime.utcnow(), raise_on_missing=False)
+                rate = _fx_rate_local_via_connection(connection, target.currency, 'ILS', target.invoice_date or datetime.now(timezone.utc))
                 if rate and rate > 0:
                     amount_ils = float(amount * float(rate))
             except Exception:
@@ -6636,6 +6858,18 @@ def _inv_line_touch_invoice(mapper, connection, target: "InvoiceLine"):
             
             # المبلغ
             amount_ils = float(inv_data[2])  # total_amount
+            try:
+                cur = inv_data[7] or "ILS"
+                if cur != "ILS":
+                    fx_used = float(inv_data[8] or 0)
+                    if fx_used > 0:
+                        amount_ils = float(float(inv_data[2]) * fx_used)
+                    else:
+                        rate = _fx_rate_local_via_connection(connection, cur, "ILS", inv_data[9] or datetime.now(timezone.utc))
+                        if rate and rate > 0:
+                            amount_ils = float(float(inv_data[2]) * float(rate))
+            except Exception:
+                pass
             
             # القيد المحاسبي
             if entity_type == "CUSTOMER":
@@ -6735,9 +6969,17 @@ class ProductSupplierLoan(db.Model, TimestampMixin):
 @event.listens_for(ProductSupplierLoan, 'before_insert')
 def _psl_before_insert(mapper, connection, target: 'ProductSupplierLoan'):
     if not target.loan_value or Decimal(str(target.loan_value)) <= 0:
-        prod = db.session.get(Product, target.product_id) if target.product_id else None
-        pp = getattr(prod, 'purchase_price', 0) or 0
-        target.loan_value = Decimal(str(pp or 0))
+        if target.product_id:
+            try:
+                from sqlalchemy import select as sa_select
+                pp = connection.execute(
+                    sa_select(Product.purchase_price).where(Product.id == target.product_id)
+                ).scalar_one_or_none()
+                target.loan_value = Decimal(str(pp or 0))
+            except Exception:
+                target.loan_value = Decimal("0")
+        else:
+            target.loan_value = Decimal("0")
     if target.deferred_price is not None and Decimal(str(target.deferred_price)) >= 0:
         target.is_settled = True
     target.partner_share_quantity = int(target.partner_share_quantity or 0)
@@ -6746,9 +6988,17 @@ def _psl_before_insert(mapper, connection, target: 'ProductSupplierLoan'):
 @event.listens_for(ProductSupplierLoan, 'before_update')
 def _psl_before_update(mapper, connection, target: 'ProductSupplierLoan'):
     if not target.loan_value or Decimal(str(target.loan_value)) <= 0:
-        prod = db.session.get(Product, target.product_id) if target.product_id else None
-        pp = getattr(prod, 'purchase_price', 0) or 0
-        target.loan_value = Decimal(str(pp or 0))
+        if target.product_id:
+            try:
+                from sqlalchemy import select as sa_select
+                pp = connection.execute(
+                    sa_select(Product.purchase_price).where(Product.id == target.product_id)
+                ).scalar_one_or_none()
+                target.loan_value = Decimal(str(pp or 0))
+            except Exception:
+                target.loan_value = Decimal("0")
+        else:
+            target.loan_value = Decimal("0")
     if target.deferred_price is not None and Decimal(str(target.deferred_price)) >= 0:
         target.is_settled = True
     target.partner_share_quantity = int(target.partner_share_quantity or 0)
@@ -6857,6 +7107,9 @@ class Payment(db.Model, TimestampMixin):
         db.Index("ix_pay_supplier_status_dir", "supplier_id", "status", "direction"),
         db.Index("ix_pay_partner_status_dir", "partner_id", "status", "direction"),
         db.Index("ix_pay_preorder_status_dir", "preorder_id", "status", "direction"),
+        db.Index("ix_pay_supplier_dir_status_date", "supplier_id", "direction", "status", "payment_date"),
+        db.Index("ix_pay_partner_dir_status_date", "partner_id", "direction", "status", "payment_date"),
+        db.Index("ix_pay_customer_dir_status_date", "customer_id", "direction", "status", "payment_date"),
         db.Index("ix_pay_reversal", "refund_of_id"),
         db.Index("ix_pay_dir_stat_type", "direction", "status", "entity_type"),
         db.Index("ix_pay_status", "status"),
@@ -7007,9 +7260,6 @@ def _payment_target_fk_for_type(et: str) -> str | None:
 
 def _payment_detect_entity_type(target: "Payment") -> str | None:
     pairs = [
-        ("CUSTOMER", target.customer_id),
-        ("SUPPLIER", target.supplier_id),
-        ("PARTNER", target.partner_id),
         ("SHIPMENT", target.shipment_id),
         ("EXPENSE", target.expense_id),
         ("LOAN", target.loan_settlement_id),
@@ -7017,11 +7267,37 @@ def _payment_detect_entity_type(target: "Payment") -> str | None:
         ("INVOICE", target.invoice_id),
         ("PREORDER", target.preorder_id),
         ("SERVICE", target.service_id),
+        ("CUSTOMER", target.customer_id),
+        ("SUPPLIER", target.supplier_id),
+        ("PARTNER", target.partner_id),
     ]
     for et, vid in pairs:
         if vid:
             return et
     return None
+
+
+def _payment_validate_linkage(target: "Payment") -> None:
+    core_fields = [
+        "shipment_id",
+        "expense_id",
+        "loan_settlement_id",
+        "sale_id",
+        "invoice_id",
+        "preorder_id",
+        "service_id",
+    ]
+    core_set = [f for f in core_fields if getattr(target, f, None)]
+    if len(core_set) > 1:
+        raise ValueError("payment.multiple_targets")
+
+    et = getattr(target, "entity_type", None)
+    if hasattr(et, "value"):
+        et = et.value
+    et = (et or "").upper()
+    fk = _payment_target_fk_for_type(et)
+    if fk and not getattr(target, fk, None):
+        raise ValueError("payment.missing_target_fk")
 
 
 _EXPENSE_LEDGER_BEHAVIORS = {"IMMEDIATE", "PARTIAL", "ON_ACCOUNT"}
@@ -7132,7 +7408,6 @@ def _payment_clear_balance_cache(mapper, connection, target: "Payment"):
             cache.delete(f"entity_balance_CUSTOMER_{target.customer_id}")
         if target.supplier_id:
             cache.delete(f"entity_balance_SUPPLIER_{target.supplier_id}")
-            update_supplier_balance(target.supplier_id, connection)
         if target.partner_id:
             cache.delete(f"entity_balance_PARTNER_{target.partner_id}")
     except Exception:
@@ -7142,7 +7417,7 @@ def _payment_clear_balance_cache(mapper, connection, target: "Payment"):
 def _payment_update_supplier_balance_on_delete(mapper, connection, target: "Payment"):
     try:
         if target.supplier_id:
-            update_supplier_balance(target.supplier_id, connection)
+            _queue_supplier_balance(target, target.supplier_id)
     except Exception:
         pass
 
@@ -7177,7 +7452,7 @@ def _payment_gl_batch_upsert(mapper, connection, target: "Payment"):
                 amount_ils = amount
                 if target.currency and target.currency != 'ILS':
                     try:
-                        rate = fx_rate(target.currency, 'ILS', target.payment_date or datetime.utcnow(), raise_on_missing=False)
+                        rate = _fx_rate_local_via_connection(connection, target.currency, 'ILS', target.payment_date or datetime.now(timezone.utc))
                         if rate and rate > 0:
                             amount_ils = float(amount * float(rate))
                     except Exception:
@@ -7244,8 +7519,6 @@ def _payment_gl_batch_upsert(mapper, connection, target: "Payment"):
                        target.method == PaymentMethod.CHEQUE.value)
     
     try:
-        from models import fx_rate
-        
         # تحويل المبلغ للشيقل
         amount = float(target.total_amount or 0)
         if amount <= 0:
@@ -7255,7 +7528,7 @@ def _payment_gl_batch_upsert(mapper, connection, target: "Payment"):
         amount_ils = amount
         if target.currency and target.currency != 'ILS':
             try:
-                rate = fx_rate(target.currency, 'ILS', target.payment_date or datetime.utcnow(), raise_on_missing=False)
+                rate = _fx_rate_local_via_connection(connection, target.currency, 'ILS', target.payment_date or datetime.now(timezone.utc))
                 if rate and rate > 0:
                     amount_ils = float(amount * float(rate))
             except Exception:
@@ -7267,9 +7540,9 @@ def _payment_gl_batch_upsert(mapper, connection, target: "Payment"):
         if is_pending_check:
             # تحديد حسب الاتجاه
             if target.direction == PaymentDirection.IN.value:
-                cash_account = "1150_CHEQUES_RECEIVABLE"  # شيكات تحت التحصيل (أصل)
+                cash_account = "1150_CHQ_REC"  # شيكات تحت التحصيل (أصل)
             else:
-                cash_account = "2150_CHEQUES_PAYABLE"  # شيكات مستحقة الدفع (خصم)
+                cash_account = "2150_CHQ_PAY"  # شيكات مستحقة الدفع (خصم)
         elif target.method == PaymentMethod.BANK.value:
             cash_account = GL_ACCOUNTS.get("BANK", "1010_BANK")
         elif target.method == PaymentMethod.CARD.value:
@@ -7282,7 +7555,7 @@ def _payment_gl_batch_upsert(mapper, connection, target: "Payment"):
         is_preorder = (target.entity_type == PaymentEntityType.PREORDER.value if hasattr(PaymentEntityType, "PREORDER") else str(target.entity_type or "") == "PREORDER") or target.preorder_id
         
         if is_preorder:
-            entity_account = GL_ACCOUNTS.get("ADVANCE", "2300_ADVANCE_PAYMENTS")
+            entity_account = GL_ACCOUNTS.get("ADVANCE", "2300_ADV_PAY")
             entity_name = "عربون حجز"
         elif target.entity_type == PaymentEntityType.SUPPLIER.value or target.supplier_id:
             entity_account = GL_ACCOUNTS.get("AP", "2000_AP")
@@ -7368,8 +7641,6 @@ def _payment_gl_batch_reverse(mapper, connection, target: "Payment"):
         if target.status != PaymentStatus.COMPLETED.value:
             return
         
-        from models import fx_rate
-        
         amount = float(target.total_amount or 0)
         if amount <= 0:
             return
@@ -7377,7 +7648,7 @@ def _payment_gl_batch_reverse(mapper, connection, target: "Payment"):
         amount_ils = amount
         if target.currency and target.currency != 'ILS':
             try:
-                rate = fx_rate(target.currency, 'ILS', target.payment_date or datetime.utcnow(), raise_on_missing=False)
+                rate = _fx_rate_local_via_connection(connection, target.currency, 'ILS', target.payment_date or datetime.now(timezone.utc))
                 if rate and rate > 0:
                     amount_ils = float(amount * float(rate))
             except Exception:
@@ -7492,7 +7763,7 @@ def _payment_create_check_auto(mapper, connection, target: "Payment"):
             "created_at": datetime.now(timezone.utc),
             "updated_at": datetime.now(timezone.utc),
         }
-        check_values.update(_compute_issue_fx_fields(check_currency))
+        check_values.update(_compute_issue_fx_fields(connection, check_currency, check_values.get("check_date")))
 
         connection.execute(Check.__table__.insert().values(**check_values))
         
@@ -7664,16 +7935,16 @@ def _payment_before_insert(mapper, connection, target: "Payment"):
             setattr(target, k, getattr(v, "value", v))
     target.currency = ensure_currency(getattr(target, "currency", None) or "ILS")
     
-    # حفظ سعر الصرف المستخدم تلقائياً (فقط عند الإنشاء)
     payment_currency = target.currency
     default_currency = "ILS"
     
     if payment_currency != default_currency:
         try:
-            rate_info = get_fx_rate_with_fallback(payment_currency, default_currency)
-            if rate_info and rate_info.get('success'):
-                target.fx_rate_used = Decimal(str(rate_info.get('rate', 0)))
-                target.fx_rate_source = rate_info.get('source', 'unknown')
+            at = getattr(target, "payment_date", None) or getattr(target, "created_at", None) or datetime.now(timezone.utc)
+            rate = _fx_rate_local_via_connection(connection, payment_currency, default_currency, at)
+            if rate and rate > 0:
+                target.fx_rate_used = Decimal(str(rate))
+                target.fx_rate_source = "manual"
                 target.fx_rate_timestamp = datetime.now(timezone.utc)
                 target.fx_base_currency = payment_currency
                 target.fx_quote_currency = default_currency
@@ -7683,6 +7954,7 @@ def _payment_before_insert(mapper, connection, target: "Payment"):
     detected = _payment_detect_entity_type(target)
     if detected:
         target.entity_type = detected
+    _payment_validate_linkage(target)
     et = target.entity_type
     eid = _payment_entity_id_for(target)
     validate_payment_policies(
@@ -7705,6 +7977,7 @@ def _payment_before_update(mapper, connection, target: "Payment"):
     detected = _payment_detect_entity_type(target)
     if detected:
         target.entity_type = detected
+    _payment_validate_linkage(target)
     h = get_history(target, "status")
     prev = (h.deleted[0] if h.deleted else getattr(target, "status", None))
     _payment_enforce_transition(prev, getattr(target, "status", None))
@@ -7910,7 +8183,8 @@ def _payment_split_gl_batch_upsert(mapper, connection, target: "PaymentSplit"):
         payment_row = connection.execute(
             sa_text("""
                 SELECT id, payment_number, payment_date, currency, direction, status,
-                       customer_id, supplier_id, partner_id, entity_type, expense_id, created_by
+                       customer_id, supplier_id, partner_id, entity_type, expense_id, created_by,
+                       sale_id, invoice_id, service_id, preorder_id, shipment_id
                 FROM payments 
                 WHERE id = :pid
             """),
@@ -7950,8 +8224,7 @@ def _payment_split_gl_batch_upsert(mapper, connection, target: "PaymentSplit"):
         # إذا لم تكن العملة ILS، تحويلها (إذا لم تكن محولة مسبقاً)
         if split_currency != 'ILS' and not target.converted_amount:
             try:
-                from models import fx_rate
-                rate = fx_rate(split_currency, 'ILS', payment_row['payment_date'] or datetime.utcnow(), raise_on_missing=False)
+                rate = _fx_rate_local_via_connection(connection, split_currency, 'ILS', payment_row['payment_date'] or datetime.now(timezone.utc))
                 if rate and rate > 0:
                     amount_ils = float(amount * float(rate))
             except Exception:
@@ -7971,9 +8244,9 @@ def _payment_split_gl_batch_upsert(mapper, connection, target: "PaymentSplit"):
         if is_pending_check:
             # للشيكات المعلقة: استخدام "شيكات تحت التحصيل" (وارد) أو "شيكات مستحقة" (صادر)
             if payment_row['direction'] == PaymentDirection.IN.value:
-                cash_account = "1150_CHEQUES_RECEIVABLE"  # شيكات تحت التحصيل (أصل)
+                cash_account = "1150_CHQ_REC"  # شيكات تحت التحصيل (أصل)
             else:
-                cash_account = "2150_CHEQUES_PAYABLE"  # شيكات مستحقة الدفع (خصم)
+                cash_account = "2150_CHQ_PAY"  # شيكات مستحقة الدفع (خصم)
         elif split_method == PaymentMethod.BANK.value:
             cash_account = GL_ACCOUNTS.get("BANK", "1010_BANK")
         elif split_method == PaymentMethod.CARD.value:
@@ -7982,21 +8255,50 @@ def _payment_split_gl_batch_upsert(mapper, connection, target: "PaymentSplit"):
             cash_account = GL_ACCOUNTS.get("CASH", "1000_CASH")
         
         # تحديد الحساب الآخر حسب نوع الكيان
-        entity_type = payment_row['entity_type'] or 'OTHER'
+        payment_entity_type = payment_row['entity_type'] or 'OTHER'
         customer_id = payment_row['customer_id']
         supplier_id = payment_row['supplier_id']
         partner_id = payment_row['partner_id']
+        sale_id = payment_row.get('sale_id')
+        invoice_id = payment_row.get('invoice_id')
+        service_id = payment_row.get('service_id')
+        preorder_id = payment_row.get('preorder_id')
+        
+        batch_entity_type = None
+        batch_entity_id = None
+        derived_customer_id = customer_id
+        try:
+            if not derived_customer_id and sale_id:
+                derived_customer_id = connection.execute(sa_text("SELECT customer_id FROM sales WHERE id=:id"), {"id": int(sale_id)}).scalar()
+            if not derived_customer_id and invoice_id:
+                derived_customer_id = connection.execute(sa_text("SELECT customer_id FROM invoices WHERE id=:id"), {"id": int(invoice_id)}).scalar()
+            if not derived_customer_id and service_id:
+                derived_customer_id = connection.execute(sa_text("SELECT customer_id FROM service_requests WHERE id=:id"), {"id": int(service_id)}).scalar()
+            if not derived_customer_id and preorder_id:
+                derived_customer_id = connection.execute(sa_text("SELECT customer_id FROM preorders WHERE id=:id"), {"id": int(preorder_id)}).scalar()
+        except Exception:
+            pass
+        
+        if derived_customer_id:
+            batch_entity_type = "CUSTOMER"
+            batch_entity_id = int(derived_customer_id)
+        elif supplier_id:
+            batch_entity_type = "SUPPLIER"
+            batch_entity_id = int(supplier_id)
+        elif partner_id:
+            batch_entity_type = "PARTNER"
+            batch_entity_id = int(partner_id)
         
         entity_account = GL_ACCOUNTS.get("AR", "1100_AR")  # افتراضي للعملاء
         entity_name = "عميل"
         
-        if entity_type == PaymentEntityType.SUPPLIER.value or supplier_id:
+        if payment_entity_type == PaymentEntityType.SUPPLIER.value or supplier_id:
             entity_account = GL_ACCOUNTS.get("AP", "2000_AP")
             entity_name = "مورد"
-        elif entity_type == PaymentEntityType.PARTNER.value or partner_id:
+        elif payment_entity_type == PaymentEntityType.PARTNER.value or partner_id:
             entity_account = GL_ACCOUNTS.get("AP", "2000_AP")  # الشركاء يُعاملون كـ AP
             entity_name = "شريك"
-        elif entity_type == PaymentEntityType.EXPENSE.value or payment_row['expense_id']:
+        elif payment_entity_type == PaymentEntityType.EXPENSE.value or payment_row['expense_id']:
             entity_account = GL_ACCOUNTS.get("AP", "2000_AP")
             entity_name = "مصروف"
         
@@ -8060,8 +8362,8 @@ def _payment_split_gl_batch_upsert(mapper, connection, target: "PaymentSplit"):
             memo=memo,
             entries=entries,
             ref=f"SPLIT-{target.id}-PMT-{payment_row['payment_number'] or payment_row['id']}",
-            entity_type=entity_type,
-            entity_id=customer_id or supplier_id or partner_id
+            entity_type=batch_entity_type,
+            entity_id=batch_entity_id
         )
         
         from flask import current_app
@@ -8549,23 +8851,52 @@ class Shipment(db.Model, TimestampMixin, AuditMixin):
             self.actual_arrival = datetime.now(timezone.utc)
 
     def _apply_arrival_stock(self):
-        for it in (self.items or []):
-            lvl = StockLevel.query.filter_by(product_id=it.product_id, warehouse_id=it.warehouse_id).with_for_update().first()
-            if not lvl:
-                lvl = StockLevel(product_id=it.product_id, warehouse_id=it.warehouse_id, quantity=0, reserved_quantity=0)
-                db.session.add(lvl)
-                db.session.flush()
-            lvl.quantity = int(lvl.quantity or 0) + int(it.quantity or 0)
+        if not getattr(self, "id", None):
+            return
+        with db.session.no_autoflush:
+            connection = db.session.connection()
+            dest_id = getattr(self, "destination_id", None)
+            rows = connection.execute(
+                sa_text(
+                    "SELECT product_id, COALESCE(warehouse_id, :dest) AS wid, quantity "
+                    "FROM shipment_items WHERE shipment_id = :sid"
+                ),
+                {"sid": int(self.id), "dest": dest_id},
+            ).mappings().all()
+            for r in rows:
+                wid = r.get("wid")
+                if not wid:
+                    continue
+                wh = connection.execute(
+                    sa_text("SELECT warehouse_type, partner_id FROM warehouses WHERE id=:wid"),
+                    {"wid": int(wid)},
+                ).mappings().first()
+                if wh and (wh.get("warehouse_type") or "").upper() == WarehouseType.PARTNER.value and not wh.get("partner_id"):
+                    raise ValueError("Partner warehouse missing partner_id")
+                qty = int(r.get("quantity") or 0)
+                if qty > 0:
+                    _apply_stock_delta(connection, int(r["product_id"]), int(wid), +qty)
 
     def _revert_arrival_stock(self):
-        for it in (self.items or []):
-            lvl = StockLevel.query.filter_by(product_id=it.product_id, warehouse_id=it.warehouse_id).with_for_update().first()
-            if not lvl:
-                continue
-            new_q = int(lvl.quantity or 0) - int(it.quantity or 0)
-            if new_q < 0:
-                raise Exception("لا يمكن عكس مخزون الشحنة: سيصبح المخزون سالبًا")
-            lvl.quantity = new_q
+        if not getattr(self, "id", None):
+            return
+        with db.session.no_autoflush:
+            connection = db.session.connection()
+            dest_id = getattr(self, "destination_id", None)
+            rows = connection.execute(
+                sa_text(
+                    "SELECT product_id, COALESCE(warehouse_id, :dest) AS wid, quantity "
+                    "FROM shipment_items WHERE shipment_id = :sid"
+                ),
+                {"sid": int(self.id), "dest": dest_id},
+            ).mappings().all()
+            for r in rows:
+                wid = r.get("wid")
+                if not wid:
+                    continue
+                qty = int(r.get("quantity") or 0)
+                if qty > 0:
+                    _apply_stock_delta(connection, int(r["product_id"]), int(wid), -qty)
 
     def __repr__(self):
         return f"<Shipment {self.number or self.shipment_number or self.id}>"
@@ -8662,9 +8993,26 @@ def _shipment_before_update(mapper, connection, target: "Shipment"):
         target.number = target.shipment_number
     if getattr(target, "number", None) and not getattr(target, "shipment_number", None):
         target.shipment_number = target.number
-
-    _recompute_shipment_value_before(target)
-    _allocate_landed_costs(target)
+    try:
+        insp = inspect(target)
+        extras_changed = False
+        for k in ("shipping_cost", "customs", "vat", "insurance"):
+            try:
+                if insp.attrs[k].history.has_changes():
+                    extras_changed = True
+                    break
+            except Exception:
+                continue
+        items_changed = False
+        try:
+            items_changed = bool(insp.attrs["items"].history.has_changes())
+        except Exception:
+            items_changed = False
+        if extras_changed or items_changed:
+            _recompute_shipment_value_before(target)
+            _allocate_landed_costs(target)
+    except Exception:
+        pass
 
 @event.listens_for(Shipment.status, "set")
 def _shipment_status_toggle(target, value, oldvalue, initiator):
@@ -8696,8 +9044,6 @@ def _shipment_gl_batch_reverse(mapper, connection, target: "Shipment"):
         if target.status != ShipmentStatus.ARRIVED.value or not target.destination_id:
             return
         
-        from models import fx_rate
-        
         total_cost = float(target.total_cost or 0)
         if total_cost <= 0:
             return
@@ -8705,7 +9051,7 @@ def _shipment_gl_batch_reverse(mapper, connection, target: "Shipment"):
         amount_ils = total_cost
         if target.currency and target.currency != 'ILS':
             try:
-                rate = fx_rate(target.currency, 'ILS', target.date or datetime.utcnow(), raise_on_missing=False)
+                rate = _fx_rate_local_via_connection(connection, target.currency, 'ILS', target.date or datetime.now(timezone.utc))
                 if rate and rate > 0:
                     amount_ils = float(total_cost * float(rate))
             except Exception:
@@ -9307,6 +9653,84 @@ def _recalc_service_request_totals(sr: "ServiceRequest"):
         base_for_cost = Decimal("0.00")
     sr.total_cost = _Q2(base_for_cost) if tc < base_for_cost else _Q2(tc)
 
+
+def _recalc_service_request_totals_sql(connection, service_id: int) -> None:
+    sid = int(service_id or 0)
+    if sid <= 0:
+        return
+    try:
+        parts_sum = connection.execute(
+            sa_text(
+                """
+                SELECT COALESCE(SUM(COALESCE(quantity, 0) * COALESCE(unit_price, 0) - COALESCE(discount, 0)), 0)
+                FROM service_parts
+                WHERE service_id = :sid
+                """
+            ),
+            {"sid": sid},
+        ).scalar() or 0
+        tasks_sum = connection.execute(
+            sa_text(
+                """
+                SELECT COALESCE(SUM(COALESCE(quantity, 0) * COALESCE(unit_price, 0) - COALESCE(discount, 0)), 0)
+                FROM service_tasks
+                WHERE service_id = :sid
+                """
+            ),
+            {"sid": sid},
+        ).scalar() or 0
+
+        row = connection.execute(
+            sa_text(
+                """
+                SELECT COALESCE(discount_total, 0), COALESCE(total_cost, 0), COALESCE(currency, 'ILS')
+                FROM service_requests
+                WHERE id = :sid
+                """
+            ),
+            {"sid": sid},
+        ).first()
+        if not row:
+            return
+        discount_total, prev_cost, curr = row
+
+        parts_d = Decimal(str(parts_sum or 0))
+        tasks_d = Decimal(str(tasks_sum or 0))
+        disc_d = Decimal(str(discount_total or 0))
+        prev_cost_d = Decimal(str(prev_cost or 0))
+
+        total_base = parts_d + tasks_d - disc_d
+        if total_base < 0:
+            total_base = Decimal("0.00")
+
+        total_amount = q(total_base)
+        total_cost = q(total_base) if prev_cost_d < total_base else q(prev_cost_d)
+
+        connection.execute(
+            sa_text(
+                """
+                UPDATE service_requests
+                SET parts_total = :pt,
+                    labor_total = :lt,
+                    total_amount = :ta,
+                    total_cost = :tc,
+                    currency = :cur,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = :sid
+                """
+            ),
+            {
+                "sid": sid,
+                "pt": q(parts_d),
+                "lt": q(tasks_d),
+                "ta": total_amount,
+                "tc": total_cost,
+                "cur": (str(curr or "ILS")).upper(),
+            },
+        )
+    except Exception:
+        return
+
 _ALLOWED_SERVICE_TRANSITIONS = {
     "PENDING": {"IN_PROGRESS", "CANCELLED"},
     "IN_PROGRESS": {"COMPLETED", "CANCELLED"},
@@ -9418,77 +9842,100 @@ def _set_completed_at_on_status_change(target, value, oldvalue, initiator):
 @event.listens_for(ServiceRequest, "after_insert")
 @event.listens_for(ServiceRequest, "after_update")
 def _service_gl_batch_upsert(mapper, connection, target: "ServiceRequest"):
-    if target.invoice:
-        return
-    amount = float(target.total_amount or 0)
-    if amount <= 0:
+    _service_gl_batch_upsert_sql(connection, int(getattr(target, "id", 0) or 0))
+
+
+def _service_gl_batch_upsert_sql(connection, service_id: int) -> None:
+    sid = int(service_id or 0)
+    if sid <= 0:
         return
     try:
-        from models import fx_rate
+        row = connection.execute(
+            sa_text(
+                """
+                SELECT
+                    id,
+                    COALESCE(invoice_id, 0),
+                    COALESCE(total_amount, 0),
+                    COALESCE(currency, 'ILS'),
+                    fx_rate_used,
+                    received_at,
+                    service_number,
+                    customer_id
+                FROM service_requests
+                WHERE id = :sid
+                """
+            ),
+            {"sid": sid},
+        ).first()
+        if not row:
+            return
+
+        _, invoice_id, total_amount, currency, fx_rate_used, received_at, service_number, customer_id = row
+        if int(invoice_id or 0) > 0:
+            return
+
+        amount = float(total_amount or 0)
+        if amount <= 0:
+            return
+
+        cur = (str(currency or "ILS")).upper()
         amount_ils = amount
-        if target.currency and target.currency != 'ILS':
+        if cur != "ILS":
             try:
-                if target.fx_rate_used and target.fx_rate_used > 0:
-                    amount_ils = float(amount * float(target.fx_rate_used))
+                if fx_rate_used and float(fx_rate_used) > 0:
+                    amount_ils = float(amount * float(fx_rate_used))
                 else:
-                    rate = fx_rate(target.currency, 'ILS', target.received_at or datetime.utcnow(), raise_on_missing=False)
+                    rate = _fx_rate_local_via_connection(connection, cur, "ILS", received_at or datetime.now(timezone.utc))
                     if rate and rate > 0:
                         amount_ils = float(amount * float(rate))
             except Exception:
                 pass
-        
+
         existing_batch = connection.execute(
-            sa_text("""
+            sa_text(
+                """
                 SELECT id FROM gl_batches
-                WHERE source_type = 'SERVICE' 
-                  AND source_id = :sid 
+                WHERE source_type = 'SERVICE'
+                  AND source_id = :sid
                   AND purpose = 'SERVICE'
                   AND status = 'POSTED'
-            """),
-            {"sid": target.id}
+                """
+            ),
+            {"sid": sid},
         ).scalar()
-        
         if existing_batch:
-            connection.execute(
-                sa_text("DELETE FROM gl_entries WHERE batch_id = :bid"),
-                {"bid": existing_batch}
-            )
-            connection.execute(
-                sa_text("DELETE FROM gl_batches WHERE id = :bid"),
-                {"bid": existing_batch}
-            )
-        
+            connection.execute(sa_text("DELETE FROM gl_entries WHERE batch_id = :bid"), {"bid": existing_batch})
+            connection.execute(sa_text("DELETE FROM gl_batches WHERE id = :bid"), {"bid": existing_batch})
+
         entries = [
-            (GL_ACCOUNTS.get("AR", "1100_AR"), amount_ils, 0),  # مدين: AR (أصل زاد - الأصول تزيد بالمدين)
-            (GL_ACCOUNTS.get("SERVICE_REV", "4100_SERVICE_REVENUE"), 0, amount_ils),  # دائن: Service Revenue (إيراد زاد - الإيرادات تزيد بالدائن)
+            (GL_ACCOUNTS.get("AR", "1100_AR"), amount_ils, 0),
+            (GL_ACCOUNTS.get("SERVICE_REV", "4100_SERVICE_REVENUE"), 0, amount_ils),
         ]
-        memo = f"صيانة - {target.service_number or target.id}"
+        memo = f"صيانة - {service_number or sid}"
         _gl_upsert_batch_and_entries(
             connection,
             source_type="SERVICE",
-            source_id=target.id,
+            source_id=sid,
             purpose="SERVICE",
-            currency=target.currency,
+            currency=cur,
             memo=memo,
             entries=entries,
-            ref=target.service_number or f"SRV-{target.id}",
+            ref=service_number or f"SRV-{sid}",
             entity_type="CUSTOMER",
-            entity_id=target.customer_id
+            entity_id=customer_id,
         )
-    except Exception as e:
-        from flask import current_app
-        current_app.logger.warning(f"⚠️ خطأ في إنشاء GLBatch للصيانة #{target.id}: {e}")
+    except Exception:
+        return
 
 @event.listens_for(ServiceRequest, "before_delete")
 def _service_gl_batch_reverse(mapper, connection, target: "ServiceRequest"):
     try:
         if hasattr(target, '_skip_gl_reversal') and target._skip_gl_reversal:
             return
-        if target.invoice:
+        if int(getattr(target, "invoice_id", 0) or 0) > 0:
             return
-        
-        from models import fx_rate
-        
+
         total_amount = float(target.total_amount or 0)
         if total_amount <= 0:
             return
@@ -9496,7 +9943,7 @@ def _service_gl_batch_reverse(mapper, connection, target: "ServiceRequest"):
         amount_ils = total_amount
         if target.currency and target.currency != 'ILS':
             try:
-                rate = fx_rate(target.currency, 'ILS', target.received_at or datetime.utcnow(), raise_on_missing=False)
+                rate = _fx_rate_local_via_connection(connection, target.currency, 'ILS', target.received_at or datetime.now(timezone.utc))
                 if rate and rate > 0:
                     amount_ils = float(total_amount * float(rate))
             except Exception:
@@ -9770,33 +10217,41 @@ class ServiceTask(db.Model, TimestampMixin):
 
 @event.listens_for(ServicePart, "after_insert")
 def _sp_after_insert(mapper, connection, target: ServicePart):
-    if target and target.request:
-        _recalc_service_request_totals(target.request)
+    sid = int(getattr(target, "service_id", 0) or 0)
+    if sid:
+        _recalc_service_request_totals_sql(connection, sid)
+        _service_gl_batch_upsert_sql(connection, sid)
     if hasattr(target, 'partner_id') and target.partner_id:
-        update_partner_balance(target.partner_id, connection)
+        _queue_partner_balance(target, target.partner_id)
 
 @event.listens_for(ServicePart, "after_update")
 def _sp_after_update(mapper, connection, target: ServicePart):
-    if target and target.request:
-        _recalc_service_request_totals(target.request)
+    sid = int(getattr(target, "service_id", 0) or 0)
+    if sid:
+        _recalc_service_request_totals_sql(connection, sid)
+        _service_gl_batch_upsert_sql(connection, sid)
     if hasattr(target, 'partner_id') and target.partner_id:
-        update_partner_balance(target.partner_id, connection)
+        _queue_partner_balance(target, target.partner_id)
 
 @event.listens_for(ServicePart, "after_delete")
 def _sp_after_delete(mapper, connection, target: ServicePart):
-    if target and target.request:
-        _recalc_service_request_totals(target.request)
+    sid = int(getattr(target, "service_id", 0) or 0)
+    if sid:
+        _recalc_service_request_totals_sql(connection, sid)
+        _service_gl_batch_upsert_sql(connection, sid)
     if hasattr(target, 'partner_id') and target.partner_id:
-        update_partner_balance(target.partner_id, connection)
+        _queue_partner_balance(target, target.partner_id)
 
 @event.listens_for(ServiceTask, "after_insert")
 @event.listens_for(ServiceTask, "after_update")
 @event.listens_for(ServiceTask, "after_delete")
 def _st_sync_totals(mapper, connection, target: ServiceTask):
-    if target and target.request:
-        _recalc_service_request_totals(target.request)
+    sid = int(getattr(target, "service_id", 0) or 0)
+    if sid:
+        _recalc_service_request_totals_sql(connection, sid)
+        _service_gl_batch_upsert_sql(connection, sid)
     if hasattr(target, 'partner_id') and target.partner_id:
-        update_partner_balance(target.partner_id, connection)
+        _queue_partner_balance(target, target.partner_id)
 
 class OnlineCart(db.Model, TimestampMixin):
     __tablename__ = 'online_carts'
@@ -10090,7 +10545,7 @@ def _online_preorder_gl_batch_upsert(mapper, connection, target: "OnlinePreOrder
                 amount_ils = amount
                 if target.currency and target.currency != 'ILS':
                     try:
-                        rate = fx_rate(target.currency, 'ILS', target.created_at or datetime.utcnow(), raise_on_missing=False)
+                        rate = _fx_rate_local_via_connection(connection, target.currency, 'ILS', target.created_at or datetime.now(timezone.utc))
                         if rate and rate > 0:
                             amount_ils = float(amount * float(rate))
                     except Exception:
@@ -10125,10 +10580,10 @@ def _online_preorder_gl_batch_upsert(mapper, connection, target: "OnlinePreOrder
     try:
         # القيد المحاسبي للطلب الأونلاين:
         # مدين: 1100_AR (حساب العملاء)
-        # دائن: 2300_ADVANCE_PAYMENTS (دفعات مقدمة)
+        # دائن: 2300_ADV_PAY (دفعات مقدمة)
         entries = [
             (GL_ACCOUNTS.get("AR", "1100_AR"), amount, 0),
-            (GL_ACCOUNTS.get("ADVANCE", "2300_ADVANCE_PAYMENTS"), 0, amount),
+            (GL_ACCOUNTS.get("ADVANCE", "2300_ADV_PAY"), 0, amount),
         ]
         
         memo = f"طلب أونلاين - {target.order_number or target.id}"
@@ -10245,13 +10700,35 @@ def _op_item_price_default(mapper, connection, target: 'OnlinePreOrderItem'):
         ).scalar()
         target.price = _Q2(price or 0)
 
-@event.listens_for(OnlinePreOrderItem, "after_insert")
-@event.listens_for(OnlinePreOrderItem, "after_update")
-@event.listens_for(OnlinePreOrderItem, "after_delete")
-def _op_items_touch_order(mapper, connection, target: "OnlinePreOrderItem"):
+@event.listens_for(_SA_Session, "before_flush")
+def _op_items_before_flush(session, flush_context, instances):
     try:
-        if target and target.order:
-            target.order.update_totals_and_status()
+        orders = []
+        seen = set()
+        for obj in list(session.new) + list(session.dirty) + list(session.deleted):
+            try:
+                if not isinstance(obj, (OnlinePreOrderItem, OnlinePayment)):
+                    continue
+                order_obj = getattr(obj, "order", None)
+                if order_obj is None:
+                    oid = getattr(obj, "order_id", None)
+                    if oid:
+                        order_obj = session.get(OnlinePreOrder, int(oid))
+                if order_obj is None:
+                    continue
+                oid2 = getattr(order_obj, "id", None)
+                if oid2 is not None and oid2 in seen:
+                    continue
+                if oid2 is not None:
+                    seen.add(oid2)
+                orders.append(order_obj)
+            except Exception:
+                continue
+        for order_obj in orders:
+            try:
+                order_obj.update_totals_and_status()
+            except Exception:
+                pass
     except Exception:
         pass
 
@@ -10458,11 +10935,7 @@ def _opay_enforce_transition(old: str | None, new: str) -> None:
 @event.listens_for(OnlinePayment, "after_update")
 @event.listens_for(OnlinePayment, "after_delete")
 def _opay_touch_order(mapper, connection, target: "OnlinePayment"):
-    try:
-        if target.order:
-            target.order.update_totals_and_status()
-    except Exception:
-        pass
+    return
 
 
 @event.listens_for(OnlinePayment, "before_insert")
@@ -10908,13 +11381,14 @@ class Expense(db.Model, TimestampMixin, AuditMixin):
     __table_args__ = (
         db.CheckConstraint("amount >= 0", name="chk_expense_amount_non_negative"),
         db.CheckConstraint("payment_method IN ('cash','cheque','bank','card','online','other')", name="chk_expense_payment_method_allowed"),
-        CheckConstraint("payee_type IN ('EMPLOYEE','SUPPLIER','PARTNER','UTILITY','OTHER')", name="ck_expense_payee_type_allowed"),
+        CheckConstraint("payee_type IN ('EMPLOYEE','SUPPLIER','CUSTOMER','PARTNER','WAREHOUSE','SHIPMENT','UTILITY','OTHER')", name="ck_expense_payee_type_allowed"),
         db.UniqueConstraint("stock_adjustment_id", name="uq_expenses_stock_adjustment_id"),
         db.Index("ix_expense_type_date", "type_id", "date"),
         db.Index("ix_expense_partner_date", "partner_id", "date"),
         db.Index("ix_expense_supplier_date", "supplier_id", "date"),
         db.Index("ix_expense_shipment_date", "shipment_id", "date"),
         db.Index("ix_expense_customer_date", "customer_id", "date"),
+        db.Index("ix_expense_payee_type_entity_date", "payee_type", "payee_entity_id", "date"),
         db.Index("ix_expense_amount", "amount"),
     )
 
@@ -11344,10 +11818,11 @@ def _expense_normalize_insert(mapper, connection, target: "Expense"):
     
     if expense_currency != default_currency:
         try:
-            rate_info = get_fx_rate_with_fallback(expense_currency, default_currency)
-            if rate_info and rate_info.get('success'):
-                target.fx_rate_used = Decimal(str(rate_info.get('rate', 0)))
-                target.fx_rate_source = rate_info.get('source', 'unknown')
+            at = getattr(target, "date", None) or getattr(target, "created_at", None) or datetime.now(timezone.utc)
+            rate = _fx_rate_local_via_connection(connection, expense_currency, default_currency, at)
+            if rate and rate > 0:
+                target.fx_rate_used = Decimal(str(rate))
+                target.fx_rate_source = "manual"
                 target.fx_rate_timestamp = datetime.now(timezone.utc)
                 target.fx_base_currency = expense_currency
                 target.fx_quote_currency = default_currency
@@ -11450,7 +11925,7 @@ def _expense_gl_batch_upsert(mapper, connection, target: "Expense"):
         original_currency = (getattr(target, "currency", None) or "ILS").upper()
         if original_currency != "ILS":
             try:
-                rate = fx_rate(original_currency, "ILS", getattr(target, "date", None) or datetime.utcnow(), raise_on_missing=False)
+                rate = _fx_rate_local_via_connection(connection, original_currency, "ILS", getattr(target, "date", None) or datetime.now(timezone.utc))
                 if rate and rate > 0:
                     amount_ils = float(amount * float(rate))
             except Exception:
@@ -11566,8 +12041,6 @@ def _expense_gl_batch_upsert(mapper, connection, target: "Expense"):
 def _expense_gl_batch_reverse(mapper, connection, target: "Expense"):
     """إنشاء قيد عكسي عند حذف المصروف (أصح محاسبياً)"""
     try:
-        from models import fx_rate
-        
         amount = float(target.amount or 0)
         if amount <= 0:
             return
@@ -11575,7 +12048,7 @@ def _expense_gl_batch_reverse(mapper, connection, target: "Expense"):
         amount_ils = amount
         if target.currency and target.currency != 'ILS':
             try:
-                rate = fx_rate(target.currency, 'ILS', target.date or datetime.utcnow(), raise_on_missing=False)
+                rate = _fx_rate_local_via_connection(connection, target.currency, 'ILS', target.date or datetime.now(timezone.utc))
                 if rate and rate > 0:
                     amount_ils = float(amount * float(rate))
             except Exception:
@@ -11622,16 +12095,16 @@ def _expense_gl_batch_reverse(mapper, connection, target: "Expense"):
 def _preorder_normalize_insert(mapper, connection, target: "PreOrder"):
     target.currency = ensure_currency(getattr(target, "currency", None) or "ILS")
     
-    # حفظ سعر الصرف تلقائياً للحجوزات (فقط عند الإنشاء)
     preorder_currency = target.currency
     default_currency = "ILS"
     
     if preorder_currency != default_currency:
         try:
-            rate_info = get_fx_rate_with_fallback(preorder_currency, default_currency)
-            if rate_info and rate_info.get('success'):
-                target.fx_rate_used = Decimal(str(rate_info.get('rate', 0)))
-                target.fx_rate_source = rate_info.get('source', 'unknown')
+            at = getattr(target, "preorder_date", None) or getattr(target, "created_at", None) or datetime.now(timezone.utc)
+            rate = _fx_rate_local_via_connection(connection, preorder_currency, default_currency, at)
+            if rate and rate > 0:
+                target.fx_rate_used = Decimal(str(rate))
+                target.fx_rate_source = "manual"
                 target.fx_rate_timestamp = datetime.now(timezone.utc)
                 target.fx_base_currency = preorder_currency
                 target.fx_quote_currency = default_currency
@@ -11649,16 +12122,16 @@ def _preorder_normalize_update(mapper, connection, target: "PreOrder"):
 def _sale_normalize_insert(mapper, connection, target: "Sale"):
     target.currency = ensure_currency(getattr(target, "currency", None) or "ILS")
     
-    # حفظ سعر الصرف تلقائياً للمبيعات (فقط عند الإنشاء)
     sale_currency = target.currency
     default_currency = "ILS"
     
     if sale_currency != default_currency:
         try:
-            rate_info = get_fx_rate_with_fallback(sale_currency, default_currency)
-            if rate_info and rate_info.get('success'):
-                target.fx_rate_used = Decimal(str(rate_info.get('rate', 0)))
-                target.fx_rate_source = rate_info.get('source', 'unknown')
+            at = getattr(target, "sale_date", None) or getattr(target, "created_at", None) or datetime.now(timezone.utc)
+            rate = _fx_rate_local_via_connection(connection, sale_currency, default_currency, at)
+            if rate and rate > 0:
+                target.fx_rate_used = Decimal(str(rate))
+                target.fx_rate_source = "manual"
                 target.fx_rate_timestamp = datetime.now(timezone.utc)
                 target.fx_base_currency = sale_currency
                 target.fx_quote_currency = default_currency
@@ -11717,16 +12190,16 @@ def _sale_return_gl_batch_upsert(mapper, connection, target: "SaleReturn"):
 def _sale_return_normalize_insert(mapper, connection, target: "SaleReturn"):
     target.currency = ensure_currency(getattr(target, "currency", None) or "ILS")
     
-    # حفظ سعر الصرف تلقائياً لمرتجعات المبيعات (فقط عند الإنشاء)
     return_currency = target.currency
     default_currency = "ILS"
     
     if return_currency != default_currency:
         try:
-            rate_info = get_fx_rate_with_fallback(return_currency, default_currency)
-            if rate_info and rate_info.get('success'):
-                target.fx_rate_used = Decimal(str(rate_info.get('rate', 0)))
-                target.fx_rate_source = rate_info.get('source', 'unknown')
+            at = getattr(target, "created_at", None) or datetime.now(timezone.utc)
+            rate = _fx_rate_local_via_connection(connection, return_currency, default_currency, at)
+            if rate and rate > 0:
+                target.fx_rate_used = Decimal(str(rate))
+                target.fx_rate_source = "manual"
                 target.fx_rate_timestamp = datetime.now(timezone.utc)
                 target.fx_base_currency = return_currency
                 target.fx_quote_currency = default_currency
@@ -11744,16 +12217,16 @@ def _sale_return_normalize_update(mapper, connection, target: "SaleReturn"):
 def _shipment_normalize_insert(mapper, connection, target: "Shipment"):
     target.currency = ensure_currency(getattr(target, "currency", None) or "USD")
     
-    # حفظ سعر الصرف تلقائياً للشحنات (فقط عند الإنشاء)
     shipment_currency = target.currency
     default_currency = "ILS"
     
     if shipment_currency != default_currency:
         try:
-            rate_info = get_fx_rate_with_fallback(shipment_currency, default_currency)
-            if rate_info and rate_info.get('success'):
-                target.fx_rate_used = Decimal(str(rate_info.get('rate', 0)))
-                target.fx_rate_source = rate_info.get('source', 'unknown')
+            at = getattr(target, "shipment_date", None) or getattr(target, "date", None) or getattr(target, "created_at", None) or datetime.now(timezone.utc)
+            rate = _fx_rate_local_via_connection(connection, shipment_currency, default_currency, at)
+            if rate and rate > 0:
+                target.fx_rate_used = Decimal(str(rate))
+                target.fx_rate_source = "manual"
                 target.fx_rate_timestamp = datetime.now(timezone.utc)
                 target.fx_base_currency = shipment_currency
                 target.fx_quote_currency = default_currency
@@ -11779,10 +12252,11 @@ def _service_request_normalize_insert(mapper, connection, target: "ServiceReques
     
     if service_currency != default_currency:
         try:
-            rate_info = get_fx_rate_with_fallback(service_currency, default_currency)
-            if rate_info and rate_info.get('success'):
-                target.fx_rate_used = Decimal(str(rate_info.get('rate', 0)))
-                target.fx_rate_source = rate_info.get('source', 'unknown')
+            at = getattr(target, "received_at", None) or getattr(target, "created_at", None) or datetime.now(timezone.utc)
+            rate = _fx_rate_local_via_connection(connection, service_currency, default_currency, at)
+            if rate and rate > 0:
+                target.fx_rate_used = Decimal(str(rate))
+                target.fx_rate_source = "manual"
                 target.fx_rate_timestamp = datetime.now(timezone.utc)
                 target.fx_base_currency = service_currency
                 target.fx_quote_currency = default_currency
@@ -11800,16 +12274,16 @@ def _service_request_normalize_update(mapper, connection, target: "ServiceReques
 def _online_preorder_normalize_insert(mapper, connection, target: "OnlinePreOrder"):
     target.currency = (target.currency or "ILS").upper()
     
-    # حفظ سعر الصرف تلقائياً للحجوزات الأونلاين (فقط عند الإنشاء)
     online_currency = target.currency
     default_currency = "ILS"
     
     if online_currency != default_currency:
         try:
-            rate_info = get_fx_rate_with_fallback(online_currency, default_currency)
-            if rate_info and rate_info.get('success'):
-                target.fx_rate_used = Decimal(str(rate_info.get('rate', 0)))
-                target.fx_rate_source = rate_info.get('source', 'unknown')
+            at = getattr(target, "order_date", None) or getattr(target, "created_at", None) or datetime.now(timezone.utc)
+            rate = _fx_rate_local_via_connection(connection, online_currency, default_currency, at)
+            if rate and rate > 0:
+                target.fx_rate_used = Decimal(str(rate))
+                target.fx_rate_source = "manual"
                 target.fx_rate_timestamp = datetime.now(timezone.utc)
                 target.fx_base_currency = online_currency
                 target.fx_quote_currency = default_currency
@@ -11827,16 +12301,16 @@ def _online_preorder_normalize_update(mapper, connection, target: "OnlinePreOrde
 def _online_payment_normalize_insert(mapper, connection, target: "OnlinePayment"):
     target.currency = (target.currency or "ILS").upper()
     
-    # حفظ سعر الصرف تلقائياً للمدفوعات الأونلاين (فقط عند الإنشاء)
     payment_currency = target.currency
     default_currency = "ILS"
     
     if payment_currency != default_currency:
         try:
-            rate_info = get_fx_rate_with_fallback(payment_currency, default_currency)
-            if rate_info and rate_info.get('success'):
-                target.fx_rate_used = Decimal(str(rate_info.get('rate', 0)))
-                target.fx_rate_source = rate_info.get('source', 'unknown')
+            at = getattr(target, "payment_date", None) or getattr(target, "created_at", None) or datetime.now(timezone.utc)
+            rate = _fx_rate_local_via_connection(connection, payment_currency, default_currency, at)
+            if rate and rate > 0:
+                target.fx_rate_used = Decimal(str(rate))
+                target.fx_rate_source = "manual"
                 target.fx_rate_timestamp = datetime.now(timezone.utc)
                 target.fx_base_currency = payment_currency
                 target.fx_quote_currency = default_currency
@@ -11860,10 +12334,11 @@ def _supplier_settlement_normalize_insert(mapper, connection, target: "SupplierS
     
     if settlement_currency != default_currency:
         try:
-            rate_info = get_fx_rate_with_fallback(settlement_currency, default_currency)
-            if rate_info and rate_info.get('success'):
-                target.fx_rate_used = Decimal(str(rate_info.get('rate', 0)))
-                target.fx_rate_source = rate_info.get('source', 'unknown')
+            at = getattr(target, "from_date", None) or getattr(target, "created_at", None) or datetime.now(timezone.utc)
+            rate = _fx_rate_local_via_connection(connection, settlement_currency, default_currency, at)
+            if rate and rate > 0:
+                target.fx_rate_used = Decimal(str(rate))
+                target.fx_rate_source = "manual"
                 target.fx_rate_timestamp = datetime.now(timezone.utc)
                 target.fx_base_currency = settlement_currency
                 target.fx_quote_currency = default_currency
@@ -11887,10 +12362,11 @@ def _partner_settlement_normalize_insert(mapper, connection, target: "PartnerSet
     
     if settlement_currency != default_currency:
         try:
-            rate_info = get_fx_rate_with_fallback(settlement_currency, default_currency)
-            if rate_info and rate_info.get('success'):
-                target.fx_rate_used = Decimal(str(rate_info.get('rate', 0)))
-                target.fx_rate_source = rate_info.get('source', 'unknown')
+            at = getattr(target, "from_date", None) or getattr(target, "created_at", None) or datetime.now(timezone.utc)
+            rate = _fx_rate_local_via_connection(connection, settlement_currency, default_currency, at)
+            if rate and rate > 0:
+                target.fx_rate_used = Decimal(str(rate))
+                target.fx_rate_source = "manual"
                 target.fx_rate_timestamp = datetime.now(timezone.utc)
                 target.fx_base_currency = settlement_currency
                 target.fx_quote_currency = default_currency
@@ -11900,25 +12376,7 @@ def _partner_settlement_normalize_insert(mapper, connection, target: "PartnerSet
 
 @event.listens_for(PartnerSettlement, "before_update")
 def _partner_settlement_normalize_update(mapper, connection, target: "PartnerSettlement"):
-    # تحديث الحقول فقط، بدون تغيير سعر الصرف
     target.currency = (target.currency or "ILS").upper()
-    m = target.payment_method
-    if m != "cheque":
-        target.check_number = None
-        target.check_bank = None
-        target.check_due_date = None
-    if m != "bank":
-        target.bank_transfer_ref = None
-    if m != "card":
-        target.card_holder = None
-        target.card_expiry = None
-        target.card_number = None
-    if m != "online":
-        target.online_gateway = None
-        target.online_ref = None
-    if m == "card" and target.card_number:
-        digits = "".join(ch for ch in (target.card_number or "") if ch.isdigit())
-        target.card_number = (digits[-4:] if digits else None)
 
 
 # ===================== Audit Log Model =====================
@@ -11992,19 +12450,23 @@ def _audit_after_flush_postexec(session, ctx):
         ip = request.remote_addr
         ua = request.headers.get("User-Agent")
 
+    rows = []
+
     def add_log(action, obj, old_data=None, new_data=None):
         try:
-            session.add(AuditLog(
-                model_name=obj.__class__.__name__,
-                record_id=getattr(obj, "id", None),
-                customer_id=customer_id,
-                user_id=uid,
-                action=(action or "").upper(),
-                old_data=json.dumps(old_data, default=str) if old_data else None,
-                new_data=json.dumps(new_data, default=str) if new_data else None,
-                ip_address=ip,
-                user_agent=ua,
-            ))
+            rows.append(
+                {
+                    "model_name": obj.__class__.__name__,
+                    "record_id": getattr(obj, "id", None),
+                    "customer_id": customer_id,
+                    "user_id": uid,
+                    "action": (action or "").upper(),
+                    "old_data": json.dumps(old_data, default=str) if old_data else None,
+                    "new_data": json.dumps(new_data, default=str) if new_data else None,
+                    "ip_address": ip,
+                    "user_agent": ua,
+                }
+            )
         except Exception:
             pass
 
@@ -12035,6 +12497,12 @@ def _audit_after_flush_postexec(session, ctx):
         except Exception:
             curr = None
         add_log("UPDATE", obj, old_data=prev, new_data=curr)
+
+    if rows:
+        try:
+            session.connection().execute(AuditLog.__table__.insert(), rows)
+        except Exception:
+            pass
 
 class Note(db.Model, TimestampMixin, AuditMixin):
     __tablename__ = 'notes'
@@ -12248,9 +12716,10 @@ GL_ACCOUNTS = {
     "EXP": "5000_EXPENSES",
     "INV_EXCHANGE": "1205_INV_EXCHANGE",
     "COGS_EXCHANGE": "5105_COGS_EXCHANGE",
+    "ADVANCE": "2300_ADV_PAY",
     "DEPRECIATION_EXP": "6800_DEPRECIATION",
-    "ACCUMULATED_DEP": "1599_ACCUMULATED_DEPRECIATION",
-    "INVENTORY_RESERVE": "1300_INVENTORY_RESERVE",  # احتياطي المخزون للشركاء
+    "ACCUMULATED_DEP": "1599_ACC_DEP",
+    "INVENTORY_RESERVE": "1300_INV_RSV",  # احتياطي المخزون للشركاء
     "DISCOUNT_ALLOWED": "4050_SALES_DISCOUNT",
     "SHIPPING_INCOME": "4200_SHIPPING_INCOME",
 }
@@ -12503,7 +12972,7 @@ class ProductRatingHelpful(db.Model, TimestampMixin):
             db.session.add(new_helpful)
         
         # تحديث عداد المفيد
-        rating = ProductRating.query.get(rating_id)
+        rating = db.session.get(ProductRating, rating_id)
         if rating:
             helpful_count = cls.query.filter_by(
                 rating_id=rating_id,
@@ -12857,7 +13326,14 @@ class Check(db.Model, TimestampMixin, AuditMixin):
         """هل الشيك متأخر"""
         if self.status in [CheckStatus.CASHED.value, CheckStatus.CANCELLED.value]:
             return False
-        return self.check_due_date < datetime.now(timezone.utc)
+        due = self.check_due_date
+        if isinstance(due, datetime):
+            if due.tzinfo is None:
+                due = due.replace(tzinfo=timezone.utc)
+            return due < datetime.now(timezone.utc)
+        if due is None:
+            return False
+        return due < datetime.now(timezone.utc).date()
     
     @hybrid_property
     def days_until_due(self):
@@ -12951,33 +13427,92 @@ class Check(db.Model, TimestampMixin, AuditMixin):
 
 # ==================== Event Listeners للشيكات ====================
 
-def _compute_issue_fx_fields(currency: str | None) -> dict:
+def _compute_issue_fx_fields(connection, currency: str | None, at: datetime | None = None) -> dict:
     check_currency = (currency or "ILS").upper()
     default_currency = "ILS"
     if check_currency == default_currency:
         return {}
     try:
-        rate_info = get_fx_rate_with_fallback(check_currency, default_currency)
-        if rate_info and rate_info.get("success"):
-            rate_value = Decimal(str(rate_info.get("rate", 0)))
-            if rate_value > 0:
-                now_ts = datetime.now(timezone.utc)
-                return {
-                    "fx_rate_issue": rate_value,
-                    "fx_rate_issue_source": rate_info.get("source", "unknown"),
-                    "fx_rate_issue_timestamp": now_ts,
-                    "fx_rate_issue_base": check_currency,
-                    "fx_rate_issue_quote": default_currency,
-                }
+        rate = _fx_rate_local_via_connection(connection, check_currency, default_currency, at or datetime.now(timezone.utc))
+        if rate and rate > 0:
+            now_ts = datetime.now(timezone.utc)
+            return {
+                "fx_rate_issue": Decimal(str(rate)),
+                "fx_rate_issue_source": "manual",
+                "fx_rate_issue_timestamp": now_ts,
+                "fx_rate_issue_base": check_currency,
+                "fx_rate_issue_quote": default_currency,
+            }
     except Exception:
         pass
     return {}
 
 
+def _check_backfill_counterparty_ids(connection, target: "Check") -> None:
+    payment_id = getattr(target, "payment_id", None)
+    if not payment_id:
+        return
+    row = None
+    try:
+        row = connection.execute(
+            sa_text(
+                """
+                SELECT
+                    COALESCE(
+                        p.customer_id,
+                        s.customer_id,
+                        i.customer_id,
+                        sr.customer_id,
+                        pr.customer_id,
+                        e.customer_id,
+                        CASE WHEN UPPER(COALESCE(e.payee_type,'')) = 'CUSTOMER' THEN e.payee_entity_id END
+                    ) AS customer_id,
+                    COALESCE(
+                        p.supplier_id,
+                        e.supplier_id,
+                        CASE WHEN UPPER(COALESCE(e.payee_type,'')) = 'SUPPLIER' THEN e.payee_entity_id END
+                    ) AS supplier_id,
+                    COALESCE(
+                        p.partner_id,
+                        e.partner_id,
+                        CASE WHEN UPPER(COALESCE(e.payee_type,'')) = 'PARTNER' THEN e.payee_entity_id END
+                    ) AS partner_id
+                FROM payments p
+                LEFT JOIN sales s ON s.id = p.sale_id
+                LEFT JOIN invoices i ON i.id = p.invoice_id
+                LEFT JOIN service_requests sr ON sr.id = p.service_id
+                LEFT JOIN preorders pr ON pr.id = p.preorder_id
+                LEFT JOIN expenses e ON e.id = p.expense_id
+                WHERE p.id = :pid
+                """
+            ),
+            {"pid": int(payment_id)},
+        ).fetchone()
+    except Exception:
+        row = None
+    if not row:
+        return
+
+    pairs = [("customer_id", row[0]), ("supplier_id", row[1]), ("partner_id", row[2])]
+    for key, expected in pairs:
+        if expected is None:
+            continue
+        current = getattr(target, key, None)
+        if current is None:
+            setattr(target, key, int(expected))
+            continue
+        try:
+            if int(current) != int(expected):
+                raise ValueError("check.counterparty_mismatch")
+        except Exception:
+            raise ValueError("check.counterparty_mismatch")
+
+
 @event.listens_for(Check, "before_insert", propagate=True)
 def _check_before_insert(mapper, connection, target: "Check"):
     """تعيين سعر الصرف وقت إصدار الشيك تلقائياً"""
-    for key, value in _compute_issue_fx_fields(getattr(target, "currency", None)).items():
+    _check_backfill_counterparty_ids(connection, target)
+    for key, value in _compute_issue_fx_fields(connection, getattr(target, "currency", None), getattr(target, "check_date", None)).items():
         setattr(target, key, value)
 
 
@@ -13047,6 +13582,7 @@ def _check_sync_payment_status_legacy(connection, target, payment_id):
 @event.listens_for(Check, "before_update", propagate=True)
 def _check_before_update(mapper, connection, target: "Check"):
     """تعيين سعر الصرف وقت صرف الشيك عند تغيير الحالة إلى CASHED"""
+    _check_backfill_counterparty_ids(connection, target)
     check_currency = getattr(target, "currency", None) or "ILS"
     default_currency = "ILS"
     
@@ -13058,24 +13594,11 @@ def _check_before_update(mapper, connection, target: "Check"):
     if hist.has_changes() and target.status == CheckStatus.CASHED.value:
         if check_currency != default_currency and not target.fx_rate_cash:
             try:
-                # محاولة الحصول على السعر الأونلاين أولاً
-                try:
-                    online_rate = _fetch_external_fx_rate(check_currency, default_currency, datetime.now(timezone.utc))
-                    if online_rate and online_rate > Decimal("0"):
-                        target.fx_rate_cash = online_rate
-                        target.fx_rate_cash_source = 'online'
-                        target.fx_rate_cash_timestamp = datetime.now(timezone.utc)
-                        target.fx_rate_cash_base = check_currency
-                        target.fx_rate_cash_quote = default_currency
-                        return  # نجح الحصول على السعر الأونلاين
-                except Exception:
-                    pass  # إذا فشل، نستخدم السعر المحلي
-                
-                # إذا فشل الأونلاين، استخدم get_fx_rate_with_fallback
-                rate_info = get_fx_rate_with_fallback(check_currency, default_currency)
-                if rate_info and rate_info.get('success'):
-                    target.fx_rate_cash = Decimal(str(rate_info.get('rate', 0)))
-                    target.fx_rate_cash_source = rate_info.get('source', 'unknown')
+                at = getattr(target, "check_date", None) or getattr(target, "check_due_date", None) or datetime.now(timezone.utc)
+                rate = _fx_rate_local_via_connection(connection, check_currency, default_currency, at)
+                if rate and rate > 0:
+                    target.fx_rate_cash = Decimal(str(rate))
+                    target.fx_rate_cash_source = "manual"
                     target.fx_rate_cash_timestamp = datetime.now(timezone.utc)
                     target.fx_rate_cash_base = check_currency
                     target.fx_rate_cash_quote = default_currency
@@ -13117,8 +13640,7 @@ def _update_partner_on_share_change(mapper, connection, target):
     try:
         partner_id = target.partner_id
         if partner_id:
-            # استخدام connection المتاح بدلاً من إنشاء session جديد
-            update_partner_balance(partner_id, connection=connection)
+            _queue_partner_balance(target, partner_id)
     except Exception as e:
         pass
 
@@ -13145,7 +13667,7 @@ def _update_partner_on_shipment_item_change(mapper, connection, target):
             
             # تحديث رصيد كل شريك
             for partner_id in partner_ids:
-                update_partner_balance(partner_id, connection=connection)
+                _queue_partner_balance(target, partner_id)
     except Exception as e:
         pass
 
@@ -15267,6 +15789,11 @@ def _queue_balance_entity(target_or_session, entity_type, entity_id):
     if not session:
         return
     try:
+        if session.info.get("_skip_balance_queue") or session.info.get("_skip_balance_after_commit"):
+            return
+    except Exception:
+        pass
+    try:
         entity_id = int(entity_id)
     except (TypeError, ValueError):
         return
@@ -15291,6 +15818,12 @@ def _queue_partner_balance(target_or_session, partner_id):
 
 @event.listens_for(_SA_Session, "after_commit")
 def _process_pending_balance_updates(session):
+    try:
+        if session.info.get("_skip_balance_after_commit"):
+            session.info.pop("_pending_balance_updates", None)
+            return
+    except Exception:
+        pass
     pending = session.info.pop('_pending_balance_updates', None)
     if not pending:
         return
@@ -15298,12 +15831,24 @@ def _process_pending_balance_updates(session):
         import utils
         from utils.customer_balance_updater import update_customer_balance_components
         from utils.supplier_balance_updater import get_supplier_from_customer
+        from sqlalchemy.orm import sessionmaker
         from sqlalchemy import text as sa_text
         from flask import current_app
         import time
     except Exception:
         return
     start_ts = time.perf_counter()
+    work_session = None
+    try:
+        SessionFactory = sessionmaker(bind=session.get_bind())
+        work_session = SessionFactory()
+        try:
+            work_session.info["_skip_balance_after_commit"] = True
+            work_session.info["_skip_balance_queue"] = True
+        except Exception:
+            pass
+    except Exception:
+        work_session = None
     try:
         current_app.logger.info(f"🔄 بدء معالجة رصيد الكيانات بعد الالتزام: pending={len(pending)}")
     except Exception:
@@ -15318,20 +15863,30 @@ def _process_pending_balance_updates(session):
         processed.add(key)
         try:
             if entity_type == "CUSTOMER":
-                update_customer_balance_components(entity_id, session)
+                sess_for_work = work_session or session
+                update_customer_balance_components(entity_id, sess_for_work)
+                try:
+                    if work_session is not None:
+                        work_session.commit()
+                except Exception:
+                    try:
+                        if work_session is not None:
+                            work_session.rollback()
+                    except Exception:
+                        pass
                 processed_count += 1
                 try:
                     current_app.logger.info(f"✅ تحديث رصيد عميل #{entity_id}")
                 except Exception:
                     pass
                 try:
-                    supplier_id = get_supplier_from_customer(entity_id, session)
+                    supplier_id = get_supplier_from_customer(entity_id, work_session or session)
                     if supplier_id:
                         pending.add(("SUPPLIER", int(supplier_id)))
                 except Exception:
                     pass
                 try:
-                    partner_id = session.execute(
+                    partner_id = (work_session or session).execute(
                         sa_text("SELECT id FROM partners WHERE customer_id = :cid"),
                         {"cid": entity_id}
                     ).scalar()
@@ -15356,6 +15911,11 @@ def _process_pending_balance_updates(session):
     end_ts = time.perf_counter()
     try:
         current_app.logger.info(f"✔️ اكتملت معالجة الأرصدة: processed={processed_count}, duration_ms={(end_ts - start_ts) * 1000:.2f}")
+    except Exception:
+        pass
+    try:
+        if work_session is not None:
+            work_session.close()
     except Exception:
         pass
 

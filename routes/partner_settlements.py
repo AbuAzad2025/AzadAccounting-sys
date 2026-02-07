@@ -1,5 +1,5 @@
 
-from datetime import datetime, date as _date, time as _time
+from datetime import datetime, date as _date, time as _time, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from flask import Blueprint, request, jsonify, render_template, url_for, abort, current_app
 from flask_login import login_required
@@ -160,7 +160,7 @@ def _parse_iso_to_datetime(val: str, end: bool = False):
         return None
 
 def _extract_range_from_request():
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     start_default = now.replace(hour=0, minute=0, second=0, microsecond=0)
     end_default = now
     if request.method == "GET":
@@ -232,7 +232,7 @@ def create(partner_id):
     draft.to_date = dto
     draft.currency = partner.currency
     try:
-        with db.session.begin():
+        with db.session.begin_nested():
             db.session.add(draft)
             db.session.flush()
             db.session.add(AuditLog(model_name="PartnerSettlement", record_id=draft.id, action="CREATE", old_data=None, new_data=json.dumps({
@@ -269,7 +269,7 @@ def confirm(settlement_id):
     if orig != now_ or len(getattr(ps, "lines", []) or []) != len(getattr(recalc, "lines", []) or []):
         return jsonify({"success": False, "error": "اختلفت البيانات منذ المعاينة، أعد الإنشاء"}), 409
     try:
-        with db.session.begin():
+        with db.session.begin_nested():
             ps.mark_confirmed()
             db.session.flush()
             db.session.add(AuditLog(model_name="PartnerSettlement", record_id=ps.id, action="CONFIRM", old_data=None, new_data=json.dumps({
@@ -364,7 +364,7 @@ def partner_settlement(partner_id):
         code=f"PS-SMART-{partner_id}-{date_from.strftime('%Y%m%d')}",
         lines=[],
         created_at=date_from,
-        updated_at=datetime.utcnow()
+        updated_at=datetime.now(timezone.utc).replace(tzinfo=None)
     )
     
     return render_template(
@@ -377,17 +377,19 @@ def partner_settlement(partner_id):
     )
 
 
-def _get_returned_checks_to_partner(partner_id: int, partner: Partner, date_from: datetime, date_to: datetime):
+def _get_returned_checks_to_partner(partner_id: int, partner: Partner, date_from: datetime, date_to: datetime, session=None):
     """
     الشيكات الصادرة المرتدة (دفعنا للشريك) - تُحسب بشكل منفصل
     """
     from models import Payment, PaymentDirection, PaymentStatus, PaymentMethod, Check, CheckStatus, Sale, Invoice, ServiceRequest, PreOrder
     from sqlalchemy import or_, and_
+
+    session = session or db.session
     
     returned_checks_out = Decimal('0.00')
     items = []
     
-    returned_out_direct = db.session.query(Payment).outerjoin(
+    returned_out_direct = session.query(Payment).outerjoin(
         Check, Check.payment_id == Payment.id
     ).filter(
         Payment.partner_id == partner_id,
@@ -410,7 +412,7 @@ def _get_returned_checks_to_partner(partner_id: int, partner: Partner, date_from
     returned_out_from_preorders = []
     
     if partner.customer_id:
-        returned_out_from_customer = db.session.query(Payment).outerjoin(
+        returned_out_from_customer = session.query(Payment).outerjoin(
             Check, Check.payment_id == Payment.id
         ).filter(
             Payment.customer_id == partner.customer_id,
@@ -426,7 +428,7 @@ def _get_returned_checks_to_partner(partner_id: int, partner: Partner, date_from
             Payment.payment_date <= date_to
         ).all()
         
-        returned_out_from_sales = db.session.query(Payment).join(
+        returned_out_from_sales = session.query(Payment).join(
             Sale, Sale.id == Payment.sale_id
         ).outerjoin(
             Check, Check.payment_id == Payment.id
@@ -444,7 +446,7 @@ def _get_returned_checks_to_partner(partner_id: int, partner: Partner, date_from
             Payment.payment_date <= date_to
         ).all()
         
-        returned_out_from_invoices = db.session.query(Payment).join(
+        returned_out_from_invoices = session.query(Payment).join(
             Invoice, Invoice.id == Payment.invoice_id
         ).outerjoin(
             Check, Check.payment_id == Payment.id
@@ -462,7 +464,7 @@ def _get_returned_checks_to_partner(partner_id: int, partner: Partner, date_from
             Payment.payment_date <= date_to
         ).all()
         
-        returned_out_from_services = db.session.query(Payment).join(
+        returned_out_from_services = session.query(Payment).join(
             ServiceRequest, ServiceRequest.id == Payment.service_id
         ).outerjoin(
             Check, Check.payment_id == Payment.id
@@ -480,7 +482,7 @@ def _get_returned_checks_to_partner(partner_id: int, partner: Partner, date_from
             Payment.payment_date <= date_to
         ).all()
         
-        returned_out_from_preorders = db.session.query(Payment).join(
+        returned_out_from_preorders = session.query(Payment).join(
             PreOrder, PreOrder.id == Payment.preorder_id
         ).outerjoin(
             Check, Check.payment_id == Payment.id
@@ -516,7 +518,7 @@ def _get_returned_checks_to_partner(partner_id: int, partner: Partner, date_from
             "amount_ils": float(amt)
         })
     
-    manual_returned_checks = db.session.query(Check).filter(
+    manual_returned_checks = session.query(Check).filter(
         Check.partner_id == partner_id,
         Check.payment_id.is_(None),
         Check.direction == PaymentDirection.OUT.value,
@@ -542,17 +544,19 @@ def _get_returned_checks_to_partner(partner_id: int, partner: Partner, date_from
     }
 
 
-def _get_returned_checks_from_partner(partner_id: int, partner: Partner, date_from: datetime, date_to: datetime):
+def _get_returned_checks_from_partner(partner_id: int, partner: Partner, date_from: datetime, date_to: datetime, session=None):
     """
     الشيكات الواردة المرتدة (دفع الشريك لنا) - تُحسب بشكل منفصل
     """
     from models import Payment, PaymentDirection, PaymentStatus, PaymentMethod, Check, CheckStatus, Sale, Invoice, ServiceRequest, PreOrder
     from sqlalchemy import or_, and_
+
+    session = session or db.session
     
     returned_checks_in = Decimal('0.00')
     items = []
     
-    returned_in_direct = db.session.query(Payment).outerjoin(
+    returned_in_direct = session.query(Payment).outerjoin(
         Check, Check.payment_id == Payment.id
     ).filter(
         Payment.partner_id == partner_id,
@@ -575,7 +579,7 @@ def _get_returned_checks_from_partner(partner_id: int, partner: Partner, date_fr
     returned_in_from_preorders = []
     
     if partner.customer_id:
-        returned_in_from_customer = db.session.query(Payment).outerjoin(
+        returned_in_from_customer = session.query(Payment).outerjoin(
             Check, Check.payment_id == Payment.id
         ).filter(
             Payment.customer_id == partner.customer_id,
@@ -591,7 +595,7 @@ def _get_returned_checks_from_partner(partner_id: int, partner: Partner, date_fr
             Payment.payment_date <= date_to
         ).all()
         
-        returned_in_from_sales = db.session.query(Payment).join(
+        returned_in_from_sales = session.query(Payment).join(
             Sale, Sale.id == Payment.sale_id
         ).outerjoin(
             Check, Check.payment_id == Payment.id
@@ -609,7 +613,7 @@ def _get_returned_checks_from_partner(partner_id: int, partner: Partner, date_fr
             Payment.payment_date <= date_to
         ).all()
         
-        returned_in_from_invoices = db.session.query(Payment).join(
+        returned_in_from_invoices = session.query(Payment).join(
             Invoice, Invoice.id == Payment.invoice_id
         ).outerjoin(
             Check, Check.payment_id == Payment.id
@@ -627,7 +631,7 @@ def _get_returned_checks_from_partner(partner_id: int, partner: Partner, date_fr
             Payment.payment_date <= date_to
         ).all()
         
-        returned_in_from_services = db.session.query(Payment).join(
+        returned_in_from_services = session.query(Payment).join(
             ServiceRequest, ServiceRequest.id == Payment.service_id
         ).outerjoin(
             Check, Check.payment_id == Payment.id
@@ -645,7 +649,7 @@ def _get_returned_checks_from_partner(partner_id: int, partner: Partner, date_fr
             Payment.payment_date <= date_to
         ).all()
         
-        returned_in_from_preorders = db.session.query(Payment).join(
+        returned_in_from_preorders = session.query(Payment).join(
             PreOrder, PreOrder.id == Payment.preorder_id
         ).outerjoin(
             Check, Check.payment_id == Payment.id
@@ -681,7 +685,7 @@ def _get_returned_checks_from_partner(partner_id: int, partner: Partner, date_fr
             "amount_ils": float(amt)
         })
     
-    manual_returned_checks = db.session.query(Check).filter(
+    manual_returned_checks = session.query(Check).filter(
         Check.partner_id == partner_id,
         Check.payment_id.is_(None),
         Check.direction == PaymentDirection.IN.value,
@@ -1192,12 +1196,12 @@ def _convert_to_ils(amount: Decimal | float, from_currency: str, at: datetime = 
         amount=amount,
         from_code=from_currency,
         to_code="ILS",
-        at=at or datetime.utcnow()
+        at=at or datetime.now(timezone.utc).replace(tzinfo=None)
     )
     return Decimal(str(converted)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
-def _get_partner_inventory(partner_id: int, date_from: datetime, date_to: datetime):
+def _get_partner_inventory(partner_id: int, date_from: datetime, date_to: datetime, session=None):
     """
     المخزون الحالي للشريك (نصيبه من التكلفة)
     يحسب من المستودعات التي لها صفة شراكة وله نسبة فيها
@@ -1206,6 +1210,11 @@ def _get_partner_inventory(partner_id: int, date_from: datetime, date_to: dateti
         Warehouse, WarehousePartnerShare, StockLevel, Product, ProductPartner
     )
     from sqlalchemy import func
+    from types import SimpleNamespace
+    from extensions import db as _db
+
+    session = session or _db.session
+    db = SimpleNamespace(session=session)
     
     partner_warehouse_shares = db.session.query(
         WarehousePartnerShare.warehouse_id,
@@ -1392,7 +1401,7 @@ def _get_partner_inventory(partner_id: int, date_from: datetime, date_to: dateti
         
         if product_currency and product_currency != 'ILS':
             try:
-                partner_share = _convert_to_ils(partner_share, product_currency, datetime.utcnow())
+                partner_share = _convert_to_ils(partner_share, product_currency, datetime.now(timezone.utc).replace(tzinfo=None))
             except Exception:
                 pass  # إذا فشل التحويل، نستخدم القيمة الأصلية
         
@@ -1417,7 +1426,7 @@ def _get_partner_inventory(partner_id: int, date_from: datetime, date_to: dateti
     }
 
 
-def _get_partner_sales_share(partner_id: int, date_from: datetime, date_to: datetime):
+def _get_partner_sales_share(partner_id: int, date_from: datetime, date_to: datetime, session=None):
     """
     حساب نصيب الشريك من المبيعات (من سعر البيع)
     يشمل: مبيعات الصيانة + مبيعات عادية
@@ -1428,6 +1437,11 @@ def _get_partner_sales_share(partner_id: int, date_from: datetime, date_to: date
         ProductPartner, WarehousePartnerShare, Customer
     )
     from sqlalchemy import func
+    from types import SimpleNamespace
+    from extensions import db as _db
+
+    session = session or _db.session
+    db = SimpleNamespace(session=session)
     
     all_sales = []
     total_ils = Decimal('0.00')
@@ -1667,7 +1681,7 @@ def _get_partner_sales_share(partner_id: int, date_from: datetime, date_to: date
     }
 
 
-def _get_partner_sales_returns(partner_id: int, date_from: datetime, date_to: datetime):
+def _get_partner_sales_returns(partner_id: int, date_from: datetime, date_to: datetime, session=None):
     """
     حساب نصيب الشريك من مرتجعات المبيعات (يُخصم من sales_share_balance)
     للقطع السليمة فقط - القطع التالفة تُحسب في damaged_items_balance
@@ -1677,6 +1691,11 @@ def _get_partner_sales_returns(partner_id: int, date_from: datetime, date_to: da
         ProductPartner, WarehousePartnerShare, SaleStatus
     )
     from sqlalchemy import func
+    from types import SimpleNamespace
+    from extensions import db as _db
+
+    session = session or _db.session
+    db = SimpleNamespace(session=session)
     
     all_returns = []
     total_return_share_ils = Decimal('0.00')
@@ -1739,7 +1758,7 @@ def _get_partner_sales_returns(partner_id: int, date_from: datetime, date_to: da
                 partner_return_share_ils = _convert_to_ils(
                     partner_return_share,
                     sale_return.currency or 'ILS',
-                    sale_return.created_at or datetime.utcnow()
+                    sale_return.created_at or datetime.now(timezone.utc).replace(tzinfo=None)
                 )
             except Exception:
                 partner_return_share_ils = partner_return_share
@@ -1773,7 +1792,7 @@ def _get_partner_sales_returns(partner_id: int, date_from: datetime, date_to: da
     }
 
 
-def _get_payments_to_partner(partner_id: int, partner: Partner, date_from: datetime, date_to: datetime):
+def _get_payments_to_partner(partner_id: int, partner: Partner, date_from: datetime, date_to: datetime, session=None):
     """
     دفعات دفعناها للشريك (OUT) - تُخصم من حقوقه علينا
     ✅ لا تستثني الشيكات المرتدة (تبقى في payments_out_balance، والشيكات المرتجة تُحسب كقيد منفصل)
@@ -1785,11 +1804,13 @@ def _get_payments_to_partner(partner_id: int, partner: Partner, date_from: datet
     """
     from models import Payment, PaymentDirection, PaymentStatus, PaymentEntityType, Sale, Check
     from sqlalchemy import or_
+
+    session = session or db.session
     
     items = []
     total_ils = Decimal('0.00')
     
-    direct_payments = db.session.query(Payment).outerjoin(
+    direct_payments = session.query(Payment).outerjoin(
         Check, Check.payment_id == Payment.id
     ).filter(
         Payment.partner_id == partner_id,
@@ -1817,7 +1838,7 @@ def _get_payments_to_partner(partner_id: int, partner: Partner, date_from: datet
         })
     
     if partner.customer_id:
-        customer_payments = db.session.query(Payment).outerjoin(
+        customer_payments = session.query(Payment).outerjoin(
             Check, Check.payment_id == Payment.id
         ).filter(
             Payment.customer_id == partner.customer_id,
@@ -1844,7 +1865,7 @@ def _get_payments_to_partner(partner_id: int, partner: Partner, date_from: datet
                 "source": "customer"
             })
         
-        sale_payments = db.session.query(Payment).join(
+        sale_payments = session.query(Payment).join(
             Sale, Sale.id == Payment.sale_id
         ).outerjoin(
             Check, Check.payment_id == Payment.id
@@ -1875,7 +1896,7 @@ def _get_payments_to_partner(partner_id: int, partner: Partner, date_from: datet
                 })
     
     from models import Expense
-    expense_payments = db.session.query(Payment).join(
+    expense_payments = session.query(Payment).join(
         Expense, Expense.id == Payment.expense_id
     ).filter(
         or_(
@@ -1908,7 +1929,7 @@ def _get_payments_to_partner(partner_id: int, partner: Partner, date_from: datet
     
     if partner.customer_id:
         from models import Invoice
-        invoice_payments = db.session.query(Payment).join(
+        invoice_payments = session.query(Payment).join(
             Invoice, Invoice.id == Payment.invoice_id
         ).outerjoin(
             Check, Check.payment_id == Payment.id
@@ -1939,7 +1960,7 @@ def _get_payments_to_partner(partner_id: int, partner: Partner, date_from: datet
                 })
         
         from models import ServiceRequest
-        service_payments = db.session.query(Payment).join(
+        service_payments = session.query(Payment).join(
             ServiceRequest, ServiceRequest.id == Payment.service_id
         ).outerjoin(
             Check, Check.payment_id == Payment.id
@@ -1970,7 +1991,7 @@ def _get_payments_to_partner(partner_id: int, partner: Partner, date_from: datet
                 })
         
         from models import PreOrder
-        preorder_payments = db.session.query(Payment).join(
+        preorder_payments = session.query(Payment).join(
             PreOrder, PreOrder.id == Payment.preorder_id
         ).outerjoin(
             Check, Check.payment_id == Payment.id
@@ -2001,7 +2022,7 @@ def _get_payments_to_partner(partner_id: int, partner: Partner, date_from: datet
                 })
     
     from models import Check, CheckStatus
-    manual_checks = db.session.query(Check).filter(
+    manual_checks = session.query(Check).filter(
         Check.partner_id == partner_id,
         Check.payment_id.is_(None),
         Check.direction == PaymentDirection.OUT.value,
@@ -2070,7 +2091,7 @@ def _get_partner_shipments_share(partner_id: int, date_from: datetime, date_to: 
         amount_ils = _convert_to_ils(
             Decimal(str(share_amount or 0)), 
             currency or 'ILS', 
-            created_at or datetime.utcnow()
+            created_at or datetime.now(timezone.utc).replace(tzinfo=None)
         )
         total_ils += amount_ils
         
@@ -2140,7 +2161,7 @@ def _get_partner_preorders_share(partner_id: int, date_from: datetime, date_to: 
         amount_ils = _convert_to_ils(
             share_amount,
             po.currency or 'ILS',
-            po.created_at or datetime.utcnow()
+            po.created_at or datetime.now(timezone.utc).replace(tzinfo=None)
         )
         total_ils += amount_ils
         
@@ -2163,12 +2184,17 @@ def _get_partner_preorders_share(partner_id: int, date_from: datetime, date_to: 
     }
 
 
-def _get_partner_preorders_prepaid(partner_id: int, partner: Partner, date_from: datetime, date_to: datetime):
+def _get_partner_preorders_prepaid(partner_id: int, partner: Partner, date_from: datetime, date_to: datetime, session=None):
     """
     أرصدة الحجوزات المسبقة (العربون المدفوع) للشريك
     إذا كان الشريك له عميل مرتبط، نحسب العربون من الحجوزات لذلك العميل
     """
     from models import PreOrder, PreOrderStatus
+    from types import SimpleNamespace
+    from extensions import db as _db
+
+    session = session or _db.session
+    db = SimpleNamespace(session=session)
     
     if not partner.customer_id:
         return {"items": [], "total_ils": 0.0, "count": 0}
@@ -2188,7 +2214,7 @@ def _get_partner_preorders_prepaid(partner_id: int, partner: Partner, date_from:
         amount_ils = _convert_to_ils(
             Decimal(str(po.prepaid_amount or 0)),
             po.currency or 'ILS',
-            po.preorder_date or datetime.utcnow()
+            po.preorder_date or datetime.now(timezone.utc).replace(tzinfo=None)
         )
         total_ils += amount_ils
         
@@ -2210,10 +2236,15 @@ def _get_partner_preorders_prepaid(partner_id: int, partner: Partner, date_from:
     }
 
 
-def _get_partner_expenses(partner_id: int, date_from: datetime, date_to: datetime):
+def _get_partner_expenses(partner_id: int, date_from: datetime, date_to: datetime, session=None):
     """جلب المصروفات المخصومة من حصة الشريك (غير توريد الخدمة)"""
     from models import Expense, ExpenseType
     from sqlalchemy import or_, and_, func
+    from types import SimpleNamespace
+    from extensions import db as _db
+
+    session = session or _db.session
+    db = SimpleNamespace(session=session)
     
     expenses = db.session.query(Expense).join(ExpenseType, Expense.type_id == ExpenseType.id).filter(
         or_(
@@ -2229,7 +2260,7 @@ def _get_partner_expenses(partner_id: int, date_from: datetime, date_to: datetim
     for expense in expenses:
         amount = Decimal(str(expense.amount or 0))
         currency = expense.currency or "ILS"
-        expense_date = expense.date or datetime.utcnow()
+        expense_date = expense.date or datetime.now(timezone.utc).replace(tzinfo=None)
         
         amount_ils = _convert_to_ils(amount, currency, expense_date)
         total_ils = total_ils + amount_ils
@@ -2259,7 +2290,7 @@ def _get_previous_partner_settlements(partner_id: int, before_date: datetime):
     } for s in settlements]
 
 
-def _get_partner_payments_received(partner_id: int, partner: Partner, date_from: datetime, date_to: datetime):
+def _get_partner_payments_received(partner_id: int, partner: Partner, date_from: datetime, date_to: datetime, session=None):
     """
     دفعات استلمناها من الشريك (IN) - تُضاف إلى حقوقه علينا
     
@@ -2273,9 +2304,11 @@ def _get_partner_payments_received(partner_id: int, partner: Partner, date_from:
     
     items = []
     total_ils = Decimal('0.00')
+
+    session = session or db.session
     
     from models import PreOrder
-    direct_payments = db.session.query(Payment).outerjoin(
+    direct_payments = session.query(Payment).outerjoin(
         Check, Check.payment_id == Payment.id
     ).outerjoin(
         PreOrder, Payment.preorder_id == PreOrder.id
@@ -2311,7 +2344,7 @@ def _get_partner_payments_received(partner_id: int, partner: Partner, date_from:
     
     if partner.customer_id:
         from models import PreOrder
-        customer_payments = db.session.query(Payment).outerjoin(
+        customer_payments = session.query(Payment).outerjoin(
             Check, Check.payment_id == Payment.id
         ).outerjoin(
             PreOrder, Payment.preorder_id == PreOrder.id
@@ -2346,7 +2379,7 @@ def _get_partner_payments_received(partner_id: int, partner: Partner, date_from:
                     "source": "customer"
                 })
         
-        sale_payments = db.session.query(Payment).join(
+        sale_payments = session.query(Payment).join(
             Sale, Sale.id == Payment.sale_id
         ).outerjoin(
             Check, Check.payment_id == Payment.id
@@ -2384,7 +2417,7 @@ def _get_partner_payments_received(partner_id: int, partner: Partner, date_from:
                 })
         
         from models import Invoice
-        invoice_payments = db.session.query(Payment).join(
+        invoice_payments = session.query(Payment).join(
             Invoice, Invoice.id == Payment.invoice_id
         ).outerjoin(
             Check, Check.payment_id == Payment.id
@@ -2415,7 +2448,7 @@ def _get_partner_payments_received(partner_id: int, partner: Partner, date_from:
                 })
         
         from models import ServiceRequest
-        service_payments = db.session.query(Payment).join(
+        service_payments = session.query(Payment).join(
             ServiceRequest, ServiceRequest.id == Payment.service_id
         ).outerjoin(
             Check, Check.payment_id == Payment.id
@@ -2446,7 +2479,7 @@ def _get_partner_payments_received(partner_id: int, partner: Partner, date_from:
                 })
         
         from models import PreOrder
-        preorder_payments = db.session.query(Payment).join(
+        preorder_payments = session.query(Payment).join(
             PreOrder, PreOrder.id == Payment.preorder_id
         ).outerjoin(
             Check, Check.payment_id == Payment.id
@@ -2476,7 +2509,7 @@ def _get_partner_payments_received(partner_id: int, partner: Partner, date_from:
                     "source": "preorder"
                 })
         
-        preorders_with_prepaid = db.session.query(PreOrder).filter(
+        preorders_with_prepaid = session.query(PreOrder).filter(
             PreOrder.customer_id == partner.customer_id,
             PreOrder.prepaid_amount > 0,
             PreOrder.status != 'FULFILLED',
@@ -2485,7 +2518,7 @@ def _get_partner_payments_received(partner_id: int, partner: Partner, date_from:
         ).all()
         
         for po in preorders_with_prepaid:
-            existing_payment = db.session.query(Payment).filter(
+            existing_payment = session.query(Payment).filter(
                 Payment.preorder_id == po.id,
                 Payment.direction == PaymentDirection.IN,
                 Payment.status.in_([PaymentStatus.COMPLETED, PaymentStatus.PENDING])
@@ -2495,7 +2528,7 @@ def _get_partner_payments_received(partner_id: int, partner: Partner, date_from:
                 amount_ils = _convert_to_ils(
                     Decimal(str(po.prepaid_amount or 0)),
                     po.currency or 'ILS',
-                    po.preorder_date or datetime.utcnow()
+                    po.preorder_date or datetime.now(timezone.utc).replace(tzinfo=None)
                 )
                 total_ils += amount_ils
                 
@@ -2513,7 +2546,7 @@ def _get_partner_payments_received(partner_id: int, partner: Partner, date_from:
                 })
     
     from models import Check, CheckStatus
-    manual_checks = db.session.query(Check).filter(
+    manual_checks = session.query(Check).filter(
         Check.partner_id == partner_id,
         Check.payment_id.is_(None),
         Check.direction == PaymentDirection.IN.value,
@@ -2549,16 +2582,17 @@ def _get_partner_payments_received(partner_id: int, partner: Partner, date_from:
     }
 
 
-def _get_partner_sales_as_customer(partner_id: int, partner: Partner, date_from: datetime, date_to: datetime):
+def _get_partner_sales_as_customer(partner_id: int, partner: Partner, date_from: datetime, date_to: datetime, session=None):
     """
     مبيعات للشريك (كعميل) - تُخصم من حقوقه
     """
     from models import Sale, SaleLine, Product
+    session = session or db.session
     
     if not partner.customer_id:
         return {"items": [], "total_ils": 0.0, "count": 0}
     
-    sales = db.session.query(
+    sales = session.query(
         Sale.id.label("sale_id"),
         Sale.sale_number,
         Sale.sale_date,
@@ -2576,7 +2610,7 @@ def _get_partner_sales_as_customer(partner_id: int, partner: Partner, date_from:
     total_ils = Decimal('0.00')
     
     for sale in sales:
-        sale_lines = db.session.query(
+        sale_lines = session.query(
             Product.name.label("product_name"),
             SaleLine.quantity,
             SaleLine.unit_price
@@ -2607,16 +2641,17 @@ def _get_partner_sales_as_customer(partner_id: int, partner: Partner, date_from:
     }
 
 
-def _get_partner_service_fees(partner_id: int, partner: Partner, date_from: datetime, date_to: datetime):
+def _get_partner_service_fees(partner_id: int, partner: Partner, date_from: datetime, date_to: datetime, session=None):
     """
     رسوم صيانة على الشريك (كعميل) - تُخصم من حقوقه
     """
     from models import ServiceRequest
+    session = session or db.session
     
     if not partner.customer_id:
         return {"items": [], "total_ils": 0.0, "count": 0}
     
-    services = db.session.query(ServiceRequest).filter(
+    services = session.query(ServiceRequest).filter(
         ServiceRequest.customer_id == partner.customer_id,
         ServiceRequest.received_at >= date_from,
         ServiceRequest.received_at <= date_to,
@@ -2665,11 +2700,12 @@ def _get_partner_service_fees(partner_id: int, partner: Partner, date_from: date
     }
 
 
-def _get_partner_preorders_as_customer(partner_id: int, partner: Partner, date_from: datetime, date_to: datetime):
+def _get_partner_preorders_as_customer(partner_id: int, partner: Partner, date_from: datetime, date_to: datetime, session=None):
     """
     حجوزات مسبقة للشريك (إذا كان عميلاً) - تُخصم من حقوقه
     """
     from models import PreOrder
+    session = session or db.session
     
     if not partner.customer_id:
         return {"items": [], "total_ils": 0.0, "count": 0}
@@ -2677,7 +2713,7 @@ def _get_partner_preorders_as_customer(partner_id: int, partner: Partner, date_f
     items = []
     total_ils = Decimal('0.00')
     
-    preorders = db.session.query(PreOrder).filter(
+    preorders = session.query(PreOrder).filter(
         PreOrder.customer_id == partner.customer_id,
         PreOrder.status.in_(['CONFIRMED', 'COMPLETED', 'DELIVERED']),
         PreOrder.status != 'FULFILLED',
@@ -2689,7 +2725,7 @@ def _get_partner_preorders_as_customer(partner_id: int, partner: Partner, date_f
         amount_ils = _convert_to_ils(
             Decimal(str(po.total_amount or 0)),
             po.currency or 'ILS',
-            po.created_at or datetime.utcnow()
+            po.created_at or datetime.now(timezone.utc).replace(tzinfo=None)
         )
         total_ils += amount_ils
         
@@ -2710,7 +2746,7 @@ def _get_partner_preorders_as_customer(partner_id: int, partner: Partner, date_f
     }
 
 
-def _get_partner_damaged_items(partner_id: int, date_from: datetime, date_to: datetime):
+def _get_partner_damaged_items(partner_id: int, date_from: datetime, date_to: datetime, session=None):
     """
     القطع التالفة - نصيب الشريك من الخسارة (من سعر التكلفة)
     """
@@ -2718,8 +2754,9 @@ def _get_partner_damaged_items(partner_id: int, date_from: datetime, date_to: da
         StockAdjustment, StockAdjustmentItem, Product, 
         ProductPartner, Warehouse
     )
+    session = session or db.session
     
-    damaged_items = db.session.query(
+    damaged_items = session.query(
         StockAdjustment.date,
         Product.name.label("product_name"),
         Product.sku,
@@ -2832,7 +2869,7 @@ def approve_settlement(partner_id):
         closing_balance=Decimal(str(balance_data.get("balance", {}).get("net", 0))),
         is_approved=True,
         approved_by=current_user.id,
-        approved_at=datetime.utcnow()
+        approved_at=datetime.now(timezone.utc).replace(tzinfo=None)
     )
     
     db.session.add(settlement)
@@ -2850,9 +2887,9 @@ def approve_settlement(partner_id):
         if inventory_share_amount > 0.01:
             # نسبة المخزون = حق للشريك (له علينا)
             # القيد: مدين Inventory Reserve / دائن AP
-            inventory_reserve_account = GL_ACCOUNTS.get("INVENTORY_RESERVE", "1300_INVENTORY_RESERVE")
+            inventory_reserve_account = GL_ACCOUNTS.get("INVENTORY_RESERVE", "1300_INV_RSV")
             if not inventory_reserve_account:
-                inventory_reserve_account = "1300_INVENTORY_RESERVE"
+                inventory_reserve_account = "1300_INV_RSV"
             
             _gl_upsert_batch_and_entries(
                 db.session.connection(),

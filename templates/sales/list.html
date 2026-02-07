@@ -41,11 +41,14 @@
     .sales-summary-card .card-title{color:rgba(0,0,0,.85);font-size:1.05rem;font-weight:700}
     .sales-summary-card small{font-size:0.95rem;font-weight:600;color:rgba(0,0,0,.7)}
     .table thead th{white-space:nowrap}
-    .sort-buttons{display:flex;flex-direction:column;gap:2px;margin-right:4px}
-    .btn-sort{background:none;border:none;padding:2px 4px;cursor:pointer;color:#6c757d;font-size:0.75rem;line-height:1}
-    .btn-sort:hover{color:#495057}
-    .btn-sort.active{color:#007bff}
-    .table thead th .d-flex{width:100%}
+    .sales-toolbar .form-control{border-radius:.65rem}
+    .sales-toolbar .input-group-text{border-radius:.65rem 0 0 .65rem}
+    .sales-toolbar .btn{border-radius:.65rem}
+    .sales-header-actions{display:flex;gap:.5rem;flex-wrap:wrap;justify-content:flex-end}
+    .table-actions{display:inline-flex;gap:.35rem;flex-wrap:nowrap;align-items:center}
+    .table-actions .btn{white-space:nowrap}
+    .table-actions .dropdown-menu{min-width:220px}
+    .table td{vertical-align:middle}
   </style>
   {% else %}
   <style>
@@ -162,9 +165,9 @@ html, body { background:#fff; direction:rtl; font-family:"Segoe UI","Tahoma",san
   <div class="card">
     <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
       <h3 class="mb-0"><i class="fas fa-file-invoice mr-2"></i> فواتير المبيعات</h3>
-      <div>
-        <button type="button" class="btn btn-light ml-2" data-toggle="modal" data-target="#printSalesModal"><i class="fas fa-print mr-1"></i> طباعة</button>
-        <a href="{{ url_for('returns.list_returns') }}" class="btn btn-danger ml-2" title="عرض المرتجعات" data-no-confirm="true" data-no-danger="true">
+      <div class="sales-header-actions">
+        <button type="button" class="btn btn-light" data-toggle="modal" data-target="#printSalesModal"><i class="fas fa-print mr-1"></i> طباعة</button>
+        <a href="{{ url_for('returns.list_returns') }}" class="btn btn-danger" title="عرض المرتجعات" data-no-confirm="true" data-no-danger="true">
           <i class="fas fa-undo-alt"></i> المرتجعات
         </a>
         <a href="{{ url_for('sales_bp.create_sale') }}" class="btn btn-create" title="إنشاء فاتورة جديدة">
@@ -249,127 +252,81 @@ html, body { background:#fff; direction:rtl; font-family:"Segoe UI","Tahoma",san
       {% endif %}
       </div>
 
-      <div class="card border-0 shadow-sm mb-4">
+      <div class="card border-0 shadow-sm mb-4 sales-toolbar">
         <div class="card-body py-3">
-          <div class="row align-items-center">
-            <div class="col-lg-6 col-md-7">
-              <div class="input-group">
-                <span class="input-group-text"><i class="fas fa-search"></i></span>
-                <input type="text" id="sales-search" class="form-control" placeholder="بحث في المبيعات" value="{{ request.args.get('q','') }}">
+          <form id="filterForm" method="get" action="{{ url_for('sales_bp.list_sales') }}">
+            <div class="form-row">
+              <div class="form-group col-lg-4 col-md-6">
+                <label class="mb-1">بحث</label>
+                <div class="input-group">
+                  <span class="input-group-text"><i class="fas fa-search"></i></span>
+                  <input type="text" id="sales-search" name="q" class="form-control" placeholder="رقم فاتورة / اسم / هاتف / ملاحظات" value="{{ request.args.get('q','') }}">
+                </div>
+              </div>
+              <div class="form-group col-lg-2 col-md-6">
+                <label class="mb-1">رقم الفاتورة</label>
+                <input type="text" name="invoice_no" class="form-control" placeholder="مثال: 2026-0001" value="{{ request.args.get('invoice_no','') }}">
+              </div>
+              <div class="form-group col-lg-2 col-md-6">
+                <label class="mb-1">العميل</label>
+                <input type="text" name="customer" class="form-control" placeholder="اسم/هاتف" value="{{ request.args.get('customer','') }}">
+              </div>
+              <div class="form-group col-lg-2 col-md-3">
+                <label class="mb-1">من</label>
+                <input type="date" name="date_from" class="form-control" value="{{ request.args.get('date_from','') }}">
+              </div>
+              <div class="form-group col-lg-2 col-md-3">
+                <label class="mb-1">إلى</label>
+                <input type="date" name="date_to" class="form-control" value="{{ request.args.get('date_to','') }}">
               </div>
             </div>
-            <div class="col-lg-6 col-md-5 text-md-left text-sm-right mt-3 mt-md-0">
-              <span class="text-muted d-inline-block" id="sales-search-summary">إجمالي النتائج: {{ total_filtered }}</span>
+
+            <div class="form-row">
+              <div class="form-group col-lg-3 col-md-6">
+                <label class="mb-1">ترتيب حسب</label>
+                {% set sort_val = request.args.get('sort','date') %}
+                <select id="sales-sort" name="sort" class="form-control">
+                  <option value="date" {% if sort_val == 'date' %}selected{% endif %}>التاريخ</option>
+                  <option value="invoice_no" {% if sort_val == 'invoice_no' %}selected{% endif %}>رقم الفاتورة</option>
+                  <option value="customer" {% if sort_val == 'customer' %}selected{% endif %}>العميل</option>
+                  <option value="total" {% if sort_val == 'total' %}selected{% endif %}>الإجمالي</option>
+                  <option value="paid" {% if sort_val == 'paid' %}selected{% endif %}>المدفوع</option>
+                  <option value="balance" {% if sort_val == 'balance' %}selected{% endif %}>المتبقي</option>
+                </select>
+              </div>
+              <div class="form-group col-lg-2 col-md-6">
+                <label class="mb-1">الاتجاه</label>
+                {% set order_val = request.args.get('order','desc') %}
+                <select id="sales-order" name="order" class="form-control">
+                  <option value="desc" {% if order_val == 'desc' %}selected{% endif %}>تنازلي</option>
+                  <option value="asc" {% if order_val == 'asc' %}selected{% endif %}>تصاعدي</option>
+                </select>
+              </div>
+              <div class="form-group col-lg-7 col-12 d-flex align-items-end justify-content-between flex-wrap">
+                <div class="d-flex flex-wrap">
+                  <button type="submit" class="btn btn-primary btn-filter mr-2"><i class="fas fa-filter mr-1"></i> تطبيق</button>
+                  <button type="reset" class="btn btn-secondary btn-filter mr-2"><i class="fas fa-undo mr-1"></i> مسح</button>
+                </div>
+                <span class="text-muted d-inline-block mt-2 mt-lg-0" id="sales-search-summary">إجمالي النتائج: {{ total_filtered }}</span>
+              </div>
             </div>
-          </div>
+          </form>
         </div>
       </div>
-      
-      <!-- فلاتر -->
-      <form id="filterForm" class="form-row mb-4" method="get" action="{{ url_for('sales_bp.list_sales') }}">
-        <div class="form-group col-md-3">
-          <input type="text" name="invoice_no" class="form-control" placeholder="رقم الفاتورة" value="{{ request.args.get('invoice_no','') }}">
-        </div>
-        <div class="form-group col-md-3">
-          <input type="text" name="customer" class="form-control" placeholder="اسم العميل/الهاتف" value="{{ request.args.get('customer','') }}">
-        </div>
-        <div class="form-group col-md-2">
-          <input type="date" name="date_from" class="form-control" value="{{ request.args.get('date_from','') }}">
-        </div>
-        <div class="form-group col-md-2">
-          <input type="date" name="date_to" class="form-control" value="{{ request.args.get('date_to','') }}">
-        </div>
-        <div class="form-group col-12 d-flex flex-wrap">
-          <button type="submit" class="btn btn-primary btn-filter"><i class="fas fa-filter mr-1"></i> فلترة</button>
-          <button type="reset" class="btn btn-secondary btn-filter mr-2"><i class="fas fa-undo mr-1"></i> إعادة</button>
-        </div>
-      </form>
 
       <!-- الجدول -->
       <div id="sales-table-wrapper" class="table-responsive">
         <table id="salesTable" class="table table-hover align-middle">
           <thead class="thead-light">
             <tr>
-              <th>
-                <div class="d-flex align-items-center justify-content-between">
-                  <span>رقم</span>
-                  <div class="sort-buttons">
-                    <button type="button" class="btn-sort" data-sort="invoice_no" data-order="asc" title="تصاعدي">
-                      <i class="fas fa-sort-up"></i>
-                    </button>
-                    <button type="button" class="btn-sort" data-sort="invoice_no" data-order="desc" title="تنازلي">
-                      <i class="fas fa-sort-down"></i>
-                    </button>
-                  </div>
-                </div>
-              </th>
-              <th>
-                <div class="d-flex align-items-center justify-content-between">
-                  <span>التاريخ</span>
-                  <div class="sort-buttons">
-                    <button type="button" class="btn-sort" data-sort="date" data-order="asc" title="تصاعدي">
-                      <i class="fas fa-sort-up"></i>
-                    </button>
-                    <button type="button" class="btn-sort" data-sort="date" data-order="desc" title="تنازلي">
-                      <i class="fas fa-sort-down"></i>
-                    </button>
-                  </div>
-                </div>
-              </th>
-              <th>
-                <div class="d-flex align-items-center justify-content-between">
-                  <span>العميل</span>
-                  <div class="sort-buttons">
-                    <button type="button" class="btn-sort" data-sort="customer" data-order="asc" title="تصاعدي">
-                      <i class="fas fa-sort-up"></i>
-                    </button>
-                    <button type="button" class="btn-sort" data-sort="customer" data-order="desc" title="تنازلي">
-                      <i class="fas fa-sort-down"></i>
-                    </button>
-                  </div>
-                </div>
-              </th>
-              <th>
-                <div class="d-flex align-items-center justify-content-between">
-                  <span>الإجمالي</span>
-                  <div class="sort-buttons">
-                    <button type="button" class="btn-sort" data-sort="total" data-order="asc" title="تصاعدي">
-                      <i class="fas fa-sort-up"></i>
-                    </button>
-                    <button type="button" class="btn-sort" data-sort="total" data-order="desc" title="تنازلي">
-                      <i class="fas fa-sort-down"></i>
-                    </button>
-                  </div>
-                </div>
-              </th>
-              <th>العملة</th>
-              <th>سعر الصرف</th>
-              <th>
-                <div class="d-flex align-items-center justify-content-between">
-                  <span>مدفوع</span>
-                  <div class="sort-buttons">
-                    <button type="button" class="btn-sort" data-sort="paid" data-order="asc" title="تصاعدي">
-                      <i class="fas fa-sort-up"></i>
-                    </button>
-                    <button type="button" class="btn-sort" data-sort="paid" data-order="desc" title="تنازلي">
-                      <i class="fas fa-sort-down"></i>
-                    </button>
-                  </div>
-                </div>
-              </th>
-              <th>
-                <div class="d-flex align-items-center justify-content-between">
-                  <span>متبقي</span>
-                  <div class="sort-buttons">
-                    <button type="button" class="btn-sort" data-sort="balance" data-order="asc" title="تصاعدي">
-                      <i class="fas fa-sort-up"></i>
-                    </button>
-                    <button type="button" class="btn-sort" data-sort="balance" data-order="desc" title="تنازلي">
-                      <i class="fas fa-sort-down"></i>
-                    </button>
-                  </div>
-                </div>
-              </th>
+              <th data-sortable="false">رقم</th>
+              <th data-sortable="false">التاريخ</th>
+              <th data-sortable="false">العميل</th>
+              <th data-sortable="false">الإجمالي</th>
+              <th data-sortable="false" class="text-center">العملة</th>
+              <th data-sortable="false" class="text-center d-none d-lg-table-cell">سعر الصرف</th>
+              <th data-sortable="false">مدفوع</th>
+              <th data-sortable="false">متبقي</th>
               <th class="text-center" data-sortable="false">إجراءات</th>
             </tr>
           </thead>
@@ -381,7 +338,7 @@ html, body { background:#fff; direction:rtl; font-family:"Segoe UI","Tahoma",san
               <td>{{ sale.customer_name }}</td>
               <td data-sort-value="{{ sale.total_amount or 0 }}">{{ sale.total_fmt }}</td>
               <td class="text-center"><span class="badge badge-secondary rounded-pill">{{ sale.currency or 'ILS' }}</span></td>
-              <td class="text-center">
+              <td class="text-center d-none d-lg-table-cell">
                 {% if sale.fx_rate_used and sale.currency != 'ILS' %}
                   <small class="text-muted">
                     {{ "%.4f"|format(sale.fx_rate_used) }}
@@ -407,34 +364,43 @@ html, body { background:#fff; direction:rtl; font-family:"Segoe UI","Tahoma",san
                   <a href="{{ url_for('sales_bp.edit_sale', id=sale.id) }}" class="btn btn-action-edit btn-action-sm" title="تعديل">
                     <i class="fas fa-edit"></i>
                   </a>
-                  <a href="{{ url_for('sales_bp.generate_invoice', id=sale.id) }}" class="btn btn-action-print btn-action-sm" title="فاتورة ضريبية" target="_blank">
-                    <i class="fas fa-file-invoice-dollar"></i>
-                  </a>
-                  {% if sale.is_archived %}
-                  <button type="button" class="btn btn-action-restore btn-action-sm" title="استعادة" onclick="restoreSale({{ sale.id }})">
-                    <i class="fas fa-undo"></i>
-                  </button>
-                  {% else %}
-                  <button type="button" class="btn btn-action-archive btn-action-sm" title="أرشفة" onclick="archiveSale({{ sale.id }})">
-                    <i class="fas fa-archive"></i>
-                  </button>
-                  {% endif %}
-                  {% if sale.balance_due and sale.balance_due > 0 %}
-                  <a href="{{ url_for('payments.create_payment', 
-                                     entity_type='SALE', 
-                                     entity_id=sale.id,
-                                     amount=sale.balance_due,
-                                     currency=sale.currency if sale.currency else 'ILS',
-                                     reference='دفع مبيعة من ' ~ (sale.customer.name if sale.customer else 'عميل') ~ ' - ' ~ (sale.sale_number or sale.id),
-                                     notes='دفع مبيعة: ' ~ (sale.sale_number or sale.id) ~ ' - العميل: ' ~ (sale.customer.name if sale.customer else 'غير محدد'),
-                                     customer_id=sale.customer_id) }}" class="btn btn-sm btn-success" title="إضافة دفعة"><i class="fas fa-money-bill-wave"></i></a>
-                  {% endif %}
-                  
+                  <div class="btn-group">
+                    <button type="button" class="btn btn-outline-secondary btn-action-sm dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" title="خيارات">
+                      <i class="fas fa-ellipsis-v"></i>
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-right">
+                      <a href="{{ url_for('sales_bp.generate_invoice', id=sale.id) }}" class="dropdown-item" target="_blank">
+                        <i class="fas fa-file-invoice-dollar mr-2"></i> فاتورة ضريبية
+                      </a>
+                      {% if sale.balance_due and sale.balance_due > 0 %}
+                      <a href="{{ url_for('payments.create_payment', 
+                                         entity_type='SALE', 
+                                         entity_id=sale.id,
+                                         amount=sale.balance_due,
+                                         currency=sale.currency if sale.currency else 'ILS',
+                                         reference='دفع مبيعة من ' ~ (sale.customer.name if sale.customer else 'عميل') ~ ' - ' ~ (sale.sale_number or sale.id),
+                                         notes='دفع مبيعة: ' ~ (sale.sale_number or sale.id) ~ ' - العميل: ' ~ (sale.customer.name if sale.customer else 'غير محدد'),
+                                         customer_id=sale.customer_id) }}" class="dropdown-item text-success">
+                        <i class="fas fa-money-bill-wave mr-2"></i> إضافة دفعة
+                      </a>
+                      {% endif %}
+                      <div class="dropdown-divider"></div>
+                      {% if sale.is_archived %}
+                      <button type="button" class="dropdown-item" onclick="restoreSale({{ sale.id }})">
+                        <i class="fas fa-undo mr-2"></i> استعادة
+                      </button>
+                      {% else %}
+                      <button type="button" class="dropdown-item" onclick="archiveSale({{ sale.id }})">
+                        <i class="fas fa-archive mr-2"></i> أرشفة
+                      </button>
+                      {% endif %}
+                    </div>
+                  </div>
                 </div>
               </td>
             </tr>
             {% else %}
-            <tr><td colspan="8" class="text-center text-muted py-4">لا توجد فواتير</td></tr>
+            <tr><td colspan="9" class="text-center text-muted py-4">لا توجد فواتير</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -605,7 +571,6 @@ html, body { background:#fff; direction:rtl; font-family:"Segoe UI","Tahoma",san
           return res.json();
         })
         .then(data => {
-          console.log('Received data:', data);
           if(typeof data.table_html === 'string') {
             salesTableWrapper.innerHTML = data.table_html;
           }

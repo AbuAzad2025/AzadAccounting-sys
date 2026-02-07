@@ -89,6 +89,9 @@ class Config:
     _APP_ENV_LOWER = str(APP_ENV).lower()
     _IS_DEV = DEBUG or (_APP_ENV_LOWER in {"dev", "development", "local"})
 
+    PERF_MONITOR_ENABLED = _bool(os.environ.get("PERF_MONITOR_ENABLED"), _IS_DEV)
+    PERF_MONITOR_PERSIST_PATH = os.environ.get("PERF_MONITOR_PERSIST_PATH", "")
+
     # SECURITY: SECRET_KEY يجب أن يكون قوي في الإنتاج
     _secret_env = os.environ.get("SECRET_KEY")
     if _secret_env:
@@ -260,7 +263,7 @@ class Config:
     RATELIMIT_API = "60 per hour;1 per second"
     
     # Cache - تحسين التخزين المؤقت
-    CACHE_TYPE = os.environ.get("CACHE_TYPE", "flask_caching.backends.SimpleCache")
+    CACHE_TYPE = os.environ.get("CACHE_TYPE", "flask_caching.backends.simplecache.SimpleCache")
     CACHE_REDIS_URL = os.environ.get("CACHE_REDIS_URL", REDIS_URL)
     CACHE_DEFAULT_TIMEOUT = _int("CACHE_DEFAULT_TIMEOUT", 1800)
     CACHE_KEY_PREFIX = os.environ.get("CACHE_KEY_PREFIX", "garage_manager")

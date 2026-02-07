@@ -402,7 +402,7 @@ def report_productivity():
     employees_worked = set(t.employee_id for t in timesheets)
     
     for emp_id in employees_worked:
-        employee = Employee.query.get(emp_id)
+        employee = db.session.get(Employee, emp_id)
         emp_sheets = [t for t in timesheets if t.employee_id == emp_id]
         
         total_hours = sum(float(t.actual_work_hours or 0) for t in emp_sheets)

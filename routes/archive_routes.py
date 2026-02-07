@@ -3,15 +3,17 @@ from flask import Blueprint, request, redirect, url_for, flash
 from flask_login import login_required, current_user
 from extensions import db
 from models import Archive, Shipment, Check, CheckStatus
+from utils import permission_required
 
 archive_routes_bp = Blueprint('archive_routes', __name__)
 
 @archive_routes_bp.route("/shipments/archive/<int:shipment_id>", methods=["POST"])
 @login_required
+@permission_required("manage_shipments")
 def archive_shipment(shipment_id):
     
     try:
-        shipment = Shipment.query.get_or_404(shipment_id)
+        shipment = db.get_or_404(Shipment, shipment_id)
         reason = request.form.get('reason', 'أرشفة تلقائية')
         
         archive = Archive.archive_record(
@@ -36,10 +38,11 @@ def archive_shipment(shipment_id):
 
 @archive_routes_bp.route("/checks/archive/<int:check_id>", methods=["POST"])
 @login_required
+@permission_required("manage_payments")
 def archive_check(check_id):
     
     try:
-        check = Check.query.get_or_404(check_id)
+        check = db.get_or_404(Check, check_id)
         reason = request.form.get('reason', 'أرشفة تلقائية')
         
         archive = Archive.archive_record(

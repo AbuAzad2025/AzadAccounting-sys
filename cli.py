@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 import json, os, re, uuid, traceback, sqlite3, hashlib
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from types import SimpleNamespace
 
@@ -26,7 +26,7 @@ from models import (
     Account, AuditLog, Branch, Site, Check, CheckStatus, Customer, Employee, ExchangeTransaction, Expense, ExpenseType, GLBatch,
     GLEntry, GL_ACCOUNTS, Invoice, Note, OnlineCart, OnlineCartItem, OnlinePayment, OnlinePreOrder, OnlinePreOrderItem,
     Partner, PartnerSettlement, Payment, PaymentDirection, PaymentEntityType, PaymentMethod, PaymentStatus, Permission,
-    PreOrder, Product, Role, ServicePart, ServiceRequest, ServiceStatus, ServiceTask,
+    PreOrder, Product, Role, Sale, SaleLine, ServicePart, ServiceRequest, ServiceStatus, ServiceTask,
     Shipment, ShipmentItem, StockAdjustment, StockAdjustmentItem, StockLevel, Supplier,
     SupplierSettlement, Transfer, TransferDirection, Warehouse, _ensure_customer_for_counterparty, _gl_upsert_batch_and_entries,
     build_partner_settlement_draft, build_supplier_settlement_draft, convert_amount, User,
@@ -1458,7 +1458,7 @@ def seed_expenses_demo() -> None:
         (et_water, 450.00, "فاتورة مياه شهرية"),
         (et_misc, 300.00, "قرطاسية ومستلزمات"),
     ]
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     try:
         with _begin():
             for idx, (tid, amount, desc) in enumerate(base):
@@ -1475,6 +1475,222 @@ def seed_expenses_demo() -> None:
         click.echo("OK: demo expenses seeded.")
     except SQLAlchemyError as e:
         db.session.rollback(); raise click.ClickException(f"Commit failed: {e}") from e
+
+@click.command("seed-customer-statement-demo")
+@click.option("--customer-id", type=int, default=3)
+@click.option("--warehouse-id", type=int, default=3)
+@click.option("--branch-id", type=int, default=0)
+@click.option("--days-ago", type=int, default=0)
+@click.option("--tag", type=str, default="")
+@with_appcontext
+def seed_customer_statement_demo(customer_id: int, warehouse_id: int, branch_id: int, days_ago: int, tag: str) -> None:
+    now = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=int(days_ago or 0))
+    seed_tag = (tag or "").strip() or uuid.uuid4().hex[:8].upper()
+
+    customer = db.session.get(Customer, int(customer_id))
+    if not customer:
+        raise click.ClickException("Customer not found")
+
+    warehouse = db.session.get(Warehouse, int(warehouse_id))
+    if not warehouse:
+        warehouse = Warehouse.query.order_by(Warehouse.id.asc()).first()
+    if not warehouse:
+        raise click.ClickException("No warehouse found")
+
+    branch = None
+    if int(branch_id or 0) > 0:
+        branch = db.session.get(Branch, int(branch_id))
+    if not branch:
+        branch = Branch.query.filter(Branch.is_active.is_(True)).order_by(Branch.id.asc()).first() or Branch.query.order_by(Branch.id.asc()).first()
+    if not branch:
+        raise click.ClickException("No branch found")
+
+    user = User.query.filter(User.is_active.is_(True)).order_by(User.id.asc()).first() or User.query.order_by(User.id.asc()).first()
+    if not user:
+        raise click.ClickException("No user found")
+
+    expense_type_id = _get_expense_type_id("أخرى")
+
+    try:
+        with _begin():
+            product = Product(
+                name=f"TraeSeed Product {seed_tag}",
+                price=_Q2("150"),
+                selling_price=_Q2("150"),
+                tax_rate=_Q2("0"),
+            )
+            db.session.add(product)
+            db.session.flush()
+
+            sale = Sale(
+                customer_id=customer.id,
+                seller_id=user.id,
+                sale_date=now,
+                status="CONFIRMED",
+                currency="ILS",
+                tax_rate=_Q2("0"),
+                discount_total=_Q2("0"),
+                shipping_cost=_Q2("0"),
+                total_amount=_Q2("150"),
+                balance_due=_Q2("150"),
+                notes=f"TraeSeed sale {seed_tag}",
+            )
+            db.session.add(sale)
+            db.session.flush()
+
+            line = SaleLine(
+                sale_id=sale.id,
+                product_id=product.id,
+                warehouse_id=warehouse.id,
+                quantity=1,
+                unit_price=_Q2("150"),
+                discount_rate=_Q2("0"),
+                tax_rate=_Q2("0"),
+            )
+            db.session.add(line)
+
+            pay_sale = Payment(
+                payment_date=now,
+                total_amount=_Q2("100"),
+                currency="ILS",
+                method=PaymentMethod.CASH.value,
+                status=PaymentStatus.COMPLETED.value,
+                direction=PaymentDirection.IN.value,
+                entity_type=PaymentEntityType.SALE.value,
+                sale_id=sale.id,
+                reference=f"TraeSeed payment {seed_tag}",
+                deliverer_name=f"TraePay {seed_tag}",
+                receiver_name=str(user.username or f"User {user.id}"),
+                created_by=user.id,
+            )
+            db.session.add(pay_sale)
+
+            preorder = PreOrder(
+                product_id=product.id,
+                warehouse_id=warehouse.id,
+                quantity=1,
+                customer_id=customer.id,
+                prepaid_amount=_Q2("0"),
+                tax_rate=_Q2("0"),
+                payment_method=PaymentMethod.CASH.value,
+                notes=f"TraeSeed preorder {seed_tag}",
+                preorder_date=now,
+            )
+            db.session.add(preorder)
+
+            service = ServiceRequest(
+                customer_id=customer.id,
+                tax_rate=_Q2("0"),
+                discount_total=_Q2("0"),
+                currency="ILS",
+                status=ServiceStatus.COMPLETED.value,
+                notes=f"TraeSeed service {seed_tag}",
+                description=f"TraeSeed service {seed_tag}",
+                completed_at=now,
+            )
+            db.session.add(service)
+            db.session.flush()
+
+            db.session.add(ServicePart(
+                service_id=service.id,
+                part_id=product.id,
+                warehouse_id=warehouse.id,
+                quantity=1,
+                unit_price=_Q2("120"),
+                discount=_Q2("0"),
+                tax_rate=_Q2("0"),
+            ))
+            db.session.add(ServiceTask(
+                service_id=service.id,
+                description=f"TraeSeed labor {seed_tag}",
+                quantity=1,
+                unit_price=_Q2("30"),
+                discount=_Q2("0"),
+                tax_rate=_Q2("0"),
+            ))
+
+            expense = Expense(
+                date=now,
+                amount=_Q2("75"),
+                currency="ILS",
+                type_id=int(expense_type_id),
+                branch_id=branch.id,
+                customer_id=customer.id,
+                payee_type="OTHER",
+                payee_entity_id=customer.id,
+                payee_name=customer.name,
+                payment_method="cash",
+                description=f"TraeSeed expense {seed_tag}",
+                notes=f"TraeSeed expense {seed_tag}",
+            )
+            db.session.add(expense)
+
+            check = Check(
+                amount=_Q2("60"),
+                currency="ILS",
+                check_number=f"{seed_tag}01",
+                check_bank="Trae Bank",
+                check_date=now,
+                check_due_date=now + timedelta(days=7),
+                status=CheckStatus.PENDING.value,
+                direction=PaymentDirection.IN.value,
+                customer_id=customer.id,
+                reference_number=f"TraeSeed check {seed_tag}",
+                notes=f"TraeSeed check {seed_tag}",
+                created_by_id=user.id,
+            )
+            db.session.add(check)
+
+        update_customer_balance_components(customer.id)
+        db.session.commit()
+
+        click.echo(json.dumps({
+            "seed_tag": seed_tag,
+            "customer_id": customer.id,
+            "warehouse_id": warehouse.id,
+            "branch_id": branch.id,
+            "sale_id": sale.id,
+            "payment_id": pay_sale.id,
+            "service_id": service.id,
+            "expense_id": expense.id,
+            "check_id": check.id,
+        }, ensure_ascii=False))
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        raise click.ClickException(f"Commit failed: {e}") from e
+
+@click.command("seed-accounting-demo")
+@click.option("--tag", type=str, default="")
+@click.option("--days-ago", type=int, default=0)
+@click.option("--with-settlements/--no-settlements", default=True)
+@click.option("--force", is_flag=True)
+@with_appcontext
+def seed_accounting_demo_cmd(tag: str, days_ago: int, with_settlements: bool, force: bool) -> None:
+    if _is_production() and not force:
+        if not click.confirm("Production environment detected. Continue?", default=False):
+            click.echo("Canceled.")
+            return
+    try:
+        from services.accounting_demo_seed import seed_accounting_demo as _seed
+    except Exception as e:
+        raise click.ClickException(f"تعذّر استيراد مولّد البذور: {e}")
+    try:
+        with _begin():
+            payload = _seed(tag=(tag or "").strip() or None, days_ago=int(days_ago or 0), with_settlements=bool(with_settlements), update_balances=False)
+        try:
+            update_customer_balance_components(int(payload.get("customer_id") or 0))
+            update_supplier_balance_components(int(payload.get("supplier_id") or 0))
+            update_partner_balance_components(int(payload.get("partner_id") or 0))
+            db.session.commit()
+        except Exception:
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+        click.echo(json.dumps(payload, ensure_ascii=False, indent=2))
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        raise click.ClickException(f"Commit failed: {e}") from e
 
 @click.command("seed-branches")
 @click.option("--force", is_flag=True)
@@ -1867,7 +2083,7 @@ def shipment_create(destination_id, currency, sdate, items_json, status):
         items=json.loads(try_load)
     try:
         with _begin():
-            sh=Shipment(destination_id=destination_id, currency=currency.upper(), date=_parse_dt(sdate) if sdate else datetime.utcnow(), status=status.strip().upper())
+            sh=Shipment(destination_id=destination_id, currency=currency.upper(), date=_parse_dt(sdate) if sdate else datetime.now(timezone.utc).replace(tzinfo=None), status=status.strip().upper())
             db.session.add(sh); db.session.flush()
             for it in items:
                 db.session.add(ShipmentItem(shipment_id=sh.id, product_id=int(it["product_id"]), warehouse_id=int(it.get("warehouse_id") or destination_id), quantity=int(it["quantity"]), unit_cost=_Q2(it.get("unit_cost",0)), notes=it.get("notes")))
@@ -1979,42 +2195,6 @@ def payment_create(direction, entity_type, target_id, amount, method, status, cu
         with _begin():
             entity_kwargs = {fk: int(target_id)}
             
-            if entity_type == PaymentEntityType.SALE.value and target_id:
-                sale = db.session.get(Sale, int(target_id))
-                if sale and sale.customer_id:
-                    entity_kwargs['customer_id'] = sale.customer_id
-            elif entity_type == PaymentEntityType.INVOICE.value and target_id:
-                invoice = db.session.get(Invoice, int(target_id))
-                if invoice and invoice.customer_id:
-                    entity_kwargs['customer_id'] = invoice.customer_id
-            elif entity_type == PaymentEntityType.SERVICE.value and target_id:
-                service = db.session.get(ServiceRequest, int(target_id))
-                if service and service.customer_id:
-                    entity_kwargs['customer_id'] = service.customer_id
-            elif entity_type == PaymentEntityType.PREORDER.value and target_id:
-                preorder = db.session.get(PreOrder, int(target_id))
-                if preorder and preorder.customer_id:
-                    entity_kwargs['customer_id'] = preorder.customer_id
-            elif entity_type == PaymentEntityType.SHIPMENT.value and target_id:
-                shipment = db.session.get(Shipment, int(target_id))
-                if shipment:
-                    if shipment.supplier_id:
-                        entity_kwargs['supplier_id'] = shipment.supplier_id
-                    if shipment.partner_id:
-                        entity_kwargs['partner_id'] = shipment.partner_id
-            elif entity_type == PaymentEntityType.EXPENSE.value and target_id:
-                expense = db.session.get(Expense, int(target_id))
-                if expense:
-                    if expense.supplier_id:
-                        entity_kwargs['supplier_id'] = expense.supplier_id
-                    if expense.partner_id:
-                        entity_kwargs['partner_id'] = expense.partner_id
-            elif entity_type == PaymentEntityType.LOAN.value and target_id:
-                from models import SupplierLoanSettlement
-                loan = db.session.get(SupplierLoanSettlement, int(target_id))
-                if loan and loan.supplier_id:
-                    entity_kwargs['supplier_id'] = loan.supplier_id
-            
             p = Payment(
                 total_amount=_Q2(amount),
                 method=_method_enum(method),
@@ -2101,27 +2281,17 @@ def preorder_create(product_id, warehouse_id, quantity, customer_id, supplier_id
             db.session.add(po)
             db.session.flush()
             if _Q2(prepaid) > 0:
-                fk = None
-                etype = None
-                if customer_id:
-                    fk, etype = "customer_id", PaymentEntityType.CUSTOMER.value
-                elif supplier_id:
-                    fk, etype = "supplier_id", PaymentEntityType.SUPPLIER.value
-                elif partner_id:
-                    fk, etype = "partner_id", PaymentEntityType.PARTNER.value
-                if fk and etype:
-                    p = Payment(
-                        total_amount=_Q2(prepaid),
-                        method=getattr(PaymentMethod, method.upper()).value,
-                        status=PaymentStatus.COMPLETED.value,
-                        direction=PaymentDirection.IN.value,
-                        entity_type=etype,
-                        preorder_id=po.id,
-                        currency="ILS",
-                        reference=f"PreOrder:{po.reference}",
-                        **{fk: (customer_id or supplier_id or partner_id)},
-                    )
-                    db.session.add(p)
+                p = Payment(
+                    total_amount=_Q2(prepaid),
+                    method=getattr(PaymentMethod, method.upper()).value,
+                    status=PaymentStatus.COMPLETED.value,
+                    direction=PaymentDirection.IN.value,
+                    entity_type=PaymentEntityType.PREORDER.value,
+                    preorder_id=po.id,
+                    currency="ILS",
+                    reference=f"PreOrder:{po.reference}",
+                )
+                db.session.add(p)
         click.echo(f"OK: preorder {po.reference} created.")
     except SQLAlchemyError as e:
         db.session.rollback()
@@ -2195,7 +2365,7 @@ def sr_recalc(service_id):
         raise click.ClickException("ServiceRequest not found")
     try:
         with _begin():
-            sr.updated_at = datetime.utcnow()
+            sr.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
             sr.recalc_totals()
         click.echo(f"OK: recalc -> total={float(sr.total_amount or 0):.2f} parts={float(sr.parts_total or 0):.2f} labor={float(sr.labor_total or 0):.2f}")
     except SQLAlchemyError as e:
@@ -2370,16 +2540,59 @@ def onlinepay_decrypt_card(payment_id):
 @click.command("expense-create")
 @click.option("--amount", type=str, required=True)
 @click.option("--type-id", type=int, required=True)
+@click.option("--branch-id", type=int, default=None)
 @click.option("--currency", type=str, default="ILS")
-@click.option("--payee-type", type=click.Choice(["EMPLOYEE","SUPPLIER","UTILITY","OTHER"]), default="OTHER")
+@click.option("--payee-type", type=click.Choice(["EMPLOYEE","SUPPLIER","CUSTOMER","PARTNER","WAREHOUSE","SHIPMENT","UTILITY","OTHER"]), default="OTHER")
 @click.option("--payee-entity-id", type=int, default=None)
 @click.option("--payee-name", type=str, default=None)
 @click.option("--payment-method", type=click.Choice(["cash","cheque","bank","card","online","other"]), default="cash")
 @click.option("--description", type=str, default=None)
 @click.option("--notes", type=str, default=None)
 @with_appcontext
-def expense_create(amount, type_id, currency, payee_type, payee_entity_id, payee_name, payment_method, description, notes):
-    ex=Expense(amount=_Q2(amount), type_id=type_id, currency=(currency or "ILS").upper(), payee_type=payee_type, payee_entity_id=payee_entity_id, payee_name=payee_name, payment_method=payment_method, description=description, notes=notes, date=datetime.utcnow())
+def expense_create(amount, type_id, branch_id, currency, payee_type, payee_entity_id, payee_name, payment_method, description, notes):
+    resolved_branch_id = branch_id
+    if not resolved_branch_id:
+        b = (
+            Branch.query.filter(Branch.is_active.is_(True))
+            .order_by(Branch.id.asc())
+            .first()
+        ) or Branch.query.order_by(Branch.id.asc()).first()
+        resolved_branch_id = b.id if b else None
+    if not resolved_branch_id:
+        raise click.ClickException("No branch found. Create/activate a branch first or pass --branch-id.")
+    resolved_payee_type = (payee_type or "OTHER").upper()
+    entity_id = int(payee_entity_id) if payee_entity_id else None
+    link_kwargs = {}
+    if entity_id:
+        if resolved_payee_type == "CUSTOMER":
+            link_kwargs["customer_id"] = entity_id
+        elif resolved_payee_type == "SUPPLIER":
+            link_kwargs["supplier_id"] = entity_id
+        elif resolved_payee_type == "PARTNER":
+            link_kwargs["partner_id"] = entity_id
+        elif resolved_payee_type == "WAREHOUSE":
+            link_kwargs["warehouse_id"] = entity_id
+        elif resolved_payee_type == "SHIPMENT":
+            link_kwargs["shipment_id"] = entity_id
+        elif resolved_payee_type == "EMPLOYEE":
+            link_kwargs["employee_id"] = entity_id
+        elif resolved_payee_type == "UTILITY":
+            link_kwargs["utility_account_id"] = entity_id
+
+    resolved_payee_name = (payee_name or "").strip() or None
+    if not resolved_payee_name and entity_id:
+        obj = None
+        if resolved_payee_type == "CUSTOMER":
+            obj = db.session.get(Customer, entity_id)
+        elif resolved_payee_type == "SUPPLIER":
+            obj = db.session.get(Supplier, entity_id)
+        elif resolved_payee_type == "PARTNER":
+            obj = db.session.get(Partner, entity_id)
+        elif resolved_payee_type == "WAREHOUSE":
+            obj = db.session.get(Warehouse, entity_id)
+        resolved_payee_name = getattr(obj, "name", None) if obj else None
+
+    ex=Expense(amount=_Q2(amount), type_id=type_id, branch_id=int(resolved_branch_id), currency=(currency or "ILS").upper(), payee_type=resolved_payee_type, payee_entity_id=entity_id, payee_name=resolved_payee_name, payment_method=payment_method, description=description, notes=notes, date=datetime.now(timezone.utc).replace(tzinfo=None), **link_kwargs)
     try:
         with _begin(): db.session.add(ex)
         click.echo(f"OK: expense {ex.id} amount={float(ex.amount):.2f} balance={ex.balance:.2f}")
@@ -2396,7 +2609,7 @@ def expense_pay(expense_id, amount, method, currency):
     ex=db.session.get(Expense, expense_id)
     if not ex: raise click.ClickException("Expense not found")
     amt=_Q2(amount)
-    p=Payment(direction=PaymentDirection.OUT.value, entity_type=PaymentEntityType.EXPENSE.value, expense_id=ex.id, supplier_id=getattr(ex, 'supplier_id', None), partner_id=getattr(ex, 'partner_id', None), total_amount=amt, currency=(currency or "ILS").upper(), method=method.lower(), status=PaymentStatus.COMPLETED.value, reference=f"EXP-{ex.id}-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}")
+    p=Payment(direction=PaymentDirection.OUT.value, entity_type=PaymentEntityType.EXPENSE.value, expense_id=ex.id, total_amount=amt, currency=(currency or "ILS").upper(), method=method.lower(), status=PaymentStatus.COMPLETED.value, reference=f"EXP-{ex.id}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}")
     try:
         with _begin(): db.session.add(p)
         click.echo(f"OK: expense paid. payment_id={p.id} balance={ex.balance:.2f} is_paid={ex.is_paid}")
@@ -2468,7 +2681,7 @@ def expenses_payoff_all(method, dry_run):
             skipped += 1
             continue
         p = Payment(
-            payment_date=datetime.utcnow(),
+            payment_date=datetime.now(timezone.utc).replace(tzinfo=None),
             total_amount=_Q2(bal),
             currency=(e.currency or "ILS").upper(),
             method=PaymentMethod(method),
@@ -2476,8 +2689,6 @@ def expenses_payoff_all(method, dry_run):
             direction=PaymentDirection.OUT.value,
             entity_type=PaymentEntityType.EXPENSE.value,
             expense_id=e.id,
-            supplier_id=getattr(e, "supplier_id", None),
-            partner_id=getattr(e, "partner_id", None),
             reference=f"AUTO-EXP-{e.id}",
         )
         db.session.add(p)
@@ -2533,7 +2744,7 @@ def stock_adjustment_finalize(adjustment_id, expense_type_id):
     adj=db.session.get(StockAdjustment, adjustment_id)
     if not adj: raise click.ClickException("Adjustment not found")
     if float(adj.total_cost or 0) <= 0: raise click.ClickException("No total_cost to finalize")
-    ex=Expense(amount=_Q2(adj.total_cost or 0), type_id=expense_type_id, currency="ILS", stock_adjustment_id=adj.id, description=f"Stock Adjustment {adj.reason} #{adj.id}", date=datetime.utcnow(), payment_method="other")
+    ex=Expense(amount=_Q2(adj.total_cost or 0), type_id=expense_type_id, currency="ILS", stock_adjustment_id=adj.id, description=f"Stock Adjustment {adj.reason} #{adj.id}", date=datetime.now(timezone.utc).replace(tzinfo=None), payment_method="other")
     try:
         with _begin(): db.session.add(ex)
         click.echo(f"OK: expense {ex.id} created for adjustment.")
@@ -2551,15 +2762,17 @@ def gl_seed_accounts():
         ("1000_CASH","Cash on Hand"),
         ("1010_BANK","Bank"),
         ("1020_CARD_CLEARING","Card Clearing"),
+        ("1150_CHQ_REC","Cheques Receivable"),
         ("2000_AP","Accounts Payable"),
+        ("2150_CHQ_PAY","Cheques Payable"),
         ("5000_EXPENSES","Expenses"),
-        ("5200_PARTNER_EXPENSES","Partner Expenses"),
+        ("5200_PART_EXP","Partner Expenses"),
         ("1205_INV_EXCHANGE","Inventory Exchange"),
         ("5105_COGS_EXCHANGE","COGS Exchange"),
-        ("2300_ADVANCE_PAYMENTS","Advance Payments"),
-        ("2150_EMPLOYEE_ADVANCES","Employee Advances Clearing"),
-        ("2150_PAYROLL_CLEARING","Payroll Clearing"),
-        ("2200_PARTNER_CLEARING","Partner Clearing"),
+        ("2300_ADV_PAY","Advance Payments"),
+        ("2150_EMP_ADV","Employee Advances"),
+        ("2150_PAY_CLR","Payroll Clearing"),
+        ("2200_PAR_CLR","Partner Clearing"),
         ("3100_OWNER_CURRENT","Owner Current Account"),
     ]
     with _begin():
@@ -2871,8 +3084,9 @@ def create_system_admin_interactive():
         click.echo(click.style(f"❌ خطأ: {str(e)}", fg="red"))
 
 @click.command('optimize-db', help="تحسين أداء قاعدة البيانات")
+@click.option("--dry-run", is_flag=True, help="عرض أوامر إنشاء الفهارس بدون تنفيذ")
 @with_appcontext
-def optimize_db():
+def optimize_db(dry_run: bool):
     """تحسين أداء قاعدة البيانات بإنشاء الفهارس وتحليل الجداول"""
     try:
         from sqlalchemy import text
@@ -2883,34 +3097,279 @@ def optimize_db():
             "CREATE INDEX IF NOT EXISTS idx_users_role_id ON users(role_id)",
             "CREATE INDEX IF NOT EXISTS idx_products_sku ON products(sku)",
             "CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode)",
+            "CREATE INDEX IF NOT EXISTS idx_products_name ON products(name)",
+            "CREATE INDEX IF NOT EXISTS idx_products_active_name ON products(is_active, name)",
             "CREATE INDEX IF NOT EXISTS idx_sales_date ON sales(sale_date)",
             "CREATE INDEX IF NOT EXISTS idx_sales_customer ON sales(customer_id)",
+            "CREATE INDEX IF NOT EXISTS idx_sales_status_date ON sales(status, sale_date)",
             "CREATE INDEX IF NOT EXISTS idx_payments_date ON payments(payment_date)",
             "CREATE INDEX IF NOT EXISTS idx_payments_entity ON payments(entity_type, entity_id)",
+            "CREATE INDEX IF NOT EXISTS idx_payments_status_date ON payments(status, payment_date)",
+            "CREATE INDEX IF NOT EXISTS idx_payments_dir_status_date ON payments(direction, status, payment_date)",
+            "CREATE INDEX IF NOT EXISTS idx_payments_customer_date ON payments(customer_id, payment_date)",
+            "CREATE INDEX IF NOT EXISTS idx_payments_supplier_date ON payments(supplier_id, payment_date)",
+            "CREATE INDEX IF NOT EXISTS idx_payments_partner_date ON payments(partner_id, payment_date)",
             "CREATE INDEX IF NOT EXISTS idx_service_customer ON service_requests(customer_id)",
             "CREATE INDEX IF NOT EXISTS idx_service_status ON service_requests(status)",
+            "CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone)",
+            "CREATE INDEX IF NOT EXISTS idx_customers_email ON customers(email)",
+            "CREATE INDEX IF NOT EXISTS idx_customers_name ON customers(name)",
+            "CREATE INDEX IF NOT EXISTS idx_customers_archived ON customers(is_archived)",
+            "CREATE INDEX IF NOT EXISTS idx_customers_balance ON customers(current_balance)",
+            "CREATE INDEX IF NOT EXISTS idx_suppliers_name ON suppliers(name)",
+            "CREATE INDEX IF NOT EXISTS idx_partners_name ON partners(name)",
+            "CREATE INDEX IF NOT EXISTS idx_partners_archived ON partners(is_archived)",
+            "CREATE INDEX IF NOT EXISTS idx_partners_balance ON partners(current_balance)",
+            "CREATE INDEX IF NOT EXISTS idx_shipments_expected_arrival ON shipments(expected_arrival)",
+            "CREATE INDEX IF NOT EXISTS idx_shipments_status ON shipments(status)",
+            "CREATE INDEX IF NOT EXISTS idx_shipments_destination_id ON shipments(destination_id)",
+            "CREATE INDEX IF NOT EXISTS idx_shipments_archived ON shipments(is_archived)",
+            "CREATE INDEX IF NOT EXISTS idx_transfers_transfer_date ON transfers(transfer_date)",
+            "CREATE INDEX IF NOT EXISTS idx_transfers_product_date ON transfers(product_id, transfer_date)",
+            "CREATE INDEX IF NOT EXISTS idx_transfers_source_date ON transfers(source_id, transfer_date)",
+            "CREATE INDEX IF NOT EXISTS idx_transfers_destination_date ON transfers(destination_id, transfer_date)",
+            "CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date)",
+            "CREATE INDEX IF NOT EXISTS idx_expenses_paid_date ON expenses(is_paid, date)",
+            "CREATE INDEX IF NOT EXISTS idx_expenses_type_date ON expenses(type_id, date)",
+            "CREATE INDEX IF NOT EXISTS idx_stocklevels_product_wh ON stock_levels(product_id, warehouse_id)",
+            "CREATE INDEX IF NOT EXISTS idx_online_preorders_customer_created ON online_preorders(customer_id, created_at)",
+            "CREATE INDEX IF NOT EXISTS idx_online_preorders_status_created ON online_preorders(status, created_at)",
         ]
 
         created = 0
         for idx_sql in recommended_indexes:
             try:
-                db.session.execute(text(idx_sql))
-                created += 1
+                if dry_run:
+                    click.echo(idx_sql)
+                else:
+                    db.session.execute(text(idx_sql))
+                    created += 1
             except Exception:
                 pass
 
-        db.session.commit()
+        if not dry_run:
+            db.session.commit()
 
         # تحليل قاعدة البيانات
         try:
-            db.session.execute(text("ANALYZE"))
-            db.session.commit()
+            if not dry_run:
+                db.session.execute(text("ANALYZE"))
+                db.session.commit()
         except Exception:
             pass
 
-        click.echo(click.style(f"✅ اكتمل تحسين قاعدة البيانات: تم إنشاء {created} فهرس", fg="green"))
+        if dry_run:
+            click.echo(click.style("OK: dry-run (لم يتم تنفيذ أي تغيير).", fg="yellow"))
+        else:
+            click.echo(click.style(f"✅ اكتمل تحسين قاعدة البيانات: تم إنشاء {created} فهرس", fg="green"))
     except Exception as e:
         click.echo(click.style(f"❌ خطأ: {str(e)}", fg="red"))
+
+
+@click.command("recompute-sale-returns", help="إعادة احتساب مبالغ المرتجعات المرتبطة ببيع")
+@click.option("--limit", type=int, default=0)
+@click.option("--return-id", type=int, default=0)
+@click.option("--dry-run", is_flag=True)
+@with_appcontext
+def recompute_sale_returns(limit: int, return_id: int, dry_run: bool):
+    from decimal import Decimal
+    from sqlalchemy.orm import selectinload
+    from models import Sale, SaleReturn
+
+    def _d(v):
+        return Decimal(str(v or 0))
+
+    q = (
+        SaleReturn.query.filter(SaleReturn.sale_id.isnot(None), SaleReturn.status == "CONFIRMED")
+        .options(
+            selectinload(SaleReturn.lines),
+            selectinload(SaleReturn.sale).selectinload(Sale.lines),
+        )
+        .order_by(SaleReturn.id.desc())
+    )
+    if return_id and int(return_id) > 0:
+        q = q.filter(SaleReturn.id == int(return_id))
+    if limit and int(limit) > 0:
+        q = q.limit(int(limit))
+    rows = q.all()
+
+    changed = 0
+    affected_customers = set()
+    for sr in rows:
+        sale = sr.sale
+        if not sale:
+            continue
+        if sr.customer_id:
+            try:
+                affected_customers.add(int(sr.customer_id))
+            except Exception:
+                pass
+        sale_subtotal = Decimal("0")
+        sale_map = {}
+        for ln in (sale.lines or []):
+            try:
+                sale_map[(int(ln.product_id), int(ln.warehouse_id))] = ln
+            except Exception:
+                continue
+            base = _d(getattr(ln, "unit_price", 0))
+            qty = _d(getattr(ln, "quantity", 0))
+            dr = _d(getattr(ln, "discount_rate", 0))
+            sale_subtotal += (base * qty) * (Decimal("1") - (dr / Decimal("100")))
+
+        items_total = Decimal("0")
+        for rl in (sr.lines or []):
+            sl = None
+            try:
+                sl = sale_map.get((int(rl.product_id), int(rl.warehouse_id)))
+            except Exception:
+                sl = None
+            if sl is not None:
+                base = _d(getattr(sl, "unit_price", 0))
+                dr = _d(getattr(sl, "discount_rate", 0))
+                eff = base * (Decimal("1") - (dr / Decimal("100")))
+                rl.unit_price = eff
+                unit = eff
+            else:
+                unit = _d(getattr(rl, "unit_price", 0))
+            items_total += unit * _d(getattr(rl, "quantity", 0))
+
+        if sale_subtotal > Decimal("0"):
+            ratio = items_total / sale_subtotal
+        else:
+            ratio = Decimal("1") if items_total > Decimal("0") else Decimal("0")
+        if ratio < Decimal("0"):
+            ratio = Decimal("0")
+        if ratio > Decimal("1"):
+            ratio = Decimal("1")
+
+        disc_share = _d(getattr(sale, "discount_total", 0)) * ratio
+        ship_share = _d(getattr(sale, "shipping_cost", 0)) * ratio
+        base = items_total - disc_share
+        if base < Decimal("0"):
+            base = Decimal("0")
+        base = base + ship_share
+        tr = _d(getattr(sale, "tax_rate", 0))
+        tax_amount = (base * tr / Decimal("100")) if tr > 0 else Decimal("0")
+        total_amount = base + tax_amount
+
+        old_total = _d(getattr(sr, "total_amount", 0))
+        if old_total != total_amount or _d(getattr(sr, "tax_amount", 0)) != tax_amount:
+            changed += 1
+            click.echo(
+                f"SaleReturn#{sr.id} sale#{sr.sale_id}: total {old_total:.2f} -> {total_amount:.2f} (tax {tax_amount:.2f})"
+            )
+        sr.total_amount = total_amount
+        sr.tax_rate = tr
+        sr.tax_amount = tax_amount
+
+    if dry_run:
+        click.echo(click.style(f"OK: dry-run. would change {changed}.", fg="yellow"))
+        db.session.rollback()
+        return
+    db.session.commit()
+    if affected_customers:
+        for cid in sorted(affected_customers):
+            try:
+                from utils.customer_balance_updater import update_customer_balance_components
+                update_customer_balance_components(cid, db.session)
+            except Exception:
+                pass
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+    click.echo(click.style(f"✅ تم تحديث {changed} مرتجع.", fg="green"))
+
+
+@click.command("perf-snapshot", help="إنشاء Snapshot من ملف perf JSONL إن وجد")
+@click.option("--path", "path", default=None)
+@click.option("--window", "window", type=int, default=2000)
+@click.option("--by", "by", type=click.Choice(["endpoint", "path"], case_sensitive=False), default="endpoint")
+@click.option("--out", "out_path", default="")
+@with_appcontext
+def perf_snapshot(path: str | None, window: int, by: str, out_path: str):
+    import os, json
+    from flask import current_app
+
+    by = (by or "endpoint").lower()
+    window = min(20000, max(100, int(window or 2000)))
+    default_path = current_app.config.get("PERF_MONITOR_PERSIST_PATH") or os.path.join(current_app.instance_path, "perf_log.jsonl")
+    p = (path or default_path or "").strip()
+    if not p or not os.path.exists(p):
+        raise click.ClickException(f"perf log not found: {p}")
+
+    rows = []
+    with open(p, "r", encoding="utf-8") as f:
+        for line in f:
+            s = (line or "").strip()
+            if not s:
+                continue
+            try:
+                rows.append(json.loads(s))
+            except Exception:
+                continue
+    rows = rows[-window:]
+
+    def _f(x):
+        try:
+            return float(x or 0)
+        except Exception:
+            return 0.0
+
+    def _pct(vals, p):
+        if not vals:
+            return 0.0
+        vs = sorted(vals)
+        k = (len(vs) - 1) * (p / 100.0)
+        f0 = int(k)
+        c0 = min(f0 + 1, len(vs) - 1)
+        if f0 == c0:
+            return float(vs[f0])
+        return float(vs[f0] * (c0 - k) + vs[c0] * (k - f0))
+
+    key_field = "endpoint" if by == "endpoint" else "path"
+    groups = {}
+    for r in rows:
+        k = str((r.get(key_field) or "")).strip() or "(unknown)"
+        groups.setdefault(k, []).append(r)
+
+    aggs = []
+    for k, items in groups.items():
+        totals = [_f(x.get("total_ms")) for x in items]
+        sqls = [_f(x.get("sql_ms")) for x in items]
+        tpls = [_f(x.get("template_ms")) for x in items]
+        qcnt = [_f(x.get("sql_count")) for x in items]
+        n = len(items)
+        aggs.append(
+            {
+                "key": k,
+                "count": n,
+                "avg_total_ms": round(sum(totals) / n, 2) if n else 0.0,
+                "p95_total_ms": round(_pct(totals, 95), 2),
+                "avg_sql_ms": round(sum(sqls) / n, 2) if n else 0.0,
+                "p95_sql_ms": round(_pct(sqls, 95), 2),
+                "avg_sql_count": round(sum(qcnt) / n, 2) if n else 0.0,
+                "p95_sql_count": round(_pct(qcnt, 95), 2),
+                "avg_template_ms": round(sum(tpls) / n, 2) if n else 0.0,
+                "p95_template_ms": round(_pct(tpls, 95), 2),
+            }
+        )
+    aggs.sort(key=lambda r: float(r.get("p95_total_ms") or 0), reverse=True)
+
+    top = aggs[:25]
+    for r in top:
+        click.echo(
+            f"{r['p95_total_ms']:>8.2f}ms  avg={r['avg_total_ms']:>7.2f}ms  "
+            f"sql={r['avg_sql_ms']:>7.2f}ms  q={r['avg_sql_count']:>6.1f}  "
+            f"tpl={r['avg_template_ms']:>7.2f}ms  n={r['count']:>4d}  {r['key']}"
+        )
+
+    if out_path:
+        out_path = out_path.strip()
+        os.makedirs(os.path.dirname(out_path), exist_ok=True) if os.path.dirname(out_path) else None
+        with open(out_path, "w", encoding="utf-8") as f:
+            f.write(json.dumps({"by": by, "window": window, "top": top}, ensure_ascii=False, indent=2))
+        click.echo(click.style(f"OK: snapshot written: {out_path}", fg="green"))
 
 @click.command("link-missing-counterparties")
 @with_appcontext
@@ -3089,7 +3548,7 @@ def gl_recreate_payments(dry_run, payment_id, from_date, to_date, force, list_on
                 amount_ils = amount
                 if payment.currency and payment.currency != 'ILS':
                     try:
-                        rate = fx_rate(payment.currency, 'ILS', payment.payment_date or datetime.utcnow(), raise_on_missing=False)
+                        rate = fx_rate(payment.currency, 'ILS', payment.payment_date or datetime.now(timezone.utc).replace(tzinfo=None), raise_on_missing=False)
                         if rate and rate > 0:
                             amount_ils = float(amount * float(rate))
                     except Exception:
@@ -3100,9 +3559,9 @@ def gl_recreate_payments(dry_run, payment_id, from_date, to_date, force, list_on
                 
                 if is_pending_check:
                     if payment.direction == PaymentDirection.IN.value:
-                        cash_account = "1150_CHEQUES_RECEIVABLE"
+                        cash_account = "1150_CHQ_REC"
                     else:
-                        cash_account = "2150_CHEQUES_PAYABLE"
+                        cash_account = "2150_CHQ_PAY"
                 else:
                     method_val = getattr(payment, 'method', 'CASH')
                     if hasattr(method_val, 'value'):
@@ -3306,6 +3765,204 @@ def sync_balances(entity, limit, dry_run, include_archived, batch_size):
         click.echo("\n✅ تمت مزامنة الأرصدة بنجاح.")
 
 
+@click.command("audit-integrity")
+@click.option(
+    "--scope",
+    type=click.Choice(["balances", "statements", "payments", "checks", "all"], case_sensitive=False),
+    default="all",
+)
+@click.option("--limit", type=int, default=200, show_default=True)
+@click.option("--fix", is_flag=True)
+@click.option("--include-archived", is_flag=True)
+@with_appcontext
+def audit_integrity(scope, limit, fix, include_archived):
+    scope = (scope or "all").lower()
+    limit = int(limit or 0)
+    tolerance = Decimal("0.01")
+
+    def _want(key: str) -> bool:
+        return scope in ("all", key)
+
+    results = {
+        "scope": scope,
+        "limit": limit,
+        "fix": bool(fix),
+        "include_archived": bool(include_archived),
+        "balances": {"checked": 0, "mismatches": 0, "fixed": 0, "errors": 0},
+        "statements": {"checked": 0, "errors": 0, "failures": []},
+        "payments": {"checked": 0, "issues": 0, "fixed": 0, "samples": []},
+        "checks": {"checked": 0, "issues": 0, "fixed": 0, "samples": []},
+    }
+
+    if _want("balances"):
+        groups = [
+            ("customer", Customer, build_customer_balance_view, update_customer_balance_components),
+            ("supplier", Supplier, build_supplier_balance_view, update_supplier_balance_components),
+            ("partner", Partner, build_partner_balance_view, update_partner_balance_components),
+        ]
+        for label, model_cls, breakdown_fn, updater_fn in groups:
+            q = model_cls.query.order_by(model_cls.id.asc())
+            if hasattr(model_cls, "is_archived") and not include_archived:
+                q = q.filter(model_cls.is_archived == False)  # noqa: E712
+            if limit:
+                q = q.limit(limit)
+            for obj in q:
+                results["balances"]["checked"] += 1
+                try:
+                    breakdown = breakdown_fn(obj.id, db.session)
+                except Exception:
+                    results["balances"]["errors"] += 1
+                    db.session.rollback()
+                    continue
+                if not breakdown or not breakdown.get("success"):
+                    results["balances"]["errors"] += 1
+                    continue
+                expected = Decimal(str(breakdown.get("balance", {}).get("amount", 0) or 0))
+                stored = Decimal(str(getattr(obj, "current_balance", 0) or 0))
+                diff = (expected - stored).copy_abs()
+                if diff <= tolerance:
+                    continue
+                results["balances"]["mismatches"] += 1
+                if fix:
+                    try:
+                        updater_fn(obj.id, db.session)
+                        db.session.commit()
+                        results["balances"]["fixed"] += 1
+                    except Exception:
+                        db.session.rollback()
+                        results["balances"]["errors"] += 1
+
+    if _want("statements"):
+        user = User.query.filter(User.is_active.is_(True)).order_by(User.id.asc()).first() or User.query.order_by(User.id.asc()).first()
+        if user:
+            from app import create_app
+            app = create_app()
+            with app.test_client() as client:
+                with client.session_transaction() as sess:
+                    sess["_user_id"] = str(user.id)
+                    sess["_fresh"] = True
+
+                for model_cls, url_fn in [
+                    (Customer, lambda oid: f"/customers/{oid}/account_statement?start_date=2024-01-01&end_date=2026-12-31"),
+                    (Supplier, lambda oid: f"/vendors/suppliers/{oid}/statement?from=2024-01-01&to=2026-12-31"),
+                    (Partner, lambda oid: f"/vendors/partners/{oid}/statement?from=2024-01-01&to=2026-12-31"),
+                ]:
+                    q = model_cls.query.order_by(model_cls.id.asc())
+                    if hasattr(model_cls, "is_archived") and not include_archived:
+                        q = q.filter(model_cls.is_archived == False)  # noqa: E712
+                    if limit:
+                        q = q.limit(limit)
+                    for obj in q:
+                        results["statements"]["checked"] += 1
+                        try:
+                            resp = client.get(url_fn(obj.id))
+                            if resp.status_code != 200:
+                                results["statements"]["errors"] += 1
+                                if len(results["statements"]["failures"]) < 50:
+                                    results["statements"]["failures"].append({"path": url_fn(obj.id), "status": resp.status_code})
+                        except Exception as exc:
+                            results["statements"]["errors"] += 1
+                            if len(results["statements"]["failures"]) < 50:
+                                results["statements"]["failures"].append({"path": url_fn(obj.id), "error": str(exc)})
+
+    if _want("payments"):
+        from models import Payment
+        fk_to_type = [
+            ("shipment_id", PaymentEntityType.SHIPMENT.value),
+            ("expense_id", PaymentEntityType.EXPENSE.value),
+            ("loan_settlement_id", PaymentEntityType.LOAN.value),
+            ("sale_id", PaymentEntityType.SALE.value),
+            ("invoice_id", PaymentEntityType.INVOICE.value),
+            ("preorder_id", PaymentEntityType.PREORDER.value),
+            ("service_id", PaymentEntityType.SERVICE.value),
+            ("customer_id", PaymentEntityType.CUSTOMER.value),
+            ("supplier_id", PaymentEntityType.SUPPLIER.value),
+            ("partner_id", PaymentEntityType.PARTNER.value),
+        ]
+
+        q = Payment.query.order_by(Payment.id.asc())
+        if not include_archived:
+            q = q.filter(Payment.is_archived == False)  # noqa: E712
+        if limit:
+            q = q.limit(limit)
+        for p in q:
+            results["payments"]["checked"] += 1
+            core_targets = [fk for fk in ("shipment_id", "expense_id", "loan_settlement_id", "sale_id", "invoice_id", "preorder_id", "service_id") if getattr(p, fk, None)]
+            if len(core_targets) > 1:
+                results["payments"]["issues"] += 1
+                if len(results["payments"]["samples"]) < 50:
+                    results["payments"]["samples"].append({"payment_id": p.id, "issue": "multiple_targets", "targets": core_targets})
+                continue
+
+            targets = [fk for fk, _ in fk_to_type if getattr(p, fk, None)]
+            expected_type = None
+            if targets:
+                fk = targets[0]
+                expected_type = dict(fk_to_type).get(fk)
+            if not targets and (p.entity_type not in (PaymentEntityType.MISCELLANEOUS.value, PaymentEntityType.OTHER.value)):
+                results["payments"]["issues"] += 1
+                if len(results["payments"]["samples"]) < 50:
+                    results["payments"]["samples"].append({"payment_id": p.id, "issue": "no_target", "entity_type": p.entity_type})
+                continue
+            if expected_type and p.entity_type != expected_type:
+                results["payments"]["issues"] += 1
+                if fix:
+                    try:
+                        p.entity_type = expected_type
+                        db.session.commit()
+                        results["payments"]["fixed"] += 1
+                    except Exception:
+                        db.session.rollback()
+                if len(results["payments"]["samples"]) < 50:
+                    results["payments"]["samples"].append({"payment_id": p.id, "issue": "entity_type_mismatch", "expected": expected_type, "actual": p.entity_type})
+
+            if core_targets:
+                fk = core_targets[0]
+                expected_type2 = dict(fk_to_type).get(fk)
+                if expected_type2 and p.entity_type != expected_type2:
+                    results["payments"]["issues"] += 1
+                    if len(results["payments"]["samples"]) < 50:
+                        results["payments"]["samples"].append({"payment_id": p.id, "issue": "core_entity_type_mismatch", "expected": expected_type2, "actual": p.entity_type})
+
+    if _want("checks"):
+        from models import Check
+        q = Check.query.order_by(Check.id.asc())
+        if not include_archived:
+            q = q.filter(Check.is_archived == False)  # noqa: E712
+        if limit:
+            q = q.limit(limit)
+        for ch in q:
+            results["checks"]["checked"] += 1
+            if not ch.payment_id or not ch.payment:
+                continue
+            p = ch.payment
+            expected = {"customer_id": p.customer_id, "supplier_id": p.supplier_id, "partner_id": p.partner_id}
+            issue = False
+            for k, v in expected.items():
+                if v and getattr(ch, k) not in (None, v):
+                    issue = True
+            if issue:
+                results["checks"]["issues"] += 1
+                if fix:
+                    try:
+                        if expected["customer_id"] and ch.customer_id is None:
+                            ch.customer_id = expected["customer_id"]
+                        if expected["supplier_id"] and ch.supplier_id is None:
+                            ch.supplier_id = expected["supplier_id"]
+                        if expected["partner_id"] and ch.partner_id is None:
+                            ch.partner_id = expected["partner_id"]
+                        db.session.commit()
+                        results["checks"]["fixed"] += 1
+                    except Exception:
+                        db.session.rollback()
+                if len(results["checks"]["samples"]) < 50:
+                    results["checks"]["samples"].append(
+                        {"check_id": ch.id, "payment_id": ch.payment_id, "customer_id": ch.customer_id, "supplier_id": ch.supplier_id, "partner_id": ch.partner_id}
+                    )
+
+    click.echo(json.dumps(results, ensure_ascii=False, indent=2))
+
+
 @click.command("checks-sync-due")
 @click.option(
     "--target-date",
@@ -3327,7 +3984,7 @@ def checks_sync_due(target_date, direction, limit, dry_run, note):
     """تسوية حالات الشيكات بناءً على تاريخ الاستحقاق (معلق قبل الاستحقاق، مسحوب بعده)."""
     from routes.checks import CheckActionService
 
-    target_day = target_date.date() if target_date else datetime.utcnow().date()
+    target_day = target_date.date() if target_date else datetime.now(timezone.utc).date()
     cutoff_dt = datetime.combine(target_day, datetime.max.time())
     pending_like = [
         CheckStatus.PENDING.value,
@@ -3400,7 +4057,7 @@ def checks_sync_due(target_date, direction, limit, dry_run, note):
             return amt
         ref_dt = check_obj.check_due_date if isinstance(check_obj.check_due_date, datetime) else None
         if not ref_dt:
-            ref_dt = datetime.utcnow()
+            ref_dt = datetime.now(timezone.utc).replace(tzinfo=None)
         try:
             return convert_amount(amt, currency, "ILS", ref_dt)
         except Exception:
@@ -3512,7 +4169,7 @@ def checks_sync_due(target_date, direction, limit, dry_run, note):
 
     if stats["updated"]:
         audit_payload = {
-            "executed_at": datetime.utcnow().isoformat(),
+            "executed_at": datetime.now(timezone.utc).isoformat(),
             "target_date": target_day.isoformat(),
             "updated": stats["updated"],
             "direction": {
@@ -3551,8 +4208,8 @@ def register_cli(app) -> None:
         note_add, note_list, audit_tail,
         currency_balance, currency_validate, currency_report, currency_health, currency_update, currency_test,
         create_system_admin, create_system_admin_interactive,
-        optimize_db, link_missing_counterparties,
-        seed_employees, seed_salaries, seed_expenses_demo, seed_branches,
-        workflow_check_timeouts, gl_recreate_payments, sync_balances, checks_sync_due
+        optimize_db, perf_snapshot, recompute_sale_returns, link_missing_counterparties,
+        seed_employees, seed_salaries, seed_expenses_demo, seed_customer_statement_demo, seed_accounting_demo_cmd, seed_branches,
+        workflow_check_timeouts, gl_recreate_payments, sync_balances, audit_integrity, checks_sync_due
     ]
     for cmd in commands: app.cli.add_command(cmd)

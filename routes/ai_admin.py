@@ -376,7 +376,7 @@ def stats_api():
         return jsonify({
             'success': False,
             'error': str(e)
-        }), 500
+        })
 
 
 @ai_admin_bp.route('/advanced-training', methods=['GET'])

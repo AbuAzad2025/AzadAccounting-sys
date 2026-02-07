@@ -1,5 +1,5 @@
 
-from datetime import datetime, date as _date, time as _time
+from datetime import datetime, date as _date, time as _time, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from flask import Blueprint, request, jsonify, render_template, url_for, abort, current_app
 from flask_login import login_required
@@ -138,7 +138,7 @@ def _parse_iso_to_datetime(val: str, end: bool = False):
         return None
 
 def _extract_range_from_request():
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     start_default = now.replace(hour=0, minute=0, second=0, microsecond=0)
     end_default = now
     if request.method == "GET":
@@ -210,7 +210,7 @@ def create(supplier_id):
     draft.to_date = dto
     draft.currency = supplier.currency
     try:
-        with db.session.begin():
+        with db.session.begin_nested():
             db.session.add(draft)
             db.session.flush()
             db.session.add(AuditLog(model_name="SupplierSettlement", record_id=draft.id, action="CREATE", old_data=None, new_data=json.dumps({
@@ -250,7 +250,7 @@ def confirm(settlement_id):
     if orig != now_ or len(getattr(ss, "lines", []) or []) != len(getattr(recalc, "lines", []) or []):
         return jsonify({"success": False, "error": "اختلفت البيانات منذ المعاينة، أعد الإنشاء"}), 409
     try:
-        with db.session.begin():
+        with db.session.begin_nested():
             ss.mark_confirmed()
             db.session.flush()
             db.session.add(AuditLog(model_name="SupplierSettlement", record_id=ss.id, action="CONFIRM", old_data=None, new_data=json.dumps({
@@ -271,7 +271,7 @@ def void(settlement_id):
     if ss.status != SupplierSettlementStatus.DRAFT.value:
         return jsonify({"success": False, "error": "Only DRAFT can be voided"}), 400
     try:
-        with db.session.begin():
+        with db.session.begin_nested():
             db.session.delete(ss)
             db.session.flush()
             db.session.add(AuditLog(model_name="SupplierSettlement", record_id=settlement_id, action="VOID", old_data=None, new_data=None))
@@ -362,7 +362,7 @@ def supplier_settlement(supplier_id):
     if date_to:
         date_to = _parse_iso_to_datetime(date_to, end=True)
     else:
-        date_to = datetime.utcnow()
+        date_to = datetime.now(timezone.utc).replace(tzinfo=None)
     
     balance_data = _calculate_smart_supplier_balance(supplier_id, date_from, date_to)
     
@@ -381,7 +381,7 @@ def supplier_settlement(supplier_id):
         code=f"SS-SMART-{supplier_id}-{date_from.strftime('%Y%m%d')}",
         lines=[],
         created_at=date_from,
-        updated_at=datetime.utcnow()
+        updated_at=datetime.now(timezone.utc).replace(tzinfo=None)
     )
     
     return render_template(
@@ -1298,7 +1298,7 @@ def _convert_to_ils(amount: Decimal | float, from_currency: str, at: datetime = 
         amount=amount,
         from_code=from_currency,
         to_code="ILS",
-        at=at or datetime.utcnow()
+        at=at or datetime.now(timezone.utc).replace(tzinfo=None)
     )
     return _d2(converted)
 
@@ -1420,7 +1420,7 @@ def _get_supplier_exchange_items(supplier_id: int, date_from: datetime, date_to:
             
             if product_currency != 'ILS':
                 try:
-                    value_ils = _convert_to_ils(value, product_currency, datetime.utcnow())
+                    value_ils = _convert_to_ils(value, product_currency, datetime.now(timezone.utc).replace(tzinfo=None))
                 except Exception:
                     value_ils = value
             else:
@@ -2091,7 +2091,7 @@ def _get_supplier_preorders(supplier_id: int, date_from: datetime, date_to: date
         amount_ils = _convert_to_ils(
             Decimal(str(po.total_amount or 0)),
             po.currency or 'ILS',
-            po.created_at or datetime.utcnow()
+            po.created_at or datetime.now(timezone.utc).replace(tzinfo=None)
         )
         total_ils += amount_ils
         
@@ -2136,7 +2136,7 @@ def _get_supplier_preorders_prepaid(supplier_id: int, supplier: Supplier, date_f
         amount_ils = _convert_to_ils(
             Decimal(str(po.prepaid_amount or 0)),
             po.currency or 'ILS',
-            po.preorder_date or datetime.utcnow()
+            po.preorder_date or datetime.now(timezone.utc).replace(tzinfo=None)
         )
         total_ils += amount_ils
         
@@ -2356,7 +2356,7 @@ def approve_settlement(supplier_id):
         closing_balance=Decimal(str(balance_data.get("balance", {}).get("net", 0))),
         is_approved=True,
         approved_by=current_user.id,
-        approved_at=datetime.utcnow()
+        approved_at=datetime.now(timezone.utc).replace(tzinfo=None)
     )
     
     settlement.ensure_code()

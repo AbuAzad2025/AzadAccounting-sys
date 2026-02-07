@@ -1099,17 +1099,31 @@
   
   // DataTables للجداول الطويلة
   {% if balance_data and balance_data.get('success') and balance_data.get('rights') and balance_data.rights.exchange_items.get('items', [])|length > 10 %}
-  $('#exchangeItemsTable').DataTable({
-    language: {
-      url: '{{ url_for("static", filename="datatables/Arabic.json") }}'
-    },
-    pageLength: 25,
-    order: [[6, 'desc']],  // ترتيب حسب التاريخ
-    dom: 'frtip',
-    searching: true,
-    paging: true,
-    info: true
-  });
+  (function(){
+    function initExchangeItemsTable() {
+      if (!(window.jQuery && jQuery.fn && jQuery.fn.DataTable)) return;
+      $('#exchangeItemsTable').DataTable({
+        language: {
+          url: '{{ url_for("static", filename="datatables/Arabic.json") }}'
+        },
+        responsive: true,
+        autoWidth: false,
+        scrollX: $('#exchangeItemsTable thead th').length > 8,
+        pageLength: 25,
+        order: [[6, 'desc']],  // ترتيب حسب التاريخ
+        dom: 'frtip',
+        searching: true,
+        paging: true,
+        info: true
+      });
+    }
+
+    if (window.jQuery && typeof window.ensureDataTables === 'function' && !(jQuery.fn && jQuery.fn.DataTable)) {
+      window.ensureDataTables().then(initExchangeItemsTable);
+    } else {
+      initExchangeItemsTable();
+    }
+  })();
   {% endif %}
   
   // دالة طباعة جدول محدد

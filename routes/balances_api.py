@@ -1,5 +1,6 @@
 from flask import Blueprint, jsonify, request, render_template, current_app
 from flask_login import login_required
+from datetime import datetime, timezone
 from models import Supplier, Partner, Customer
 from extensions import cache, db
 from utils.balance_calculator import build_customer_balance_view
@@ -59,7 +60,7 @@ def balances_dashboard():
 @balances_api_bp.route('/supplier/<int:supplier_id>', methods=['GET'])
 @login_required
 def get_supplier_balance(supplier_id):
-    supplier = Supplier.query.get_or_404(supplier_id)
+    supplier = db.get_or_404(Supplier, supplier_id)
     db.session.refresh(supplier)
     breakdown = None
     try:
@@ -89,7 +90,7 @@ def get_supplier_balance(supplier_id):
 @balances_api_bp.route('/partner/<int:partner_id>', methods=['GET'])
 @login_required
 def get_partner_balance(partner_id):
-    partner = Partner.query.get_or_404(partner_id)
+    partner = db.get_or_404(Partner, partner_id)
     breakdown = None
     try:
         breakdown = build_partner_balance_view(partner_id, db.session)
@@ -119,7 +120,7 @@ def get_partner_balance(partner_id):
 @balances_api_bp.route('/customer/<int:customer_id>', methods=['GET'])
 @login_required
 def get_customer_balance(customer_id):
-    customer = Customer.query.get_or_404(customer_id)
+    customer = db.get_or_404(Customer, customer_id)
     breakdown = None
     try:
         breakdown = build_customer_balance_view(customer_id, db.session)
@@ -168,7 +169,7 @@ def get_balances_summary():
     
     summary = {
         'success': True,
-        'timestamp': db.func.now(),
+        'timestamp': datetime.now(timezone.utc).isoformat(),
         'suppliers': {
             'count': len(suppliers),
             'total_balance': suppliers_total,

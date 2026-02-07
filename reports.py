@@ -1,6 +1,6 @@
 from __future__ import annotations
 from collections import defaultdict
-from datetime import date, datetime, timedelta, time as _t
+from datetime import date, datetime, timedelta, time as _t, timezone
 from decimal import Decimal
 from typing import Dict
 from zoneinfo import ZoneInfo
@@ -88,12 +88,12 @@ def customer_balance_report_ils(customer_ids: list = None) -> Dict:
             'total_balance_ils': total_balance_ils,
             'formatted_total': utils.format_currency_in_ils(total_balance_ils),
             'customers': report_data,
-            'generated_at': datetime.utcnow()
+            'generated_at': datetime.now(timezone.utc)
         }
     except Exception as e:
         return {
             'error': str(e),
-            'generated_at': datetime.utcnow()
+            'generated_at': datetime.now(timezone.utc)
         }
 
 
@@ -134,12 +134,12 @@ def supplier_balance_report_ils(supplier_ids: list = None) -> Dict:
             'total_balance_ils': total_balance_ils,
             'formatted_total': utils.format_currency_in_ils(total_balance_ils),
             'suppliers': report_data,
-            'generated_at': datetime.utcnow()
+            'generated_at': datetime.now(timezone.utc)
         }
     except Exception as e:
         return {
             'error': str(e),
-            'generated_at': datetime.utcnow()
+            'generated_at': datetime.now(timezone.utc)
         }
 
 
@@ -246,12 +246,12 @@ def payment_summary_report_ils(start_date: date = None, end_date: date = None) -
             'methods': methods,
             'totals_by_method': totals_by_method,
             'total_payments': len(payments),
-            'generated_at': datetime.utcnow()
+            'generated_at': datetime.now(timezone.utc)
         }
     except Exception as e:
         return {
             'error': str(e),
-            'generated_at': datetime.utcnow()
+            'generated_at': datetime.now(timezone.utc)
         }
 
 def advanced_report(
@@ -420,12 +420,12 @@ def sales_report_ils(start_date: date | None, end_date: date | None, tz_name: st
             },
             'currency_breakdown': currency_breakdown,
             'daily_revenue': daily_revenue,
-            'generated_at': datetime.utcnow()
+            'generated_at': datetime.now(timezone.utc)
         }
     except Exception as e:
         return {
             'error': str(e),
-            'generated_at': datetime.utcnow()
+            'generated_at': datetime.now(timezone.utc)
         }
 
 def sales_report(start_date: date | None, end_date: date | None, tz_name: str = "Asia/Hebron") -> dict:
@@ -605,6 +605,10 @@ def service_reports_report(
     status: str | None = None,
     mechanic_id: int | None = None,
     customer_id: int | None = None,
+    page: int | None = None,
+    per_page: int | None = None,
+    export: bool = False,
+    export_limit: int = 20000,
 ) -> dict:
     start_date = _parse_date_like(start_date) or date.min
     end_date = _parse_date_like(end_date) or date.max
@@ -623,38 +627,34 @@ def service_reports_report(
     if customer_id:
         filters.append(ServiceRequest.customer_id == customer_id)
 
-    from decimal import Decimal
+    from sqlalchemy import case
 
-    services_filtered = db.session.query(ServiceRequest).filter(*filters).all()
-    total = len(services_filtered)
-    completed = sum(
-        1
-        for srv in services_filtered
-        if (getattr(srv.status, "value", srv.status) or "").upper()
-        == ServiceStatus.COMPLETED.value
+    status_up = func.upper(func.coalesce(ServiceRequest.status, ""))
+    fx_mult = case(
+        (func.upper(func.coalesce(ServiceRequest.currency, "ILS")) == "ILS", 1),
+        else_=func.coalesce(ServiceRequest.fx_rate_used, 1),
     )
-    revenue = Decimal('0.00')
-    parts = Decimal('0.00')
-    labor = Decimal('0.00')
-    
-    for srv in services_filtered:
-        if srv.currency == "ILS":
-            revenue += Decimal(str(srv.total_amount or 0))
-            parts += Decimal(str(srv.parts_total or 0))
-            labor += Decimal(str(srv.labor_total or 0))
-        else:
-            try:
-                revenue += convert_amount(Decimal(str(srv.total_amount or 0)), srv.currency, "ILS", srv.received_at)
-                parts += convert_amount(Decimal(str(srv.parts_total or 0)), srv.currency, "ILS", srv.received_at)
-                labor += convert_amount(Decimal(str(srv.labor_total or 0)), srv.currency, "ILS", srv.received_at)
-            except Exception:
-                pass
-    
-    revenue = float(revenue)
-    parts = float(parts)
-    labor = float(labor)
+    total_ils_expr = func.coalesce(ServiceRequest.total_amount, 0) * fx_mult
+    parts_ils_expr = func.coalesce(ServiceRequest.parts_total, 0) * fx_mult
+    labor_ils_expr = func.coalesce(ServiceRequest.labor_total, 0) * fx_mult
+
+    base_q = ServiceRequest.query.filter(*filters)
+    agg = base_q.with_entities(
+        func.count(ServiceRequest.id).label("total"),
+        func.coalesce(func.sum(case((status_up == ServiceStatus.COMPLETED.value, 1), else_=0)), 0).label("completed"),
+        func.coalesce(func.sum(total_ils_expr), 0).label("revenue"),
+        func.coalesce(func.sum(parts_ils_expr), 0).label("parts"),
+        func.coalesce(func.sum(labor_ils_expr), 0).label("labor"),
+    ).first()
+
+    total = int(getattr(agg, "total", 0) or 0)
+    completed = int(getattr(agg, "completed", 0) or 0)
+    revenue = float(getattr(agg, "revenue", 0) or 0)
+    parts = float(getattr(agg, "parts", 0) or 0)
+    labor = float(getattr(agg, "labor", 0) or 0)
+
     rows_q = (
-        db.session.query(
+        base_q.with_entities(
             ServiceRequest.service_number.label("number"),
             ServiceRequest.status.label("status"),
             ServiceRequest.priority.label("priority"),
@@ -662,32 +662,51 @@ def service_reports_report(
             ServiceRequest.customer_id.label("customer_id"),
             ServiceRequest.mechanic_id.label("mechanic_id"),
             func.coalesce(ServiceRequest.total_amount, 0).label("total"),
+            func.coalesce(ServiceRequest.currency, "ILS").label("currency"),
+            func.coalesce(ServiceRequest.fx_rate_used, None).label("fx_rate_used"),
         )
-        .filter(*filters)
         .order_by(ServiceRequest.received_at.desc(), ServiceRequest.id.desc())
     )
-    data = []
-    customer_ids = set()
-    mechanic_ids = set()
-    for r in rows_q.all():
-        if r.customer_id:
-            customer_ids.add(r.customer_id)
-        if r.mechanic_id:
-            mechanic_ids.add(r.mechanic_id)
-    
+
+    pagination = None
+    if export:
+        rows = rows_q.limit(int(export_limit or 20000)).all()
+    else:
+        p = int(page or 1)
+        pp = int(per_page or 50)
+        pp = min(200, max(10, pp))
+        pagination = rows_q.paginate(page=p, per_page=pp, error_out=False)
+        rows = list(pagination.items or [])
+
+    customer_ids = {r.customer_id for r in rows if getattr(r, "customer_id", None)}
+    mechanic_ids = {r.mechanic_id for r in rows if getattr(r, "mechanic_id", None)}
+
     from models import Customer, User
+
     customers_map = {}
     if customer_ids:
         customers = db.session.query(Customer.id, Customer.name).filter(Customer.id.in_(customer_ids)).all()
         customers_map = {c.id: c.name for c in customers}
-    
+
     mechanics_map = {}
     if mechanic_ids:
         mechanics = db.session.query(User.id, User.username).filter(User.id.in_(mechanic_ids)).all()
         mechanics_map = {m.id: m.username for m in mechanics}
-    
-    for r in rows_q.all():
+
+    def _row_total_ils(amount, currency, fx_used):
+        try:
+            if (currency or "ILS").upper() == "ILS":
+                return float(amount or 0)
+            if fx_used:
+                return float(Decimal(str(amount or 0)) * Decimal(str(fx_used)))
+        except Exception:
+            pass
+        return float(amount or 0)
+
+    data = []
+    for r in rows:
         rec_at = r.received_at.isoformat() if r.received_at else None
+        total_ils = _row_total_ils(r.total, r.currency, r.fx_rate_used)
         data.append(
             {
                 "number": r.number,
@@ -695,94 +714,105 @@ def service_reports_report(
                 "priority": getattr(r.priority, "value", r.priority),
                 "received_at": rec_at,
                 "customer_id": r.customer_id,
-                "customer_name": customers_map.get(r.customer_id, '-'),
+                "customer_name": customers_map.get(r.customer_id, "-"),
                 "mechanic_id": r.mechanic_id,
-                "mechanic_name": mechanics_map.get(r.mechanic_id, '-'),
+                "mechanic_name": mechanics_map.get(r.mechanic_id, "-"),
                 "total": float(r.total or 0),
+                "total_ils": float(total_ils or 0),
             }
         )
-    return {"total": int(total), "completed": int(completed), "revenue": float(revenue or 0), "parts": float(parts or 0), "labor": float(labor or 0), "data": data}
+
+    return {
+        "total": total,
+        "completed": completed,
+        "revenue": revenue,
+        "parts": parts,
+        "labor": labor,
+        "data": data,
+        "pagination": pagination,
+    }
 
 def ar_aging_report(start_date=None, end_date=None):
     from decimal import Decimal
-    from models import convert_amount, SaleReturn, PreOrder, OnlinePreOrder
-    
+
     as_of = _parse_date_like(end_date) or date.today()
     bucket_keys = ("0-30", "31-60", "61-90", "90+")
-    
-    customers = db.session.query(Customer).all()
+
+    from models import PreOrder
+
+    customers = db.session.query(Customer.id, Customer.name, Customer.current_balance).filter(
+        func.coalesce(Customer.current_balance, 0) > 0
+    ).all()
+
+    customer_ids = [c.id for c in customers]
+    if not customer_ids:
+        return {"as_of": as_of.isoformat(), "data": [], "totals": {k: 0.0 for k in bucket_keys} | {"total": 0.0}}
+
+    sales_min = (
+        db.session.query(Sale.customer_id, func.min(Sale.sale_date))
+        .filter(Sale.status == SaleStatus.CONFIRMED.value, Sale.customer_id.in_(customer_ids))
+        .group_by(Sale.customer_id)
+        .all()
+    )
+    inv_min = (
+        db.session.query(Invoice.customer_id, func.min(Invoice.invoice_date))
+        .filter(Invoice.cancelled_at.is_(None), Invoice.customer_id.in_(customer_ids))
+        .group_by(Invoice.customer_id)
+        .all()
+    )
+    srv_min = (
+        db.session.query(ServiceRequest.customer_id, func.min(ServiceRequest.received_at))
+        .filter(ServiceRequest.customer_id.in_(customer_ids))
+        .group_by(ServiceRequest.customer_id)
+        .all()
+    )
+    po_min = (
+        db.session.query(PreOrder.customer_id, func.min(PreOrder.preorder_date))
+        .filter(PreOrder.status != "CANCELLED", PreOrder.customer_id.in_(customer_ids))
+        .group_by(PreOrder.customer_id)
+        .all()
+    )
+    online_min = (
+        db.session.query(OnlinePreOrder.customer_id, func.min(OnlinePreOrder.created_at))
+        .filter(OnlinePreOrder.payment_status != "CANCELLED", OnlinePreOrder.customer_id.in_(customer_ids))
+        .group_by(OnlinePreOrder.customer_id)
+        .all()
+    )
+
+    sales_map = {cid: dt for cid, dt in sales_min}
+    inv_map = {cid: dt for cid, dt in inv_min}
+    srv_map = {cid: dt for cid, dt in srv_min}
+    po_map = {cid: dt for cid, dt in po_min}
+    online_map = {cid: dt for cid, dt in online_min}
+
     acc = {}
-    
-    for cust in customers:
-        db.session.refresh(cust)
-        outstanding = Decimal(str(cust.current_balance or 0))
-        
+    for c in customers:
+        outstanding = Decimal(str(c.current_balance or 0))
         if outstanding <= 0:
             continue
-        
-        oldest_date = None
-        
-        sales = db.session.query(Sale).filter(
-            Sale.customer_id == cust.id,
-            Sale.status == 'CONFIRMED'
-        ).order_by(Sale.sale_date.asc()).limit(1).all()
-        if sales:
-            ref_dt = sales[0].sale_date or sales[0].created_at
-            if ref_dt:
-                oldest_date = ref_dt
-        
-        invoices = db.session.query(Invoice).filter(
-            Invoice.customer_id == cust.id,
-            Invoice.cancelled_at.is_(None)
-        ).order_by(Invoice.invoice_date.asc()).limit(1).all()
-        if invoices:
-            ref_dt = invoices[0].invoice_date or invoices[0].created_at
-            if ref_dt and (oldest_date is None or ref_dt < oldest_date):
-                oldest_date = ref_dt
-        
-        services = db.session.query(ServiceRequest).filter(
-            ServiceRequest.customer_id == cust.id
-        ).order_by(ServiceRequest.received_at.asc()).limit(1).all()
-        if services:
-            ref_dt = services[0].received_at or services[0].created_at
-            if ref_dt and (oldest_date is None or ref_dt < oldest_date):
-                oldest_date = ref_dt
-        
-        preorders = db.session.query(PreOrder).filter(
-            PreOrder.customer_id == cust.id,
-            PreOrder.status != 'CANCELLED'
-        ).order_by(PreOrder.preorder_date.asc()).limit(1).all()
-        if preorders:
-            ref_dt = preorders[0].preorder_date or preorders[0].created_at
-            if ref_dt and (oldest_date is None or ref_dt < oldest_date):
-                oldest_date = ref_dt
-        
-        online_orders = db.session.query(OnlinePreOrder).filter(
-            OnlinePreOrder.customer_id == cust.id,
-            OnlinePreOrder.payment_status != 'CANCELLED'
-        ).order_by(OnlinePreOrder.created_at.asc()).limit(1).all()
-        if online_orders:
-            ref_dt = online_orders[0].created_at
-            if ref_dt and (oldest_date is None or ref_dt < oldest_date):
-                oldest_date = ref_dt
-        
+
+        candidates = [
+            sales_map.get(c.id),
+            inv_map.get(c.id),
+            srv_map.get(c.id),
+            po_map.get(c.id),
+            online_map.get(c.id),
+        ]
+        candidates = [d for d in candidates if d]
+        oldest_date = min(candidates) if candidates else None
+
         if oldest_date:
-            if isinstance(oldest_date, datetime):
-                ref_d = oldest_date.date()
-            elif isinstance(oldest_date, date):
-                ref_d = oldest_date
-            else:
-                ref_d = as_of
+            ref_d = oldest_date.date() if isinstance(oldest_date, datetime) else oldest_date
             days = max((as_of - ref_d).days, 0) if (as_of and ref_d) else 0
         else:
             days = 0
-        
+
         b = age_bucket(days)
-        if cust.name not in acc:
-            acc[cust.name] = {k: Decimal('0.00') for k in bucket_keys}
-            acc[cust.name]["total"] = Decimal('0.00')
-        acc[cust.name][b] += outstanding
-        acc[cust.name]["total"] += outstanding
+        if c.name not in acc:
+            acc[c.name] = {k: Decimal("0.00") for k in bucket_keys}
+            acc[c.name]["total"] = Decimal("0.00")
+        acc[c.name][b] += outstanding
+        acc[c.name]["total"] += outstanding
     
     data = []
     for name in sorted(acc.keys()):
@@ -804,105 +834,44 @@ def ar_aging_report(start_date=None, end_date=None):
 
 def ap_aging_report(start_date=None, end_date=None):
     from decimal import Decimal
-    from models import convert_amount
     
     as_of = _parse_date_like(end_date) or date.today()
     bucket_keys = ("0-30", "31-60", "61-90", "90+")
     
-    suppliers = db.session.query(Supplier).all()
+    suppliers = db.session.query(Supplier.id, Supplier.name, Supplier.current_balance).filter(
+        func.coalesce(Supplier.current_balance, 0) > 0
+    ).all()
+
+    supplier_ids = [s.id for s in suppliers]
+    if not supplier_ids:
+        return {"as_of": as_of.isoformat(), "data": [], "totals": {k: 0.0 for k in bucket_keys} | {"total": 0.0}}
+
+    inv_min = (
+        db.session.query(Invoice.supplier_id, func.min(Invoice.invoice_date))
+        .filter(Invoice.cancelled_at.is_(None), Invoice.supplier_id.in_(supplier_ids))
+        .group_by(Invoice.supplier_id)
+        .all()
+    )
+    inv_map = {sid: dt for sid, dt in inv_min}
+
     acc = {}
-    
-    for sup in suppliers:
-        total_payable = Decimal('0.00')
-        total_paid = Decimal('0.00')
-        oldest_date = None
-        
-        invoices = db.session.query(Invoice).filter(
-            Invoice.supplier_id == sup.id,
-            Invoice.cancelled_at.is_(None)
-        ).all()
-        for inv in invoices:
-            amt = Decimal(str(inv.total_amount or 0))
-            if inv.currency == "ILS":
-                total_payable += amt
-            else:
-                try:
-                    total_payable += convert_amount(amt, inv.currency, "ILS", inv.invoice_date)
-                except Exception:
-                    pass
-            ref_dt = inv.invoice_date or inv.created_at
-            if oldest_date is None or (ref_dt and ref_dt < oldest_date):
-                oldest_date = ref_dt
-        
-        as_of_dt = datetime.combine(as_of, datetime.max.time())
-        
-        payments_out_direct = db.session.query(Payment).filter(
-            Payment.supplier_id == sup.id,
-            Payment.direction == PaymentDirection.OUT.value,
-            Payment.status.in_([PaymentStatus.COMPLETED.value, PaymentStatus.PENDING.value]),
-            Payment.payment_date <= as_of_dt
-        ).all()
-        
-        payments_out_from_invoices = db.session.query(Payment).join(
-            Invoice, Payment.invoice_id == Invoice.id
-        ).filter(
-            Invoice.supplier_id == sup.id,
-            Payment.direction == PaymentDirection.OUT.value,
-            Payment.status.in_([PaymentStatus.COMPLETED.value, PaymentStatus.PENDING.value]),
-            Payment.payment_date <= as_of_dt
-        ).all()
-        
-        payments_in_direct = db.session.query(Payment).filter(
-            Payment.supplier_id == sup.id,
-            Payment.direction == PaymentDirection.IN.value,
-            Payment.status.in_([PaymentStatus.COMPLETED.value, PaymentStatus.PENDING.value]),
-            Payment.payment_date <= as_of_dt
-        ).all()
-        
-        seen_payment_ids = set()
-        payments_all = []
-        for p in (payments_out_direct + payments_out_from_invoices + payments_in_direct):
-            if p.id not in seen_payment_ids:
-                seen_payment_ids.add(p.id)
-                payments_all.append(p)
-        
-        for p in payments_all:
-            amt = Decimal(str(p.total_amount or 0))
-            if p.currency == "ILS":
-                converted = amt
-            else:
-                try:
-                    converted = convert_amount(amt, p.currency, "ILS", p.payment_date)
-                except Exception:
-                    continue
-            
-            if p.direction == PaymentDirection.OUT.value:
-                total_paid += converted
-            elif p.direction == PaymentDirection.IN.value:
-                total_paid -= converted
-        
-        outstanding_manual = total_payable - total_paid
-        outstanding = Decimal(str(sup.balance_in_ils or 0))
+    for s in suppliers:
+        outstanding = Decimal(str(s.current_balance or 0))
         if outstanding <= 0:
             continue
-        
+        oldest_date = inv_map.get(s.id)
         if oldest_date:
-            if isinstance(oldest_date, datetime):
-                ref_d = oldest_date.date()
-            elif isinstance(oldest_date, date):
-                ref_d = oldest_date
-            else:
-                ref_d = as_of
+            ref_d = oldest_date.date() if isinstance(oldest_date, datetime) else oldest_date
             days = max((as_of - ref_d).days, 0) if (as_of and ref_d) else 0
         else:
             days = 0
-        
+
         b = age_bucket(days)
-        if sup.name not in acc:
-            acc[sup.name] = {k: Decimal('0.00') for k in bucket_keys}
-            acc[sup.name]["total"] = Decimal('0.00')
-        acc[sup.name][b] += outstanding
-        acc[sup.name]["total"] += outstanding
+        if s.name not in acc:
+            acc[s.name] = {k: Decimal("0.00") for k in bucket_keys}
+            acc[s.name]["total"] = Decimal("0.00")
+        acc[s.name][b] += outstanding
+        acc[s.name]["total"] += outstanding
     
     data = []
     for name in sorted(acc.keys()):
@@ -971,13 +940,20 @@ def top_products_report(
     can_group_by_wh = hasattr(SaleLine, "warehouse_id")
     want_group = bool(group_by_warehouse and can_group_by_wh)
     want_filter = bool(warehouse_id and can_group_by_wh)
+    from sqlalchemy import case
+    fx_mult = case(
+        (func.upper(func.coalesce(Sale.currency, "ILS")) == "ILS", 1),
+        else_=func.coalesce(Sale.fx_rate_used, 1),
+    )
+    sum_net_ils = func.coalesce(func.sum(net_revenue_expr * fx_mult), 0.0)
     select_cols = [
         Product.id.label("product_id"),
         Product.name.label("name"),
         sum_qty.label("qty"),
         sum_gross.label("gross"),
         sum_discount.label("discount"),
-        sum_net.label("revenue"),
+        sum_net_ils.label("revenue"),
+        sum_net_ils.label("revenue_ils"),
         weighted_price.label("avg_unit_price"),
         func.count(func.distinct(Sale.id)).label("orders_count"),
         func.min(Sale.sale_date).label("first_sale"),
@@ -1000,79 +976,27 @@ def top_products_report(
         q = q.group_by(Product.id, Product.name, Warehouse.name)
     else:
         q = q.group_by(Product.id, Product.name)
-    q = q.order_by(desc("revenue")).limit(int(limit or 20))
-    rows_raw = q.all()
+    q = q.order_by(desc("revenue_ils")).limit(int(limit or 20))
+    rows = q.all()
     
-    rows_with_ils = []
-    for r in rows_raw:
-        lines = db.session.query(SaleLine).join(Sale).filter(
-            SaleLine.product_id == r.product_id,
-            Sale.status == SaleStatus.CONFIRMED.value,
-            lower, upper
-        ).all()
-        
-        revenue_ils = Decimal('0.00')
-        for line in lines:
-            sale = line.sale
-            line_amt = Decimal(str(line.quantity or 0)) * Decimal(str(line.unit_price or 0))
-            line_amt *= (Decimal('1') - Decimal(str(line.discount_rate or 0)) / Decimal('100'))
-            line_amt *= (Decimal('1') + Decimal(str(line.tax_rate or 0)) / Decimal('100'))
-            
-            if sale.currency == "ILS":
-                revenue_ils += line_amt
-            else:
-                try:
-                    revenue_ils += convert_amount(line_amt, sale.currency, "ILS", sale.sale_date)
-                except Exception:
-                    pass
-        
-        rows_with_ils.append({
-            "product_id": r.product_id,
-            "name": r.name,
-            "qty": r.qty,
-            "revenue": float(revenue_ils),
-            "revenue_ils": float(revenue_ils),
-            "avg_unit_price": float(r.avg_unit_price or 0),
-            "orders_count": r.orders_count,
-            "first_sale": r.first_sale,
-            "last_sale": r.last_sale,
-            "warehouse_name": getattr(r, "warehouse_name", None) if want_group else None
-        })
-    
-    rows_with_ils.sort(key=lambda x: x["revenue_ils"], reverse=True)
-    rows = rows_with_ils[:int(limit or 20)]
-    
-    total_revenue = float(sum(r["revenue_ils"] for r in rows))
-    total_qty = int(sum(r["qty"] for r in rows))
-    max_qty = max((r["qty"] for r in rows), default=0)
+    total_revenue = float(sum(float(getattr(r, "revenue_ils", 0) or 0) for r in rows))
+    total_qty = int(sum(float(getattr(r, "qty", 0) or 0) for r in rows))
+    max_qty = max((float(getattr(r, "qty", 0) or 0) for r in rows), default=0)
     def _rank_label(idx: int) -> str:
         return ("الأول" if idx == 1 else "الثاني" if idx == 2 else "الثالث" if idx == 3 else f"المرتبة {idx}")
     data: list[dict] = []
     for i, r in enumerate(rows, start=1):
-        if isinstance(r, dict):
-            qty = int(r.get("qty", 0) or 0)
-            rev = float(r.get("revenue_ils", 0) or 0)
-            gross = float(r.get("gross", 0) or 0)
-            discount = float(r.get("discount", 0) or 0)
-            orders_count = int(r.get("orders_count", 0) or 0)
-            avg_price = float(r.get("avg_unit_price", 0) or 0)
-            prod_id = r.get("product_id")
-            prod_name = r.get("name")
-            wh_name = r.get("warehouse_name") or "—" if want_group else None
-            first_sale = r.get("first_sale")
-            last_sale = r.get("last_sale")
-        else:
-            qty = int(getattr(r, "qty", 0) or 0)
-            rev = float(getattr(r, "revenue_ils", getattr(r, "revenue", 0)) or 0)
-            gross = float(getattr(r, "gross", 0) or 0)
-            discount = float(getattr(r, "discount", 0) or 0)
-            orders_count = int(getattr(r, "orders_count", 0) or 0)
-            avg_price = float(getattr(r, "avg_unit_price", 0) or 0)
-            prod_id = getattr(r, "product_id", None)
-            prod_name = getattr(r, "name", None)
-            wh_name = getattr(r, "warehouse_name", None) if want_group else None
-            first_sale = getattr(r, "first_sale", None)
-            last_sale = getattr(r, "last_sale", None)
+        qty = int(getattr(r, "qty", 0) or 0)
+        rev = float(getattr(r, "revenue_ils", getattr(r, "revenue", 0)) or 0)
+        gross = float(getattr(r, "gross", 0) or 0)
+        discount = float(getattr(r, "discount", 0) or 0)
+        orders_count = int(getattr(r, "orders_count", 0) or 0)
+        avg_price = float(getattr(r, "avg_unit_price", 0) or 0)
+        prod_id = getattr(r, "product_id", None)
+        prod_name = getattr(r, "name", None)
+        wh_name = getattr(r, "warehouse_name", None) if want_group else None
+        first_sale = getattr(r, "first_sale", None)
+        last_sale = getattr(r, "last_sale", None)
         share = (rev / total_revenue * 100.0) if total_revenue > 0 else 0.0
         if i <= 3 and rev > 0:
             reason = "ضمن الأعلى إيرادًا"
@@ -1157,10 +1081,10 @@ def partner_balance_report_ils(partner_ids: list = None) -> Dict:
             'total_balance_ils': total_balance_ils,
             'formatted_total': utils.format_currency_in_ils(total_balance_ils),
             'partners': report_data,
-            'generated_at': datetime.utcnow()
+            'generated_at': datetime.now(timezone.utc)
         }
     except Exception as e:
         return {
             'error': str(e),
-            'generated_at': datetime.utcnow()
+            'generated_at': datetime.now(timezone.utc)
         }

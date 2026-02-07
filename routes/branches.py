@@ -6,7 +6,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask_login import login_required, current_user
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.orm import joinedload
-from datetime import datetime
+from datetime import datetime, timezone
 import csv
 import io
 
@@ -174,7 +174,7 @@ def archive_branch(branch_id):
         return redirect(url_for('branches_bp.list_branches'))
     
     b.is_archived = True
-    b.archived_at = datetime.utcnow()
+    b.archived_at = datetime.now(timezone.utc).replace(tzinfo=None)
     b.archived_by = current_user.id
     b.archive_reason = request.form.get('reason', '').strip() or None
     b.is_active = False
@@ -332,7 +332,7 @@ def create_site(branch_id):
 @permission_required('manage_branches')
 def edit_site(site_id):
     """تعديل موقع"""
-    s = _get_or_404(Site, site_id, joinedload(Site.branch))
+    s = _get_or_404(Site, site_id, load_options=[joinedload(Site.branch)])
     
     if request.method == 'POST':
         try:
@@ -383,7 +383,7 @@ def archive_site(site_id):
     """أرشفة موقع"""
     s = _get_or_404(Site, site_id)
     s.is_archived = True
-    s.archived_at = datetime.utcnow()
+    s.archived_at = datetime.now(timezone.utc).replace(tzinfo=None)
     s.archived_by = current_user.id
     s.archive_reason = request.form.get('reason', '').strip() or None
     s.is_active = False
@@ -446,7 +446,7 @@ def branch_report(branch_id):
     expense_types_dict = defaultdict(lambda: {'count': 0, 'total': Decimal('0.00')})
     
     for exp in all_branch_expenses:
-        type_name = exp.expense_type.name if exp.expense_type else 'غير محدد'
+        type_name = exp.type.name if exp.type else 'غير محدد'
         amt = Decimal(str(exp.amount or 0))
         
         if exp.currency == "ILS":

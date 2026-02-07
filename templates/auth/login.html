@@ -1,6 +1,6 @@
 {% extends 'auth/auth_base.html' %}
 
-{% block title %}تسجيل الدخول - Azad{% endblock %}
+{% block title %}تسجيل الدخول - {{ system_settings.company_name or system_settings.system_name or 'النظام' }}{% endblock %}
 {% block title_text %}تسجيل الدخول{% endblock %}
 
 {% block content %}

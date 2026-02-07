@@ -1,28 +1,18 @@
 {% extends 'base.html' %}
 {% block title %}{% if account %}تعديل{% else %}إضافة{% endif %} حساب بنكي{% endblock %}
 
-{% block content %}
-<div class="content-header">
-    <div class="container-fluid">
-        <div class="row mb-2">
-            <div class="col-sm-6">
-                <h1 class="m-0">
-                    <i class="fas fa-university text-primary"></i> 
-                    {% if account %}تعديل حساب بنكي{% else %}إضافة حساب بنكي جديد{% endif %}
-                </h1>
-            </div>
-            <div class="col-sm-6">
-                <ol class="breadcrumb float-sm-left">
-                    <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}"><i class="fas fa-home"></i> الرئيسية</a></li>
-                    <li class="breadcrumb-item"><a href="{{ url_for('advanced.accounting_control') }}"><i class="fas fa-sliders-h"></i> المحاسبة المتقدمة</a></li>
-                    <li class="breadcrumb-item"><a href="{{ url_for('bank.accounts') }}">الحسابات البنكية</a></li>
-                    <li class="breadcrumb-item active">{% if account %}تعديل{% else %}إضافة{% endif %}</li>
-                </ol>
-            </div>
-        </div>
-    </div>
-</div>
+{% block page_title %}
+<i class="fas fa-university"></i> {% if account %}تعديل حساب بنكي{% else %}إضافة حساب بنكي جديد{% endif %}
+{% endblock %}
 
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}"><i class="fas fa-home"></i> الرئيسية</a></li>
+<li class="breadcrumb-item"><a href="{{ url_for('advanced.accounting_control') }}"><i class="fas fa-sliders-h"></i> المحاسبة المتقدمة</a></li>
+<li class="breadcrumb-item"><a href="{{ url_for('bank.accounts') }}">الحسابات البنكية</a></li>
+<li class="breadcrumb-item active">{% if account %}تعديل{% else %}إضافة{% endif %}</li>
+{% endblock %}
+
+{% block content %}
 <section class="content">
 <div class="container-fluid">
   

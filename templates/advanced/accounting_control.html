@@ -1067,10 +1067,8 @@ const hasToastr = typeof toastr !== 'undefined';
 function notify(type, message, title, options) {
     if (hasToastr) {
         toastr[type](message, title || '', options || {});
-    } else if (type === 'error') {
-        alert(message);
     } else {
-        console.log(`${type}: ${message}`);
+        alert(message);
     }
 }
 
@@ -1114,7 +1112,7 @@ window.loadLiveStats = function loadLiveStats() {
                 document.getElementById('alerts-count').textContent = data.stats.alerts || 0;
             }
         })
-        .catch(error => console.error('Error loading stats:', error));
+        .catch(() => {});
 }
 
 window.exportSettings = async function exportSettings() {
@@ -1132,7 +1130,6 @@ window.exportSettings = async function exportSettings() {
         URL.revokeObjectURL(url);
         notify('success', 'تم تصدير الإعدادات بنجاح');
     } catch (error) {
-        console.error('export error', error);
         notify('error', 'تعذر تصدير الإعدادات');
     }
 }
@@ -1162,7 +1159,6 @@ window.importSettings = function importSettings() {
                 notify('success', 'تم استيراد الإعدادات وسيتم تحديث الصفحة');
                 setTimeout(() => window.location.reload(), 1200);
             } catch (error) {
-                console.error('import error', error);
                 notify('error', 'فشل استيراد الإعدادات');
             }
         };
@@ -1192,7 +1188,6 @@ window.runSystemCheck = async function runSystemCheck() {
             extendedTimeOut: 2000
         });
     } catch (error) {
-        console.error('system check error', error);
         notify('error', 'تعذر تنفيذ فحص النظام');
     }
 }
@@ -1216,7 +1211,6 @@ window.backupNow = async function backupNow() {
         const sizeText = hasSize ? ` (${data.size_mb.toFixed(2)} MB)` : '';
         notify('success', `تم إنشاء النسخة ${data.filename || ''}${sizeText}`);
     } catch (error) {
-        console.error('backup error', error);
         notify('error', 'فشل النسخ الاحتياطي');
     }
 }

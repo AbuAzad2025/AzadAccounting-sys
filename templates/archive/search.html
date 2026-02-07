@@ -1,6 +1,12 @@
 {% extends "base.html" %}
 {% block title %}البحث في الأرشيفات{% endblock %}
-{% block page_header %}🔍 البحث في الأرشيفات{% endblock %}
+{% block page_title %}<i class="fas fa-search"></i> البحث في الأرشيفات{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}"><i class="fas fa-home"></i> الرئيسية</a></li>
+<li class="breadcrumb-item"><a href="{{ url_for('archive.index') }}">الأرشيفات</a></li>
+<li class="breadcrumb-item active">بحث</li>
+{% endblock %}
 
 {% block content %}
 <div class="container my-4">

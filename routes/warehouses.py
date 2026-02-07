@@ -9,7 +9,7 @@ import time
 import random
 import hashlib
 from decimal import Decimal, InvalidOperation
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from flask import (
     Blueprint,
     Response,
@@ -25,7 +25,7 @@ from flask import (
 )
 from flask_login import current_user, login_required
 from werkzeug.utils import secure_filename
-from sqlalchemy import func, or_, delete as sa_delete, text
+from sqlalchemy import func, or_, and_, case, distinct, delete as sa_delete, text
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.orm import joinedload
 
@@ -367,7 +367,7 @@ def api_warehouse_info():
 @login_required
 def transaction_detail(id):
     from models import ExchangeTransaction
-    tx = ExchangeTransaction.query.get_or_404(id)
+    tx = db.get_or_404(ExchangeTransaction, id)
     return render_template("warehouses/transaction_detail.html", transaction=tx)
 
 @warehouse_bp.route("/api/upload_product_image", methods=["POST"], endpoint="api_upload_product_image")
@@ -882,7 +882,7 @@ def edit_warehouse(warehouse_id):
         ]
         if w.branch_id and (w.branch_id, ) not in form.branch_id.choices:
             # تأكد أن الاختيار الحالي موجود ضمن القائمة
-            cur = Branch.query.get(w.branch_id)
+            cur = db.session.get(Branch, w.branch_id)
             if cur:
                 form.branch_id.choices.append((cur.id, f"{cur.code} - {cur.name}"))
     except Exception:
@@ -954,19 +954,36 @@ def delete_warehouse(warehouse_id):
 @login_required
 def warehouse_detail(warehouse_id):
     w = _get_or_404(Warehouse, warehouse_id)
-    stock_levels = (
-        StockLevel.query.filter_by(warehouse_id=warehouse_id)
-        .options(joinedload(StockLevel.product))
-        .all()
+    stock_totals = (
+        db.session.query(
+            func.count(StockLevel.id).label("total_products"),
+            func.coalesce(func.sum(func.coalesce(StockLevel.quantity, 0)), 0).label("total_quantity"),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (
+                            and_(
+                                StockLevel.min_stock.isnot(None),
+                                StockLevel.quantity.isnot(None),
+                                StockLevel.quantity < StockLevel.min_stock,
+                            ),
+                            1,
+                        ),
+                        else_=0,
+                    )
+                ),
+                0,
+            ).label("low_stock_count"),
+        )
+        .filter(StockLevel.warehouse_id == warehouse_id)
+        .first()
     )
-    transfers_in = Transfer.query.filter_by(destination_id=warehouse_id).all()
-    transfers_out = Transfer.query.filter_by(source_id=warehouse_id).all()
     return render_template(
         "warehouses/detail.html",
         warehouse=w,
-        stock_levels=stock_levels,
-        transfers_in=transfers_in,
-        transfers_out=transfers_out,
+        total_products=int(getattr(stock_totals, "total_products", 0) or 0),
+        total_quantity=int(getattr(stock_totals, "total_quantity", 0) or 0),
+        low_stock_count=int(getattr(stock_totals, "low_stock_count", 0) or 0),
         stock_form=StockLevelForm(),
         transfer_form=TransferForm(),
         exchange_form=ExchangeTransactionForm(),
@@ -999,6 +1016,9 @@ def goto_product_card():
 @login_required
 def inventory_summary():
     search = (request.args.get("q") or "").strip()
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 50, type=int)
+    per_page = min(200, max(10, per_page))
     selected_ids = request.args.getlist("warehouse_ids", type=int)
     if not selected_ids:
         selected_ids = [w.id for w in Warehouse.query.order_by(Warehouse.name).all()]
@@ -1006,35 +1026,34 @@ def inventory_summary():
     whs = Warehouse.query.filter(Warehouse.id.in_(selected_ids)).order_by(Warehouse.name.asc()).all()
     wh_ids = [w.id for w in whs]
 
-    if wh_ids:
-        q = (
-            db.session.query(StockLevel)
-            .join(Product, StockLevel.product_id == Product.id)
-            .filter(StockLevel.warehouse_id.in_(wh_ids))
-            .options(joinedload(StockLevel.product))
-            .order_by(Product.name.asc())
-        )
-        if search:
-            like = f"%{search}%"
-            q = q.filter(or_(Product.name.ilike(like), Product.sku.ilike(like), Product.part_number.ilike(like)))
-        rows = q.all()
-    else:
-        rows = []
-
-    pivot = {}
-    for sl in rows:
-        pid = sl.product_id
-        p = sl.product
-        if pid not in pivot:
-            pivot[pid] = {"product": p, "by": {wid: {"on": 0, "res": 0} for wid in wh_ids}, "total": 0}
-        on = int(sl.quantity or 0)
-        res = int(getattr(sl, "reserved_quantity", 0) or 0)
-        pivot[pid]["by"][sl.warehouse_id] = {"on": on, "res": res}
-        pivot[pid]["total"] += on
-
-    rows_data = sorted(pivot.values(), key=lambda d: (d["product"].name or "").lower())
-
     if (request.args.get("export") or "").lower() == "csv":
+        if wh_ids:
+            q = (
+                db.session.query(StockLevel)
+                .join(Product, StockLevel.product_id == Product.id)
+                .filter(StockLevel.warehouse_id.in_(wh_ids))
+                .options(joinedload(StockLevel.product))
+                .order_by(Product.name.asc())
+            )
+            if search:
+                like = f"%{search}%"
+                q = q.filter(or_(Product.name.ilike(like), Product.sku.ilike(like), Product.part_number.ilike(like)))
+            rows = q.all()
+        else:
+            rows = []
+
+        pivot = {}
+        for sl in rows:
+            pid = sl.product_id
+            p = sl.product
+            if pid not in pivot:
+                pivot[pid] = {"product": p, "by": {wid: {"on": 0, "res": 0} for wid in wh_ids}, "total": 0}
+            on = int(sl.quantity or 0)
+            res = int(getattr(sl, "reserved_quantity", 0) or 0)
+            pivot[pid]["by"][sl.warehouse_id] = {"on": on, "res": res}
+            pivot[pid]["total"] += on
+
+        rows_data = sorted(pivot.values(), key=lambda d: (d["product"].name or "").lower())
         si = io.StringIO()
         writer = csv.writer(si)
         header = ["ID", "القطعة", "SKU"] + [w.name for w in whs] + ["الإجمالي"]
@@ -1054,12 +1073,80 @@ def inventory_summary():
             headers={"Content-Disposition": "attachment; filename=inventory_summary.csv"},
         )
 
+    pagination = None
+    total_products = 0
+    total_quantity = 0
+    avg_quantity = 0.0
+
+    rows_data = []
+    if wh_ids:
+        prod_q = (
+            Product.query.join(StockLevel, StockLevel.product_id == Product.id)
+            .filter(StockLevel.warehouse_id.in_(wh_ids))
+            .distinct()
+        )
+        if search:
+            like = f"%{search}%"
+            prod_q = prod_q.filter(or_(Product.name.ilike(like), Product.sku.ilike(like), Product.part_number.ilike(like)))
+        prod_q = prod_q.order_by(Product.name.asc())
+        pagination = prod_q.paginate(page=page, per_page=per_page, error_out=False)
+        total_products = int(getattr(pagination, "total", 0) or 0)
+
+        qty_q = (
+            db.session.query(func.coalesce(func.sum(StockLevel.quantity), 0))
+            .join(Product, StockLevel.product_id == Product.id)
+            .filter(StockLevel.warehouse_id.in_(wh_ids))
+            .filter(StockLevel.product_id.isnot(None))
+            .filter(Product.id.isnot(None))
+        )
+        if search:
+            qty_q = qty_q.filter(or_(Product.name.ilike(like), Product.sku.ilike(like), Product.part_number.ilike(like)))
+        total_quantity = int(qty_q.scalar() or 0)
+        avg_quantity = (float(total_quantity) / float(total_products)) if total_products else 0.0
+
+        page_products = list(pagination.items or [])
+        pid_list = [p.id for p in page_products]
+        order_map = {pid: idx for idx, pid in enumerate(pid_list)}
+
+        if pid_list:
+            stock_rows = (
+                db.session.query(StockLevel)
+                .join(Product, StockLevel.product_id == Product.id)
+                .filter(StockLevel.warehouse_id.in_(wh_ids))
+                .filter(StockLevel.product_id.in_(pid_list))
+                .options(joinedload(StockLevel.product))
+                .all()
+            )
+        else:
+            stock_rows = []
+
+        pivot = {}
+        for sl in stock_rows:
+            pid = sl.product_id
+            p = sl.product
+            if not pid or not p:
+                continue
+            if pid not in pivot:
+                pivot[pid] = {"product": p, "by": {wid: {"on": 0, "res": 0} for wid in wh_ids}, "total": 0}
+            on = int(sl.quantity or 0)
+            res = int(getattr(sl, "reserved_quantity", 0) or 0)
+            pivot[pid]["by"][sl.warehouse_id] = {"on": on, "res": res}
+            pivot[pid]["total"] += on
+
+        rows_data = list(pivot.values())
+        rows_data.sort(key=lambda d: order_map.get(d["product"].id, 10**9))
+
     return render_template(
         "warehouses/inventory_summary.html",
         warehouses=whs,
         rows=rows_data,
         selected_ids=wh_ids,
         search=search,
+        pagination=pagination,
+        per_page=per_page,
+        total_products=total_products,
+        total_quantity=total_quantity,
+        avg_quantity=avg_quantity,
     )
 
 
@@ -1074,44 +1161,44 @@ def products(id):
     wh_ids = [w.id for w in whs] or [id]
 
     search = (request.args.get("q") or "").strip()
-    q = (
-        db.session.query(StockLevel)
-        .join(Product, StockLevel.product_id == Product.id, isouter=False)
-        .filter(StockLevel.warehouse_id.in_(wh_ids))
-        .filter(StockLevel.product_id.isnot(None))
-        .filter(Product.id.isnot(None))
-        .options(joinedload(StockLevel.product))
-        .order_by(Product.name.asc())
-    )
-    if search:
-        like = f"%{search}%"
-        q = q.filter(
-            or_(
-                Product.name.ilike(like),
-                Product.sku.ilike(like),
-                Product.part_number.ilike(like),
-                Product.brand.ilike(like),
-            )
+    wants_json = request.is_json or (request.args.get("format") or "").lower() == "json"
+    if wants_json and request.args.get("page") is None and request.args.get("per_page") is None:
+        q = (
+            db.session.query(StockLevel)
+            .join(Product, StockLevel.product_id == Product.id, isouter=False)
+            .filter(StockLevel.warehouse_id.in_(wh_ids))
+            .filter(StockLevel.product_id.isnot(None))
+            .filter(Product.id.isnot(None))
+            .options(joinedload(StockLevel.product))
+            .order_by(Product.name.asc())
         )
+        if search:
+            like = f"%{search}%"
+            q = q.filter(
+                or_(
+                    Product.name.ilike(like),
+                    Product.sku.ilike(like),
+                    Product.part_number.ilike(like),
+                    Product.brand.ilike(like),
+                )
+            )
 
-    rows = q.all()
-    pivot = {}
-    for sl in rows:
-        # فحص مزدوج للأمان
-        if not sl or not sl.product_id or not sl.product:
-            continue
-        pid = sl.product_id
-        p = sl.product
-        if pid not in pivot:
-            pivot[pid] = {"product": p, "by": {wid: {"on": 0, "res": 0} for wid in wh_ids}, "total": 0}
-        on = int(sl.quantity or 0)
-        res = int(getattr(sl, "reserved_quantity", 0) or 0)
-        pivot[pid]["by"][sl.warehouse_id] = {"on": on, "res": res}
-        pivot[pid]["total"] += on
+        rows = q.all()
+        pivot = {}
+        for sl in rows:
+            if not sl or not sl.product_id or not sl.product:
+                continue
+            pid = sl.product_id
+            p = sl.product
+            if pid not in pivot:
+                pivot[pid] = {"product": p, "by": {wid: {"on": 0, "res": 0} for wid in wh_ids}, "total": 0}
+            on = int(sl.quantity or 0)
+            res = int(getattr(sl, "reserved_quantity", 0) or 0)
+            pivot[pid]["by"][sl.warehouse_id] = {"on": on, "res": res}
+            pivot[pid]["total"] += on
 
-    rows_data = sorted(pivot.values(), key=lambda d: (d["product"].name or "").lower())
+        rows_data = sorted(pivot.values(), key=lambda d: (d["product"].name or "").lower())
 
-    if request.is_json or (request.args.get("format") or "").lower() == "json":
         def _f(x):
             try:
                 return float(x) if x is not None else None
@@ -1139,6 +1226,121 @@ def products(id):
             )
         return jsonify({"data": out, "warehouse_id": base_warehouse.id})
 
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 50, type=int)
+    per_page = min(200, max(10, per_page))
+
+    rows_data = []
+    pagination = None
+    if wh_ids:
+        prod_q = (
+            Product.query.join(StockLevel, StockLevel.product_id == Product.id)
+            .filter(StockLevel.warehouse_id.in_(wh_ids))
+            .distinct()
+        )
+        if search:
+            like = f"%{search}%"
+            prod_q = prod_q.filter(
+                or_(
+                    Product.name.ilike(like),
+                    Product.sku.ilike(like),
+                    Product.part_number.ilike(like),
+                    Product.brand.ilike(like),
+                )
+            )
+        prod_q = prod_q.order_by(Product.name.asc())
+        pagination = prod_q.paginate(page=page, per_page=per_page, error_out=False)
+        page_products = list(pagination.items or [])
+        pid_list = [p.id for p in page_products]
+        order_map = {pid: idx for idx, pid in enumerate(pid_list)}
+
+        if pid_list:
+            stock_rows = (
+                db.session.query(StockLevel)
+                .join(Product, StockLevel.product_id == Product.id, isouter=False)
+                .filter(StockLevel.warehouse_id.in_(wh_ids))
+                .filter(StockLevel.product_id.in_(pid_list))
+                .options(joinedload(StockLevel.product))
+                .all()
+            )
+        else:
+            stock_rows = []
+
+        pivot = {}
+        for sl in stock_rows:
+            if not sl or not sl.product_id or not sl.product:
+                continue
+            pid = sl.product_id
+            p = sl.product
+            if pid not in pivot:
+                pivot[pid] = {"product": p, "by": {wid: {"on": 0, "res": 0} for wid in wh_ids}, "total": 0}
+            on = int(sl.quantity or 0)
+            res = int(getattr(sl, "reserved_quantity", 0) or 0)
+            pivot[pid]["by"][sl.warehouse_id] = {"on": on, "res": res}
+            pivot[pid]["total"] += on
+
+        rows_data = list(pivot.values())
+        rows_data.sort(key=lambda d: order_map.get(d["product"].id, 10**9))
+
+    if wants_json:
+        def _f(x):
+            try:
+                return float(x) if x is not None else None
+            except Exception:
+                return None
+
+        out = []
+        for r in rows_data:
+            p = r["product"]
+            active_qty = r["by"].get(base_warehouse.id, {}).get("on", 0)
+            out.append(
+                {
+                    "id": p.id,
+                    "sku": p.sku,
+                    "part_number": p.part_number,
+                    "name": p.name,
+                    "brand": p.brand,
+                    "purchase_price": _f(getattr(p, "purchase_price", None)),
+                    "selling_price": _f(getattr(p, "selling_price", None)),
+                    "price": _f(getattr(p, "price", None)),
+                    "online_price": _f(getattr(p, "online_price", None)),
+                    "quantity": int(active_qty or 0),
+                    "total_quantity": int(r["total"] or 0),
+                }
+            )
+        return jsonify(
+            {
+                "data": out,
+                "warehouse_id": base_warehouse.id,
+                "pagination": {
+                    "page": pagination.page if pagination else page,
+                    "per_page": pagination.per_page if pagination else per_page,
+                    "pages": pagination.pages if pagination else 1,
+                    "total": pagination.total if pagination else len(out),
+                    "has_next": pagination.has_next if pagination else False,
+                    "has_prev": pagination.has_prev if pagination else False,
+                },
+            }
+        )
+
+    page_total_quantity = 0
+    page_out_of_stock = 0
+    page_total_value = 0.0
+    for r in rows_data or []:
+        try:
+            qty = int(r.get("total") or 0)
+        except Exception:
+            qty = 0
+        page_total_quantity += qty
+        if qty == 0:
+            page_out_of_stock += 1
+        try:
+            p = r.get("product")
+            price = getattr(p, "selling_price", None) or getattr(p, "price", None) or 0
+            page_total_value += float(qty) * float(price)
+        except Exception:
+            pass
+
     return render_template(
         "warehouses/products.html",
         warehouse=base_warehouse,
@@ -1150,6 +1352,11 @@ def products(id):
         active_warehouse_id=base_warehouse.id,
         active_warehouse=base_warehouse,
         warehouse_id=base_warehouse.id,
+        pagination=pagination,
+        per_page=per_page,
+        page_total_quantity=page_total_quantity,
+        page_total_value=page_total_value,
+        page_out_of_stock=page_out_of_stock,
     )
 
 @warehouse_bp.route("/<int:id>/transfer", methods=["POST"], endpoint="transfer_inline")
@@ -1260,7 +1467,11 @@ def update_product_inline(warehouse_id, product_id):
     qty_set = False
     sl = None
     if "quantity" in payload or "reserved_quantity" in payload:
-        sl = StockLevel.query.filter_by(warehouse_id=warehouse_id, product_id=product_id).one_or_none()
+        sl = (
+            StockLevel.query.filter_by(warehouse_id=warehouse_id, product_id=product_id)
+            .with_for_update(nowait=False)
+            .first()
+        )
         if not sl:
             sl = StockLevel(warehouse_id=warehouse_id, product_id=product_id, quantity=0, reserved_quantity=0)
             db.session.add(sl)
@@ -1268,7 +1479,12 @@ def update_product_inline(warehouse_id, product_id):
         if "quantity" in payload:
             try:
                 qv = int(float(payload.get("quantity") if payload.get("quantity") is not None else 0))
-                sl.quantity = max(0, qv)
+                new_qty = max(0, qv)
+                if "reserved_quantity" not in payload:
+                    current_reserved = int(sl.reserved_quantity or 0)
+                    if new_qty < current_reserved:
+                        return jsonify({"ok": False, "error": "quantity_below_reserved"}), 400
+                sl.quantity = new_qty
                 qty_set = True
             except Exception:
                 return jsonify({"ok": False, "error": "invalid_int:quantity"}), 400
@@ -1883,7 +2099,7 @@ def import_products(id):
         "dry_run": bool(getattr(form, "dry_run", None).data) if hasattr(form, "dry_run") else True,
         "continue_after_warnings": bool(getattr(form, "continue_after_warnings", None).data) if hasattr(form, "continue_after_warnings") else False,
         "created_by": getattr(current_user, "id", None),
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "analysis": analysis,
     }
     key = _save_tmp_payload(payload)
@@ -2548,9 +2764,9 @@ def ajax_transfer(warehouse_id):
         qty = 0
     ds = (data.get("date") or "").strip()
     try:
-        tdate = datetime.fromisoformat(ds) if ds else datetime.utcnow()
+        tdate = datetime.fromisoformat(ds) if ds else datetime.now(timezone.utc).replace(tzinfo=None)
     except Exception:
-        tdate = datetime.utcnow()
+        tdate = datetime.now(timezone.utc).replace(tzinfo=None)
     notes = (data.get("notes") or "").strip() or None
     
     logging.info(f"📋 معلومات التحويل - المنتج: {pid}, من: {sid}, إلى: {did}, الكمية: {qty}")
@@ -2563,8 +2779,8 @@ def ajax_transfer(warehouse_id):
         return jsonify({"success": False, "errors": {"warehouse": "mismatch"}}), 400
     
     # ========== التحقق من التوافق بين أنواع المستودعات ==========
-    source_warehouse = Warehouse.query.get(sid)
-    dest_warehouse = Warehouse.query.get(did)
+    source_warehouse = db.session.get(Warehouse, sid)
+    dest_warehouse = db.session.get(Warehouse, did)
     
     if not source_warehouse or not dest_warehouse:
         return jsonify({"success": False, "error": "المستودع غير موجود"}), 404
@@ -2774,8 +2990,101 @@ def partner_shares(warehouse_id):
 @login_required
 def list_transfers(id):
     warehouse = _get_or_404(Warehouse, id)
-    transfers = Transfer.query.filter(or_(Transfer.source_id == id, Transfer.destination_id == id)).order_by(Transfer.transfer_date.desc()).all()
-    return render_template("warehouses/transfers_list.html", warehouse=warehouse, transfers=transfers)
+    search_product = (request.args.get("product") or "").strip()
+    date_from = (request.args.get("date_from") or "").strip()
+    date_to = (request.args.get("date_to") or "").strip()
+    export = (request.args.get("export") or "").strip().lower()
+
+    q = Transfer.query.options(
+        joinedload(Transfer.product),
+        joinedload(Transfer.source_warehouse),
+        joinedload(Transfer.destination_warehouse),
+        joinedload(Transfer.user),
+    ).filter(or_(Transfer.source_id == id, Transfer.destination_id == id))
+
+    if search_product:
+        like = f"%{search_product}%"
+        q = q.join(Product, Transfer.product_id == Product.id).filter(
+            or_(Product.name.ilike(like), Product.sku.ilike(like), Product.part_number.ilike(like))
+        )
+
+    try:
+        if date_from:
+            df = datetime.fromisoformat(date_from)
+            q = q.filter(Transfer.transfer_date >= df)
+        if date_to:
+            dt = datetime.fromisoformat(date_to)
+            q = q.filter(Transfer.transfer_date <= dt)
+    except Exception:
+        pass
+
+    q = q.order_by(Transfer.transfer_date.desc(), Transfer.id.desc())
+
+    agg = q.order_by(None).with_entities(
+        func.count(Transfer.id).label("total_transfers"),
+        func.coalesce(func.sum(func.coalesce(Transfer.quantity, 0)), 0).label("total_quantity"),
+        func.count(distinct(Transfer.product_id)).label("unique_products"),
+        func.max(Transfer.transfer_date).label("last_transfer_date"),
+    ).first()
+
+    totals = {
+        "total_transfers": int(getattr(agg, "total_transfers", 0) or 0),
+        "total_quantity": int(getattr(agg, "total_quantity", 0) or 0),
+        "unique_products": int(getattr(agg, "unique_products", 0) or 0),
+        "last_transfer_date": getattr(agg, "last_transfer_date", None),
+    }
+
+    if export == "csv":
+        import csv
+        import io
+
+        out = io.StringIO()
+        wri = csv.writer(out)
+        wri.writerow(["Date", "Reference", "Product", "Source", "Destination", "Quantity", "User", "Notes"])
+        rows = q.limit(10000).all()
+        for t in rows:
+            wri.writerow([
+                (t.transfer_date.isoformat(sep=" ", timespec="minutes") if t.transfer_date else ""),
+                t.reference or "",
+                (t.product.name if t.product else ""),
+                (t.source_warehouse.name if t.source_warehouse else ""),
+                (t.destination_warehouse.name if t.destination_warehouse else ""),
+                int(t.quantity or 0),
+                (t.user.username if t.user else ""),
+                (t.notes or ""),
+            ])
+        return Response(
+            out.getvalue(),
+            mimetype="text/csv; charset=utf-8",
+            headers={"Content-Disposition": f"attachment; filename=transfers_warehouse_{id}.csv"},
+        )
+
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 50, type=int)
+    per_page = min(200, max(10, per_page))
+    pagination = q.paginate(page=page, per_page=per_page, error_out=False)
+    transfers = list(pagination.items or [])
+
+    query_args = request.args.to_dict()
+    query_args.pop("page", None)
+    query_args.pop("per_page", None)
+    query_args.pop("export", None)
+
+    row_offset = (pagination.page - 1) * pagination.per_page if pagination else 0
+
+    return render_template(
+        "warehouses/transfers_list.html",
+        warehouse=warehouse,
+        transfers=transfers,
+        totals=totals,
+        pagination=pagination,
+        per_page=per_page,
+        query_args=query_args,
+        row_offset=row_offset,
+        search_product=search_product,
+        date_from=date_from,
+        date_to=date_to,
+    )
 
 
 @warehouse_bp.route("/<int:id>/transfers/create", methods=["GET", "POST"], endpoint="create_transfer")
@@ -2858,9 +3167,17 @@ def product_card(product_id):
     if part is None:
         abort(404)
     warehouses = Warehouse.query.order_by(Warehouse.name).all()
+    wh_ids = [w.id for w in warehouses if getattr(w, "id", None)]
+    levels = []
+    if wh_ids:
+        levels = StockLevel.query.filter(
+            StockLevel.product_id == part.id,
+            StockLevel.warehouse_id.in_(wh_ids),
+        ).all()
+    level_map = {sl.warehouse_id: sl for sl in (levels or []) if getattr(sl, "warehouse_id", None)}
     stock = []
     for w in warehouses:
-        lvl = StockLevel.query.filter_by(product_id=part.id, warehouse_id=w.id).first()
+        lvl = level_map.get(w.id)
         qty = (lvl.quantity or 0) if lvl else 0
         res = getattr(lvl, "reserved_quantity", 0) if lvl else 0
         stock.append({"warehouse": w, "on_hand": qty, "reserved": res, "virtual_available": qty - res})
@@ -2942,7 +3259,7 @@ def preorder_create():
     form = PreOrderForm()
 
     def _gen_ref():
-        base = datetime.utcnow().strftime("PR%Y%m%d")
+        base = datetime.now(timezone.utc).strftime("PR%Y%m%d")
         for _ in range(10):
             code = f"{base}-{str(random.randint(0, 9999)).zfill(4)}"
             if not db.session.query(PreOrder.id).filter_by(reference=code).first():
@@ -2963,7 +3280,7 @@ def preorder_create():
 
         preorder = PreOrder(
             reference=code,
-            preorder_date=form.preorder_date.data or datetime.utcnow(),
+            preorder_date=form.preorder_date.data or datetime.now(timezone.utc).replace(tzinfo=None),
             expected_date=form.expected_date.data or None,
             customer_id=customer_id,
             product_id=product_id,
@@ -3014,7 +3331,7 @@ def preorder_create():
                 'customer_id': preorder.customer_id,
                 'direction': PaymentDirection.IN.value,
                 'status': PaymentStatus.COMPLETED.value,
-                'payment_date': datetime.utcnow(),
+                'payment_date': datetime.now(timezone.utc).replace(tzinfo=None),
                 'total_amount': prepaid,
                 'currency': "ILS",
                 'method': payment_method,
@@ -3050,8 +3367,8 @@ def preorder_create():
                             amount=pay.total_amount,
                             check_number=pay.check_number,
                             check_bank=pay.check_bank,
-                            check_date=pay.payment_date or datetime.utcnow(),
-                            check_due_date=pay.check_due_date or pay.payment_date or datetime.utcnow(),
+                            check_date=pay.payment_date or datetime.now(timezone.utc).replace(tzinfo=None),
+                            check_due_date=pay.check_due_date or pay.payment_date or datetime.now(timezone.utc).replace(tzinfo=None),
                             direction='IN',
                             customer_id=preorder.customer_id,
                             supplier_id=preorder.supplier_id,
@@ -3167,9 +3484,12 @@ def preorder_convert_to_sale(preorder_id):
         ).first()
         
         if prepaid_payment:
+            prepaid_payment.preorder_id = None
             prepaid_payment.sale_id = sale.id
-            if not prepaid_payment.customer_id:
-                prepaid_payment.customer_id = sale.customer_id
+            prepaid_payment.customer_id = None
+            prepaid_payment.supplier_id = None
+            prepaid_payment.partner_id = None
+            prepaid_payment.entity_type = "SALE"
             db.session.add(prepaid_payment)
         
         db.session.flush()
@@ -3575,7 +3895,7 @@ def api_product_suppliers_list(product_id):
         product = _get_or_404(Product, product_id)
         result = []
         if product.supplier_id:
-            supplier = Supplier.query.get(product.supplier_id)
+            supplier = db.session.get(Supplier, product.supplier_id)
             if supplier:
                 result.append({
                     "supplier_id": supplier.id,
@@ -3612,7 +3932,7 @@ def api_product_suppliers_update(product_id):
     # جلب اسم المورد إذا كان موجوداً
     supplier_name = ""
     if product.supplier_id:
-        supplier = Supplier.query.get(product.supplier_id)
+        supplier = db.session.get(Supplier, product.supplier_id)
         if supplier:
             supplier_name = supplier.name
     

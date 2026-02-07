@@ -108,7 +108,7 @@ def edit(id):
     if not check_budget_enabled():
         return redirect(url_for('main.dashboard'))
     
-    budget = Budget.query.get_or_404(id)
+    budget = db.get_or_404(Budget, id)
     
     if request.method == 'POST':
         try:

@@ -134,7 +134,7 @@ def add_project():
 @login_required
 @permission_required('manage_projects')
 def edit_project(id):
-    project = Project.query.get_or_404(id)
+    project = db.get_or_404(Project, id)
     
     if request.method == 'POST':
         try:
@@ -180,7 +180,7 @@ def edit_project(id):
 @login_required
 @permission_required('manage_projects')
 def view_project(id):
-    project = Project.query.get_or_404(id)
+    project = db.get_or_404(Project, id)
     
     phases = ProjectPhase.query.filter_by(project_id=id).order_by(ProjectPhase.order).all()
     
@@ -239,7 +239,7 @@ def view_project(id):
 @permission_required('manage_projects')
 def add_phase(id):
     try:
-        project = Project.query.get_or_404(id)
+        project = db.get_or_404(Project, id)
         
         last_phase = ProjectPhase.query.filter_by(project_id=id).order_by(
             ProjectPhase.order.desc()
@@ -283,7 +283,7 @@ def add_phase(id):
 @permission_required('manage_projects')
 def add_cost(id):
     try:
-        project = Project.query.get_or_404(id)
+        project = db.get_or_404(Project, id)
         
         amount = Decimal(request.form.get('amount'))
         cost_date = datetime.strptime(request.form.get('cost_date'), '%Y-%m-%d').date()
@@ -310,7 +310,7 @@ def add_cost(id):
         project.actual_cost = (project.actual_cost or 0) + amount
         
         if phase_id:
-            phase = ProjectPhase.query.get(phase_id)
+            phase = db.session.get(ProjectPhase, phase_id)
             if phase:
                 phase.actual_cost = (phase.actual_cost or 0) + amount
         
@@ -358,7 +358,7 @@ def add_cost(id):
 @permission_required('manage_projects')
 def add_revenue(id):
     try:
-        project = Project.query.get_or_404(id)
+        project = db.get_or_404(Project, id)
         
         amount = Decimal(request.form.get('amount'))
         revenue_date = datetime.strptime(request.form.get('revenue_date'), '%Y-%m-%d').date()
@@ -502,6 +502,7 @@ def report_profitability():
         profit_margin = (profit / float(total_revenue or 1)) * 100
         
         roi = (profit / float(total_cost or 1)) * 100
+        contract_value = float(project.estimated_revenue or project.budget_amount or 0)
         
         profitability_data.append({
             'project': project,
@@ -510,8 +511,8 @@ def report_profitability():
             'profit': profit,
             'profit_margin': profit_margin,
             'roi': roi,
-            'contract_value': float(project.contract_value or 0),
-            'contract_delivered': (float(total_revenue) / float(project.contract_value or 1)) * 100
+            'contract_value': contract_value,
+            'contract_delivered': (float(total_revenue) / float(contract_value or 1)) * 100
         })
     
     profitability_data.sort(key=lambda x: x['profit_margin'], reverse=True)
@@ -524,7 +525,7 @@ def report_profitability():
 @login_required
 @permission_required('manage_projects')
 def report_budget_tracking():
-    project_id = request.args.get('project', type=int)
+    project_id = request.args.get('project_id', type=int)
     
     query = Project.query.filter(Project.budget_amount > 0)
     
@@ -549,13 +550,17 @@ def report_budget_tracking():
         completed_phases = sum(1 for p in phases if p.status == 'COMPLETED')
         progress = (completed_phases / len(phases) * 100) if phases else 0
         
+        budget_usage = (actual / estimated * 100) if estimated else 0
         tracking_data.append({
-            'project': project,
+            'project_id': project.id,
+            'project_code': project.code,
+            'project_name': project.name,
             'estimated': estimated,
             'actual': actual,
             'variance': variance,
             'variance_percent': variance_percent,
-            'budget_usage': (actual / estimated * 100) if estimated else 0,
+            'percentage': budget_usage,
+            'budget_usage': budget_usage,
             'progress': progress,
             'status': 'under' if variance > 0 else 'over' if variance < 0 else 'on_budget'
         })

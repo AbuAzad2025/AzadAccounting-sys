@@ -12,7 +12,7 @@ from models import Product, ProductCategory, Supplier, Warehouse, StockLevel, Pr
 import utils
 from utils import permission_required
 from barcodes import normalize_barcode, generate_barcode_image
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 
 barcode_scanner_bp = Blueprint("barcode_scanner", __name__, url_prefix="/barcode")
@@ -323,7 +323,7 @@ def bulk_generate_barcodes():
         
         for product_id in product_ids:
             try:
-                product = Product.query.get(product_id)
+                product = db.session.get(Product, product_id)
                 if not product:
                     continue
                 
@@ -455,13 +455,31 @@ def inventory_update_by_barcode():
             db.session.add(stock_level)
             logging.info(f"✅ [Inventory Update] إنشاء مخزون جديد للمنتج {product.id}")
         
-        # التحقق من الكمية المتاحة قبل الطرح
-        if operation == "subtract" and quantity_change > stock_level.quantity:
-            logging.error(f"❌ [Inventory Update] كمية غير كافية: المطلوب={quantity_change}, المتاح={stock_level.quantity}")
+        current_qty = int(stock_level.quantity or 0)
+        reserved_qty = int(getattr(stock_level, "reserved_quantity", 0) or 0)
+        available_qty = current_qty - reserved_qty
+
+        if operation in ("add", "subtract") and quantity_change <= 0:
+            return jsonify({"error": "invalid_quantity", "message": "الكمية يجب أن تكون أكبر من صفر"}), 400
+
+        if operation == "adjust" and quantity_change < 0:
+            return jsonify({"error": "invalid_quantity", "message": "لا يمكن ضبط كمية سالبة"}), 400
+
+        # التحقق من الكمية المتاحة قبل الطرح (مع مراعاة المحجوز)
+        if operation == "subtract" and quantity_change > available_qty:
+            logging.error(f"❌ [Inventory Update] كمية غير كافية: المطلوب={quantity_change}, المتاح={available_qty}, المحجوز={reserved_qty}")
             return jsonify({
                 "error": "insufficient_stock",
-                "message": f"الكمية المطلوبة ({quantity_change}) أكبر من المتاح ({stock_level.quantity})",
-                "available": stock_level.quantity
+                "message": f"الكمية المطلوبة ({quantity_change}) أكبر من المتاح ({available_qty})",
+                "available": available_qty,
+                "reserved": reserved_qty,
+            }), 400
+
+        if operation == "adjust" and quantity_change < reserved_qty:
+            return jsonify({
+                "error": "quantity_below_reserved",
+                "message": f"لا يمكن ضبط الكمية إلى ({quantity_change}) لأنها أقل من المحجوز ({reserved_qty})",
+                "reserved": reserved_qty,
             }), 400
         
         # تحديث الكمية
@@ -474,11 +492,6 @@ def inventory_update_by_barcode():
         else:  # adjust
             stock_level.quantity = quantity_change
             logging.info(f"🔄 [Inventory Update] تعديل المخزون إلى {quantity_change}")
-        
-        # التأكد من أن الكمية لا تكون سالبة
-        if stock_level.quantity < 0:
-            stock_level.quantity = 0
-            logging.warning(f"⚠️ [Inventory Update] تم تصحيح الكمية السالبة إلى 0")
         
         db.session.add(stock_level)
         db.session.commit()
@@ -547,7 +560,7 @@ def get_warehouse_fields():
         if not warehouse_id:
             return jsonify({"error": "معرف المستودع مطلوب"}), 400
         
-        warehouse = Warehouse.query.get_or_404(warehouse_id)
+        warehouse = db.get_or_404(Warehouse, warehouse_id)
         
         # تحديد الحقول المطلوبة حسب نوع المستودع
         # الحقول الأساسية ثابتة لجميع المستودعات، فقط نضيف حقول إضافية
@@ -839,7 +852,7 @@ def bulk_import_products():
             return jsonify({"error": "لا توجد بيانات منتجات"}), 400
         
         # التحقق من المستودع ونوعه
-        warehouse = Warehouse.query.get(warehouse_id)
+        warehouse = db.session.get(Warehouse, warehouse_id)
         if not warehouse:
             return jsonify({"error": "المستودع غير موجود"}), 404
             
@@ -963,15 +976,20 @@ def bulk_import_products():
                             stock.quantity += quantity
                         elif existing_product_action == "replace_quantity":
                             # استبدال الكمية الموجودة بالكمية الجديدة
+                            reserved_qty = int(getattr(stock, "reserved_quantity", 0) or 0)
+                            if quantity < reserved_qty:
+                                errors.append(f"لا يمكن استبدال الكمية إلى {quantity} لأن المحجوز {reserved_qty} للباركود {barcode}")
+                                continue
                             stock.quantity = quantity
                         # إذا كان update_info_only فلا نغير الكمية
-                        stock.updated_at = datetime.utcnow()
+                        stock.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
                     else:
                         # إنشاء مخزون جديد
                         stock = StockLevel(
                             product_id=existing_product.id,
                             warehouse_id=warehouse_id,
-                            quantity=quantity
+                            quantity=quantity,
+                            reserved_quantity=0
                         )
                     db.session.add(stock)
                     updated_count += 1
@@ -1002,7 +1020,8 @@ def bulk_import_products():
                     stock = StockLevel(
                         product_id=new_product.id,
                         warehouse_id=warehouse_id,
-                        quantity=quantity
+                        quantity=quantity,
+                        reserved_quantity=0
                     )
                     db.session.add(stock)
                     imported_count += 1

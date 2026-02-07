@@ -510,17 +510,29 @@
 <script>
 // تفعيل DataTable
 $(document).ready(function() {
-  $('#usersTable').DataTable({
-    order: [[1, 'asc']],
-    pageLength: 25,
-    language: {
-      url: '/static/datatables/Arabic.json'
-    },
-    dom: 'Bfrtip',
-    buttons: [
-      'copy', 'csv', 'excel', 'pdf', 'print'
-    ]
-  });
+  function initUsersTableDT() {
+    if (!(window.jQuery && jQuery.fn && jQuery.fn.DataTable)) return;
+    $('#usersTable').DataTable({
+      order: [[1, 'asc']],
+      pageLength: 25,
+      responsive: true,
+      autoWidth: false,
+      scrollX: $('#usersTable thead th').length > 8,
+      language: {
+        url: '/static/datatables/Arabic.json'
+      },
+      dom: 'Bfrtip',
+      buttons: [
+        'copy', 'csv', 'excel', 'print'
+      ]
+    });
+  }
+
+  if (window.jQuery && typeof window.ensureDataTables === 'function' && !(jQuery.fn && jQuery.fn.DataTable)) {
+    window.ensureDataTables().then(initUsersTableDT);
+  } else {
+    initUsersTableDT();
+  }
 });
 
 // Toggle All Checkboxes
@@ -756,7 +768,6 @@ function managePermissions(userId, username, roleName) {
       }
     })
     .catch(err => {
-      console.error(err);
       document.getElementById('permissionsContent').innerHTML = 
         '<div class="alert alert-danger">خطأ في الاتصال</div>';
     });
@@ -874,7 +885,6 @@ function savePermissions() {
     }
   })
   .catch(err => {
-    console.error(err);
     alert('❌ خطأ في الاتصال');
   });
 }

@@ -6,6 +6,7 @@
     <title>التوثيق المحاسبي - نظام إدارة المرآب</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="{{ url_for('static', filename='adminlte/plugins/fontawesome-free/css/all.min.css') }}" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/public_mobile.css') }}">
     <style>
         .doc-card {
             transition: transform 0.2s;
@@ -34,7 +35,33 @@
         }
     </style>
 </head>
-<body>
+<body class="public-page">
+    <nav class="navbar navbar-dark bg-dark d-md-none sticky-top">
+        <a class="navbar-brand font-weight-bold" href="/docs/accounting">
+            <i class="fas fa-book ml-2"></i> التوثيق المحاسبي
+        </a>
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#docsMobileNav" aria-controls="docsMobileNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="docsMobileNav">
+            <div class="navbar-nav">
+                {% if current_user.is_authenticated and (current_user.is_system_account or (current_user.username|default('')|upper == '__OWNER__') or (current_user.role and current_user.role.name|default('')|upper == 'OWNER')) %}
+                <a class="nav-item nav-link text-white" href="/security/ledger-control">
+                    <i class="fas fa-tachometer-alt ml-2"></i> لوحة التحكم
+                </a>
+                {% endif %}
+                <a class="nav-item nav-link text-white" href="/reports/financial">
+                    <i class="fas fa-chart-line ml-2"></i> التقارير المالية
+                </a>
+                <a class="nav-item nav-link text-white" href="/validation/accounting">
+                    <i class="fas fa-check-circle ml-2"></i> التحقق المحاسبي
+                </a>
+                <a class="nav-item nav-link text-white active" href="/docs/accounting">
+                    <i class="fas fa-book ml-2"></i> التوثيق المحاسبي
+                </a>
+            </div>
+        </div>
+    </nav>
     <div class="container-fluid">
         <div class="row">
             <!-- Sidebar -->

@@ -9,12 +9,22 @@ import json
 from extensions import db
 from models import Archive, ServiceRequest, Payment, Sale, Customer, Product, Expense, Check, Supplier, Partner
 import utils
-from utils import archive_record, restore_record, get_archive_stats
+from utils import archive_record, restore_record, get_archive_stats, permission_required
 
 archive_bp = Blueprint('archive', __name__, url_prefix='/archive')
 
+def _parse_date(value: str | None):
+    raw = (value or "").strip()
+    if not raw:
+        return None
+    try:
+        return datetime.strptime(raw, "%Y-%m-%d")
+    except Exception:
+        return None
+
 @archive_bp.route('/')
 @login_required
+@permission_required("view_audit_logs")
 def index():
     stats = get_archive_stats()
     recent_archives = Archive.query.order_by(desc(Archive.archived_at)).limit(10).all()
@@ -27,6 +37,7 @@ def index():
 
 @archive_bp.route('/search', methods=['GET', 'POST'])
 @login_required
+@permission_required("view_audit_logs")
 def search():
     """البحث في الأرشيفات"""
     # form = ArchiveSearchForm()
@@ -43,11 +54,15 @@ def search():
         # فلترة حسب التاريخ
         date_from = request.form.get('date_from')
         if date_from:
-            query = query.filter(Archive.archived_at >= date_from)
+            dt_from = _parse_date(date_from)
+            if dt_from:
+                query = query.filter(Archive.archived_at >= dt_from)
         
         date_to = request.form.get('date_to')
         if date_to:
-            query = query.filter(Archive.archived_at <= date_to)
+            dt_to = _parse_date(date_to)
+            if dt_to:
+                query = query.filter(Archive.archived_at <= dt_to + timedelta(days=1))
         
         # البحث في البيانات
         search_term = request.form.get('search_term')
@@ -66,6 +81,7 @@ def search():
 
 @archive_bp.route('/bulk-archive', methods=['GET', 'POST'])
 @login_required
+@permission_required("hard_delete")
 def bulk_archive():
     """الأرشفة الجماعية"""
     # form = BulkArchiveForm()
@@ -92,10 +108,16 @@ def bulk_archive():
             date_to = request.form.get('date_to')
             reason = request.form.get('reason')
             
+            dt_from = _parse_date(date_from)
+            dt_to = _parse_date(date_to)
+            if not dt_from or not dt_to:
+                flash('صيغة التاريخ غير صحيحة', 'error')
+                return redirect(url_for('archive.bulk_archive'))
+
             query = model_class.query.filter(
                 and_(
-                    model_class.created_at >= date_from,
-                    model_class.created_at <= date_to
+                    model_class.created_at >= dt_from,
+                    model_class.created_at <= dt_to + timedelta(days=1)
                 )
             )
             
@@ -127,9 +149,10 @@ def bulk_archive():
 
 @archive_bp.route('/view/<int:archive_id>')
 @login_required
+@permission_required("view_audit_logs")
 def view_archive(archive_id):
     """عرض تفاصيل الأرشيف"""
-    archive = Archive.query.get_or_404(archive_id)
+    archive = db.get_or_404(Archive, archive_id)
     
     # تحليل البيانات المؤرشفة
     try:
@@ -141,14 +164,10 @@ def view_archive(archive_id):
 
 @archive_bp.route('/restore/<int:archive_id>', methods=['GET', 'POST'])
 @login_required
+@permission_required("restore_archive")
 def restore_archive(archive_id):
     """استعادة الأرشيف - يتطلب صلاحية restore_archive"""
-    # التحقق من الصلاحيات
-    if not current_user.has_permission('restore_archive'):
-        flash('❌ غير مصرح لك باستعادة الأرشيفات', 'danger')
-        return redirect(url_for('archive.index'))
-    
-    archive = Archive.query.get_or_404(archive_id)
+    archive = db.get_or_404(Archive, archive_id)
     
     if request.method == 'POST':
         try:
@@ -163,14 +182,10 @@ def restore_archive(archive_id):
 
 @archive_bp.route('/delete/<int:archive_id>', methods=['POST'])
 @login_required
+@permission_required("hard_delete")
 def delete_archive(archive_id):
     """حذف الأرشيف نهائياً - يتطلب صلاحية hard_delete"""
-    # التحقق من الصلاحيات - فقط من يملك صلاحية الحذف القوي
-    if not current_user.has_permission('hard_delete'):
-        flash('❌ غير مصرح لك بحذف الأرشيفات نهائياً', 'danger')
-        return redirect(url_for('archive.index'))
-    
-    archive = Archive.query.get_or_404(archive_id)
+    archive = db.get_or_404(Archive, archive_id)
     
     try:
         db.session.delete(archive)
@@ -184,6 +199,7 @@ def delete_archive(archive_id):
 
 @archive_bp.route('/export')
 @login_required
+@permission_required("view_audit_logs")
 def export_archives():
     """تصدير الأرشيفات"""
     # يمكن تطوير هذا لاحقاً لتصدير الأرشيفات

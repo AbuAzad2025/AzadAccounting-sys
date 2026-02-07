@@ -19,7 +19,7 @@ def index():
     parent_id = request.args.get('parent', type=int)
     
     if parent_id:
-        parent_center = CostCenter.query.get_or_404(parent_id)
+        parent_center = db.get_or_404(CostCenter, parent_id)
         cost_centers = CostCenter.query.filter_by(parent_id=parent_id).order_by(CostCenter.code).all()
     else:
         parent_center = None
@@ -101,7 +101,7 @@ def add():
 @login_required
 @permission_required('manage_cost_centers')
 def edit(id):
-    center = CostCenter.query.get_or_404(id)
+    center = db.get_or_404(CostCenter, id)
     
     if request.method == 'POST':
         try:
@@ -140,7 +140,7 @@ def edit(id):
 @login_required
 @permission_required('manage_cost_centers')
 def view(id):
-    center = CostCenter.query.get_or_404(id)
+    center = db.get_or_404(CostCenter, id)
     
     page = request.args.get('page', 1, type=int)
     per_page = 50
@@ -191,7 +191,7 @@ def view(id):
 @permission_required('manage_cost_centers')
 def allocate(id):
     try:
-        center = CostCenter.query.get_or_404(id)
+        center = db.get_or_404(CostCenter, id)
         
         amount = Decimal(request.form.get('amount'))
         allocation_date = datetime.strptime(request.form.get('allocation_date'), '%Y-%m-%d').date()

@@ -4,7 +4,7 @@ import io
 import json
 import re
 import unicodedata
-from datetime import datetime, date as _date
+from datetime import datetime, date as _date, timezone
 from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
 from flask import Blueprint, flash, redirect, render_template, render_template_string, abort, request, url_for, Response, current_app, jsonify
 from flask_login import login_required, current_user
@@ -219,7 +219,7 @@ def _parse_partial_payments_payload(raw_payload, default_date, default_currency)
     elif isinstance(default_date, _date):
         base_date = datetime.combine(default_date, datetime.min.time())
     else:
-        base_date = datetime.utcnow()
+        base_date = datetime.now(timezone.utc).replace(tzinfo=None)
 
     for row in payload:
         if not isinstance(row, dict):
@@ -321,6 +321,46 @@ def _default_expense_branch_id():
         .first()
     )
     return branch.id if branch else None
+
+
+def _expense_related_entity_pairs(expense):
+    pairs = set()
+    if not expense:
+        return pairs
+    try:
+        customer_id = getattr(expense, "customer_id", None)
+        if customer_id:
+            pairs.add(("CUSTOMER", int(customer_id)))
+    except Exception:
+        pass
+    try:
+        supplier_id = getattr(expense, "supplier_id", None)
+        if supplier_id:
+            pairs.add(("SUPPLIER", int(supplier_id)))
+    except Exception:
+        pass
+    try:
+        partner_id = getattr(expense, "partner_id", None)
+        if partner_id:
+            pairs.add(("PARTNER", int(partner_id)))
+    except Exception:
+        pass
+    try:
+        ptype = (getattr(expense, "payee_type", None) or "").strip().upper()
+        pid = getattr(expense, "payee_entity_id", None)
+        if pid and ptype in ("CUSTOMER", "SUPPLIER", "PARTNER"):
+            pairs.add((ptype, int(pid)))
+    except Exception:
+        pass
+    return pairs
+
+
+def _refresh_entity_balances(pairs):
+    for etype, eid in sorted(pairs):
+        try:
+            utils.update_entity_balance(etype, eid)
+        except Exception as e:
+            current_app.logger.error(f"❌ فشل تحديث رصيد الجهة {etype}#{eid}: {e}")
 
 
 def _render_expense_form(
@@ -653,12 +693,14 @@ def _csv_safe(v):
 
 @expenses_bp.route("/employees", methods=["GET"], endpoint="employees_list")
 @login_required
+@utils.permission_required("manage_expenses")
 def employees_list():
     employees = Employee.query.order_by(Employee.name).all()
     return render_template("expenses/employees_list.html", employees=employees)
 
 @expenses_bp.route("/employees/add", methods=["GET", "POST"], endpoint="add_employee")
 @login_required
+@utils.permission_required("manage_expenses")
 def add_employee():
     form = EmployeeForm()
     try:
@@ -685,6 +727,7 @@ def add_employee():
 
 @expenses_bp.route("/employees/edit/<int:emp_id>", methods=["GET", "POST"], endpoint="edit_employee")
 @login_required
+@utils.permission_required("manage_expenses")
 def edit_employee(emp_id):
     e = _get_or_404(Employee, emp_id)
     form = EmployeeForm(obj=e)
@@ -710,6 +753,7 @@ def edit_employee(emp_id):
 
 @expenses_bp.route("/employees/<int:emp_id>/statement", methods=["GET"], endpoint="employee_statement")
 @login_required
+@utils.permission_required("manage_expenses")
 def employee_statement(emp_id):
     """كشف حساب الموظف: السلف، الخصومات، الرواتب، الرصيد"""
     from models import EmployeeDeduction, EmployeeAdvanceInstallment, ExpenseType
@@ -741,6 +785,7 @@ def employee_statement(emp_id):
 
 @expenses_bp.route("/employees/<int:emp_id>/installments-due", methods=["GET"], endpoint="get_installments_due")
 @login_required
+@utils.permission_required("manage_expenses")
 def get_installments_due(emp_id):
     """API: جلب الأقساط المستحقة في شهر معين"""
     from models import EmployeeAdvanceInstallment
@@ -782,6 +827,7 @@ def get_installments_due(emp_id):
 
 @expenses_bp.route("/employees/<int:emp_id>/generate-salary", methods=["POST"], endpoint="generate_salary")
 @login_required
+@utils.permission_required("manage_expenses")
 def generate_salary(emp_id):
     """توليد راتب شهري تلقائياً مع دعم الدفع الجزئي"""
     from models import ExpenseType, EmployeeAdvanceInstallment
@@ -1013,6 +1059,7 @@ def generate_salary(emp_id):
 
 @expenses_bp.route("/salary-receipt/<int:salary_exp_id>", methods=["GET"], endpoint="salary_receipt")
 @login_required
+@utils.permission_required("manage_expenses")
 def salary_receipt(salary_exp_id):
     """إيصال راتب قابل للطباعة - A4 Format"""
     from models import EmployeeDeduction, EmployeeAdvanceInstallment, ExpenseType, SystemSettings
@@ -1064,6 +1111,7 @@ def salary_receipt(salary_exp_id):
 
 @expenses_bp.route("/employees/delete/<int:emp_id>", methods=["POST"], endpoint="delete_employee")
 @login_required
+@utils.permission_required("manage_expenses")
 def delete_employee(emp_id):
     e = _get_or_404(Employee, emp_id)
     if Expense.query.filter_by(employee_id=emp_id).first():
@@ -1080,12 +1128,14 @@ def delete_employee(emp_id):
 
 @expenses_bp.route("/types", methods=["GET"], endpoint="types_list")
 @login_required
+@utils.permission_required("manage_expenses")
 def types_list():
     types = ExpenseType.query.order_by(ExpenseType.name).all()
     return render_template("expenses/types_list.html", types=types)
 
 @expenses_bp.route("/types/add", methods=["GET", "POST"], endpoint="add_type")
 @login_required
+@utils.permission_required("manage_expenses")
 def add_type():
     form = ExpenseTypeForm()
     if form.validate_on_submit():
@@ -1103,6 +1153,7 @@ def add_type():
 
 @expenses_bp.route("/types/edit/<int:type_id>", methods=["GET", "POST"], endpoint="edit_type")
 @login_required
+@utils.permission_required("manage_expenses")
 def edit_type(type_id):
     t = _get_or_404(ExpenseType, type_id)
     form = ExpenseTypeForm(obj=t)
@@ -1119,6 +1170,7 @@ def edit_type(type_id):
 
 @expenses_bp.route("/types/delete/<int:type_id>", methods=["POST"], endpoint="delete_type")
 @login_required
+@utils.permission_required("manage_expenses")
 def delete_type(type_id):
     t = _get_or_404(ExpenseType, type_id)
     if Expense.query.filter_by(type_id=type_id).first():
@@ -1135,6 +1187,7 @@ def delete_type(type_id):
 
 @expenses_bp.route("/", methods=["GET"], endpoint="list_expenses")
 @login_required
+@utils.permission_required("manage_expenses")
 def index():
     query, filt = _base_query_with_filters()
     latest_expense = query.first()
@@ -1641,6 +1694,7 @@ def index():
 
 @expenses_bp.route("/<int:exp_id>", methods=["GET"], endpoint="detail")
 @login_required
+@utils.permission_required("manage_expenses")
 def detail(exp_id):
     exp = _get_or_404(
         Expense,
@@ -1782,6 +1836,7 @@ def detail(exp_id):
 
 @expenses_bp.route("/add", methods=["GET", "POST"], endpoint="create_expense")
 @login_required
+@utils.permission_required("manage_expenses")
 def add():
     from models import Branch, Site
     
@@ -1794,14 +1849,14 @@ def add():
             prefill_supplier_id = int((request.form.get("prefill_supplier_id") or "").strip() or 0) or None
         except (TypeError, ValueError, AttributeError):
             prefill_supplier_id = None
-    service_supplier = Supplier.query.get(prefill_supplier_id) if prefill_supplier_id else None
+    service_supplier = db.session.get(Supplier, prefill_supplier_id) if prefill_supplier_id else None
     prefill_partner_id = request.args.get("partner_id", type=int)
     if prefill_partner_id is None:
         try:
             prefill_partner_id = int((request.form.get("prefill_partner_id") or "").strip() or 0) or None
         except (TypeError, ValueError, AttributeError):
             prefill_partner_id = None
-    service_partner = Partner.query.get(prefill_partner_id) if prefill_partner_id else None
+    service_partner = db.session.get(Partner, prefill_partner_id) if prefill_partner_id else None
 
     form = ExpenseForm()
     _types = ExpenseType.query.filter_by(is_active=True).order_by(ExpenseType.name).all()
@@ -1898,12 +1953,12 @@ def add():
         partial_payload_raw = request.form.get("partial_payments_payload")
         partial_entries = _parse_partial_payments_payload(
             partial_payload_raw,
-            form.date.data or datetime.utcnow(),
+            form.date.data or datetime.now(timezone.utc).replace(tzinfo=None),
             (form.currency.data or exp.currency or "ILS"),
         )
 
         try:
-            etype = ExpenseType.query.get(int(form.type_id.data)) if getattr(form, 'type_id', None) else None
+            etype = db.session.get(ExpenseType, int(form.type_id.data)) if getattr(form, 'type_id', None) else None
             meta = (etype.fields_meta or {}) if etype else {}
             required = set((meta.get('required') or []))
             missing = []
@@ -1929,9 +1984,9 @@ def add():
         except Exception:
             return _render_expense_form(form, is_edit=False, types_meta=types_meta, types_list=types_list, **render_kwargs), 400
         try:
-            etype = ExpenseType.query.get(exp.type_id) if exp.type_id else None
+            etype = db.session.get(ExpenseType, exp.type_id) if exp.type_id else None
             if etype and etype.code == 'SALARY' and exp.employee_id:
-                emp = Employee.query.get(exp.employee_id)
+                emp = db.session.get(Employee, exp.employee_id)
                 if emp:
                     suggested_net = float(emp.net_salary or 0)
                     if abs(float(exp.amount) - float(emp.salary or 0)) < 0.01:
@@ -1957,7 +2012,7 @@ def add():
                 from models import EmployeeAdvanceInstallment
                 from dateutil.relativedelta import relativedelta
                 
-                etype = ExpenseType.query.get(exp.type_id) if exp.type_id else None
+                etype = db.session.get(ExpenseType, exp.type_id) if exp.type_id else None
                 if etype and etype.code == 'EMPLOYEE_ADVANCE' and exp.employee_id:
                     installments_count = int(getattr(form, 'installments_count', None).data or 1)
                     if installments_count > 1:
@@ -2009,12 +2064,12 @@ def add():
                     if not check_number or not check_bank:
                         current_app.logger.warning(f"⚠️ مصروف {exp.id} بطريقة شيك لكن بدون رقم شيك أو بنك")
                     else:
-                        check_due = exp.check_due_date or exp.date or datetime.utcnow()
+                        check_due = exp.check_due_date or exp.date or datetime.now(timezone.utc).replace(tzinfo=None)
                         _, created = create_check_record(
                             amount=exp.amount,
                             check_number=check_number,
                             check_bank=check_bank,
-                            check_date=exp.date or datetime.utcnow(),
+                            check_date=exp.date or datetime.now(timezone.utc).replace(tzinfo=None),
                             check_due_date=check_due,
                             currency=exp.currency or 'ILS',
                             direction='OUT',
@@ -2036,12 +2091,7 @@ def add():
             
             # تحديث أرصدة الجهات المرتبطة بشكل فوري
             try:
-                if exp.customer_id:
-                    utils.update_entity_balance("CUSTOMER", exp.customer_id)
-                if exp.supplier_id:
-                    utils.update_entity_balance("SUPPLIER", exp.supplier_id)
-                if exp.partner_id:
-                    utils.update_entity_balance("PARTNER", exp.partner_id)
+                _refresh_entity_balances(_expense_related_entity_pairs(exp))
             except Exception as e:
                 current_app.logger.error(f"❌ فشل تحديث أرصدة الجهات بعد إضافة المصروف: {e}")
 
@@ -2072,6 +2122,7 @@ def add():
 
 @expenses_bp.route("/quick-supplier-service", methods=["POST"], endpoint="quick_supplier_service")
 @login_required
+@utils.permission_required("manage_expenses")
 def quick_supplier_service():
     if not request.is_json:
         return jsonify({"success": False, "message": "payload_required"}), 400
@@ -2081,7 +2132,7 @@ def quick_supplier_service():
         supplier_id = int(supplier_id or 0)
     except (TypeError, ValueError):
         supplier_id = 0
-    supplier = Supplier.query.get(supplier_id)
+    supplier = db.session.get(Supplier, supplier_id)
     if not supplier:
         return jsonify({"success": False, "message": "supplier_not_found"}), 404
     amount = D(str(data.get("amount") or 0))
@@ -2096,7 +2147,7 @@ def quick_supplier_service():
         branch_id = 0
     if not branch_id:
         branch_id = _default_expense_branch_id()
-    branch = Branch.query.get(branch_id) if branch_id else None
+    branch = db.session.get(Branch, branch_id) if branch_id else None
     if not branch:
         return jsonify({"success": False, "message": "branch_not_found"}), 400
     supplier_type = (
@@ -2107,7 +2158,7 @@ def quick_supplier_service():
     if not supplier_type:
         return jsonify({"success": False, "message": "supplier_type_missing"}), 400
     exp = Expense()
-    exp.date = datetime.utcnow()
+    exp.date = datetime.now(timezone.utc).replace(tzinfo=None)
     exp.amount = amount
     exp.currency = currency
     exp.branch_id = branch.id
@@ -2147,6 +2198,7 @@ def quick_supplier_service():
 
 @expenses_bp.route("/quick-supplier-service/pay", methods=["POST"], endpoint="quick_supplier_service_pay")
 @login_required
+@utils.permission_required("manage_expenses")
 def quick_supplier_service_pay():
     if not request.is_json:
         return jsonify({"success": False, "message": "payload_required"}), 400
@@ -2156,7 +2208,7 @@ def quick_supplier_service_pay():
         expense_id = int(expense_id or 0)
     except (TypeError, ValueError):
         expense_id = 0
-    expense = Expense.query.get(expense_id)
+    expense = db.session.get(Expense, expense_id)
     if not expense:
         return jsonify({"success": False, "message": "expense_not_found"}), 404
     amount = D(str(data.get("amount") or 0))
@@ -2175,7 +2227,7 @@ def quick_supplier_service_pay():
         {
             "amount": amount.quantize(Decimal("0.01")),
             "method": method_raw,
-            "payment_date": datetime.utcnow(),
+            "payment_date": datetime.now(timezone.utc).replace(tzinfo=None),
             "reference": reference,
             "notes": notes,
             "currency": currency,
@@ -2202,6 +2254,7 @@ def quick_supplier_service_pay():
 
 @expenses_bp.route("/quick-partner-service", methods=["POST"], endpoint="quick_partner_service")
 @login_required
+@utils.permission_required("manage_expenses")
 def quick_partner_service():
     if not request.is_json:
         return jsonify({"success": False, "message": "payload_required"}), 400
@@ -2211,7 +2264,7 @@ def quick_partner_service():
         partner_id = int(partner_id or 0)
     except (TypeError, ValueError):
         partner_id = 0
-    partner = Partner.query.get(partner_id)
+    partner = db.session.get(Partner, partner_id)
     if not partner:
         return jsonify({"success": False, "message": "partner_not_found"}), 404
     amount = D(str(data.get("amount") or 0))
@@ -2226,7 +2279,7 @@ def quick_partner_service():
         branch_id = 0
     if not branch_id:
         branch_id = _default_expense_branch_id()
-    branch = Branch.query.get(branch_id) if branch_id else None
+    branch = db.session.get(Branch, branch_id) if branch_id else None
     if not branch:
         return jsonify({"success": False, "message": "branch_not_found"}), 400
     partner_type = (
@@ -2237,7 +2290,7 @@ def quick_partner_service():
     if not partner_type:
         return jsonify({"success": False, "message": "partner_type_missing"}), 400
     exp = Expense()
-    exp.date = datetime.utcnow()
+    exp.date = datetime.now(timezone.utc).replace(tzinfo=None)
     exp.amount = amount
     exp.currency = currency
     exp.branch_id = branch.id
@@ -2277,6 +2330,7 @@ def quick_partner_service():
 
 @expenses_bp.route("/quick-partner-service/pay", methods=["POST"], endpoint="quick_partner_service_pay")
 @login_required
+@utils.permission_required("manage_expenses")
 def quick_partner_service_pay():
     if not request.is_json:
         return jsonify({"success": False, "message": "payload_required"}), 400
@@ -2286,7 +2340,7 @@ def quick_partner_service_pay():
         expense_id = int(expense_id or 0)
     except (TypeError, ValueError):
         expense_id = 0
-    expense = Expense.query.get(expense_id)
+    expense = db.session.get(Expense, expense_id)
     if not expense:
         return jsonify({"success": False, "message": "expense_not_found"}), 404
     amount = D(str(data.get("amount") or 0))
@@ -2305,7 +2359,7 @@ def quick_partner_service_pay():
         {
             "amount": amount.quantize(Decimal("0.01")),
             "method": method_raw,
-            "payment_date": datetime.utcnow(),
+            "payment_date": datetime.now(timezone.utc).replace(tzinfo=None),
             "reference": reference,
             "notes": notes,
             "currency": currency,
@@ -2331,10 +2385,12 @@ def quick_partner_service_pay():
 
 @expenses_bp.route("/edit/<int:exp_id>", methods=["GET", "POST"], endpoint="edit")
 @login_required
+@utils.permission_required("manage_expenses")
 def edit(exp_id):
     from models import Branch, Site
     
     exp = _get_or_404(Expense, exp_id)
+    before_pairs = _expense_related_entity_pairs(exp)
     form = ExpenseForm(obj=exp)
     
     _types = ExpenseType.query.order_by(ExpenseType.name).all()
@@ -2402,7 +2458,7 @@ def edit(exp_id):
         partial_payload_raw = request.form.get("partial_payments_payload")
         partial_entries = _parse_partial_payments_payload(
             partial_payload_raw,
-            form.date.data or exp.date or datetime.utcnow(),
+            form.date.data or exp.date or datetime.now(timezone.utc).replace(tzinfo=None),
             form.currency.data or exp.currency or "ILS",
         )
         if hasattr(form, "apply_to"):
@@ -2432,21 +2488,8 @@ def edit(exp_id):
 
             # تحديث أرصدة الجهات المرتبطة بشكل فوري
             try:
-                # تحديث الجهات القديمة إذا تغيرت
-                if old_customer_id and old_customer_id != exp.customer_id:
-                    utils.update_entity_balance("CUSTOMER", old_customer_id)
-                if old_supplier_id and old_supplier_id != exp.supplier_id:
-                    utils.update_entity_balance("SUPPLIER", old_supplier_id)
-                if old_partner_id and old_partner_id != exp.partner_id:
-                    utils.update_entity_balance("PARTNER", old_partner_id)
-                
-                # تحديث الجهات الحالية
-                if exp.customer_id:
-                    utils.update_entity_balance("CUSTOMER", exp.customer_id)
-                if exp.supplier_id:
-                    utils.update_entity_balance("SUPPLIER", exp.supplier_id)
-                if exp.partner_id:
-                    utils.update_entity_balance("PARTNER", exp.partner_id)
+                after_pairs = _expense_related_entity_pairs(exp)
+                _refresh_entity_balances(before_pairs | after_pairs)
             except Exception as e:
                 current_app.logger.error(f"❌ فشل تحديث أرصدة الجهات بعد تعديل المصروف: {e}")
 
@@ -2463,13 +2506,10 @@ def edit(exp_id):
 
 @expenses_bp.route("/delete/<int:exp_id>", methods=["POST"], endpoint="delete")
 @login_required
+@utils.permission_required("manage_expenses")
 def delete(exp_id):
     exp = _get_or_404(Expense, exp_id)
-    
-    # حفظ القيم لتحديث الأرصدة بعد الحذف
-    customer_id = exp.customer_id
-    supplier_id = exp.supplier_id
-    partner_id = exp.partner_id
+    before_pairs = _expense_related_entity_pairs(exp)
     
     try:
         db.session.delete(exp)
@@ -2477,12 +2517,7 @@ def delete(exp_id):
         
         # تحديث أرصدة الجهات المرتبطة بشكل فوري
         try:
-            if customer_id:
-                utils.update_entity_balance("CUSTOMER", customer_id)
-            if supplier_id:
-                utils.update_entity_balance("SUPPLIER", supplier_id)
-            if partner_id:
-                utils.update_entity_balance("PARTNER", partner_id)
+            _refresh_entity_balances(before_pairs)
         except Exception as e:
             current_app.logger.error(f"❌ فشل تحديث أرصدة الجهات بعد حذف المصروف: {e}")
 
@@ -2494,6 +2529,7 @@ def delete(exp_id):
 
 @expenses_bp.route("/<int:exp_id>/pay", methods=["GET"], endpoint="pay")
 @login_required
+@utils.permission_required("manage_expenses")
 def pay(exp_id):
     """إعادة توجيه لإنشاء دفعة للنفقة مع البيانات الكاملة"""
     exp = _get_or_404(Expense, exp_id)
@@ -2528,6 +2564,7 @@ def pay(exp_id):
 
 @expenses_bp.route("/export", methods=["GET"], endpoint="export")
 @login_required
+@utils.permission_required("manage_expenses")
 def export_csv():
     query, _ = _base_query_with_filters()
     rows = query.limit(50000).all()
@@ -2582,7 +2619,7 @@ def export_csv():
             ]
         )
     csv_data = output.getvalue()
-    filename = f"expenses_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.csv"
+    filename = f"expenses_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv"
     return Response(
         csv_data,
         mimetype="text/csv; charset=utf-8",
@@ -2591,6 +2628,7 @@ def export_csv():
 
 @expenses_bp.route("/print", methods=["GET"], endpoint="print_list")
 @login_required
+@utils.permission_required("manage_expenses")
 def print_list():
     query, filt = _base_query_with_filters()
     rows = query.limit(50000).all()
@@ -2606,17 +2644,18 @@ def print_list():
         total_amount=total_amount,
         total_paid=total_paid,
         total_balance=total_balance,
-        generated_at=datetime.utcnow(),
+        generated_at=datetime.now(timezone.utc).replace(tzinfo=None),
     )
 
 @expenses_bp.route("/archive/<int:expense_id>", methods=["POST"])
 @login_required
+@utils.permission_required("manage_expenses")
 def archive_expense(expense_id):
     
     try:
         from models import Archive
         
-        expense = Expense.query.get_or_404(expense_id)
+        expense = db.get_or_404(Expense, expense_id)
         
         reason = request.form.get('reason', 'أرشفة تلقائية')
         
@@ -2631,11 +2670,12 @@ def archive_expense(expense_id):
 
 @expenses_bp.route('/restore/<int:expense_id>', methods=['POST'])
 @login_required
+@utils.permission_required("manage_expenses")
 def restore_expense(expense_id):
     """استعادة نفقة"""
     
     try:
-        expense = Expense.query.get_or_404(expense_id)
+        expense = db.get_or_404(Expense, expense_id)
         
         if not expense.is_archived:
             flash('النفقة غير مؤرشفة', 'warning')
@@ -2662,6 +2702,7 @@ def restore_expense(expense_id):
 
 @expenses_bp.route("/payroll/monthly", methods=["GET"], endpoint="payroll_monthly")
 @login_required
+@utils.permission_required("manage_expenses")
 def payroll_monthly():
     from models import ExpenseType, EmployeeDeduction, EmployeeAdvanceInstallment
     from calendar import monthrange
@@ -2744,6 +2785,7 @@ def payroll_monthly():
 
 @expenses_bp.route("/payroll/generate-all", methods=["POST"], endpoint="generate_all_salaries")
 @login_required
+@utils.permission_required("manage_expenses")
 def generate_all_salaries():
     from models import ExpenseType, EmployeeAdvanceInstallment
     from calendar import monthrange
@@ -2846,6 +2888,7 @@ def generate_all_salaries():
 
 @expenses_bp.route("/payroll/summary", methods=["GET"], endpoint="payroll_summary")
 @login_required
+@utils.permission_required("manage_expenses")
 def payroll_summary():
     from models import ExpenseType
     from decimal import Decimal

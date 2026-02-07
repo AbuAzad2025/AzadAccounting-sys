@@ -12,8 +12,6 @@ from extensions import db
 from forms import PartnerForm, SupplierForm, CURRENCY_CHOICES
 import utils
 from utils import D, q2, archive_record, restore_record
-from utils.supplier_balance_updater import build_supplier_balance_view
-from utils.partner_balance_updater import build_partner_balance_view
 from models import (
     ExchangeTransaction,
     Partner,
@@ -60,76 +58,44 @@ def _get_or_404(model, ident, options=None):
 def suppliers_list():
     form = CSRFProtectForm()
     search_term = (request.args.get("q") or request.args.get("search") or "").strip()
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 50, type=int)
+    per_page = min(200, max(10, per_page))
     q = Supplier.query.filter(Supplier.is_archived == False)
     if search_term:
         term = f"%{search_term}%"
         q = q.filter(or_(Supplier.name.ilike(term), Supplier.phone.ilike(term), Supplier.identity_number.ilike(term)))
-    suppliers = q.order_by(Supplier.name).limit(10000).all()
-    
-    for supplier in suppliers:
-        db.session.refresh(supplier)
-    
-    total_balance = 0.0
-    total_debit = 0.0
-    total_credit = 0.0
-    suppliers_with_debt = 0
-    suppliers_with_credit = 0
-    mismatches = []
-    
-    for supplier in suppliers:
-        balance = float(supplier.current_balance or 0)
-        total_balance += balance
-        
-        if balance > 0:
-            suppliers_with_debt += 1
-            total_debit += balance
-        elif balance < 0:
-            suppliers_with_credit += 1
-            total_credit += abs(balance)
-        
-        try:
-            from utils.supplier_balance_updater import build_supplier_balance_view
-            breakdown = build_supplier_balance_view(supplier.id, db.session)
-            if breakdown.get('success'):
-                balance_info = breakdown.get('balance', {})
-                calculated_balance = balance_info.get('amount', balance)
-                stored_balance = balance_info.get('stored', balance)
-                if abs(calculated_balance - stored_balance) > 0.01:
-                    mismatches.append(supplier.id)
-        except Exception:
-            pass
-    
-    if mismatches:
-        try:
-            from utils.supplier_balance_updater import update_supplier_balance_components
-            from sqlalchemy.orm import sessionmaker
-            SessionFactory = sessionmaker(bind=db.engine)
-            session = SessionFactory()
-            try:
-                for supplier_id in mismatches[:10]:
-                    try:
-                        update_supplier_balance_components(supplier_id, session)
-                    except Exception:
-                        pass
-                session.commit()
-                for supplier in suppliers:
-                    if supplier.id in mismatches:
-                        db.session.refresh(supplier)
-            except Exception:
-                session.rollback()
-            finally:
-                session.close()
-        except Exception:
-            pass
-    
+    pagination = q.order_by(Supplier.name.asc(), Supplier.id.asc()).paginate(page=page, per_page=per_page, error_out=False)
+    suppliers = list(pagination.items or [])
+
+    from sqlalchemy import case
+    bal = func.coalesce(Supplier.current_balance, 0)
+    totals_row = (
+        q.order_by(None)
+        .with_entities(
+            func.count(Supplier.id).label("total_suppliers"),
+            func.coalesce(func.sum(bal), 0).label("total_balance"),
+            func.coalesce(func.sum(case((bal > 0, bal), else_=0)), 0).label("total_debit"),
+            func.coalesce(func.sum(case((bal < 0, -bal), else_=0)), 0).label("total_credit"),
+            func.coalesce(func.sum(case((bal > 0, 1), else_=0)), 0).label("suppliers_with_debt"),
+            func.coalesce(func.sum(case((bal < 0, 1), else_=0)), 0).label("suppliers_with_credit"),
+        )
+        .first()
+    )
+    total_suppliers = int(getattr(totals_row, "total_suppliers", 0) or 0)
+    total_balance = float(getattr(totals_row, "total_balance", 0) or 0)
+    total_debit = float(getattr(totals_row, "total_debit", 0) or 0)
+    total_credit = float(getattr(totals_row, "total_credit", 0) or 0)
+    suppliers_with_debt = int(getattr(totals_row, "suppliers_with_debt", 0) or 0)
+    suppliers_with_credit = int(getattr(totals_row, "suppliers_with_credit", 0) or 0)
     summary = {
-        'total_suppliers': len(suppliers),
-        'total_balance': total_balance,
-        'total_debit': total_debit,
-        'total_credit': total_credit,
-        'suppliers_with_debt': suppliers_with_debt,
-        'suppliers_with_credit': suppliers_with_credit,
-        'average_balance': total_balance / len(suppliers) if suppliers else 0
+        "total_suppliers": total_suppliers,
+        "total_balance": total_balance,
+        "total_debit": total_debit,
+        "total_credit": total_credit,
+        "suppliers_with_debt": suppliers_with_debt,
+        "suppliers_with_credit": suppliers_with_credit,
+        "average_balance": (total_balance / total_suppliers) if total_suppliers else 0,
     }
     
     default_branch = (
@@ -256,10 +222,16 @@ def suppliers_list():
                 "average_balance": summary["average_balance"],
                 "suppliers_with_debt": summary["suppliers_with_debt"],
                 "suppliers_with_credit": summary["suppliers_with_credit"],
-                "total_filtered": len(suppliers),
+                "total_filtered": int(pagination.total or 0),
+                "page": int(pagination.page or 1),
+                "pages": int(pagination.pages or 1),
+                "per_page": int(per_page),
             }
         )
-    
+
+    query_args = request.args.to_dict()
+    query_args.pop("page", None)
+    query_args.pop("per_page", None)
     return render_template(
         "vendors/suppliers/list.html",
         suppliers=suppliers,
@@ -269,7 +241,70 @@ def suppliers_list():
         summary=summary,
         quick_service=quick_service,
         csrf_token_value=generate_csrf(),
+        pagination=pagination,
+        per_page=per_page,
+        query_args=query_args,
     )
+
+
+@vendors_bp.post("/suppliers/balances/recalculate", endpoint="suppliers_recalculate_balances")
+@login_required
+@utils.permission_required("manage_vendors")
+def suppliers_recalculate_balances():
+    payload = request.get_json(silent=True) or {}
+    ids_raw = (
+        request.form.get("supplier_ids")
+        or request.form.get("ids")
+        or payload.get("supplier_ids")
+        or payload.get("ids")
+        or ""
+    )
+    if isinstance(ids_raw, list):
+        raw_list = ids_raw
+    else:
+        raw_list = [s.strip() for s in str(ids_raw).replace(";", ",").split(",") if s.strip()]
+    supplier_ids = []
+    for x in raw_list:
+        try:
+            supplier_ids.append(int(x))
+        except Exception:
+            continue
+    supplier_ids = [sid for sid in supplier_ids if sid > 0]
+    supplier_ids = list(dict.fromkeys(supplier_ids))
+    if not supplier_ids:
+        if request.accept_mimetypes.best == "application/json":
+            return jsonify({"success": False, "message": "no_supplier_ids"}), 400
+        flash("أدخل أرقام الموردين لتحديث الأرصدة.", "warning")
+        return redirect(url_for("vendors_bp.suppliers_list"))
+
+    try:
+        from utils.supplier_balance_updater import update_supplier_balance_components
+        from sqlalchemy.orm import sessionmaker
+        SessionFactory = sessionmaker(bind=db.engine)
+        session = SessionFactory()
+        updated = 0
+        try:
+            for sid in supplier_ids:
+                try:
+                    update_supplier_balance_components(sid, session)
+                    updated += 1
+                except Exception:
+                    continue
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+        if request.accept_mimetypes.best == "application/json":
+            return jsonify({"success": True, "updated": updated})
+        flash(f"تم تحديث أرصدة {updated} مورد.", "success")
+        return redirect(url_for("vendors_bp.suppliers_list"))
+    except Exception as e:
+        if request.accept_mimetypes.best == "application/json":
+            return jsonify({"success": False, "message": "failed", "error": str(e)}), 500
+        flash("حدث خطأ أثناء تحديث أرصدة الموردين.", "danger")
+        return redirect(url_for("vendors_bp.suppliers_list"))
 
 @vendors_bp.route("/suppliers/new", methods=["GET", "POST"], endpoint="suppliers_create")
 @login_required
@@ -828,57 +863,37 @@ def suppliers_statement(supplier_id: int):
     
     customer_payments = []
     if supplier.customer_id:
-        from models import Customer
+        from models import Sale, Invoice, ServiceRequest, PreOrder
         customer_pay_q = (
             db.session.query(Payment)
+            .outerjoin(Sale, Payment.sale_id == Sale.id)
+            .outerjoin(Invoice, Payment.invoice_id == Invoice.id)
+            .outerjoin(ServiceRequest, Payment.service_id == ServiceRequest.id)
+            .outerjoin(PreOrder, Payment.preorder_id == PreOrder.id)
+            .outerjoin(Expense, Payment.expense_id == Expense.id)
             .options(joinedload(Payment.related_check), joinedload(Payment.splits))
             .filter(
-                Payment.customer_id == supplier.customer_id,
                 Payment.status.in_([PaymentStatus.COMPLETED.value, PaymentStatus.PENDING.value, PaymentStatus.FAILED.value, PaymentStatus.CANCELLED.value, PaymentStatus.REFUNDED.value]),
+                or_(
+                    Payment.customer_id == supplier.customer_id,
+                    Sale.customer_id == supplier.customer_id,
+                    Invoice.customer_id == supplier.customer_id,
+                    ServiceRequest.customer_id == supplier.customer_id,
+                    PreOrder.customer_id == supplier.customer_id,
+                    Expense.customer_id == supplier.customer_id,
+                ),
+                or_(
+                    Payment.preorder_id.is_(None),
+                    Payment.sale_id.isnot(None),
+                    PreOrder.status == 'FULFILLED',
+                ),
             )
         )
         if df:
             customer_pay_q = customer_pay_q.filter(Payment.payment_date >= df)
         if dt:
             customer_pay_q = customer_pay_q.filter(Payment.payment_date < dt)
-        customer_payments = customer_pay_q.all()
-        
-        expense_ids_with_customer = [e.id for e in Expense.query.filter(Expense.customer_id == supplier.customer_id).all()]
-        if expense_ids_with_customer:
-            customer_expense_pay_q = (
-                db.session.query(Payment)
-                .options(joinedload(Payment.related_check), joinedload(Payment.splits))
-                .filter(
-                    Payment.expense_id.isnot(None),
-                    Payment.status.in_([PaymentStatus.COMPLETED.value, PaymentStatus.PENDING.value, PaymentStatus.FAILED.value, PaymentStatus.CANCELLED.value, PaymentStatus.REFUNDED.value]),
-                    or_(
-                        Payment.customer_id == supplier.customer_id,
-                        Payment.expense_id.in_(expense_ids_with_customer)
-                    )
-                )
-            )
-            if df:
-                customer_expense_pay_q = customer_expense_pay_q.filter(Payment.payment_date >= df)
-            if dt:
-                customer_expense_pay_q = customer_expense_pay_q.filter(Payment.payment_date < dt)
-            customer_expense_payments = customer_expense_pay_q.all()
-            customer_payments.extend(customer_expense_payments)
-        else:
-            customer_expense_pay_q = (
-                db.session.query(Payment)
-                .options(joinedload(Payment.related_check), joinedload(Payment.splits))
-                .filter(
-                    Payment.expense_id.isnot(None),
-                    Payment.customer_id == supplier.customer_id,
-                    Payment.status.in_([PaymentStatus.COMPLETED.value, PaymentStatus.PENDING.value, PaymentStatus.FAILED.value, PaymentStatus.CANCELLED.value, PaymentStatus.REFUNDED.value]),
-                )
-            )
-            if df:
-                customer_expense_pay_q = customer_expense_pay_q.filter(Payment.payment_date >= df)
-            if dt:
-                customer_expense_pay_q = customer_expense_pay_q.filter(Payment.payment_date < dt)
-            customer_expense_payments = customer_expense_pay_q.all()
-            customer_payments.extend(customer_expense_payments)
+        customer_payments = customer_pay_q.distinct().all()
     
     payment_ids = set()
     all_payments = []
@@ -903,10 +918,14 @@ def suppliers_statement(supplier_id: int):
                     pass
         ref = pmt.reference or f"دفعة #{pmt.id}"
         
-        payment_status = getattr(pmt, 'status', 'COMPLETED')
+        payment_status_val = getattr(pmt, 'status', 'COMPLETED')
+        if hasattr(payment_status_val, 'value'):
+            payment_status_val = payment_status_val.value
+        payment_status = str(payment_status_val or 'COMPLETED').upper()
         is_bounced = payment_status in ['BOUNCED', 'FAILED', 'REJECTED', 'RETURNED']
         is_pending = payment_status == 'PENDING'
         is_cancelled = payment_status == 'CANCELLED'
+        is_refunded = payment_status == 'REFUNDED'
         
         related_check = getattr(pmt, 'related_check', None)
         check_status = None
@@ -1008,7 +1027,7 @@ def suppliers_statement(supplier_id: int):
             'is_bounced': is_bounced,
             'is_pending': is_pending,
             'is_cancelled': is_cancelled,
-            'is_refunded': (payment_status == 'REFUNDED'),
+            'is_refunded': is_refunded,
             'splits': split_details,
         }
         
@@ -1192,8 +1211,12 @@ def suppliers_statement(supplier_id: int):
                     split_statement += f" - {notes[:30]}"
                 
                 split_is_in = not is_out
-                split_debit = split_amount_ils if is_out else D(0)
-                split_credit = split_amount_ils if split_is_in else D(0)
+                if is_cancelled or is_refunded:
+                    split_debit = D(0)
+                    split_credit = D(0)
+                else:
+                    split_debit = split_amount_ils if is_out else D(0)
+                    split_credit = split_amount_ils if split_is_in else D(0)
                 
                 # إنشاء payment_details للـ split
                 split_payment_details = {
@@ -1209,7 +1232,7 @@ def suppliers_statement(supplier_id: int):
                     'is_pending': split_is_pending,
                     'is_cashed': split_has_cashed,
                     'is_returned': split_has_returned,
-                    'is_refunded': (payment_status == 'REFUNDED'),
+                    'is_refunded': is_refunded,
                     'splits': [],
                     'all_checks': [{
                         'check_number': split_check.check_number,
@@ -1245,7 +1268,7 @@ def suppliers_statement(supplier_id: int):
                     if split_check.check_bank:
                         returned_statement += f" - {split_check.check_bank}"
                     
-                    returned_check_amt = split_amount_ils
+                    returned_check_amt = D(0) if (is_cancelled or is_refunded) else split_amount_ils
                     
                     if is_out:
                         returned_debit = D(0)
@@ -1279,8 +1302,12 @@ def suppliers_statement(supplier_id: int):
                     total_debit += returned_debit
                     total_credit += returned_credit
         else:
-            debit_val = amt if is_out else Decimal("0.00")
-            credit_val = Decimal("0.00") if is_out else amt
+            if is_cancelled or is_refunded:
+                debit_val = Decimal("0.00")
+                credit_val = Decimal("0.00")
+            else:
+                debit_val = amt if is_out else Decimal("0.00")
+                credit_val = Decimal("0.00") if is_out else amt
             
             entries.append({
                 "id": pmt.id,
@@ -1431,7 +1458,7 @@ def suppliers_statement(supplier_id: int):
         exp_type_code = ""
         if exp.type_id:
             from models import ExpenseType
-            exp_type = ExpenseType.query.get(exp.type_id)
+            exp_type = db.session.get(ExpenseType, exp.type_id)
             if exp_type:
                 exp_type_code = (exp_type.code or "").upper()
         
@@ -1643,6 +1670,13 @@ def suppliers_statement(supplier_id: int):
 
     def _sort_key(e):
         entry_date = e.get("date")
+        if entry_date is not None and not isinstance(entry_date, datetime):
+            try:
+                entry_date = datetime.combine(entry_date, datetime.min.time())
+            except Exception:
+                entry_date = None
+        if isinstance(entry_date, datetime) and entry_date.tzinfo is not None:
+            entry_date = entry_date.replace(tzinfo=None)
         if entry_date is None:
             return (datetime.max, 999, e.get("ref", ""))
         entry_type = e.get("type", "")
@@ -1804,6 +1838,7 @@ def suppliers_statement(supplier_id: int):
         }
     else:
         try:
+            from utils.supplier_balance_updater import build_supplier_balance_view
             balance_breakdown = build_supplier_balance_view(supplier_id, db.session)
         except Exception as exc:
             current_app.logger.warning("supplier_balance_breakdown_statement_failed: %s", exc)
@@ -1872,12 +1907,12 @@ def suppliers_statement(supplier_id: int):
                 Product.name,
                 Product.sku,
                 func.coalesce(func.sum(StockLevel.quantity), 0).label("qty"),
-                func.coalesce(Product.purchase_price, Product.cost_price, 0.0).label("unit_cost"),
+                func.coalesce(Product.purchase_price, 0.0).label("unit_cost"),
                 Product.currency,
             )
             .join(Product, Product.id == StockLevel.product_id)
             .filter(StockLevel.warehouse_id.in_(ex_ids), StockLevel.quantity > 0)
-            .group_by(Product.id, Product.name, Product.sku, Product.purchase_price, Product.cost_price, Product.currency)
+            .group_by(Product.id, Product.name, Product.sku, Product.purchase_price, Product.currency)
             .order_by(Product.name.asc())
         )
         
@@ -1981,60 +2016,36 @@ def suppliers_statement(supplier_id: int):
 def partners_list():
     form = CSRFProtectForm()
     search_term = (request.args.get("q") or request.args.get("search") or "").strip()
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 50, type=int)
+    per_page = min(200, max(10, per_page))
     q = Partner.query.filter(Partner.is_archived == False)
     if search_term:
         term = f"%{search_term}%"
         q = q.filter(or_(Partner.name.ilike(term), Partner.phone_number.ilike(term), Partner.identity_number.ilike(term)))
-    partners = q.order_by(Partner.name).limit(10000).all()
-    
-    for partner in partners:
-        db.session.refresh(partner)
-    
-    total_balance = 0.0
-    total_debit = 0.0
-    total_credit = 0.0
-    partners_with_debt = 0
-    partners_with_credit = 0
-    mismatches = []
-    
-    for partner in partners:
-        balance = float(partner.current_balance or 0)
-        
-        total_balance += balance
-        
-        if balance > 0:
-            partners_with_debt += 1
-            total_debit += balance
-        elif balance < 0:
-            partners_with_credit += 1
-            total_credit += abs(balance)
-        
-        try:
-            from utils.partner_balance_updater import build_partner_balance_view
-            breakdown = build_partner_balance_view(partner.id, db.session)
-            if breakdown.get('success'):
-                balance_info = breakdown.get('balance', {})
-                calculated_balance = balance_info.get('amount', balance)
-                stored_balance = balance_info.get('stored', balance)
-                if abs(calculated_balance - stored_balance) > 0.01:
-                    mismatches.append(partner.id)
-        except Exception:
-            pass
-    
-    if mismatches:
-        try:
-            from models import update_partner_balance
-            for partner_id in mismatches[:10]:
-                try:
-                    update_partner_balance(partner_id)
-                except Exception:
-                    pass
-            db.session.commit()
-            for partner in partners:
-                if partner.id in mismatches:
-                    db.session.refresh(partner)
-        except Exception:
-            db.session.rollback()
+    pagination = q.order_by(Partner.name.asc(), Partner.id.asc()).paginate(page=page, per_page=per_page, error_out=False)
+    partners = list(pagination.items or [])
+
+    from sqlalchemy import case
+    bal = func.coalesce(Partner.current_balance, 0)
+    totals_row = (
+        q.order_by(None)
+        .with_entities(
+            func.count(Partner.id).label("total_partners"),
+            func.coalesce(func.sum(bal), 0).label("total_balance"),
+            func.coalesce(func.sum(case((bal > 0, bal), else_=0)), 0).label("total_debit"),
+            func.coalesce(func.sum(case((bal < 0, -bal), else_=0)), 0).label("total_credit"),
+            func.coalesce(func.sum(case((bal > 0, 1), else_=0)), 0).label("partners_with_debt"),
+            func.coalesce(func.sum(case((bal < 0, 1), else_=0)), 0).label("partners_with_credit"),
+        )
+        .first()
+    )
+    total_partners = int(getattr(totals_row, "total_partners", 0) or 0)
+    total_balance = float(getattr(totals_row, "total_balance", 0) or 0)
+    total_debit = float(getattr(totals_row, "total_debit", 0) or 0)
+    total_credit = float(getattr(totals_row, "total_credit", 0) or 0)
+    partners_with_debt = int(getattr(totals_row, "partners_with_debt", 0) or 0)
+    partners_with_credit = int(getattr(totals_row, "partners_with_credit", 0) or 0)
     
     default_branch = (
         Branch.query.filter(Branch.is_active.is_(True))
@@ -2049,13 +2060,13 @@ def partners_list():
     }
     
     summary = {
-        'total_partners': len(partners),
-        'total_balance': total_balance,
-        'total_debit': total_debit,
-        'total_credit': total_credit,
-        'partners_with_debt': partners_with_debt,
-        'partners_with_credit': partners_with_credit,
-        'average_balance': total_balance / len(partners) if partners else 0,
+        "total_partners": total_partners,
+        "total_balance": total_balance,
+        "total_debit": total_debit,
+        "total_credit": total_credit,
+        "partners_with_debt": partners_with_debt,
+        "partners_with_credit": partners_with_credit,
+        "average_balance": (total_balance / total_partners) if total_partners else 0,
     }
     
     is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest" or request.args.get("ajax") == "1"
@@ -2154,10 +2165,16 @@ def partners_list():
                 "average_balance": summary["average_balance"],
                 "partners_with_debt": summary["partners_with_debt"],
                 "partners_with_credit": summary["partners_with_credit"],
-                "total_filtered": len(partners),
+                "total_filtered": int(pagination.total or 0),
+                "page": int(pagination.page or 1),
+                "pages": int(pagination.pages or 1),
+                "per_page": int(per_page),
             }
         )
 
+    query_args = request.args.to_dict()
+    query_args.pop("page", None)
+    query_args.pop("per_page", None)
     return render_template(
         "vendors/partners/list.html",
         partners=partners,
@@ -2166,7 +2183,70 @@ def partners_list():
         pay_url=url_for("payments.create_payment"),
         summary=summary,
         partner_quick_service=partner_quick_service,
+        pagination=pagination,
+        per_page=per_page,
+        query_args=query_args,
     )
+
+
+@vendors_bp.post("/partners/balances/recalculate", endpoint="partners_recalculate_balances")
+@login_required
+@utils.permission_required("manage_vendors")
+def partners_recalculate_balances():
+    payload = request.get_json(silent=True) or {}
+    ids_raw = (
+        request.form.get("partner_ids")
+        or request.form.get("ids")
+        or payload.get("partner_ids")
+        or payload.get("ids")
+        or ""
+    )
+    if isinstance(ids_raw, list):
+        raw_list = ids_raw
+    else:
+        raw_list = [s.strip() for s in str(ids_raw).replace(";", ",").split(",") if s.strip()]
+    partner_ids = []
+    for x in raw_list:
+        try:
+            partner_ids.append(int(x))
+        except Exception:
+            continue
+    partner_ids = [pid for pid in partner_ids if pid > 0]
+    partner_ids = list(dict.fromkeys(partner_ids))
+    if not partner_ids:
+        if request.accept_mimetypes.best == "application/json":
+            return jsonify({"success": False, "message": "no_partner_ids"}), 400
+        flash("أدخل أرقام الشركاء لتحديث الأرصدة.", "warning")
+        return redirect(url_for("vendors_bp.partners_list"))
+
+    try:
+        from utils.partner_balance_updater import update_partner_balance_components
+        from sqlalchemy.orm import sessionmaker
+        SessionFactory = sessionmaker(bind=db.engine)
+        session = SessionFactory()
+        updated = 0
+        try:
+            for pid in partner_ids:
+                try:
+                    update_partner_balance_components(pid, session)
+                    updated += 1
+                except Exception:
+                    continue
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+        if request.accept_mimetypes.best == "application/json":
+            return jsonify({"success": True, "updated": updated})
+        flash(f"تم تحديث أرصدة {updated} شريك.", "success")
+        return redirect(url_for("vendors_bp.partners_list"))
+    except Exception as e:
+        if request.accept_mimetypes.best == "application/json":
+            return jsonify({"success": False, "message": "failed", "error": str(e)}), 500
+        flash("حدث خطأ أثناء تحديث أرصدة الشركاء.", "danger")
+        return redirect(url_for("vendors_bp.partners_list"))
 
 # ⚠️ قبل التعديل: اقرأ ACCOUNTING_RULES.md - قواعد المحاسبة الأساسية
 @vendors_bp.get("/partners/<int:partner_id>/statement", endpoint="partners_statement")
@@ -2419,57 +2499,37 @@ def partners_statement(partner_id: int):
     
     customer_payments = []
     if partner.customer_id:
-        from models import Customer
+        from models import Sale, Invoice, ServiceRequest, PreOrder
         customer_pay_q = (
             db.session.query(Payment)
+            .outerjoin(Sale, Payment.sale_id == Sale.id)
+            .outerjoin(Invoice, Payment.invoice_id == Invoice.id)
+            .outerjoin(ServiceRequest, Payment.service_id == ServiceRequest.id)
+            .outerjoin(PreOrder, Payment.preorder_id == PreOrder.id)
+            .outerjoin(Expense, Payment.expense_id == Expense.id)
             .options(joinedload(Payment.splits))
             .filter(
-                Payment.customer_id == partner.customer_id,
                 Payment.status.in_([PaymentStatus.COMPLETED.value, PaymentStatus.PENDING.value, PaymentStatus.FAILED.value, PaymentStatus.REFUNDED.value]),
+                or_(
+                    Payment.customer_id == partner.customer_id,
+                    Sale.customer_id == partner.customer_id,
+                    Invoice.customer_id == partner.customer_id,
+                    ServiceRequest.customer_id == partner.customer_id,
+                    PreOrder.customer_id == partner.customer_id,
+                    Expense.customer_id == partner.customer_id,
+                ),
+                or_(
+                    Payment.preorder_id.is_(None),
+                    Payment.sale_id.isnot(None),
+                    PreOrder.status == 'FULFILLED',
+                ),
             )
         )
         if df:
             customer_pay_q = customer_pay_q.filter(Payment.payment_date >= df)
         if dt:
             customer_pay_q = customer_pay_q.filter(Payment.payment_date < dt)
-        customer_payments = customer_pay_q.all()
-        
-        expense_ids_with_customer = [e.id for e in Expense.query.filter(Expense.customer_id == partner.customer_id).all()]
-        if expense_ids_with_customer:
-            customer_expense_pay_q = (
-                db.session.query(Payment)
-                .options(joinedload(Payment.splits))
-                .filter(
-                    Payment.expense_id.isnot(None),
-                    Payment.status.in_([PaymentStatus.COMPLETED.value, PaymentStatus.PENDING.value, PaymentStatus.FAILED.value, PaymentStatus.REFUNDED.value]),
-                    or_(
-                        Payment.customer_id == partner.customer_id,
-                        Payment.expense_id.in_(expense_ids_with_customer)
-                    )
-                )
-            )
-            if df:
-                customer_expense_pay_q = customer_expense_pay_q.filter(Payment.payment_date >= df)
-            if dt:
-                customer_expense_pay_q = customer_expense_pay_q.filter(Payment.payment_date < dt)
-            customer_expense_payments = customer_expense_pay_q.all()
-            customer_payments.extend(customer_expense_payments)
-        else:
-            customer_expense_pay_q = (
-                db.session.query(Payment)
-                .options(joinedload(Payment.splits))
-                .filter(
-                    Payment.expense_id.isnot(None),
-                    Payment.customer_id == partner.customer_id,
-                    Payment.status.in_([PaymentStatus.COMPLETED.value, PaymentStatus.PENDING.value, PaymentStatus.FAILED.value, PaymentStatus.REFUNDED.value]),
-                )
-            )
-            if df:
-                customer_expense_pay_q = customer_expense_pay_q.filter(Payment.payment_date >= df)
-            if dt:
-                customer_expense_pay_q = customer_expense_pay_q.filter(Payment.payment_date < dt)
-            customer_expense_payments = customer_expense_pay_q.all()
-            customer_payments.extend(customer_expense_payments)
+        customer_payments = customer_pay_q.distinct().all()
     
     payment_ids = set()
     all_payments = []
@@ -3126,6 +3186,7 @@ def partners_statement(partner_id: int):
         }
     else:
         try:
+            from utils.partner_balance_updater import build_partner_balance_view
             balance_breakdown = build_partner_balance_view(partner_id, db.session)
             if balance_breakdown and balance_breakdown.get("success"):
                 model_balance = float(partner.current_balance or 0)
@@ -3755,7 +3816,7 @@ def archive_supplier(supplier_id):
     try:
         from models import Archive
         
-        supplier = Supplier.query.get_or_404(supplier_id)
+        supplier = db.get_or_404(Supplier, supplier_id)
         
         reason = request.form.get('reason', 'أرشفة تلقائية')
         
@@ -3784,7 +3845,7 @@ def archive_partner(partner_id):
     try:
         from models import Archive
         
-        partner = Partner.query.get_or_404(partner_id)
+        partner = db.get_or_404(Partner, partner_id)
         
         reason = request.form.get('reason', 'أرشفة تلقائية')
         
@@ -3811,7 +3872,7 @@ def restore_supplier(supplier_id):
     """استعادة مورد"""
     
     try:
-        supplier = Supplier.query.get_or_404(supplier_id)
+        supplier = db.get_or_404(Supplier, supplier_id)
         
         if not supplier.is_archived:
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
@@ -3855,7 +3916,7 @@ def restore_partner(partner_id):
     """استعادة شريك"""
     
     try:
-        partner = Partner.query.get_or_404(partner_id)
+        partner = db.get_or_404(Partner, partner_id)
         
         if not partner.is_archived:
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':

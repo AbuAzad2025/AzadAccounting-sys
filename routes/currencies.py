@@ -1,7 +1,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 
 from flask import Blueprint, flash, redirect, render_template, request, url_for
@@ -96,7 +96,7 @@ def list_exchange_rates():
             from datetime import datetime
             
             # محاولة جلب السعر من السيرفرات العالمية مباشرة
-            external_rate = _fetch_external_fx_rate(rate.base_code, rate.quote_code, datetime.utcnow())
+            external_rate = _fetch_external_fx_rate(rate.base_code, rate.quote_code, datetime.now(timezone.utc))
             
             if external_rate and external_rate > 0:
                 market_rates[rate.id] = {
@@ -105,7 +105,7 @@ def list_exchange_rates():
                     'source': 'external',
                     'base': rate.base_code,
                     'quote': rate.quote_code,
-                    'timestamp': datetime.utcnow()
+                    'timestamp': datetime.now(timezone.utc)
                 }
             else:
                 market_rates[rate.id] = {'success': False, 'rate': 0, 'source': 'failed'}
@@ -145,7 +145,7 @@ def new_exchange_rate():
                 base_code=form.base_code.data,
                 quote_code=form.quote_code.data,
                 rate=form.rate.data,
-                valid_from=form.valid_from.data or datetime.utcnow().date(),
+                valid_from=form.valid_from.data or datetime.now(timezone.utc).date(),
                 source=form.source.data or "Manual",
                 is_active=form.is_active.data
             )
@@ -173,7 +173,7 @@ def new_exchange_rate():
 @login_required
 def edit_exchange_rate(rate_id):
     """تعديل سعر صرف"""
-    exchange_rate = ExchangeRate.query.get_or_404(rate_id)
+    exchange_rate = db.get_or_404(ExchangeRate, rate_id)
     form = ExchangeRateForm(obj=exchange_rate)
     
     if form.validate_on_submit():
@@ -206,7 +206,7 @@ def edit_exchange_rate(rate_id):
 @login_required
 def delete_exchange_rate(rate_id):
     """حذف سعر صرف"""
-    exchange_rate = ExchangeRate.query.get_or_404(rate_id)
+    exchange_rate = db.get_or_404(ExchangeRate, rate_id)
     
     try:
         db.session.delete(exchange_rate)
@@ -223,7 +223,7 @@ def delete_exchange_rate(rate_id):
 @login_required
 def toggle_exchange_rate(rate_id):
     """تفعيل/إلغاء تفعيل سعر صرف"""
-    exchange_rate = ExchangeRate.query.get_or_404(rate_id)
+    exchange_rate = db.get_or_404(ExchangeRate, rate_id)
     
     try:
         exchange_rate.is_active = not exchange_rate.is_active
@@ -386,7 +386,7 @@ def test_online_fx():
         from models import _fetch_external_fx_rate
         
         # اختبار سعر USD إلى ILS
-        rate = _fetch_external_fx_rate('USD', 'ILS', datetime.utcnow())
+        rate = _fetch_external_fx_rate('USD', 'ILS', datetime.now(timezone.utc))
         
         if rate and rate > 0:
             flash(f'تم جلب السعر بنجاح: 1 USD = {rate} ILS', 'success')

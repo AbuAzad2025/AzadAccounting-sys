@@ -1,8 +1,8 @@
 
-from datetime import datetime, date as _date, time as _time, timedelta
+from datetime import datetime, date as _date, time as _time, timedelta, timezone
 from flask import Blueprint, render_template, request, abort, jsonify, current_app
 from flask_login import login_required, current_user
-from sqlalchemy import or_
+from sqlalchemy import or_, func, case
 from sqlalchemy.orm import joinedload, selectinload
 from extensions import db, limiter, csrf, cache
 from models import OnlinePayment, OnlinePreOrder, Customer
@@ -122,7 +122,7 @@ def cards():
 
 @admin_reports_bp.route("/cards/<int:pid>/reveal", methods=["POST"], endpoint="cards_reveal")
 @login_required
-# @super_only  # Commented out
+@utils.super_only
 @limiter.limit("5/minute;20/hour;50/day")
 def cards_reveal(pid: int):
     op = db.session.get(OnlinePayment, pid)
@@ -196,29 +196,24 @@ def preorders():
     end = request.args.get("end")
     status = request.args.get("status")
     search = (request.args.get("q") or "").strip()
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 50, type=int)
+    per_page = min(200, max(10, per_page))
     
     sd = _parse_yyyy_mm_dd(start) if start else None
     ed = _parse_yyyy_mm_dd(end) if end else None
     
-    cache_key = f"admin_preorders_{start}_{end}_{status}_{search}"
-    cached_result = cache.get(cache_key)
-    if cached_result is not None:
-        return render_template("admin/reports/preorders.html", rows=cached_result)
-    
-    q = OnlinePreOrder.query.options(
-        joinedload(OnlinePreOrder.customer),
-        selectinload(OnlinePreOrder.items)
-    )
+    base_q = OnlinePreOrder.query
     
     if sd:
-        q = q.filter(OnlinePreOrder.created_at >= datetime.combine(sd, _time.min))
+        base_q = base_q.filter(OnlinePreOrder.created_at >= datetime.combine(sd, _time.min))
     if ed:
-        q = q.filter(OnlinePreOrder.created_at < datetime.combine(ed + timedelta(days=1), _time.min))
+        base_q = base_q.filter(OnlinePreOrder.created_at < datetime.combine(ed + timedelta(days=1), _time.min))
     if status and status in ("PENDING", "CONFIRMED", "FULFILLED", "CANCELLED"):
-        q = q.filter(OnlinePreOrder.status == status)
+        base_q = base_q.filter(OnlinePreOrder.status == status)
     if search:
         like = f"%{search}%"
-        q = q.outerjoin(Customer, OnlinePreOrder.customer_id == Customer.id).filter(
+        base_q = base_q.outerjoin(Customer, OnlinePreOrder.customer_id == Customer.id).filter(
             or_(
                 OnlinePreOrder.order_number.ilike(like),
                 Customer.name.ilike(like),
@@ -226,9 +221,39 @@ def preorders():
             )
         )
     
-    rows = q.order_by(OnlinePreOrder.created_at.desc()).limit(500).all()
-    cache.set(cache_key, rows, timeout=60)
-    return render_template("admin/reports/preorders.html", rows=rows)
+    totals_row = base_q.order_by(None).with_entities(
+        func.count(OnlinePreOrder.id).label("total"),
+        func.coalesce(func.sum(func.coalesce(OnlinePreOrder.total_amount, 0)), 0).label("total_amount"),
+        func.coalesce(func.sum(func.coalesce(OnlinePreOrder.prepaid_amount, 0)), 0).label("prepaid_amount"),
+        func.coalesce(func.sum(case((OnlinePreOrder.status == "FULFILLED", 1), else_=0)), 0).label("fulfilled"),
+    ).first()
+    totals = {
+        "total": int(getattr(totals_row, "total", 0) or 0),
+        "fulfilled": int(getattr(totals_row, "fulfilled", 0) or 0),
+        "total_amount": float(getattr(totals_row, "total_amount", 0) or 0),
+        "prepaid_amount": float(getattr(totals_row, "prepaid_amount", 0) or 0),
+    }
+
+    q = base_q.options(
+        joinedload(OnlinePreOrder.customer),
+        selectinload(OnlinePreOrder.items),
+    ).order_by(OnlinePreOrder.created_at.desc(), OnlinePreOrder.id.desc())
+
+    pagination = q.paginate(page=page, per_page=per_page, error_out=False)
+    rows = list(pagination.items or [])
+
+    query_args = request.args.to_dict()
+    query_args.pop("page", None)
+    query_args.pop("per_page", None)
+
+    return render_template(
+        "admin/reports/preorders.html",
+        rows=rows,
+        totals=totals,
+        pagination=pagination,
+        per_page=per_page,
+        query_args=query_args,
+    )
 
 
 @admin_reports_bp.route("/dashboard", methods=["GET"], endpoint="dashboard")
@@ -391,7 +416,7 @@ def api_stats():
                 'today_sales_count': today_sales_count,
                 'today_payments_count': today_payments_count,
                 'pending_services': pending_services,
-                'timestamp': datetime.utcnow().isoformat()
+                'timestamp': datetime.now(timezone.utc).isoformat()
             }
         })
     except Exception as e:

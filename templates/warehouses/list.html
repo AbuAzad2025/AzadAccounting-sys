@@ -206,33 +206,39 @@
   {{ super() }}
   <script>
     document.addEventListener('DOMContentLoaded', function() {
-      // تهيئة DataTables
-      if (window.jQuery && $.fn.DataTable) {
+      function initWarehousesTable() {
+        if (!(window.jQuery && $.fn && $.fn.DataTable)) return;
         const $table = $('#warehouses-table');
-        if ($table.length) {
-          // تحقق من البنية
-          const dataRows = $table.find('tbody tr').not(':has(td[colspan])');
-          if (dataRows.length > 0) {
-            try {
-              $table.DataTable({
-                pageLength: 25,
-                order: [],
-                columnDefs: [
-                  { targets: 0, type: 'num' }
-                ],
-                language: { 
-                  url: '/static/datatables/Arabic.json',
-                  emptyTable: "لا توجد مستودعات",
-                  info: "عرض _START_ إلى _END_ من أصل _TOTAL_",
-                  search: "بحث:",
-                  paginate: { first: "الأول", last: "الأخير", next: "التالي", previous: "السابق" }
-                }
-              });
-            } catch (e) {
-
+        if (!$table.length) return;
+        const dataRows = $table.find('tbody tr').not(':has(td[colspan])');
+        if (dataRows.length === 0) return;
+        try {
+          $table.DataTable({
+            pageLength: 25,
+            order: [],
+            responsive: true,
+            autoWidth: false,
+            scrollX: $table.find('thead th').length > 8,
+            columnDefs: [
+              { targets: 0, type: 'num' }
+            ],
+            language: { 
+              url: '/static/datatables/Arabic.json',
+              emptyTable: "لا توجد مستودعات",
+              info: "عرض _START_ إلى _END_ من أصل _TOTAL_",
+              search: "بحث:",
+              paginate: { first: "الأول", last: "الأخير", next: "التالي", previous: "السابق" }
             }
-          }
+          });
+        } catch (e) {
+
         }
+      }
+
+      if (window.jQuery && typeof window.ensureDataTables === 'function' && !(window.jQuery.fn && window.jQuery.fn.DataTable)) {
+        window.ensureDataTables().then(initWarehousesTable);
+      } else {
+        initWarehousesTable();
       }
       
       // معالج زر الحذف

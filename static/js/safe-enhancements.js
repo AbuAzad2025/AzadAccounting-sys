@@ -20,6 +20,20 @@
     });
   }
 
+  function wrapPlainTables() {
+    const tables = document.querySelectorAll('table.table');
+    tables.forEach(table => {
+      if (table.closest('.table-responsive')) return;
+      if (table.closest('.dataTables_wrapper')) return;
+      const parent = table.parentElement;
+      if (!parent) return;
+      const wrapper = document.createElement('div');
+      wrapper.className = 'table-responsive';
+      parent.insertBefore(wrapper, table);
+      wrapper.appendChild(table);
+    });
+  }
+
   function enhanceTableScrolling() {
     const tables = document.querySelectorAll('.table-responsive');
     tables.forEach(container => {
@@ -326,6 +340,7 @@
   function initAllEnhancements() {
     try {
       enhanceTableSearch();
+      wrapPlainTables();
       enhanceTableScrolling();
       enableAutoSaveDraft();
       enhanceModals();
@@ -359,6 +374,7 @@
   window.SafeEnhancements = {
     init: initAllEnhancements,
     enhanceTableSearch,
+    wrapPlainTables,
     enhanceTableScrolling,
     enableAutoSaveDraft,
     enhanceModals,

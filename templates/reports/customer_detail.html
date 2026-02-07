@@ -41,7 +41,7 @@
                         </div>
                         <div class="col-sm-6">
                             <strong>الرصيد الحالي:</strong> 
-                            <span class="badge {% if current_balance > 0 %}bg-success{% elif current_balance < 0 %}bg-danger{% else %}bg-secondary{% endif %} fs-6">
+                            <span class="badge {% if current_balance > 0 %}bg-success{% elif current_balance < 0 %}bg-danger{% else %}bg-secondary{% endif %} fs-6" data-balance-customer="{{ customer.id }}">
                                 {{ current_balance|format_currency }}
                             </span><br>
                             <strong>حد الائتمان:</strong> {{ customer.credit_limit|format_currency if customer.credit_limit else 'غير محدد' }}<br>
@@ -74,7 +74,7 @@
                         <div class="col-12 col-lg-4">
                             <div class="p-2 border rounded">
                                 <strong class="text-primary d-block">🎯 الرصيد</strong>
-                                <span class="fs-4 fw-bold {% if balance_data.balance.amount > 0 %}text-danger{% elif balance_data.balance.amount < 0 %}text-success{% else %}text-secondary{% endif %}">
+                                <span class="fs-4 fw-bold {% if balance_data.balance.amount > 0 %}text-danger{% elif balance_data.balance.amount < 0 %}text-success{% else %}text-secondary{% endif %}" data-balance-customer="{{ customer.id }}">
                                     {{ balance_data.balance.amount|format_currency }}
                                 </span>
                                 <small class="text-muted d-block">{{ balance_data.balance.action }}</small>
@@ -166,7 +166,7 @@
                     <div class="table-responsive">
                         <table class="table table-sm table-borderless align-middle mb-0">
                             <tbody>
-                                {% for item in balance_data.rights.items %}
+                                {% for item in balance_data.rights.get('items', []) %}
                                     {% if item.amount %}
                                     <tr>
                                         <td>{{ item.label }}</td>
@@ -186,7 +186,7 @@
                     <div class="table-responsive">
                         <table class="table table-sm table-borderless align-middle mb-0">
                             <tbody>
-                                {% for item in balance_data.obligations.items %}
+                                {% for item in balance_data.obligations.get('items', []) %}
                                     {% if item.amount %}
                                     <tr>
                                         <td>{{ item.label }}</td>
@@ -217,7 +217,7 @@
                 <div class="col-md-4">
                     <div class="alert alert-light border mb-0">
                         <div class="small text-muted">الوضع الحالي</div>
-                        <div class="fw-bold {% if balance_data.balance.amount > 0 %}text-danger{% elif balance_data.balance.amount < 0 %}text-success{% else %}text-secondary{% endif %}">
+                        <div class="fw-bold {% if balance_data.balance.amount > 0 %}text-danger{% elif balance_data.balance.amount < 0 %}text-success{% else %}text-secondary{% endif %}" data-balance-customer="{{ customer.id }}">
                             {{ balance_data.balance.amount|format_currency }}
                         </div>
                         <small class="text-muted">{{ balance_data.balance.action }}</small>
@@ -235,8 +235,11 @@
         <div class="card-header bg-success text-white">
             <h5 class="mb-0">
                 <i class="fas fa-shopping-cart ml-2"></i>
-                المبيعات ({{ sales|length }} عملية)
+                المبيعات ({{ sales_count|default(sales|length) }} عملية)
             </h5>
+            {% if sales_count and limit_rows and sales_count > limit_rows %}
+            <a class="btn btn-sm btn-outline-light mt-2" href="{{ url_for('reports_bp.customer_detail_report', customer_id=customer.id, start=start_date, end=end_date, limit=(limit_rows * 2)) }}">عرض المزيد</a>
+            {% endif %}
         </div>
         <div class="card-body">
             <div class="table-responsive">
@@ -280,8 +283,11 @@
         <div class="card-header bg-primary text-white">
             <h5 class="mb-0">
                 <i class="fas fa-file-invoice ml-2"></i>
-                الفواتير ({{ invoices|length }} فاتورة)
+                الفواتير ({{ invoices_count|default(invoices|length) }} فاتورة)
             </h5>
+            {% if invoices_count and limit_rows and invoices_count > limit_rows %}
+            <a class="btn btn-sm btn-outline-light mt-2" href="{{ url_for('reports_bp.customer_detail_report', customer_id=customer.id, start=start_date, end=end_date, limit=(limit_rows * 2)) }}">عرض المزيد</a>
+            {% endif %}
         </div>
         <div class="card-body">
             <div class="table-responsive">
@@ -315,7 +321,7 @@
                             </td>
                             <td>{{ invoice.total_amount|format_currency }}</td>
                             <td>{{ invoice.total_paid|format_currency }}</td>
-                            <td>{{ (invoice.total_amount - invoice.total_paid)|format_currency }}</td>
+                                <td>{{ ((invoice.total_amount|float) - (invoice.total_paid|float))|format_currency }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -332,8 +338,11 @@
         <div class="card-header bg-warning text-white">
             <h5 class="mb-0">
                 <i class="fas fa-tools ml-2"></i>
-                طلبات الصيانة ({{ services|length }} طلب)
+                طلبات الصيانة ({{ services_count|default(services|length) }} طلب)
             </h5>
+            {% if services_count and limit_rows and services_count > limit_rows %}
+            <a class="btn btn-sm btn-outline-light mt-2" href="{{ url_for('reports_bp.customer_detail_report', customer_id=customer.id, start=start_date, end=end_date, limit=(limit_rows * 2)) }}">عرض المزيد</a>
+            {% endif %}
         </div>
         <div class="card-body">
             <div class="table-responsive">
@@ -359,7 +368,7 @@
                                 </span>
                             </td>
                             <td>{{ service.mechanic_id or 'غير محدد' }}</td>
-                            <td>{{ service.service_cost|format_currency }}</td>
+                            <td>{{ service.total_amount|format_currency }}</td>
                             <td>
                                 <span class="badge bg-{% if service.status == 'COMPLETED' %}success{% elif service.status == 'IN_PROGRESS' %}warning{% else %}secondary{% endif %}">
                                     {{ service.status }}
@@ -381,8 +390,11 @@
         <div class="card-header bg-info text-white">
             <h5 class="mb-0">
                 <i class="fas fa-credit-card ml-2"></i>
-                المدفوعات ({{ payments|length }} دفعة)
+                المدفوعات ({{ payments_count|default(payments|length) }} دفعة)
             </h5>
+            {% if payments_count and limit_rows and payments_count > limit_rows %}
+            <a class="btn btn-sm btn-outline-light mt-2" href="{{ url_for('reports_bp.customer_detail_report', customer_id=customer.id, start=start_date, end=end_date, limit=(limit_rows * 2)) }}">عرض المزيد</a>
+            {% endif %}
         </div>
         <div class="card-body">
             <div class="table-responsive">
@@ -426,8 +438,11 @@
         <div class="card-header bg-secondary text-white">
             <h5 class="mb-0">
                 <i class="fas fa-shopping-bag ml-2"></i>
-                الطلبات المسبقة ({{ preorders|length }} طلب)
+                الطلبات المسبقة ({{ preorders_count|default(preorders|length) }} طلب)
             </h5>
+            {% if preorders_count and limit_rows and preorders_count > limit_rows %}
+            <a class="btn btn-sm btn-outline-light mt-2" href="{{ url_for('reports_bp.customer_detail_report', customer_id=customer.id, start=start_date, end=end_date, limit=(limit_rows * 2)) }}">عرض المزيد</a>
+            {% endif %}
         </div>
         <div class="card-body">
             <div class="table-responsive">

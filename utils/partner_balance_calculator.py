@@ -1,5 +1,5 @@
 from decimal import Decimal
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import func, or_, and_
 from extensions import db
 
@@ -107,30 +107,30 @@ def calculate_partner_balance_components(partner_id, session=None):
         from models import Expense, ExpenseType
         
         date_from = datetime(2024, 1, 1)
-        date_to = datetime.utcnow()
+        date_to = datetime.now(timezone.utc).replace(tzinfo=None)
         
-        inventory = _get_partner_inventory(partner_id, date_from, date_to)
+        inventory = _get_partner_inventory(partner_id, date_from, date_to, session=session)
         if isinstance(inventory, dict):
             result['inventory_balance'] = Decimal(str(inventory.get("total_ils", 0) or 0))
         
-        sales_share = _get_partner_sales_share(partner_id, date_from, date_to)
+        sales_share = _get_partner_sales_share(partner_id, date_from, date_to, session=session)
         sales_share_total = Decimal('0.00')
         if isinstance(sales_share, dict):
             sales_share_total = Decimal(str(sales_share.get("total_share_ils", 0) or 0))
         
-        sales_returns = _get_partner_sales_returns(partner_id, date_from, date_to)
+        sales_returns = _get_partner_sales_returns(partner_id, date_from, date_to, session=session)
         sales_returns_total = Decimal('0.00')
         if isinstance(sales_returns, dict):
             sales_returns_total = Decimal(str(sales_returns.get("total_return_share_ils", 0) or 0))
         
         result['sales_share_balance'] = sales_share_total - sales_returns_total
         
-        payments_from_partner = _get_partner_payments_received(partner_id, partner, date_from, date_to)
+        payments_from_partner = _get_partner_payments_received(partner_id, partner, date_from, date_to, session=session)
         payments_in_total = Decimal('0.00')
         if isinstance(payments_from_partner, dict):
             payments_in_total = Decimal(str(payments_from_partner.get("total_ils", 0) or 0))
         
-        preorders_prepaid = _get_partner_preorders_prepaid(partner_id, partner, date_from, date_to)
+        preorders_prepaid = _get_partner_preorders_prepaid(partner_id, partner, date_from, date_to, session=session)
         preorders_prepaid_total = Decimal('0.00')
         if isinstance(preorders_prepaid, dict):
             preorders_prepaid_total = Decimal(str(preorders_prepaid.get("total_ils", 0) or 0))
@@ -138,27 +138,27 @@ def calculate_partner_balance_components(partner_id, session=None):
         result['payments_in_balance'] = payments_in_total + preorders_prepaid_total
         result['preorders_prepaid_balance'] = preorders_prepaid_total
         
-        payments_to_partner = _get_payments_to_partner(partner_id, partner, date_from, date_to)
+        payments_to_partner = _get_payments_to_partner(partner_id, partner, date_from, date_to, session=session)
         if isinstance(payments_to_partner, dict):
             result['payments_out_balance'] = Decimal(str(payments_to_partner.get("total_ils", 0) or 0))
         
-        sales_to_partner = _get_partner_sales_as_customer(partner_id, partner, date_from, date_to)
+        sales_to_partner = _get_partner_sales_as_customer(partner_id, partner, date_from, date_to, session=session)
         if isinstance(sales_to_partner, dict):
             result['sales_to_partner_balance'] = Decimal(str(sales_to_partner.get("total_ils", 0) or 0))
         
-        service_fees = _get_partner_service_fees(partner_id, partner, date_from, date_to)
+        service_fees = _get_partner_service_fees(partner_id, partner, date_from, date_to, session=session)
         if isinstance(service_fees, dict):
             result['service_fees_balance'] = Decimal(str(service_fees.get("total_ils", 0) or 0))
         
-        preorders_to_partner = _get_partner_preorders_as_customer(partner_id, partner, date_from, date_to)
+        preorders_to_partner = _get_partner_preorders_as_customer(partner_id, partner, date_from, date_to, session=session)
         if isinstance(preorders_to_partner, dict):
             result['preorders_to_partner_balance'] = Decimal(str(preorders_to_partner.get("total_ils", 0) or 0))
         
-        damaged_items = _get_partner_damaged_items(partner_id, date_from, date_to)
+        damaged_items = _get_partner_damaged_items(partner_id, date_from, date_to, session=session)
         if isinstance(damaged_items, dict):
             result['damaged_items_balance'] = Decimal(str(damaged_items.get("total_ils", 0) or 0))
         
-        expenses_deducted = _get_partner_expenses(partner_id, date_from, date_to)
+        expenses_deducted = _get_partner_expenses(partner_id, date_from, date_to, session=session)
         result['expenses_balance'] = Decimal(str(expenses_deducted or 0))
         
         from models import Check, CheckStatus, PaymentDirection
@@ -173,7 +173,7 @@ def calculate_partner_balance_components(partner_id, session=None):
             amt = Decimal(str(check.amount or 0))
             if check.currency != "ILS":
                 try:
-                    amt = convert_amount(amt, check.currency, "ILS", check.check_date or datetime.utcnow())
+                    amt = convert_amount(amt, check.currency, "ILS", check.check_date or datetime.now(timezone.utc).replace(tzinfo=None))
                 except Exception:
                     pass
             result['payments_in_balance'] += amt
@@ -189,7 +189,7 @@ def calculate_partner_balance_components(partner_id, session=None):
             amt = Decimal(str(check.amount or 0))
             if check.currency != "ILS":
                 try:
-                    amt = convert_amount(amt, check.currency, "ILS", check.check_date or datetime.utcnow())
+                    amt = convert_amount(amt, check.currency, "ILS", check.check_date or datetime.now(timezone.utc).replace(tzinfo=None))
                 except Exception:
                     pass
             result['payments_out_balance'] += amt
@@ -205,7 +205,7 @@ def calculate_partner_balance_components(partner_id, session=None):
             amt = Decimal(str(check.amount or 0))
             if check.currency != "ILS":
                 try:
-                    amt = convert_amount(amt, check.currency, "ILS", check.check_date or datetime.utcnow())
+                    amt = convert_amount(amt, check.currency, "ILS", check.check_date or datetime.now(timezone.utc).replace(tzinfo=None))
                 except Exception:
                     pass
             result['returned_checks_in_balance'] += amt
@@ -221,7 +221,7 @@ def calculate_partner_balance_components(partner_id, session=None):
             amt = Decimal(str(check.amount or 0))
             if check.currency != "ILS":
                 try:
-                    amt = convert_amount(amt, check.currency, "ILS", check.check_date or datetime.utcnow())
+                    amt = convert_amount(amt, check.currency, "ILS", check.check_date or datetime.now(timezone.utc).replace(tzinfo=None))
                 except Exception:
                     pass
             result['returned_checks_out_balance'] += amt
@@ -238,7 +238,7 @@ def calculate_partner_balance_components(partner_id, session=None):
                 amt = Decimal(str(check.amount or 0))
                 if check.currency != "ILS":
                     try:
-                        amt = convert_amount(amt, check.currency, "ILS", check.check_date or datetime.utcnow())
+                        amt = convert_amount(amt, check.currency, "ILS", check.check_date or datetime.now(timezone.utc).replace(tzinfo=None))
                     except Exception:
                         pass
                 result['payments_in_balance'] += amt
@@ -254,7 +254,7 @@ def calculate_partner_balance_components(partner_id, session=None):
                 amt = Decimal(str(check.amount or 0))
                 if check.currency != "ILS":
                     try:
-                        amt = convert_amount(amt, check.currency, "ILS", check.check_date or datetime.utcnow())
+                        amt = convert_amount(amt, check.currency, "ILS", check.check_date or datetime.now(timezone.utc).replace(tzinfo=None))
                     except Exception:
                         pass
                 result['payments_out_balance'] += amt
@@ -270,7 +270,7 @@ def calculate_partner_balance_components(partner_id, session=None):
                 amt = Decimal(str(check.amount or 0))
                 if check.currency != "ILS":
                     try:
-                        amt = convert_amount(amt, check.currency, "ILS", check.check_date or datetime.utcnow())
+                        amt = convert_amount(amt, check.currency, "ILS", check.check_date or datetime.now(timezone.utc).replace(tzinfo=None))
                     except Exception:
                         pass
                 result['returned_checks_in_balance'] += amt
@@ -286,18 +286,18 @@ def calculate_partner_balance_components(partner_id, session=None):
                 amt = Decimal(str(check.amount or 0))
                 if check.currency != "ILS":
                     try:
-                        amt = convert_amount(amt, check.currency, "ILS", check.check_date or datetime.utcnow())
+                        amt = convert_amount(amt, check.currency, "ILS", check.check_date or datetime.now(timezone.utc).replace(tzinfo=None))
                     except Exception:
                         pass
                 result['returned_checks_out_balance'] += amt
         
-        returned_checks_in = _get_returned_checks_from_partner(partner_id, partner, date_from, date_to)
-        if isinstance(returned_checks_in, dict):
-            result['returned_checks_in_balance'] = Decimal(str(returned_checks_in.get("total_ils", 0) or 0))
+        returned_checks_from_partner = _get_returned_checks_from_partner(partner_id, partner, date_from, date_to, session=session)
+        if isinstance(returned_checks_from_partner, dict):
+            result['returned_checks_in_balance'] = Decimal(str(returned_checks_from_partner.get("total_ils", 0) or 0))
         
-        returned_checks_out = _get_returned_checks_to_partner(partner_id, partner, date_from, date_to)
-        if isinstance(returned_checks_out, dict):
-            result['returned_checks_out_balance'] = Decimal(str(returned_checks_out.get("total_ils", 0) or 0))
+        returned_checks_to_partner = _get_returned_checks_to_partner(partner_id, partner, date_from, date_to, session=session)
+        if isinstance(returned_checks_to_partner, dict):
+            result['returned_checks_out_balance'] = Decimal(str(returned_checks_to_partner.get("total_ils", 0) or 0))
         
         from sqlalchemy import func
         expenses_to_partner = session.query(Expense).join(ExpenseType).filter(

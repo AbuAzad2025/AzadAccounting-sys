@@ -47,6 +47,19 @@ body::before {
   align-items: center;
 }
 
+.luxury-navbar .navbar-brand img.brand-logo {
+  height: 40px;
+  width: auto;
+  max-width: 160px;
+  object-fit: contain;
+}
+
+.luxury-navbar .brand-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .luxury-navbar .nav-link {
   color: rgba(255, 255, 255, 0.85) !important;
   font-weight: 500;
@@ -489,5 +502,40 @@ body::before {
   .sidebar {
     width: 100%;
     right: -100%;
+  }
+}
+
+@media (max-width: 991.98px) {
+  .luxury-navbar .sidebar-toggle-btn {
+    flex: 0 0 auto;
+  }
+
+  .luxury-navbar .navbar-brand {
+    flex: 1 1 auto;
+    min-width: 0;
+    justify-content: center;
+    margin: 0 !important;
+  }
+
+  .luxury-navbar .navbar-collapse {
+    display: none !important;
+  }
+}
+
+@media (max-width: 576px) {
+  .luxury-navbar .navbar-brand {
+    font-size: 1.05rem;
+    max-width: calc(100vw - 120px);
+  }
+
+  .luxury-navbar .navbar-brand img.brand-logo {
+    height: 32px;
+    max-width: 120px;
+  }
+}
+
+@media (max-width: 360px) {
+  .luxury-navbar .brand-text {
+    display: none;
   }
 }

@@ -1174,7 +1174,7 @@ def query_accounting_data(query_type, filters=None):
         if query_type == 'customer_balance':
             customer_id = filters.get('customer_id')
             if customer_id:
-                customer = Customer.query.get(customer_id)
+                customer = db.session.get(Customer, customer_id)
                 if customer:
                     results['customer'] = {
                         'id': customer.id,
@@ -1187,7 +1187,7 @@ def query_accounting_data(query_type, filters=None):
         elif query_type == 'supplier_balance':
             supplier_id = filters.get('supplier_id')
             if supplier_id:
-                supplier = Supplier.query.get(supplier_id)
+                supplier = db.session.get(Supplier, supplier_id)
                 if supplier:
                     results['supplier'] = {
                         'id': supplier.id,

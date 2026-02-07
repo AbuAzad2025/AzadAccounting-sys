@@ -97,7 +97,7 @@
                             {% for customer in customer_report.customers[:5] %}
                             <tr>
                                 <td>{{ customer.customer_name }}</td>
-                                <td class="text-end">{{ customer.formatted_balance }}</td>
+                                <td class="text-end" data-balance-customer="{{ customer.customer_id }}">{{ customer.formatted_balance }}</td>
                             </tr>
                             {% endfor %}
                         </tbody>

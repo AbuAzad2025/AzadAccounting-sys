@@ -18,7 +18,7 @@ from extensions import db, cache
 from models import (
     ServiceRequest, ServicePart, ServiceTask, Customer, Product,
     Warehouse, AuditLog, User, EquipmentType, StockLevel, Partner,
-    Permission, Role, ServiceStatus, _service_consumes_stock, ServicePriority,
+    Permission, Role, ServiceStatus, _service_consumes_stock, ServicePriority, WarehouseType,
     Payment, PaymentStatus, PaymentDirection, PaymentEntityType
 )
 from forms import (
@@ -67,9 +67,20 @@ def _get_or_404(model, ident, options=None):
 def _log_service_stock_action(service, action: str, items: list[dict]) -> None:
     try:
         payload = {"items": items or []}
-        entry = AuditLog(created_at=datetime.utcnow(), model_name="ServiceRequest", record_id=service.id, customer_id=getattr(service,"customer_id",None), user_id=(current_user.id if getattr(current_user,"is_authenticated",False) else None), action=(action or "").strip().upper(), old_data=None, new_data=json.dumps(payload, ensure_ascii=False, default=str), ip_address=request.remote_addr, user_agent=request.headers.get("User-Agent",""))
+        entry = AuditLog(created_at=datetime.now(timezone.utc).replace(tzinfo=None), model_name="ServiceRequest", record_id=service.id, customer_id=getattr(service,"customer_id",None), user_id=(current_user.id if getattr(current_user,"is_authenticated",False) else None), action=(action or "").strip().upper(), old_data=None, new_data=json.dumps(payload, ensure_ascii=False, default=str), ip_address=request.remote_addr, user_agent=request.headers.get("User-Agent",""))
         db.session.add(entry)
     except Exception: pass
+
+def _ensure_partner_warehouse(warehouse_id: int) -> Warehouse:
+    wid = int(warehouse_id or 0)
+    if not wid:
+        raise ValueError("❌ يجب تحديد المستودع")
+    wh = db.session.get(Warehouse, wid)
+    if not wh:
+        raise ValueError("❌ المستودع غير موجود")
+    if wh.warehouse_type == WarehouseType.PARTNER.value and not wh.partner_id:
+        raise ValueError("❌ مستودع الشريك غير مربوط بشريك")
+    return wh
 
 def _update_service_totals(service):
     """تحديث parts_total, labor_total, و total_amount في ServiceRequest"""
@@ -189,6 +200,7 @@ def _consume_service_stock_once(service) -> bool:
         current=currents.get(key,0)
         delta=target-current
         if delta:
+            _ensure_partner_warehouse(key[1])
             new_qty=utils._apply_stock_delta(key[0],key[1],delta)
             items.append({"part_id":key[0],"warehouse_id":key[1],"qty":delta,"stock_after":int(new_qty)})
     if not items and _has_stock_action(service,"STOCK_CONSUME"): return False
@@ -204,6 +216,7 @@ def _release_service_stock_once(service) -> bool:
     for key,current in currents.items():
         if not current: continue
         delta=-current
+        _ensure_partner_warehouse(key[1])
         new_qty=utils._apply_stock_delta(key[0],key[1],delta)
         items.append({"part_id":key[0],"warehouse_id":key[1],"qty":delta,"stock_after":int(new_qty)})
     if not items: return False
@@ -426,10 +439,7 @@ def list_requests():
 @service_bp.route('/archive/<int:id>', methods=['POST'])
 @login_required
 def archive_service(id):
-    if not current_user.has_permission("archive_service"):
-         return jsonify({"status": "error", "message": "ليس لديك صلاحية لأرشفة طلبات الصيانة"}), 403
-    
-    service = ServiceRequest.query.get_or_404(id)
+    service = db.get_or_404(ServiceRequest, id)
     reason = request.form.get("reason")
     
     try:
@@ -441,25 +451,24 @@ def archive_service(id):
             service.is_archived = True
             db.session.commit()
             return jsonify({"status": "success", "message": "تم أرشفة طلب الصيانة بنجاح (يدوي)"})
-        except:
-            return jsonify({"status": "error", "message": str(e)}), 500
+        except Exception:
+            current_app.logger.exception("service.archive_service failed", extra={"service_id": id})
+            return jsonify({"status": "error", "message": "تعذر أرشفة طلب الصيانة حالياً"}), 500
 
 @service_bp.route('/restore/<int:id>', methods=['POST'])
 @login_required
 def restore_service(id):
-    if not current_user.has_permission("archive_service"):
-         return jsonify({"status": "error", "message": "ليس لديك صلاحية لاستعادة طلبات الصيانة"}), 403
-         
     try:
         restore_record(id, ServiceRequest)
         return jsonify({"status": "success", "message": "تم استعادة طلب الصيانة بنجاح"})
     except Exception as e:
-        service = ServiceRequest.query.get(id)
+        service = db.session.get(ServiceRequest, id)
         if service:
             service.is_archived = False
             db.session.commit()
             return jsonify({"status": "success", "message": "تم استعادة طلب الصيانة بنجاح (يدوي)"})
-        return jsonify({"status": "error", "message": str(e)}), 500
+        current_app.logger.exception("service.restore_service failed", extra={"service_id": id})
+        return jsonify({"status": "error", "message": "تعذر استعادة طلب الصيانة حالياً"}), 500
 
 @service_bp.route('/export/csv', methods=['GET'])
 @login_required
@@ -512,7 +521,7 @@ def create_request():
         _stat_code = (form.status.data or 'PENDING').upper()
         status_val = getattr(ServiceStatus, _stat_code, ServiceStatus.PENDING)
 
-        service=ServiceRequest(service_number=f"SRV-{datetime.utcnow():%Y%m%d%H%M%S}", customer_id=customer.id, vehicle_vrn=form.vehicle_vrn.data, vehicle_type_id=utils._get_id(form.vehicle_type_id.data) if form.vehicle_type_id.data else None, vehicle_model=form.vehicle_model.data, chassis_number=form.chassis_number.data, problem_description=form.problem_description.data, priority=priority_val, estimated_duration=form.estimated_duration.data, status=status_val, received_at=datetime.utcnow(), consume_stock=bool(form.consume_stock.data))
+        service=ServiceRequest(service_number=f"SRV-{datetime.now(timezone.utc):%Y%m%d%H%M%S}", customer_id=customer.id, vehicle_vrn=form.vehicle_vrn.data, vehicle_type_id=utils._get_id(form.vehicle_type_id.data) if form.vehicle_type_id.data else None, vehicle_model=form.vehicle_model.data, chassis_number=form.chassis_number.data, problem_description=form.problem_description.data, priority=priority_val, estimated_duration=form.estimated_duration.data, status=status_val, received_at=datetime.now(timezone.utc).replace(tzinfo=None), consume_stock=bool(form.consume_stock.data))
         db.session.add(service)
         try:
             db.session.commit(); log_service_action(service,"CREATE")
@@ -571,6 +580,7 @@ def update_diagnosis(rid):
     diagnosis=request.form.get('diagnosis','').strip(); problem_description=request.form.get('problem_description',service.problem_description); resolution=request.form.get('resolution',service.resolution); estimated_duration=request.form.get('estimated_duration',service.estimated_duration); estimated_cost=request.form.get('estimated_cost',service.estimated_cost)
     service.problem_description=problem_description; service.diagnosis=diagnosis; service.engineer_notes=diagnosis; service.resolution=resolution; service.estimated_duration=estimated_duration; service.estimated_cost=estimated_cost; service.status=ServiceStatus.IN_PROGRESS.value
     try:
+        _consume_service_stock_once(service)
         db.session.commit()
         log_service_action(service,"DIAGNOSIS", old_data=old, new_data={'problem_description':service.problem_description,'diagnosis':service.diagnosis,'resolution':service.resolution,'estimated_duration':service.estimated_duration,'estimated_cost':str(service.estimated_cost or 0),'status':getattr(service.status,"value",service.status)})
         _refresh_service_related_balances(service)
@@ -654,10 +664,11 @@ def toggle_service(rid, action):
     try:
         current_status = getattr(service.status, 'value', service.status)
         if action=='start':
-            if not getattr(service,"started_at",None): service.started_at=datetime.utcnow()
+            if not getattr(service,"started_at",None): service.started_at=datetime.now(timezone.utc).replace(tzinfo=None)
             service.status=ServiceStatus.IN_PROGRESS.value
+            _consume_service_stock_once(service)
         elif action=='complete':
-            service.completed_at=datetime.utcnow()
+            service.completed_at=datetime.now(timezone.utc).replace(tzinfo=None)
             if service.started_at: service.actual_duration=int((service.completed_at-service.started_at).total_seconds()/60)
             service.status=ServiceStatus.COMPLETED.value
             _consume_service_stock_once(service)
@@ -711,6 +722,8 @@ def add_part(rid):
             _flash_error('يجب اختيار المستودع والقطعة')
             return redirect(url_for('service.view_request', rid=rid))
         
+        _ensure_partner_warehouse(warehouse_id)
+
         if quantity <= 0:
             _flash_error('الكمية يجب أن تكون أكبر من صفر')
             return redirect(url_for('service.view_request', rid=rid))
@@ -746,9 +759,10 @@ def add_part(rid):
         )
         db.session.add(part)
         db.session.flush()
-        service.updated_at=datetime.utcnow()
+        service.updated_at=datetime.now(timezone.utc).replace(tzinfo=None)
         
         if _service_consumes_stock(service):
+            _ensure_partner_warehouse(warehouse_id)
             new_qty=utils._apply_stock_delta(product_id, warehouse_id, -quantity)
             _log_service_stock_action(service,"STOCK_CONSUME_PART",[{"part_id":product_id,"warehouse_id":warehouse_id,"qty":-quantity,"stock_after":int(new_qty)}])
             current_app.logger.info("service.part_add",extra={"event":"service.part.add","service_id":service.id,"part_id":product_id,"warehouse_id":warehouse_id,"qty":-quantity})
@@ -786,11 +800,12 @@ def delete_part(pid):
         return redirect(url_for('service.view_request', rid=rid))
     try:
         if _service_consumes_stock(service):
+            _ensure_partner_warehouse(part.warehouse_id)
             new_qty=utils._apply_stock_delta(part.part_id, part.warehouse_id, +int(part.quantity or 0))
             _log_service_stock_action(service,"STOCK_RELEASE_PART",[{"part_id":part.part_id,"warehouse_id":part.warehouse_id,"qty":+int(part.quantity or 0),"stock_after":int(new_qty)}])
             current_app.logger.info("service.part_delete",extra={"event":"service.part.delete","service_id":service.id,"part_id":part.part_id,"warehouse_id":part.warehouse_id,"qty":+int(part.quantity or 0)})
         db.session.delete(part)
-        service.updated_at=datetime.utcnow()
+        service.updated_at=datetime.now(timezone.utc).replace(tzinfo=None)
         _update_service_totals(service)
         db.session.commit()
         _refresh_service_related_balances(service)
@@ -859,7 +874,7 @@ def add_task(rid):
         )
         db.session.add(task)
         db.session.flush()
-        service.updated_at=datetime.utcnow()
+        service.updated_at=datetime.now(timezone.utc).replace(tzinfo=None)
         _update_service_totals(service)
         db.session.commit()
         _refresh_service_related_balances(service)
@@ -888,7 +903,7 @@ def delete_task(tid):
     
     db.session.delete(task)
     try:
-        service.updated_at=datetime.utcnow()
+        service.updated_at=datetime.now(timezone.utc).replace(tzinfo=None)
         _update_service_totals(service)
         db.session.commit()
         _refresh_service_related_balances(service)

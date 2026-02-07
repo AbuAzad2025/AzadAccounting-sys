@@ -135,7 +135,7 @@ def add_definition():
 @login_required
 @permission_required('manage_workflows')
 def edit_definition(id):
-    definition = WorkflowDefinition.query.get_or_404(id)
+    definition = db.get_or_404(WorkflowDefinition, id)
     
     if request.method == 'POST':
         try:
@@ -175,7 +175,7 @@ def edit_definition(id):
 @permission_required('manage_workflows')
 def toggle_definition(id):
     try:
-        definition = WorkflowDefinition.query.get_or_404(id)
+        definition = db.get_or_404(WorkflowDefinition, id)
         definition.is_active = not definition.is_active
         definition.updated_by = current_user.id
         definition.updated_at = datetime.now()
@@ -219,7 +219,7 @@ def instances():
 @login_required
 @permission_required('manage_workflows')
 def view_instance(id):
-    instance = WorkflowInstance.query.get_or_404(id)
+    instance = db.get_or_404(WorkflowInstance, id)
     
     history = WorkflowEngine.get_workflow_history(id)
     
@@ -240,9 +240,9 @@ def view_instance(id):
     
     entity = None
     if instance.entity_type == 'MILESTONE':
-        entity = ProjectMilestone.query.get(instance.entity_id)
+        entity = db.session.get(ProjectMilestone, instance.entity_id)
     elif instance.entity_type == 'CHANGE_ORDER':
-        entity = ProjectChangeOrder.query.get(instance.entity_id)
+        entity = db.session.get(ProjectChangeOrder, instance.entity_id)
     
     return render_template('workflows/instance_view.html',
                          instance=instance,

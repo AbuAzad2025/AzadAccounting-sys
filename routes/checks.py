@@ -6,7 +6,7 @@ from flask import Blueprint, render_template, request, jsonify, current_app, fla
 from flask_login import current_user, login_required
 from datetime import datetime, timedelta, date, timezone
 from sqlalchemy import and_, or_, desc, func, select
-from sqlalchemy.orm import joinedload, sessionmaker
+from sqlalchemy.orm import joinedload, sessionmaker, object_session
 from extensions import db
 try:
     from extensions import limiter
@@ -23,6 +23,9 @@ import json
 import uuid
 
 checks_bp = Blueprint('checks', __name__, url_prefix='/checks')
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 from sqlalchemy import event
@@ -372,7 +375,7 @@ def create_check_record(
             return datetime.fromisoformat(str(value))
         except Exception:
             return None
-    check_date_obj = _to_datetime(check_date) or datetime.utcnow()
+    check_date_obj = _to_datetime(check_date) or _utcnow()
     check_due_date_obj = _to_datetime(check_due_date) or check_date_obj
     if check_due_date_obj < check_date_obj:
         check_due_date_obj = check_date_obj
@@ -388,6 +391,32 @@ def create_check_record(
     resolved_partner = partner_id if partner_id is not None else getattr(payment, "partner_id", None)
     resolved_reference = reference_number or (f"PMT-{payment.id}" if payment and getattr(payment, "id", None) else None)
     resolved_created_by = created_by_id or getattr(payment, "created_by", None) or (current_user.id if current_user.is_authenticated else None)
+    if payment and resolved_customer is None:
+        try:
+            if getattr(payment, "sale_id", None):
+                from models import Sale
+                s = getattr(payment, "sale", None) or db.session.get(Sale, payment.sale_id)
+                resolved_customer = getattr(s, "customer_id", None) if s else None
+            elif getattr(payment, "invoice_id", None):
+                from models import Invoice
+                inv = getattr(payment, "invoice", None) or db.session.get(Invoice, payment.invoice_id)
+                resolved_customer = getattr(inv, "customer_id", None) if inv else None
+            elif getattr(payment, "service_id", None):
+                from models import ServiceRequest
+                svc = getattr(payment, "service", None) or db.session.get(ServiceRequest, payment.service_id)
+                resolved_customer = getattr(svc, "customer_id", None) if svc else None
+            elif getattr(payment, "preorder_id", None):
+                from models import PreOrder
+                po = getattr(payment, "preorder", None) or db.session.get(PreOrder, payment.preorder_id)
+                resolved_customer = getattr(po, "customer_id", None) if po else None
+        except Exception:
+            resolved_customer = resolved_customer
+    if resolved_created_by is None:
+        try:
+            from models import User
+            resolved_created_by = db.session.query(User.id).order_by(User.id.asc()).limit(1).scalar()
+        except Exception:
+            resolved_created_by = resolved_created_by
     check = Check(
         payment_id=getattr(payment, "id", None),
         check_number=check_number,
@@ -425,12 +454,12 @@ def _check_gl_batch_reverse(mapper, connection, target):
         if amount <= 0:
             return
         
-        from models import fx_rate, GL_ACCOUNTS, PAYMENT_GL_MAP
+        from models import GL_ACCOUNTS, _fx_rate_local_via_connection
         
         amount_ils = amount
         if target.currency and target.currency != 'ILS':
             try:
-                rate = fx_rate(target.currency, 'ILS', target.check_date or datetime.utcnow(), raise_on_missing=False)
+                rate = _fx_rate_local_via_connection(connection, target.currency, 'ILS', target.check_date or datetime.now(timezone.utc))
                 if rate and rate > 0:
                     amount_ils = float(amount * float(rate))
             except Exception:
@@ -470,7 +499,9 @@ def _check_gl_batch_reverse(mapper, connection, target):
 @event.listens_for(Payment, 'before_delete')
 def _payment_check_before_delete(mapper, connection, target):
     try:
-        if target.method == PaymentMethod.CHEQUE:
+        method = str(getattr(target, "method", "") or "").upper()
+        cheque_values = {str(getattr(PaymentMethod, "CHEQUE", "CHEQUE")), str(getattr(getattr(PaymentMethod, "CHEQUE", None), "value", "CHEQUE"))}
+        if method in cheque_values or method in {"CHECK", "CHEQUE", "CHQ"}:
             connection.execute(
                 GLBatch.__table__.delete().where(
                     (GLBatch.source_type == 'check_payment') & 
@@ -525,20 +556,18 @@ def _glbatch_before_delete(mapper, connection, target):
             pass
 
 
-_check_gl_queue = []
-
 @event.listens_for(db.session, 'after_commit')
 def _process_check_gl_queue(session):
-    _create_check_gl_after_commit()
+    _create_check_gl_after_commit(session)
 
-def _create_check_gl_after_commit():
+def _create_check_gl_after_commit(session):
     """إنشاء GL للشيكات المعلقة بعد commit"""
-    global _check_gl_queue
-    if not _check_gl_queue:
+    try:
+        queue_copy = (session.info.pop('check_gl_queue', None) or []).copy()
+    except Exception:
+        queue_copy = []
+    if not queue_copy:
         return
-    
-    queue_copy = _check_gl_queue.copy()
-    _check_gl_queue.clear()
     
     for item in queue_copy:
         try:
@@ -616,7 +645,9 @@ def _check_manual_gl_on_insert(mapper, connection, target):
         currency = target.currency or 'ILS'
         check_type = 'manual'
         
-        _check_gl_queue.append({
+        sess = object_session(target) or db.session
+        queue = sess.info.setdefault('check_gl_queue', [])
+        queue.append({
             'check_id': target.id,
             'check_type': check_type,
             'amount': amount,
@@ -739,8 +770,11 @@ def _check_create_payment_auto(mapper, connection, target):
                 pass
         
         try:
+            from models import _next_payment_number
+            payment_number = _next_payment_number(connection)
             ins = Payment.__table__.insert().values(
-                payment_date=target.check_date or datetime.utcnow(),
+                payment_number=payment_number,
+                payment_date=target.check_date or _utcnow(),
                 total_amount=float(target.amount),
                 currency=target.currency or 'ILS',
                 method=PaymentMethod.CHEQUE.value,
@@ -755,9 +789,9 @@ def _check_create_payment_auto(mapper, connection, target):
                 supplier_id=target.supplier_id,
                 partner_id=target.partner_id,
                 entity_type=entity_type,
-                created_by_id=created_by_id,
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow()
+                created_by=created_by_id,
+                created_at=_utcnow(),
+                updated_at=_utcnow()
             )
             
             current_app.logger.info(f"🔍 [CHECK_PAYMENT_AUTO] تنفيذ INSERT...")
@@ -780,7 +814,11 @@ def _check_create_payment_auto(mapper, connection, target):
                 connection.execute(
                     Check.__table__.update().where(Check.id == target.id).values(payment_id=payment_id)
                 )
-                target.payment_id = payment_id
+                try:
+                    from sqlalchemy.orm.attributes import set_committed_value
+                    set_committed_value(target, "payment_id", payment_id)
+                except Exception:
+                    pass
                 current_app.logger.info(f"🔍 [CHECK_PAYMENT_AUTO] تم تحديث payment_id للشيك: {target.payment_id}")
             
             if use_new_connection and not connection_from_event:
@@ -912,45 +950,66 @@ def _check_manual_gl_on_update(mapper, connection, target):
             notes=target.notes or 'شيك يدوي',
             entity_type=entity_type,
             entity_id=entity_id,
-            connection=None
+            connection=connection
         )
     except Exception as e:
         current_app.logger.warning(f"⚠️ خطأ في ترحيل الشيك اليدوي #{getattr(target, 'id', '?')} لدفتر الأستاذ عند التحديث: {e}")
         
 
 
-def ensure_check_accounts():
-    """التأكد من وجود جميع حسابات دفتر الأستاذ المطلوبة"""
+def ensure_check_accounts(connection=None):
     try:
         required_accounts = [
             ('1000_CASH', 'الصندوق', 'ASSET'),
             ('1010_BANK', 'البنك', 'ASSET'),
             ('1020_CARD_CLEARING', 'بطاقات الائتمان', 'ASSET'),
             ('1100_AR', 'العملاء (ذمم مدينة)', 'ASSET'),
-            ('1150_CHEQUES_RECEIVABLE', 'شيكات تحت التحصيل', 'ASSET'),
+            ('1150_CHQ_REC', 'شيكات تحت التحصيل', 'ASSET'),
             ('1205_INV_EXCHANGE', 'المخزون - تبادل', 'ASSET'),
-            
             ('2000_AP', 'الموردين (ذمم دائنة)', 'LIABILITY'),
             ('2100_VAT_PAYABLE', 'ضريبة القيمة المضافة', 'LIABILITY'),
-            ('2150_CHEQUES_PAYABLE', 'شيكات تحت الدفع', 'LIABILITY'),
-            
+            ('2150_CHQ_PAY', 'شيكات تحت الدفع', 'LIABILITY'),
             ('4000_SALES', 'المبيعات', 'REVENUE'),
-            
             ('5000_EXPENSES', 'المصروفات العامة', 'EXPENSE'),
             ('5105_COGS_EXCHANGE', 'تكلفة البضاعة المباعة', 'EXPENSE'),
         ]
-        
+
+        from sqlalchemy import text as sa_text
+        from sqlalchemy.orm import Session as SQLSession
+
+        should_close = False
+        if connection is None:
+            connection = db.engine.connect()
+            should_close = True
+        elif isinstance(connection, SQLSession):
+            try:
+                connection = connection.connection()
+            except Exception:
+                connection = db.engine.connect()
+                should_close = True
+
         for code, name, acc_type in required_accounts:
-            existing = Account.query.filter_by(code=code).first()
-            if not existing:
-                new_account = Account(code=code, name=name, type=acc_type, is_active=True)
-                db.session.add(new_account)
-                current_app.logger.info(f"✅ تم إنشاء حساب: {code} - {name}")
-        
-        db.session.commit()
+            exists_row = connection.execute(
+                sa_text("SELECT 1 FROM accounts WHERE code = :code LIMIT 1"),
+                {"code": code},
+            ).fetchone()
+            if exists_row:
+                continue
+            connection.execute(
+                sa_text("""
+                    INSERT INTO accounts (code, name, type, is_active)
+                    VALUES (:code, :name, :type, :is_active)
+                """),
+                {"code": code, "name": name, "type": acc_type, "is_active": True},
+            )
+
+        if should_close:
+            try:
+                connection.close()
+            except Exception:
+                pass
     except Exception as e:
         current_app.logger.error(f"❌ خطأ في إنشاء حسابات دفتر الأستاذ: {str(e)}")
-        db.session.rollback()
 
 
 def _create_gl_batch(connection, batch_code, check_type, check_id, currency, entity_name, notes, entity_type, entity_id, check_type_label):
@@ -964,8 +1023,8 @@ def _create_gl_batch(connection, batch_code, check_type, check_id, currency, ent
         "memo": f"قيد {check_type_label}: {entity_name} - {notes}",
         "entity_type": entity_type,
         "entity_id": entity_id,
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow()
+        "created_at": _utcnow(),
+        "updated_at": _utcnow()
     }
     result = connection.execute(
         sa_text("""
@@ -989,8 +1048,8 @@ def _create_gl_entries_for_pending(amount_decimal, currency, batch_id, check_typ
                 "credit": 0.0,
                 "currency": currency or 'ILS',
                 "ref": f"{check_type_label} وارد معلق من {entity_name}",
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow()
+                "created_at": _utcnow(),
+                "updated_at": _utcnow()
             },
             {
                 "batch_id": batch_id,
@@ -999,8 +1058,8 @@ def _create_gl_entries_for_pending(amount_decimal, currency, batch_id, check_typ
                 "credit": float(amount_decimal),
                 "currency": currency or 'ILS',
                 "ref": f"{check_type_label} وارد معلق من {entity_name}",
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow()
+                "created_at": _utcnow(),
+                "updated_at": _utcnow()
             }
         ])
     else:
@@ -1012,8 +1071,8 @@ def _create_gl_entries_for_pending(amount_decimal, currency, batch_id, check_typ
                 "credit": 0.0,
                 "currency": currency or 'ILS',
                 "ref": f"{check_type_label} صادر معلق إلى {entity_name}",
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow()
+                "created_at": _utcnow(),
+                "updated_at": _utcnow()
             },
             {
                 "batch_id": batch_id,
@@ -1022,8 +1081,8 @@ def _create_gl_entries_for_pending(amount_decimal, currency, batch_id, check_typ
                 "credit": float(amount_decimal),
                 "currency": currency or 'ILS',
                 "ref": f"{check_type_label} صادر معلق إلى {entity_name}",
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow()
+                "created_at": _utcnow(),
+                "updated_at": _utcnow()
             }
         ])
     return entries
@@ -1040,8 +1099,8 @@ def _create_gl_entries_for_cashed(amount_decimal, currency, batch_id, check_type
                 "credit": 0.0,
                 "currency": currency or 'ILS',
                 "ref": f"صرف {check_type_label} وارد من {entity_name}",
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow()
+                "created_at": _utcnow(),
+                "updated_at": _utcnow()
             },
             {
                 "batch_id": batch_id,
@@ -1050,8 +1109,8 @@ def _create_gl_entries_for_cashed(amount_decimal, currency, batch_id, check_type
                 "credit": float(amount_decimal),
                 "currency": currency or 'ILS',
                 "ref": f"صرف {check_type_label} وارد من {entity_name}",
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow()
+                "created_at": _utcnow(),
+                "updated_at": _utcnow()
             }
         ])
     else:
@@ -1063,8 +1122,8 @@ def _create_gl_entries_for_cashed(amount_decimal, currency, batch_id, check_type
                 "credit": 0.0,
                 "currency": currency or 'ILS',
                 "ref": f"صرف {check_type_label} صادر إلى {entity_name}",
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow()
+                "created_at": _utcnow(),
+                "updated_at": _utcnow()
             },
             {
                 "batch_id": batch_id,
@@ -1073,8 +1132,8 @@ def _create_gl_entries_for_cashed(amount_decimal, currency, batch_id, check_type
                 "credit": float(amount_decimal),
                 "currency": currency or 'ILS',
                 "ref": f"صرف {check_type_label} صادر إلى {entity_name}",
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow()
+                "created_at": _utcnow(),
+                "updated_at": _utcnow()
             }
         ])
     return entries
@@ -1091,8 +1150,8 @@ def _create_gl_entries_for_returned(amount_decimal, currency, batch_id, check_ty
                 "credit": 0.0,
                 "currency": currency or 'ILS',
                 "ref": f"إرجاع {check_type_label} من {entity_name}",
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow()
+                "created_at": _utcnow(),
+                "updated_at": _utcnow()
             },
             {
                 "batch_id": batch_id,
@@ -1101,8 +1160,8 @@ def _create_gl_entries_for_returned(amount_decimal, currency, batch_id, check_ty
                 "credit": float(amount_decimal),
                 "currency": currency or 'ILS',
                 "ref": f"إرجاع {check_type_label} من {entity_name}",
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow()
+                "created_at": _utcnow(),
+                "updated_at": _utcnow()
             }
         ])
     else:
@@ -1114,8 +1173,8 @@ def _create_gl_entries_for_returned(amount_decimal, currency, batch_id, check_ty
                 "credit": 0.0,
                 "currency": currency or 'ILS',
                 "ref": f"إرجاع {check_type_label} إلى {entity_name}",
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow()
+                "created_at": _utcnow(),
+                "updated_at": _utcnow()
             },
             {
                 "batch_id": batch_id,
@@ -1124,8 +1183,8 @@ def _create_gl_entries_for_returned(amount_decimal, currency, batch_id, check_ty
                 "credit": float(amount_decimal),
                 "currency": currency or 'ILS',
                 "ref": f"إرجاع {check_type_label} إلى {entity_name}",
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow()
+                "created_at": _utcnow(),
+                "updated_at": _utcnow()
             }
         ])
     return entries
@@ -1147,8 +1206,8 @@ def _create_gl_entries_for_cancelled(amount_decimal, currency, batch_id, check_t
                     "credit": float(amount_decimal),
                     "currency": currency or 'ILS',
                     "ref": f"✅ تسوية {check_type_label} وارد من {entity_name} (كان مرتد)",
-                    "created_at": datetime.utcnow(),
-                    "updated_at": datetime.utcnow()
+                    "created_at": _utcnow(),
+                    "updated_at": _utcnow()
                 },
                 {
                     "batch_id": batch_id,
@@ -1157,8 +1216,8 @@ def _create_gl_entries_for_cancelled(amount_decimal, currency, batch_id, check_t
                     "credit": 0.0,
                     "currency": currency or 'ILS',
                     "ref": f"✅ تسوية {check_type_label} وارد من {entity_name} (كان مرتد)",
-                    "created_at": datetime.utcnow(),
-                    "updated_at": datetime.utcnow()
+                    "created_at": _utcnow(),
+                    "updated_at": _utcnow()
                 }
             ])
         else:
@@ -1170,8 +1229,8 @@ def _create_gl_entries_for_cancelled(amount_decimal, currency, batch_id, check_t
                     "credit": float(amount_decimal),
                     "currency": currency or 'ILS',
                     "ref": f"✅ تسوية {check_type_label} صادر إلى {entity_name} (كان مرتد)",
-                    "created_at": datetime.utcnow(),
-                    "updated_at": datetime.utcnow()
+                    "created_at": _utcnow(),
+                    "updated_at": _utcnow()
                 },
                 {
                     "batch_id": batch_id,
@@ -1180,8 +1239,8 @@ def _create_gl_entries_for_cancelled(amount_decimal, currency, batch_id, check_t
                     "credit": 0.0,
                     "currency": currency or 'ILS',
                     "ref": f"✅ تسوية {check_type_label} صادر إلى {entity_name} (كان مرتد)",
-                    "created_at": datetime.utcnow(),
-                    "updated_at": datetime.utcnow()
+                    "created_at": _utcnow(),
+                    "updated_at": _utcnow()
                 }
             ])
     else:
@@ -1194,8 +1253,8 @@ def _create_gl_entries_for_cancelled(amount_decimal, currency, batch_id, check_t
                     "credit": 0.0,
                     "currency": currency or 'ILS',
                     "ref": f"⛔ إلغاء {check_type_label} وارد من {entity_name}",
-                    "created_at": datetime.utcnow(),
-                    "updated_at": datetime.utcnow()
+                    "created_at": _utcnow(),
+                    "updated_at": _utcnow()
                 },
                 {
                     "batch_id": batch_id,
@@ -1204,8 +1263,8 @@ def _create_gl_entries_for_cancelled(amount_decimal, currency, batch_id, check_t
                     "credit": float(amount_decimal),
                     "currency": currency or 'ILS',
                     "ref": f"⛔ إلغاء {check_type_label} وارد من {entity_name}",
-                    "created_at": datetime.utcnow(),
-                    "updated_at": datetime.utcnow()
+                    "created_at": _utcnow(),
+                    "updated_at": _utcnow()
                 }
             ])
         else:
@@ -1217,8 +1276,8 @@ def _create_gl_entries_for_cancelled(amount_decimal, currency, batch_id, check_t
                     "credit": 0.0,
                     "currency": currency or 'ILS',
                     "ref": f"⛔ إلغاء {check_type_label} صادر إلى {entity_name}",
-                    "created_at": datetime.utcnow(),
-                    "updated_at": datetime.utcnow()
+                    "created_at": _utcnow(),
+                    "updated_at": _utcnow()
                 },
                 {
                     "batch_id": batch_id,
@@ -1227,8 +1286,8 @@ def _create_gl_entries_for_cancelled(amount_decimal, currency, batch_id, check_t
                     "credit": float(amount_decimal),
                     "currency": currency or 'ILS',
                     "ref": f"⛔ إلغاء {check_type_label} صادر إلى {entity_name}",
-                    "created_at": datetime.utcnow(),
-                    "updated_at": datetime.utcnow()
+                    "created_at": _utcnow(),
+                    "updated_at": _utcnow()
                 }
             ])
     return entries
@@ -1245,8 +1304,8 @@ def _create_gl_entries_for_reverse_cancelled(amount_decimal, currency, batch_id,
                 "credit": float(amount_decimal),
                 "currency": currency or 'ILS',
                 "ref": f"↩️ عكس إلغاء {check_type_label} وارد من {entity_name} - إرجاع للحالة: {new_status}",
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow()
+                "created_at": _utcnow(),
+                "updated_at": _utcnow()
             },
             {
                 "batch_id": batch_id,
@@ -1255,8 +1314,8 @@ def _create_gl_entries_for_reverse_cancelled(amount_decimal, currency, batch_id,
                 "credit": 0.0,
                 "currency": currency or 'ILS',
                 "ref": f"↩️ عكس إلغاء {check_type_label} وارد من {entity_name} - إرجاع للحالة: {new_status}",
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow()
+                "created_at": _utcnow(),
+                "updated_at": _utcnow()
             }
         ])
     else:
@@ -1268,8 +1327,8 @@ def _create_gl_entries_for_reverse_cancelled(amount_decimal, currency, batch_id,
                 "credit": float(amount_decimal),
                 "currency": currency or 'ILS',
                 "ref": f"↩️ عكس إلغاء {check_type_label} صادر إلى {entity_name} - إرجاع للحالة: {new_status}",
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow()
+                "created_at": _utcnow(),
+                "updated_at": _utcnow()
             },
             {
                 "batch_id": batch_id,
@@ -1278,8 +1337,8 @@ def _create_gl_entries_for_reverse_cancelled(amount_decimal, currency, batch_id,
                 "credit": 0.0,
                 "currency": currency or 'ILS',
                 "ref": f"↩️ عكس إلغاء {check_type_label} صادر إلى {entity_name} - إرجاع للحالة: {new_status}",
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow()
+                "created_at": _utcnow(),
+                "updated_at": _utcnow()
             }
         ])
     return entries
@@ -1320,8 +1379,6 @@ def create_gl_entry_for_check(check_id, check_type, amount, currency, direction,
        - دائن: الموردين (خصم - زيادة)
     """
     try:
-        ensure_check_accounts()
-        
         is_incoming = (direction == 'IN')
         amount_decimal = Decimal(str(amount))
         
@@ -1367,6 +1424,8 @@ def create_gl_entry_for_check(check_id, check_type, amount, currency, direction,
                 connection = db.engine.connect()
                 should_close_connection = True
                 connection_from_event = False
+
+        ensure_check_accounts(connection)
         
         try:
             batch_id = _create_gl_batch(
@@ -1455,26 +1514,26 @@ def create_gl_entry_for_check(check_id, check_type, amount, currency, direction,
                 else:
                     raise
         
-        if should_close_connection and not connection_from_event:
-            try:
-                connection.close()
-            except:
-                pass
-        
         current_app.logger.info(f"✅ تم إنشاء قيد محاسبي للشيك {check_id} - Batch: {batch_code}")
-        if connection_from_event:
+        batch_row = None
+        try:
             batch_row = connection.execute(
                 sa_text("SELECT id, code FROM gl_batches WHERE id = :id"),
                 {"id": batch_id}
             ).first()
-            if batch_row:
-                batch = GLBatch()
-                batch.id = batch_row[0]
-                batch.code = batch_row[1]
-            else:
-                batch = None
+        except Exception:
+            batch_row = None
+        if batch_row:
+            batch = GLBatch()
+            batch.id = batch_row[0]
+            batch.code = batch_row[1]
         else:
-            batch = GLBatch.query.get(batch_id)
+            batch = None
+        if should_close_connection and not connection_from_event:
+            try:
+                connection.close()
+            except Exception:
+                pass
         return batch
         
     except Exception as e:
@@ -1501,8 +1560,8 @@ CHECK_STATUS = {
 }
 
 GL_ACCOUNTS_CHECKS = {
-    'CHEQUES_RECEIVABLE': '1150_CHEQUES_RECEIVABLE',
-    'CHEQUES_PAYABLE': '2150_CHEQUES_PAYABLE',
+    'CHEQUES_RECEIVABLE': '1150_CHQ_REC',
+    'CHEQUES_PAYABLE': '2150_CHQ_PAY',
     'BANK': '1010_BANK',
     'CASH': '1000_CASH',
     'AR': '1100_AR',
@@ -1695,15 +1754,15 @@ class CheckActionService:
         
         if ctx.entity_type and ctx.entity_id:
             if ctx.entity_type == 'CUSTOMER':
-                customer = Customer.query.get(ctx.entity_id)
+                customer = db.session.get(Customer, ctx.entity_id)
                 if not customer:
                     raise CheckValidationError(f"العميل #{ctx.entity_id} غير موجود", code='ENTITY_NOT_FOUND')
             elif ctx.entity_type == 'SUPPLIER':
-                supplier = Supplier.query.get(ctx.entity_id)
+                supplier = db.session.get(Supplier, ctx.entity_id)
                 if not supplier:
                     raise CheckValidationError(f"المورد #{ctx.entity_id} غير موجود", code='ENTITY_NOT_FOUND')
             elif ctx.entity_type == 'PARTNER':
-                partner = Partner.query.get(ctx.entity_id)
+                partner = db.session.get(Partner, ctx.entity_id)
                 if not partner:
                     raise CheckValidationError(f"الشريك #{ctx.entity_id} غير موجود", code='ENTITY_NOT_FOUND')
 
@@ -1794,25 +1853,25 @@ class CheckActionService:
             else:
                 from models import Sale, Invoice, ServiceRequest, PreOrder
                 if ctx.payment.sale_id:
-                    sale = Sale.query.get(ctx.payment.sale_id)
+                    sale = db.session.get(Sale, ctx.payment.sale_id)
                     if sale and sale.customer_id:
                         check.customer_id = sale.customer_id
                         check.supplier_id = None
                         check.partner_id = None
                 elif ctx.payment.invoice_id:
-                    invoice = Invoice.query.get(ctx.payment.invoice_id)
+                    invoice = db.session.get(Invoice, ctx.payment.invoice_id)
                     if invoice and invoice.customer_id:
                         check.customer_id = invoice.customer_id
                         check.supplier_id = None
                         check.partner_id = None
                 elif ctx.payment.service_id:
-                    service = ServiceRequest.query.get(ctx.payment.service_id)
+                    service = db.session.get(ServiceRequest, ctx.payment.service_id)
                     if service and service.customer_id:
                         check.customer_id = service.customer_id
                         check.supplier_id = None
                         check.partner_id = None
                 elif ctx.payment.preorder_id:
-                    preorder = PreOrder.query.get(ctx.payment.preorder_id)
+                    preorder = db.session.get(PreOrder, ctx.payment.preorder_id)
                     if preorder and preorder.customer_id:
                         check.customer_id = preorder.customer_id
                         check.supplier_id = None
@@ -2042,7 +2101,7 @@ class CheckActionService:
                 try:
                     new_payment_status = PaymentStatusSyncService.sync_payment_status_from_check(check, connection)
                     if new_payment_status:
-                        payment_obj = Payment.query.get(getattr(check, 'payment_id', None))
+                        payment_obj = db.session.get(Payment, getattr(check, 'payment_id', None))
                         if payment_obj:
                             old_status_val = getattr(payment_obj, 'status', None)
                             old = getattr(old_status_val, 'value', old_status_val) if old_status_val else 'PENDING'
@@ -2209,7 +2268,7 @@ class CheckActionService:
                 loan_settlement_id=payment.loan_settlement_id,
                 direction=direction,
                 status=PaymentStatus.COMPLETED.value,
-                payment_date=datetime.utcnow(),
+                payment_date=_utcnow(),
                 total_amount=float(total_amount),
                 currency=(payment.currency or 'ILS'),
                 method=(getattr(payment.method, 'value', payment.method) or PaymentMethod.CHEQUE.value),
@@ -2227,7 +2286,7 @@ class CheckActionService:
                 if payment.currency and payment.currency != 'ILS':
                     refund.fx_rate_used = payment.fx_rate_used
                     refund.fx_rate_source = getattr(payment, 'fx_rate_source', None) or 'original'
-                    refund.fx_rate_timestamp = datetime.utcnow()
+                    refund.fx_rate_timestamp = _utcnow()
                     refund.fx_base_currency = payment.fx_base_currency or payment.currency
                     refund.fx_quote_currency = 'ILS'
             except Exception:
@@ -2370,7 +2429,7 @@ class CheckActionService:
                 loan_settlement_id=payment.loan_settlement_id,
                 direction=direction,
                 status=PaymentStatus.COMPLETED.value,
-                payment_date=datetime.utcnow(),
+                payment_date=_utcnow(),
                 total_amount=float(Decimal(str(getattr(split, 'amount', 0) or 0))),
                 currency=(payment.currency or 'ILS'),
                 method=(getattr(split.method, 'value', split.method) or PaymentMethod.CHEQUE.value),
@@ -2387,7 +2446,7 @@ class CheckActionService:
                 if payment.currency and payment.currency != 'ILS':
                     refund.fx_rate_used = payment.fx_rate_used
                     refund.fx_rate_source = getattr(payment, 'fx_rate_source', None) or 'original'
-                    refund.fx_rate_timestamp = datetime.utcnow()
+                    refund.fx_rate_timestamp = _utcnow()
                     refund.fx_base_currency = payment.fx_base_currency or payment.currency
                     refund.fx_quote_currency = 'ILS'
             except Exception:
@@ -2479,7 +2538,7 @@ class CheckActionService:
 
     def _history_entry(self, status):
         entry = {
-            'timestamp': datetime.utcnow().isoformat(),
+            'timestamp': _utcnow().isoformat(),
             'status': status,
         }
         if self.actor:
@@ -2490,7 +2549,7 @@ class CheckActionService:
         label_part = f"{label} " if label else ''
         marker = self.STATUS_MARKERS.get(status, '\u21bb')
         status_label = CHECK_STATUS.get(status, {}).get('ar', status)
-        line = f"\n[{datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}] {marker} {label_part}حالة الشيك: {status_label}"
+        line = f"\n[{_utcnow().strftime('%Y-%m-%d %H:%M:%S')}] {marker} {label_part}حالة الشيك: {status_label}"
         if note_text:
             line += f"\n   💬 {note_text}"
         if self.actor:
@@ -2621,16 +2680,16 @@ class CheckActionService:
         numeric = self._safe_int(token)
         if numeric is None:
             raise CheckValidationError(f'معرف غير صالح: {token}', code='INVALID_IDENTIFIER')
-        split = PaymentSplit.query.get(numeric)
+        split = db.session.get(PaymentSplit, numeric)
         if split and self._is_cheque_split(split):
             return self._ctx_from_split(token, split)
-        expense = Expense.query.get(numeric)
+        expense = db.session.get(Expense, numeric)
         if expense and self._is_cheque_expense(expense):
             return self._ctx_from_expense(token, expense)
-        manual = Check.query.get(numeric)
+        manual = db.session.get(Check, numeric)
         if manual:
             return self._ctx_from_manual(token, manual)
-        payment = Payment.query.get(numeric)
+        payment = db.session.get(Payment, numeric)
         if payment and self._is_cheque_payment(payment):
             return self._ctx_from_payment(token, payment)
         raise CheckValidationError(f'لم يتم العثور على الشيك المطلوب بالمعرف: {token}', code='CHECK_NOT_FOUND')
@@ -2802,7 +2861,7 @@ class CheckActionService:
     def _fetch_payment(self, pid):
         if pid is None:
             raise CheckValidationError('دفعة غير معروفة: معرف فارغ', code='EMPTY_PAYMENT_ID')
-        payment = Payment.query.get(pid)
+        payment = db.session.get(Payment, pid)
         if not payment:
             raise CheckValidationError(f'الدفعة غير موجودة: {pid}', code='PAYMENT_NOT_FOUND')
         if not self._is_cheque_payment(payment):
@@ -2812,7 +2871,7 @@ class CheckActionService:
     def _fetch_split(self, sid):
         if sid is None:
             raise CheckValidationError('الجزء غير معروف: معرف فارغ', code='EMPTY_SPLIT_ID')
-        split = PaymentSplit.query.get(sid)
+        split = db.session.get(PaymentSplit, sid)
         if not split:
             raise CheckValidationError(f'الجزء غير موجود: {sid}', code='SPLIT_NOT_FOUND')
         if not self._is_cheque_split(split):
@@ -2822,7 +2881,7 @@ class CheckActionService:
     def _fetch_expense(self, eid):
         if eid is None:
             raise CheckValidationError('المصروف غير معروف: معرف فارغ', code='EMPTY_EXPENSE_ID')
-        exp = Expense.query.get(eid)
+        exp = db.session.get(Expense, eid)
         if not exp:
             raise CheckValidationError(f'المصروف غير موجود: {eid}', code='EXPENSE_NOT_FOUND')
         if not self._is_cheque_expense(exp):
@@ -2832,7 +2891,7 @@ class CheckActionService:
     def _fetch_manual(self, cid):
         if cid is None:
             raise CheckValidationError('شيك غير معروف: معرف فارغ', code='EMPTY_CHECK_ID')
-        chk = Check.query.get(cid)
+        chk = db.session.get(Check, cid)
         if not chk:
             raise CheckValidationError(f'لم يتم العثور على الشيك اليدوي: {cid}', code='MANUAL_CHECK_NOT_FOUND')
         return chk
@@ -2894,6 +2953,8 @@ def _build_check_groups(checks):
 
 
 @checks_bp.route('/')
+@login_required
+@utils.permission_required("view_payments")
 def index():
     """صفحة عرض الشيكات"""
     return render_template('checks/index.html', is_owner=_current_user_is_owner())
@@ -2901,6 +2962,7 @@ def index():
 
 @checks_bp.route('/api/checks')
 @login_required
+@utils.permission_required("view_payments")
 def get_checks():
     """
     API لجلب الشيكات من جميع المصادر مع الفلاتر
@@ -2912,27 +2974,52 @@ def get_checks():
         from_date = request.args.get('from_date')
         to_date = request.args.get('to_date')
         source_filter = request.args.get('source')
+
+        parsed_from = None
+        parsed_to = None
+        if from_date:
+            try:
+                parsed_from = datetime.strptime(from_date, '%Y-%m-%d').date()
+            except Exception:
+                parsed_from = None
+        if to_date:
+            try:
+                parsed_to = datetime.strptime(to_date, '%Y-%m-%d').date()
+            except Exception:
+                parsed_to = None
+
+        def _status_snapshot(manual_status: str | None, status_value: str | None, due_days: int | None):
+            manual = (manual_status or '').upper()
+            if manual in {'RETURNED', 'BOUNCED'}:
+                return 'RETURNED', 'مرتجع', 'warning'
+            if manual == 'CANCELLED':
+                return 'CANCELLED', 'ملغي', 'secondary'
+            if manual == 'RESUBMITTED':
+                if due_days is not None:
+                    if due_days < 0:
+                        return 'OVERDUE', 'متأخر', 'danger'
+                    if due_days <= 7:
+                        return 'DUE_SOON', 'قريب الاستحقاق', 'warning'
+                return 'PENDING', 'معلق', 'info'
+            if manual == 'ARCHIVED':
+                return 'CANCELLED', 'ملغي', 'secondary'
+            if manual == 'CASHED':
+                return 'CASHED', 'تم الصرف', 'success'
+
+            if due_days is not None:
+                if due_days < 0:
+                    return 'OVERDUE', 'متأخر', 'danger'
+                if due_days <= 7:
+                    return 'DUE_SOON', 'قريب الاستحقاق', 'warning'
+            return 'PENDING', 'معلق', 'info'
         
         checks = []
-        today = datetime.now(timezone.utc).date()
+        today = _utcnow().date()
         check_ids = set()
 
         current_app.logger.info(f"🔍 get_checks API - بدء الجلب من جميع المصادر...")
         
         if not source_filter or source_filter in ['all', 'payment']:
-            parsed_from = None
-            parsed_to = None
-            if from_date:
-                try:
-                    parsed_from = datetime.strptime(from_date, '%Y-%m-%d').date()
-                except Exception:
-                    parsed_from = None
-            if to_date:
-                try:
-                    parsed_to = datetime.strptime(to_date, '%Y-%m-%d').date()
-                except Exception:
-                    parsed_to = None
-
             def _extract_manual_status(notes_text: str | None) -> str | None:
                 if not notes_text:
                     return None
@@ -2955,32 +3042,6 @@ def get_checks():
                     if 'مؤرشف' in label:
                         return 'CANCELLED'
                 return None
-
-            def _status_snapshot(manual_status: str | None, status_value: str | None, due_days: int | None):
-                manual = (manual_status or '').upper()
-                if manual in {'RETURNED', 'BOUNCED'}:
-                    return 'RETURNED', 'مرتجع', 'warning'
-                if manual == 'CANCELLED':
-                    return 'CANCELLED', 'ملغي', 'secondary'
-                if manual == 'RESUBMITTED':
-                    if due_days is not None:
-                        if due_days < 0:
-                            return 'OVERDUE', 'متأخر', 'danger'
-                        if due_days <= 7:
-                            return 'DUE_SOON', 'قريب الاستحقاق', 'warning'
-                    return 'PENDING', 'معلق', 'info'
-                if manual == 'ARCHIVED':
-                    return 'CANCELLED', 'ملغي', 'secondary'
-                if manual == 'CASHED':
-                    # إذا كان الشيك مسحوب، يجب أن يظهر كمسحوب بغض النظر عن ميعاد الاستحقاق
-                    return 'CASHED', 'تم الصرف', 'success'
-
-                if due_days is not None:
-                    if due_days < 0:
-                        return 'OVERDUE', 'متأخر', 'danger'
-                    if due_days <= 7:
-                        return 'DUE_SOON', 'قريب الاستحقاق', 'warning'
-                return 'PENDING', 'معلق', 'info'
 
             def _resolve_entity(payment):
                 if payment.customer:
@@ -3049,18 +3110,6 @@ def get_checks():
                 payment_query = payment_query.filter(Payment.direction == PaymentDirection.IN.value)
             elif direction == 'out':
                 payment_query = payment_query.filter(Payment.direction == PaymentDirection.OUT.value)
-
-            if status == 'pending':
-                payment_query = payment_query.filter(Payment.status == PaymentStatus.PENDING.value)
-            elif status == 'completed':
-                payment_query = payment_query.filter(Payment.status == PaymentStatus.COMPLETED.value)
-            elif status == 'overdue':
-                payment_query = payment_query.filter(
-                    and_(
-                        Payment.status == PaymentStatus.PENDING.value,
-                        Payment.check_due_date < datetime.utcnow()
-                    )
-                )
 
             payments = payment_query.filter(
                 or_(
@@ -3343,25 +3392,14 @@ def get_checks():
             current_app.logger.info(f"📊 تم تضمين {processed_split_count} شيكات من الدفعات الجزئية")
         
         if not source_filter or source_filter in ['all', 'expense']:
-            expense_checks = Expense.query.filter(
-                Expense.payment_method == 'cheque'
-            )
-            
-            if from_date:
-                try:
-                    from_dt = datetime.strptime(from_date, '%Y-%m-%d')
-                    expense_checks = expense_checks.filter(Expense.check_due_date >= from_dt)
-                except Exception:
-                    pass
-            
-            if to_date:
-                try:
-                    to_dt = datetime.strptime(to_date, '%Y-%m-%d')
-                    expense_checks = expense_checks.filter(Expense.check_due_date <= to_dt)
-                except Exception:
-                    pass
-            
-            for expense in expense_checks.all():
+            if direction == 'in':
+                expense_checks = []
+            else:
+                expense_checks = Expense.query.filter(
+                    Expense.payment_method == 'cheque'
+                )
+
+            for expense in (expense_checks.all() if hasattr(expense_checks, 'all') else []):
                 if not expense.check_due_date:
                     continue
                 
@@ -3399,6 +3437,17 @@ def get_checks():
                     check_status = 'PENDING'
                     status_ar = 'معلق'
                     badge_color = 'info'
+
+                if parsed_from and due_date and due_date < parsed_from:
+                    continue
+                if parsed_to and due_date and due_date > parsed_to:
+                    continue
+                if status == 'pending' and (check_status or '').upper() not in ('PENDING', 'DUE_SOON'):
+                    continue
+                if status == 'completed' and check_status != 'CASHED':
+                    continue
+                if status == 'overdue' and check_status != 'OVERDUE':
+                    continue
                 
                 check_key = f"expense-{expense.id}"
                 if check_key in check_ids:
@@ -3471,32 +3520,6 @@ def get_checks():
             elif direction == 'out':
                 manual_checks_query = manual_checks_query.filter(Check.direction == PaymentDirection.OUT.value)
             
-            if status == 'pending':
-                manual_checks_query = manual_checks_query.filter(Check.status == CheckStatus.PENDING.value)
-            elif status == 'completed':
-                manual_checks_query = manual_checks_query.filter(Check.status == CheckStatus.CASHED.value)
-            elif status == 'overdue':
-                manual_checks_query = manual_checks_query.filter(
-                    and_(
-                        Check.status == CheckStatus.PENDING.value,
-                        Check.check_due_date < datetime.utcnow()
-                    )
-                )
-            
-            if from_date:
-                try:
-                    from_dt = datetime.strptime(from_date, '%Y-%m-%d')
-                    manual_checks_query = manual_checks_query.filter(Check.check_due_date >= from_dt)
-                except Exception:
-                    pass
-            
-            if to_date:
-                try:
-                    to_dt = datetime.strptime(to_date, '%Y-%m-%d')
-                    manual_checks_query = manual_checks_query.filter(Check.check_due_date <= to_dt)
-                except Exception:
-                    pass
-            
             for check in manual_checks_query.all():
                 due_date = None
                 if check.check_due_date:
@@ -3511,6 +3534,17 @@ def get_checks():
                 status_value = check.status.value if hasattr(check.status, 'value') else str(check.status or '')
                 manual_status = status_value
                 check_status, status_ar, badge_color = _status_snapshot(manual_status, status_value, days_until_due)
+
+                if parsed_from and due_date and due_date < parsed_from:
+                    continue
+                if parsed_to and due_date and due_date > parsed_to:
+                    continue
+                if status == 'pending' and (check_status or '').upper() not in ('PENDING', 'DUE_SOON'):
+                    continue
+                if status == 'completed' and check_status != 'CASHED':
+                    continue
+                if status == 'overdue' and check_status != 'OVERDUE':
+                    continue
 
                 entity_name = check.entity_name
                 entity_type_code_raw = (check.entity_type or '').lower()
@@ -3627,162 +3661,114 @@ def get_checks():
         
         return jsonify({
             'success': False,
+            'message': str(e),
             'error': str(e)
         }), 500
 
 
 @checks_bp.route('/api/statistics')
 @login_required
+@utils.permission_required("view_payments")
 def get_statistics():
     """
     API للحصول على إحصائيات الشيكات
     """
     try:
-        today = datetime.utcnow().date()
+        today = _utcnow().date()
         week_ahead = today + timedelta(days=7)
-        month_ahead = today + timedelta(days=30)
-        
-        from decimal import Decimal
-        from models import convert_amount
-        
-        incoming_checks = db.session.query(Payment).filter(
-            and_(
-                Payment.method == PaymentMethod.CHEQUE.value,
-                Payment.direction == PaymentDirection.IN.value,
-                Payment.status == PaymentStatus.PENDING.value
-            )
-        ).all()
-        
-        incoming_total = Decimal('0.00')
-        incoming_overdue = 0
-        incoming_overdue_amount = Decimal('0.00')
-        
-        for p in incoming_checks:
-            amt = Decimal(str(p.total_amount or 0))
-            if p.currency == "ILS":
-                amt_ils = amt
-            else:
+
+        resp = get_checks()
+        response_obj = resp[0] if isinstance(resp, tuple) else resp
+        payload = response_obj.get_json(silent=True) if hasattr(response_obj, 'get_json') else None
+        checks = (payload or {}).get('checks') or []
+
+        def _parse_due_date(check_item):
+            raw = (check_item.get('check_due_date') or '').strip()
+            if not raw:
+                return None
+            try:
+                return datetime.strptime(raw.split('T')[0], '%Y-%m-%d').date()
+            except Exception:
+                return None
+
+        def _amount_ils(check_item):
+            try:
+                amount = float(check_item.get('amount') or 0)
+            except Exception:
+                amount = 0.0
+            currency = (check_item.get('currency') or 'ILS').upper()
+            if currency == 'ILS':
+                return amount
+
+            converted_amount = check_item.get('converted_amount')
+            converted_currency = (check_item.get('converted_currency') or '').upper()
+            if converted_amount is not None and converted_currency == 'ILS':
                 try:
-                    amt_ils = convert_amount(amt, p.currency, "ILS", p.payment_date)
+                    return float(converted_amount or 0)
                 except Exception:
-                    amt_ils = Decimal('0.00')
-            
-            incoming_total += amt_ils
-            if p.check_due_date and p.check_due_date < datetime.now(timezone.utc):
-                incoming_overdue += 1
-                incoming_overdue_amount += amt_ils
-        
-        incoming_total = float(incoming_total)
-        incoming_overdue_amount = float(incoming_overdue_amount)
-        
-        incoming_this_week = db.session.query(db.func.count(Payment.id)).filter(
-            and_(
-                Payment.method == PaymentMethod.CHEQUE.value,
-                Payment.direction == PaymentDirection.IN.value,
-                Payment.status == PaymentStatus.PENDING.value,
-                Payment.check_due_date.between(
-                    datetime.now(timezone.utc),
-                    datetime.combine(week_ahead, datetime.max.time())
-                )
-            )
-        ).scalar() or 0
-        
-        outgoing_checks = db.session.query(Payment).filter(
-            and_(
-                Payment.method == PaymentMethod.CHEQUE.value,
-                Payment.direction == PaymentDirection.OUT.value,
-                Payment.status == PaymentStatus.PENDING.value
-            )
-        ).all()
-        
-        outgoing_total = Decimal('0.00')
-        outgoing_overdue = 0
-        outgoing_overdue_amount = Decimal('0.00')
-        
-        for p in outgoing_checks:
-            amt = Decimal(str(p.total_amount or 0))
-            if p.currency == "ILS":
-                amt_ils = amt
+                    pass
+
+            status_value = (check_item.get('status') or '').upper()
+            rate = None
+            if status_value == 'CASHED':
+                rate = check_item.get('fx_rate_cash') or check_item.get('fx_rate_issue')
             else:
-                try:
-                    amt_ils = convert_amount(amt, p.currency, "ILS", p.payment_date)
-                except Exception:
-                    amt_ils = Decimal('0.00')
-            
-            outgoing_total += amt_ils
-            if p.check_due_date and p.check_due_date < datetime.utcnow():
-                outgoing_overdue += 1
-                outgoing_overdue_amount += amt_ils
-        
-        outgoing_total = float(outgoing_total)
-        outgoing_overdue_amount = float(outgoing_overdue_amount)
-        
-        outgoing_this_week = db.session.query(db.func.count(Payment.id)).filter(
-            and_(
-                Payment.method == PaymentMethod.CHEQUE.value,
-                Payment.direction == PaymentDirection.OUT.value,
-                Payment.status == PaymentStatus.PENDING.value,
-                Payment.check_due_date.between(datetime.now(timezone.utc), datetime.combine(week_ahead, datetime.max.time()))
-            )
-        ).scalar() or 0
-        
-        expense_checks = db.session.query(Expense).filter(
-            and_(
-                Expense.payment_method == 'cheque',
-                Expense.check_due_date.isnot(None),
-                or_(Expense.is_paid == False, Expense.is_paid.is_(None))
-            )
-        ).all()
-        
-        expense_total = Decimal('0.00')
-        expense_overdue = 0
-        expense_overdue_amount = Decimal('0.00')
-        
-        for exp in expense_checks:
-            amt = Decimal(str(exp.amount or 0))
-            if exp.currency == "ILS":
-                amt_ils = amt
-            else:
-                try:
-                    amt_ils = convert_amount(amt, exp.currency, "ILS", exp.date)
-                except Exception:
-                    amt_ils = Decimal('0.00')
-            
-            expense_total += amt_ils
-            if exp.check_due_date and exp.check_due_date < datetime.now(timezone.utc):
-                expense_overdue += 1
-                expense_overdue_amount += amt_ils
-        
-        expense_total = float(expense_total)
-        expense_overdue_amount = float(expense_overdue_amount)
-        
-        expense_this_week = db.session.query(db.func.count(Expense.id)).filter(
-            and_(
-                Expense.payment_method == 'cheque',
-                Expense.check_due_date.between(datetime.now(timezone.utc), datetime.combine(week_ahead, datetime.max.time())),
-                or_(Expense.is_paid == False, Expense.is_paid.is_(None))
-            )
-        ).scalar() or 0
-        
-        total_outgoing_value = float(outgoing_total or 0) + float(expense_total or 0)
-        total_outgoing_overdue = outgoing_overdue + expense_overdue
-        total_outgoing_overdue_amount = float(outgoing_overdue_amount or 0) + float(expense_overdue_amount or 0)
-        total_outgoing_this_week = outgoing_this_week + expense_this_week
-        
+                rate = check_item.get('fx_rate_issue')
+            try:
+                rate_num = float(rate) if rate is not None else None
+            except Exception:
+                rate_num = None
+            if rate_num:
+                return amount * rate_num
+            return 0.0
+
+        def _sum_amount(items):
+            total = 0.0
+            for it in items:
+                total += _amount_ils(it)
+            return round(total, 2)
+
+        def _bucket(direction_in):
+            items = [c for c in checks if bool(c.get('is_incoming')) == direction_in]
+            return items
+
+        def _is_outstanding(status_value):
+            s = (status_value or '').upper()
+            return s not in ('CASHED', 'CANCELLED')
+
+        incoming_items = _bucket(True)
+        outgoing_items = _bucket(False)
+
+        incoming_outstanding = [c for c in incoming_items if _is_outstanding(c.get('status'))]
+        outgoing_outstanding = [c for c in outgoing_items if _is_outstanding(c.get('status'))]
+
+        incoming_overdue = [c for c in incoming_items if (c.get('status') or '').upper() == 'OVERDUE']
+        outgoing_overdue = [c for c in outgoing_items if (c.get('status') or '').upper() == 'OVERDUE']
+
+        def _this_week_count(items):
+            count = 0
+            for c in items:
+                due = _parse_due_date(c)
+                if not due:
+                    continue
+                if today <= due <= week_ahead:
+                    count += 1
+            return count
+
         return jsonify({
             'success': True,
             'statistics': {
                 'incoming': {
-                    'total_amount': float(incoming_total or 0),
-                    'overdue_count': incoming_overdue,
-                    'overdue_amount': float(incoming_overdue_amount or 0),  # ✅ إضافة المبلغ المتأخر
-                    'this_week_count': incoming_this_week
+                    'total_amount': _sum_amount(incoming_outstanding),
+                    'overdue_count': len(incoming_overdue),
+                    'overdue_amount': _sum_amount(incoming_overdue),
+                    'this_week_count': _this_week_count(incoming_outstanding),
                 },
                 'outgoing': {
-                    'total_amount': total_outgoing_value,
-                    'overdue_count': total_outgoing_overdue,
-                    'overdue_amount': total_outgoing_overdue_amount,  # ✅ إضافة المبلغ المتأخر
-                    'this_week_count': total_outgoing_this_week
+                    'total_amount': _sum_amount(outgoing_outstanding),
+                    'overdue_count': len(outgoing_overdue),
+                    'overdue_amount': _sum_amount(outgoing_overdue),
+                    'this_week_count': _this_week_count(outgoing_outstanding),
                 }
             }
         })
@@ -3792,6 +3778,7 @@ def get_statistics():
         
         return jsonify({
             'success': False,
+            'message': str(e),
             'error': str(e)
         }), 500
 
@@ -3884,6 +3871,7 @@ def get_first_incomplete_check():
         
         return jsonify({
             'success': False,
+            'message': str(e),
             'error': str(e)
         }), 500
 
@@ -3895,9 +3883,9 @@ def get_check_lifecycle(check_id, check_type):
     """
     try:
         if check_type == 'payment':
-            check = Payment.query.get_or_404(check_id)
+            check = db.get_or_404(Payment, check_id)
         else:
-            check = Expense.query.get_or_404(check_id)
+            check = db.get_or_404(Expense, check_id)
         
         notes = check.notes or ''
         lifecycle_events = []
@@ -4075,7 +4063,7 @@ def update_check_status(check_id):
     except Exception as err:
         db.session.rollback()
         current_app.logger.error(f"Unexpected error updating check status {check_id}: {err}")
-        return jsonify({'success': False, 'error': str(err)}), 500
+        return jsonify({'success': False, 'message': str(err), 'error': str(err)}), 500
 
 
 @checks_bp.route('/api/get-details/<check_token>', methods=['GET'])
@@ -4494,12 +4482,14 @@ def unsettle_check(check_token):
 
 @checks_bp.route('/api/alerts')
 @login_required
+@utils.permission_required("view_payments")
 def get_alerts():
     """
     API للحصول على التنبيهات - محسّن لجلب من جميع المصادر
     """
     try:
-        today = datetime.now(timezone.utc).date()
+        now = _utcnow()
+        today = now.date()
         week_ahead = today + timedelta(days=7)
         
         alerts = []
@@ -4507,7 +4497,7 @@ def get_alerts():
         overdue_manual_checks = Check.query.filter(
             and_(
                 Check.status == CheckStatus.PENDING.value,
-                Check.check_due_date < datetime.now(timezone.utc)
+                Check.check_due_date < now
             )
         ).all()
         
@@ -4528,7 +4518,11 @@ def get_alerts():
             else:
                 direction_text = f'صادر لـ {entity_name}'
             
-            days_overdue = (today - check.check_due_date.date()).days
+            check_due_dt = getattr(check, "check_due_date", None)
+            check_due_date = check_due_dt.date() if isinstance(check_due_dt, datetime) else check_due_dt
+            if not check_due_date:
+                continue
+            days_overdue = (today - check_due_date).days
             
             alerts.append({
                 'type': 'overdue',
@@ -4547,7 +4541,7 @@ def get_alerts():
             and_(
                 Payment.method == PaymentMethod.CHEQUE.value,
                 Payment.status == PaymentStatus.PENDING.value,
-                Payment.check_due_date < datetime.now(timezone.utc),
+                Payment.check_due_date < now,
                 Payment.check_number.isnot(None)
             )
         ).all()
@@ -4566,7 +4560,11 @@ def get_alerts():
             else:
                 entity_name = 'غير محدد'
             
-            days_overdue = (today - check.check_due_date.date()).days
+            check_due_dt = getattr(check, "check_due_date", None)
+            check_due_date = check_due_dt.date() if isinstance(check_due_dt, datetime) else check_due_dt
+            if not check_due_date:
+                continue
+            days_overdue = (today - check_due_date).days
             
             is_incoming = check.direction == PaymentDirection.IN.value
             if is_incoming:
@@ -4583,7 +4581,7 @@ def get_alerts():
                 'amount': float(check.total_amount or 0),
                 'currency': check.currency,
                 'check_number': check.check_number,
-                'due_date': check.check_due_date.strftime('%Y-%m-%d'),
+                'due_date': check_due_date.strftime('%Y-%m-%d') if hasattr(check_due_date, "strftime") else str(check_due_date),
                 'days': days_overdue,
                 'link': f'/checks?id={check.id}'
             })
@@ -4592,7 +4590,7 @@ def get_alerts():
             and_(
                 Payment.method == PaymentMethod.CHEQUE.value,
                 Payment.status == PaymentStatus.PENDING.value,
-                Payment.check_due_date.between(datetime.now(timezone.utc), datetime.combine(week_ahead, datetime.max.time()))
+                Payment.check_due_date.between(now, datetime.combine(week_ahead, datetime.max.time()))
             )
         ).all()
         
@@ -4607,7 +4605,11 @@ def get_alerts():
             else:
                 entity_name = 'غير محدد'
             
-            days_until = (check.check_due_date.date() - today).days
+            check_due_dt = getattr(check, "check_due_date", None)
+            check_due_date = check_due_dt.date() if isinstance(check_due_dt, datetime) else check_due_dt
+            if not check_due_date:
+                continue
+            days_until = (check_due_date - today).days
             
             is_incoming = check.direction == PaymentDirection.IN.value
             if is_incoming:
@@ -4624,7 +4626,7 @@ def get_alerts():
                 'amount': float(check.total_amount or 0),
                 'currency': check.currency,
                 'check_number': check.check_number,
-                'due_date': check.check_due_date.strftime('%Y-%m-%d'),
+                'due_date': check_due_date.strftime('%Y-%m-%d') if hasattr(check_due_date, "strftime") else str(check_due_date),
                 'days': days_until,
                 'link': f'/checks?id={check.id}'
             })
@@ -4641,6 +4643,7 @@ def get_alerts():
         current_app.logger.error(f"Error fetching check alerts: {str(e)}")
         return jsonify({
             'success': False,
+            'message': str(e),
             'error': str(e)
         }), 500
 
@@ -4718,8 +4721,6 @@ def add_check():
             
             db.session.commit()
             
-            _create_check_gl_after_commit()
-            
             flash(f"تم إضافة الشيك رقم {check_number} بنجاح", "success")
             return redirect(url_for("checks.index"))
         
@@ -4745,7 +4746,7 @@ def add_check():
 @login_required
 def edit_check(check_id):
     """تعديل شيك"""
-    check = Check.query.get_or_404(check_id)
+    check = db.get_or_404(Check, check_id)
     
     if request.method == "POST":
         try:
@@ -4803,7 +4804,7 @@ def edit_check(check_id):
 @login_required
 def check_detail(check_id):
     """عرض تفاصيل شيك"""
-    check = Check.query.get_or_404(check_id)
+    check = db.get_or_404(Check, check_id)
     status_history = check.get_status_history()
     
     return render_template("checks/detail.html",
@@ -4817,7 +4818,7 @@ def check_detail(check_id):
 def delete_check(check_id):
     """حذف شيك"""
     try:
-        check = Check.query.get_or_404(check_id)
+        check = db.get_or_404(Check, check_id)
         check_number = check.check_number
         
         db.session.delete(check)

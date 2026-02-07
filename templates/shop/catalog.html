@@ -404,12 +404,10 @@
           icon.className = 'fas fa-heart';
           this.style.background = 'var(--danger-color)';
           this.style.color = 'white';
-          console.log('تمت الإضافة للمفضلة');
         } else {
           icon.className = 'far fa-heart';
           this.style.background = 'white';
           this.style.color = 'var(--primary-color)';
-          console.log('تمت الإزالة من المفضلة');
         }
       });
     });
@@ -420,7 +418,6 @@
         // Allow the link to work normally - don't prevent default
         const card = this.closest('.product-card');
         const title = card.querySelector('.product-title').textContent;
-        console.log(`عرض تفاصيل: ${title}`);
       });
     });
     

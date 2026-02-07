@@ -242,7 +242,7 @@ document.addEventListener('DOMContentLoaded', function () {
           ordering: true,
           info: true,
           autoWidth: false,
-          responsive: false,
+          responsive: true,
           stateSave: true,
           pageLength: 25,
           scrollX: true,

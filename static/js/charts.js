@@ -7,6 +7,99 @@
   let chartsInitialized = false;
   let chartLibrariesPromise = null;
 
+  const parseJsonSafe = (raw, fallback) => {
+    try { return raw ? JSON.parse(raw) : fallback; } catch { return fallback; }
+  };
+
+  function buildDataPreviewHtml(el) {
+    const labels = parseJsonSafe(el.getAttribute('data-labels'), []);
+    const rawDatasets = parseJsonSafe(el.getAttribute('data-datasets'), null);
+    const values = parseJsonSafe(el.getAttribute('data-values'), []);
+
+    const rows = [];
+    if (Array.isArray(rawDatasets) && rawDatasets.length) {
+      const ds = rawDatasets[0];
+      const data = Array.isArray(ds?.data) ? ds.data : [];
+      for (let i = 0; i < Math.min(labels.length, data.length, 8); i++) {
+        rows.push({ label: labels[i], value: data[i] });
+      }
+    } else if (Array.isArray(values) && values.length) {
+      for (let i = 0; i < Math.min(labels.length, values.length, 8); i++) {
+        rows.push({ label: labels[i], value: values[i] });
+      }
+    }
+
+    if (!rows.length) return '';
+    const items = rows.map(r => `<tr><td>${String(r.label ?? '')}</td><td>${String(r.value ?? '')}</td></tr>`).join('');
+    return `
+      <div class="chart-fallback-preview">
+        <div class="chart-fallback-preview-title">معاينة بيانات (آخر 8 نقاط)</div>
+        <div class="table-responsive">
+          <table class="table table-sm mb-0">
+            <thead><tr><th>الفترة</th><th>القيمة</th></tr></thead>
+            <tbody>${items}</tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
+  function ensureChartContainer(el) {
+    const container = el?.parentElement;
+    if (!container) return null;
+    const computed = window.getComputedStyle(container);
+    if (computed.position === 'static') {
+      container.style.position = 'relative';
+    }
+    return container;
+  }
+
+  function clearChartFallback(el) {
+    const container = ensureChartContainer(el);
+    if (!container) return;
+    const existing = container.querySelector('.chart-fallback');
+    if (existing) existing.remove();
+  }
+
+  function showChartFallback(el, opts = {}) {
+    const container = ensureChartContainer(el);
+    if (!container) return;
+    clearChartFallback(el);
+
+    const title = opts.title || 'تعذر عرض الرسم البياني';
+    const message = opts.message || 'تحقق من الاتصال أو توفر البيانات.';
+    const detail = opts.detail || '';
+    const previewHtml = opts.previewHtml || '';
+    const canRetry = opts.retry === true;
+
+    const overlay = document.createElement('div');
+    overlay.className = 'chart-fallback';
+    overlay.innerHTML = `
+      <div class="chart-fallback-inner">
+        <div class="chart-fallback-title">${title}</div>
+        <div class="chart-fallback-message">${message}</div>
+        ${detail ? `<div class="chart-fallback-detail">${detail}</div>` : ''}
+        ${previewHtml || ''}
+        ${canRetry ? `<button type="button" class="btn btn-sm btn-primary chart-fallback-retry">إعادة المحاولة</button>` : ''}
+      </div>
+    `;
+    container.appendChild(overlay);
+
+    if (canRetry) {
+      const btn = overlay.querySelector('.chart-fallback-retry');
+      if (btn) {
+        btn.addEventListener('click', () => {
+          clearChartFallback(el);
+          try { startCharts(true); } catch {}
+        });
+      }
+    }
+  }
+
+  function showFallbackForAllCanvases(opts) {
+    document.querySelectorAll('canvas.chartjs-chart').forEach(el => showChartFallback(el, { ...opts, previewHtml: buildDataPreviewHtml(el) }));
+  }
+
   function onReady(callback) {
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', callback, { once: true });
@@ -34,19 +127,25 @@
   }
 
   function ensureChartLibraries() {
-    if (typeof window.Chart !== 'undefined' && typeof window.ChartDataLabels !== 'undefined') {
+    if (typeof window.Chart !== 'undefined') {
       return Promise.resolve();
     }
     if (chartLibrariesPromise) return chartLibrariesPromise;
+    const chartSources = [
+      '/static/vendor/chart.umd.min.js',
+      'https://cdn.jsdelivr.net/npm/chart.js'
+    ];
+    const labelSources = [
+      '/static/vendor/chartjs-plugin-datalabels.min.js',
+      'https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2'
+    ];
+    const tryLoadFirstAvailable = (sources) => sources.reduce((p, src) => p.catch(() => loadExternalScript(src)), Promise.reject(new Error('init')));
     const sources = [
-      () => loadExternalScript('https://cdn.jsdelivr.net/npm/chart.js'),
-      () => {
-        if (typeof window.ChartDataLabels !== 'undefined') return Promise.resolve();
-        return loadExternalScript('https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2');
-      }
+      () => tryLoadFirstAvailable(chartSources),
+      () => tryLoadFirstAvailable(labelSources).catch(() => null)
     ];
     chartLibrariesPromise = sources.reduce((chain, loader) => chain.then(loader), Promise.resolve()).then(() => {
-      if (typeof window.Chart === 'undefined' || typeof window.ChartDataLabels === 'undefined') {
+      if (typeof window.Chart === 'undefined') {
         throw new Error('Chart libraries failed to load');
       }
     }).catch(error => {
@@ -58,7 +157,7 @@
 
   function bootstrap() {
     if (chartsInitialized) return;
-    if (typeof window.Chart === 'undefined' || typeof window.ChartDataLabels === 'undefined') return;
+    if (typeof window.Chart === 'undefined') return;
     chartsInitialized = true;
 
     const isRTL = (document.dir || document.documentElement.getAttribute('dir') || '').toLowerCase() === 'rtl';
@@ -207,6 +306,12 @@
       try { return raw ? JSON.parse(raw) : fallback; } catch { return fallback; }
     };
 
+    function hasMeaningfulData(labels, datasets) {
+      if (!Array.isArray(labels) || labels.length === 0) return false;
+      if (!Array.isArray(datasets) || datasets.length === 0) return false;
+      return datasets.some(ds => Array.isArray(ds?.data) && ds.data.length > 0);
+    }
+
     function buildDatasets(el, ctx) {
       const rawDatasets = parseJsonAttr(el, 'data-datasets', null);
       const colors = parseJsonAttr(el, 'data-colors', null);
@@ -253,6 +358,29 @@
         callback: val => formatValue(val, { currency, unit, digits }),
         maxTicksLimit: 8
       };
+      const plugins = {
+        legend: { display: true, rtl: isRTL, labels: { usePointStyle: true } },
+        tooltip: {
+          enabled: true,
+          rtl: isRTL,
+          callbacks: {
+            label: ctx => {
+              const v = ctx.parsed.y ?? ctx.parsed;
+              const title = ctx.dataset.label ? `${ctx.dataset.label}: ` : '';
+              return title + formatValue(v, { currency, unit, digits });
+            }
+          }
+        }
+      };
+      if (typeof window.ChartDataLabels !== 'undefined') {
+        plugins.datalabels = {
+          anchor: 'end',
+          align: 'top',
+          color: '#444',
+          font: { weight: 'bold' },
+          formatter: val => formatValue(val, { currency, unit, digits })
+        };
+      }
       return {
         responsive: true,
         maintainAspectRatio: false,
@@ -261,27 +389,7 @@
         animations: {
           tension: { duration: 1200, easing: 'easeInOutQuad', from: 0.2, to: 0.5, loop: false }
         },
-        plugins: {
-          legend: { display: true, rtl: isRTL, labels: { usePointStyle: true } },
-          tooltip: {
-            enabled: true,
-            rtl: isRTL,
-            callbacks: {
-              label: ctx => {
-                const v = ctx.parsed.y ?? ctx.parsed;
-                const title = ctx.dataset.label ? `${ctx.dataset.label}: ` : '';
-                return title + formatValue(v, { currency, unit, digits });
-              }
-            }
-          },
-          datalabels: {
-            anchor: 'end',
-            align: 'top',
-            color: '#444',
-            font: { weight: 'bold' },
-            formatter: val => formatValue(val, { currency, unit, digits })
-          }
-        },
+        plugins,
         scales: {
           x: { stacked, grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true } },
           y: { stacked, beginAtZero: true, ticks: tickFormat }
@@ -293,7 +401,9 @@
       const type = el.getAttribute('data-chart-type') || el.getAttribute('data-type') || 'line';
       const labels = parseJsonAttr(el, 'data-labels', []);
       const datasets = buildDatasets(el, ctx);
-      return { type, data: { labels, datasets }, options: buildOptions(el), plugins: [ChartDataLabels] };
+      const plugins = typeof window.ChartDataLabels !== 'undefined' ? [window.ChartDataLabels] : [];
+      const empty = !hasMeaningfulData(labels, datasets);
+      return { type, data: { labels, datasets }, options: buildOptions(el), plugins, __empty: empty };
     }
 
     function showLoader(el) {
@@ -316,12 +426,31 @@
     function initCanvas(el) {
       const ctx = el.getContext('2d');
       if (!ctx) return;
+      clearChartFallback(el);
       showLoader(el);
       setTimeout(() => {
         if (el._chartjsInstance) { try { el._chartjsInstance.destroy(); } catch {} el._chartjsInstance = null; }
         const config = buildConfig(el, ctx);
-        el._chartjsInstance = new Chart(ctx, config);
-        hideLoader(el);
+        if (config.__empty) {
+          hideLoader(el);
+          showChartFallback(el, {
+            title: 'لا توجد بيانات للرسم البياني',
+            message: 'لا توجد بيانات كافية لعرض هذا الرسم حالياً.'
+          });
+          return;
+        }
+        try {
+          el._chartjsInstance = new Chart(ctx, config);
+          hideLoader(el);
+        } catch (e) {
+          hideLoader(el);
+          showChartFallback(el, {
+            title: 'تعذر رسم البيانات',
+            message: 'حدث خطأ أثناء إنشاء الرسم البياني.',
+            detail: (e && e.message) ? String(e.message) : '',
+            retry: true
+          });
+        }
       }, 50);
     }
 
@@ -393,6 +522,12 @@
     ensureChartLibraries().then(() => {
       bootstrap();
     }).catch(() => {
+      showFallbackForAllCanvases({
+        title: 'تعذر تحميل الرسوم البيانية',
+        message: 'تعذر تحميل مكتبة الرسم. غالباً بسبب عدم توفر الإنترنت أو حظر CDN.',
+        detail: 'يمكنك إعادة المحاولة أو إضافة نسخة محلية من Chart.js.',
+        retry: true
+      });
     });
   }
 

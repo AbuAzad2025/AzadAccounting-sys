@@ -16,6 +16,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from extensions import db, cache, socketio
 from models import User, Product, ServiceRequest, Sale, Payment
+from utils import permission_required
 
 health_bp = Blueprint("health", __name__, url_prefix="/health")
 
@@ -60,15 +61,23 @@ def _check_database() -> Dict[str, Any]:
                 "response_time_ms": round(duration * 1000, 2)
             }
     except SQLAlchemyError as e:
+        try:
+            current_app.logger.exception("Health database check failed")
+        except Exception:
+            pass
         return {
             "status": "unhealthy",
-            "error": str(e),
+            "error": "database_error",
             "type": "database_error"
         }
     except Exception as e:
+        try:
+            current_app.logger.exception("Health database check failed")
+        except Exception:
+            pass
         return {
             "status": "unhealthy",
-            "error": str(e),
+            "error": "unknown_error",
             "type": "unknown_error"
         }
 
@@ -97,9 +106,13 @@ def _check_cache() -> Dict[str, Any]:
                 "response_time_ms": round(duration * 1000, 2)
             }
     except Exception as e:
+        try:
+            current_app.logger.exception("Health cache check failed")
+        except Exception:
+            pass
         return {
             "status": "unhealthy",
-            "error": str(e),
+            "error": "cache_error",
             "type": "cache_error"
         }
 
@@ -194,6 +207,7 @@ def _get_system_info() -> Dict[str, Any]:
 @health_bp.route("/", methods=["GET"])
 @health_bp.route("/status", methods=["GET"])
 @login_required
+@permission_required("manage_system_health")
 def health_check():
     """
     نقطة نهاية فحص الصحة الشاملة

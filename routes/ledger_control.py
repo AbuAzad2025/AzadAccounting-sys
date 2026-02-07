@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, current_app
 from flask_login import login_required, current_user
 from functools import wraps
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import json
 from sqlalchemy import or_, func
 
@@ -208,7 +208,7 @@ def create_account():
 def update_account(account_id):
     """تحديث حساب محاسبي"""
     try:
-        account = Account.query.get_or_404(account_id)
+        account = db.get_or_404(Account, account_id)
         data = request.get_json()
         
         # تحديث البيانات
@@ -247,7 +247,7 @@ def update_account(account_id):
 def delete_account(account_id):
     """حذف حساب محاسبي"""
     try:
-        account = Account.query.get_or_404(account_id)
+        account = db.get_or_404(Account, account_id)
         
         # التحقق من وجود قيود مرتبطة بالحساب
         entries_count = GLEntry.query.filter_by(account=account.code).count()
@@ -310,7 +310,7 @@ def entries_management():
 def void_entry(entry_id):
     """إلغاء قيد محاسبي"""
     try:
-        entry = GLEntry.query.get_or_404(entry_id)
+        entry = db.get_or_404(GLEntry, entry_id)
         batch = entry.batch
         
         # التحقق من إمكانية الإلغاء
@@ -540,9 +540,15 @@ def get_all_batches():
         query = GLBatch.query
         
         if from_date:
-            query = query.filter(GLBatch.posted_at >= from_date)
+            try:
+                query = query.filter(GLBatch.posted_at >= datetime.fromisoformat(str(from_date).replace('Z', '+00:00')))
+            except Exception:
+                pass
         if to_date:
-            query = query.filter(GLBatch.posted_at <= to_date)
+            try:
+                query = query.filter(GLBatch.posted_at <= datetime.fromisoformat(str(to_date).replace('Z', '+00:00')))
+            except Exception:
+                pass
         if source_type:
             query = query.filter(GLBatch.source_type == source_type)
         if search:
@@ -596,7 +602,7 @@ def get_all_batches():
 def get_batch_by_id(batch_id):
     """جلب قيد واحد مع جميع تفاصيله"""
     try:
-        batch = GLBatch.query.get(batch_id)
+        batch = db.session.get(GLBatch, batch_id)
         if not batch:
             return jsonify({'success': False, 'error': 'القيد غير موجود'}), 404
         
@@ -641,11 +647,12 @@ def get_batch_by_id(batch_id):
 def update_batch(batch_id):
     """تحديث قيد محاسبي - ينعكس فوراً على النظام"""
     try:
-        batch = GLBatch.query.get(batch_id)
+        batch = db.session.get(GLBatch, batch_id)
         if not batch:
             return jsonify({'success': False, 'error': 'القيد غير موجود'}), 404
         
         data = request.get_json()
+        allowed_statuses = {"DRAFT", "POSTED", "VOID"}
         
         # تحديث GLBatch
         if 'posted_at' in data:
@@ -658,7 +665,13 @@ def update_batch(batch_id):
         if 'currency' in data:
             batch.currency = data['currency']
         if 'status' in data:
-            batch.status = data['status']
+            raw_status = str(data['status'] or '').strip().upper()
+            if raw_status == "REJECTED":
+                raw_status = "VOID"
+            if raw_status and raw_status not in allowed_statuses:
+                return jsonify({'success': False, 'error': f'حالة غير مدعومة: {raw_status}'}), 400
+            if raw_status:
+                batch.status = raw_status
         
         # حذف القيود الفرعية القديمة
         GLEntry.query.filter_by(batch_id=batch_id).delete()
@@ -1070,7 +1083,7 @@ def sync_payments_checks():
                 amount=payment.total_amount,
                 check_number=payment.check_number,
                 check_bank=payment.check_bank,
-                check_date=payment.payment_date or datetime.utcnow(),
+                check_date=payment.payment_date or datetime.now(timezone.utc).replace(tzinfo=None),
                 check_due_date=payment.check_due_date or payment.payment_date,
                 currency=payment.currency or 'ILS',
                 direction=payment.direction,
@@ -1199,6 +1212,8 @@ def get_fiscal_periods():
             start_date = datetime.combine(oldest_batch, datetime.min.time()).replace(day=1)
         else:
             start_date = oldest_batch.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        if isinstance(start_date, datetime) and start_date.tzinfo is not None:
+            start_date = start_date.replace(tzinfo=None)
             
         end_date = datetime.now()
         
@@ -1408,7 +1423,7 @@ def post_closing_entries():
 def reverse_entry(batch_id):
     """🔄 إنشاء قيد عكسي"""
     try:
-        original_batch = GLBatch.query.get(batch_id)
+        original_batch = db.session.get(GLBatch, batch_id)
         if not original_batch:
             return jsonify({'success': False, 'error': 'القيد غير موجود'}), 404
         
@@ -1510,7 +1525,7 @@ def review_queue():
 def approve_batch(batch_id):
     """✅ الموافقة على قيد وترحيله"""
     try:
-        batch = GLBatch.query.get(batch_id)
+        batch = db.session.get(GLBatch, batch_id)
         if not batch:
             return jsonify({'success': False, 'error': 'القيد غير موجود'}), 404
         
@@ -1551,13 +1566,13 @@ def reject_batch(batch_id):
         data = request.get_json()
         reason = data.get('reason', 'غير محدد')
         
-        batch = GLBatch.query.get(batch_id)
+        batch = db.session.get(GLBatch, batch_id)
         if not batch:
             return jsonify({'success': False, 'error': 'القيد غير موجود'}), 404
         
-        # تحديث الحالة
-        batch.status = 'REJECTED'
-        batch.memo = f"{batch.memo} [مرفوض: {reason}]"
+        # تحديث الحالة (REJECTED غير مدعومة في GLBatch.status)
+        batch.status = 'VOID'
+        batch.memo = f"{batch.memo} [ملغي/مرفوض: {reason}]"
         db.session.commit()
         
         return jsonify({
@@ -1583,7 +1598,7 @@ def link_batch_to_entity(batch_id):
         entity_type = data.get('entity_type')  # CUSTOMER, SUPPLIER, PARTNER, EMPLOYEE, BRANCH, USER
         entity_id = data.get('entity_id')
         
-        batch = GLBatch.query.get(batch_id)
+        batch = db.session.get(GLBatch, batch_id)
         if not batch:
             return jsonify({'success': False, 'error': 'القيد غير موجود'}), 404
         
@@ -1597,7 +1612,7 @@ def link_batch_to_entity(batch_id):
             }.get(entity_type)
             
             if entity_model and entity_type in ['CUSTOMER', 'SUPPLIER', 'PARTNER']:
-                entity = entity_model.query.get(entity_id)
+                entity = db.session.get(entity_model, entity_id)
                 if not entity:
                     return jsonify({'success': False, 'error': f'الجهة غير موجودة'}), 404
         
@@ -1629,7 +1644,7 @@ def link_batch_to_entity(batch_id):
 def get_batch_for_edit(batch_id):
     """📝 جلب بيانات قيد للتحرير"""
     try:
-        batch = GLBatch.query.get(batch_id)
+        batch = db.session.get(GLBatch, batch_id)
         if not batch:
             return jsonify({'success': False, 'error': 'القيد غير موجود'}), 404
         
@@ -1637,13 +1652,13 @@ def get_batch_for_edit(batch_id):
         entity_name = None
         if batch.entity_type and batch.entity_id:
             if batch.entity_type == 'CUSTOMER':
-                entity = Customer.query.get(batch.entity_id)
+                entity = db.session.get(Customer, batch.entity_id)
                 entity_name = entity.name if entity else None
             elif batch.entity_type == 'SUPPLIER':
-                entity = Supplier.query.get(batch.entity_id)
+                entity = db.session.get(Supplier, batch.entity_id)
                 entity_name = entity.name if entity else None
             elif batch.entity_type == 'PARTNER':
-                entity = Partner.query.get(batch.entity_id)
+                entity = db.session.get(Partner, batch.entity_id)
                 entity_name = entity.name if entity else None
         
         return jsonify({
@@ -1683,7 +1698,7 @@ def update_batch_full(batch_id):
     try:
         data = request.get_json()
         
-        batch = GLBatch.query.get(batch_id)
+        batch = db.session.get(GLBatch, batch_id)
         if not batch:
             return jsonify({'success': False, 'error': 'القيد غير موجود'}), 404
         

@@ -4,8 +4,6 @@
 {% block head_extra %}
   {{ super() }}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/shipments.css') }}">
-  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap4.min.css">
-  <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.1/css/buttons.bootstrap4.min.css">
   <style>
     .table-rounded {
       border-radius: 10px;
@@ -55,31 +53,31 @@
           <label for="fStatus" class="form-label">الحالة</label>
           <select id="fStatus" class="custom-select form-control-modern" name="status">
             <option value="">الكل</option>
-            <option value="DRAFT">مسودة</option>
-            <option value="PENDING">قيد الانتظار</option>
-            <option value="IN_TRANSIT">قيد النقل</option>
-            <option value="IN_CUSTOMS">في الجمارك</option>
-            <option value="ARRIVED">وصلت</option>
-            <option value="DELIVERED">تم التسليم</option>
-            <option value="CANCELLED">ملغاة</option>
-            <option value="RETURNED">مرتجعة</option>
+            <option value="DRAFT" {{ 'selected' if status=='DRAFT' else '' }}>مسودة</option>
+            <option value="PENDING" {{ 'selected' if status=='PENDING' else '' }}>قيد الانتظار</option>
+            <option value="IN_TRANSIT" {{ 'selected' if status=='IN_TRANSIT' else '' }}>قيد النقل</option>
+            <option value="IN_CUSTOMS" {{ 'selected' if status=='IN_CUSTOMS' else '' }}>في الجمارك</option>
+            <option value="ARRIVED" {{ 'selected' if status=='ARRIVED' else '' }}>وصلت</option>
+            <option value="DELIVERED" {{ 'selected' if status=='DELIVERED' else '' }}>تم التسليم</option>
+            <option value="CANCELLED" {{ 'selected' if status=='CANCELLED' else '' }}>ملغاة</option>
+            <option value="RETURNED" {{ 'selected' if status=='RETURNED' else '' }}>مرتجعة</option>
           </select>
         </div>
         <div class="col-md-2">
           <label for="fFrom" class="form-label">من تاريخ</label>
-          <input type="date" id="fFrom" class="form-control form-control-modern" name="from">
+          <input type="date" id="fFrom" class="form-control form-control-modern" name="from" value="{{ date_from or '' }}">
         </div>
         <div class="col-md-2">
           <label for="fTo" class="form-label">إلى تاريخ</label>
-          <input type="date" id="fTo" class="form-control form-control-modern" name="to">
+          <input type="date" id="fTo" class="form-control form-control-modern" name="to" value="{{ date_to or '' }}">
         </div>
         <div class="col-md-3">
           <label for="fDestination" class="form-label">الوجهة</label>
-          <input type="text" id="fDestination" class="form-control form-control-modern" name="destination" placeholder="اسم المستودع/الوجهة"{% if warehouse %} value="{{ warehouse.name }}"{% endif %}>
+          <input type="text" id="fDestination" class="form-control form-control-modern" name="destination" placeholder="اسم المستودع/الوجهة" value="{{ destination or (warehouse.name if warehouse else '') }}">
         </div>
         <div class="col-md-3">
           <label for="fSearch" class="form-label">بحث عام</label>
-          <input type="text" id="fSearch" class="form-control form-control-modern" name="search" placeholder="رقم الشحنة / شركة النقل / تتبع">
+          <input type="text" id="fSearch" class="form-control form-control-modern" name="search" placeholder="رقم الشحنة / شركة النقل / تتبع" value="{{ search or '' }}">
         </div>
       </form>
     </div>
@@ -108,69 +106,75 @@
 
 {% block scripts %}
   {{ super() }}
-  <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-  <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap4.min.js"></script>
-  <script src="https://cdn.datatables.net/buttons/2.4.1/js/dataTables.buttons.min.js"></script>
-  <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.bootstrap4.min.js"></script>
-  <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.html5.min.js"></script>
-  <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.print.min.js"></script>
-  <script src="{{ url_for('static', filename='adminlte/plugins/select2/js/select2.full.min.js') }}"></script>
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
   <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ar.js"></script>
   <script>
     (function(){
       const $ = window.jQuery;
-      if (!$('#shipmentsTable').length) return;
+      function init() {
+        if (!$('#shipmentsTable').length) return;
 
-      const dataUrl = "{{ url_for('shipments_bp.shipments_data') }}";
+        const dataUrl = "{{ url_for('shipments_bp.shipments_data') }}";
 
-      const dt = $('#shipmentsTable').DataTable({
-        ajax: {
-          url: dataUrl,
-          data: function(d){
-            d.status      = $('#fStatus').val() || '';
-            d.from        = $('#fFrom').val() || '';
-            d.to          = $('#fTo').val() || '';
-            d.destination = $('#fDestination').val() || '';
-            d.search_extra= $('#fSearch').val() || '';
-          }
-        },
-        serverSide: true,
-        processing: true,
-        order: [[3,'desc']],
-        columns: [
-          { data: 'id', width: '60px' },
-          { data: 'number' },
-          { data: 'destination' },
-          { data: 'expected_arrival', render: function(d){ return d ? new Date(d).toLocaleString('en-US').split(',')[0] : ''; } },
-          { data: 'status' },
-          { data: 'currency', className: 'text-center', render: function(d){ return d ? '<span class="badge badge-secondary rounded-pill">' + d + '</span>' : '<span class="badge badge-secondary rounded-pill">ILS</span>'; } },
-          { 
-            data: null, 
-            className: 'text-center',
-            render: function(data, type, row) {
-              if (row.fx_rate_used && row.currency !== 'ILS') {
-                var sourceIcon = '';
-                if (row.fx_rate_source) {
-                  if (row.fx_rate_source === 'online') sourceIcon = '🌐';
-                  else if (row.fx_rate_source === 'manual') sourceIcon = '✍️';
-                  else sourceIcon = '⚙️';
-                }
-                return '<small class="text-muted">' + parseFloat(row.fx_rate_used).toFixed(4) + ' ' + sourceIcon + '</small>';
-              }
-              return '<span class="text-muted">-</span>';
+        const dt = $('#shipmentsTable').DataTable({
+          ajax: {
+            url: dataUrl,
+            data: function(d){
+              d.status      = $('#fStatus').val() || '';
+              d.from        = $('#fFrom').val() || '';
+              d.to          = $('#fTo').val() || '';
+              d.destination = $('#fDestination').val() || '';
+              d.search_extra= $('#fSearch').val() || '';
             }
           },
-          { data: 'total_value', className: 'text-end', render: function(d){ return (Number(d||0)).toFixed(2); } },
-          { data: 'actions', className: 'text-center', orderable: false, searchable: false }
-        ],
-        language: {
-          url: "{{ url_for('static', filename='datatables/Arabic.json') }}"
+          serverSide: true,
+          processing: true,
+          responsive: true,
+          autoWidth: false,
+          scrollX: true,
+          order: [[3,'desc']],
+          columns: [
+            { data: 'id', width: '60px' },
+            { data: 'number' },
+            { data: 'destination' },
+            { data: 'expected_arrival', render: function(d){ return d ? new Date(d).toLocaleString('en-US').split(',')[0] : ''; } },
+            { data: 'status' },
+            { data: 'currency', className: 'text-center', render: function(d){ return d ? '<span class="badge badge-secondary rounded-pill">' + d + '</span>' : '<span class="badge badge-secondary rounded-pill">ILS</span>'; } },
+            { 
+              data: null, 
+              className: 'text-center',
+              render: function(data, type, row) {
+                if (row.fx_rate_used && row.currency !== 'ILS') {
+                  var sourceIcon = '';
+                  if (row.fx_rate_source) {
+                    if (row.fx_rate_source === 'online') sourceIcon = '🌐';
+                    else if (row.fx_rate_source === 'manual') sourceIcon = '✍️';
+                    else sourceIcon = '⚙️';
+                  }
+                  return '<small class="text-muted">' + parseFloat(row.fx_rate_used).toFixed(4) + ' ' + sourceIcon + '</small>';
+                }
+                return '<span class="text-muted">-</span>';
+              }
+            },
+            { data: 'total_value', className: 'text-end', render: function(d){ return (Number(d||0)).toFixed(2); } },
+            { data: 'actions', className: 'text-center', orderable: false, searchable: false }
+          ],
+          language: {
+            url: "{{ url_for('static', filename='datatables/Arabic.json') }}"
+          }
+        });
+
+        $('#shipmentsFilters').on('change', 'select,input', function(){ dt.ajax.reload(); });
+        $('#fSearch').on('keydown', function(e){ if (e.key === 'Enter'){ e.preventDefault(); dt.ajax.reload(); }});
+      }
+
+      $(function () {
+        if (window.ensureDataTables) {
+          window.ensureDataTables().then(init);
+        } else {
+          init();
         }
       });
-
-      $('#shipmentsFilters').on('change', 'select,input', function(){ dt.ajax.reload(); });
-      $('#fSearch').on('keydown', function(e){ if (e.key === 'Enter'){ e.preventDefault(); dt.ajax.reload(); }});
     })();
   </script>
   <script src="{{ url_for('static', filename='js/shipments.js') }}"></script>

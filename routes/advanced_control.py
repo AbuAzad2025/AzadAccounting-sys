@@ -290,7 +290,7 @@ def owner_smoke_checklist():
         completed = [task['key'] for task in SMOKE_TASKS if request.form.get(task['key']) == 'on']
         new_state = {
             'completed': completed,
-            'timestamp': datetime.utcnow().isoformat(),
+            'timestamp': datetime.now(timezone.utc).isoformat(),
         }
         SystemSettings.set_setting('owner_smoke_checklist', new_state, data_type='json')
         _log_owner_action('owner.checklist_update', None, {'completed': len(completed)})
@@ -384,7 +384,7 @@ def multi_tenant():
             db.session.add(SystemSettings(key=f'tenant_{tenant_name}_logo', value=tenant_logo))
             db.session.add(SystemSettings(key=f'tenant_{tenant_name}_max_users', value=tenant_max_users))
             db.session.add(SystemSettings(key=f'tenant_{tenant_name}_modules', value=json.dumps(tenant_modules)))
-            db.session.add(SystemSettings(key=f'tenant_{tenant_name}_created_at', value=str(datetime.utcnow())))
+            db.session.add(SystemSettings(key=f'tenant_{tenant_name}_created_at', value=datetime.now(timezone.utc).isoformat()))
             
             if not tenant_db or not str(tenant_db).strip().startswith('postgresql://'):
                 flash('❌ قاعدة بيانات الـ Tenant يجب أن تكون PostgreSQL (postgresql://...)', 'danger')
@@ -554,7 +554,7 @@ def version_control():
                 'diff': version_diff,
             }
             
-            db.session.add(SystemSettings(key=f'version_{version_name}_date', value=str(datetime.utcnow())))
+            db.session.add(SystemSettings(key=f'version_{version_name}_date', value=datetime.now(timezone.utc).isoformat()))
             db.session.add(SystemSettings(key=f'version_{version_name}_notes', value=version_notes))
             if version_diff:
                 db.session.add(SystemSettings(key=f'version_{version_name}_diff', value=version_diff))
@@ -612,7 +612,7 @@ def licensing():
             'client': client_name,
             'expiry': expiry_date,
             'max_users': max_users,
-            'activated_at': str(datetime.utcnow())
+            'activated_at': datetime.now(timezone.utc).isoformat()
         }
         
         setting = SystemSettings.query.filter_by(key='license_info').first()
@@ -629,8 +629,8 @@ def licensing():
     license_info = json.loads(license_setting.value) if license_setting and license_setting.value else {}
     if license_info.get('expiry'):
         try:
-            expiry_date = datetime.strptime(license_info['expiry'], '%Y-%m-%d')
-            days_left = (expiry_date - datetime.utcnow()).days
+            expiry_dt = datetime.strptime(license_info['expiry'], '%Y-%m-%d').date()
+            days_left = (expiry_dt - date.today()).days
             license_info['days_left'] = days_left
             if days_left <= 0:
                 license_info['status'] = 'expired'
@@ -1175,7 +1175,7 @@ def system_health():
         elif action == 'auto_run':
             checks, score = _collect_system_health_checks()
             SystemSettings.set_setting('system_health_last_run',
-                                       {'checks': checks, 'score': score, 'time': datetime.utcnow().isoformat()},
+                                       {'checks': checks, 'score': score, 'time': datetime.now(timezone.utc).isoformat()},
                                        data_type='json')
             flash('✅ تم تشغيل فحص الصحة تلقائياً', 'success')
         
@@ -1529,7 +1529,7 @@ def _get_license_status():
     if info.get('expiry'):
         try:
             expiry = datetime.strptime(info['expiry'], '%Y-%m-%d')
-            days_left = (expiry - datetime.utcnow()).days
+            days_left = (expiry - datetime.now(timezone.utc).replace(tzinfo=None)).days
             if days_left <= 0:
                 status = 'expired'
             elif days_left <= 30:
@@ -2597,7 +2597,7 @@ def create_app():
     
     @login_manager.user_loader
     def load_user(user_id):
-        return User.query.get(int(user_id))
+        return db.session.get(User, int(user_id))
     
 """
     
@@ -3589,7 +3589,7 @@ def accounting_control_manual_backup():
     manager = AutomatedBackupManager(current_app._get_current_object())
     backup_path = manager.create_backup()
     if not backup_path:
-        return jsonify({"success": False, "message": "تعذر إنشاء النسخة الاحتياطية"}), 500
+        return jsonify({"success": False, "message": "تعذر إنشاء النسخة الاحتياطية"}), 400
     status = manager.get_backup_status()
     latest_backup = status.get("latest_backup")
     if latest_backup and isinstance(latest_backup.get("date"), datetime):
@@ -3772,7 +3772,15 @@ def database_optimizer():
         index_count = 0
         for table in tables:
             try:
-                indexes = inspector.get_indexes(table)
+                import warnings
+                from sqlalchemy.exc import SAWarning
+                with warnings.catch_warnings():
+                    warnings.filterwarnings(
+                        "ignore",
+                        message="Skipped unsupported reflection of expression-based index.*",
+                        category=SAWarning,
+                    )
+                    indexes = inspector.get_indexes(table)
                 index_count += len(indexes)
             except Exception:
                 continue
@@ -3891,7 +3899,15 @@ def api_performance_stats():
         dialect = getattr(db.engine, "dialect", None)
         dialect_name = (getattr(dialect, "name", "") or "").lower()
         if dialect_name != "postgresql":
-            raise ValueError("performance_stats.postgresql_only")
+            return jsonify({
+                'success': False,
+                'error': 'performance_stats.postgresql_only',
+                'stats': {
+                    'query_time_ms': round(query_time, 2),
+                    'db_size_mb': None,
+                    'timestamp': datetime.now(timezone.utc).isoformat()
+                }
+            })
 
         size_bytes = db.session.execute(text("SELECT pg_database_size(current_database())")).scalar()
         db_size = (float(size_bytes) / (1024 * 1024)) if size_bytes else 0

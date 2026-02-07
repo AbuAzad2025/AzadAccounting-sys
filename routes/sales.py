@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 import math
 from typing import Any, Dict, Iterable, Optional, List, Tuple
 from flask import Blueprint, flash, jsonify, redirect, render_template, render_template_string, request, url_for, abort, current_app, Response
@@ -11,8 +11,12 @@ from sqlalchemy import func, or_, desc, extract, case, and_
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload, selectinload, load_only
 from extensions import db, cache
-from models import Sale, SaleLine, Invoice, Customer, Product, AuditLog, Warehouse, User, Payment, StockLevel, Employee, CostCenter
+from models import Sale, SaleLine, Invoice, Customer, Product, AuditLog, Warehouse, User, Payment, StockLevel, Employee, CostCenter, SaleStatus
 from models import convert_amount
+
+
+def _utc_now_naive() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 from forms import SaleForm
 import utils
 from utils import D, line_total_decimal, money_fmt, archive_record, restore_record  # Import from utils package
@@ -101,7 +105,7 @@ def _log(s: Sale, action: str, old: Optional[dict] = None, new: Optional[dict] =
         new_data=json.dumps(new, ensure_ascii=False) if new else None,
         user_id=current_user.id if current_user.is_authenticated else None,
     )
-    now = datetime.utcnow()
+    now = _utc_now_naive()
     for fld in ("timestamp", "created_at", "logged_at"):
         if hasattr(AuditLog, fld):
             setattr(log, fld, now)
@@ -292,7 +296,7 @@ def _attach_lines(sale: Sale, lines_payload: List[Dict[str, Any]]) -> None:
 
 def _safe_generate_number_after_flush(sale: Sale) -> None:
     if not sale.sale_number:
-        sale.sale_number = f"INV-{datetime.utcnow():%Y%m%d}-{sale.id:04d}"
+        sale.sale_number = f"INV-{_utc_now_naive():%Y%m%d}-{sale.id:04d}"
         db.session.flush()
 
 @sales_bp.route("/<int:id>/archive", methods=["POST"])
@@ -301,7 +305,7 @@ def archive_sale(id):
     if not current_user.has_permission("archive_sale"):
         return jsonify({"status": "error", "message": "ليس لديك صلاحية لأرشفة المبيعات"}), 403
     
-    sale = Sale.query.get_or_404(id)
+    sale = db.get_or_404(Sale, id)
     reason = request.form.get("reason")
     
     try:
@@ -326,7 +330,7 @@ def restore_sale(id):
         restore_record(id, Sale)
         return jsonify({"status": "success", "message": "تم استعادة عملية البيع بنجاح"})
     except Exception as e:
-        sale = Sale.query.get(id)
+        sale = db.session.get(Sale, id)
         if sale:
             sale.is_archived = False
             db.session.commit()
@@ -564,30 +568,23 @@ def list_sales():
     current_app.logger.debug(f"Sales list count: {len(sales_list)}, first sale date: {sales_list[0].sale_date if sales_list else 'N/A'}")
     for s in sales_list:
         _format_sale(s)
-    
-    from models import fx_rate
 
-    summary = {
-        'total_sales': 0.0,
-        'total_paid': 0.0,
-        'total_pending': 0.0,
-        'average_sale': 0.0,
-        'sales_count': 0,
-        'sales_by_status': {}
+    excluded_statuses = {
+        SaleStatus.DRAFT.value,
+        SaleStatus.CANCELLED.value,
+        SaleStatus.REFUNDED.value,
     }
 
-    all_sales_query = Sale.query.filter(Sale.is_archived.is_(False)).options(
-        selectinload(Sale.payments).load_only(Payment.total_amount, Payment.currency, Payment.direction, Payment.status, Payment.payment_date, Payment.fx_rate_used)
-    )
+    summary_q = Sale.query.filter(Sale.is_archived.is_(False))
     need_customer_join = bool(cust or search_term)
-    if status_filter_enabled:
-        all_sales_query = all_sales_query.filter(Sale.status == st)
     if need_customer_join:
-        all_sales_query = all_sales_query.outerjoin(Customer)
+        summary_q = summary_q.outerjoin(Customer)
+    if status_filter_enabled:
+        summary_q = summary_q.filter(Sale.status == st)
     if cust:
-        all_sales_query = all_sales_query.filter(
-            or_(Customer.name.ilike(f"%{cust}%"), Customer.phone.ilike(f"%{cust}%"))
-        )
+        summary_q = summary_q.filter(or_(Customer.name.ilike(f"%{cust}%"), Customer.phone.ilike(f"%{cust}%")))
+    if inv:
+        summary_q = summary_q.filter(Sale.sale_number.ilike(f"%{inv}%"))
     if search_term:
         like_all = f"%{search_term}%"
         search_filters_all = [
@@ -600,86 +597,113 @@ def list_sales():
         ]
         if search_term.isdigit():
             search_filters_all.append(Sale.id == int(search_term))
-        all_sales_query = all_sales_query.filter(or_(*search_filters_all))
+        summary_q = summary_q.filter(or_(*search_filters_all))
     try:
         if df:
-            all_sales_query = all_sales_query.filter(Sale.sale_date >= datetime.fromisoformat(df))
+            summary_q = summary_q.filter(Sale.sale_date >= datetime.fromisoformat(df))
         if dt:
-            all_sales_query = all_sales_query.filter(Sale.sale_date <= datetime.fromisoformat(dt))
+            summary_q = summary_q.filter(Sale.sale_date <= datetime.fromisoformat(dt))
     except Exception:
         pass
 
-    all_sales = all_sales_query.limit(5000).all()
+    fx_mult = case(
+        (func.upper(func.coalesce(Sale.currency, "ILS")) == "ILS", 1),
+        else_=func.coalesce(Sale.fx_rate_used, 1),
+    )
 
-    def _to_ils(value, currency, fx_used, at_date):
-        amount = Decimal(str(value or 0))
-        code = (currency or "ILS").upper()
-        if code != "ILS":
-            if fx_used:
-                try:
-                    amount *= Decimal(str(fx_used))
-                except Exception:
-                    pass
-            else:
-                try:
-                    rate = fx_rate(code, "ILS", at_date, raise_on_missing=False)
-                    if rate and rate > 0:
-                        amount *= Decimal(str(rate))
-                except Exception:
-                    pass
-        return float(amount)
+    total_amount_ils = func.coalesce(Sale.total_amount, 0) * fx_mult
+    total_paid_ils = func.coalesce(Sale.total_paid, 0) * fx_mult
+    balance_due_ils = func.coalesce(Sale.balance_due, 0) * fx_mult
+    refunded_total_ils = func.coalesce(Sale.refunded_total, 0) * fx_mult
 
-    total_sales = 0.0
-    total_paid = 0.0
-    total_pending = 0.0
-    sales_by_status: dict[str, dict[str, float | int]] = {}
-    contributing_sales = 0
+    contributing_cond = ~func.upper(func.coalesce(Sale.status, "DRAFT")).in_({s.upper() for s in excluded_statuses})
+    refunded_net_ils = case(
+        (total_amount_ils - refunded_total_ils > 0, total_amount_ils - refunded_total_ils),
+        else_=0,
+    )
+    paid_refunded_ils = case(
+        (total_paid_ils < refunded_net_ils, total_paid_ils),
+        else_=refunded_net_ils,
+    )
+    balance_due_pos_ils = case(
+        (balance_due_ils > 0, balance_due_ils),
+        else_=0,
+    )
 
-    for sale in all_sales:
-        status = (sale.status or "DRAFT").upper()
+    agg = summary_q.with_entities(
+        func.coalesce(
+            func.sum(case((contributing_cond, total_amount_ils), else_=0)),
+            0,
+        ).label("total_sales"),
+        func.coalesce(
+            func.sum(
+                case(
+                    (contributing_cond, total_paid_ils),
+                    else_=0,
+                )
+            ),
+            0,
+        ).label("total_paid_core"),
+        func.coalesce(
+            func.sum(
+                case(
+                    (
+                        func.upper(func.coalesce(Sale.status, "")) == SaleStatus.REFUNDED.value.upper(),
+                        paid_refunded_ils,
+                    ),
+                    else_=0,
+                )
+            ),
+            0,
+        ).label("total_paid_refunded"),
+        func.coalesce(
+            func.sum(
+                case(
+                    (contributing_cond, balance_due_pos_ils),
+                    else_=0,
+                )
+            ),
+            0,
+        ).label("total_pending"),
+        func.coalesce(
+            func.sum(case((contributing_cond, 1), else_=0)),
+            0,
+        ).label("sales_count"),
+    ).first()
 
-        sale_amount = _to_ils(sale.total_amount, sale.currency, getattr(sale, "fx_rate_used", None), sale.sale_date)
-        balance_amount = _to_ils(sale.balance_due, sale.currency, getattr(sale, "fx_rate_used", None), sale.sale_date)
-        refund_amount = _to_ils(sale.refunded_total, sale.currency, getattr(sale, "fx_rate_used", None), sale.sale_date)
+    total_sales = float(getattr(agg, "total_sales", 0) or 0)
+    total_paid = float((getattr(agg, "total_paid_core", 0) or 0) + (getattr(agg, "total_paid_refunded", 0) or 0))
+    total_pending = float(getattr(agg, "total_pending", 0) or 0)
+    sales_count = int(getattr(agg, "sales_count", 0) or 0)
+    average_sale = (total_sales / sales_count) if sales_count else 0.0
 
-        paid_amount = 0.0
-        for payment in getattr(sale, "payments", []) or []:
-            if (payment.direction or "").upper() != "IN":
-                continue
-            if (payment.status or "").upper() != "COMPLETED":
-                continue
-            paid_amount += _to_ils(payment.total_amount, payment.currency, getattr(payment, "fx_rate_used", None), payment.payment_date)
-
-        net_amount = sale_amount
-        if status == "REFUNDED":
-            net_amount = max(sale_amount - refund_amount, 0.0)
-            balance_amount = 0.0
-
-        if status == "CONFIRMED":
-            total_sales += net_amount
-            total_paid += paid_amount
-            total_pending += max(balance_amount, 0.0)
-            contributing_sales += 1
-        elif status not in ("DRAFT", "CANCELLED", "REFUNDED"):
-            total_sales += net_amount
-            total_paid += paid_amount
-            total_pending += max(balance_amount, 0.0)
-            contributing_sales += 1
-        elif status == "REFUNDED":
-            total_paid += min(paid_amount, net_amount)
-
-        status_entry = sales_by_status.setdefault(status, {"count": 0, "amount": 0.0})
-        status_entry["count"] += 1
-        status_entry["amount"] += net_amount
-
-    average_sale = total_sales / contributing_sales if contributing_sales else 0.0
+    net_amount_ils = case(
+        (
+            func.upper(func.coalesce(Sale.status, "")) == SaleStatus.REFUNDED.value.upper(),
+            refunded_net_ils,
+        ),
+        else_=total_amount_ils,
+    )
+    by_status_rows = (
+        summary_q.with_entities(
+            func.upper(func.coalesce(Sale.status, "DRAFT")).label("status"),
+            func.count(Sale.id).label("cnt"),
+            func.coalesce(func.sum(net_amount_ils), 0).label("amt"),
+        )
+        .group_by("status")
+        .all()
+    )
+    sales_by_status: dict[str, dict[str, float | int]] = {
+        str(stt or "DRAFT").upper(): {"count": int(cnt or 0), "amount": float(amt or 0)}
+        for stt, cnt, amt in by_status_rows
+    }
 
     summary = {
         'total_sales': total_sales,
         'total_paid': total_paid,
         'total_pending': total_pending,
         'average_sale': average_sale,
-        'sales_count': contributing_sales,
+        'sales_count': sales_count,
         'sales_by_status': sales_by_status
     }
     
@@ -709,7 +733,7 @@ def list_sales():
         "total_pages": total_pages if total_pages else 1,
         "per_page": per_page,
         "row_offset": row_offset,
-        "generated_at": datetime.utcnow(),
+        "generated_at": _utc_now_naive(),
         "pdf_export": False,
         "show_actions": not print_mode,
     }
@@ -723,86 +747,14 @@ def list_sales():
 <table id="salesTable" class="table table-hover align-middle">
   <thead class="thead-light">
     <tr>
-      <th>
-        <div class="d-flex align-items-center justify-content-between">
-          <span>رقم</span>
-          <div class="sort-buttons">
-            <button type="button" class="btn-sort {% if current_sort == 'invoice_no' and current_order == 'asc' %}active{% endif %}" data-sort="invoice_no" data-order="asc" title="تصاعدي">
-              <i class="fas fa-sort-up"></i>
-            </button>
-            <button type="button" class="btn-sort {% if current_sort == 'invoice_no' and current_order == 'desc' %}active{% endif %}" data-sort="invoice_no" data-order="desc" title="تنازلي">
-              <i class="fas fa-sort-down"></i>
-            </button>
-          </div>
-        </div>
-      </th>
-      <th>
-        <div class="d-flex align-items-center justify-content-between">
-          <span>التاريخ</span>
-          <div class="sort-buttons">
-            <button type="button" class="btn-sort {% if current_sort == 'date' and current_order == 'asc' %}active{% endif %}" data-sort="date" data-order="asc" title="تصاعدي">
-              <i class="fas fa-sort-up"></i>
-            </button>
-            <button type="button" class="btn-sort {% if current_sort == 'date' and current_order == 'desc' %}active{% endif %}" data-sort="date" data-order="desc" title="تنازلي">
-              <i class="fas fa-sort-down"></i>
-            </button>
-          </div>
-        </div>
-      </th>
-      <th>
-        <div class="d-flex align-items-center justify-content-between">
-          <span>العميل</span>
-          <div class="sort-buttons">
-            <button type="button" class="btn-sort {% if current_sort == 'customer' and current_order == 'asc' %}active{% endif %}" data-sort="customer" data-order="asc" title="تصاعدي">
-              <i class="fas fa-sort-up"></i>
-            </button>
-            <button type="button" class="btn-sort {% if current_sort == 'customer' and current_order == 'desc' %}active{% endif %}" data-sort="customer" data-order="desc" title="تنازلي">
-              <i class="fas fa-sort-down"></i>
-            </button>
-          </div>
-        </div>
-      </th>
-      <th>
-        <div class="d-flex align-items-center justify-content-between">
-          <span>الإجمالي</span>
-          <div class="sort-buttons">
-            <button type="button" class="btn-sort {% if current_sort == 'total' and current_order == 'asc' %}active{% endif %}" data-sort="total" data-order="asc" title="تصاعدي">
-              <i class="fas fa-sort-up"></i>
-            </button>
-            <button type="button" class="btn-sort {% if current_sort == 'total' and current_order == 'desc' %}active{% endif %}" data-sort="total" data-order="desc" title="تنازلي">
-              <i class="fas fa-sort-down"></i>
-            </button>
-          </div>
-        </div>
-      </th>
-      <th>العملة</th>
-      <th>سعر الصرف</th>
-      <th>
-        <div class="d-flex align-items-center justify-content-between">
-          <span>مدفوع</span>
-          <div class="sort-buttons">
-            <button type="button" class="btn-sort {% if current_sort == 'paid' and current_order == 'asc' %}active{% endif %}" data-sort="paid" data-order="asc" title="تصاعدي">
-              <i class="fas fa-sort-up"></i>
-            </button>
-            <button type="button" class="btn-sort {% if current_sort == 'paid' and current_order == 'desc' %}active{% endif %}" data-sort="paid" data-order="desc" title="تنازلي">
-              <i class="fas fa-sort-down"></i>
-            </button>
-          </div>
-        </div>
-      </th>
-      <th>
-        <div class="d-flex align-items-center justify-content-between">
-          <span>متبقي</span>
-          <div class="sort-buttons">
-            <button type="button" class="btn-sort {% if current_sort == 'balance' and current_order == 'asc' %}active{% endif %}" data-sort="balance" data-order="asc" title="تصاعدي">
-              <i class="fas fa-sort-up"></i>
-            </button>
-            <button type="button" class="btn-sort {% if current_sort == 'balance' and current_order == 'desc' %}active{% endif %}" data-sort="balance" data-order="desc" title="تنازلي">
-              <i class="fas fa-sort-down"></i>
-            </button>
-          </div>
-        </div>
-      </th>
+      <th data-sortable="false">رقم</th>
+      <th data-sortable="false">التاريخ</th>
+      <th data-sortable="false">العميل</th>
+      <th data-sortable="false">الإجمالي</th>
+      <th data-sortable="false" class="text-center">العملة</th>
+      <th data-sortable="false" class="text-center d-none d-lg-table-cell">سعر الصرف</th>
+      <th data-sortable="false">مدفوع</th>
+      <th data-sortable="false">متبقي</th>
       <th class="text-center" data-sortable="false">إجراءات</th>
     </tr>
   </thead>
@@ -813,8 +765,8 @@ def list_sales():
       <td>{{ sale.date_iso }}</td>
       <td>{{ sale.customer_name }}</td>
       <td data-sort-value="{{ sale.total_amount or 0 }}">{{ sale.total_fmt }}</td>
-      <td class="text-center"><span class="badge badge-secondary">{{ sale.currency or 'ILS' }}</span></td>
-      <td class="text-center">
+      <td class="text-center"><span class="badge badge-secondary rounded-pill">{{ sale.currency or 'ILS' }}</span></td>
+      <td class="text-center d-none d-lg-table-cell">
         {% if sale.fx_rate_used and sale.currency != 'ILS' %}
         <small class="text-muted">
           {{ "%.4f"|format(sale.fx_rate_used) }}
@@ -840,42 +792,43 @@ def list_sales():
           <a href="{{ url_for('sales_bp.edit_sale', id=sale.id) }}" class="btn btn-action-edit btn-action-sm" title="تعديل">
             <i class="fas fa-edit"></i>
           </a>
-          <a href="{{ url_for('sales_bp.generate_invoice', id=sale.id) }}" class="btn btn-action-print btn-action-sm" title="فاتورة ضريبية" target="_blank">
-            <i class="fas fa-file-invoice-dollar"></i>
-          </a>
-          {% if sale.is_archived %}
-          <button type="button" class="btn btn-action-restore btn-action-sm" title="استعادة" onclick="restoreSale({{ sale.id }})">
-            <i class="fas fa-undo"></i>
-          </button>
-          {% else %}
-          <button type="button" class="btn btn-action-archive btn-action-sm" title="أرشفة" onclick="archiveSale({{ sale.id }})">
-            <i class="fas fa-archive"></i>
-          </button>
-          {% endif %}
-          {% if sale.balance_due and sale.balance_due > 0 %}
-          <a href="{{ url_for('payments.create_payment',
-                               entity_type='SALE',
-                               entity_id=sale.id,
-                               amount=sale.balance_due,
-                               currency=sale.currency if sale.currency else 'ILS',
-                               reference='دفع مبيعة من ' ~ (sale.customer.name if sale.customer else 'عميل') ~ ' - ' ~ (sale.sale_number or sale.id),
-                               notes='دفع مبيعة: ' ~ (sale.sale_number or sale.id) ~ ' - العميل: ' ~ (sale.customer.name if sale.customer else 'غير محدد'),
-                               customer_id=sale.customer_id) }}" class="btn btn-sm btn-success" title="إضافة دفعة"><i class="fas fa-money-bill-wave"></i></a>
-          {% endif %}
-          {% if current_user.has_permission('manage_sales') %}
-          <form method="post" action="{{ url_for('sales_bp.delete_sale', id=sale.id) }}" class="d-inline">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button type="submit" class="btn btn-sm btn-danger" title="حذف عادي" onclick="return confirm('حذف الفاتورة؟');">
-              <i class="fas fa-trash"></i>
+          <div class="btn-group">
+            <button type="button" class="btn btn-outline-secondary btn-action-sm dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" title="خيارات">
+              <i class="fas fa-ellipsis-v"></i>
             </button>
-          </form>
-          
-          {% endif %}
+            <div class="dropdown-menu dropdown-menu-right">
+              <a href="{{ url_for('sales_bp.generate_invoice', id=sale.id) }}" class="dropdown-item" target="_blank">
+                <i class="fas fa-file-invoice-dollar mr-2"></i> فاتورة ضريبية
+              </a>
+              {% if sale.balance_due and sale.balance_due > 0 %}
+              <a href="{{ url_for('payments.create_payment',
+                                   entity_type='SALE',
+                                   entity_id=sale.id,
+                                   amount=sale.balance_due,
+                                   currency=sale.currency if sale.currency else 'ILS',
+                                   reference='دفع مبيعة من ' ~ (sale.customer.name if sale.customer else 'عميل') ~ ' - ' ~ (sale.sale_number or sale.id),
+                                   notes='دفع مبيعة: ' ~ (sale.sale_number or sale.id) ~ ' - العميل: ' ~ (sale.customer.name if sale.customer else 'غير محدد'),
+                                   customer_id=sale.customer_id) }}" class="dropdown-item text-success">
+                <i class="fas fa-money-bill-wave mr-2"></i> إضافة دفعة
+              </a>
+              {% endif %}
+              <div class="dropdown-divider"></div>
+              {% if sale.is_archived %}
+              <button type="button" class="dropdown-item" onclick="restoreSale({{ sale.id }})">
+                <i class="fas fa-undo mr-2"></i> استعادة
+              </button>
+              {% else %}
+              <button type="button" class="dropdown-item" onclick="archiveSale({{ sale.id }})">
+                <i class="fas fa-archive mr-2"></i> أرشفة
+              </button>
+              {% endif %}
+            </div>
+          </div>
         </div>
       </td>
     </tr>
     {% else %}
-    <tr><td colspan="8" class="text-center text-muted py-4">لا توجد فواتير</td></tr>
+    <tr><td colspan="9" class="text-center text-muted py-4">لا توجد فواتير</td></tr>
     {% endfor %}
   </tbody>
 </table>
@@ -1005,7 +958,7 @@ def list_sales():
 
             html_output = render_template("sales/list.html", **context)
             pdf_bytes = HTML(string=html_output, base_url=request.url_root).write_pdf()
-            filename = f"sales_{datetime.utcnow().strftime('%Y%m%d_%H%M')}.pdf"
+            filename = f"sales_{_utc_now_naive().strftime('%Y%m%d_%H%M')}.pdf"
             return Response(
                 pdf_bytes,
                 mimetype="application/pdf",
@@ -1063,7 +1016,7 @@ def create_sale():
                 customer_id=form.customer_id.data,
                 seller_id=current_user.id if current_user and current_user.is_authenticated else None,
                 seller_employee_id=form.seller_employee_id.data,
-                sale_date=form.sale_date.data or datetime.utcnow(),
+                sale_date=form.sale_date.data or _utc_now_naive(),
                 status=target_status,
                 payment_status="PENDING",
                 currency=(form.currency.data or "ILS").upper(),
@@ -1121,12 +1074,26 @@ def create_sale():
 @sales_bp.route("/<int:id>", methods=["GET"], endpoint="sale_detail")
 @login_required
 def sale_detail(id: int):
-    sale = _get_or_404(Sale, id, options=[
+    options = [
         joinedload(Sale.customer), joinedload(Sale.seller), joinedload(Sale.seller_employee),
         joinedload(Sale.lines).joinedload(SaleLine.product),
         joinedload(Sale.lines).joinedload(SaleLine.warehouse),
         joinedload(Sale.payments),
-    ])
+    ]
+    sale = Sale.query.options(*options).filter(Sale.id == id).first()
+    if not sale:
+        padded = f"{id:04d}"
+        alt = (
+            Sale.query
+            .filter(Sale.sale_number.ilike(f"%-{padded}"))
+            .order_by(Sale.sale_date.desc(), Sale.id.desc())
+            .first()
+        )
+        if alt:
+            return redirect(url_for("sales_bp.sale_detail", id=alt.id))
+        if id > 0:
+            return redirect(url_for("sales_bp.list_sales", q=str(id)))
+        abort(404)
     _format_sale(sale)
     for ln in sale.lines:
         ln.product_name = ln.product.name if ln.product else "-"
@@ -1350,7 +1317,7 @@ def quick_sell():
             customer_id=customer_id,
             seller_id=seller_id,
             seller_employee_id=seller_employee_id,
-            sale_date=datetime.utcnow(),
+            sale_date=_utc_now_naive(),
             status=status,
             currency="ILS"
         )
@@ -1534,5 +1501,4 @@ def generate_invoice(id: int):
         grand_total=grand_total,
         money_fmt=money_fmt,
     )
-
 

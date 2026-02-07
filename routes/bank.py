@@ -144,7 +144,7 @@ def add_account():
 @login_required
 @permission_required('manage_bank')
 def edit_account(id):
-    account = BankAccount.query.get_or_404(id)
+    account = db.get_or_404(BankAccount, id)
     
     if request.method == 'POST':
         try:
@@ -182,7 +182,7 @@ def edit_account(id):
 @login_required
 @permission_required('manage_bank')
 def view_account(id):
-    account = BankAccount.query.get_or_404(id)
+    account = db.get_or_404(BankAccount, id)
     
     page = request.args.get('page', 1, type=int)
     per_page = 50
@@ -280,7 +280,7 @@ def upload_statement():
             opening_balance = _to_decimal(request.form.get('opening_balance'))
             closing_balance = _to_decimal(request.form.get('closing_balance'))
             
-            bank_account = BankAccount.query.get_or_404(bank_account_id)
+            bank_account = db.get_or_404(BankAccount, bank_account_id)
             
             if BankStatement.query.filter_by(
                 bank_account_id=bank_account_id,
@@ -418,7 +418,7 @@ def upload_statement():
 @login_required
 @permission_required('manage_bank')
 def view_statement(id):
-    statement = BankStatement.query.get_or_404(id)
+    statement = db.get_or_404(BankStatement, id)
     
     transactions = BankTransaction.query.filter_by(statement_id=id).order_by(
         BankTransaction.transaction_date,
@@ -480,7 +480,7 @@ def new_reconciliation():
             period_end = datetime.strptime(request.form.get('period_end'), '%Y-%m-%d').date()
             bank_balance = Decimal(request.form.get('bank_balance'))
             
-            bank_account = BankAccount.query.get_or_404(bank_account_id)
+            bank_account = db.get_or_404(BankAccount, bank_account_id)
             
             book_balance = float(bank_account.current_balance)
             
@@ -521,10 +521,10 @@ def new_reconciliation():
 @login_required
 @permission_required('manage_bank')
 def view_reconciliation(id):
-    reconciliation = BankReconciliation.query.get_or_404(id)
+    reconciliation = db.get_or_404(BankReconciliation, id)
     
     book_transactions = Payment.query.filter(
-        Payment.payment_method.in_(['bank_transfer', 'check']),
+        Payment.method.in_(["bank", "cheque"]),
         Payment.payment_date.between(reconciliation.period_start, reconciliation.period_end)
     ).all()
     
@@ -534,10 +534,10 @@ def view_reconciliation(id):
         BankTransaction.matched == False
     ).all()
     
-    total_book_in = sum(float(p.amount_received or 0) for p in book_transactions if p.payment_type == 'IN')
-    total_book_out = sum(float(p.amount_paid or 0) for p in book_transactions if p.payment_type == 'OUT')
-    total_bank_in = sum(float(t.debit or 0) for t in bank_transactions)
-    total_bank_out = sum(float(t.credit or 0) for t in bank_transactions)
+    total_book_in = sum(float(p.total_amount or 0) for p in book_transactions if p.direction == 'IN')
+    total_book_out = sum(float(p.total_amount or 0) for p in book_transactions if p.direction == 'OUT')
+    total_bank_in = sum(float(t.credit or 0) for t in bank_transactions)
+    total_bank_out = sum(float(t.debit or 0) for t in bank_transactions)
     
     stats = {
         'book_count': len(book_transactions),
@@ -563,7 +563,7 @@ def view_reconciliation(id):
 @permission_required('manage_bank')
 def complete_reconciliation(id):
     try:
-        reconciliation = BankReconciliation.query.get_or_404(id)
+        reconciliation = db.get_or_404(BankReconciliation, id)
         
         if reconciliation.status == 'COMPLETED':
             flash('التسوية مكتملة بالفعل', 'warning')
@@ -572,7 +572,7 @@ def complete_reconciliation(id):
         matched_ids = request.form.getlist('matched_transactions[]', type=int)
         
         for trans_id in matched_ids:
-            transaction = BankTransaction.query.get(trans_id)
+            transaction = db.session.get(BankTransaction, trans_id)
             if transaction:
                 transaction.matched = True
                 transaction.reconciliation_id = id
@@ -750,7 +750,7 @@ def report_summary():
 @permission_required('manage_bank')
 def auto_match(bank_account_id):
     try:
-        bank_account = BankAccount.query.get_or_404(bank_account_id)
+        bank_account = db.get_or_404(BankAccount, bank_account_id)
         
         unmatched_bank = BankTransaction.query.filter_by(
             bank_account_id=bank_account_id,

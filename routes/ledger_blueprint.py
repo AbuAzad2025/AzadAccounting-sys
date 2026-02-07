@@ -1,17 +1,18 @@
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+import json
 from flask import Blueprint, request, jsonify, render_template, current_app, abort
 from flask_login import login_required, current_user
 from flask_wtf.csrf import CSRFProtect
 from sqlalchemy import func, and_, or_, desc
-from extensions import db
+from extensions import db, perform_backup_db
 import utils
 from models import (
     Sale, SaleReturn, Expense, Payment, ServiceRequest,
     Customer, Supplier, Partner,
     Product, StockLevel, GLBatch, GLEntry, Account,
     Invoice, PreOrder, Shipment, Employee,
-    PaymentEntityType
+    PaymentSplit, PaymentEntityType, GL_ACCOUNTS, AuditLog
 )
 from services.ledger_service import (
     SmartEntityExtractor, LedgerQueryOptimizer, CurrencyConverter,
@@ -33,18 +34,21 @@ def extract_entity_from_batch(batch: GLBatch):
 
 @ledger_bp.route("/", methods=["GET"], endpoint="index")
 @login_required
+@utils.permission_required("manage_ledger")
 def ledger_index():
     """صفحة الدفتر الرئيسية"""
     return render_template("ledger/index.html")
 
 @ledger_bp.route("/chart-of-accounts", methods=["GET"], endpoint="chart_of_accounts")
 @login_required
+@utils.permission_required("manage_ledger")
 def chart_of_accounts():
     """دليل الحسابات المحاسبية - واجهة مبسطة"""
     return render_template("ledger/chart_of_accounts.html")
 
 @ledger_bp.route("/accounts", methods=["GET"], endpoint="get_accounts")
 @login_required
+@utils.permission_required("manage_ledger")
 def get_accounts():
     """API: جلب جميع الحسابات المحاسبية"""
     try:
@@ -71,6 +75,7 @@ def get_accounts():
 
 @ledger_bp.route("/manual-entry", methods=["POST"], endpoint="create_manual_entry")
 @login_required
+@utils.permission_required("manage_ledger")
 def create_manual_entry():
     """إنشاء قيد يدوي (Manual Journal Entry)"""
     try:
@@ -167,6 +172,7 @@ def create_manual_entry():
 
 @ledger_bp.route("/data", methods=["GET"], endpoint="get_ledger_data")
 @login_required
+@utils.permission_required("manage_ledger")
 def get_ledger_data():
     """جلب بيانات دفتر الأستاذ من قاعدة البيانات الحقيقية"""
     try:
@@ -228,6 +234,8 @@ def get_ledger_data():
             'EXCHANGE': 'توريد/صرف'
         }
 
+        payment_split_cache = {}
+
         for entry, batch, account in entries:
             # استخراج اسم الجهة (عميل، مورد، الخ)
             entity_name, entity_type_ar, entity_id, entity_type_code = SmartEntityExtractor.extract_from_batch(batch)
@@ -261,6 +269,19 @@ def get_ledger_data():
             # في دفتر اليومية، الرصيد التراكمي للشركة ككل هو صفر دائماً (نظرياً)
             # لكن سنعرض التراكمي للفترة المحددة
             running_balance += (debit - credit)
+
+            payment_id = None
+            split_id = None
+            if source_type == "PAYMENT_SPLIT" and batch.source_id:
+                cached = payment_split_cache.get(int(batch.source_id))
+                if cached is None:
+                    try:
+                        split = db.session.get(PaymentSplit, int(batch.source_id))
+                        cached = (int(split.payment_id) if split and getattr(split, "payment_id", None) else None, int(split.id) if split else None)
+                    except Exception:
+                        cached = (None, None)
+                    payment_split_cache[int(batch.source_id)] = cached
+                payment_id, split_id = cached
             
             ledger_entries.append({
                 "id": entry.id,
@@ -275,7 +296,9 @@ def get_ledger_data():
                 "entity_name": entity_name,
                 "entity_type": entity_type_ar or "",
                 "batch_id": batch.id,
-                "source_id": batch.source_id
+                "source_id": batch.source_id,
+                "payment_id": payment_id,
+                "split_id": split_id,
             })
 
         # --- نهاية منطق القيد المزدوج ---
@@ -393,7 +416,7 @@ def get_ledger_data():
             service_currency = getattr(service, 'currency', 'ILS') or 'ILS'
             if service_currency != 'ILS':
                 try:
-                    rate = fx_rate(service_currency, 'ILS', service.created_at or datetime.utcnow(), raise_on_missing=False)
+                    rate = fx_rate(service_currency, 'ILS', service.created_at or datetime.now(timezone.utc).replace(tzinfo=None), raise_on_missing=False)
                     if rate > 0:
                         service_total = float(service_total * float(rate))
                     else:
@@ -554,7 +577,7 @@ def get_ledger_data():
             preorder_currency = getattr(preorder, 'currency', 'ILS') or 'ILS'
             if preorder_currency != 'ILS':
                 try:
-                    rate = fx_rate(preorder_currency, 'ILS', preorder.created_at or datetime.utcnow(), raise_on_missing=False)
+                    rate = fx_rate(preorder_currency, 'ILS', preorder.created_at or datetime.now(timezone.utc).replace(tzinfo=None), raise_on_missing=False)
                     if rate > 0:
                         amount = float(amount * float(rate))
                 except Exception as e:
@@ -587,7 +610,7 @@ def get_ledger_data():
             # تحويل للشيقل
             if product_currency and product_currency != 'ILS' and price > 0:
                 try:
-                    rate = fx_rate(product_currency, 'ILS', datetime.utcnow(), raise_on_missing=False)
+                    rate = fx_rate(product_currency, 'ILS', datetime.now(timezone.utc).replace(tzinfo=None), raise_on_missing=False)
                     if rate and rate > 0:
                         price = float(price * float(rate))
                 except Exception:
@@ -694,6 +717,7 @@ def get_ledger_data():
 
 @ledger_bp.route("/cogs-audit", methods=["GET"], endpoint="cogs_audit_report")
 @login_required
+@utils.permission_required("manage_ledger")
 def cogs_audit_report():
     """تقرير شامل لفحص تكلفة البضاعة المباعة (COGS) بدقة"""
     try:
@@ -841,8 +865,969 @@ def cogs_audit_report():
         current_app.logger.error(f"Error in cogs_audit_report: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@ledger_bp.route("/entity-balance-audit", methods=["GET"], endpoint="entity_balance_audit")
+@login_required
+@utils.permission_required("manage_ledger")
+def entity_balance_audit():
+    try:
+        as_of_date_str = request.args.get("as_of_date")
+        tolerance = float(request.args.get("tolerance", 0.01) or 0.01)
+        limit = int(request.args.get("limit", 200) or 200)
+        include_archived = (request.args.get("include_archived", "false") or "").lower() == "true"
+
+        if as_of_date_str:
+            as_of_date = datetime.fromisoformat(str(as_of_date_str).replace("Z", "+00:00")).date()
+        else:
+            as_of_date = datetime.now(timezone.utc).date()
+        as_of_dt = datetime.combine(as_of_date, datetime.max.time())
+
+        ar_account = (GL_ACCOUNTS.get("AR") or "1100_AR").upper()
+        ap_account = (GL_ACCOUNTS.get("AP") or "2000_AP").upper()
+
+        customer_gl_sq = (
+            db.session.query(
+                GLBatch.entity_id.label("entity_id"),
+                func.coalesce(func.sum(GLEntry.debit - GLEntry.credit), 0).label("gl_balance"),
+            )
+            .join(GLEntry, GLEntry.batch_id == GLBatch.id)
+            .filter(
+                GLBatch.status == "POSTED",
+                GLBatch.posted_at <= as_of_dt,
+                GLBatch.entity_type == "CUSTOMER",
+                GLEntry.account == ar_account,
+            )
+            .group_by(GLBatch.entity_id)
+            .subquery()
+        )
+
+        supplier_gl_sq = (
+            db.session.query(
+                GLBatch.entity_id.label("entity_id"),
+                func.coalesce(func.sum(GLEntry.credit - GLEntry.debit), 0).label("gl_balance"),
+            )
+            .join(GLEntry, GLEntry.batch_id == GLBatch.id)
+            .filter(
+                GLBatch.status == "POSTED",
+                GLBatch.posted_at <= as_of_dt,
+                GLBatch.entity_type == "SUPPLIER",
+                GLEntry.account == ap_account,
+            )
+            .group_by(GLBatch.entity_id)
+            .subquery()
+        )
+
+        partner_gl_sq = (
+            db.session.query(
+                GLBatch.entity_id.label("entity_id"),
+                func.coalesce(func.sum(GLEntry.credit - GLEntry.debit), 0).label("gl_balance"),
+            )
+            .join(GLEntry, GLEntry.batch_id == GLBatch.id)
+            .filter(
+                GLBatch.status == "POSTED",
+                GLBatch.posted_at <= as_of_dt,
+                GLBatch.entity_type == "PARTNER",
+                GLEntry.account == ap_account,
+            )
+            .group_by(GLBatch.entity_id)
+            .subquery()
+        )
+
+        cust_stored = func.coalesce(Customer.current_balance, 0)
+        cust_gl = func.coalesce(customer_gl_sq.c.gl_balance, 0)
+        cust_expected_gl = -cust_stored
+        cust_diff = cust_gl - cust_expected_gl
+
+        customers_base = (
+            db.session.query(
+                Customer.id.label("id"),
+                Customer.name.label("name"),
+                Customer.currency.label("currency"),
+                cust_stored.label("stored_balance"),
+                cust_expected_gl.label("expected_gl_balance"),
+                cust_gl.label("gl_balance"),
+                cust_diff.label("diff"),
+            )
+            .outerjoin(customer_gl_sq, customer_gl_sq.c.entity_id == Customer.id)
+        )
+        if hasattr(Customer, "is_archived") and not include_archived:
+            customers_base = customers_base.filter(Customer.is_archived.is_(False))
+
+        customers_filter = func.abs(cust_diff) > tolerance
+        customers_mismatch_count = customers_base.with_entities(func.count()).filter(customers_filter).scalar() or 0
+        customers_mismatch_total_abs = (
+            customers_base.with_entities(func.coalesce(func.sum(func.abs(cust_diff)), 0)).filter(customers_filter).scalar()
+            or 0
+        )
+        customers_rows = (
+            customers_base.filter(customers_filter).order_by(func.abs(cust_diff).desc()).limit(limit).all()
+        )
+        customers = [
+            {
+                "id": int(r.id),
+                "name": r.name,
+                "currency": r.currency or "ILS",
+                "stored_balance": float(r.stored_balance or 0),
+                "expected_gl_balance": float(r.expected_gl_balance or 0),
+                "gl_balance": float(r.gl_balance or 0),
+                "diff": float(r.diff or 0),
+            }
+            for r in customers_rows
+        ]
+
+        supp_stored = func.coalesce(Supplier.current_balance, 0)
+        supp_gl = func.coalesce(supplier_gl_sq.c.gl_balance, 0)
+        supp_expected_gl = supp_stored
+        supp_diff = supp_gl - supp_expected_gl
+
+        suppliers_base = (
+            db.session.query(
+                Supplier.id.label("id"),
+                Supplier.name.label("name"),
+                Supplier.currency.label("currency"),
+                supp_stored.label("stored_balance"),
+                supp_expected_gl.label("expected_gl_balance"),
+                supp_gl.label("gl_balance"),
+                supp_diff.label("diff"),
+            )
+            .outerjoin(supplier_gl_sq, supplier_gl_sq.c.entity_id == Supplier.id)
+        )
+        if hasattr(Supplier, "is_archived") and not include_archived:
+            suppliers_base = suppliers_base.filter(Supplier.is_archived.is_(False))
+
+        suppliers_filter = func.abs(supp_diff) > tolerance
+        suppliers_mismatch_count = suppliers_base.with_entities(func.count()).filter(suppliers_filter).scalar() or 0
+        suppliers_mismatch_total_abs = (
+            suppliers_base.with_entities(func.coalesce(func.sum(func.abs(supp_diff)), 0)).filter(suppliers_filter).scalar()
+            or 0
+        )
+        suppliers_rows = (
+            suppliers_base.filter(suppliers_filter).order_by(func.abs(supp_diff).desc()).limit(limit).all()
+        )
+        suppliers = [
+            {
+                "id": int(r.id),
+                "name": r.name,
+                "currency": r.currency or "ILS",
+                "stored_balance": float(r.stored_balance or 0),
+                "expected_gl_balance": float(r.expected_gl_balance or 0),
+                "gl_balance": float(r.gl_balance or 0),
+                "diff": float(r.diff or 0),
+            }
+            for r in suppliers_rows
+        ]
+
+        part_stored = func.coalesce(Partner.current_balance, 0)
+        part_gl = func.coalesce(partner_gl_sq.c.gl_balance, 0)
+        part_expected_gl = part_stored
+        part_diff = part_gl - part_expected_gl
+
+        partners_base = (
+            db.session.query(
+                Partner.id.label("id"),
+                Partner.name.label("name"),
+                Partner.currency.label("currency"),
+                part_stored.label("stored_balance"),
+                part_expected_gl.label("expected_gl_balance"),
+                part_gl.label("gl_balance"),
+                part_diff.label("diff"),
+            )
+            .outerjoin(partner_gl_sq, partner_gl_sq.c.entity_id == Partner.id)
+        )
+        if hasattr(Partner, "is_archived") and not include_archived:
+            partners_base = partners_base.filter(Partner.is_archived.is_(False))
+
+        partners_filter = func.abs(part_diff) > tolerance
+        partners_mismatch_count = partners_base.with_entities(func.count()).filter(partners_filter).scalar() or 0
+        partners_mismatch_total_abs = (
+            partners_base.with_entities(func.coalesce(func.sum(func.abs(part_diff)), 0)).filter(partners_filter).scalar()
+            or 0
+        )
+        partners_rows = (
+            partners_base.filter(partners_filter).order_by(func.abs(part_diff).desc()).limit(limit).all()
+        )
+        partners = [
+            {
+                "id": int(r.id),
+                "name": r.name,
+                "currency": r.currency or "ILS",
+                "stored_balance": float(r.stored_balance or 0),
+                "expected_gl_balance": float(r.expected_gl_balance or 0),
+                "gl_balance": float(r.gl_balance or 0),
+                "diff": float(r.diff or 0),
+            }
+            for r in partners_rows
+        ]
+
+        customer_orphans_q = (
+            db.session.query(
+                customer_gl_sq.c.entity_id.label("id"),
+                customer_gl_sq.c.gl_balance.label("gl_balance"),
+            )
+            .outerjoin(Customer, Customer.id == customer_gl_sq.c.entity_id)
+            .filter(Customer.id.is_(None))
+            .order_by(func.abs(customer_gl_sq.c.gl_balance).desc())
+        )
+        supplier_orphans_q = (
+            db.session.query(
+                supplier_gl_sq.c.entity_id.label("id"),
+                supplier_gl_sq.c.gl_balance.label("gl_balance"),
+            )
+            .outerjoin(Supplier, Supplier.id == supplier_gl_sq.c.entity_id)
+            .filter(Supplier.id.is_(None))
+            .order_by(func.abs(supplier_gl_sq.c.gl_balance).desc())
+        )
+        partner_orphans_q = (
+            db.session.query(
+                partner_gl_sq.c.entity_id.label("id"),
+                partner_gl_sq.c.gl_balance.label("gl_balance"),
+            )
+            .outerjoin(Partner, Partner.id == partner_gl_sq.c.entity_id)
+            .filter(Partner.id.is_(None))
+            .order_by(func.abs(partner_gl_sq.c.gl_balance).desc())
+        )
+
+        customer_orphan_count = customer_orphans_q.order_by(None).with_entities(func.count()).scalar() or 0
+        supplier_orphan_count = supplier_orphans_q.order_by(None).with_entities(func.count()).scalar() or 0
+        partner_orphan_count = partner_orphans_q.order_by(None).with_entities(func.count()).scalar() or 0
+
+        customer_orphans = customer_orphans_q.limit(limit).all()
+        supplier_orphans = supplier_orphans_q.limit(limit).all()
+        partner_orphans = partner_orphans_q.limit(limit).all()
+
+        posted_batches_missing_entity = (
+            db.session.query(func.count(GLBatch.id))
+            .filter(
+                GLBatch.status == "POSTED",
+                GLBatch.posted_at <= as_of_dt,
+                or_(GLBatch.entity_type.is_(None), GLBatch.entity_id.is_(None)),
+            )
+            .scalar()
+            or 0
+        )
+
+        ar_unassigned = (
+            db.session.query(func.coalesce(func.sum(GLEntry.debit - GLEntry.credit), 0))
+            .join(GLBatch, GLBatch.id == GLEntry.batch_id)
+            .filter(
+                GLBatch.status == "POSTED",
+                GLBatch.posted_at <= as_of_dt,
+                GLEntry.account == ar_account,
+                or_(
+                    GLBatch.entity_type.is_(None),
+                    GLBatch.entity_id.is_(None),
+                    GLBatch.entity_type != "CUSTOMER",
+                ),
+            )
+            .scalar()
+            or 0
+        )
+
+        ap_unassigned = (
+            db.session.query(func.coalesce(func.sum(GLEntry.credit - GLEntry.debit), 0))
+            .join(GLBatch, GLBatch.id == GLEntry.batch_id)
+            .filter(
+                GLBatch.status == "POSTED",
+                GLBatch.posted_at <= as_of_dt,
+                GLEntry.account == ap_account,
+                or_(
+                    GLBatch.entity_type.is_(None),
+                    GLBatch.entity_id.is_(None),
+                    ~GLBatch.entity_type.in_(["SUPPLIER", "PARTNER"]),
+                ),
+            )
+            .scalar()
+            or 0
+        )
+
+        return jsonify(
+            {
+                "success": True,
+                "report_type": "entity_balance_audit",
+                "as_of_date": as_of_date.isoformat(),
+                "tolerance": tolerance,
+                "accounts": {"ar": ar_account, "ap": ap_account},
+                "summary": {
+                    "customers_mismatch_count": int(customers_mismatch_count),
+                    "suppliers_mismatch_count": int(suppliers_mismatch_count),
+                    "partners_mismatch_count": int(partners_mismatch_count),
+                    "customers_mismatch_total_abs": float(customers_mismatch_total_abs),
+                    "suppliers_mismatch_total_abs": float(suppliers_mismatch_total_abs),
+                    "partners_mismatch_total_abs": float(partners_mismatch_total_abs),
+                    "customer_orphan_gl_count": int(customer_orphan_count),
+                    "supplier_orphan_gl_count": int(supplier_orphan_count),
+                    "partner_orphan_gl_count": int(partner_orphan_count),
+                    "posted_batches_missing_entity": int(posted_batches_missing_entity),
+                    "ar_unassigned_balance": float(ar_unassigned),
+                    "ap_unassigned_balance": float(ap_unassigned),
+                },
+                "details": {
+                    "customers": customers,
+                    "suppliers": suppliers,
+                    "partners": partners,
+                    "orphans": {
+                        "customers": [{"id": int(r.id), "gl_balance": float(r.gl_balance)} for r in customer_orphans],
+                        "suppliers": [{"id": int(r.id), "gl_balance": float(r.gl_balance)} for r in supplier_orphans],
+                        "partners": [{"id": int(r.id), "gl_balance": float(r.gl_balance)} for r in partner_orphans],
+                    },
+                },
+            }
+        )
+    except Exception as e:
+        current_app.logger.error(f"Error in entity_balance_audit: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@ledger_bp.route("/entity-balance-audit/fix-gl-entities", methods=["POST"], endpoint="fix_gl_entities_for_entity_audit")
+@login_required
+@utils.permission_required("manage_advanced_accounting")
+def fix_gl_entities_for_entity_audit():
+    try:
+        payload = request.get_json(silent=True) or {}
+
+        dry_run = bool(payload.get("dry_run", True))
+        override = bool(payload.get("override", False))
+        max_batches = int(payload.get("max_batches", 5000) or 5000)
+        require_backup = bool(payload.get("require_backup", True))
+        allow_without_backup = bool(payload.get("allow_without_backup", False))
+        as_of_date_str = payload.get("as_of_date") or request.args.get("as_of_date")
+
+        if as_of_date_str:
+            as_of_date = datetime.fromisoformat(str(as_of_date_str).replace("Z", "+00:00")).date()
+        else:
+            as_of_date = datetime.now(timezone.utc).date()
+        as_of_dt = datetime.combine(as_of_date, datetime.max.time())
+
+        backup_info = {"attempted": False, "success": None, "message": None, "path": None}
+        if not dry_run and require_backup:
+            try:
+                backup_info["attempted"] = True
+                ok, msg, path = perform_backup_db(current_app)
+                backup_info["success"] = bool(ok)
+                backup_info["message"] = msg
+                backup_info["path"] = path
+                if not ok and not allow_without_backup:
+                    return jsonify({"success": False, "error": msg or "backup_failed", "backup": backup_info}), 500
+            except Exception as exc:
+                backup_info["attempted"] = True
+                backup_info["success"] = False
+                backup_info["message"] = str(exc)
+                if not allow_without_backup:
+                    return jsonify({"success": False, "error": str(exc), "backup": backup_info}), 500
+
+        q = GLBatch.query.filter(
+            GLBatch.status == "POSTED",
+            GLBatch.posted_at <= as_of_dt,
+        )
+
+        supported_source_types = {"PAYMENT", "PAYMENT_SPLIT", "SALE", "INVOICE", "EXPENSE", "SERVICE", "PREORDER", "SHIPMENT"}
+        if override:
+            q = q.filter(
+                GLBatch.source_type.isnot(None),
+                GLBatch.source_id.isnot(None),
+                func.upper(GLBatch.source_type).in_(supported_source_types),
+            )
+        else:
+            q = q.filter(or_(GLBatch.entity_type.is_(None), GLBatch.entity_id.is_(None)))
+
+        batches = q.order_by(GLBatch.id.desc()).limit(max_batches).all()
+
+        changes = []
+        updated = 0
+        skipped = 0
+
+        for b in batches:
+            old_type = b.entity_type
+            old_id = b.entity_id
+
+            if override:
+                name, type_ar, entity_id, entity_type = SmartEntityExtractor.extract_from_source(b)
+            else:
+                name, type_ar, entity_id, entity_type = SmartEntityExtractor.extract_from_batch(b)
+
+            if not entity_type or not entity_id:
+                skipped += 1
+                continue
+
+            entity_type = str(entity_type).upper()
+            if entity_type not in {"CUSTOMER", "SUPPLIER", "PARTNER", "EMPLOYEE"}:
+                skipped += 1
+                continue
+
+            if (old_type or "").upper() == entity_type and int(old_id or 0) == int(entity_id or 0):
+                skipped += 1
+                continue
+
+            changes.append(
+                {
+                    "batch_id": int(b.id),
+                    "source_type": b.source_type,
+                    "source_id": b.source_id,
+                    "posted_at": b.posted_at.isoformat() if b.posted_at else None,
+                    "old_entity": {"type": old_type, "id": old_id},
+                    "new_entity": {"type": entity_type, "id": int(entity_id)},
+                    "entity_name": name,
+                    "entity_type_ar": type_ar,
+                }
+            )
+
+            if not dry_run:
+                b.entity_type = entity_type
+                b.entity_id = int(entity_id)
+                updated += 1
+
+        if not dry_run and updated:
+            db.session.commit()
+
+        try:
+            if not dry_run:
+                db.session.add(
+                    AuditLog(
+                        model_name="Ledger",
+                        record_id=None,
+                        user_id=(current_user.id if getattr(current_user, "is_authenticated", False) else None),
+                        action="FIX_GL_ENTITIES",
+                        old_data=None,
+                        new_data=json.dumps(
+                            {
+                                "override": override,
+                                "as_of_date": as_of_date.isoformat(),
+                                "found_batches": len(batches),
+                                "updated_batches": int(updated),
+                                "proposed_updates": int(len(changes)),
+                                "skipped": int(skipped),
+                                "backup": backup_info,
+                            },
+                            ensure_ascii=False,
+                            default=str,
+                        ),
+                    )
+                )
+                db.session.commit()
+        except Exception:
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+
+        return jsonify(
+            {
+                "success": True,
+                "action": "fix_gl_entities",
+                "dry_run": dry_run,
+                "override": override,
+                "as_of_date": as_of_date.isoformat(),
+                "backup": backup_info,
+                "found_batches": len(batches),
+                "updated_batches": updated if not dry_run else 0,
+                "proposed_updates": len(changes),
+                "skipped": skipped,
+                "changes": changes[:200],
+            }
+        )
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error in fix_gl_entities_for_entity_audit: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@ledger_bp.route("/entity-balance-audit/recalculate-entities", methods=["POST"], endpoint="recalculate_entities_for_entity_audit")
+@login_required
+@utils.permission_required("manage_advanced_accounting")
+def recalculate_entities_for_entity_audit():
+    try:
+        payload = request.get_json(silent=True) or {}
+
+        dry_run = bool(payload.get("dry_run", True))
+        tolerance = float(payload.get("tolerance", request.args.get("tolerance", 0.01)) or 0.01)
+        max_customers = int(payload.get("max_customers", 500) or 500)
+        max_suppliers = int(payload.get("max_suppliers", 500) or 500)
+        max_partners = int(payload.get("max_partners", 500) or 500)
+        include_archived = (payload.get("include_archived", request.args.get("include_archived", "false")) or "").lower() == "true"
+        require_backup = bool(payload.get("require_backup", True))
+        allow_without_backup = bool(payload.get("allow_without_backup", False))
+        require_backup = bool(payload.get("require_backup", True))
+        allow_without_backup = bool(payload.get("allow_without_backup", False))
+
+        as_of_date_str = payload.get("as_of_date") or request.args.get("as_of_date")
+        if as_of_date_str:
+            as_of_date = datetime.fromisoformat(str(as_of_date_str).replace("Z", "+00:00")).date()
+        else:
+            as_of_date = datetime.now(timezone.utc).date()
+        as_of_dt = datetime.combine(as_of_date, datetime.max.time())
+
+        backup_info = {"attempted": False, "success": None, "message": None, "path": None}
+        if not dry_run and require_backup:
+            try:
+                backup_info["attempted"] = True
+                ok, msg, path = perform_backup_db(current_app)
+                backup_info["success"] = bool(ok)
+                backup_info["message"] = msg
+                backup_info["path"] = path
+                if not ok and not allow_without_backup:
+                    return jsonify({"success": False, "error": msg or "backup_failed", "backup": backup_info}), 500
+            except Exception as exc:
+                backup_info["attempted"] = True
+                backup_info["success"] = False
+                backup_info["message"] = str(exc)
+                if not allow_without_backup:
+                    return jsonify({"success": False, "error": str(exc), "backup": backup_info}), 500
+
+        backup_info = {"attempted": False, "success": None, "message": None, "path": None}
+        if not dry_run and require_backup:
+            try:
+                backup_info["attempted"] = True
+                ok, msg, path = perform_backup_db(current_app)
+                backup_info["success"] = bool(ok)
+                backup_info["message"] = msg
+                backup_info["path"] = path
+                if not ok and not allow_without_backup:
+                    return jsonify({"success": False, "error": msg or "backup_failed", "backup": backup_info}), 500
+            except Exception as exc:
+                backup_info["attempted"] = True
+                backup_info["success"] = False
+                backup_info["message"] = str(exc)
+                if not allow_without_backup:
+                    return jsonify({"success": False, "error": str(exc), "backup": backup_info}), 500
+
+        ar_account = (GL_ACCOUNTS.get("AR") or "1100_AR").upper()
+        ap_account = (GL_ACCOUNTS.get("AP") or "2000_AP").upper()
+
+        customer_gl_sq = (
+            db.session.query(
+                GLBatch.entity_id.label("entity_id"),
+                func.coalesce(func.sum(GLEntry.debit - GLEntry.credit), 0).label("gl_balance"),
+            )
+            .join(GLEntry, GLEntry.batch_id == GLBatch.id)
+            .filter(
+                GLBatch.status == "POSTED",
+                GLBatch.posted_at <= as_of_dt,
+                GLBatch.entity_type == "CUSTOMER",
+                GLEntry.account == ar_account,
+            )
+            .group_by(GLBatch.entity_id)
+            .subquery()
+        )
+        supplier_gl_sq = (
+            db.session.query(
+                GLBatch.entity_id.label("entity_id"),
+                func.coalesce(func.sum(GLEntry.credit - GLEntry.debit), 0).label("gl_balance"),
+            )
+            .join(GLEntry, GLEntry.batch_id == GLBatch.id)
+            .filter(
+                GLBatch.status == "POSTED",
+                GLBatch.posted_at <= as_of_dt,
+                GLBatch.entity_type == "SUPPLIER",
+                GLEntry.account == ap_account,
+            )
+            .group_by(GLBatch.entity_id)
+            .subquery()
+        )
+        partner_gl_sq = (
+            db.session.query(
+                GLBatch.entity_id.label("entity_id"),
+                func.coalesce(func.sum(GLEntry.credit - GLEntry.debit), 0).label("gl_balance"),
+            )
+            .join(GLEntry, GLEntry.batch_id == GLBatch.id)
+            .filter(
+                GLBatch.status == "POSTED",
+                GLBatch.posted_at <= as_of_dt,
+                GLBatch.entity_type == "PARTNER",
+                GLEntry.account == ap_account,
+            )
+            .group_by(GLBatch.entity_id)
+            .subquery()
+        )
+
+        cust_stored = func.coalesce(Customer.current_balance, 0)
+        cust_gl = func.coalesce(customer_gl_sq.c.gl_balance, 0)
+        cust_diff = cust_gl - (-cust_stored)
+
+        customers_q = db.session.query(Customer.id).outerjoin(customer_gl_sq, customer_gl_sq.c.entity_id == Customer.id)
+        if hasattr(Customer, "is_archived") and not include_archived:
+            customers_q = customers_q.filter(Customer.is_archived.is_(False))
+        customers_ids = [
+            int(r.id)
+            for r in customers_q.filter(func.abs(cust_diff) > tolerance).order_by(func.abs(cust_diff).desc()).limit(max_customers).all()
+        ]
+
+        supp_stored = func.coalesce(Supplier.current_balance, 0)
+        supp_gl = func.coalesce(supplier_gl_sq.c.gl_balance, 0)
+        supp_diff = supp_gl - supp_stored
+
+        suppliers_q = db.session.query(Supplier.id).outerjoin(supplier_gl_sq, supplier_gl_sq.c.entity_id == Supplier.id)
+        if hasattr(Supplier, "is_archived") and not include_archived:
+            suppliers_q = suppliers_q.filter(Supplier.is_archived.is_(False))
+        suppliers_ids = [
+            int(r.id)
+            for r in suppliers_q.filter(func.abs(supp_diff) > tolerance).order_by(func.abs(supp_diff).desc()).limit(max_suppliers).all()
+        ]
+
+        part_stored = func.coalesce(Partner.current_balance, 0)
+        part_gl = func.coalesce(partner_gl_sq.c.gl_balance, 0)
+        part_diff = part_gl - part_stored
+
+        partners_q = db.session.query(Partner.id).outerjoin(partner_gl_sq, partner_gl_sq.c.entity_id == Partner.id)
+        if hasattr(Partner, "is_archived") and not include_archived:
+            partners_q = partners_q.filter(Partner.is_archived.is_(False))
+        partners_ids = [
+            int(r.id)
+            for r in partners_q.filter(func.abs(part_diff) > tolerance).order_by(func.abs(part_diff).desc()).limit(max_partners).all()
+        ]
+
+        recalculated = {"customers": 0, "suppliers": 0, "partners": 0}
+        failures = {"customers": [], "suppliers": [], "partners": []}
+
+        if not dry_run:
+            from utils.customer_balance_updater import update_customer_balance_components
+            from utils.supplier_balance_updater import update_supplier_balance_components
+            from models import update_partner_balance
+
+            for cid in customers_ids:
+                try:
+                    update_customer_balance_components(cid, db.session)
+                    recalculated["customers"] += 1
+                except Exception as exc:
+                    if len(failures["customers"]) < 50:
+                        failures["customers"].append({"id": int(cid), "error": str(exc)[:300]})
+
+            for sid in suppliers_ids:
+                try:
+                    update_supplier_balance_components(sid, db.session)
+                    recalculated["suppliers"] += 1
+                except Exception as exc:
+                    if len(failures["suppliers"]) < 50:
+                        failures["suppliers"].append({"id": int(sid), "error": str(exc)[:300]})
+
+            for pid in partners_ids:
+                try:
+                    update_partner_balance(pid, db.session)
+                    recalculated["partners"] += 1
+                except Exception as exc:
+                    if len(failures["partners"]) < 50:
+                        failures["partners"].append({"id": int(pid), "error": str(exc)[:300]})
+
+            try:
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+
+        result = {
+            "success": True,
+            "action": "recalculate_entities",
+            "dry_run": dry_run,
+            "as_of_date": as_of_date.isoformat(),
+            "tolerance": tolerance,
+            "backup": backup_info,
+            "target_ids": {
+                "customers": customers_ids,
+                "suppliers": suppliers_ids,
+                "partners": partners_ids,
+            },
+            "recalculated": recalculated,
+            "failures": failures,
+        }
+
+        if not dry_run:
+            try:
+                db.session.add(
+                    AuditLog(
+                        model_name="Ledger",
+                        record_id=None,
+                        user_id=(current_user.id if getattr(current_user, "is_authenticated", False) else None),
+                        action="RECALCULATE_ENTITIES",
+                        old_data=None,
+                        new_data=json.dumps(result, ensure_ascii=False, default=str),
+                    )
+                )
+                db.session.commit()
+            except Exception:
+                try:
+                    db.session.rollback()
+                except Exception:
+                    pass
+
+            resp = entity_balance_audit()
+            try:
+                base = resp.get_json() if hasattr(resp, "get_json") else None
+            except Exception:
+                base = None
+            if isinstance(base, dict) and base.get("success") is True:
+                base["recalculate"] = result
+                return jsonify(base)
+            return resp
+
+        return jsonify(result)
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error in recalculate_entities_for_entity_audit: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@ledger_bp.route("/entity-balance-audit/auto-fix", methods=["POST"], endpoint="auto_fix_entity_balance_audit")
+@login_required
+@utils.permission_required("manage_advanced_accounting")
+def auto_fix_entity_balance_audit():
+    try:
+        payload = request.get_json(silent=True) or {}
+        dry_run = bool(payload.get("dry_run", False))
+        override = bool(payload.get("override", False))
+        max_batches = int(payload.get("max_batches", 5000) or 5000)
+
+        tolerance = float(payload.get("tolerance", request.args.get("tolerance", 0.01)) or 0.01)
+        max_customers = int(payload.get("max_customers", 500) or 500)
+        max_suppliers = int(payload.get("max_suppliers", 500) or 500)
+        max_partners = int(payload.get("max_partners", 500) or 500)
+        include_archived = (payload.get("include_archived", request.args.get("include_archived", "false")) or "").lower() == "true"
+
+        as_of_date_str = payload.get("as_of_date") or request.args.get("as_of_date")
+        if as_of_date_str:
+            as_of_date = datetime.fromisoformat(str(as_of_date_str).replace("Z", "+00:00")).date()
+        else:
+            as_of_date = datetime.now(timezone.utc).date()
+        as_of_dt = datetime.combine(as_of_date, datetime.max.time())
+
+        q = GLBatch.query.filter(
+            GLBatch.status == "POSTED",
+            GLBatch.posted_at <= as_of_dt,
+        )
+        supported_source_types = {"PAYMENT", "PAYMENT_SPLIT", "SALE", "INVOICE", "EXPENSE", "SERVICE", "PREORDER", "SHIPMENT"}
+        if override:
+            q = q.filter(
+                GLBatch.source_type.isnot(None),
+                GLBatch.source_id.isnot(None),
+                func.upper(GLBatch.source_type).in_(supported_source_types),
+            )
+        else:
+            q = q.filter(or_(GLBatch.entity_type.is_(None), GLBatch.entity_id.is_(None)))
+
+        batches = q.order_by(GLBatch.id.desc()).limit(max_batches).all()
+
+        changes = []
+        updated = 0
+        skipped = 0
+
+        for b in batches:
+            old_type = b.entity_type
+            old_id = b.entity_id
+
+            if override:
+                name, type_ar, entity_id, entity_type = SmartEntityExtractor.extract_from_source(b)
+            else:
+                name, type_ar, entity_id, entity_type = SmartEntityExtractor.extract_from_batch(b)
+            if not entity_type or not entity_id:
+                skipped += 1
+                continue
+
+            entity_type = str(entity_type).upper()
+            if entity_type not in {"CUSTOMER", "SUPPLIER", "PARTNER", "EMPLOYEE"}:
+                skipped += 1
+                continue
+
+            if (old_type or "").upper() == entity_type and int(old_id or 0) == int(entity_id or 0):
+                skipped += 1
+                continue
+
+            changes.append(
+                {
+                    "batch_id": int(b.id),
+                    "source_type": b.source_type,
+                    "source_id": b.source_id,
+                    "posted_at": b.posted_at.isoformat() if b.posted_at else None,
+                    "old_entity": {"type": old_type, "id": old_id},
+                    "new_entity": {"type": entity_type, "id": int(entity_id)},
+                    "entity_name": name,
+                    "entity_type_ar": type_ar,
+                }
+            )
+
+            if not dry_run:
+                b.entity_type = entity_type
+                b.entity_id = int(entity_id)
+                updated += 1
+
+        if dry_run:
+            return jsonify(
+                {
+                    "success": True,
+                    "action": "auto_fix",
+                    "dry_run": True,
+                    "as_of_date": as_of_date.isoformat(),
+                    "backup": backup_info,
+                    "found_batches": len(batches),
+                    "skipped_batches": int(skipped),
+                    "proposed_gl_entity_updates": len(changes),
+                    "changes": changes[:200],
+                }
+            )
+
+        if updated:
+            db.session.commit()
+
+        ar_account = (GL_ACCOUNTS.get("AR") or "1100_AR").upper()
+        ap_account = (GL_ACCOUNTS.get("AP") or "2000_AP").upper()
+
+        customer_gl_sq = (
+            db.session.query(
+                GLBatch.entity_id.label("entity_id"),
+                func.coalesce(func.sum(GLEntry.debit - GLEntry.credit), 0).label("gl_balance"),
+            )
+            .join(GLEntry, GLEntry.batch_id == GLBatch.id)
+            .filter(
+                GLBatch.status == "POSTED",
+                GLBatch.posted_at <= as_of_dt,
+                GLBatch.entity_type == "CUSTOMER",
+                GLEntry.account == ar_account,
+            )
+            .group_by(GLBatch.entity_id)
+            .subquery()
+        )
+        supplier_gl_sq = (
+            db.session.query(
+                GLBatch.entity_id.label("entity_id"),
+                func.coalesce(func.sum(GLEntry.credit - GLEntry.debit), 0).label("gl_balance"),
+            )
+            .join(GLEntry, GLEntry.batch_id == GLBatch.id)
+            .filter(
+                GLBatch.status == "POSTED",
+                GLBatch.posted_at <= as_of_dt,
+                GLBatch.entity_type == "SUPPLIER",
+                GLEntry.account == ap_account,
+            )
+            .group_by(GLBatch.entity_id)
+            .subquery()
+        )
+        partner_gl_sq = (
+            db.session.query(
+                GLBatch.entity_id.label("entity_id"),
+                func.coalesce(func.sum(GLEntry.credit - GLEntry.debit), 0).label("gl_balance"),
+            )
+            .join(GLEntry, GLEntry.batch_id == GLBatch.id)
+            .filter(
+                GLBatch.status == "POSTED",
+                GLBatch.posted_at <= as_of_dt,
+                GLBatch.entity_type == "PARTNER",
+                GLEntry.account == ap_account,
+            )
+            .group_by(GLBatch.entity_id)
+            .subquery()
+        )
+
+        cust_stored = func.coalesce(Customer.current_balance, 0)
+        cust_gl = func.coalesce(customer_gl_sq.c.gl_balance, 0)
+        cust_diff = cust_gl - (-cust_stored)
+        customers_q = db.session.query(Customer.id).outerjoin(customer_gl_sq, customer_gl_sq.c.entity_id == Customer.id)
+        if hasattr(Customer, "is_archived") and not include_archived:
+            customers_q = customers_q.filter(Customer.is_archived.is_(False))
+        customers_ids = [
+            int(r.id)
+            for r in customers_q.filter(func.abs(cust_diff) > tolerance).order_by(func.abs(cust_diff).desc()).limit(max_customers).all()
+        ]
+
+        supp_stored = func.coalesce(Supplier.current_balance, 0)
+        supp_gl = func.coalesce(supplier_gl_sq.c.gl_balance, 0)
+        supp_diff = supp_gl - supp_stored
+        suppliers_q = db.session.query(Supplier.id).outerjoin(supplier_gl_sq, supplier_gl_sq.c.entity_id == Supplier.id)
+        if hasattr(Supplier, "is_archived") and not include_archived:
+            suppliers_q = suppliers_q.filter(Supplier.is_archived.is_(False))
+        suppliers_ids = [
+            int(r.id)
+            for r in suppliers_q.filter(func.abs(supp_diff) > tolerance).order_by(func.abs(supp_diff).desc()).limit(max_suppliers).all()
+        ]
+
+        part_stored = func.coalesce(Partner.current_balance, 0)
+        part_gl = func.coalesce(partner_gl_sq.c.gl_balance, 0)
+        part_diff = part_gl - part_stored
+        partners_q = db.session.query(Partner.id).outerjoin(partner_gl_sq, partner_gl_sq.c.entity_id == Partner.id)
+        if hasattr(Partner, "is_archived") and not include_archived:
+            partners_q = partners_q.filter(Partner.is_archived.is_(False))
+        partners_ids = [
+            int(r.id)
+            for r in partners_q.filter(func.abs(part_diff) > tolerance).order_by(func.abs(part_diff).desc()).limit(max_partners).all()
+        ]
+
+        from utils.customer_balance_updater import update_customer_balance_components
+        from utils.supplier_balance_updater import update_supplier_balance_components
+        from models import update_partner_balance
+
+        recalculated = {"customers": 0, "suppliers": 0, "partners": 0}
+        failures = {"customers": [], "suppliers": [], "partners": []}
+
+        for cid in customers_ids:
+            try:
+                update_customer_balance_components(cid, db.session)
+                recalculated["customers"] += 1
+            except Exception as exc:
+                if len(failures["customers"]) < 50:
+                    failures["customers"].append({"id": int(cid), "error": str(exc)[:300]})
+
+        for sid in suppliers_ids:
+            try:
+                update_supplier_balance_components(sid, db.session)
+                recalculated["suppliers"] += 1
+            except Exception as exc:
+                if len(failures["suppliers"]) < 50:
+                    failures["suppliers"].append({"id": int(sid), "error": str(exc)[:300]})
+
+        for pid in partners_ids:
+            try:
+                update_partner_balance(pid, db.session)
+                recalculated["partners"] += 1
+            except Exception as exc:
+                if len(failures["partners"]) < 50:
+                    failures["partners"].append({"id": int(pid), "error": str(exc)[:300]})
+
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+
+        response = entity_balance_audit()
+        try:
+            base = response.get_json() if hasattr(response, "get_json") else None
+        except Exception:
+            base = None
+
+        if isinstance(base, dict) and base.get("success") is True:
+            base.setdefault("auto_fix", {})
+            base["auto_fix"] = {
+                "backup": backup_info,
+                "updated_batches": int(updated),
+                "proposed_updates": int(len(changes)),
+                "found_batches": int(len(batches)),
+                "skipped_batches": int(skipped),
+                "recalculated": recalculated,
+                "failures": failures,
+                "target_ids": {
+                    "customers": customers_ids,
+                    "suppliers": suppliers_ids,
+                    "partners": partners_ids,
+                },
+            }
+            try:
+                db.session.add(
+                    AuditLog(
+                        model_name="Ledger",
+                        record_id=None,
+                        user_id=(current_user.id if getattr(current_user, "is_authenticated", False) else None),
+                        action="AUTO_FIX",
+                        old_data=None,
+                        new_data=json.dumps(base["auto_fix"], ensure_ascii=False, default=str),
+                    )
+                )
+                db.session.commit()
+            except Exception:
+                try:
+                    db.session.rollback()
+                except Exception:
+                    pass
+            return jsonify(base)
+
+        return response
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error in auto_fix_entity_balance_audit: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
 @ledger_bp.route("/accounts-summary", methods=["GET"], endpoint="get_accounts_summary")
 @login_required
+@utils.permission_required("manage_ledger")
 def get_accounts_summary():
     """جلب ملخص الحسابات (ميزان مراجعة مبسط) من قيود GL مباشرة"""
     try:
@@ -976,6 +1961,7 @@ def get_accounts_summary():
 
 @ledger_bp.route("/receivables-detailed-summary", methods=["GET"], endpoint="get_receivables_detailed_summary")
 @login_required
+@utils.permission_required("manage_ledger")
 def get_receivables_detailed_summary():
     """جلب ملخص الذمم التفصيلي مع أعمار الديون"""
     try:
@@ -986,7 +1972,7 @@ def get_receivables_detailed_summary():
         to_date = datetime.strptime(to_date_str, '%Y-%m-%d').replace(hour=23, minute=59, second=59) if to_date_str else None
         
         receivables = []
-        today = datetime.utcnow()
+        today = datetime.now(timezone.utc).replace(tzinfo=None)
         
         # 1. العملاء (Customers) مع أعمار الديون
         from models import fx_rate
@@ -1253,6 +2239,7 @@ def get_receivables_detailed_summary():
 
 @ledger_bp.route("/receivables-summary", methods=["GET"], endpoint="get_receivables_summary")
 @login_required
+@utils.permission_required("manage_ledger")
 def get_receivables_summary():
     """جلب ملخص الذمم (العملاء، الموردين، الشركاء)"""
     try:
@@ -1365,6 +2352,7 @@ def get_receivables_summary():
 
 @ledger_bp.route("/export", methods=["GET"], endpoint="export_ledger")
 @login_required
+@utils.permission_required("manage_ledger")
 def export_ledger():
     """تصدير دفتر الأستاذ"""
     # يمكن إضافة منطق التصدير هنا
@@ -1372,6 +2360,7 @@ def export_ledger():
 
 @ledger_bp.route("/transaction/<int:id>", methods=["GET"], endpoint="view_transaction")
 @login_required
+@utils.permission_required("manage_ledger")
 def view_transaction(id):
     """عرض تفاصيل العملية"""
     # يمكن إضافة منطق عرض التفاصيل هنا
@@ -1390,7 +2379,7 @@ def _parse_dates():
             return datetime.fromisoformat(s)
         except Exception:
             return None
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     if not s_from:
         dfrom = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     else:
@@ -1419,6 +2408,7 @@ def _get_pagination():
 
 @ledger_bp.get("/trial-balance")
 @login_required
+@utils.permission_required("manage_ledger")
 def trial_balance():
     dfrom, dto = _parse_dates()
     q = (db.session.query(
@@ -1442,6 +2432,7 @@ def trial_balance():
 
 @ledger_bp.get("/account/<account>")
 @login_required
+@utils.permission_required("manage_ledger")
 def account_ledger(account):
     dfrom, dto = _parse_dates()
     
@@ -1590,6 +2581,7 @@ def account_ledger(account):
 
 @ledger_bp.get("/entity")
 @login_required
+@utils.permission_required("manage_ledger")
 def entity_ledger():
     dfrom, dto = _parse_dates()
     et = (request.args.get("entity_type") or "").upper().strip()
@@ -1699,11 +2691,12 @@ def entity_ledger():
 
 @ledger_bp.route("/batch/<int:batch_id>", methods=["GET"], endpoint="get_batch_details")
 @login_required
+@utils.permission_required("manage_ledger")
 def get_batch_details(batch_id):
     """جلب تفاصيل قيد محاسبي (GLBatch + Entries)"""
     try:
         # جلب القيد
-        batch = GLBatch.query.get(batch_id)
+        batch = db.session.get(GLBatch, batch_id)
         if not batch:
             return jsonify({"success": False, "error": "القيد غير موجود"}), 404
         

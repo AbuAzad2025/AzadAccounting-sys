@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}تفاصيل طلب الصيانة{% endblock %}
-{% block page_header %}طلب {{ service.service_number or ('#' ~ service.id) }}{% endblock %}
+{% block page_title %}طلب {{ service.service_number or ('#' ~ service.id) }}{% endblock %}
 
 {% block head_extra %}
   {{ super() }}

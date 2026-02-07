@@ -2,30 +2,17 @@
 
 {% block title %}{{ 'تعديل شيك' if check else 'إضافة شيك جديد' }}{% endblock %}
 
-{% block content %}
-  <div class="content-header">
-    <div class="container-fluid">
-      <div class="row mb-2">
-        <div class="col-sm-6">
-          <h1 class="m-0">
-            <i class="fas fa-money-check-alt"></i>
-            {{ 'تعديل شيك' if check else 'إضافة شيك جديد' }}
-          </h1>
-        </div>
-        <div class="col-sm-6">
-          <ol class="breadcrumb float-sm-right">
-            <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">الرئيسية</a></li>
-            <li class="breadcrumb-item"><a href="{{ url_for('checks.index') }}">الشيكات</a></li>
-            <li class="breadcrumb-item active">{{ 'تعديل' if check else 'إضافة' }}</li>
-          </ol>
-        </div>
-      </div>
-    </div>
-  </div>
+{% block page_title %}<i class="fas fa-money-check-alt"></i> {{ 'تعديل شيك' if check else 'إضافة شيك جديد' }}{% endblock %}
 
-<section class="content checks-form">
-    <div class="container-fluid">
-      <form method="POST" id="checkForm">
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}"><i class="fas fa-home"></i> الرئيسية</a></li>
+  <li class="breadcrumb-item"><a href="{{ url_for('checks.index') }}">الشيكات</a></li>
+  <li class="breadcrumb-item active">{{ 'تعديل' if check else 'إضافة' }}</li>
+{% endblock %}
+
+{% block content %}
+<div class="checks-form">
+  <form method="POST" id="checkForm">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <div class="row">
           <!-- القسم الأول: معلومات الشيك الأساسية -->
@@ -318,9 +305,7 @@
             </div>
           </div>
         </div>
-      </form>
-    </div>
-  </section>
+  </form>
 </div>
 
 <script>

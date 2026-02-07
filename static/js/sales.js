@@ -42,6 +42,8 @@
     const salesSummaryWrapper = qs('#sales-summary-wrapper');
     const salesSearchInput = qs('#sales-search');
     const salesSearchSummary = qs('#sales-search-summary');
+    const sortSelect = qs('#sales-sort');
+    const orderSelect = qs('#sales-order');
     const notify = (msg)=>{if(typeof window.showNotification==='function'){window.showNotification(msg,'danger');}else{alert(msg);}};
     const fetchSales = (targetUrl)=>{
       if(!salesTableWrapper) return;
@@ -98,6 +100,17 @@
         salesSearchTimer=setTimeout(triggerSearch,350);
       });
     }
+
+    const triggerSort = ()=>{
+      const currentUrl=new URL(window.location.href);
+      if(sortSelect && sortSelect.value){currentUrl.searchParams.set('sort', sortSelect.value);}
+      if(orderSelect && orderSelect.value){currentUrl.searchParams.set('order', orderSelect.value);}
+      currentUrl.searchParams.delete('page');
+      currentUrl.searchParams.set('page','1');
+      fetchSales(currentUrl.toString());
+    };
+    if(sortSelect) sortSelect.addEventListener('change', triggerSort);
+    if(orderSelect) orderSelect.addEventListener('change', triggerSort);
   })();
 
   // ====== إنشاء/تعديل فاتورة ======

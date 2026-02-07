@@ -140,7 +140,7 @@ def add_alert():
 @permission_required('manage_cost_centers')
 def toggle_alert(alert_id):
     try:
-        alert = CostCenterAlert.query.get_or_404(alert_id)
+        alert = db.get_or_404(CostCenterAlert, alert_id)
         alert.is_active = not alert.is_active
         alert.updated_by = current_user.id
         alert.updated_at = datetime.now()
@@ -250,7 +250,7 @@ def add_allocation_rule():
 @permission_required('manage_cost_centers')
 def execute_allocation_rule(rule_id):
     try:
-        rule = CostAllocationRule.query.get_or_404(rule_id)
+        rule = db.get_or_404(CostAllocationRule, rule_id)
         
         if not rule.is_active:
             flash('⚠️ لا يمكن تنفيذ قاعدة غير مفعلة', 'warning')
@@ -322,7 +322,7 @@ def report_trends():
     months = request.args.get('months', 12, type=int)
     
     if cost_center_id:
-        center = CostCenter.query.get_or_404(cost_center_id)
+        center = db.get_or_404(CostCenter, cost_center_id)
         centers = [center]
     else:
         centers = CostCenter.query.filter_by(is_active=True).order_by(CostCenter.code).limit(10).all()

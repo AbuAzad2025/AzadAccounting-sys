@@ -635,10 +635,10 @@ def process_check_reminders(app):
     try:
         with app.app_context():
             from models import Check, CheckStatus, db
-            from datetime import datetime, timedelta
+            from datetime import datetime, timedelta, timezone
             from notifications import notify_system_alert, NotificationPriority
             
-            today = datetime.utcnow().date()
+            today = datetime.now(timezone.utc).date()
             reminder_days = 3
             target_date = today + timedelta(days=reminder_days)
             
@@ -917,6 +917,168 @@ def init_extensions(app):
             except Exception:
                 return False
 
+    def _entity_balance_audit_job():
+        try:
+            from datetime import datetime, timezone
+            import json
+            from sqlalchemy import func, or_
+            from models import (
+                AuditLog,
+                Customer,
+                Supplier,
+                GLBatch,
+                GLEntry,
+                GL_ACCOUNTS,
+            )
+
+            with app.app_context():
+                tol = float(app.config.get("ENTITY_BALANCE_AUDIT_TOLERANCE", 0.01) or 0.01)
+                as_of_dt = datetime.now(timezone.utc)
+
+                ar_account = (GL_ACCOUNTS.get("AR") or "1100_AR").upper()
+                ap_account = (GL_ACCOUNTS.get("AP") or "2000_AP").upper()
+
+                customer_gl_sq = (
+                    db.session.query(
+                        GLBatch.entity_id.label("entity_id"),
+                        func.coalesce(func.sum(GLEntry.debit - GLEntry.credit), 0).label("gl_balance"),
+                    )
+                    .join(GLEntry, GLEntry.batch_id == GLBatch.id)
+                    .filter(
+                        GLBatch.status == "POSTED",
+                        GLBatch.posted_at <= as_of_dt,
+                        GLBatch.entity_type == "CUSTOMER",
+                        GLEntry.account == ar_account,
+                    )
+                    .group_by(GLBatch.entity_id)
+                    .subquery()
+                )
+
+                supplier_gl_sq = (
+                    db.session.query(
+                        GLBatch.entity_id.label("entity_id"),
+                        func.coalesce(func.sum(GLEntry.credit - GLEntry.debit), 0).label("gl_balance"),
+                    )
+                    .join(GLEntry, GLEntry.batch_id == GLBatch.id)
+                    .filter(
+                        GLBatch.status == "POSTED",
+                        GLBatch.posted_at <= as_of_dt,
+                        GLBatch.entity_type == "SUPPLIER",
+                        GLEntry.account == ap_account,
+                    )
+                    .group_by(GLBatch.entity_id)
+                    .subquery()
+                )
+
+                partner_gl_present = (
+                    db.session.query(func.count(GLBatch.id))
+                    .filter(GLBatch.status == "POSTED", GLBatch.entity_type == "PARTNER", GLBatch.posted_at <= as_of_dt)
+                    .scalar()
+                    or 0
+                )
+
+                cust_stored = func.coalesce(Customer.current_balance, 0)
+                cust_gl = func.coalesce(customer_gl_sq.c.gl_balance, 0)
+                cust_diff = cust_gl - (-cust_stored)
+                customers_q = db.session.query(Customer.id).outerjoin(customer_gl_sq, customer_gl_sq.c.entity_id == Customer.id)
+                customers_mismatch_count = customers_q.with_entities(func.count()).filter(func.abs(cust_diff) > tol).scalar() or 0
+                customers_mismatch_total_abs = (
+                    customers_q.with_entities(func.coalesce(func.sum(func.abs(cust_diff)), 0)).filter(func.abs(cust_diff) > tol).scalar()
+                    or 0
+                )
+
+                supp_stored = func.coalesce(Supplier.current_balance, 0)
+                supp_gl = func.coalesce(supplier_gl_sq.c.gl_balance, 0)
+                supp_diff = supp_gl - supp_stored
+                suppliers_q = db.session.query(Supplier.id).outerjoin(supplier_gl_sq, supplier_gl_sq.c.entity_id == Supplier.id)
+                suppliers_mismatch_count = suppliers_q.with_entities(func.count()).filter(func.abs(supp_diff) > tol).scalar() or 0
+                suppliers_mismatch_total_abs = (
+                    suppliers_q.with_entities(func.coalesce(func.sum(func.abs(supp_diff)), 0)).filter(func.abs(supp_diff) > tol).scalar()
+                    or 0
+                )
+
+                posted_batches_missing_entity = (
+                    db.session.query(func.count(GLBatch.id))
+                    .filter(
+                        GLBatch.status == "POSTED",
+                        GLBatch.posted_at <= as_of_dt,
+                        or_(GLBatch.entity_type.is_(None), GLBatch.entity_id.is_(None)),
+                    )
+                    .scalar()
+                    or 0
+                )
+
+                ar_unassigned = (
+                    db.session.query(func.coalesce(func.sum(GLEntry.debit - GLEntry.credit), 0))
+                    .join(GLBatch, GLBatch.id == GLEntry.batch_id)
+                    .filter(
+                        GLBatch.status == "POSTED",
+                        GLBatch.posted_at <= as_of_dt,
+                        GLEntry.account == ar_account,
+                        or_(
+                            GLBatch.entity_type.is_(None),
+                            GLBatch.entity_id.is_(None),
+                            GLBatch.entity_type != "CUSTOMER",
+                        ),
+                    )
+                    .scalar()
+                    or 0
+                )
+
+                ap_unassigned = (
+                    db.session.query(func.coalesce(func.sum(GLEntry.credit - GLEntry.debit), 0))
+                    .join(GLBatch, GLBatch.id == GLEntry.batch_id)
+                    .filter(
+                        GLBatch.status == "POSTED",
+                        GLBatch.posted_at <= as_of_dt,
+                        GLEntry.account == ap_account,
+                        or_(
+                            GLBatch.entity_type.is_(None),
+                            GLBatch.entity_id.is_(None),
+                            ~GLBatch.entity_type.in_(["SUPPLIER", "PARTNER"]),
+                        ),
+                    )
+                    .scalar()
+                    or 0
+                )
+
+                summary = {
+                    "as_of": as_of_dt.isoformat(),
+                    "tolerance": tol,
+                    "accounts": {"ar": ar_account, "ap": ap_account},
+                    "customers_mismatch_count": int(customers_mismatch_count),
+                    "customers_mismatch_total_abs": float(customers_mismatch_total_abs),
+                    "suppliers_mismatch_count": int(suppliers_mismatch_count),
+                    "suppliers_mismatch_total_abs": float(suppliers_mismatch_total_abs),
+                    "partner_gl_present": bool(partner_gl_present),
+                    "posted_batches_missing_entity": int(posted_batches_missing_entity),
+                    "ar_unassigned_balance": float(ar_unassigned),
+                    "ap_unassigned_balance": float(ap_unassigned),
+                }
+
+                try:
+                    db.session.add(
+                        AuditLog(
+                            model_name="Ledger",
+                            record_id=None,
+                            user_id=None,
+                            action="ENTITY_BALANCE_AUDIT",
+                            old_data=None,
+                            new_data=json.dumps(summary, ensure_ascii=False, default=str),
+                        )
+                    )
+                    db.session.commit()
+                except Exception:
+                    try:
+                        db.session.rollback()
+                    except Exception:
+                        pass
+        except Exception:
+            try:
+                app.logger.warning("entity_balance_audit_job_failed")
+            except Exception:
+                pass
+
     try:
         backup_db_interval = app.config.get("BACKUP_DB_INTERVAL")
         if backup_db_interval and hasattr(backup_db_interval, 'total_seconds'):
@@ -1011,6 +1173,16 @@ def init_extensions(app):
                     state["scheduled"] = True
             except Exception as e:
                 app.logger.warning(f"Automated backup scheduling failed: {e}")
+
+        if app.config.get("ENABLE_ENTITY_BALANCE_AUDIT_JOB", True):
+            scheduler.add_job(
+                _entity_balance_audit_job,
+                "cron",
+                hour=int(app.config.get("ENTITY_BALANCE_AUDIT_HOUR", 4) or 4),
+                minute=int(app.config.get("ENTITY_BALANCE_AUDIT_MINUTE", 10) or 10),
+                id="entity_balance_audit",
+                replace_existing=True,
+            )
     except Exception as e:
         app.logger.warning(f"Scheduler job registration failed: {e}")
 

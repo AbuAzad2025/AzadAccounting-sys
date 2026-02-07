@@ -313,39 +313,47 @@
   'use strict';
   
   // ========== تهيئة DataTables ==========
-  if (window.jQuery && jQuery.fn.DataTable) {
+  function initRunsTable() {
+    if (!(window.jQuery && jQuery.fn && jQuery.fn.DataTable)) return;
     const $table = jQuery('#runs-table');
-    if ($table.length) {
-      const dataRows = $table.find('tbody tr').not(':has(td[colspan])');
-      if (dataRows.length > 0) {
-        try {
-          $table.DataTable({
-            pageLength: 25,
-            order: [[1, 'desc']], // ترتيب حسب التاريخ (الأحدث أولاً)
-            language: {
-              url: '/static/datatables/Arabic.json',
-              emptyTable: "لا توجد عمليات استيراد",
-              info: "عرض _START_ إلى _END_ من أصل _TOTAL_ عملية",
-              infoEmpty: "لا توجد سجلات",
-              search: "بحث:",
-              paginate: {
-                first: "الأول",
-                last: "الأخير",
-                next: "التالي",
-                previous: "السابق"
-              }
-            },
-            columnDefs: [
-              { targets: 0, type: 'num' },
-              { targets: [5,6,7,8,9], className: 'text-center' },
-              { targets: 10, orderable: false, searchable: false }
-            ]
-          });
-        } catch (e) {
+    if (!$table.length) return;
+    const dataRows = $table.find('tbody tr').not(':has(td[colspan])');
+    if (dataRows.length === 0) return;
+    try {
+      $table.DataTable({
+        pageLength: 25,
+        order: [[1, 'desc']], // ترتيب حسب التاريخ (الأحدث أولاً)
+        responsive: true,
+        autoWidth: false,
+        scrollX: $table.find('thead th').length > 8,
+        language: {
+          url: '/static/datatables/Arabic.json',
+          emptyTable: "لا توجد عمليات استيراد",
+          info: "عرض _START_ إلى _END_ من أصل _TOTAL_ عملية",
+          infoEmpty: "لا توجد سجلات",
+          search: "بحث:",
+          paginate: {
+            first: "الأول",
+            last: "الأخير",
+            next: "التالي",
+            previous: "السابق"
+          }
+        },
+        columnDefs: [
+          { targets: 0, type: 'num' },
+          { targets: [5,6,7,8,9], className: 'text-center' },
+          { targets: 10, orderable: false, searchable: false }
+        ]
+      });
+    } catch (e) {
 
-        }
-      }
     }
+  }
+
+  if (window.jQuery && typeof window.ensureDataTables === 'function' && !(jQuery.fn && jQuery.fn.DataTable)) {
+    window.ensureDataTables().then(initRunsTable);
+  } else {
+    initRunsTable();
   }
 
   // ========== Modal التفاصيل ==========

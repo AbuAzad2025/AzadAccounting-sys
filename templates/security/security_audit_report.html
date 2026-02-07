@@ -1,0 +1,119 @@
+{% extends 'security/base_security.html' %}
+
+{% block tour_name %}security_audit_report{% endblock %}
+
+{% block security_title %}Security Audit Report{% endblock %}
+{% block security_icon %}<i class="fas fa-clipboard-check"></i>{% endblock %}
+{% block security_description %}تقرير أمني شامل لمحاولات الدخول والأنشطة المشبوهة{% endblock %}
+
+{% block security_breadcrumb %}
+<li class="breadcrumb-item active">Security Audit Report</li>
+{% endblock %}
+
+{% block security_content %}
+{% set summary = report.get('summary', {}) if report else {} %}
+{% set top_failed_ips = report.get('top_failed_ips', []) if report else [] %}
+
+<div class="container-fluid px-4 py-3" dir="rtl">
+  <div class="row mb-3">
+    <div class="col">
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+          <li class="breadcrumb-item"><a href="{{ url_for('security.index') }}"><i class="fas fa-shield-alt"></i> لوحة المالك</a></li>
+          <li class="breadcrumb-item active">تقرير التدقيق الأمني</li>
+        </ol>
+      </nav>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-lg-3 col-md-6">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <div class="text-muted mb-2"><i class="fas fa-times-circle"></i> محاولات فاشلة (24 ساعة)</div>
+          <div class="h3 mb-0">{{ summary.get('failed_logins_24h', 0) }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-3 col-md-6">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <div class="text-muted mb-2"><i class="fas fa-calendar-week"></i> محاولات فاشلة (7 أيام)</div>
+          <div class="h3 mb-0">{{ summary.get('failed_logins_7d', 0) }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-3 col-md-6">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <div class="text-muted mb-2"><i class="fas fa-check-circle"></i> عمليات دخول ناجحة (24 ساعة)</div>
+          <div class="h3 mb-0">{{ summary.get('successful_logins_24h', 0) }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-3 col-md-6">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <div class="text-muted mb-2"><i class="fas fa-ban"></i> IPs محظورة</div>
+          <div class="h3 mb-0">{{ summary.get('blocked_ips', 0) }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-lg-6">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <div class="text-muted mb-2"><i class="fas fa-shield-alt"></i> إجراءات أمنية (30 يوم)</div>
+          <div class="h4 mb-0">{{ summary.get('security_actions_30d', 0) }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <div class="text-muted mb-2"><i class="fas fa-exclamation-triangle"></i> أنشطة مشبوهة (7 أيام)</div>
+          <div class="h4 mb-0">{{ summary.get('suspicious_activities_7d', 0) }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="card-header bg-white">
+      <div class="d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="fas fa-network-wired ml-2"></i>أكثر IP فشلت محاولاته</h5>
+        <small class="text-muted">تم الإنشاء: {{ report.get('generated_at', '') if report else '' }}</small>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-striped">
+          <thead class="table-light">
+            <tr>
+              <th>IP</th>
+              <th>عدد المحاولات</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% if top_failed_ips %}
+              {% for row in top_failed_ips %}
+              <tr>
+                <td>{{ row.get('ip') }}</td>
+                <td>{{ row.get('count', 0) }}</td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td colspan="2" class="text-center text-muted">لا توجد بيانات</td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

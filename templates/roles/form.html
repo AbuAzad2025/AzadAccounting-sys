@@ -16,6 +16,7 @@
 <div class="container mt-4" dir="rtl">
   {% set name_l = (role.name if role else '')|lower %}
   {% set protected = name_l in ['admin','super_admin','owner','developer'] %}
+  {% set selected_permissions = form.permissions.data or [] %}
 
   <h2 class="mb-3">
     {{ 'تعديل دور' if role or role_id else 'إضافة دور جديد' }}
@@ -76,7 +77,7 @@
           <optgroup label="{{ module|capitalize }}">
             {% for pid, pname in perms %}
               <option value="{{ pid }}" data-module="{{ module }}"
-                {% if pid in form.permissions.data or (pid|string) in form.permissions.data %}selected{% endif %}>
+                {% if pid in selected_permissions or (pid|string) in selected_permissions %}selected{% endif %}>
                 {{ pname }}
               </option>
             {% endfor %}

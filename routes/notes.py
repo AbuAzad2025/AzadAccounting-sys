@@ -1,6 +1,6 @@
 
 # -*- coding: utf-8 -*-
-from datetime import datetime
+from datetime import datetime, timezone
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for, abort
 from flask_login import current_user, login_required
 from sqlalchemy import and_
@@ -150,7 +150,7 @@ def create_note():
         target_ids=form.target_ids.data,
         notification_type=form.notification_type.data,
         notification_date=form.notification_date.data,
-        created_at=datetime.utcnow()
+        created_at=datetime.now(timezone.utc).replace(tzinfo=None)
     )
     db.session.add(note)
     try:

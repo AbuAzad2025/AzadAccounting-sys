@@ -208,6 +208,49 @@
         padding: 20px;
       }
     }
+
+    @media screen and (max-width: 576px) {
+      body {
+        padding: 12px;
+      }
+
+      .receipt-container {
+        max-width: 100%;
+        padding: 12px;
+      }
+
+      .header h1 {
+        font-size: 14pt;
+      }
+
+      .info-row {
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .info-label,
+      .info-value {
+        width: 100%;
+      }
+
+      .info-value {
+        text-align: right;
+      }
+
+      .signatures {
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .signature-box {
+        width: 100%;
+      }
+
+      .no-print {
+        top: 12px !important;
+        left: 12px !important;
+      }
+    }
   </style>
 </head>
 <body>

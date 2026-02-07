@@ -32,12 +32,12 @@
                 
                 {% if is_owner %}
                 <li class="nav-item">
-                    <a class="nav-link {% if active_page == 'users' %}active fw-bold{% endif %}" href="{{ url_for('security.users') }}">
+                    <a class="nav-link {% if active_page == 'users' %}active fw-bold{% endif %}" href="{{ url_for('security.users_center') }}">
                         <i class="fas fa-users-cog me-1"></i> المستخدمين
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link {% if active_page == 'audit' %}active fw-bold{% endif %}" href="{{ url_for('security.audit_log') }}">
+                    <a class="nav-link {% if active_page == 'audit' %}active fw-bold{% endif %}" href="{{ url_for('security.audit_log_viewer') }}">
                         <i class="fas fa-history me-1"></i> السجلات
                     </a>
                 </li>

@@ -157,15 +157,19 @@
 <!-- DataTables و JSZip محمّلين في base.html -->
 <script>
 $(function(){
-  if ($.fn.DataTable) {
+  function initPermissionsTable() {
+    if (!($.fn && $.fn.DataTable)) return;
     $('#permissions-table').DataTable({
       dom: "<'row'<'col-sm-6'B><'col-sm-6'f>>" +
            "<'row'<'col-sm-12'tr>>" +
            "<'row'<'col-sm-5'i><'col-sm-7'p>>",
+      responsive: true,
+      autoWidth: false,
+      scrollX: $('#permissions-table thead th').length > 8,
       buttons: [
         { extend: 'copyHtml5', text: 'نسخ' },
+        { extend: 'csvHtml5', text: 'CSV' },
         { extend: 'excelHtml5', text: 'Excel' },
-        { extend: 'pdfHtml5', text: 'PDF' },
         { extend: 'print', text: 'طباعة' }
       ],
       language: { url: "{{ url_for('static', filename='datatables/Arabic.json') }}" },
@@ -173,6 +177,12 @@ $(function(){
       pageLength: 25,
       lengthMenu: [[10, 25, 50, -1], ['10', '25', '50', 'الكل']]
     });
+  }
+
+  if (window.jQuery && typeof window.ensureDataTables === 'function' && !($.fn && $.fn.DataTable)) {
+    window.ensureDataTables().then(initPermissionsTable);
+  } else {
+    initPermissionsTable();
   }
 });
 </script>

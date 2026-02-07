@@ -12,7 +12,7 @@ def convert_amount(amount, from_currency, to_currency, date=None):
         return Decimal(str(amount))
 
 
-def update_partner_balance_components(partner_id, session=None):
+def update_partner_balance_components(partner_id, session=None, emit: bool = True):
     if not partner_id:
         return
     
@@ -24,13 +24,21 @@ def update_partner_balance_components(partner_id, session=None):
         session = db.session
     
     try:
-        if isinstance(session, Session):
+        if hasattr(session, "query") and hasattr(session, "get"):
             partner = session.get(Partner, partner_id)
             if not partner:
                 return
             
             from utils.partner_balance_calculator import calculate_partner_balance_components
-            components = calculate_partner_balance_components(partner_id, session)
+            from sqlalchemy.orm import Session as OrmSession
+            calc_session = OrmSession(bind=session.get_bind())
+            try:
+                components = calculate_partner_balance_components(partner_id, calc_session)
+            finally:
+                try:
+                    calc_session.close()
+                except Exception:
+                    pass
             
             if not components:
                 return
@@ -101,9 +109,23 @@ def update_partner_balance_components(partner_id, session=None):
             partner.current_balance = current_balance
             
             session.flush()
+            if emit:
+                try:
+                    from helpers.balance_events import emit_balance_update
+                    emit_balance_update('partner', partner_id, float(current_balance))
+                except Exception:
+                    pass
         else:
             from utils.partner_balance_calculator import calculate_partner_balance_components
-            components = calculate_partner_balance_components(partner_id, db.session)
+            from sqlalchemy.orm import Session as OrmSession
+            calc_session = OrmSession(bind=session)
+            try:
+                components = calculate_partner_balance_components(partner_id, calc_session)
+            finally:
+                try:
+                    calc_session.close()
+                except Exception:
+                    pass
             
             if not components:
                 return
@@ -186,6 +208,12 @@ def update_partner_balance_components(partner_id, session=None):
                     "service_expenses": float(components.get('service_expenses_balance', 0))
                 }
             )
+            if emit:
+                try:
+                    from helpers.balance_events import emit_balance_update
+                    emit_balance_update('partner', partner_id, float(current_balance))
+                except Exception:
+                    pass
     except Exception as e:
         try:
             from flask import current_app
@@ -224,7 +252,6 @@ def build_partner_balance_view(partner_id, session=None):
         {"key": "inventory_balance", "label": "نصيب المخزون", "amount": _component("inventory_balance"), "flow": "INVENTORY"},
         {"key": "sales_share_balance", "label": "نصيب المبيعات", "amount": _component("sales_share_balance"), "flow": "SALES_SHARE"},
         {"key": "payments_in_balance", "label": "دفعات دفع لنا", "amount": _component("payments_in_balance"), "flow": "PAYMENT_IN"},
-        {"key": "preorders_prepaid_balance", "label": "عربونات مدفوعة", "amount": _component("preorders_prepaid_balance"), "flow": "PREPAID"},
         {"key": "service_expenses_balance", "label": "توريد خدمات", "amount": _component("service_expenses_balance"), "flow": "SERVICE_EXPENSE"},
         {"key": "returned_checks_out_balance", "label": "شيكات مرتجعة صادرة", "amount": _component("returned_checks_out_balance"), "flow": "CHECK_OUT"},
     ]

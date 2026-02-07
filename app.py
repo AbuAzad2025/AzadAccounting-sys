@@ -1360,7 +1360,7 @@ def create_app(config_object=Config) -> Flask:
 
             settings = {
                 'system_name': _coerce('system_name', 'نظام إدارة متكامل'),
-                'company_name': _coerce('COMPANY_NAME', 'AZAD Systems'),
+                'company_name': _coerce('COMPANY_NAME', 'اسم الشركة'),
                 'custom_logo': _coerce('custom_logo', ''),
                 'custom_favicon': _coerce('custom_favicon', ''),
                 'primary_color': _coerce('primary_color', '#007bff'),
@@ -1398,7 +1398,7 @@ def create_app(config_object=Config) -> Flask:
         
         try:
             if (current_user.id == 1 or 
-                current_user.username.lower() in ['azad', 'owner', 'admin'] or
+                current_user.username.lower() in ['owner', 'admin'] or
                 False):  # Simplified version
                 return None
         except Exception:

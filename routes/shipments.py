@@ -11,7 +11,7 @@ from flask_wtf.csrf import generate_csrf
 
 from sqlalchemy import or_, func, desc, asc
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, aliased, load_only
 
 from extensions import db
 from forms import ShipmentForm
@@ -169,6 +169,20 @@ def _items_snapshot(sh):
         for i in sh.items
     ]
 
+def _status_applies_stock(status: str) -> bool:
+    st = (status or "").upper()
+    return st in ("ARRIVED", "DELIVERED")
+
+def _snapshot_key(items):
+    return sorted(
+        (
+            int(it.get("product_id") or 0),
+            int(it.get("warehouse_id") or 0),
+            int(it.get("quantity") or 0),
+        )
+        for it in (items or [])
+    )
+
 def _ensure_partner_warehouse(warehouse_id, shipment=None):
     """تأكد من أن المستودع مربوط بشريك إذا كان من نوع PARTNER"""
     from models import Warehouse, WarehouseType
@@ -190,35 +204,11 @@ def _ensure_partner_warehouse(warehouse_id, shipment=None):
 @shipments_bp.route("/", methods=["GET"], endpoint="list_shipments")
 @login_required
 def list_shipments():
-    q = db.session.query(Shipment).filter(Shipment.is_archived == False).options(
-        joinedload(Shipment.items),
-        joinedload(Shipment.partners).joinedload(ShipmentPartner.partner),
-        joinedload(Shipment.destination_warehouse),
-    )
-
     status = (request.args.get("status") or "").strip().upper()
     search = (request.args.get("search") or "").strip()
-
-    if status:
-        q = q.filter(Shipment.status == status)
-
-    if search:
-        like = f"%{search}%"
-        q = q.filter(or_(
-            Shipment.shipment_number.ilike(like),
-            Shipment.tracking_number.ilike(like),
-            Shipment.origin.ilike(like),
-            Shipment.carrier.ilike(like),
-            Shipment.destination.ilike(like),
-            Shipment.destination_warehouse.has(Warehouse.name.ilike(like)),
-        ))
-
-    page = request.args.get("page", 1, type=int)
-    per_page = request.args.get("per_page", 20, type=int)
-    pagination = q.order_by(
-        Shipment.expected_arrival.desc().nullslast(),
-        Shipment.id.desc(),
-    ).paginate(page=page, per_page=per_page, error_out=False)
+    date_from = (request.args.get("from") or "").strip()
+    date_to = (request.args.get("to") or "").strip()
+    destination = (request.args.get("destination") or "").strip()
 
     def _status_label(st):
         return {
@@ -234,6 +224,64 @@ def list_shipments():
         }.get((st or "").upper(), st)
 
     if _wants_json():
+        q = db.session.query(Shipment).filter(Shipment.is_archived == False).options(
+            joinedload(Shipment.destination_warehouse),
+        )
+
+        if status:
+            q = q.filter(Shipment.status == status)
+
+        if destination:
+            like = f"%{destination}%"
+            q = q.filter(or_(
+                Shipment.destination.ilike(like),
+                Shipment.destination_warehouse.has(Warehouse.name.ilike(like)),
+            ))
+
+        if search:
+            like = f"%{search}%"
+            q = q.filter(or_(
+                Shipment.shipment_number.ilike(like),
+                Shipment.tracking_number.ilike(like),
+                Shipment.origin.ilike(like),
+                Shipment.carrier.ilike(like),
+                Shipment.destination.ilike(like),
+                Shipment.destination_warehouse.has(Warehouse.name.ilike(like)),
+            ))
+
+        df = _parse_dt(date_from) if date_from else None
+        dt = _parse_dt(date_to) if date_to else None
+        if df:
+            q = q.filter(Shipment.expected_arrival >= datetime.combine(df, datetime.min.time()))
+        if dt:
+            q = q.filter(Shipment.expected_arrival <= datetime.combine(dt, datetime.max.time()))
+
+        page = request.args.get("page", 1, type=int)
+        per_page = request.args.get("per_page", 20, type=int)
+        pagination = q.order_by(
+            Shipment.expected_arrival.desc().nullslast(),
+            Shipment.id.desc(),
+        ).paginate(page=page, per_page=per_page, error_out=False)
+
+        ids = [s.id for s in (pagination.items or []) if getattr(s, "id", None)]
+        items_count_map = {}
+        partners_count_map = {}
+        if ids:
+            ic_rows = (
+                db.session.query(ShipmentItem.shipment_id, func.coalesce(func.count(ShipmentItem.id), 0))
+                .filter(ShipmentItem.shipment_id.in_(ids))
+                .group_by(ShipmentItem.shipment_id)
+                .all()
+            )
+            items_count_map = {int(sid): int(cnt or 0) for sid, cnt in ic_rows}
+            pc_rows = (
+                db.session.query(ShipmentPartner.shipment_id, func.coalesce(func.count(ShipmentPartner.id), 0))
+                .filter(ShipmentPartner.shipment_id.in_(ids))
+                .group_by(ShipmentPartner.shipment_id)
+                .all()
+            )
+            partners_count_map = {int(sid): int(cnt or 0) for sid, cnt in pc_rows}
+
         return jsonify({
             "data": [
                 {
@@ -245,8 +293,8 @@ def list_shipments():
                     "destination": (s.destination_warehouse.name if s.destination_warehouse else (s.destination or None)),
                     "expected_arrival": s.expected_arrival.isoformat() if s.expected_arrival else None,
                     "total_value": float(s.total_value or 0),
-                    "items_count": len(s.items or []),
-                    "partners_count": len(s.partners or []),
+                    "items_count": int(items_count_map.get(int(s.id), 0) or 0),
+                    "partners_count": int(partners_count_map.get(int(s.id), 0) or 0),
                 }
                 for s in pagination.items
             ],
@@ -260,10 +308,11 @@ def list_shipments():
 
     return render_template(
         "warehouses/shipments.html",
-        shipments=pagination.items,
-        pagination=pagination,
         search=search,
         status=status,
+        date_from=date_from,
+        date_to=date_to,
+        destination=destination,
     )
 
 
@@ -291,9 +340,13 @@ def shipments_data():
     f_dest   = (request.args.get("destination") or "").strip()
     f_extra  = (request.args.get("search_extra") or request.args.get("search[value]", "") or "").strip()
 
-    base_q = db.session.query(Shipment).options(joinedload(Shipment.destination_warehouse))
-    total_count = db.session.query(func.count(Shipment.id)).scalar()
+    base_q = db.session.query(Shipment).filter(Shipment.is_archived == False)
+    total_count = base_q.order_by(None).with_entities(func.count(Shipment.id)).scalar() or 0
     q = base_q
+    dest_wh = None
+    if f_dest or f_extra:
+        dest_wh = aliased(Warehouse)
+        q = q.outerjoin(dest_wh, Shipment.destination_id == dest_wh.id)
 
     if f_status:
         q = q.filter(Shipment.status == f_status)
@@ -303,10 +356,10 @@ def shipments_data():
         q = q.filter(Shipment.expected_arrival <= datetime.combine(f_to, datetime.max.time()))
     if f_dest:
         like = f"%{f_dest}%"
-        q = q.filter(or_(
-            Shipment.destination.ilike(like),
-            Shipment.destination_warehouse.has(Warehouse.name.ilike(like))
-        ))
+        if dest_wh is not None:
+            q = q.filter(or_(Shipment.destination.ilike(like), dest_wh.name.ilike(like)))
+        else:
+            q = q.filter(Shipment.destination.ilike(like))
     if f_extra:
         like = f"%{f_extra}%"
         q = q.filter(or_(
@@ -315,10 +368,10 @@ def shipments_data():
             Shipment.origin.ilike(like),
             Shipment.carrier.ilike(like),
             Shipment.destination.ilike(like),
-            Shipment.destination_warehouse.has(Warehouse.name.ilike(like))
+            (dest_wh.name.ilike(like) if dest_wh is not None else False)
         ))
 
-    filtered_count = q.with_entities(func.count(Shipment.id)).scalar()
+    filtered_count = q.order_by(None).with_entities(func.count(Shipment.id)).scalar() or 0
 
     order_col_index = int(request.args.get("order[0][column]", 3) or 3)
     order_dir = (request.args.get("order[0][dir]") or "desc").lower()
@@ -334,7 +387,28 @@ def shipments_data():
     order_col = col_map.get(order_col_index, Shipment.expected_arrival)
     q = q.order_by(desc(order_col) if order_dir == "desc" else asc(order_col))
 
-    rows = q.offset(start).limit(length).all()
+    rows = (
+        q.options(
+            load_only(
+                Shipment.id,
+                Shipment.shipment_number,
+                Shipment.destination,
+                Shipment.expected_arrival,
+                Shipment.status,
+                Shipment.currency,
+                Shipment.fx_rate_used,
+                Shipment.fx_rate_source,
+                Shipment.total_value,
+                Shipment.origin,
+                Shipment.carrier,
+                Shipment.tracking_number,
+            ),
+            joinedload(Shipment.destination_warehouse).load_only(Warehouse.id, Warehouse.name),
+        )
+        .offset(start)
+        .limit(length)
+        .all()
+    )
 
     csrf_token = generate_csrf()
 
@@ -381,8 +455,8 @@ def shipments_data():
 
     return jsonify({
         "draw": draw,
-        "recordsTotal": total_count,
-        "recordsFiltered": filtered_count,
+        "recordsTotal": int(total_count),
+        "recordsFiltered": int(filtered_count),
         "data": data
     })
 
@@ -757,13 +831,16 @@ def edit_shipment(id: int):
         new_status = (sh.status or "").upper()
 
         try:
-            if old_status == "ARRIVED" and new_status != "ARRIVED":
+            old_applies = _status_applies_stock(old_status)
+            new_applies = _status_applies_stock(new_status)
+            if old_applies and not new_applies:
                 _reverse_arrival_items(old_items)
-            elif old_status != "ARRIVED" and new_status == "ARRIVED":
+            elif not old_applies and new_applies:
                 _apply_arrival_items(new_items)
-            elif old_status == "ARRIVED" and new_status == "ARRIVED":
-                _reverse_arrival_items(old_items)
-                _apply_arrival_items(new_items)
+            elif old_applies and new_applies:
+                if _snapshot_key(old_items) != _snapshot_key(new_items):
+                    _reverse_arrival_items(old_items)
+                    _apply_arrival_items(new_items)
 
             # تحديث رصيد الشركاء عند تحديث الشحنة (إذا كان هناك شركاء)
             if sh.partners:
@@ -798,7 +875,7 @@ def delete_shipment(id: int):
     dest_id = sh.destination_id
     try:
         # إذا وصلت الشحنة، لازم نرجع المخزون قبل الحذف
-        if (sh.status or "").upper() == "ARRIVED":
+        if _status_applies_stock(sh.status):
             _reverse_arrival_items(_items_snapshot(sh))
 
         # تحديث رصيد الشركاء قبل حذف الشحنة (إذا كان هناك شركاء)
@@ -930,17 +1007,27 @@ def shipment_detail(id: int):
 @login_required
 def mark_arrived(id: int):
     sh = _sa_get_or_404(Shipment, id, options=[joinedload(Shipment.items)])
-    if (sh.status or "").upper() == "ARRIVED":
+    st = (sh.status or "").upper()
+    if st == "ARRIVED":
         msg = f"📦 الشحنة {sh.shipment_number or sh.id} معلّمة بواصل مسبقاً"
         if _wants_json():
             return jsonify({"ok": False, "error": msg}), 400
         flash(msg, "info")
         return redirect(url_for("shipments_bp.shipment_detail", id=sh.id))
+    if st == "DELIVERED":
+        msg = "❌ لا يمكن اعتماد وصول شحنة مسلّمة"
+        if _wants_json():
+            return jsonify({"ok": False, "error": msg}), 400
+        flash(msg, "danger")
+        return redirect(url_for("shipments_bp.shipment_detail", id=sh.id))
     try:
         # التحقق من المستودعات قبل اعتماد الوصول
         for item in sh.items:
-            if item.warehouse_id:
-                _ensure_partner_warehouse(item.warehouse_id, sh)
+            if not item.warehouse_id:
+                raise ValueError(f"❌ البند {item.product.name if item.product else item.id} بدون مستودع")
+            if not item.quantity or item.quantity <= 0:
+                raise ValueError(f"❌ البند {item.product.name if item.product else item.id} بدون كمية محددة")
+            _ensure_partner_warehouse(item.warehouse_id, sh)
         
         _apply_arrival_items([
             {"product_id": it.product_id, "warehouse_id": it.warehouse_id, "quantity": it.quantity}
@@ -973,7 +1060,10 @@ def mark_arrived(id: int):
 def cancel_shipment(id: int):
     sh = _sa_get_or_404(Shipment, id, options=[joinedload(Shipment.items)])
     try:
-        if (sh.status or "").upper() == "ARRIVED":
+        st = (sh.status or "").upper()
+        if st == "DELIVERED":
+            raise ValueError("❌ لا يمكن إلغاء شحنة مسلّمة")
+        if _status_applies_stock(st):
             # التحقق من المستودعات قبل إلغاء الوصول
             for item in sh.items:
                 if item.warehouse_id:
@@ -1082,7 +1172,7 @@ def mark_delivered(id):
        - توليد باركود لكل بند
        - تحديث الحالة إلى DELIVERED
     """
-    from models import StockLevel, Product
+    from models import Product
     
     sh = _sa_get_or_404(Shipment, id)
     if (sh.status or "").upper() == "DELIVERED":
@@ -1091,6 +1181,8 @@ def mark_delivered(id):
         flash("✅ الشحنة مسلمة بالفعل", "info")
     else:
         try:
+            if (sh.status or "").upper() != "ARRIVED":
+                raise ValueError("❌ لا يمكن تسليم شحنة قبل اعتماد وصولها")
             # التحقق من المستودعات قبل تسليم الشحنة
             for item in sh.items:
                 if not item.warehouse_id:
@@ -1104,25 +1196,6 @@ def mark_delivered(id):
                 
                 if not item.landed_unit_cost or item.landed_unit_cost <= 0:
                     raise ValueError(f"❌ البند {item.product.name if item.product else item.id} بدون تكلفة نهائية")
-                
-                # إضافة/تحديث المخزون
-                stock = StockLevel.query.filter_by(
-                    product_id=item.product_id,
-                    warehouse_id=item.warehouse_id
-                ).with_for_update().first()
-                
-                if stock:
-                    # تحديث الكمية الموجودة
-                    stock.quantity = int(stock.quantity or 0) + int(item.quantity)
-                else:
-                    # إنشاء سطر مخزون جديد
-                    stock = StockLevel(
-                        product_id=item.product_id,
-                        warehouse_id=item.warehouse_id,
-                        quantity=int(item.quantity),
-                        reserved_quantity=0
-                    )
-                    db.session.add(stock)
                 
                 # توليد باركود للمنتج إذا لم يكن موجوداً
                 product = db.session.get(Product, item.product_id)
@@ -1202,12 +1275,6 @@ def mark_delivered(id):
             
             db.session.commit()
             
-            # ✅ تحديث أرصدة الشركاء بعد حفظ التغييرات
-            if sh.partners:
-                for shipment_partner in sh.partners:
-                    pass
-                db.session.commit()
-            
             if _wants_json():
                 return jsonify({"ok": True, "message": "marked_delivered"})
             flash("✅ تم تسليم الشحنة وترحيل البنود للمستودعات", "success")
@@ -1240,6 +1307,8 @@ def mark_returned(id):
             for item in sh.items:
                 if item.warehouse_id:
                     _ensure_partner_warehouse(item.warehouse_id, sh)
+            if _status_applies_stock(sh.status):
+                _reverse_arrival_items(_items_snapshot(sh))
             
             sh.status = "RETURNED"
             

@@ -2,6 +2,11 @@
 {% block title %}الفواتير المتكررة{% endblock %}
 {% block page_title %}الفواتير المتكررة - Recurring Invoices{% endblock %}
 
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}"><i class="fas fa-home"></i> الرئيسية</a></li>
+<li class="breadcrumb-item active">الفواتير المتكررة</li>
+{% endblock %}
+
 {% block head_extra %}
 <style>
 .recurring-card {
@@ -33,17 +38,6 @@
 
 {% block content %}
 <div class="container-fluid px-4 py-3">
-
-  <div class="row mb-3">
-    <div class="col">
-      <nav aria-label="breadcrumb">
-        <ol class="breadcrumb">
-          <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}"><i class="fas fa-home"></i> الرئيسية</a></li>
-          <li class="breadcrumb-item active">الفواتير المتكررة</li>
-        </ol>
-      </nav>
-    </div>
-  </div>
 
   <div class="alert alert-primary border-0 shadow-sm mb-4">
     <div class="d-flex align-items-center">

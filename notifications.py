@@ -4,7 +4,7 @@
 
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Any
 from enum import Enum
 from dataclasses import dataclass, asdict
@@ -85,7 +85,7 @@ class Notification(db.Model, TimestampMixin, AuditMixin):
         """تحديد الإشعار كمقروء"""
         if not self.is_read:
             self.is_read = True
-            self.read_at = datetime.utcnow()
+            self.read_at = datetime.now(timezone.utc).replace(tzinfo=None)
             db.session.commit()
     
     @classmethod
@@ -130,7 +130,7 @@ class Notification(db.Model, TimestampMixin, AuditMixin):
         query = cls.query.filter(
             (cls.user_id == user_id) | (cls.user_id.is_(None))
         ).filter(
-            (cls.expires_at.is_(None)) | (cls.expires_at > datetime.utcnow())
+            (cls.expires_at.is_(None)) | (cls.expires_at > datetime.now(timezone.utc).replace(tzinfo=None))
         )
         
         if unread_only:
@@ -146,14 +146,14 @@ class Notification(db.Model, TimestampMixin, AuditMixin):
         ).filter(
             cls.is_read == False
         ).filter(
-            (cls.expires_at.is_(None)) | (cls.expires_at > datetime.utcnow())
+            (cls.expires_at.is_(None)) | (cls.expires_at > datetime.now(timezone.utc).replace(tzinfo=None))
         ).count()
     
     @classmethod
     def cleanup_expired(cls):
         """تنظيف الإشعارات المنتهية الصلاحية"""
         expired_count = cls.query.filter(
-            cls.expires_at < datetime.utcnow()
+            cls.expires_at < datetime.now(timezone.utc).replace(tzinfo=None)
         ).delete()
         db.session.commit()
         return expired_count
@@ -273,7 +273,7 @@ def on_mark_notification_read(data):
     """تحديد الإشعار كمقروء"""
     notification_id = data.get('notification_id')
     if notification_id:
-        notification = Notification.query.get(notification_id)
+        notification = db.session.get(Notification, notification_id)
         if notification:
             notification.mark_as_read()
             emit('notification_read', {'notification_id': notification_id})
@@ -303,4 +303,3 @@ def notify_maintenance_due(service_id: int, customer_name: str, vehicle_info: st
 def notify_system_alert(title: str, message: str, priority: NotificationPriority = NotificationPriority.HIGH):
     """تنبيه نظام"""
     NotificationManager.send_system_alert(title, message, priority)
-

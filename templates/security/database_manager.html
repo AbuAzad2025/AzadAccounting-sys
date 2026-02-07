@@ -1421,6 +1421,7 @@ document.addEventListener('DOMContentLoaded', function() {
           info: true,
           searching: true,
           autoWidth: false,
+          responsive: true,
           scrollX: true,
           pagingType: 'simple_numbers',
           lengthMenu: [[15, 25, 50, -1], [15, 25, 50, 'الكل']],
@@ -1430,7 +1431,6 @@ document.addEventListener('DOMContentLoaded', function() {
           language: { url: "{{ url_for('static', filename='datatables/Arabic.json') }}" }
         });
       } catch (e) {
-        console.warn('DataTables init failed:', e);
       }
     }
   });

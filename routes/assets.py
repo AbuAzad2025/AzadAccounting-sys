@@ -111,7 +111,7 @@ def add():
     categories = FixedAssetCategory.query.filter_by(is_active=True).all()
     branches = Branch.query.filter_by(is_active=True).all()
     sites = Site.query.filter_by(is_active=True).all()
-    suppliers = Partner.query.filter_by(partner_type='SUPPLIER', is_active=True).all()
+    suppliers = Partner.query.filter(Partner.is_archived.is_(False)).order_by(Partner.id.asc()).all()
     
     return render_template('assets/form.html',
                          categories=categories,
@@ -127,7 +127,7 @@ def view(id):
     if not check_assets_enabled():
         return redirect(url_for('main.dashboard'))
     
-    asset = FixedAsset.query.get_or_404(id)
+    asset = db.get_or_404(FixedAsset, id)
     
     book_value = asset.get_current_book_value()
     total_depreciation = float(asset.purchase_price) - book_value

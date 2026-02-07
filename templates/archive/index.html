@@ -1,6 +1,11 @@
 {% extends "base.html" %}
 {% block title %}إدارة الأرشيفات{% endblock %}
-{% block page_header %}📦 إدارة الأرشيفات الشاملة{% endblock %}
+{% block page_title %}<i class="fas fa-archive"></i> إدارة الأرشيفات{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}"><i class="fas fa-home"></i> الرئيسية</a></li>
+<li class="breadcrumb-item active">الأرشيفات</li>
+{% endblock %}
 
 {% block content %}
 <div class="container my-4">

@@ -35,14 +35,18 @@ def income_statement():
             start_date = datetime.fromisoformat(start_date).date()
         if isinstance(end_date, str):
             end_date = datetime.fromisoformat(end_date).date()
+
+        start_dt = datetime.combine(start_date, datetime.min.time())
+        end_dt = datetime.combine(end_date, datetime.max.time())
         
+        start_date_dt = datetime.combine(start_date, datetime.min.time())
         end_date_dt = datetime.combine(end_date, datetime.max.time())
         
         revenue_query = db.session.query(
             func.sum(GLEntry.credit - GLEntry.debit).label('total_revenue')
         ).join(GLBatch).filter(
             GLBatch.status == 'POSTED',
-            GLBatch.posted_at >= start_date,
+            GLBatch.posted_at >= start_date_dt,
             GLBatch.posted_at <= end_date_dt,
             Account.type == 'REVENUE'
         ).join(Account, Account.code == GLEntry.account).scalar() or 0
@@ -51,9 +55,9 @@ def income_statement():
         # عادة ما تكون حسابات المصاريف التي تبدأ بـ 51
         cogs_query = db.session.query(
             func.sum(GLEntry.debit - GLEntry.credit).label('total_cogs')
-        ).join(GLBatch).filter(
+        ).join(GLBatch).join(Account, Account.code == GLEntry.account).filter(
             GLBatch.status == 'POSTED',
-            GLBatch.posted_at >= start_date,
+            GLBatch.posted_at >= start_date_dt,
             GLBatch.posted_at <= end_date_dt,
             Account.type == 'EXPENSE',
             or_(
@@ -67,7 +71,7 @@ def income_statement():
             func.sum(GLEntry.debit - GLEntry.credit).label('total_expenses')
         ).join(GLBatch).filter(
             GLBatch.status == 'POSTED',
-            GLBatch.posted_at >= start_date,
+            GLBatch.posted_at >= start_date_dt,
             GLBatch.posted_at <= end_date_dt,
             Account.type == 'EXPENSE',
             ~GLEntry.account.like('51%'),
@@ -81,7 +85,7 @@ def income_statement():
             func.sum(GLEntry.debit - GLEntry.credit).label('total_taxes')
         ).join(GLBatch).filter(
             GLBatch.status == 'POSTED',
-            GLBatch.posted_at >= start_date,
+            GLBatch.posted_at >= start_date_dt,
             GLBatch.posted_at <= end_date_dt,
             Account.type == 'EXPENSE',
             or_(
@@ -107,7 +111,7 @@ def income_statement():
             func.sum(GLEntry.credit - GLEntry.debit).label('amount')
         ).join(Account, Account.code == GLEntry.account).join(GLBatch).filter(
             GLBatch.status == 'POSTED',
-            GLBatch.posted_at >= start_date,
+            GLBatch.posted_at >= start_date_dt,
             GLBatch.posted_at <= end_date_dt,
             Account.type == 'REVENUE'
         ).group_by(GLEntry.account, Account.name).having(func.sum(GLEntry.credit - GLEntry.debit) != 0).order_by(func.sum(GLEntry.credit).desc()).all()
@@ -118,7 +122,7 @@ def income_statement():
             func.sum(GLEntry.debit - GLEntry.credit).label('amount')
         ).join(Account, Account.code == GLEntry.account).join(GLBatch).filter(
             GLBatch.status == 'POSTED',
-            GLBatch.posted_at >= start_date,
+            GLBatch.posted_at >= start_date_dt,
             GLBatch.posted_at <= end_date_dt,
             Account.type == 'EXPENSE',
             ~GLEntry.account.like('51%'),
@@ -135,7 +139,7 @@ def income_statement():
             func.sum(GLEntry.debit - GLEntry.credit).label('amount')
         ).join(Account, Account.code == GLEntry.account).join(GLBatch).filter(
             GLBatch.status == 'POSTED',
-            GLBatch.posted_at >= start_date,
+            GLBatch.posted_at >= start_date_dt,
             GLBatch.posted_at <= end_date_dt,
             Account.type == 'EXPENSE',
             or_(
@@ -213,6 +217,8 @@ def balance_sheet():
             balance_date = date.today()
         else:
             balance_date = datetime.fromisoformat(balance_date).date()
+
+        balance_dt = datetime.combine(balance_date, datetime.max.time())
         
         # الأصول المتداولة
         # استخدام Account.type بدلاً من الكود
@@ -220,7 +226,7 @@ def balance_sheet():
             func.sum(GLEntry.debit - GLEntry.credit).label('total')
         ).join(GLBatch).filter(
             GLBatch.status == 'POSTED',
-            GLBatch.posted_at <= balance_date,
+            GLBatch.posted_at <= balance_dt,
             Account.type == 'ASSET',
             GLEntry.account.like('1%'),
             ~GLEntry.account.like('15%') # استبعاد الأصول الثابتة افتراضاً بناءً على الكود
@@ -231,7 +237,7 @@ def balance_sheet():
             func.sum(GLEntry.debit - GLEntry.credit).label('total')
         ).join(GLBatch).filter(
             GLBatch.status == 'POSTED',
-            GLBatch.posted_at <= balance_date,
+            GLBatch.posted_at <= balance_dt,
             Account.type == 'ASSET',
             GLEntry.account.like('15%')
         ).join(Account, Account.code == GLEntry.account).scalar() or 0
@@ -241,7 +247,7 @@ def balance_sheet():
             func.sum(GLEntry.credit - GLEntry.debit).label('total')
         ).join(GLBatch).filter(
             GLBatch.status == 'POSTED',
-            GLBatch.posted_at <= balance_date,
+            GLBatch.posted_at <= balance_dt,
             Account.type == 'LIABILITY'
         ).join(Account, Account.code == GLEntry.account).scalar() or 0
         
@@ -250,7 +256,7 @@ def balance_sheet():
             func.sum(GLEntry.credit - GLEntry.debit).label('total')
         ).join(GLBatch).filter(
             GLBatch.status == 'POSTED',
-            GLBatch.posted_at <= balance_date,
+            GLBatch.posted_at <= balance_dt,
             Account.type == 'EQUITY'
         ).join(Account, Account.code == GLEntry.account).scalar() or 0
         
@@ -260,7 +266,7 @@ def balance_sheet():
             func.sum(GLEntry.credit - GLEntry.debit)
         ).join(GLBatch).filter(
             GLBatch.status == 'POSTED',
-            GLBatch.posted_at <= balance_date,
+            GLBatch.posted_at <= balance_dt,
             Account.type == 'REVENUE'
         ).join(Account, Account.code == GLEntry.account).scalar() or 0
         
@@ -268,7 +274,7 @@ def balance_sheet():
             func.sum(GLEntry.debit - GLEntry.credit)
         ).join(GLBatch).filter(
             GLBatch.status == 'POSTED',
-            GLBatch.posted_at <= balance_date,
+            GLBatch.posted_at <= balance_dt,
             Account.type == 'EXPENSE'
         ).join(Account, Account.code == GLEntry.account).scalar() or 0
         
@@ -284,7 +290,7 @@ def balance_sheet():
             func.sum(GLEntry.debit - GLEntry.credit).label('balance')
         ).join(Account, Account.code == GLEntry.account).join(GLBatch).filter(
             GLBatch.status == 'POSTED',
-            GLBatch.posted_at <= balance_date,
+            GLBatch.posted_at <= balance_dt,
             Account.type == 'ASSET'
         ).group_by(GLEntry.account, Account.name).having(func.sum(GLEntry.debit - GLEntry.credit) != 0).all()
         
@@ -295,7 +301,7 @@ def balance_sheet():
             func.sum(GLEntry.credit - GLEntry.debit).label('balance')
         ).join(Account, Account.code == GLEntry.account).join(GLBatch).filter(
             GLBatch.status == 'POSTED',
-            GLBatch.posted_at <= balance_date,
+            GLBatch.posted_at <= balance_dt,
             or_(Account.type == 'LIABILITY', Account.type == 'EQUITY')
         ).group_by(GLEntry.account, Account.name).having(func.sum(GLEntry.credit - GLEntry.debit) != 0).all()
         
@@ -377,14 +383,17 @@ def cash_flow():
             start_date = datetime.fromisoformat(start_date).date()
         if isinstance(end_date, str):
             end_date = datetime.fromisoformat(end_date).date()
+
+        start_dt = datetime.combine(start_date, datetime.min.time())
+        end_dt = datetime.combine(end_date, datetime.max.time())
         
         # التدفق النقدي من العمليات
         operating_cash_in = db.session.query(
             func.sum(GLEntry.debit).label('total')
         ).join(GLBatch).filter(
             GLBatch.status == 'POSTED',
-            GLBatch.posted_at >= start_date,
-            GLBatch.posted_at <= end_date,
+            GLBatch.posted_at >= start_dt,
+            GLBatch.posted_at <= end_dt,
             or_(
                 GLEntry.account.like('1000%'),  # النقدية
                 GLEntry.account.like('1010%'),  # البنك
@@ -397,8 +406,8 @@ def cash_flow():
             func.sum(GLEntry.credit).label('total')
         ).join(GLBatch).filter(
             GLBatch.status == 'POSTED',
-            GLBatch.posted_at >= start_date,
-            GLBatch.posted_at <= end_date,
+            GLBatch.posted_at >= start_dt,
+            GLBatch.posted_at <= end_dt,
             or_(
                 GLEntry.account.like('1000%'),  # النقدية
                 GLEntry.account.like('1010%'),  # البنك
@@ -412,8 +421,8 @@ def cash_flow():
             func.sum(GLEntry.debit).label('total')
         ).join(GLBatch).filter(
             GLBatch.status == 'POSTED',
-            GLBatch.posted_at >= start_date,
-            GLBatch.posted_at <= end_date,
+            GLBatch.posted_at >= start_dt,
+            GLBatch.posted_at <= end_dt,
             or_(
                 GLEntry.account.like('1000%'),
                 GLEntry.account.like('1010%'),
@@ -426,8 +435,8 @@ def cash_flow():
             func.sum(GLEntry.credit).label('total')
         ).join(GLBatch).filter(
             GLBatch.status == 'POSTED',
-            GLBatch.posted_at >= start_date,
-            GLBatch.posted_at <= end_date,
+            GLBatch.posted_at >= start_dt,
+            GLBatch.posted_at <= end_dt,
             or_(
                 GLEntry.account.like('1000%'),
                 GLEntry.account.like('1010%'),
@@ -441,8 +450,8 @@ def cash_flow():
             func.sum(GLEntry.debit).label('total')
         ).join(GLBatch).filter(
             GLBatch.status == 'POSTED',
-            GLBatch.posted_at >= start_date,
-            GLBatch.posted_at <= end_date,
+            GLBatch.posted_at >= start_dt,
+            GLBatch.posted_at <= end_dt,
             or_(
                 GLEntry.account.like('1000%'),
                 GLEntry.account.like('1010%'),
@@ -455,8 +464,8 @@ def cash_flow():
             func.sum(GLEntry.credit).label('total')
         ).join(GLBatch).filter(
             GLBatch.status == 'POSTED',
-            GLBatch.posted_at >= start_date,
-            GLBatch.posted_at <= end_date,
+            GLBatch.posted_at >= start_dt,
+            GLBatch.posted_at <= end_dt,
             or_(
                 GLEntry.account.like('1000%'),
                 GLEntry.account.like('1010%'),
@@ -1079,13 +1088,16 @@ def profit_trends():
             else:
                 month_end = date(target_date.year, target_date.month + 1, 1) - timedelta(days=1)
             
+            month_start_dt = datetime.combine(month_start, datetime.min.time())
+            month_end_dt = datetime.combine(month_end, datetime.max.time())
+
             # حساب الإيرادات
             revenue = db.session.query(
                 func.sum(GLEntry.credit)
             ).join(GLBatch).filter(
                 GLBatch.status == 'POSTED',
-                GLBatch.posted_at >= month_start,
-                GLBatch.posted_at <= month_end,
+                GLBatch.posted_at >= month_start_dt,
+                GLBatch.posted_at <= month_end_dt,
                 GLEntry.account.like('4%')
             ).scalar() or 0
             
@@ -1094,8 +1106,8 @@ def profit_trends():
                 func.sum(GLEntry.debit)
             ).join(GLBatch).filter(
                 GLBatch.status == 'POSTED',
-                GLBatch.posted_at >= month_start,
-                GLBatch.posted_at <= month_end,
+                GLBatch.posted_at >= month_start_dt,
+                GLBatch.posted_at <= month_end_dt,
                 GLEntry.account.like('5%')
             ).scalar() or 0
             
@@ -1137,6 +1149,12 @@ def expense_breakdown():
         else:
             start_date = datetime.fromisoformat(start_date).date()
             end_date = datetime.fromisoformat(end_date).date()
+
+        start_dt = datetime.combine(start_date, datetime.min.time())
+        end_dt = datetime.combine(end_date, datetime.max.time())
+
+        start_dt = datetime.combine(start_date, datetime.min.time())
+        end_dt = datetime.combine(end_date, datetime.max.time())
         
         # تحليل المصروفات حسب الحساب
         expense_breakdown = db.session.query(
@@ -1145,8 +1163,8 @@ def expense_breakdown():
             func.sum(GLEntry.debit).label('amount')
         ).join(Account, Account.code == GLEntry.account).join(GLBatch).filter(
             GLBatch.status == 'POSTED',
-            GLBatch.posted_at >= start_date,
-            GLBatch.posted_at <= end_date,
+            GLBatch.posted_at >= start_dt,
+            GLBatch.posted_at <= end_dt,
             GLEntry.account.like('5%')
         ).group_by(GLEntry.account, Account.name).order_by(func.sum(GLEntry.debit).desc()).all()
         
@@ -1326,14 +1344,17 @@ def revenue_by_source():
         else:
             start_date = datetime.fromisoformat(start_date).date()
             end_date = datetime.fromisoformat(end_date).date()
+
+        start_dt = datetime.combine(start_date, datetime.min.time())
+        end_dt = datetime.combine(end_date, datetime.max.time())
         
         # إيرادات المبيعات
         sales_revenue = db.session.query(
             func.sum(GLEntry.credit)
         ).join(GLBatch).filter(
             GLBatch.status == 'POSTED',
-            GLBatch.posted_at >= start_date,
-            GLBatch.posted_at <= end_date,
+            GLBatch.posted_at >= start_dt,
+            GLBatch.posted_at <= end_dt,
             GLEntry.account == '4000_SALES'
         ).scalar() or 0
         
@@ -1342,8 +1363,8 @@ def revenue_by_source():
             func.sum(GLEntry.credit)
         ).join(GLBatch).filter(
             GLBatch.status == 'POSTED',
-            GLBatch.posted_at >= start_date,
-            GLBatch.posted_at <= end_date,
+            GLBatch.posted_at >= start_dt,
+            GLBatch.posted_at <= end_dt,
             GLEntry.account == '4100_SERVICE_REVENUE'
         ).scalar() or 0
         
@@ -1352,8 +1373,8 @@ def revenue_by_source():
             func.sum(GLEntry.credit)
         ).join(GLBatch).filter(
             GLBatch.status == 'POSTED',
-            GLBatch.posted_at >= start_date,
-            GLBatch.posted_at <= end_date,
+            GLBatch.posted_at >= start_dt,
+            GLBatch.posted_at <= end_dt,
             GLEntry.account.like('4%'),
             GLEntry.account.notin_(['4000_SALES', '4100_SERVICE_REVENUE'])
         ).scalar() or 0

@@ -15,7 +15,7 @@ project_advanced_bp = Blueprint('project_advanced', __name__, url_prefix='/proje
 @login_required
 @permission_required('manage_projects')
 def tasks(project_id):
-    project = Project.query.get_or_404(project_id)
+    project = db.get_or_404(Project, project_id)
     
     status_filter = request.args.get('status')
     assigned_to = request.args.get('assigned_to', type=int)
@@ -63,7 +63,7 @@ def tasks(project_id):
 @permission_required('manage_projects')
 def add_task(project_id):
     try:
-        project = Project.query.get_or_404(project_id)
+        project = db.get_or_404(Project, project_id)
         
         task_count = ProjectTask.query.filter_by(project_id=project_id).count()
         task_number = f"{project.code}-T{task_count + 1:03d}"
@@ -101,7 +101,7 @@ def add_task(project_id):
 @login_required
 @permission_required('manage_projects')
 def resources(project_id):
-    project = Project.query.get_or_404(project_id)
+    project = db.get_or_404(Project, project_id)
     
     resource_type = request.args.get('type')
     
@@ -180,7 +180,7 @@ def add_resource(project_id):
 @login_required
 @permission_required('manage_projects')
 def milestones(project_id):
-    project = Project.query.get_or_404(project_id)
+    project = db.get_or_404(Project, project_id)
     
     milestones = ProjectMilestone.query.filter_by(project_id=project_id).order_by(
         ProjectMilestone.due_date
@@ -217,7 +217,7 @@ def milestones(project_id):
 @permission_required('manage_projects')
 def add_milestone(project_id):
     try:
-        project = Project.query.get_or_404(project_id)
+        project = db.get_or_404(Project, project_id)
         
         milestone_count = ProjectMilestone.query.filter_by(project_id=project_id).count()
         milestone_number = f"{project.code}-M{milestone_count + 1:02d}"
@@ -257,7 +257,7 @@ def add_milestone(project_id):
 @permission_required('manage_projects')
 def complete_milestone(project_id, milestone_id):
     try:
-        milestone = ProjectMilestone.query.get_or_404(milestone_id)
+        milestone = db.get_or_404(ProjectMilestone, milestone_id)
         
         if milestone.approval_required:
             milestone.status = 'IN_PROGRESS'
@@ -282,7 +282,7 @@ def complete_milestone(project_id, milestone_id):
 @login_required
 @permission_required('manage_projects')
 def risks(project_id):
-    project = Project.query.get_or_404(project_id)
+    project = db.get_or_404(Project, project_id)
     
     risks = ProjectRisk.query.filter_by(project_id=project_id).order_by(
         ProjectRisk.risk_score.desc()
@@ -314,7 +314,7 @@ def risks(project_id):
 @permission_required('manage_projects')
 def add_risk(project_id):
     try:
-        project = Project.query.get_or_404(project_id)
+        project = db.get_or_404(Project, project_id)
         
         risk_count = ProjectRisk.query.filter_by(project_id=project_id).count()
         risk_number = f"{project.code}-R{risk_count + 1:03d}"
@@ -357,7 +357,7 @@ def add_risk(project_id):
 @login_required
 @permission_required('manage_projects')
 def change_orders(project_id):
-    project = Project.query.get_or_404(project_id)
+    project = db.get_or_404(Project, project_id)
     
     change_orders = ProjectChangeOrder.query.filter_by(project_id=project_id).order_by(
         ProjectChangeOrder.requested_date.desc()
@@ -387,7 +387,7 @@ def change_orders(project_id):
 @permission_required('manage_projects')
 def add_change_order(project_id):
     try:
-        project = Project.query.get_or_404(project_id)
+        project = db.get_or_404(Project, project_id)
         
         co_count = ProjectChangeOrder.query.filter_by(project_id=project_id).count()
         change_number = f"{project.code}-CH{co_count + 1:03d}"
@@ -422,7 +422,7 @@ def add_change_order(project_id):
 @permission_required('manage_projects')
 def approve_change_order(project_id, co_id):
     try:
-        co = ProjectChangeOrder.query.get_or_404(co_id)
+        co = db.get_or_404(ProjectChangeOrder, co_id)
         
         action = request.form.get('action')
         
@@ -449,7 +449,7 @@ def approve_change_order(project_id, co_id):
 @login_required
 @permission_required('manage_projects')
 def earned_value_analysis(project_id):
-    project = Project.query.get_or_404(project_id)
+    project = db.get_or_404(Project, project_id)
     
     total_budget = float(project.budget_amount or 0)
     actual_cost = float(project.actual_cost or 0)
@@ -460,7 +460,8 @@ def earned_value_analysis(project_id):
     
     planned_value = total_budget * (completed_tasks / total_tasks) if total_tasks else 0
     
-    earned_value = total_budget * (project.completion_percentage / 100) if project.completion_percentage else 0
+    completion_pct = float(project.completion_percentage or 0)
+    earned_value = total_budget * (completion_pct / 100) if completion_pct else 0
     
     cost_variance = earned_value - actual_cost
     schedule_variance = earned_value - planned_value
@@ -506,7 +507,7 @@ def earned_value_analysis(project_id):
 @login_required
 @permission_required('manage_projects')
 def dashboard(project_id):
-    project = Project.query.get_or_404(project_id)
+    project = db.get_or_404(Project, project_id)
     
     tasks = ProjectTask.query.filter_by(project_id=project_id).all()
     resources = ProjectResource.query.filter_by(project_id=project_id).all()

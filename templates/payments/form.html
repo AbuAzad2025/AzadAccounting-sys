@@ -1083,8 +1083,6 @@ h2, h3, h4 {
     }
     
     function searchEntities(entityType, searchTerm) {
-      console.log(`🔍 بحث عن ${entityType}: "${searchTerm}"`);
-      
       if (!searchTerm || searchTerm.length < 2) {
         hideEntityResults(entityType);
         return;
@@ -1092,7 +1090,6 @@ h2, h3, h4 {
       
       clearTimeout(searchTimeout[entityType]);
       searchTimeout[entityType] = setTimeout(() => {
-        console.log(`📡 جلب نتائج ${entityType}...`);
         fetch(`/payments/api/entities/${entityType}?search=${encodeURIComponent(searchTerm)}`)
           .then(response => {
             if (response.status === 302 || response.status === 401) {
@@ -1106,7 +1103,6 @@ h2, h3, h4 {
           })
           .then(data => {
             if (data && data.success && data.results) {
-              console.log(`✅ وجد ${data.results.length} نتيجة`);
               showEntityResults(entityType, data.results);
             }
           })
@@ -1132,21 +1128,15 @@ h2, h3, h4 {
     }
     
     function showEntityResults(entityType, entities) {
-      console.log(`📋 showEntityResults: ${entityType}, ${entities.length} نتيجة`);
-      
       const searchField = getActiveSearchField(entityType);
       if (!searchField) {
-        console.error(`❌ لم يتم العثور على searchField: ${entityType.toLowerCase()}_search`);
         return;
       }
-      
-      console.log(`✅ وُجد searchField: ${searchField.name}`);
       
       // إزالة النتائج السابقة
       hideEntityResults(entityType);
       
       if (entities.length === 0) {
-        console.log('⚠️ لا توجد نتائج');
         return;
       }
       
@@ -1154,7 +1144,6 @@ h2, h3, h4 {
       const resultsDiv = document.createElement('div');
       resultsDiv.className = 'search-results entity-search-results list-group';
       resultsDiv.id = `${entityType.toLowerCase()}_results`;
-      console.log(`🎨 تم إنشاء resultsDiv بـ class: ${resultsDiv.className}`);
       
       entities.forEach(entity => {
         const item = document.createElement('div');
@@ -1192,9 +1181,6 @@ h2, h3, h4 {
       const inputGroup = searchField.closest('.input-group');
       const entityContainer = searchField.closest('.entity-field-container');
       
-      console.log(`🔍 inputGroup: ${inputGroup ? 'موجود' : 'مفقود'}`);
-      console.log(`🔍 entityContainer: ${entityContainer ? 'موجود' : 'مفقود'}`);
-      
       if (entityContainer && inputGroup) {
         const parent = inputGroup.parentNode || entityContainer;
         parent.style.position = parent.style.position || 'relative';
@@ -1203,13 +1189,6 @@ h2, h3, h4 {
         resultsDiv.style.left = `${inputGroup.offsetLeft}px`;
         resultsDiv.style.top = `${inputGroup.offsetTop + inputGroup.offsetHeight + 5}px`;
         inputGroup.insertAdjacentElement('afterend', resultsDiv);
-        
-        console.log(`✅ تم إضافة القائمة للـ DOM (بعد input-group)`);
-        console.log(`📊 resultsDiv في DOM: ${document.getElementById(resultsDiv.id) ? 'نعم ✅' : 'لا ❌'}`);
-        console.log(`🎨 resultsDiv display: ${window.getComputedStyle(resultsDiv).display}`);
-        console.log(`🎨 resultsDiv z-index: ${window.getComputedStyle(resultsDiv).zIndex}`);
-      } else {
-        console.error(`❌ لم يتم العثور على containers`);
       }
     }
     
@@ -1355,7 +1334,6 @@ h2, h3, h4 {
           setTimeout(() => hideEntityResults(entityType), 150);
         });
         
-        console.log(`✅ تم تفعيل البحث الذكي لـ: ${field.name}`);
       });
       
       // ✅ إضافة listeners لأزرار السهم
@@ -1366,7 +1344,6 @@ h2, h3, h4 {
         const entityType = btn.getAttribute('data-entity');
         if (entityType) {
           btn.addEventListener('click', function() {
-            console.log(`🔽 السهم: عرض كل ${entityType}`);
             loadAllEntities(entityType.toUpperCase());
           });
         }
@@ -1378,8 +1355,6 @@ h2, h3, h4 {
       try {
         // ✅ استخدام نفس الـ endpoint الموجود في searchEntities
         const url = `/payments/api/entities/${entityType}?search=`;
-        
-        console.log(`📡 جلب كل ${entityType}...`);
         const res = await fetch(url);
         
         if (!res.ok) {
@@ -1389,11 +1364,9 @@ h2, h3, h4 {
         const data = await res.json();
         
         if (data.success && data.results) {
-          console.log(`✅ وجد ${data.results.length} نتيجة`);
           showEntityResults(entityType, data.results);
         }
       } catch (err) {
-        console.error(`❌ خطأ في تحميل ${entityType}:`, err);
       }
     }
     
@@ -1430,8 +1403,6 @@ h2, h3, h4 {
         const entityName = urlParams.get('entity_name');
         
         if (entityType && entityId && entityName) {
-          console.log('🎯 ملء تلقائي:', entityType, entityId, entityName);
-          
           // تعيين نوع الجهة
           if (entityTypeSelect) {
             entityTypeSelect.value = entityType;
@@ -1446,11 +1417,9 @@ h2, h3, h4 {
             
             if (searchField) {
               searchField.value = entityName;
-              console.log('✅ ملء حقل البحث:', entityName);
             }
             if (idField) {
               idField.value = entityId;
-              console.log('✅ تعيين ID:', entityId);
             }
           }, 200);
         }
@@ -2003,16 +1972,10 @@ function updateSplitSum() {
                        `💰 المبلغ المدفوع فعلياً: ${totalAmount.toFixed(2)} ${currency}`;
         
         if (confirm(message)) {
-          console.log('✅ تم التأكيد - إرسال النموذج...');
-          console.log('📤 Form action:', paymentForm.action);
-          console.log('📤 Form method:', paymentForm.method);
           paymentForm.submit();
-        } else {
-          console.log('❌ تم الإلغاء');
         }
       });
     } else {
-      console.error('❌ لم يتم العثور على submitBtn أو paymentForm!');
     }
   </script>
   

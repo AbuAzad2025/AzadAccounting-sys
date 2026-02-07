@@ -535,10 +535,8 @@ if (typeof window.getOrCreateModal !== 'function') {
   };
 }
 function loadAccounts() {
-    console.log('🔄 Loading accounts...');
     var tbody = document.querySelector('#accountsTable tbody');
     if (!tbody) {
-        console.error('❌ tbody not found');
         return;
     }
     
@@ -546,17 +544,13 @@ function loadAccounts() {
     
     fetch('/security/ledger-control/accounts')
         .then(function(r) { 
-            console.log('📡 Response status:', r.status);
             if (!r.ok) throw new Error('HTTP ' + r.status);
             return r.json(); 
         })
         .then(function(data) {
-            console.log('📊 Accounts data:', data);
             tbody.innerHTML = '';
             
             if (data.success && data.accounts && data.accounts.length > 0) {
-                console.log('✅ Found ' + data.accounts.length + ' accounts');
-                
                 var html = '';
                 data.accounts.forEach(function(acc) {
                     var status = acc.is_active ? '<span class="badge bg-success">نشط</span>' : '<span class="badge bg-secondary">غير نشط</span>';
@@ -578,24 +572,18 @@ function loadAccounts() {
                 // تحديث العداد
                 var countBadge = document.getElementById('accountsCount');
                 if (countBadge) countBadge.textContent = data.accounts.length;
-                
-                console.log('✅ Loaded ' + data.accounts.length + ' accounts');
             } else {
-                console.warn('⚠️ No accounts found');
                 tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">لا توجد حسابات</td></tr>';
             }
         })
         .catch(function(e) { 
-            console.error('❌ Error loading accounts:', e); 
             tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger"><i class="fas fa-exclamation-triangle"></i> خطأ: ' + e.message + '</td></tr>';
         });
 }
 
 function loadEntries() {
-    console.log('🔄 Loading entries...');
     var tbody = document.querySelector('#entriesTable tbody');
     if (!tbody) {
-        console.error('❌ entries tbody not found');
         return;
     }
     
@@ -603,17 +591,13 @@ function loadEntries() {
     
     fetch('/security/ledger-control/entries')
         .then(function(r) { 
-            console.log('📡 Entries response status:', r.status);
             if (!r.ok) throw new Error('HTTP ' + r.status);
             return r.json(); 
         })
         .then(function(data) {
-            console.log('📊 Entries data:', data);
             tbody.innerHTML = '';
             
             if (data.success && data.batches && data.batches.length > 0) {
-                console.log('✅ Found ' + data.batches.length + ' entries');
-                
                 var html = '';
                 data.batches.forEach(function(b) {
                     var date = b.posted_at ? new Date(b.posted_at).toLocaleDateString('ar-SA') : '-';
@@ -625,26 +609,20 @@ function loadEntries() {
                 // تحديث العداد
                 var countBadge = document.getElementById('entriesCount');
                 if (countBadge) countBadge.textContent = data.batches.length;
-                
-                console.log('✅ Entries table updated with ' + data.batches.length + ' rows');
             } else {
-                console.warn('⚠️ No entries found');
                 tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">لا توجد قيود</td></tr>';
                 var cb = document.getElementById('entriesCount');
                 if (cb) cb.textContent = '0';
             }
         })
         .catch(function(e) { 
-            console.error('❌ Error loading entries:', e); 
             tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger"><i class="fas fa-exclamation-triangle"></i> خطأ: ' + e.message + '</td></tr>';
         });
 }
 
 function loadBatches() {
-    console.log('🔄 Loading batches...');
     var tbody = document.querySelector('#batchesTable tbody');
     if (!tbody) {
-        console.error('❌ batches tbody not found');
         return;
     }
     
@@ -652,17 +630,13 @@ function loadBatches() {
     
     fetch('/security/ledger-control/batches/all')
         .then(function(r) { 
-            console.log('📡 Batches response status:', r.status);
             if (!r.ok) throw new Error('HTTP ' + r.status);
             return r.json(); 
         })
         .then(function(data) {
-            console.log('📊 Batches data:', data);
             tbody.innerHTML = '';
             
             if (data.success && data.batches && data.batches.length > 0) {
-                console.log('✅ Found ' + data.batches.length + ' batches');
-                
                 var html = '';
                 data.batches.forEach(function(b) {
                     var date = b.posted_at ? new Date(b.posted_at).toLocaleDateString('ar-SA') : '-';
@@ -676,17 +650,13 @@ function loadBatches() {
                 // تحديث العداد
                 var countBadge = document.getElementById('batchesCount');
                 if (countBadge) countBadge.textContent = data.batches.length;
-                
-                console.log('✅ Batches table updated with ' + data.batches.length + ' rows');
             } else {
-                console.warn('⚠️ No batches found');
                 tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">لا توجد قيود</td></tr>';
                 var cb2 = document.getElementById('batchesCount');
                 if (cb2) cb2.textContent = '0';
             }
         })
         .catch(function(e) { 
-            console.error('❌ Error loading batches:', e); 
             tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger"><i class="fas fa-exclamation-triangle"></i> خطأ: ' + e.message + '</td></tr>';
         });
 }
@@ -1248,7 +1218,6 @@ async function loadBatchesForEditor() {
             document.getElementById('batches-list-editor').innerHTML = html;
         }
     } catch (error) {
-        console.error('Error:', error);
     }
 }
 
@@ -1353,7 +1322,6 @@ async function searchEntity() {
                 document.getElementById('entity-results').style.display = 'none';
             }
         } catch (error) {
-            console.error('Search error:', error);
         }
     }, 300);
 }

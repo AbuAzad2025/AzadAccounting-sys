@@ -71,10 +71,7 @@
                 const toastType = normalizedType === 'danger' ? 'error' : normalizedType;
                 window.toastr[toastType](message);
             } else {
-                console[(normalizedType === 'danger' || normalizedType === 'error') ? 'error' : 'log'](message);
-                if (normalizedType === 'danger' || normalizedType === 'error') {
-                    alert(message);
-                }
+                alert(message);
             }
         };
     }
@@ -214,7 +211,6 @@
                 // فقط عرض الرسالة مرة واحدة وليس لكل محاولة
                 if (!checksLoadErrorShown && xhr.status !== 0) {
                     checksLoadErrorShown = true;
-                    console.error('فشل جلب الشيكات:', status, error);
                     showNotification('فشل جلب الشيكات', 'danger');
                 }
             }
@@ -445,7 +441,6 @@
             }
         }).fail(function() {
             // تجاهل الأخطاء بصمت - لا حاجة لإزعاج المستخدم
-            console.debug('فشل جلب الإحصائيات (غير حرج)');
         });
     };
     
@@ -457,7 +452,6 @@
             }
         }).fail(function() {
             // تجاهل الأخطاء بصمت - لا حاجة لإزعاج المستخدم
-            console.debug('فشل جلب التنبيهات (غير حرج)');
         });
     };
     

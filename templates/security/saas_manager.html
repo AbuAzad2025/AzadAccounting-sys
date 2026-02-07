@@ -325,7 +325,7 @@
                     <td>
                       {% if sub.end_date %}
                         {{ sub.end_date.strftime('%Y-%m-%d') }}
-                        {% set days_left = (sub.end_date - now()).days if sub.end_date > now() else 0 %}
+                        {% set days_left = (sub.end_date.date() - now().date()).days if sub.end_date and sub.end_date.date() > now().date() else 0 %}
                         {% if days_left > 0 and days_left <= 7 %}
                           <span class="badge bg-warning text-dark">{{ days_left }} يوم متبقي</span>
                         {% endif %}
@@ -403,7 +403,7 @@
                     <td>
                       {% if inv.due_date %}
                         {{ inv.due_date.strftime('%Y-%m-%d') }}
-                        {% set overdue = (now() - inv.due_date).days if inv.due_date < now() and inv.status != 'paid' else 0 %}
+                        {% set overdue = (now().date() - inv.due_date.date()).days if inv.due_date and inv.due_date.date() < now().date() and inv.status != 'paid' else 0 %}
                         {% if overdue > 0 %}
                           <span class="badge bg-danger">متأخرة {{ overdue }} يوم</span>
                         {% endif %}
@@ -1312,7 +1312,6 @@ async function loadCustomers() {
       select.appendChild(option);
     });
   } catch (e) {
-    console.warn('فشل تحميل العملاء:', e);
     notify('⚠️ تأكد من وجود عملاء في النظام أولاً', 'warning');
   }
 }

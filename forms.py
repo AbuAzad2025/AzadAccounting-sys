@@ -2,7 +2,7 @@ from __future__ import annotations
 import os
 import re
 import json
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
 import pytz
 from flask import current_app
@@ -36,6 +36,11 @@ from wtforms.validators import (
     Optional,
     ValidationError,
 )
+from extensions import db
+
+
+def _utc_now_naive() -> datetime:
+    return datetime.now(pytz.UTC).replace(tzinfo=None)
 
 try:
     from wtforms.fields import DateTimeLocalField
@@ -628,7 +633,7 @@ class TransferForm(FlaskForm):
         t.destination_id = to_int(self.destination_id.data)
         t.quantity = to_int(self.quantity.data) or 1
         t.direction = (self.direction.data or "").strip().upper()
-        t.transfer_date = self.transfer_date.data or datetime.utcnow()
+        t.transfer_date = self.transfer_date.data or datetime.now(timezone.utc).replace(tzinfo=None)
         t.notes = (self.notes.data or "").strip() or None
         return t
 
@@ -1131,8 +1136,8 @@ class SupplierSettlementForm(FlaskForm):
     id = HiddenField()
     code = StringField("الرمز", validators=[Optional(), Length(max=40)])
     supplier_id = AjaxSelectField("المورد", endpoint="api.search_suppliers", get_label="name", validators=[DataRequired()])
-    from_date = UnifiedDateTimeField("من تاريخ", format="%Y-%m-%d %H:%M", formats=["%Y-%m-%d %H:%M","%Y-%m-%dT%H:%M"], default=datetime.utcnow, validators=[DataRequired()], render_kw={"type":"datetime-local","step":"60"})
-    to_date = UnifiedDateTimeField("إلى تاريخ", format="%Y-%m-%d %H:%M", formats=["%Y-%m-%d %H:%M","%Y-%m-%dT%H:%M"], default=datetime.utcnow, validators=[DataRequired()], render_kw={"type":"datetime-local","step":"60"})
+    from_date = UnifiedDateTimeField("من تاريخ", format="%Y-%m-%d %H:%M", formats=["%Y-%m-%d %H:%M","%Y-%m-%dT%H:%M"], default=_utc_now_naive, validators=[DataRequired()], render_kw={"type":"datetime-local","step":"60"})
+    to_date = UnifiedDateTimeField("إلى تاريخ", format="%Y-%m-%d %H:%M", formats=["%Y-%m-%d %H:%M","%Y-%m-%dT%H:%M"], default=_utc_now_naive, validators=[DataRequired()], render_kw={"type":"datetime-local","step":"60"})
     currency = CurrencySelectField("العملة", validators=[DataRequired()])
     status = EnumSelectField(SupplierSettlementStatus, "الحالة", default=SupplierSettlementStatus.DRAFT.value, validators=[DataRequired()],
                             labels_map={
@@ -1199,7 +1204,7 @@ class SupplierLoanSettlementForm(FlaskForm):
     loan_id = AjaxSelectField("قرض المورّد", endpoint="api.search_product_supplier_loans", get_label="label", coerce=int, allow_blank=True)
     supplier_id = AjaxSelectField("المورّد", endpoint="api.search_suppliers", get_label="name", coerce=int, allow_blank=True)
     settled_price = MoneyField("السعر المُسوّى", validators=[DataRequired(), NumberRange(min=0)])
-    settlement_date = UnifiedDateTimeField("تاريخ التسوية", format="%Y-%m-%d %H:%M", formats=["%Y-%m-%د %H:%M","%Y-%m-%dT%H:%M"], default=datetime.utcnow, validators=[DataRequired()], render_kw={"type":"datetime-local","step":"60"})
+    settlement_date = UnifiedDateTimeField("تاريخ التسوية", format="%Y-%m-%d %H:%M", formats=["%Y-%m-%د %H:%M","%Y-%m-%dT%H:%M"], default=_utc_now_naive, validators=[DataRequired()], render_kw={"type":"datetime-local","step":"60"})
     notes = TextAreaField("ملاحظات", validators=[Optional(), Length(max=2000)])
     submit = SubmitField("حفظ")
 
@@ -1219,7 +1224,7 @@ class SupplierLoanSettlementForm(FlaskForm):
                 except Exception:
                     ProductSupplierLoan = None
                 if ProductSupplierLoan:
-                    loan = ProductSupplierLoan.query.get(int(self.loan_id.data))
+                    loan = db.session.get(ProductSupplierLoan, int(self.loan_id.data))
                     if loan and loan.supplier_id and int(self.supplier_id.data) != int(loan.supplier_id):
                         self.supplier_id.errors.append("❌ المورّد لا يطابق قرض المورّد المحدّد.")
                         ok = False
@@ -1258,7 +1263,7 @@ class InvoiceRefundForm(FlaskForm):
         if inv_id and amt > 0:
             try:
                 from models import Invoice
-                inv = Invoice.query.get(inv_id)
+                inv = db.session.get(Invoice, inv_id)
                 refundable = D(getattr(inv, 'refundable_amount', 0) or 0)
                 if amt > refundable:
                     self.amount.errors.append('المبلغ يتجاوز الحد المتاح للإرجاع.')
@@ -1292,7 +1297,7 @@ class InvoiceCancelForm(FlaskForm):
         if inv_id:
             try:
                 from models import Invoice
-                inv = Invoice.query.get(inv_id)
+                inv = db.session.get(Invoice, inv_id)
                 if not inv:
                     self.invoice_id.errors.append('الفاتورة غير موجودة.')
                     return False
@@ -1322,8 +1327,8 @@ class PartnerSettlementLineForm(FlaskForm):
 
 class PartnerSettlementForm(FlaskForm):
     partner_id = AjaxSelectField("الشريك", endpoint="api.search_partners", get_label="name", validators=[DataRequired()])
-    from_date = UnifiedDateTimeField("من تاريخ", format="%Y-%m-%d %H:%M", formats=["%Y-%m-%d %H:%M", "%Y-%m-%dT%H:%M"], default=datetime.utcnow, validators=[DataRequired()], render_kw={"type": "datetime-local", "step": "60"})
-    to_date = UnifiedDateTimeField("إلى تاريخ", format="%Y-%m-%d %H:%M", formats=["%Y-%m-%d %H:%M", "%Y-%m-%dT%H:%M"], default=datetime.utcnow, validators=[DataRequired()], render_kw={"type": "datetime-local", "step": "60"})
+    from_date = UnifiedDateTimeField("من تاريخ", format="%Y-%m-%d %H:%M", formats=["%Y-%m-%d %H:%M", "%Y-%m-%dT%H:%M"], default=_utc_now_naive, validators=[DataRequired()], render_kw={"type": "datetime-local", "step": "60"})
+    to_date = UnifiedDateTimeField("إلى تاريخ", format="%Y-%m-%d %H:%M", formats=["%Y-%m-%d %H:%M", "%Y-%m-%dT%H:%M"], default=_utc_now_naive, validators=[DataRequired()], render_kw={"type": "datetime-local", "step": "60"})
     currency = CurrencySelectField("العملة", validators=[DataRequired()])
     status = EnumSelectField(PartnerSettlementStatus, "الحالة", default=PartnerSettlementStatus.DRAFT.value, validators=[DataRequired()],
                              labels_map={
@@ -1477,7 +1482,7 @@ class PaymentForm(PaymentDetailsMixin, FlaskForm):
         'تاريخ الدفع',
         format='%Y-%m-%d %H:%M',
         formats=['%Y-%m-%d %H:%M', '%Y-%m-%dT%H:%M'],
-        default=datetime.utcnow,
+        default=_utc_now_naive,
         validators=[DataRequired()],
         render_kw={'type': 'datetime-local', 'step': '60'}
     )
@@ -1895,7 +1900,7 @@ class PreOrderForm(PaymentDetailsMixin, FlaskForm):
         pid = to_int(self.product_id.data)
         if pid and qty > 0:
             try:
-                prod = Product.query.get(pid)
+                prod = db.session.get(Product, pid)
                 price = D(getattr(prod, 'price', 0) or 0)
                 base  = D(qty) * price
                 tax   = Q2(base * D(self.tax_rate.data or 0) / D("100"))
@@ -2761,7 +2766,7 @@ class ExpenseForm(PaymentDetailsMixin, FlaskForm):
         self.type_id.choices = [(t.id, t.name) for t in ExpenseType.query.filter_by(is_active=True).order_by(ExpenseType.name).all()]
 
     def _resolve_kind(self):
-        t = ExpenseType.query.get(int(self.type_id.data)) if self.type_id.data else None
+        t = db.session.get(ExpenseType, int(self.type_id.data)) if self.type_id.data else None
         n = (t.name if t else '').strip().lower()
         code = str(getattr(t, 'code', '') or '').strip().upper()
         meta_kind = ''
@@ -2797,7 +2802,7 @@ class ExpenseForm(PaymentDetailsMixin, FlaskForm):
         if not super().validate(extra_validators=extra_validators): return False
 
         kind = self._resolve_kind()
-        etype = ExpenseType.query.get(int(self.type_id.data)) if self.type_id.data else None
+        etype = db.session.get(ExpenseType, int(self.type_id.data)) if self.type_id.data else None
         type_meta = {}
         required_fields = set()
         if etype and isinstance(etype.fields_meta, dict):
@@ -2999,7 +3004,7 @@ class ExpenseForm(PaymentDetailsMixin, FlaskForm):
             if not exp.payee_name:
                 try:
                     from models import Customer
-                    customer = Customer.query.get(customer_id)
+                    customer = db.session.get(Customer, customer_id)
                     if customer:
                         exp.payee_name = customer.name
                 except Exception:
@@ -3039,7 +3044,7 @@ class ExpenseForm(PaymentDetailsMixin, FlaskForm):
         
         if kind == 'SALARY':
             if exp.employee_id:
-                emp = Employee.query.get(exp.employee_id)
+                emp = db.session.get(Employee, exp.employee_id)
                 exp.payee_type = 'EMPLOYEE'
                 exp.payee_entity_id = exp.employee_id
                 exp.payee_name = emp.name if emp else None
@@ -3052,7 +3057,7 @@ class ExpenseForm(PaymentDetailsMixin, FlaskForm):
                 
         elif kind == 'EMPLOYEE_ADVANCE':
             if exp.employee_id:
-                emp = Employee.query.get(exp.employee_id)
+                emp = db.session.get(Employee, exp.employee_id)
                 exp.payee_type = 'EMPLOYEE'
                 exp.payee_entity_id = exp.employee_id
                 exp.payee_name = emp.name if emp else None
@@ -3065,7 +3070,7 @@ class ExpenseForm(PaymentDetailsMixin, FlaskForm):
                 
         elif kind == 'RENT':
             if exp.warehouse_id:
-                wh = Warehouse.query.get(exp.warehouse_id)
+                wh = db.session.get(Warehouse, exp.warehouse_id)
                 exp.payee_type = 'WAREHOUSE'
                 exp.payee_entity_id = exp.warehouse_id
                 exp.payee_name = wh.name if wh else (self.beneficiary_name.data or '').strip() or None
@@ -3078,7 +3083,7 @@ class ExpenseForm(PaymentDetailsMixin, FlaskForm):
                 
         elif kind == 'UTILITIES':
             if exp.utility_account_id:
-                ua = UtilityAccount.query.get(exp.utility_account_id)
+                ua = db.session.get(UtilityAccount, exp.utility_account_id)
                 exp.payee_type = 'UTILITY'
                 exp.payee_entity_id = exp.utility_account_id
                 exp.payee_name = (getattr(ua, 'alias', None) or getattr(ua, 'provider', None)) if ua else None
@@ -3091,7 +3096,7 @@ class ExpenseForm(PaymentDetailsMixin, FlaskForm):
                 
         elif kind == 'SHIPMENT':
             if exp.shipment_id:
-                ship = Shipment.query.get(exp.shipment_id)
+                ship = db.session.get(Shipment, exp.shipment_id)
                 exp.payee_type = 'SHIPMENT'
                 exp.payee_entity_id = exp.shipment_id
                 exp.payee_name = f'شحنة #{ship.id}' if ship else None
@@ -3105,7 +3110,7 @@ class ExpenseForm(PaymentDetailsMixin, FlaskForm):
         elif kind == 'SUPPLIER_EXPENSE':
             if exp.supplier_id:
                 from models import Supplier
-                supplier = Supplier.query.get(exp.supplier_id)
+                supplier = db.session.get(Supplier, exp.supplier_id)
                 exp.payee_type = 'SUPPLIER'
                 exp.payee_entity_id = exp.supplier_id
                 exp.payee_name = supplier.name if supplier else None
@@ -3119,7 +3124,7 @@ class ExpenseForm(PaymentDetailsMixin, FlaskForm):
         elif kind == 'PARTNER_EXPENSE':
             if exp.partner_id:
                 from models import Partner
-                partner = Partner.query.get(exp.partner_id)
+                partner = db.session.get(Partner, exp.partner_id)
                 exp.payee_type = 'PARTNER'
                 exp.payee_entity_id = exp.partner_id
                 exp.payee_name = partner.name if partner else None
@@ -3134,7 +3139,7 @@ class ExpenseForm(PaymentDetailsMixin, FlaskForm):
             exp.payee_type = 'OTHER'
             exp.payee_entity_id = None
             exp.payee_name = 'تسوية مخزون'
-            sa = StockAdjustment.query.get(exp.stock_adjustment_id) if exp.stock_adjustment_id else None
+            sa = db.session.get(StockAdjustment, exp.stock_adjustment_id) if exp.stock_adjustment_id else None
             if sa and sa.total_cost is not None:
                 exp.amount = sa.total_cost
             if not exp.paid_to: exp.paid_to = exp.payee_name
@@ -3338,7 +3343,7 @@ class ExchangeTransactionForm(FlaskForm):
         if wid:
             try:
                 from models import Warehouse, WarehouseType
-                wh = Warehouse.query.get(wid)
+                wh = db.session.get(Warehouse, wid)
                 wt = getattr(wh.warehouse_type, "value", wh.warehouse_type) if wh else None
                 if not wh or wt != WarehouseType.EXCHANGE.value:
                     self.warehouse_id.errors.append('يجب أن تكون الحركة على مخزن تبادل.')
@@ -3588,7 +3593,7 @@ class InvoiceLineForm(FlaskForm):
 class InvoiceForm(FlaskForm):
     id = HiddenField()
     invoice_number = StringField("رقم الفاتورة", validators=[DataRequired(), Length(max=50)])
-    invoice_date   = UnifiedDateTimeField("تاريخ الفاتورة", default=datetime.utcnow, validators=[DataRequired()], render_kw={"type":"datetime-local","step":"60"})
+    invoice_date   = UnifiedDateTimeField("تاريخ الفاتورة", default=_utc_now_naive, validators=[DataRequired()], render_kw={"type":"datetime-local","step":"60"})
     due_date       = UnifiedDateTimeField("تاريخ الاستحقاق", validators=[Optional()], render_kw={"type":"datetime-local","step":"60"})
 
     customer_id = AjaxSelectField("العميل", coerce=int, allow_blank=True)
@@ -3721,13 +3726,13 @@ class ProductCategoryForm(FlaskForm):
             try:
                 from models import Category
                 seen = set()
-                node = Category.query.get(pid)
+                node = db.session.get(Category, pid)
                 while node and node.parent_id and node.parent_id not in seen:
                     if node.parent_id == cur_id:
                         self.parent_id.errors.append("❌ هذا يسبب حلقة في شجرة الفئات.")
                         return False
                     seen.add(node.parent_id)
-                    node = Category.query.get(node.parent_id)
+                    node = db.session.get(Category, node.parent_id)
             except Exception:
                 pass
         self.image_url.data = _clean_image_path(self.image_url.data)
@@ -3763,7 +3768,7 @@ class ImportForm(FlaskForm):
         if wid:
             try:
                 from models import Warehouse
-                if not Warehouse.query.get(wid):
+                if not db.session.get(Warehouse, wid):
                     self.warehouse_id.errors.append("❌ مستودع غير موجود.")
                     return False
             except Exception:
@@ -3786,7 +3791,7 @@ class WarehouseOnlineDefaultForm(FlaskForm):
         if wid:
             try:
                 from models import Warehouse
-                w = Warehouse.query.get(wid)
+                w = db.session.get(Warehouse, wid)
                 if not w or getattr(w, 'warehouse_type', '').upper() != 'ONLINE':
                     self.warehouse_id.errors.append('يجب اختيار مستودع من نوع ONLINE.')
                     return False
@@ -3879,7 +3884,7 @@ class ProductForm(FlaskForm):
         if self.category_id.data and not (self.category_name.data or "").strip():
             try:
                 from models import Category
-                c = Category.query.get(to_int(self.category_id.data))
+                c = db.session.get(Category, to_int(self.category_id.data))
                 if c and getattr(c, "name", None):
                     self.category_name.data = c.name
             except Exception:
@@ -4018,7 +4023,7 @@ class CheckForm(FlaskForm):
         'تاريخ الشيك *',
         validators=[DataRequired(message='تاريخ الشيك مطلوب')],
         format='%Y-%m-%d',
-        default=datetime.utcnow
+        default=_utc_now_naive
     )
     
     check_due_date = DateField(
@@ -4210,13 +4215,13 @@ class CheckForm(FlaskForm):
             try:
                 from models import Warehouse
                 seen = set()
-                node = Warehouse.query.get(pid)
+                node = db.session.get(Warehouse, pid)
                 while node and node.parent_id and node.parent_id not in seen:
                     if node.parent_id == cur_id:
                         self.parent_id.errors.append('❌ هذا يسبب حلقة في التسلسل الهرمي للمستودعات.')
                         return False
                     seen.add(node.parent_id)
-                    node = Warehouse.query.get(node.parent_id)
+                    node = db.session.get(Warehouse, node.parent_id)
             except Exception:
                 pass
         return True
@@ -4725,7 +4730,8 @@ class GLBatchPostVoidForm(FlaskForm):
         if bid:
             try:
                 from models import GLBatch
-                b = GLBatch.query.get(bid)
+                from extensions import db
+                b = db.session.get(GLBatch, bid)
                 if not b:
                     self.batch_id.errors.append('دفعة غير موجودة.')
                     return False
@@ -4806,7 +4812,7 @@ class ExchangeRateForm(FlaskForm):
     rate = DecimalField('سعر الصرف', validators=[DataRequired(), NumberRange(min=0.00000001)], 
                        places=8, render_kw={"step": "0.00000001"})
     valid_from = DateField('تاريخ السريان', validators=[Optional()], 
-                           default=datetime.utcnow().date())
+                           default=lambda: _utc_now_naive().date())
     source = StringField('المصدر', validators=[Optional(), Length(max=50)], 
                         render_kw={"placeholder": "مثال: البنك المركزي الفلسطيني"})
     is_active = BooleanField('نشط', default=True)

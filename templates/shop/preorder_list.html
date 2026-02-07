@@ -27,7 +27,7 @@
         <div class="d-flex justify-content-between">
           <div>
             <h6 class="card-title text-white-50 mb-1">إجمالي الطلبات</h6>
-            <h3 class="mb-0 fw-bold">{{ preorders|length }}</h3>
+            <h3 class="mb-0 fw-bold">{{ summary.total if summary is defined else (preorders|length) }}</h3>
           </div>
           <div class="align-self-center">
             <i class="fas fa-clipboard-list fa-2x opacity-75"></i>
@@ -43,7 +43,7 @@
         <div class="d-flex justify-content-between">
           <div>
             <h6 class="card-title text-white-50 mb-1">طلبات مكتملة</h6>
-            <h3 class="mb-0 fw-bold">{{ preorders|selectattr('status', 'equalto', 'FULFILLED')|list|length }}</h3>
+            <h3 class="mb-0 fw-bold">{{ summary.fulfilled if summary is defined else (preorders|selectattr('status', 'equalto', 'FULFILLED')|list|length) }}</h3>
           </div>
           <div class="align-self-center">
             <i class="fas fa-check-circle fa-2x opacity-75"></i>
@@ -59,7 +59,7 @@
         <div class="d-flex justify-content-between">
           <div>
             <h6 class="card-title text-white-50 mb-1">قيد الانتظار</h6>
-            <h3 class="mb-0 fw-bold">{{ preorders|selectattr('status', 'equalto', 'PENDING')|list|length }}</h3>
+            <h3 class="mb-0 fw-bold">{{ summary.pending if summary is defined else (preorders|selectattr('status', 'equalto', 'PENDING')|list|length) }}</h3>
           </div>
           <div class="align-self-center">
             <i class="fas fa-clock fa-2x opacity-75"></i>
@@ -75,7 +75,7 @@
         <div class="d-flex justify-content-between">
           <div>
             <h6 class="card-title text-white-50 mb-1">إجمالي المبالغ</h6>
-            <h3 class="mb-0 fw-bold">{{ "%.2f"|format(preorders|sum(attribute='total_amount') if preorders else 0) }}</h3>
+            <h3 class="mb-0 fw-bold">{{ "%.2f"|format(summary.total_amount if summary is defined else (preorders|sum(attribute='total_amount') if preorders else 0)) }}</h3>
           </div>
           <div class="align-self-center">
             <i class="fas fa-dollar-sign fa-2x opacity-75"></i>
@@ -172,6 +172,33 @@
 
   </div>
 </div>
+{% if pagination and pagination.pages > 1 %}
+  <div class="mt-3">
+    <nav>
+      <ul class="pagination justify-content-center mb-0">
+        {% if pagination.has_prev %}
+          <li class="page-item">
+            <a class="page-link" href="{{ url_for('shop.preorder_list', page=pagination.prev_num, per_page=per_page, **query_args) }}">السابق</a>
+          </li>
+        {% endif %}
+        {% for num in pagination.iter_pages() %}
+          {% if num %}
+            <li class="page-item {% if num == pagination.page %}active{% endif %}">
+              <a class="page-link" href="{{ url_for('shop.preorder_list', page=num, per_page=per_page, **query_args) }}">{{ num }}</a>
+            </li>
+          {% else %}
+            <li class="page-item disabled"><span class="page-link">…</span></li>
+          {% endif %}
+        {% endfor %}
+        {% if pagination.has_next %}
+          <li class="page-item">
+            <a class="page-link" href="{{ url_for('shop.preorder_list', page=pagination.next_num, per_page=per_page, **query_args) }}">التالي</a>
+          </li>
+        {% endif %}
+      </ul>
+    </nav>
+  </div>
+{% endif %}
 
 {% else %}
 <div class="card shadow-sm text-center py-5 order-empty">

@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 import uuid
 from io import BytesIO
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timezone
 from decimal import Decimal, ROUND_HALF_UP
 import math
 
@@ -33,6 +33,10 @@ from sqlalchemy import (
     text as sa_text,
     nullslast,
 )
+
+
+def _utc_now_naive() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import joinedload, load_only
 
@@ -398,7 +402,7 @@ def ensure_currency(cur):
 
 def _render_payment_receipt_pdf(payment: Payment) -> bytes:
     from weasyprint import HTML, CSS
-    html = render_template("payments/receipt.html", payment=payment, now=datetime.utcnow())
+    html = render_template("payments/receipt.html", payment=payment, now=_utc_now_naive())
     css_inline = "@page { size: A4; margin: 14mm; } html, body { direction: rtl; font-family: 'Cairo','Noto Naskh Arabic',Arial,sans-serif; font-size: 12px; } h1,h2,h3 { margin: 0 0 8px 0; } table { width: 100%; border-collapse: collapse; } th, td { padding: 6px 8px; border-bottom: 1px solid #ddd; } .muted { color: #666; }"
     try:
         return HTML(string=html, base_url=request.url_root).write_pdf(stylesheets=[CSS(string=css_inline)])
@@ -703,7 +707,11 @@ def index():
         if dir_val:
             check_filters.append(Check.direction == dir_val)
     
-    manual_checks_list = db.session.query(Check).filter(*check_filters).order_by(Check.check_date.desc(), Check.id.desc()).all()
+    manual_checks_q = db.session.query(Check).filter(*check_filters).order_by(Check.check_date.desc(), Check.id.desc())
+    if print_mode:
+        manual_checks_list = manual_checks_q.limit(10000).all()
+    else:
+        manual_checks_list = manual_checks_q.limit(200).all()
     
     for check in manual_checks_list:
         class MockPayment:
@@ -888,7 +896,7 @@ def index():
                         and_(Payment.status == PaymentStatus.COMPLETED.value, Payment.direction == PaymentDirection.IN.value),
                         case(
                             (Payment.currency == 'ILS', Payment.total_amount),
-                            else_=Payment.total_amount * func.coalesce(Payment.fx_rate_used, 0)
+                            else_=Payment.total_amount * func.coalesce(Payment.fx_rate_used, 1)
                         ),
                     ),
                     else_=0,
@@ -903,7 +911,7 @@ def index():
                         and_(Payment.status == PaymentStatus.COMPLETED.value, Payment.direction == PaymentDirection.OUT.value),
                         case(
                             (Payment.currency == 'ILS', Payment.total_amount),
-                            else_=Payment.total_amount * func.coalesce(Payment.fx_rate_used, 0)
+                            else_=Payment.total_amount * func.coalesce(Payment.fx_rate_used, 1)
                         ),
                     ),
                     else_=0,
@@ -915,7 +923,7 @@ def index():
             func.sum(
                 case(
                     (Payment.currency == 'ILS', Payment.total_amount),
-                    else_=Payment.total_amount * func.coalesce(Payment.fx_rate_used, 0)
+                    else_=Payment.total_amount * func.coalesce(Payment.fx_rate_used, 1)
                 )
             ),
             0,
@@ -1133,7 +1141,7 @@ def index():
         total_pages=total_pages if total_pages else 1,
         per_page=per_page,
         row_offset=row_offset,
-        generated_at=datetime.utcnow(),
+        generated_at=_utc_now_naive(),
         pdf_export=False,
         show_actions=not print_mode,
         pagination=pag,
@@ -1153,7 +1161,7 @@ def create_payment():
     def _fd(f):
         return getattr(f, "data", None) if f is not None else None
     if request.method == "GET":
-        form.payment_date.data = datetime.utcnow()
+        form.payment_date.data = _utc_now_naive()
         # ✅ تم إلغاء Request Token لتحسين UX - الاعتماد على CSRF + Idempotency فقط
         raw_et = (request.args.get("entity_type") or "").strip().upper()
         if raw_et == "SHIPMENT_CUSTOMS":
@@ -1569,18 +1577,37 @@ def create_payment():
                     receiver_val = counterparty_name
             deliverer_val = (deliverer_val or "").strip() or None
             receiver_val = (receiver_val or "").strip() or None
+            target_kwargs = {}
+            if etype == "CUSTOMER":
+                target_kwargs["customer_id"] = target_id
+            elif etype == "SUPPLIER":
+                target_kwargs["supplier_id"] = target_id
+            elif etype == "PARTNER":
+                target_kwargs["partner_id"] = target_id
+            elif etype == "SHIPMENT":
+                target_kwargs["shipment_id"] = target_id
+            elif etype == "EXPENSE":
+                target_kwargs["expense_id"] = target_id
+            elif etype == "LOAN":
+                target_kwargs["loan_settlement_id"] = target_id
+            elif etype == "SALE":
+                target_kwargs["sale_id"] = target_id
+            elif etype == "INVOICE":
+                target_kwargs["invoice_id"] = target_id
+            elif etype == "PREORDER":
+                target_kwargs["preorder_id"] = target_id
+            elif etype == "SERVICE":
+                target_kwargs["service_id"] = target_id
+            else:
+                if final_customer_id:
+                    target_kwargs["customer_id"] = final_customer_id
+                elif final_supplier_id:
+                    target_kwargs["supplier_id"] = final_supplier_id
+                elif final_partner_id:
+                    target_kwargs["partner_id"] = final_partner_id
             payment = Payment(
                 entity_type=etype,
-                customer_id=final_customer_id,
-                supplier_id=final_supplier_id,
-                partner_id=final_partner_id,
-                shipment_id=(target_id if etype == "SHIPMENT" else None),
-                expense_id=(target_id if etype == "EXPENSE" else None),
-                loan_settlement_id=(target_id if etype == "LOAN" else None),
-                sale_id=(target_id if etype == "SALE" else None),
-                invoice_id=(target_id if etype == "INVOICE" else None),
-                preorder_id=(target_id if etype == "PREORDER" else None),
-                service_id=(target_id if etype == "SERVICE" else None),
+                **target_kwargs,
                 direction=direction_db,
                 status=form.status.data or PaymentStatus.COMPLETED.value,
                 payment_date=form.payment_date.data,
@@ -1680,9 +1707,15 @@ def create_payment():
                         inv.update_status()
                         db.session.add(inv)
                 if payment.status == PaymentStatus.COMPLETED.value:
-                    if payment.customer_id:
+                    customer_id_for_balance = None
+                    try:
+                        from utils.customer_balance_updater import get_customer_from_payment
+                        customer_id_for_balance = get_customer_from_payment(payment)
+                    except Exception:
+                        customer_id_for_balance = getattr(payment, "customer_id", None)
+                    if customer_id_for_balance:
                         from utils.customer_balance_updater import update_customer_balance_components
-                        update_customer_balance_components(payment.customer_id, db.session)
+                        update_customer_balance_components(customer_id_for_balance, db.session)
                     if payment.supplier_id:
                         utils.update_entity_balance("supplier", payment.supplier_id)
                     if payment.partner_id:
@@ -1705,7 +1738,7 @@ def create_payment():
                         amount=payment.total_amount,
                         check_number=payment.check_number,
                         check_bank=payment.check_bank,
-                        check_date=payment.payment_date or datetime.utcnow(),
+                        check_date=payment.payment_date or _utc_now_naive(),
                         check_due_date=payment.check_due_date or payment.payment_date,
                         notes=f"شيك من دفعة رقم {payment.payment_number or payment.id}"
                     )
@@ -1726,7 +1759,7 @@ def create_payment():
                         amount=split.amount,
                         check_number=check_number,
                         check_bank=check_bank,
-                        check_date=payment.payment_date or datetime.utcnow(),
+                        check_date=payment.payment_date or _utc_now_naive(),
                         check_due_date=check_due_date_raw,
                         notes=f"شيك من دفعة رقم {payment.payment_number or payment.id}"
                     )
@@ -1804,7 +1837,7 @@ def create_expense_payment(exp_id):
         getattr(form, form._entity_field_map["EXPENSE"]).data = exp.id
     entity_info = {"type": "expense","number": f"EXP-{exp.id}","date": exp.date.strftime("%Y-%m-%d") if getattr(exp, "date", None) else "","description": exp.description or "","amount": int(q0(D(getattr(exp, "amount", 0) or 0))),"currency": getattr(exp, "currency", "ILS")}
     if request.method == "GET":
-        form.payment_date.data = datetime.utcnow()
+        form.payment_date.data = _utc_now_naive()
         form.total_amount.data = int(q0(D(getattr(exp, "amount", 0) or 0)))
         form.reference.data = f"دفع مصروف {exp.description or ''}".strip()
         form.direction.data = "OUT"
@@ -1868,7 +1901,7 @@ def create_expense_payment(exp_id):
             method=getattr(method_val, "value", method_val),
             direction=_dir_to_db("OUT"),
             status=form.status.data or PaymentStatus.COMPLETED.value,
-            payment_date=form.payment_date.data or datetime.utcnow(),
+            payment_date=form.payment_date.data or _utc_now_naive(),
             reference=(form.reference.data or "").strip() or None,
             notes=(notes_raw or "").strip() or None,
             deliverer_name=deliverer_val,
@@ -2029,7 +2062,7 @@ def view_receipt(payment_id: int):
     use_simple = request.args.get('simple', '').strip().lower() in ('1', 'true', 'yes')
     template_name = "payments/receipt_simple.html" if use_simple else "payments/receipt.html"
     
-    return render_template(template_name, payment=payment, now=datetime.utcnow(), sale_info=sale_info)
+    return render_template(template_name, payment=payment, now=_utc_now_naive(), sale_info=sale_info)
 
 @payments_bp.route("/<int:payment_id>/receipt/download", methods=["GET"], endpoint="download_receipt")
 @login_required
@@ -2048,7 +2081,7 @@ def download_receipt(payment_id: int):
         if _wants_json():
             return jsonify(error="exception", message=str(e)), 500
         return make_response("<!doctype html><meta charset='utf-8'><div style='padding:24px;font-family:system-ui,Arial,sans-serif'>حصل خطأ أثناء توليد PDF</div>", 500)
-    safe_suffix = (getattr(payment, "receipt_number", "") or "").strip() or (getattr(payment, "payment_number", "") or "").strip() or f"{payment_id}_{datetime.utcnow():%Y%m%d}"
+    safe_suffix = (getattr(payment, "receipt_number", "") or "").strip() or (getattr(payment, "payment_number", "") or "").strip() or f"{payment_id}_{_utc_now_naive():%Y%m%d}"
     safe_suffix = _safe_filename_component(safe_suffix)
     filename = f"payment_receipt_{safe_suffix or payment_id}.pdf"
     inline = (request.args.get("inline") or "").strip().lower() in ("1", "true", "yes")
@@ -2108,7 +2141,7 @@ def entity_fields():
 def _ensure_payment_number(pmt: Payment) -> None:
     if getattr(pmt, "payment_number", None):
         return
-    base_dt = getattr(pmt, "payment_date", None) or datetime.utcnow()
+    base_dt = getattr(pmt, "payment_date", None) or _utc_now_naive()
     prefix = base_dt.strftime("PMT%Y%m%d")
     
     # استخدام MAX بدلاً من COUNT لتجنب التكرار
@@ -2213,7 +2246,7 @@ def _parse_split_forms(split_entries, target_currency: str):
                 converted_currency=target_currency,
                 fx_rate_used=rate_used,
                 fx_rate_source=rate_source,
-                fx_rate_timestamp=datetime.utcnow(),
+                fx_rate_timestamp=_utc_now_naive(),
                 fx_base_currency=split_currency,
                 fx_quote_currency=target_currency,
             )
@@ -2742,11 +2775,11 @@ def shop_checkout():
             customer_id=customer_id,
             direction=PaymentDirection.IN.value,
             status=PaymentStatus.PENDING.value,
-            payment_date=datetime.utcnow(),
+            payment_date=_utc_now_naive(),
             total_amount=total_amount,
             currency=currency,
             method=payment_method,
-            reference=f"طلب متجر #{datetime.utcnow().strftime('%Y%m%d%H%M%S')}",
+            reference=f"طلب متجر #{_utc_now_naive().strftime('%Y%m%d%H%M%S')}",
             notes=f"دفعة متجر إلكتروني - {len(items)} منتج",
             created_by=current_user.id,
             deliverer_name=deliverer_name,
@@ -2863,7 +2896,7 @@ def shop_process_payment():
         
         # تحديث حالة الدفعة
         payment.status = PaymentStatus.COMPLETED.value
-        payment.payment_date = datetime.utcnow()
+        payment.payment_date = _utc_now_naive()
         
         # تحديث رصيد العميل إذا كان موجود
         if payment.customer_id:
@@ -2929,7 +2962,7 @@ def shop_refund():
             customer_id=original_payment.customer_id,
             direction=PaymentDirection.OUT.value,
             status=PaymentStatus.COMPLETED.value,
-            payment_date=datetime.utcnow(),
+            payment_date=_utc_now_naive(),
             total_amount=refund_amount,
             currency=original_payment.currency,
             method=original_payment.method,
@@ -2995,7 +3028,7 @@ def archive_payment(payment_id):
     try:
         from models import Archive
         
-        payment = Payment.query.get_or_404(payment_id)
+        payment = db.get_or_404(Payment, payment_id)
         
         reason = request.form.get('reason', 'أرشفة تلقائية')
         
@@ -3014,7 +3047,7 @@ def restore_payment(payment_id):
     """استعادة دفعة"""
     
     try:
-        payment = Payment.query.get_or_404(payment_id)
+        payment = db.get_or_404(Payment, payment_id)
         
         if not payment.is_archived:
             flash('الدفعة غير مؤرشفة', 'warning')
@@ -3184,13 +3217,13 @@ def _collect_partner_rights(partner: Partner, date_from: datetime, date_to: date
         amount_ils = amount
         currency = expense.currency or "ILS"
         try:
-            amount_ils = float(_convert_to_ils(Decimal(str(amount)), currency, expense.date or datetime.utcnow()))
+            amount_ils = float(_convert_to_ils(Decimal(str(amount)), currency, expense.date or _utc_now_naive()))
         except Exception:
             amount_ils = amount
         exp_type_name = getattr(getattr(expense, 'type', None), 'name', 'توريد خدمة')
         entries.append(
             LedgerEntry.create(
-                date=expense.date or datetime.utcnow(),
+                date=expense.date or _utc_now_naive(),
                 label=f"توريد خدمة: {exp_type_name}" + (f" - {expense.description}" if expense.description else ""),
                 amount=amount_ils,
                 direction="credit",
@@ -3295,12 +3328,12 @@ def _collect_partner_obligations(partner: Partner, date_from: datetime, date_to:
         amount_ils = amount
         currency = expense.currency or "ILS"
         try:
-            amount_ils = float(_convert_to_ils(Decimal(str(amount)), currency, expense.date or datetime.utcnow()))
+            amount_ils = float(_convert_to_ils(Decimal(str(amount)), currency, expense.date or _utc_now_naive()))
         except Exception:
             amount_ils = amount
         entries.append(
             LedgerEntry.create(
-                date=expense.date or datetime.utcnow(),
+                date=expense.date or _utc_now_naive(),
                 label=expense.description or "مصروف على الشريك",
                 amount=amount_ils,
                 direction="debit",
@@ -3342,7 +3375,7 @@ def _build_partner_ledger(
     date_to: datetime | None,
 ) -> dict:
     df = date_from or SMART_PARTNER_BALANCE_START
-    dt = date_to or datetime.utcnow()
+    dt = date_to or _utc_now_naive()
     entries: list[dict] = []
 
     opening_amount = 0.0
@@ -3478,7 +3511,7 @@ def refund_split(split_id: int):
             loan_settlement_id=parent.loan_settlement_id,
             direction=refund_direction,
             status=PaymentStatus.COMPLETED.value,
-            payment_date=datetime.utcnow(),
+            payment_date=_utc_now_naive(),
             total_amount=total_amount,
             currency=(split.currency or parent.currency or "ILS"),
             method=getattr(split.method, "value", split.method),
@@ -3597,7 +3630,7 @@ def refund_payment(payment_id: int):
             loan_settlement_id=original.loan_settlement_id,
             direction=refund_direction,
             status=PaymentStatus.COMPLETED.value,
-            payment_date=datetime.utcnow(),
+            payment_date=_utc_now_naive(),
             total_amount=amount_total,
             currency=(original.currency or "ILS"),
             method=(original.method or PaymentMethod.CASH.value),

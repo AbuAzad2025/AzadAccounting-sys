@@ -160,7 +160,7 @@
               {% for c in top_customers %}
               <tr>
                 <td>{{ c.name }}</td>
-                <td class="text-danger">{{ "%.2f"|format(abs(c.balance)) }} ₪</td>
+                <td class="text-danger" data-balance-customer="{{ c.id }}" data-balance-abs="1">{{ "%.2f"|format(c.balance|abs) }} ₪</td>
               </tr>
               {% endfor %}
             </tbody>
@@ -183,7 +183,6 @@ async function refreshAllBalances() {
     }
   } catch (error) {
     toastr.error('خطأ في تحديث الأرصدة');
-    console.error(error);
   }
 }
 
@@ -204,7 +203,6 @@ async function clearCache() {
     }
   } catch (error) {
     toastr.error('خطأ في مسح الكاش');
-    console.error(error);
   }
 }
 

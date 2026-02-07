@@ -251,7 +251,7 @@ class WorkflowEngine:
         if instance.entity_type == 'MILESTONE':
             try:
                 from models import ProjectMilestone
-                milestone = ProjectMilestone.query.get(instance.entity_id)
+                milestone = db.session.get(ProjectMilestone, instance.entity_id)
                 if milestone:
                     milestone.status = 'COMPLETED'
                     milestone.completed_date = datetime.now(timezone.utc).date()
@@ -263,7 +263,7 @@ class WorkflowEngine:
         elif instance.entity_type == 'CHANGE_ORDER':
             try:
                 from models import ProjectChangeOrder
-                change_order = ProjectChangeOrder.query.get(instance.entity_id)
+                change_order = db.session.get(ProjectChangeOrder, instance.entity_id)
                 if change_order:
                     change_order.status = 'APPROVED'
                     change_order.approved_by = instance.completed_by
@@ -276,7 +276,7 @@ class WorkflowEngine:
         if instance.entity_type == 'MILESTONE':
             try:
                 from models import ProjectMilestone
-                milestone = ProjectMilestone.query.get(instance.entity_id)
+                milestone = db.session.get(ProjectMilestone, instance.entity_id)
                 if milestone:
                     milestone.status = 'PENDING'
             except Exception:
@@ -285,7 +285,7 @@ class WorkflowEngine:
         elif instance.entity_type == 'CHANGE_ORDER':
             try:
                 from models import ProjectChangeOrder
-                change_order = ProjectChangeOrder.query.get(instance.entity_id)
+                change_order = db.session.get(ProjectChangeOrder, instance.entity_id)
                 if change_order:
                     change_order.status = 'REJECTED'
                     
@@ -317,7 +317,7 @@ class WorkflowEngine:
             if escalate_to_manager:
                 if instance.entity_type == 'MILESTONE':
                     from models import ProjectMilestone
-                    milestone = ProjectMilestone.query.get(instance.entity_id)
+                    milestone = db.session.get(ProjectMilestone, instance.entity_id)
                     if milestone and milestone.project:
                         manager_id = milestone.project.manager_id
                         if manager_id:

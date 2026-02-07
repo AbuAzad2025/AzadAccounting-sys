@@ -223,6 +223,22 @@ def system_map():
     # تحميل الخريطة
     system_map_data = load_system_map()
     map_exists = system_map_data is not None
+    if system_map_data is None:
+        system_map_data = {
+            "generated_at": "",
+            "system_name": "",
+            "version": "",
+            "statistics": {
+                "total_routes": 0,
+                "total_templates": 0,
+                "linked_routes": 0,
+                "unlinked_routes": 0,
+            },
+            "routes": {"all": [], "by_category": {}},
+            "templates": {"all": [], "by_module": {}},
+            "blueprints": [],
+            "modules": [],
+        }
     
     # تحميل السجلات
     logs = []

@@ -696,7 +696,6 @@
     }
   });
   
-  console.log('✅ نظام البحث المحسّن جاهز (Ctrl+K للبحث، Esc للإلغاء)');
 })();
 
 // ═══════════════════════════════════════════════════════════
@@ -812,7 +811,6 @@
   `;
   document.head.appendChild(style);
   
-  console.log('✅ UI Animations جاهزة');
 })();
 
 (function() {
@@ -874,11 +872,9 @@
   // تفعيل Bootstrap tooltips
   $('[data-toggle="tooltip"]').tooltip();
   
-  console.log('✅ Tooltips جاهزة');
 })();
 </script>
 
 <!-- تحميل Charts للإحصائيات -->
 <script src="{{ url_for('static', filename='js/security_charts.js') }}"></script>
 {% endblock %}
-

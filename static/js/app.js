@@ -201,23 +201,64 @@
     return dataTablesPromise || Promise.resolve();
   }
 
+  window.ensureDataTables = ensureDataTables;
+
+  const select2Assets = {
+    js: "/static/adminlte/plugins/select2/js/select2.full.min.js"
+  };
+  let select2Promise = null;
+  function ensureSelect2() {
+    if ($.fn.select2) return Promise.resolve();
+    if (select2Promise) return select2Promise;
+    select2Promise = new Promise((resolve, reject) => {
+      if (window.PerfUtils && PerfUtils.loadScript) {
+        PerfUtils.loadScript(select2Assets.js, { async: false }).then(resolve).catch(reject);
+        return;
+      }
+      const script = document.createElement("script");
+      script.src = select2Assets.js;
+      script.async = false;
+      script.onload = () => resolve(script);
+      script.onerror = () => reject(new Error("Failed to load script: " + select2Assets.js));
+      document.head.appendChild(script);
+    }).then(() => {
+      if (!$.fn.select2) throw new Error("Select2 failed to load");
+    }).catch(() => {
+      select2Promise = null;
+    });
+    return select2Promise || Promise.resolve();
+  }
+
   $(function () {
-    const observer = new MutationObserver(() => {
-      if (window._mutationPending) return;
-      window._mutationPending = true;
-      setTimeout(() => {
-        window._mutationPending = false;
-        initAll(document);
-      }, 60);
+    const pending = new Set();
+    let timer = null;
+    function scheduleInit() {
+      if (timer) return;
+      timer = setTimeout(() => {
+        timer = null;
+        const nodes = Array.from(pending);
+        pending.clear();
+        nodes.forEach(node => {
+          try {
+            initAll(node);
+          } catch (e) {}
+        });
+      }, 120);
+    }
+    const observer = new MutationObserver(mutations => {
+      mutations.forEach(mutation => {
+        mutation.addedNodes.forEach(node => {
+          if (!node || node.nodeType !== 1) return;
+          pending.add(node);
+        });
+      });
+      if (pending.size) scheduleInit();
     });
     observer.observe(document.body, { childList: true, subtree: true });
 
     $(document).on("shown.bs.modal", e => initAll(e.target || document));
 
     initAll(document);
-    
-    // Enhanced performance optimizations
-    initPerformanceOptimizations();
   });
 
   function initAll(root) {
@@ -231,7 +272,7 @@
   }
 
   function initDataTables(root) {
-    const tables = $(root).find(".datatable");
+    const tables = $(root).find(".datatable").addBack(".datatable");
     if (!tables.length) return;
     if (!$.fn.DataTable) {
       ensureDataTables().then(() => initDataTables(root));
@@ -263,6 +304,10 @@
       if (dataRows.length === 0) {
         return; // لا نهيئ DataTables للجداول الفارغة
       }
+      const isHuge = dataRows.length > 1000;
+      if (isHuge && !($tbl.data("dt-force") || $tbl.attr("data-dt-force"))) {
+        return;
+      }
 
       // تحقق من تطابق عدد الأعمدة في صف البيانات الأول
       const headerCols = $tbl.find('thead tr:first th, thead tr:first td').length;
@@ -273,6 +318,11 @@
         return;
       }
 
+      const enableScrollX =
+        headerCols > 8 ||
+        String($tbl.data("scroll-x") || $tbl.data("scrollx") || "").toLowerCase() === "true" ||
+        $tbl.data("scrollX") == 1;
+
       try {
         $tbl.DataTable({
           dom: hasButtons ? "Bfrtip" : "frtip",
@@ -282,7 +332,9 @@
           ] : [],
           pageLength: pageLen,
           responsive: true,
+          deferRender: true,
           autoWidth: false,
+          scrollX: enableScrollX,
           language: { 
             url: "/static/datatables/Arabic.json",
             // fallback في حالة فشل تحميل الملف
@@ -313,7 +365,7 @@
 
   function initDatepickers(root) {
     if (!$.fn.datepicker) return;
-    $(root).find(".datepicker").each(function () {
+    $(root).find(".datepicker").addBack(".datepicker").each(function () {
       const $el = $(this);
       if ($el.data("dp-initialized")) return;
       $el.data("dp-initialized", 1).datepicker({
@@ -327,8 +379,13 @@
   }
 
   function initSelect2Basic(root) {
-    if (!$.fn.select2) return;
-    $(root).find("select.select2:not(.ajax-select)").each(function () {
+    const selects = $(root).find("select.select2:not(.ajax-select)").addBack("select.select2:not(.ajax-select)");
+    if (!selects.length) return;
+    if (!$.fn.select2) {
+      ensureSelect2().then(() => initSelect2Basic(root));
+      return;
+    }
+    selects.each(function () {
       const $el = $(this);
       if ($el.data("s2-initialized")) return;
       $el.data("s2-initialized", 1);
@@ -345,8 +402,13 @@
   }
 
   function initAjaxSelects(root) {
-    if (!$.fn.select2) return;
-    $(root).find("select.ajax-select").each(function () {
+    const selects = $(root).find("select.ajax-select").addBack("select.ajax-select");
+    if (!selects.length) return;
+    if (!$.fn.select2) {
+      ensureSelect2().then(() => initAjaxSelects(root));
+      return;
+    }
+    selects.each(function () {
       const $el = $(this);
       if ($el.data("s2-initialized")) return;
       $el.data("s2-initialized", 1);
@@ -391,7 +453,7 @@
   }
 
   function initConfirmForms(root) {
-    $(root).find("form[data-confirm]").each(function () {
+    $(root).find("form[data-confirm]").addBack("form[data-confirm]").each(function () {
       const $form = $(this);
       if ($form.data("confirm-bound")) return;
       $form.data("confirm-bound", 1).on("submit", function (e) {
@@ -405,7 +467,7 @@
   }
 
   function initBtnLoading(root) {
-    $(root).find(".btn-loading").each(function () {
+    $(root).find(".btn-loading").addBack(".btn-loading").each(function () {
       const $btn = $(this);
       if ($btn.data("loading-bound")) return;
       $btn.data("loading-bound", 1).on("click", function () {
@@ -426,18 +488,21 @@
   function initPerformanceOptimizations(root) {
     // Lazy loading for images
     if ('IntersectionObserver' in window) {
-      const imageObserver = new IntersectionObserver((entries, observer) => {
-        entries.forEach(entry => {
-          if (entry.isIntersecting) {
-            const img = entry.target;
-            img.src = img.dataset.src;
-            img.classList.remove('lazy');
-            imageObserver.unobserve(img);
-          }
+      if (!window.__APP_IMAGE_OBSERVER__) {
+        window.__APP_IMAGE_OBSERVER__ = new IntersectionObserver((entries) => {
+          entries.forEach(entry => {
+            if (entry.isIntersecting) {
+              const img = entry.target;
+              img.src = img.dataset.src;
+              img.classList.remove('lazy');
+              window.__APP_IMAGE_OBSERVER__.unobserve(img);
+            }
+          });
         });
-      });
+      }
+      const imageObserver = window.__APP_IMAGE_OBSERVER__;
 
-      $(root).find('img[data-src]').each(function() {
+      $(root).find('img[data-src]').addBack('img[data-src]').each(function() {
         const $img = $(this);
         if ($img.data('lazy-initialized')) return;
         $img.data('lazy-initialized', true);
@@ -447,7 +512,7 @@
 
     // Debounced search
     let searchTimeout;
-    $(root).find('[data-search]').each(function() {
+    $(root).find('[data-search]').addBack('[data-search]').each(function() {
       const $el = $(this);
       if ($el.data('search-initialized')) return;
       $el.data('search-initialized', true);
@@ -462,7 +527,7 @@
     });
 
     // Auto-save forms
-    $(root).find('[data-autosave]').each(function() {
+    $(root).find('[data-autosave]').addBack('[data-autosave]').each(function() {
       const $el = $(this);
       if ($el.data('autosave-initialized')) return;
       $el.data('autosave-initialized', true);

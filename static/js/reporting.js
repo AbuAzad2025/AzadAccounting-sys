@@ -44,7 +44,12 @@
   let dt;
   function initDataTable() {
     const table = $('#report-table');
-    if (!table || !table.length || !window.jQuery || !jQuery.fn?.DataTable) return;
+    if (!table || !table.length || !window.jQuery || !jQuery.fn?.DataTable) {
+      if (table && table.length && window.jQuery && typeof window.ensureDataTables === 'function') {
+        window.ensureDataTables().then(initDataTable);
+      }
+      return;
+    }
     if (jQuery.fn.dataTable.isDataTable(table)) {
       dt = jQuery(table).DataTable();
       return;
@@ -75,6 +80,8 @@
         pageLength: 50,
         order: [],
         autoWidth: false,
+        responsive: true,
+        scrollX: headerCols > 8,
         language: {
           emptyTable: "لا توجد بيانات",
           info: "إظهار _START_ إلى _END_ من أصل _TOTAL_",

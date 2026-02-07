@@ -195,13 +195,22 @@
       });
     });
 
-    if (window.jQuery && jQuery.fn.DataTable) {
+    function initRolesTable() {
+      if (!(window.jQuery && jQuery.fn.DataTable)) return;
       jQuery('#roles-table').DataTable({
         language: { url: "{{ url_for('static', filename='datatables/Arabic.json') }}" },
         order: [[0, 'asc']],
+        responsive: true,
+        autoWidth: false,
         pageLength: 25,
         lengthMenu: [[10, 25, 50, -1], ['10', '25', '50', 'الكل']]
       });
+    }
+
+    if (window.jQuery && typeof window.ensureDataTables === 'function' && !(jQuery.fn && jQuery.fn.DataTable)) {
+      window.ensureDataTables().then(initRolesTable);
+    } else {
+      initRolesTable();
     }
   });
 })();

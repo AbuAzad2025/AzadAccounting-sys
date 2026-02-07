@@ -1,6 +1,20 @@
 {% extends 'base_print.html' if print_mode else 'base.html' %}
 {% block title %}سندات الدفع{% if supplier %} — {{ supplier.name }}{% endif %}{% endblock %}
 
+{% block page_title %}
+  <i class="fas fa-money-check-alt"></i>
+  {% if supplier %}
+      سندات دفع المورد: <span class="text-primary">{{ supplier.name }}</span>
+  {% else %}
+      جميع سندات الدفع
+  {% endif %}
+{% endblock %}
+
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">الرئيسية</a></li>
+  <li class="breadcrumb-item active">الدفعات</li>
+{% endblock %}
+
 {% block head_extra %}
   {% if print_mode %}
   <style>
@@ -241,6 +255,9 @@
               </div>
           </div>
           {% endif %}
+          <div class="d-flex justify-content-end align-items-center gap-2 mb-3">
+            <button type="button" class="btn btn-light" data-toggle="modal" data-target="#printPaymentsModal"><i class="fas fa-print mr-1"></i> طباعة</button>
+          </div>
           <div class="card border-0 shadow-sm mb-3">
             <div class="card-body py-3">
               <div class="row align-items-center">

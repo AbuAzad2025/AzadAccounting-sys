@@ -60,10 +60,10 @@
     </div>
   </div>
 
-  {% set _n = data|length %}
-  {% set sum_invoiced = data|sum(attribute='total_invoiced') %}
-  {% set sum_paid     = data|sum(attribute='total_paid') %}
-  {% set sum_balance  = data|sum(attribute='balance') %}
+  {% set _n = (pagination.total if pagination else (total_customers|default(data|length))) %}
+  {% set sum_invoiced = (totals.invoiced if totals else (data|sum(attribute='total_invoiced'))) %}
+  {% set sum_paid     = (totals.paid if totals else (data|sum(attribute='total_paid'))) %}
+  {% set sum_balance  = (totals.balance if totals else (data|sum(attribute='balance'))) %}
   {% set avg_invoiced = (sum_invoiced / _n) if _n else 0 %}
 
   <div class="row g-3 mb-3">
@@ -147,8 +147,10 @@
               </td>
               <td class="text-end fw-semibold">{{ "{:,.2f}".format(invoiced) }}</td>
               <td class="text-end">{{ "{:,.2f}".format(paid) }}</td>
-              <td class="text-end fw-bold {% if bal > 0 %}text-success{% elif bal < 0 %}text-danger{% else %}text-secondary{% endif %}">
-                {{ "{:,.2f}".format(bal) }}
+              <td class="text-end fw-bold">
+                <span class="{% if bal > 0 %}text-success{% elif bal < 0 %}text-danger{% else %}text-secondary{% endif %}" {% if r.id %}data-balance-customer="{{ r.id }}"{% endif %}>
+                  {{ "{:,.2f}".format(bal) }} ₪
+                </span>
               </td>
               <td class="text-center">
                 <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" style="height:10px;">
@@ -186,6 +188,34 @@
       {% endif %}
     </div>
   </div>
+
+  {% if pagination and pagination.pages > 1 %}
+  <div class="mt-3">
+    <nav>
+      <ul class="pagination justify-content-center mb-0">
+        {% if pagination.has_prev %}
+        <li class="page-item">
+          <a class="page-link" href="{{ url_for('reports_bp.customers_report', page=pagination.prev_num, per_page=per_page, **query_args) }}">السابق</a>
+        </li>
+        {% endif %}
+        {% for num in pagination.iter_pages() %}
+          {% if num %}
+          <li class="page-item {% if num == pagination.page %}active{% endif %}">
+            <a class="page-link" href="{{ url_for('reports_bp.customers_report', page=num, per_page=per_page, **query_args) }}">{{ num }}</a>
+          </li>
+          {% else %}
+          <li class="page-item disabled"><span class="page-link">…</span></li>
+          {% endif %}
+        {% endfor %}
+        {% if pagination.has_next %}
+        <li class="page-item">
+          <a class="page-link" href="{{ url_for('reports_bp.customers_report', page=pagination.next_num, per_page=per_page, **query_args) }}">التالي</a>
+        </li>
+        {% endif %}
+      </ul>
+    </nav>
+  </div>
+  {% endif %}
 </div>
 
 {% if data and data|length %}

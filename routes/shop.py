@@ -1,5 +1,5 @@
 
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid, json
 from functools import wraps
 from types import SimpleNamespace
@@ -8,7 +8,7 @@ from decimal import Decimal, InvalidOperation
 from flask_wtf.csrf import generate_csrf
 from flask import Blueprint, render_template, request, abort, jsonify, current_app, redirect, url_for, flash, g
 from flask_login import login_required, current_user
-from sqlalchemy import func
+from sqlalchemy import func, case, and_
 from sqlalchemy.exc import SQLAlchemyError
 from flask_wtf import FlaskForm
 
@@ -254,6 +254,73 @@ def available_qty(product_id: int) -> int:
     g._avail_cache[product_id] = v
     return v
 
+
+def _bulk_available_map(product_ids) -> Dict[int, int]:
+    ids = []
+    for x in (product_ids or []):
+        try:
+            xi = int(x)
+        except Exception:
+            continue
+        if xi > 0:
+            ids.append(xi)
+    if not ids:
+        return {}
+    uniq = list(dict.fromkeys(ids))
+
+    if not hasattr(g, "_avail_cache"):
+        g._avail_cache = {}
+
+    unknown = [pid for pid in uniq if pid not in g._avail_cache]
+    if not unknown:
+        return {pid: int(g._avail_cache.get(pid, 0) or 0) for pid in uniq}
+
+    if hasattr(StockLevel, "available"):
+        on_hand_expr = func.coalesce(func.sum(StockLevel.available), 0)
+    else:
+        on_hand_expr = func.coalesce(func.sum(StockLevel.quantity), 0)
+
+    on_hand_q = (
+        db.session.query(StockLevel.product_id, on_hand_expr.label("on_hand"))
+        .select_from(StockLevel)
+        .join(Warehouse, StockLevel.warehouse_id == Warehouse.id)
+        .filter(StockLevel.product_id.in_(unknown), Warehouse.is_active.is_(True))
+    )
+    scope_ids = _online_scope_ids()
+    if scope_ids:
+        on_hand_q = on_hand_q.filter(Warehouse.id.in_(scope_ids))
+    else:
+        tvals = _warehouse_types()
+        if tvals and hasattr(Warehouse, "warehouse_type"):
+            on_hand_q = on_hand_q.filter(Warehouse.warehouse_type.in_(tvals))
+
+    on_hand_rows = on_hand_q.group_by(StockLevel.product_id).all()
+    on_hand_map = {int(pid): int(total or 0) for pid, total in on_hand_rows}
+
+    reserved_map = {}
+    if not hasattr(StockLevel, "available"):
+        reserved_rows = (
+            db.session.query(
+                OnlinePreOrderItem.product_id,
+                func.coalesce(func.sum(OnlinePreOrderItem.quantity), 0).label("reserved"),
+            )
+            .join(OnlinePreOrder, OnlinePreOrderItem.order_id == OnlinePreOrder.id)
+            .filter(
+                OnlinePreOrderItem.product_id.in_(unknown),
+                OnlinePreOrder.status.in_(_reserve_statuses()),
+            )
+            .group_by(OnlinePreOrderItem.product_id)
+            .all()
+        )
+        reserved_map = {int(pid): int(total or 0) for pid, total in reserved_rows}
+
+    for pid in unknown:
+        on_hand = int(on_hand_map.get(pid, 0) or 0)
+        reserved = int(reserved_map.get(pid, 0) or 0)
+        g._avail_cache[pid] = max(0, on_hand - reserved)
+
+    return {pid: int(g._avail_cache.get(pid, 0) or 0) for pid in uniq}
+
 def _super_roles():
     try:
         from utils import _SUPER_ROLES as _SR
@@ -445,15 +512,16 @@ def catalog():
     page = request.args.get("page", 1, type=int)
     per_page = min(request.args.get("per_page", 50, type=int), 200)
     
-    products = q.distinct().order_by(Product.name.asc()).limit(per_page * 10).all()
+    products = q.distinct().order_by(Product.name.asc(), Product.id.asc()).limit(per_page * 10).all()
     if request.is_json or request.args.get("format") == "json":
+        avail = _bulk_available_map([p.id for p in products]) if current_user.is_authenticated else {}
         return jsonify([
             {
                 "id": p.id,
                 "name": (getattr(p, "online_name", None) or getattr(p, "commercial_name", None) or p.name),
                 "price": _price_for_shop(p),
                 "online_price": (float(p.online_price) if getattr(p, "online_price", None) is not None else None),
-                "stock": available_qty(p.id),
+                "stock": int(avail.get(p.id, 0) if current_user.is_authenticated else getattr(p, 'stock_quantity', 0) or 0),
                 "image": getattr(p, "image", None),
                 "online_image": getattr(p, "online_image", None),
             }
@@ -461,7 +529,7 @@ def catalog():
         ])
     # Create availability map - for non-authenticated users, show stock_quantity
     if current_user.is_authenticated:
-        avail_map = {p.id: available_qty(p.id) for p in products}
+        avail_map = _bulk_available_map([p.id for p in products])
     else:
         avail_map = {p.id: getattr(p, 'stock_quantity', 0) for p in products}
     
@@ -491,7 +559,7 @@ def product_detail(product_id):
     # Get category information
     category = None
     if product.category_id:
-        category = db.session.query(ProductCategory).get(product.category_id)
+        category = db.session.get(ProductCategory, product.category_id)
     
     return render_template("shop/product_detail.html", 
                          product=product,
@@ -528,14 +596,24 @@ def products():
             (Product.sku.ilike(like)) |
             (Product.part_number.ilike(like))
         )
-    products = q.distinct().order_by(Product.name.asc()).all()
-    avail_map = {p.id: available_qty(p.id) for p in products}
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 50, type=int)
+    per_page = min(200, max(10, per_page))
+    pagination = q.distinct().order_by(Product.name.asc(), Product.id.asc()).paginate(page=page, per_page=per_page, error_out=False)
+    products = list(pagination.items or [])
+    avail_map = _bulk_available_map([p.id for p in products])
+    query_args = request.args.to_dict()
+    query_args.pop("page", None)
+    query_args.pop("per_page", None)
     return render_template(
         "shop/products.html",
         products=products,
         avail_map=avail_map,
         is_super_admin=is_super_admin(current_user),
-        price_for_shop=_price_for_shop
+        price_for_shop=_price_for_shop,
+        pagination=pagination,
+        per_page=per_page,
+        query_args=query_args,
     )
 
 @shop_bp.get("/api/products")
@@ -569,7 +647,8 @@ def api_products():
                 (Product.sku.ilike(like)) |
                 (Product.part_number.ilike(like))
             )
-        products = q.distinct().order_by(Product.name.asc()).all()
+        products = q.distinct().order_by(Product.name.asc(), Product.id.asc()).limit(500).all()
+        avail = _bulk_available_map([p.id for p in products])
         data = []
         for p in products:
             data.append({
@@ -580,7 +659,7 @@ def api_products():
                 "price": _price_for_shop(p),
                 "online_price": (float(p.online_price) if getattr(p, "online_price", None) is not None else None),
                 "selling_price": (float(p.selling_price) if getattr(p, "selling_price", None) is not None else None),
-                "stock": available_qty(p.id),
+                "stock": int(avail.get(p.id, 0) or 0),
                 "image": getattr(p, "image", None),
                 "online_image": getattr(p, "online_image", None),
                 "brand": getattr(p, "brand", None),
@@ -795,7 +874,7 @@ def checkout():
     prepaid = round(subtotal * rate, 2)
     if request.method == "POST":
         try:
-            with db.session.begin():
+            with db.session.begin_nested():
                 product_ids = [itm.product_id for itm in cart.items]
                 if product_ids:
                     q = (
@@ -884,7 +963,7 @@ def checkout():
                         method="card",
                         total_amount=prepaid,
                         currency=getattr(g.online_customer, "currency", "ILS"),
-                        payment_date=datetime.utcnow(),
+                        payment_date=datetime.now(timezone.utc),
                         reference=f"Online Preorder {preorder.order_number}",
                         notes="Online prepaid via checkout",
                     )
@@ -897,7 +976,7 @@ def checkout():
                     source_type='ONLINE_PREORDER',
                     source_id=preorder.id,
                     purpose='ONLINE_SALE',
-                    posted_at=datetime.utcnow(),
+                    posted_at=datetime.now(timezone.utc),
                     currency=preorder.currency,
                     memo=f"Online Preorder {preorder.order_number}",
                     status='POSTED',
@@ -909,7 +988,7 @@ def checkout():
                 
                 db.session.add(GLEntry(
                     batch_id=gl_batch.id,
-                    account='1301',
+                    account='1100_AR',
                     debit=subtotal,
                     credit=0,
                     ref=f"Online Order {preorder.order_number}"
@@ -917,7 +996,7 @@ def checkout():
                 
                 db.session.add(GLEntry(
                     batch_id=gl_batch.id,
-                    account='4100',
+                    account='4000_SALES',
                     debit=0,
                     credit=subtotal_before_tax,
                     ref=f"Online Sales {preorder.order_number}"
@@ -926,13 +1005,13 @@ def checkout():
                 if vat_enabled and tax_amount > 0:
                     db.session.add(GLEntry(
                         batch_id=gl_batch.id,
-                        account='2300',
+                        account='2100_VAT_PAYABLE',
                         debit=0,
                         credit=tax_amount,
                         ref=f"VAT {vat_rate}%"
                     ))
                     
-                    order_date = datetime.utcnow()
+                    order_date = datetime.now(timezone.utc)
                     tax_entry = TaxEntry(
                         entry_type='OUTPUT_VAT',
                         transaction_type='ONLINE_PREORDER',
@@ -985,15 +1064,54 @@ def checkout():
 @shop_bp.route("/preorders", endpoint="preorder_list")
 @online_customer_required
 def preorder_list():
-    if is_super_admin(current_user):
-        preorders = OnlinePreOrder.query.order_by(OnlinePreOrder.created_at.desc()).limit(500).all()
-    else:
-        preorders = (
-            OnlinePreOrder.query.filter_by(customer_id=g.online_customer.id)
-            .order_by(OnlinePreOrder.created_at.desc())
-            .all()
-        )
-    return render_template("shop/preorder_list.html", preorders=preorders, is_super_admin=is_super_admin(current_user))
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 25, type=int)
+    per_page = min(200, max(10, per_page))
+
+    q = OnlinePreOrder.query.options(
+        db.joinedload(OnlinePreOrder.customer),
+        db.selectinload(OnlinePreOrder.items),
+    )
+
+    if not is_super_admin(current_user):
+        q = q.filter(OnlinePreOrder.customer_id == g.online_customer.id)
+
+    q = q.order_by(OnlinePreOrder.created_at.desc(), OnlinePreOrder.id.desc())
+
+    agg = q.order_by(None).with_entities(
+        func.count(OnlinePreOrder.id).label("total"),
+        func.coalesce(func.sum(func.coalesce(OnlinePreOrder.total_amount, 0)), 0).label("total_amount"),
+        func.coalesce(func.sum(case((OnlinePreOrder.status == "FULFILLED", 1), else_=0)), 0).label("fulfilled"),
+        func.coalesce(func.sum(case((OnlinePreOrder.status == "PENDING", 1), else_=0)), 0).label("pending"),
+        func.coalesce(func.sum(case((OnlinePreOrder.status == "CONFIRMED", 1), else_=0)), 0).label("confirmed"),
+        func.coalesce(func.sum(case((OnlinePreOrder.status == "CANCELLED", 1), else_=0)), 0).label("cancelled"),
+    ).first()
+
+    summary = {
+        "total": int(getattr(agg, "total", 0) or 0),
+        "total_amount": float(getattr(agg, "total_amount", 0) or 0),
+        "fulfilled": int(getattr(agg, "fulfilled", 0) or 0),
+        "pending": int(getattr(agg, "pending", 0) or 0),
+        "confirmed": int(getattr(agg, "confirmed", 0) or 0),
+        "cancelled": int(getattr(agg, "cancelled", 0) or 0),
+    }
+
+    pagination = q.paginate(page=page, per_page=per_page, error_out=False)
+    preorders = list(pagination.items or [])
+
+    query_args = request.args.to_dict()
+    query_args.pop("page", None)
+    query_args.pop("per_page", None)
+
+    return render_template(
+        "shop/preorder_list.html",
+        preorders=preorders,
+        is_super_admin=is_super_admin(current_user),
+        pagination=pagination,
+        per_page=per_page,
+        query_args=query_args,
+        summary=summary,
+    )
 
 @shop_bp.route("/preorder/<int:preorder_id>/receipt", endpoint="preorder_receipt")
 @online_customer_required
@@ -1012,7 +1130,7 @@ def cancel_preorder(preorder_id):
     if po.status not in ("PENDING", "CONFIRMED"):
         return _resp("لا يمكن إلغاء هذا الطلب.", "warning", to="shop.preorder_list")
     try:
-        with db.session.begin():
+        with db.session.begin_nested():
             po.status = "CANCELLED"
         return _resp("تم إلغاء الطلب.", "success", code=200, to="shop.preorder_list")
     except SQLAlchemyError as e:
@@ -1022,14 +1140,13 @@ def cancel_preorder(preorder_id):
 @shop_bp.route("/admin/preorders", endpoint="admin_preorders")
 @super_admin_required
 def admin_preorders():
-    preorders = OnlinePreOrder.query.order_by(OnlinePreOrder.created_at.desc()).all()
-    return render_template("admin/reports/preorders.html", preorders=preorders)
+    return redirect(url_for("admin_reports.preorders", **request.args.to_dict()))
 
 @shop_bp.route("/admin/products", endpoint="admin_products")
 @super_admin_required
 def admin_products():
     products = Product.query.order_by(Product.created_at.desc()).limit(500).all()
-    avail_map = {p.id: available_qty(p.id) for p in products}
+    avail_map = _bulk_available_map([p.id for p in products])
     return render_template("shop/admin_products.html", products=products, avail_map=avail_map)
 
 @shop_bp.route("/admin/categories/quick_create", methods=["POST"], endpoint="admin_categories_quick_create")
@@ -1374,7 +1491,7 @@ def refund_payment(op_id: int):
     if not res.get("success"):
         return _resp("تعذر تنفيذ الاسترجاع.", "danger", to="shop.admin_preorders")
     try:
-        with db.session.begin():
+        with db.session.begin_nested():
             op.status = "REFUNDED"
             db.session.add(op)
         return _resp("✅ تم استرجاع الدفعة.", "success", to="shop.admin_preorders")
@@ -1389,7 +1506,7 @@ def archive_preorder(preorder_id):
     try:
         from models import Archive
         
-        preorder = OnlinePreOrder.query.get_or_404(preorder_id)
+        preorder = db.get_or_404(OnlinePreOrder, preorder_id)
         reason = request.form.get('reason', 'أرشفة تلقائية')
         
         # أرشفة الحجز المسبق

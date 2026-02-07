@@ -4,7 +4,7 @@ import io
 import json
 import math
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from functools import wraps
 
@@ -101,7 +101,7 @@ def rate_limit(max_attempts=5, window=60):
         @wraps(f)
         def wrapper(*args, **kwargs):
             ip = request.remote_addr
-            now = datetime.utcnow().timestamp()
+            now = datetime.now(timezone.utc).timestamp()
             attempts = [t for t in _last_attempts.get(ip, []) if now - t < window]
             if len(attempts) >= max_attempts:
                 abort(429, "محاولات كثيرة جدًا، حاول لاحقًا.")
@@ -247,6 +247,7 @@ def list_customers():
         pagination = pag
 
     auto_fix_flag = (request.args.get("auto_fix", "0") == "1")
+    check_mismatch_flag = auto_fix_flag or (request.args.get("check_mismatch", "0") == "1")
     mismatches = []
     for customer in customers_list:
         if hasattr(customer, 'calculated_balance'):
@@ -256,30 +257,14 @@ def list_customers():
             setattr(customer, "calculated_balance", balance_val)
         except Exception:
             pass
-        
-        stored_balance = float(customer.current_balance or 0)
-        if abs(stored_balance - balance_val) > 0.01:
-            mismatches.append(customer.id)
+
+        if check_mismatch_flag:
+            stored_balance = float(customer.current_balance or 0)
+            if abs(stored_balance - balance_val) > 0.01:
+                mismatches.append(customer.id)
     
-    if auto_fix_flag and mismatches:
-        try:
-            from utils.customer_balance_updater import update_customer_balance_components
-            from sqlalchemy.orm import sessionmaker
-            SessionFactory = sessionmaker(bind=db.engine)
-            session = SessionFactory()
-            try:
-                for customer_id in mismatches[:10]:
-                    try:
-                        update_customer_balance_components(customer_id, session)
-                    except Exception:
-                        pass
-                session.commit()
-            except Exception:
-                session.rollback()
-            finally:
-                session.close()
-        except Exception:
-            pass
+    if auto_fix_flag:
+        pass
 
     args = request.args.to_dict(flat=True)
     for key in ["page", "print", "scope", "range_start", "range_end", "page_number", "ajax"]:
@@ -343,7 +328,7 @@ def list_customers():
         "per_page": per_page,
         "show_actions": not print_mode,
         "row_offset": row_offset,
-        "generated_at": datetime.utcnow(),
+        "generated_at": datetime.now(timezone.utc).replace(tzinfo=None),
         "pdf_export": False,
     }
 
@@ -410,7 +395,7 @@ def list_customers():
 
             html_output = render_template("customers/list.html", **context)
             pdf_bytes = HTML(string=html_output, base_url=request.url_root).write_pdf()
-            filename = f"customers_{datetime.utcnow().strftime('%Y%m%d_%H%M')}.pdf"
+            filename = f"customers_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M')}.pdf"
             return Response(
                 pdf_bytes,
                 mimetype="application/pdf",
@@ -421,6 +406,65 @@ def list_customers():
             context["pdf_export"] = False
 
     return render_template("customers/list.html", **context)
+
+
+@customers_bp.post("/balances/recalculate", endpoint="balances_recalculate")
+@login_required
+@utils.permission_required("manage_customers")
+def balances_recalculate():
+    payload = request.get_json(silent=True) or {}
+    ids_raw = (
+        request.form.get("customer_ids")
+        or request.form.get("ids")
+        or payload.get("customer_ids")
+        or payload.get("ids")
+        or ""
+    )
+    if isinstance(ids_raw, list):
+        raw_list = ids_raw
+    else:
+        raw_list = [s.strip() for s in str(ids_raw).replace(";", ",").split(",") if s.strip()]
+    customer_ids = []
+    for x in raw_list:
+        try:
+            customer_ids.append(int(x))
+        except Exception:
+            continue
+    customer_ids = [cid for cid in customer_ids if cid > 0]
+    customer_ids = list(dict.fromkeys(customer_ids))
+    if not customer_ids:
+        if request.accept_mimetypes.best == "application/json":
+            return jsonify({"success": False, "message": "no_customer_ids"}), 400
+        flash("أدخل أرقام العملاء لتحديث الأرصدة.", "warning")
+        return redirect(url_for("customers_bp.list_customers"))
+
+    try:
+        from utils.customer_balance_updater import update_customer_balance_components
+        SessionFactory = sessionmaker(bind=db.engine)
+        session = SessionFactory()
+        updated = 0
+        try:
+            for cid in customer_ids:
+                try:
+                    update_customer_balance_components(cid, session)
+                    updated += 1
+                except Exception:
+                    continue
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+        if request.accept_mimetypes.best == "application/json":
+            return jsonify({"success": True, "updated": updated})
+        flash(f"تم تحديث أرصدة {updated} عميل.", "success")
+        return redirect(url_for("customers_bp.list_customers"))
+    except Exception as e:
+        if request.accept_mimetypes.best == "application/json":
+            return jsonify({"success": False, "message": "failed", "error": str(e)}), 500
+        flash("حدث خطأ أثناء تحديث الأرصدة.", "danger")
+        return redirect(url_for("customers_bp.list_customers"))
 
 
 @customers_bp.route("/<int:customer_id>", methods=["GET"], endpoint="customer_detail")
@@ -549,7 +593,7 @@ def customer_analytics(customer_id):
     total_payments = sum((D(p.total_amount or 0)) for p in all_payments)
 
     from dateutil.relativedelta import relativedelta
-    today = datetime.utcnow()
+    today = datetime.now(timezone.utc).replace(tzinfo=None)
     months = [(today - relativedelta(months=i)).strftime("%Y-%m") for i in reversed(range(6))]
 
     pm = {m: D(0) for m in months}
@@ -967,7 +1011,7 @@ def account_statement(customer_id):
     c = db.session.get(Customer, customer_id) or abort(404)
     db.session.refresh(c)
     
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
     start_date_arg = request.args.get("start_date")
     end_date_arg = request.args.get("end_date")
     try:
@@ -1128,6 +1172,7 @@ def account_statement(customer_id):
             "debit": D(inv.total_amount or 0),  # الفاتورة = عليه (مدين)
             "credit": D(0),
             "notes": getattr(inv, 'notes', '') or '',
+            "currency": getattr(inv, 'currency', None) or (getattr(c, 'currency', None) or 'ILS'),
         })
 
     sales = Sale.query.filter_by(customer_id=customer_id).options(
@@ -1152,8 +1197,11 @@ def account_statement(customer_id):
                     
                     if prepaid_payment:
                         prepaid_payment.sale_id = s.id
-                        if not prepaid_payment.customer_id:
-                            prepaid_payment.customer_id = s.customer_id
+                        prepaid_payment.preorder_id = None
+                        prepaid_payment.customer_id = None
+                        prepaid_payment.supplier_id = None
+                        prepaid_payment.partner_id = None
+                        prepaid_payment.entity_type = "SALE"
                         db.session.add(prepaid_payment)
     
     # db.session.flush() and expire_all removed to prevent performance degradation
@@ -1807,7 +1855,10 @@ def account_statement(customer_id):
             credit_val = D(0)
         else:
             amount = D(p.total_amount or 0)
-            if is_in:
+            if str(getattr(payment_status, "value", payment_status) or "").upper() in ("REFUNDED", "CANCELLED"):
+                debit_val = D(0)
+                credit_val = D(0)
+            elif is_in:
                 debit_val = D(0)
                 credit_val = amount  # الدفعة الواردة (IN) = له (حق له) = دائن
             else:
@@ -1969,7 +2020,10 @@ def account_statement(customer_id):
                         split_statement += f" - لـيـد ({receiver_name})"
                     
                     # حساب debit/credit للـ split
-                    if is_in:
+                    if str(getattr(payment_status, "value", payment_status) or "").upper() in ("REFUNDED", "CANCELLED"):
+                        split_debit = D(0)
+                        split_credit = D(0)
+                    elif is_in:
                         split_debit = D(0)
                         split_credit = split_amount_ils  # الدفعة الواردة (IN) = له (حق له) = دائن
                     else:
@@ -2388,7 +2442,13 @@ def account_statement(customer_id):
     def sort_key(entry):
         if entry.get("type") == "OPENING_BALANCE":
             return (datetime.min, "")  # الرصيد الافتتاحي دائماً أولاً
-        return (entry.get("date") or datetime.min, entry.get("ref") or "")
+        dt = entry.get("date") or datetime.min
+        if isinstance(dt, datetime) and getattr(dt, "tzinfo", None) is not None:
+            try:
+                dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+            except Exception:
+                dt = dt.replace(tzinfo=None)
+        return (dt, entry.get("ref") or "")
     
 
     entries.sort(key=sort_key)
@@ -2426,16 +2486,17 @@ def account_statement(customer_id):
         if e.get("type") == "OPENING_BALANCE":
             e["balance"] = running
             continue
-        running = running + e["credit"] - e["debit"]
+        if e.get("type") != "PREORDER":
+            running = running + e["credit"] - e["debit"]
         e["balance"] = running
 
-    total_debit = sum(e["debit"] for e in entries)
-    total_credit = sum(e["credit"] for e in entries)
+    total_debit = sum(e["debit"] for e in entries if e.get("type") != "PREORDER")
+    total_credit = sum(e["credit"] for e in entries if e.get("type") != "PREORDER")
     
     balance = total_credit - total_debit
     
-    total_debit_period = sum(e["debit"] for e in entries if e.get("type") != "OPENING_BALANCE")
-    total_credit_period = sum(e["credit"] for e in entries if e.get("type") != "OPENING_BALANCE")
+    total_debit_period = sum(e["debit"] for e in entries if e.get("type") not in ("OPENING_BALANCE", "PREORDER"))
+    total_credit_period = sum(e["credit"] for e in entries if e.get("type") not in ("OPENING_BALANCE", "PREORDER"))
     balance_period = total_credit_period - total_debit_period
     
     if abs(float(balance - running)) > 0.01:
@@ -2478,17 +2539,6 @@ def account_statement(customer_id):
 
         db.session.refresh(c)
         current_balance = D(c.current_balance or 0)
-        if abs(float(current_balance - final_running_balance)) > 0.01:
-            c.current_balance = final_running_balance
-            try:
-                db.session.commit()
-            except Exception:
-                db.session.rollback()
-            try:
-                from helpers.balance_events import emit_balance_update
-                emit_balance_update('customer', customer_id, float(final_running_balance))
-            except Exception:
-                pass
 
     total_invoices_calc = D('0.00')
     for inv in invoices:
@@ -2751,7 +2801,7 @@ def archive_customer(customer_id):
     try:
         from models import Archive
         
-        customer = Customer.query.get_or_404(customer_id)
+        customer = db.get_or_404(Customer, customer_id)
         
         reason = request.form.get('reason', 'أرشفة تلقائية')
         
@@ -2775,7 +2825,7 @@ def archive_customer(customer_id):
 @login_required
 def restore_customer(customer_id):
     try:
-        customer = Customer.query.get_or_404(customer_id)
+        customer = db.get_or_404(Customer, customer_id)
         
         if not customer.is_archived:
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':

@@ -579,40 +579,52 @@
         }
       });
 
-if (window.jQuery && $.fn.DataTable) {
-  const dt = $('#inventory-table').DataTable({
-    pageLength: 50,
-    order: [[3, 'asc']],
-    scrollX: true,
-    scrollCollapse: true,
-    autoWidth: false,
-    orderMulti: false,
-    orderCellsTop: true,
-    language: { url: '{{ url_for("static", filename="datatables/Arabic.json") }}' }
-  });
+(function initInventoryTableDT() {
+  function run() {
+    if (!(window.jQuery && $.fn && $.fn.DataTable)) return;
+    const $tbl = $('#inventory-table');
+    if (!$tbl.length) return;
 
-  // حدّث الأعمدة بعد التبديل بين مبسطة/موسعة
-  document.getElementById('btnCompact')?.addEventListener('click', () => {
-    document.getElementById('inventory-table').classList.remove('expanded-on');
-    setTimeout(() => {
-      try {
-        dt.columns.adjust().draw(false);
-      } catch(e) {
+    const dt = $.fn.DataTable.isDataTable($tbl)
+      ? $tbl.DataTable()
+      : $tbl.DataTable({
+          pageLength: 50,
+          order: [[3, 'asc']],
+          scrollX: true,
+          scrollCollapse: true,
+          responsive: true,
+          autoWidth: false,
+          orderMulti: false,
+          orderCellsTop: true,
+          language: { url: '{{ url_for("static", filename="datatables/Arabic.json") }}' }
+        });
 
-      }
-    }, 150);
-  });
-  document.getElementById('btnExpanded')?.addEventListener('click', () => {
-    document.getElementById('inventory-table').classList.add('expanded-on');
-    setTimeout(() => {
-      try {
-        dt.columns.adjust().draw(false);
-      } catch(e) {
+    document.getElementById('btnCompact')?.addEventListener('click', () => {
+      document.getElementById('inventory-table').classList.remove('expanded-on');
+      setTimeout(() => {
+        try {
+          dt.columns.adjust().draw(false);
+        } catch (e) {
+        }
+      }, 150);
+    });
+    document.getElementById('btnExpanded')?.addEventListener('click', () => {
+      document.getElementById('inventory-table').classList.add('expanded-on');
+      setTimeout(() => {
+        try {
+          dt.columns.adjust().draw(false);
+        } catch (e) {
+        }
+      }, 150);
+    });
+  }
 
-      }
-    }, 150);
-  });
-}
+  if (window.ensureDataTables && !(window.jQuery && $.fn && $.fn.DataTable)) {
+    window.ensureDataTables().then(run);
+  } else {
+    run();
+  }
+})();
 
       const initial = localStorage.getItem(VIEW_KEY) || 'compact';
       applyView(initial === 'expanded' ? 'expanded' : 'compact');

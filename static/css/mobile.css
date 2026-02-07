@@ -43,7 +43,8 @@ img {
 .content-wrapper {
   -webkit-overflow-scrolling: touch;
   scroll-behavior: smooth;
-  overflow-x: visible !important;
+  overflow-x: hidden !important;
+  overflow-y: visible !important;
   width: 100%;
   max-width: 100%;
 }
@@ -92,6 +93,32 @@ img {
   /* ═══ تحسين الـ Viewport ═══ */
   .wrapper {
     overflow-x: hidden !important;
+  }
+
+  .content-header {
+    padding: 0.75rem 0.5rem !important;
+  }
+
+  .content-header .row {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 0.35rem !important;
+  }
+
+  .content-header .col-sm-6 {
+    max-width: 100% !important;
+    flex: 0 0 100% !important;
+  }
+
+  .content-header h1 {
+    font-size: 1.15rem !important;
+    line-height: 1.3 !important;
+  }
+
+  .content-header .breadcrumb,
+  .content-header .breadcrumb.float-sm-left {
+    float: none !important;
+    flex-wrap: wrap !important;
   }
   
   /* ═══ 2. Navbar - الشريط العلوي ═══ */
@@ -213,7 +240,8 @@ img {
     min-height: calc(100vh - 60px) !important;
     width: 100% !important;
     max-width: 100vw !important;
-    overflow-x: visible !important;
+    overflow-x: hidden !important;
+    overflow-y: visible !important;
     padding-left: env(safe-area-inset-left) !important;
     padding-right: env(safe-area-inset-right) !important;
   }
@@ -222,7 +250,8 @@ img {
     padding: 0.5rem !important;
     width: 100% !important;
     max-width: 100% !important;
-    overflow-x: visible !important;
+    overflow-x: hidden !important;
+    overflow-y: visible !important;
   }
   
   .content-wrapper .container-fluid {
@@ -275,6 +304,23 @@ img {
     border-radius: 0.5rem !important;
   }
   
+  .dataTables_wrapper {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+  }
+
+  .dataTables_wrapper > .row {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    width: 100% !important;
+  }
+
+  .dataTables_wrapper > .row > [class*="col-"] {
+    padding-left: 0.375rem !important;
+    padding-right: 0.375rem !important;
+  }
+
   .table {
     font-size: 0.85rem !important;
     margin-bottom: 0 !important;
@@ -678,7 +724,7 @@ img {
   
   /* إخفاء أعمدة معينة في الجداول */
   .table .hide-mobile {
-    display: table-cell !important;
+    display: none !important;
 }
 }
 
@@ -707,7 +753,7 @@ img {
 html, body {
   width: 100%;
   max-width: 100vw;
-  overflow-x: visible;
+  overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
 }
 
@@ -720,14 +766,15 @@ body {
 .wrapper {
   width: 100%;
   max-width: 100vw;
-  overflow-x: visible;
+  overflow-x: hidden;
   position: relative;
 }
 
 .content-wrapper {
   width: 100%;
   max-width: 100vw;
-  overflow-x: visible !important;
+  overflow-x: hidden !important;
+  overflow-y: visible !important;
   position: relative;
 }
 

@@ -9,7 +9,7 @@ from extensions import db, cache
 from models import (
     GLBatch, GLEntry, Account, Sale, Expense, Payment, ServiceRequest,
     Customer, Supplier, Partner, Product, StockLevel, Invoice, PreOrder,
-    Check, Employee, PaymentSplit
+    Shipment, Check, Employee, PaymentSplit
 )
 
 
@@ -168,14 +168,6 @@ class SmartEntityExtractor:
                             entity_info = LedgerCache.get_entity('PARTNER', payment.partner_id)
                             if entity_info:
                                 return (entity_info['name'], entity_info['type_ar'], entity_info['id'], entity_info['type'])
-                        elif payment.supplier_id:
-                            entity_info = LedgerCache.get_entity('SUPPLIER', payment.supplier_id)
-                            if entity_info:
-                                return (entity_info['name'], entity_info['type_ar'], entity_info['id'], entity_info['type'])
-                        elif payment.partner_id:
-                            entity_info = LedgerCache.get_entity('PARTNER', payment.partner_id)
-                            if entity_info:
-                                return (entity_info['name'], entity_info['type_ar'], entity_info['id'], entity_info['type'])
                 
                 elif source_type == 'SALE':
                     sale = db.session.get(Sale, source_id)
@@ -248,6 +240,121 @@ class SmartEntityExtractor:
             except Exception:
                 pass
         
+        return ('—', '', None, None)
+
+    @staticmethod
+    def extract_from_source(batch: GLBatch) -> Tuple[str, str, Optional[int], Optional[str]]:
+        if not batch.source_type or not batch.source_id:
+            return ('—', '', None, None)
+
+        source_type = str(batch.source_type).upper()
+        source_id = batch.source_id
+
+        try:
+            if source_type == 'PAYMENT':
+                payment = db.session.get(Payment, source_id)
+                if payment:
+                    if payment.customer_id:
+                        entity_info = LedgerCache.get_entity('CUSTOMER', payment.customer_id)
+                        if entity_info:
+                            return (entity_info['name'], entity_info['type_ar'], entity_info['id'], entity_info['type'])
+                    elif payment.supplier_id:
+                        entity_info = LedgerCache.get_entity('SUPPLIER', payment.supplier_id)
+                        if entity_info:
+                            return (entity_info['name'], entity_info['type_ar'], entity_info['id'], entity_info['type'])
+                    elif payment.partner_id:
+                        entity_info = LedgerCache.get_entity('PARTNER', payment.partner_id)
+                        if entity_info:
+                            return (entity_info['name'], entity_info['type_ar'], entity_info['id'], entity_info['type'])
+
+            if source_type == 'PAYMENT_SPLIT':
+                split = db.session.get(PaymentSplit, source_id)
+                if split and split.payment:
+                    payment = split.payment
+                    if payment.customer_id:
+                        entity_info = LedgerCache.get_entity('CUSTOMER', payment.customer_id)
+                        if entity_info:
+                            return (entity_info['name'], entity_info['type_ar'], entity_info['id'], entity_info['type'])
+                    elif payment.supplier_id:
+                        entity_info = LedgerCache.get_entity('SUPPLIER', payment.supplier_id)
+                        if entity_info:
+                            return (entity_info['name'], entity_info['type_ar'], entity_info['id'], entity_info['type'])
+                    elif payment.partner_id:
+                        entity_info = LedgerCache.get_entity('PARTNER', payment.partner_id)
+                        if entity_info:
+                            return (entity_info['name'], entity_info['type_ar'], entity_info['id'], entity_info['type'])
+
+            if source_type == 'SALE':
+                sale = db.session.get(Sale, source_id)
+                if sale and sale.customer_id:
+                    entity_info = LedgerCache.get_entity('CUSTOMER', sale.customer_id)
+                    if entity_info:
+                        return (entity_info['name'], entity_info['type_ar'], entity_info['id'], entity_info['type'])
+
+            if source_type == 'INVOICE':
+                invoice = db.session.get(Invoice, source_id)
+                if invoice:
+                    if invoice.customer_id:
+                        entity_info = LedgerCache.get_entity('CUSTOMER', invoice.customer_id)
+                        if entity_info:
+                            return (entity_info['name'], entity_info['type_ar'], entity_info['id'], entity_info['type'])
+                    elif invoice.supplier_id:
+                        entity_info = LedgerCache.get_entity('SUPPLIER', invoice.supplier_id)
+                        if entity_info:
+                            return (entity_info['name'], entity_info['type_ar'], entity_info['id'], entity_info['type'])
+
+            if source_type == 'EXPENSE':
+                expense = db.session.get(Expense, source_id)
+                if expense:
+                    if expense.customer_id:
+                        entity_info = LedgerCache.get_entity('CUSTOMER', expense.customer_id)
+                        if entity_info:
+                            return (entity_info['name'], entity_info['type_ar'], entity_info['id'], entity_info['type'])
+                    elif expense.supplier_id:
+                        entity_info = LedgerCache.get_entity('SUPPLIER', expense.supplier_id)
+                        if entity_info:
+                            return (entity_info['name'], entity_info['type_ar'], entity_info['id'], entity_info['type'])
+                    elif expense.partner_id:
+                        entity_info = LedgerCache.get_entity('PARTNER', expense.partner_id)
+                        if entity_info:
+                            return (entity_info['name'], entity_info['type_ar'], entity_info['id'], entity_info['type'])
+                    elif expense.employee_id:
+                        entity_info = LedgerCache.get_entity('EMPLOYEE', expense.employee_id)
+                        if entity_info:
+                            return (entity_info['name'], entity_info['type_ar'], entity_info['id'], entity_info['type'])
+                    elif expense.paid_to:
+                        return (expense.paid_to, 'جهة', None, 'OTHER')
+                    elif expense.payee_name:
+                        return (expense.payee_name, 'جهة', None, 'OTHER')
+
+            if source_type == 'SERVICE':
+                service = db.session.get(ServiceRequest, source_id)
+                if service and service.customer_id:
+                    entity_info = LedgerCache.get_entity('CUSTOMER', service.customer_id)
+                    if entity_info:
+                        return (entity_info['name'], entity_info['type_ar'], entity_info['id'], entity_info['type'])
+
+            if source_type == 'PREORDER':
+                preorder = db.session.get(PreOrder, source_id)
+                if preorder:
+                    if preorder.customer_id:
+                        entity_info = LedgerCache.get_entity('CUSTOMER', preorder.customer_id)
+                        if entity_info:
+                            return (entity_info['name'], entity_info['type_ar'], entity_info['id'], entity_info['type'])
+                    elif preorder.supplier_id:
+                        entity_info = LedgerCache.get_entity('SUPPLIER', preorder.supplier_id)
+                        if entity_info:
+                            return (entity_info['name'], entity_info['type_ar'], entity_info['id'], entity_info['type'])
+
+            if source_type == 'SHIPMENT':
+                shipment = db.session.get(Shipment, source_id)
+                if shipment and shipment.supplier_id:
+                    entity_info = LedgerCache.get_entity('SUPPLIER', shipment.supplier_id)
+                    if entity_info:
+                        return (entity_info['name'], entity_info['type_ar'], entity_info['id'], entity_info['type'])
+        except Exception:
+            pass
+
         return ('—', '', None, None)
 
 

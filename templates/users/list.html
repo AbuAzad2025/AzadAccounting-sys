@@ -174,21 +174,29 @@
     setInterval(renderTimeago, 60000);
 
     const $tbl = $('#users-table');
-    if ($.fn.DataTable && $tbl.length) {
+    function initUsersTable() {
+      if (!($.fn && $.fn.DataTable) || !$tbl.length) return;
       const cols = $tbl.find('thead th').length;
       const hasActions = {% if has_perm('manage_users') %}true{% else %}false{% endif %};
       $tbl.DataTable({
         responsive: true,
         autoWidth: false,
+        scrollX: cols > 8,
         pageLength: 10,
         order: [[4, 'desc'], [7, 'desc']],
         dom: "<'row'<'col-sm-6'B><'col-sm-6'f>>" +
              "<'row'<'col-sm-12'tr>>" +
              "<'row'<'col-sm-5'i><'col-sm-7'p>>",
-        buttons: ['excelHtml5', 'pdfHtml5', 'print'],
+        buttons: ['copyHtml5', 'csvHtml5', 'excelHtml5', 'print'],
         language: { url: "{{ url_for('static', filename='datatables/Arabic.json') }}" },
         columnDefs: [{ targets: Array.from({length: cols - (hasActions?1:0)}, (_, i) => i), className: "text-center align-middle" }]
       });
+    }
+
+    if (window.jQuery && typeof window.ensureDataTables === 'function' && !($.fn && $.fn.DataTable)) {
+      window.ensureDataTables().then(initUsersTable);
+    } else {
+      initUsersTable();
     }
   });
 </script>

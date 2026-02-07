@@ -261,7 +261,7 @@ def api_update_field_status(type_id):
     field_library = {item["key"]: item for item in _build_field_library()}
     if field_key not in field_library:
         return jsonify({"success": False, "error": "حقل غير معروف"}), 404
-    expense_type = ExpenseType.query.get_or_404(type_id)
+    expense_type = db.get_or_404(ExpenseType, type_id)
     meta = _normalize_meta(expense_type.fields_meta)
     if mode == "required":
         meta["required"].append(field_key)
@@ -291,7 +291,7 @@ def api_bulk_update(type_id):
     overlap = set(required) & set(optional)
     if overlap:
         return jsonify({"success": False, "error": "الحقل لا يمكن أن يكون الزامي واختياري"},), 400
-    expense_type = ExpenseType.query.get_or_404(type_id)
+    expense_type = db.get_or_404(ExpenseType, type_id)
     existing_meta = _normalize_meta(expense_type.fields_meta)
     existing_meta["required"] = sorted(set(required))
     existing_meta["optional"] = sorted(set(optional))
@@ -302,7 +302,7 @@ def api_bulk_update(type_id):
 @security_expenses_bp.route("/types/<int:type_id>/ledger", methods=["POST"])
 @permission_required('manage_expenses')
 def api_update_ledger(type_id):
-    expense_type = ExpenseType.query.get_or_404(type_id)
+    expense_type = db.get_or_404(ExpenseType, type_id)
     payload = request.get_json() or {}
     meta = _normalize_meta(expense_type.fields_meta)
     ledger = meta.get("ledger", {})
@@ -327,7 +327,7 @@ def api_create_template():
     source_type_id = payload.get("source_type_id")
     if not name or not source_type_id:
         return jsonify({"success": False, "error": "بيانات القالب غير مكتملة"}), 400
-    expense_type = ExpenseType.query.get_or_404(int(source_type_id))
+    expense_type = db.get_or_404(ExpenseType, int(source_type_id))
     meta = _normalize_meta(expense_type.fields_meta)
     template = {
         "id": str(uuid.uuid4()),
@@ -363,7 +363,7 @@ def api_apply_template(template_id):
             type_id = int(tid)
         except (TypeError, ValueError):
             continue
-        expense_type = ExpenseType.query.get(type_id)
+        expense_type = db.session.get(ExpenseType, type_id)
         if not expense_type:
             continue
         meta = _normalize_meta(expense_type.fields_meta)
