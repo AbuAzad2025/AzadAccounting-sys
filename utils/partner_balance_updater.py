@@ -30,8 +30,8 @@ def update_partner_balance_components(partner_id, session=None, emit: bool = Tru
                 return
             
             from utils.partner_balance_calculator import calculate_partner_balance_components
-            from sqlalchemy.orm import Session as OrmSession
-            calc_session = OrmSession(bind=session.get_bind())
+            from sqlalchemy.orm import sessionmaker
+            calc_session = sessionmaker(bind=db.engine)()
             try:
                 components = calculate_partner_balance_components(partner_id, calc_session)
             finally:

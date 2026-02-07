@@ -422,6 +422,8 @@ def suppliers_statement(supplier_id: int):
     total_debit = Decimal("0.00")
     total_credit = Decimal("0.00")
     per_product = {}
+    returns_supply_total = Decimal("0.00")
+    returns_supply_last_date = None
 
     def _pp(pid):
         if pid not in per_product:
@@ -524,6 +526,9 @@ def suppliers_statement(supplier_id: int):
                 "has_details": True
             })
             total_debit += amount
+            returns_supply_total += amount
+            if d and (returns_supply_last_date is None or d > returns_supply_last_date):
+                returns_supply_last_date = d
             row["qty_out"] += qty
             row["val_out"] += amount
         elif dirv in {"SETTLEMENT", "ADJUST"}:
@@ -541,6 +546,18 @@ def suppliers_statement(supplier_id: int):
                 "has_details": True
             })
             total_credit += amount
+
+    if returns_supply_total > 0:
+        entries.append({
+            "model": "return_supply_adjustment",
+            "date": returns_supply_last_date,
+            "type": "RETURN",
+            "ref": "مرتجعات توريد (تسوية)",
+            "statement": "تسوية مالية لمرتجعات التوريد",
+            "debit": returns_supply_total,
+            "credit": Decimal("0.00"),
+        })
+        total_debit += returns_supply_total
 
     # المبيعات للمورد (كعميل) — تُسجّل دائن (تُخفّض ما ندين به)
     sales_data = []
@@ -1214,6 +1231,9 @@ def suppliers_statement(supplier_id: int):
                 if is_cancelled or is_refunded:
                     split_debit = D(0)
                     split_credit = D(0)
+                elif split_has_returned:
+                    split_debit = split_amount_ils if not is_out else D(0)
+                    split_credit = split_amount_ils if is_out else D(0)
                 else:
                     split_debit = split_amount_ils if is_out else D(0)
                     split_credit = split_amount_ils if split_is_in else D(0)
@@ -1268,7 +1288,7 @@ def suppliers_statement(supplier_id: int):
                     if split_check.check_bank:
                         returned_statement += f" - {split_check.check_bank}"
                     
-                    returned_check_amt = D(0) if (is_cancelled or is_refunded) else split_amount_ils
+                    returned_check_amt = D(0)
                     
                     if is_out:
                         returned_debit = D(0)
@@ -1305,6 +1325,9 @@ def suppliers_statement(supplier_id: int):
             if is_cancelled or is_refunded:
                 debit_val = Decimal("0.00")
                 credit_val = Decimal("0.00")
+            elif is_bounced:
+                debit_val = amt if not is_out else Decimal("0.00")
+                credit_val = amt if is_out else Decimal("0.00")
             else:
                 debit_val = amt if is_out else Decimal("0.00")
                 credit_val = Decimal("0.00") if is_out else amt
@@ -1346,12 +1369,8 @@ def suppliers_statement(supplier_id: int):
                     if check.check_bank:
                         returned_statement += f" - {check.check_bank}"
                     
-                    if is_out:
-                        returned_debit = D(0)
-                        returned_credit = check_amt
-                    else:
-                        returned_debit = check_amt
-                        returned_credit = D(0)
+                    returned_debit = D(0)
+                    returned_credit = D(0)
                     
                     entries.append({
                         "id": check.id,
@@ -1462,10 +1481,7 @@ def suppliers_statement(supplier_id: int):
             if exp_type:
                 exp_type_code = (exp_type.code or "").upper()
         
-        is_supplier_service = (
-            exp_type_code in ["PARTNER_EXPENSE", "SUPPLIER_EXPENSE"] or
-            (exp.supplier_id and (exp.payee_type or "").upper() == "SUPPLIER")
-        )
+        is_supplier_service = exp_type_code in ["PARTNER_EXPENSE", "SUPPLIER_EXPENSE"]
         
         exp_type_name = getattr(getattr(exp, 'type', None), 'name', 'مصروف')
         ref = f"مصروف #{exp.id}"
@@ -1616,23 +1632,27 @@ def suppliers_statement(supplier_id: int):
     
     opening_balance_for_period = Decimal("0.00")
     if df:
-        from routes.supplier_settlements import _calculate_smart_supplier_balance
-        balance_before_period = _calculate_smart_supplier_balance(
-            supplier_id,
-            datetime(2024, 1, 1),
-            df - timedelta(days=1)
-        )
-        if balance_before_period.get('success'):
-            opening_balance_for_period = Decimal(str(balance_before_period.get('balance', {}).get('amount', 0)))
+        base_date = datetime(2024, 1, 1)
+        if df <= base_date:
+            opening_balance_for_period = opening_balance
         else:
-            opening_balance_for_period = Decimal(str(supplier.opening_balance or 0))
-            if supplier.currency and supplier.currency != "ILS":
-                try:
-                    from models import convert_amount
-                    convert_date = df if df else supplier.created_at
-                    opening_balance_for_period = convert_amount(opening_balance_for_period, supplier.currency, "ILS", convert_date)
-                except Exception:
-                    pass
+            from routes.supplier_settlements import _calculate_smart_supplier_balance
+            balance_before_period = _calculate_smart_supplier_balance(
+                supplier_id,
+                base_date,
+                df - timedelta(days=1)
+            )
+            if balance_before_period.get('success'):
+                opening_balance_for_period = Decimal(str(balance_before_period.get('balance', {}).get('amount', 0)))
+            else:
+                opening_balance_for_period = Decimal(str(supplier.opening_balance or 0))
+                if supplier.currency and supplier.currency != "ILS":
+                    try:
+                        from models import convert_amount
+                        convert_date = df if df else supplier.created_at
+                        opening_balance_for_period = convert_amount(opening_balance_for_period, supplier.currency, "ILS", convert_date)
+                    except Exception:
+                        pass
     else:
         opening_balance_for_period = Decimal(str(supplier.opening_balance or 0))
         if supplier.currency and supplier.currency != "ILS":

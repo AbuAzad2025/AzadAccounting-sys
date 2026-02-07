@@ -1182,8 +1182,6 @@ def _convert_to_ils(amount: Decimal | float, from_currency: str, at: datetime = 
     تحويل أي مبلغ إلى الشيكل (ILS)
     الأولوية: 1- السعر اليدوي المحلي 2- سعر السيرفر 3- خطأ (إدخال يدوي مطلوب)
     """
-    from models import convert_amount, money
-    
     if not amount or amount == 0:
         return Decimal('0.00')
     
@@ -1192,13 +1190,9 @@ def _convert_to_ils(amount: Decimal | float, from_currency: str, at: datetime = 
     if from_currency == "ILS":
         return _d2(amount)
     
-    converted = convert_amount(
-        amount=amount,
-        from_code=from_currency,
-        to_code="ILS",
-        at=at or datetime.now(timezone.utc).replace(tzinfo=None)
-    )
-    return Decimal(str(converted)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    from models import convert_amount
+    t = at or datetime.now(timezone.utc).replace(tzinfo=None)
+    return _d2(convert_amount(amount, from_currency, "ILS", t))
 
 
 def _get_partner_inventory(partner_id: int, date_from: datetime, date_to: datetime, session=None):

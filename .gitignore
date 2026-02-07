@@ -86,6 +86,7 @@ tests/
 **/tests/
 test_*.py
 *_test.py
+non_production/
 
 !production_data.sql
 

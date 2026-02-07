@@ -1366,6 +1366,13 @@ def seed_employees(force: bool) -> None:
         if not click.confirm("Production environment detected. Continue?", default=False):
             click.echo("Canceled.")
             return
+    default_branch = Branch.query.filter(Branch.is_active.is_(True)).order_by(Branch.id.asc()).first() or Branch.query.order_by(Branch.id.asc()).first()
+    if not default_branch:
+        raise click.ClickException("لا يوجد فرع لإنشاء الموظفين")
+    default_site = (
+        Site.query.filter(Site.branch_id == default_branch.id, Site.is_active.is_(True)).order_by(Site.id.asc()).first()
+        or Site.query.filter(Site.branch_id == default_branch.id).order_by(Site.id.asc()).first()
+    )
     base = [
         ("أحمد", "محاسب", 3500),
         ("ليلى", "أمينة مستودع", 3200),
@@ -1374,15 +1381,30 @@ def seed_employees(force: bool) -> None:
     ]
     try:
         with _begin():
+            if not default_site:
+                default_site = Site(code="MAIN", name="الموقع الرئيسي", branch_id=default_branch.id, is_active=True)
+                db.session.add(default_site)
+                db.session.flush()
             for name, position, salary in base:
                 row = Employee.query.filter(func.lower(Employee.name) == name.lower()).first()
                 if not row:
-                    db.session.add(Employee(name=name, position=position, salary=_Q2(salary), currency="ILS"))
+                    db.session.add(Employee(
+                        name=name,
+                        position=position,
+                        salary=_Q2(salary),
+                        currency="ILS",
+                        branch_id=default_branch.id,
+                        site_id=default_site.id,
+                    ))
                 else:
                     if not row.position:
                         row.position = position
                     if not row.salary:
                         row.salary = _Q2(salary)
+                    if not getattr(row, "branch_id", None):
+                        row.branch_id = default_branch.id
+                    if not getattr(row, "site_id", None):
+                        row.site_id = default_site.id
         click.echo("OK: employees seeded.")
     except SQLAlchemyError as e:
         db.session.rollback(); raise click.ClickException(f"Commit failed: {e}") from e
@@ -1416,8 +1438,19 @@ def seed_salaries(months: int, start: str) -> None:
     if not emps:
         click.echo("No employees. Run: flask seed-employees")
         return
+    default_branch = Branch.query.filter(Branch.is_active.is_(True)).order_by(Branch.id.asc()).first() or Branch.query.order_by(Branch.id.asc()).first()
+    default_site = None
+    if default_branch:
+        default_site = (
+            Site.query.filter(Site.branch_id == default_branch.id, Site.is_active.is_(True)).order_by(Site.id.asc()).first()
+            or Site.query.filter(Site.branch_id == default_branch.id).order_by(Site.id.asc()).first()
+        )
     try:
         with _begin():
+            if default_branch and not default_site:
+                default_site = Site(code="MAIN", name="الموقع الرئيسي", branch_id=default_branch.id, is_active=True)
+                db.session.add(default_site)
+                db.session.flush()
             for i in range(months):
                 # حساب تاريخ هذا الشهر بالإزاحة العكسية i
                 year = start_date.year
@@ -1428,12 +1461,18 @@ def seed_salaries(months: int, start: str) -> None:
                 payday = date(year, month, 25)
                 for emp in emps:
                     amt = _Q2(emp.salary or 0)
+                    branch_id = getattr(emp, "branch_id", None) or (default_branch.id if default_branch else None)
+                    site_id = getattr(emp, "site_id", None) or (default_site.id if default_site else None)
+                    if not branch_id:
+                        raise click.ClickException("لا يوجد branch_id صالح لإنشاء الرواتب")
                     ex = Expense(
                         date=payday,
                         amount=amt,
                         currency="ILS",
                         type_id=salary_type_id,
                         employee_id=emp.id,
+                        branch_id=branch_id,
+                        site_id=site_id,
                         payee_type="EMPLOYEE",
                         payee_entity_id=emp.id,
                         payee_name=emp.name,
@@ -1453,6 +1492,13 @@ def seed_expenses_demo() -> None:
     et_electric = _get_expense_type_id("كهرباء")
     et_water = _get_expense_type_id("مياه")
     et_misc = _get_expense_type_id("متفرقات")
+    default_branch = Branch.query.filter(Branch.is_active.is_(True)).order_by(Branch.id.asc()).first() or Branch.query.order_by(Branch.id.asc()).first()
+    if not default_branch:
+        raise click.ClickException("لا يوجد فرع لإنشاء مصاريف تجريبية")
+    default_site = (
+        Site.query.filter(Site.branch_id == default_branch.id, Site.is_active.is_(True)).order_by(Site.id.asc()).first()
+        or Site.query.filter(Site.branch_id == default_branch.id).order_by(Site.id.asc()).first()
+    )
     base = [
         (et_electric, 1200.00, "فاتورة كهرباء شهرية"),
         (et_water, 450.00, "فاتورة مياه شهرية"),
@@ -1461,12 +1507,18 @@ def seed_expenses_demo() -> None:
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     try:
         with _begin():
+            if not default_site:
+                default_site = Site(code="MAIN", name="الموقع الرئيسي", branch_id=default_branch.id, is_active=True)
+                db.session.add(default_site)
+                db.session.flush()
             for idx, (tid, amount, desc) in enumerate(base):
                 ex = Expense(
                     date=now - timedelta(days=idx * 7),
                     amount=_Q2(amount),
                     currency="ILS",
                     type_id=tid,
+                    branch_id=default_branch.id,
+                    site_id=default_site.id,
                     payee_type="OTHER",
                     payment_method="cash",
                     description=desc,
@@ -1655,39 +1707,6 @@ def seed_customer_statement_demo(customer_id: int, warehouse_id: int, branch_id:
             "expense_id": expense.id,
             "check_id": check.id,
         }, ensure_ascii=False))
-    except SQLAlchemyError as e:
-        db.session.rollback()
-        raise click.ClickException(f"Commit failed: {e}") from e
-
-@click.command("seed-accounting-demo")
-@click.option("--tag", type=str, default="")
-@click.option("--days-ago", type=int, default=0)
-@click.option("--with-settlements/--no-settlements", default=True)
-@click.option("--force", is_flag=True)
-@with_appcontext
-def seed_accounting_demo_cmd(tag: str, days_ago: int, with_settlements: bool, force: bool) -> None:
-    if _is_production() and not force:
-        if not click.confirm("Production environment detected. Continue?", default=False):
-            click.echo("Canceled.")
-            return
-    try:
-        from services.accounting_demo_seed import seed_accounting_demo as _seed
-    except Exception as e:
-        raise click.ClickException(f"تعذّر استيراد مولّد البذور: {e}")
-    try:
-        with _begin():
-            payload = _seed(tag=(tag or "").strip() or None, days_ago=int(days_ago or 0), with_settlements=bool(with_settlements), update_balances=False)
-        try:
-            update_customer_balance_components(int(payload.get("customer_id") or 0))
-            update_supplier_balance_components(int(payload.get("supplier_id") or 0))
-            update_partner_balance_components(int(payload.get("partner_id") or 0))
-            db.session.commit()
-        except Exception:
-            try:
-                db.session.rollback()
-            except Exception:
-                pass
-        click.echo(json.dumps(payload, ensure_ascii=False, indent=2))
     except SQLAlchemyError as e:
         db.session.rollback()
         raise click.ClickException(f"Commit failed: {e}") from e
@@ -4209,7 +4228,7 @@ def register_cli(app) -> None:
         currency_balance, currency_validate, currency_report, currency_health, currency_update, currency_test,
         create_system_admin, create_system_admin_interactive,
         optimize_db, perf_snapshot, recompute_sale_returns, link_missing_counterparties,
-        seed_employees, seed_salaries, seed_expenses_demo, seed_customer_statement_demo, seed_accounting_demo_cmd, seed_branches,
+        seed_employees, seed_salaries, seed_expenses_demo, seed_customer_statement_demo, seed_branches,
         workflow_check_timeouts, gl_recreate_payments, sync_balances, audit_integrity, checks_sync_due
     ]
     for cmd in commands: app.cli.add_command(cmd)

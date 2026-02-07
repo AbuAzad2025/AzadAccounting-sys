@@ -5487,7 +5487,7 @@ def _sale_gl_batch_upsert(mapper, connection, target: "Sale"):
     try:
         with connection.begin_nested():
             # تحويل المبلغ للشيقل
-            from decimal import Decimal
+            from decimal import Decimal, ROUND_HALF_UP
             amount = Decimal(str(target.total_amount or 0))
             if amount <= 0:
                 return
@@ -5522,11 +5522,7 @@ def _sale_gl_batch_upsert(mapper, connection, target: "Sale"):
             if not sale_lines:
                 return  # لا توجد بنود
             
-            # القيد المحاسبي الأساسي
             entries = []
-            
-            # مدين: حسابات العملاء (AR) - المبلغ الكامل
-            entries.append((GL_ACCOUNTS.get("AR", "1100_AR"), amount_ils, Decimal(0)))
             
             # تحليل كل SaleLine
             total_revenue_company = Decimal(0)
@@ -5618,48 +5614,45 @@ def _sale_gl_batch_upsert(mapper, connection, target: "Sale"):
                     total_revenue_company += line_total
             
             # معالجة الخصم الكلي وتكاليف الشحن
-            global_discount = Decimal(str(target.discount_total or 0)) * exchange_rate
-            shipping_income = Decimal(str(target.shipping_cost or 0)) * exchange_rate
+            def _q2(v: Decimal) -> Decimal:
+                return (v or Decimal(0)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
-            # مدين: خصم مسموح به (Discount Allowed)
+            global_discount = _q2(Decimal(str(target.discount_total or 0)) * exchange_rate)
+            shipping_income = _q2(Decimal(str(target.shipping_cost or 0)) * exchange_rate)
+
+            partners_sum = _q2(sum(total_revenue_partners.values()))
+            total_revenue_company = _q2(total_revenue_company)
+            gross_revenue_total = _q2(total_revenue_company + partners_sum)
+            total_credits = _q2(gross_revenue_total + shipping_income)
+            ar_amount = _q2(total_credits - global_discount)
+            if ar_amount <= 0:
+                return
+
+            entries.append((GL_ACCOUNTS.get("AR", "1100_AR"), ar_amount, Decimal(0)))
             if global_discount > 0:
                 entries.append((GL_ACCOUNTS.get("DISCOUNT_ALLOWED", "4050_SALES_DISCOUNT"), global_discount, Decimal(0)))
-            
-            # دائن: إيراد شحن (Shipping Income)
             if shipping_income > 0:
                 entries.append((GL_ACCOUNTS.get("SHIPPING_INCOME", "4200_SHIPPING_INCOME"), Decimal(0), shipping_income))
 
-            # ضمان توازن القيد (معالجة فروقات التقريب)
-            # Total Debits so far: AR + Discount
-            # Total Credits so far: Revenue (Company + Partners) + Shipping
-            # We need sum(Debits) == sum(Credits)
+            diff = _q2((ar_amount + global_discount) - total_credits)
+            if abs(diff) <= Decimal("0.01"):
+                total_revenue_company = _q2(total_revenue_company + diff)
             
-            # AR is calculated as target.total_amount * exchange_rate
-            # total_amount = lines_total - discount + shipping (roughly)
-            
-            total_debits = amount_ils + global_discount
-            total_credits = total_revenue_company + sum(total_revenue_partners.values()) + shipping_income
-            
-            diff = total_debits - total_credits
-            
-            # إذا كان الفرق صغيراً جداً (نتيجة تقريب)، نضيفه لإيراد الشركة (أو نخصمه)
-            if abs(diff) < Decimal("1.0"):
-                 total_revenue_company += diff
-            
-            # دائن: إيرادات الشركة
             if total_revenue_company > 0:
                 entries.append((GL_ACCOUNTS.get("REV", "4000_SALES"), Decimal(0), total_revenue_company))
             
             # دائن: حسابات الشركاء (AP)
             for partner_id, amount in total_revenue_partners.items():
-                if amount > 0:
-                    entries.append((GL_ACCOUNTS.get("AP", "2000_AP"), Decimal(0), amount))
+                amt = _q2(Decimal(amount))
+                if amt > 0:
+                    entries.append((GL_ACCOUNTS.get("AP", "2000_AP"), Decimal(0), amt))
             
             # مدين: COGS + دائن: حسابات الموردين (AP)
             for supplier_id, cogs in total_cogs_suppliers.items():
-                if cogs > 0:
-                    entries.append((GL_ACCOUNTS.get("COGS", "5100_COGS"), cogs, Decimal(0)))  # مدين
-                    entries.append((GL_ACCOUNTS.get("AP", "2000_AP"), Decimal(0), cogs))      # دائن
+                cogs_amt = _q2(Decimal(cogs))
+                if cogs_amt > 0:
+                    entries.append((GL_ACCOUNTS.get("COGS", "5100_COGS"), cogs_amt, Decimal(0)))
+                    entries.append((GL_ACCOUNTS.get("AP", "2000_AP"), Decimal(0), cogs_amt))
             
             customer_name = target.customer.name if target.customer else "عميل"
             memo = f"فاتورة مبيعات #{target.sale_number or target.id} - {customer_name}"
@@ -15840,7 +15833,7 @@ def _process_pending_balance_updates(session):
     start_ts = time.perf_counter()
     work_session = None
     try:
-        SessionFactory = sessionmaker(bind=session.get_bind())
+        SessionFactory = sessionmaker(bind=db.engine)
         work_session = SessionFactory()
         try:
             work_session.info["_skip_balance_after_commit"] = True

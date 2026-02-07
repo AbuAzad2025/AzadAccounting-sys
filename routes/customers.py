@@ -1855,14 +1855,25 @@ def account_statement(customer_id):
             credit_val = D(0)
         else:
             amount = D(p.total_amount or 0)
+            payment_currency = (getattr(p, "currency", None) or "ILS").upper()
+            amount_ils = amount
+            if payment_currency and payment_currency != "ILS":
+                try:
+                    from models import convert_amount
+                    amount_ils = D(convert_amount(amount, payment_currency, "ILS", getattr(p, "payment_date", None) or getattr(p, "created_at", None)))
+                except Exception:
+                    amount_ils = amount
             if str(getattr(payment_status, "value", payment_status) or "").upper() in ("REFUNDED", "CANCELLED"):
                 debit_val = D(0)
                 credit_val = D(0)
+            elif is_bounced and is_in:
+                debit_val = amount_ils
+                credit_val = D(0)
             elif is_in:
                 debit_val = D(0)
-                credit_val = amount  # الدفعة الواردة (IN) = له (حق له) = دائن
+                credit_val = amount_ils
             else:
-                debit_val = amount  # الدفعة الصادرة (OUT) = عليه (التزام عليه) = مدين
+                debit_val = amount_ils
                 credit_val = D(0)
         
         # التحقق من عدم تكرار نفس الشيك في دفعات مختلفة
@@ -2120,6 +2131,7 @@ def account_statement(customer_id):
                     "statement": payment_statement,
                     "debit": debit_val,
                     "credit": credit_val,
+                    "currency": "ILS",
                     "payment_details": payment_details,
                     "notes": notes,
                 })

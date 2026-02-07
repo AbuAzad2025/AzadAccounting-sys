@@ -6,10 +6,13 @@ from extensions import db
 
 def convert_amount(amount, from_currency, to_currency, date=None):
     from models import convert_amount as _convert_amount
-    return _convert_amount(amount, from_currency, to_currency, date)
+    try:
+        return Decimal(str(_convert_amount(amount, from_currency, to_currency, date)))
+    except Exception:
+        return Decimal(str(amount or 0))
 
 
-def calculate_partner_balance_components(partner_id, session=None):
+def calculate_partner_balance_components(partner_id, session=None, _retried: bool = False):
     if not partner_id:
         return None
     
@@ -323,6 +326,17 @@ def calculate_partner_balance_components(partner_id, session=None):
         result['service_expenses_balance'] = partner_service_total
         
     except Exception as e:
+        err = str(e).lower()
+        if not _retried and ("closed transaction" in err or ("context manager" in err and ("closed" in err or "committed" in err)) or "no further sql" in err):
+            from sqlalchemy.orm import sessionmaker
+            retry_session = sessionmaker(bind=db.engine)()
+            try:
+                return calculate_partner_balance_components(partner_id, retry_session, _retried=True)
+            finally:
+                try:
+                    retry_session.close()
+                except Exception:
+                    pass
         from flask import current_app
         try:
             current_app.logger.error(f"خطأ في حساب مكونات رصيد الشريك #{partner_id}: {e}")
