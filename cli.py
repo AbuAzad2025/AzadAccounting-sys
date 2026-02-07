@@ -4207,6 +4207,90 @@ def checks_sync_due(target_date, direction, limit, dry_run, note):
         db.session.commit()
         click.echo("\n📝 تم تسجيل العملية في سجل التدقيق.")
 
+@click.command("restore-upgrade-production")
+@click.option("--backup-path", default=os.path.join("instance", "backup_20260207_000139.dump"), show_default=True)
+@click.option("--force", is_flag=True, default=False)
+@click.option("--confirm-restore", is_flag=True, default=False)
+@click.option("--skip-upgrade", is_flag=True, default=False)
+@click.option("--skip-fix", is_flag=True, default=False)
+@click.option("--dry-run-fix", is_flag=True, default=False)
+@with_appcontext
+def restore_upgrade_production(backup_path: str, force: bool, confirm_restore: bool, skip_upgrade: bool, skip_fix: bool, dry_run_fix: bool) -> None:
+    allow = os.getenv("ALLOW_PRODUCTION_RESTORE_UPGRADE", "").strip() == "1"
+    if not (force or allow):
+        raise click.ClickException("ارفع ALLOW_PRODUCTION_RESTORE_UPGRADE=1 أو استخدم --force")
+    if not confirm_restore:
+        raise click.ClickException("لتأكيد الاستعادة اكتب: --confirm-restore")
+
+    abs_path = backup_path
+    if not os.path.isabs(abs_path):
+        abs_path = os.path.abspath(abs_path)
+    if not os.path.exists(abs_path):
+        raise click.ClickException(f"ملف النسخة غير موجود: {abs_path}")
+
+    from flask import current_app
+    from extensions import restore_database
+
+    ok, msg = restore_database(current_app, abs_path)
+    if not ok:
+        raise click.ClickException(msg)
+    click.echo(f"✅ {msg}")
+
+    try:
+        db.session.remove()
+    except Exception:
+        pass
+    try:
+        db.engine.dispose()
+    except Exception:
+        pass
+
+    if not skip_upgrade:
+        from flask_migrate import upgrade as migrate_upgrade
+        migrate_upgrade()
+        click.echo("✅ تم تطبيق التهجير الموجود في الكود.")
+
+    if not skip_fix:
+        from fix_production_data import fix_production_data
+        fix_production_data(app=current_app._get_current_object(), dry_run=dry_run_fix)
+        click.echo("✅ تم تشغيل إصلاح البيانات.")
+
+@click.command("upgrade-production")
+@click.option("--force", is_flag=True, default=False)
+@click.option("--skip-fix", is_flag=True, default=False)
+@click.option("--revision", default="head", show_default=True)
+@click.option("--dry-run-fix", is_flag=True, default=False)
+@with_appcontext
+def upgrade_production(force: bool, skip_fix: bool, revision: str, dry_run_fix: bool) -> None:
+    allow = os.getenv("ALLOW_PRODUCTION_UPGRADE", "").strip() == "1"
+    if not (force or allow):
+        raise click.ClickException("ارفع ALLOW_PRODUCTION_UPGRADE=1 أو استخدم --force")
+
+    from flask import current_app
+    from flask_migrate import upgrade as migrate_upgrade
+
+    migrate_upgrade(revision=revision)
+    click.echo("✅ تم تطبيق التهجيرات على قاعدة البيانات الحالية.")
+
+    if not skip_fix:
+        from fix_production_data import fix_production_data
+        fix_production_data(app=current_app._get_current_object(), dry_run=dry_run_fix)
+        click.echo("✅ تم تشغيل إصلاح البيانات.")
+
+def _guard_production_dangerous_cli(cmd):
+    if not getattr(cmd, "callback", None):
+        return cmd
+    name = str(getattr(cmd, "name", "") or "")
+    original_callback = cmd.callback
+    def wrapped_callback(*args, **kwargs):
+        if _is_production():
+            allow = os.getenv("ALLOW_PRODUCTION_DANGEROUS_CLI", "").strip() == "1"
+            if not allow:
+                raise click.ClickException(f"هذا الأمر معطّل على الإنتاج: {name}. ارفع ALLOW_PRODUCTION_DANGEROUS_CLI=1 للتنفيذ.")
+        return original_callback(*args, **kwargs)
+    cmd.callback = wrapped_callback
+    return cmd
+
 def register_cli(app) -> None:
     commands=[
         import_sqlite_appdb,
@@ -4229,6 +4313,12 @@ def register_cli(app) -> None:
         create_system_admin, create_system_admin_interactive,
         optimize_db, perf_snapshot, recompute_sale_returns, link_missing_counterparties,
         seed_employees, seed_salaries, seed_expenses_demo, seed_customer_statement_demo, seed_branches,
-        workflow_check_timeouts, gl_recreate_payments, sync_balances, audit_integrity, checks_sync_due
+        workflow_check_timeouts, gl_recreate_payments, sync_balances, audit_integrity, checks_sync_due,
+        restore_upgrade_production,
+        upgrade_production
     ]
-    for cmd in commands: app.cli.add_command(cmd)
+    for cmd in commands:
+        name = str(getattr(cmd, "name", "") or "")
+        if name.startswith("seed-") or name in ("import-sqlite-appdb", "compare-sqlite-appdb", "compare-sqlite-full", "restore-upgrade-production"):
+            cmd = _guard_production_dangerous_cli(cmd)
+        app.cli.add_command(cmd)
