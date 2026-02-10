@@ -45,11 +45,11 @@
   
   <div class="d-flex justify-content-between mb-3">
     <div class="btn-group" role="group">
-      <button type="button" class="btn btn-outline-primary rounded-pill me-2" onclick="window.history.back()">
-        <i class="fas fa-arrow-right me-1"></i> رجوع
+      <button type="button" class="btn btn-outline-primary rounded-pill mr-2" onclick="window.history.back()">
+        <i class="fas fa-arrow-right mr-1"></i> رجوع
       </button>
       <button type="button" class="btn btn-outline-primary rounded-pill" onclick="window.history.forward()">
-        تقدم <i class="fas fa-arrow-left ms-1"></i>
+        تقدم <i class="fas fa-arrow-left ml-1"></i>
       </button>
     </div>
     <a href="{{ url_for('advanced.owner_hub') }}" class="btn btn-primary shadow-sm rounded-pill">
@@ -66,7 +66,7 @@
   <form method="POST" enctype="multipart/form-data" id="mobileForm">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     
-    <div class="row g-4 mb-4">
+    <div class="row mb-4">
       <div class="col-md-4">
         <div class="card border-0 shadow-sm h-100">
           <div class="card-header text-white" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);">
@@ -74,27 +74,27 @@
           </div>
           <div class="card-body">
             <div class="mb-3">
-              <label class="form-label fw-bold">اسم التطبيق</label>
+              <label class="form-label font-weight-bold">اسم التطبيق</label>
               <input type="text" name="app_name" class="form-control form-control-modern" 
                       placeholder="اسم التطبيق" required>
             </div>
             
             <div class="mb-3">
-              <label class="form-label fw-bold">Package Name</label>
+              <label class="form-label font-weight-bold">Package Name</label>
               <input type="text" name="package_name" class="form-control form-control-modern" 
                      placeholder="com.azad.garage" required>
               <small class="text-muted">للنشر على Google Play / App Store</small>
             </div>
 
             <div class="mb-3">
-              <label class="form-label fw-bold">رابط النظام (يفتح داخل التطبيق)</label>
+              <label class="form-label font-weight-bold">رابط النظام (يفتح داخل التطبيق)</label>
               <input type="url" name="base_url" class="form-control form-control-modern"
                      value="{{ base_url_suggestion|default('') }}" placeholder="https://example.com" required>
               <small class="text-muted">مثال: https://domain.com أو http://192.168.1.10:5000</small>
             </div>
             
             <div class="mb-3">
-              <label class="form-label fw-bold">أيقونة التطبيق</label>
+              <label class="form-label font-weight-bold">أيقونة التطبيق</label>
               <input type="file" name="app_icon" class="form-control form-control-modern" accept="image/*">
               <small class="text-muted">PNG 1024x1024 (اختياري)</small>
             </div>
@@ -108,7 +108,7 @@
             <h5 class="mb-0"><i class="fas fa-mobile-alt"></i> اختر المنصة</h5>
           </div>
           <div class="card-body">
-            <div class="row g-3">
+            <div class="row">
               <div class="col-md-6">
                 <div class="platform-card card text-center h-100" style="opacity:0.5; cursor:not-allowed;">
                   <div class="card-body">
@@ -198,10 +198,10 @@
           <div class="category-section">
             <div class="category-header" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);">
               <i class="fas fa-{{ cat_info.icon }}"></i> <strong>{{ cat_info.name }}</strong>
-              <span class="badge bg-white text-primary float-end">{{ cat_modules|length }} وحدة</span>
+              <span class="badge bg-white text-primary float-right">{{ cat_modules|length }} وحدة</span>
             </div>
             
-            <div class="row g-2">
+            <div class="row">
               {% for key, module in cat_modules %}
               <div class="col-md-3">
                 <div class="card h-100 {% if module.required %}border-{{ cat_info.color }}{% else %}border-secondary{% endif %}">
@@ -212,7 +212,7 @@
                              {% if module.required %}checked disabled{% endif %}
                              onchange="updateCount()">
                       <label class="form-check-label w-100" for="mod_{{ key }}">
-                        <div class="d-flex align-items-center gap-2">
+                        <div class="d-flex align-items-center" style="gap: .5rem;">
                           <i class="fas fa-{{ module.icon }} text-{{ cat_info.color }}"></i>
                           <div class="small">
                             <strong>{{ module.name }}</strong>
@@ -236,7 +236,7 @@
     </div>
 
     <div class="text-center">
-      <button type="submit" class="btn btn-lg shadow-lg fw-bold" 
+      <button type="submit" class="btn btn-lg shadow-lg font-weight-bold" 
               style="background: linear-gradient(135deg, #FA8BFF 0%, #2BD2FF 50%, #2BFF88 100%); 
                      color: white; min-width: 400px; padding: 1rem 2rem; font-size: 1.2rem;">
         <i class="fas fa-rocket"></i> إنشاء التطبيق الآن
@@ -251,7 +251,7 @@
        style="background: linear-gradient(135deg, #FA8BFF 0%, #2BD2FF 50%, #2BFF88 100%); color: white;">
     <h5><i class="fas fa-check-circle"></i> التطبيق جاهز للتحميل!</h5>
     <a href="{{ url_for('advanced.download_mobile_app', app_name=download_ready) }}" 
-       class="btn btn-light btn-lg mt-2 fw-bold">
+       class="btn btn-light btn-lg mt-2 font-weight-bold">
       <i class="fas fa-download"></i> تحميل {{ download_ready }}.zip
     </a>
   </div>

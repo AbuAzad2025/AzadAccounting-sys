@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 import json
 from sqlalchemy import or_, func
 
-from models import db, Account, GLBatch, GLEntry, Payment, PaymentMethod, PaymentStatus, Sale, Invoice, Check, CheckStatus, Partner, Supplier, Customer
+from models import db, Account, GLBatch, GLEntry, Payment, PaymentMethod, PaymentStatus, Sale, Invoice, Check, CheckStatus, Partner, Supplier, Customer, GL_ACCOUNTS
 from routes.checks import create_check_record
 from utils import permission_required
 
@@ -34,21 +34,16 @@ def index():
     inactive_accounts = Account.query.filter_by(is_active=False).count()
     
     # إحصائيات القيود
-    today = datetime.now().date()
-    month_start = today.replace(day=1)
-    year_start = today.replace(month=1, day=1)
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    month_start = today_start.replace(day=1)
+    year_start = today_start.replace(month=1, day=1)
     
-    entries_today = GLEntry.query.join(GLBatch).filter(
-        GLBatch.posted_at >= today
-    ).count()
+    entries_today = GLEntry.query.join(GLBatch).filter(GLBatch.posted_at >= today_start).count()
     
-    entries_month = GLEntry.query.join(GLBatch).filter(
-        GLBatch.posted_at >= month_start
-    ).count()
+    entries_month = GLEntry.query.join(GLBatch).filter(GLBatch.posted_at >= month_start).count()
     
-    entries_year = GLEntry.query.join(GLBatch).filter(
-        GLBatch.posted_at >= year_start
-    ).count()
+    entries_year = GLEntry.query.join(GLBatch).filter(GLBatch.posted_at >= year_start).count()
     
     # إحصائيات الشيكات
     pending_checks = Check.query.filter_by(status='PENDING').count()
@@ -72,18 +67,18 @@ def index():
     
     total_customer_balance = cache.get(cache_key_cust)
     if total_customer_balance is None:
-        total_customer_balance = db.session.query(func.sum(Customer.balance)).scalar() or 0
-        cache.set(cache_key_cust, total_customer_balance, timeout=300)
+        total_customer_balance = db.session.query(func.coalesce(func.sum(Customer.current_balance), 0)).scalar() or 0
+        cache.set(cache_key_cust, float(total_customer_balance or 0), timeout=300)
     
     total_supplier_balance = cache.get(cache_key_supp)
     if total_supplier_balance is None:
-        total_supplier_balance = db.session.query(func.sum(Supplier.balance)).scalar() or 0
-        cache.set(cache_key_supp, total_supplier_balance, timeout=300)
+        total_supplier_balance = db.session.query(func.coalesce(func.sum(Supplier.current_balance), 0)).scalar() or 0
+        cache.set(cache_key_supp, float(total_supplier_balance or 0), timeout=300)
     
     total_partner_balance = cache.get(cache_key_part)
     if total_partner_balance is None:
-        total_partner_balance = db.session.query(func.sum(Partner.balance)).scalar() or 0
-        cache.set(cache_key_part, total_partner_balance, timeout=300)
+        total_partner_balance = db.session.query(func.coalesce(func.sum(Partner.current_balance), 0)).scalar() or 0
+        cache.set(cache_key_part, float(total_partner_balance or 0), timeout=300)
     
     stats = {
         'accounts': {
@@ -441,15 +436,17 @@ def health_check():
         'checks': []
     }
     
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+
     # فحص توازن القيود
     try:
-        # التحقق من توازن القيود
-        unbalanced_entries = db.session.query(GLEntry).join(GLBatch).filter(
+        total_debit = db.session.query(func.coalesce(func.sum(GLEntry.debit), 0)).join(GLBatch).filter(
             GLBatch.status == 'POSTED'
-        ).all()
+        ).scalar() or 0
         
-        total_debit = sum([entry.debit for entry in unbalanced_entries])
-        total_credit = sum([entry.credit for entry in unbalanced_entries])
+        total_credit = db.session.query(func.coalesce(func.sum(GLEntry.credit), 0)).join(GLBatch).filter(
+            GLBatch.status == 'POSTED'
+        ).scalar() or 0
         
         if abs(total_debit - total_credit) > 0.01:  # تسامح 1 قرش
             health_status['checks'].append({
@@ -469,6 +466,208 @@ def health_check():
             'name': 'توازن القيود',
             'status': 'ERROR',
             'message': f'خطأ في فحص التوازن: {str(e)}'
+        })
+        health_status['overall'] = 'ERROR'
+
+    try:
+        imbalance_sq = (
+            db.session.query(
+                GLEntry.batch_id.label("batch_id"),
+                func.coalesce(func.sum(GLEntry.debit), 0).label("debit"),
+                func.coalesce(func.sum(GLEntry.credit), 0).label("credit"),
+            )
+            .join(GLBatch, GLBatch.id == GLEntry.batch_id)
+            .filter(GLBatch.status == "POSTED")
+            .group_by(GLEntry.batch_id)
+            .having(func.abs(func.sum(GLEntry.debit) - func.sum(GLEntry.credit)) > 0.01)
+            .subquery()
+        )
+        unbalanced_batches_count = db.session.query(func.count()).select_from(imbalance_sq).scalar() or 0
+        if int(unbalanced_batches_count) > 0:
+            health_status['checks'].append({
+                'name': 'قيود غير متوازنة',
+                'status': 'ERROR',
+                'message': f'عدد القيود غير المتوازنة: {int(unbalanced_batches_count)}'
+            })
+            health_status['overall'] = 'ERROR'
+        else:
+            health_status['checks'].append({
+                'name': 'قيود غير متوازنة',
+                'status': 'OK',
+                'message': 'لا توجد قيود غير متوازنة ✓'
+            })
+    except Exception as e:
+        health_status['checks'].append({
+            'name': 'قيود غير متوازنة',
+            'status': 'ERROR',
+            'message': f'خطأ في فحص القيود غير المتوازنة: {str(e)}'
+        })
+        health_status['overall'] = 'ERROR'
+
+    try:
+        missing_accounts = (
+            db.session.query(func.count(GLEntry.id))
+            .select_from(GLEntry)
+            .join(GLBatch, GLBatch.id == GLEntry.batch_id)
+            .outerjoin(Account, Account.code == GLEntry.account)
+            .filter(GLBatch.status == "POSTED", Account.code.is_(None))
+            .scalar()
+            or 0
+        )
+        if int(missing_accounts) > 0:
+            health_status['checks'].append({
+                'name': 'حسابات مفقودة',
+                'status': 'ERROR',
+                'message': f'قيود تشير لحسابات غير موجودة: {int(missing_accounts)}'
+            })
+            health_status['overall'] = 'ERROR'
+        else:
+            health_status['checks'].append({
+                'name': 'حسابات مفقودة',
+                'status': 'OK',
+                'message': 'لا توجد قيود بحسابات مفقودة ✓'
+            })
+    except Exception as e:
+        health_status['checks'].append({
+            'name': 'حسابات مفقودة',
+            'status': 'ERROR',
+            'message': f'خطأ في فحص الحسابات المفقودة: {str(e)}'
+        })
+        health_status['overall'] = 'ERROR'
+
+    try:
+        posted_missing_date = db.session.query(func.count(GLBatch.id)).filter(
+            GLBatch.status == "POSTED",
+            GLBatch.posted_at.is_(None),
+        ).scalar() or 0
+        if int(posted_missing_date) > 0:
+            health_status['checks'].append({
+                'name': 'تواريخ ترحيل مفقودة',
+                'status': 'WARNING',
+                'message': f'قيود POSTED بدون posted_at: {int(posted_missing_date)}'
+            })
+            if health_status['overall'] == 'HEALTHY':
+                health_status['overall'] = 'WARNING'
+        else:
+            health_status['checks'].append({
+                'name': 'تواريخ ترحيل مفقودة',
+                'status': 'OK',
+                'message': 'لا توجد قيود POSTED بدون تاريخ ✓'
+            })
+    except Exception as e:
+        health_status['checks'].append({
+            'name': 'تواريخ ترحيل مفقودة',
+            'status': 'ERROR',
+            'message': f'خطأ في فحص تواريخ الترحيل: {str(e)}'
+        })
+        health_status['overall'] = 'ERROR'
+
+    try:
+        tol = 0.01
+        as_of_dt = now
+        ar_account = (GL_ACCOUNTS.get("AR") or "1100_AR").upper()
+        ap_account = (GL_ACCOUNTS.get("AP") or "2000_AP").upper()
+
+        customer_gl_sq = (
+            db.session.query(
+                GLBatch.entity_id.label("entity_id"),
+                func.coalesce(func.sum(GLEntry.debit - GLEntry.credit), 0).label("gl_balance"),
+            )
+            .join(GLEntry, GLEntry.batch_id == GLBatch.id)
+            .filter(
+                GLBatch.status == "POSTED",
+                GLBatch.posted_at <= as_of_dt,
+                GLBatch.entity_type == "CUSTOMER",
+                GLEntry.account == ar_account,
+            )
+            .group_by(GLBatch.entity_id)
+            .subquery()
+        )
+
+        supplier_gl_sq = (
+            db.session.query(
+                GLBatch.entity_id.label("entity_id"),
+                func.coalesce(func.sum(GLEntry.credit - GLEntry.debit), 0).label("gl_balance"),
+            )
+            .join(GLEntry, GLEntry.batch_id == GLBatch.id)
+            .filter(
+                GLBatch.status == "POSTED",
+                GLBatch.posted_at <= as_of_dt,
+                GLBatch.entity_type == "SUPPLIER",
+                GLEntry.account == ap_account,
+            )
+            .group_by(GLBatch.entity_id)
+            .subquery()
+        )
+
+        partner_gl_sq = (
+            db.session.query(
+                GLBatch.entity_id.label("entity_id"),
+                func.coalesce(func.sum(GLEntry.credit - GLEntry.debit), 0).label("gl_balance"),
+            )
+            .join(GLEntry, GLEntry.batch_id == GLBatch.id)
+            .filter(
+                GLBatch.status == "POSTED",
+                GLBatch.posted_at <= as_of_dt,
+                GLBatch.entity_type == "PARTNER",
+                GLEntry.account == ap_account,
+            )
+            .group_by(GLBatch.entity_id)
+            .subquery()
+        )
+
+        cust_stored = func.coalesce(Customer.current_balance, 0)
+        cust_gl = func.coalesce(customer_gl_sq.c.gl_balance, 0)
+        cust_diff = cust_gl - (-cust_stored)
+        customers_q = db.session.query(Customer.id).outerjoin(customer_gl_sq, customer_gl_sq.c.entity_id == Customer.id)
+        customers_mismatch_count = customers_q.with_entities(func.count()).filter(func.abs(cust_diff) > tol).scalar() or 0
+        customers_mismatch_total_abs = (
+            customers_q.with_entities(func.coalesce(func.sum(func.abs(cust_diff)), 0)).filter(func.abs(cust_diff) > tol).scalar()
+            or 0
+        )
+
+        supp_stored = func.coalesce(Supplier.current_balance, 0)
+        supp_gl = func.coalesce(supplier_gl_sq.c.gl_balance, 0)
+        supp_diff = supp_gl - supp_stored
+        suppliers_q = db.session.query(Supplier.id).outerjoin(supplier_gl_sq, supplier_gl_sq.c.entity_id == Supplier.id)
+        suppliers_mismatch_count = suppliers_q.with_entities(func.count()).filter(func.abs(supp_diff) > tol).scalar() or 0
+        suppliers_mismatch_total_abs = (
+            suppliers_q.with_entities(func.coalesce(func.sum(func.abs(supp_diff)), 0)).filter(func.abs(supp_diff) > tol).scalar()
+            or 0
+        )
+
+        part_stored = func.coalesce(Partner.current_balance, 0)
+        part_gl = func.coalesce(partner_gl_sq.c.gl_balance, 0)
+        part_diff = part_gl - part_stored
+        partners_q = db.session.query(Partner.id).outerjoin(partner_gl_sq, partner_gl_sq.c.entity_id == Partner.id)
+        partners_mismatch_count = partners_q.with_entities(func.count()).filter(func.abs(part_diff) > tol).scalar() or 0
+        partners_mismatch_total_abs = (
+            partners_q.with_entities(func.coalesce(func.sum(func.abs(part_diff)), 0)).filter(func.abs(part_diff) > tol).scalar()
+            or 0
+        )
+
+        total_mismatch = int(customers_mismatch_count) + int(suppliers_mismatch_count) + int(partners_mismatch_count)
+        total_abs = float(customers_mismatch_total_abs or 0) + float(suppliers_mismatch_total_abs or 0) + float(partners_mismatch_total_abs or 0)
+
+        if total_mismatch > 0:
+            health_status['checks'].append({
+                'name': 'تطابق أرصدة الجهات',
+                'status': 'WARNING',
+                'message': f'عدم تطابق: عملاء {int(customers_mismatch_count)} | موردين {int(suppliers_mismatch_count)} | شركاء {int(partners_mismatch_count)} | مجموع الفرق {round(total_abs, 2)}'
+            })
+            if health_status['overall'] == 'HEALTHY':
+                health_status['overall'] = 'WARNING'
+        else:
+            health_status['checks'].append({
+                'name': 'تطابق أرصدة الجهات',
+                'status': 'OK',
+                'message': 'الأرصدة متطابقة مع دفتر الأستاذ ✓'
+            })
+    except Exception as e:
+        health_status['checks'].append({
+            'name': 'تطابق أرصدة الجهات',
+            'status': 'ERROR',
+            'message': f'خطأ في فحص تطابق الأرصدة: {str(e)}'
         })
         health_status['overall'] = 'ERROR'
     
@@ -554,15 +753,31 @@ def get_all_batches():
         if search:
             query = query.filter(GLBatch.memo.like(f'%{search}%'))
         
-        batches = query.order_by(GLBatch.posted_at.desc()).limit(500).all()
+        totals_sq = (
+            db.session.query(
+                GLEntry.batch_id.label("batch_id"),
+                func.coalesce(func.sum(GLEntry.debit), 0).label("total_debit"),
+                func.coalesce(func.sum(GLEntry.credit), 0).label("total_credit"),
+            )
+            .group_by(GLEntry.batch_id)
+            .subquery()
+        )
+
+        batches = (
+            query.outerjoin(totals_sq, totals_sq.c.batch_id == GLBatch.id)
+            .with_entities(GLBatch, totals_sq.c.total_debit, totals_sq.c.total_credit)
+            .order_by(GLBatch.posted_at.desc())
+            .limit(500)
+            .all()
+        )
         
         batches_list = []
         grand_total_debit = 0.0
         grand_total_credit = 0.0
         
-        for batch in batches:
-            total_debit = sum([float(entry.debit) for entry in batch.entries])
-            total_credit = sum([float(entry.credit) for entry in batch.entries])
+        for batch, total_debit, total_credit in batches:
+            total_debit = float(total_debit or 0)
+            total_credit = float(total_credit or 0)
             
             grand_total_debit += total_debit
             grand_total_credit += total_credit
@@ -823,29 +1038,41 @@ def backup_ledger_old():
 def validate_entries():
     """فحص توازن جميع القيود"""
     try:
-        batches = GLBatch.query.filter(GLBatch.status == 'POSTED').all()
-        
-        imbalanced_batches = []
-        for batch in batches:
-            entries = GLEntry.query.filter_by(batch_id=batch.id).all()
-            total_debit = sum(float(e.debit or 0) for e in entries)
-            total_credit = sum(float(e.credit or 0) for e in entries)
-            
-            if abs(total_debit - total_credit) > 0.01:  # tolerance 1 cent
-                imbalanced_batches.append({
-                    'id': batch.id,
-                    'code': batch.code,
-                    'memo': batch.memo,
-                    'debit': total_debit,
-                    'credit': total_credit,
-                    'difference': total_debit - total_credit
-                })
-        
+        total_batches = db.session.query(func.count(GLBatch.id)).filter(GLBatch.status == "POSTED").scalar() or 0
+        rows = (
+            db.session.query(
+                GLBatch.id.label("id"),
+                GLBatch.code.label("code"),
+                GLBatch.memo.label("memo"),
+                func.coalesce(func.sum(GLEntry.debit), 0).label("debit"),
+                func.coalesce(func.sum(GLEntry.credit), 0).label("credit"),
+            )
+            .join(GLEntry, GLEntry.batch_id == GLBatch.id)
+            .filter(GLBatch.status == "POSTED")
+            .group_by(GLBatch.id, GLBatch.code, GLBatch.memo)
+            .having(func.abs(func.sum(GLEntry.debit) - func.sum(GLEntry.credit)) > 0.01)
+            .order_by(func.abs(func.sum(GLEntry.debit) - func.sum(GLEntry.credit)).desc())
+            .limit(500)
+            .all()
+        )
+
+        imbalanced_batches = [
+            {
+                "id": int(r.id),
+                "code": r.code,
+                "memo": r.memo,
+                "debit": float(r.debit or 0),
+                "credit": float(r.credit or 0),
+                "difference": float((r.debit or 0) - (r.credit or 0)),
+            }
+            for r in rows
+        ]
+
         return jsonify({
             'success': True,
-            'total_batches': len(batches),
+            'total_batches': int(total_batches),
             'imbalanced_batches': imbalanced_batches,
-            'balanced_count': len(batches) - len(imbalanced_batches)
+            'balanced_count': int(total_batches) - len(imbalanced_batches)
         })
         
     except Exception as e:
@@ -1132,8 +1359,8 @@ def get_advanced_statistics():
             batches = GLBatch.query.filter_by(status='POSTED').limit(100).all()
             for batch in batches:
                 if batch.entries:
-                    debit = sum(e.debit_amount for e in batch.entries)
-                    credit = sum(e.credit_amount for e in batch.entries)
+                    debit = sum(float(e.debit or 0) for e in batch.entries)
+                    credit = sum(float(e.credit or 0) for e in batch.entries)
                     if abs(debit - credit) > 0.01:
                         imbalanced.append({
                             'id': batch.id,

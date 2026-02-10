@@ -33,12 +33,12 @@
   
   {% include 'advanced/_navigation.html' %}
   
-  <div class="d-flex justify-content-end mb-3 gap-2">
+  <div class="d-flex justify-content-end mb-3" style="gap: .5rem;">
       <div class="btn-group shadow-sm rounded-pill overflow-hidden bg-white">
-          <button onclick="window.history.back()" class="btn btn-sm text-primary fw-bold border-end" title="رجوع">
+          <button onclick="window.history.back()" class="btn btn-sm text-primary font-weight-bold border-right" title="رجوع">
               <i class="fas fa-arrow-right"></i>
           </button>
-          <button onclick="window.history.forward()" class="btn btn-sm text-primary fw-bold" title="تقدم">
+          <button onclick="window.history.forward()" class="btn btn-sm text-primary font-weight-bold" title="تقدم">
               <i class="fas fa-arrow-left"></i>
           </button>
       </div>
@@ -48,14 +48,14 @@
   </div>
 
   <!-- بطاقات إحصائية سريعة -->
-  <div class="row g-3 mb-4">
-    <div class="col-lg-3 col-md-6">
+  <div class="row mb-4">
+    <div class="col-lg-3 col-md-6 mb-3">
       <div class="card border-0 shadow-sm bg-primary text-white h-100 card-hover" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center">
             <div>
               <h6 class="text-white-50 mb-1">إجمالي النسخ</h6>
-              <h3 class="mb-0 fw-bold">{{ backups|length }}</h3>
+              <h3 class="mb-0 font-weight-bold">{{ backups|length }}</h3>
               <small class="opacity-75">نسخة احتياطية</small>
             </div>
             <i class="fas fa-database fa-2x opacity-50"></i>
@@ -64,13 +64,13 @@
       </div>
     </div>
     
-    <div class="col-lg-3 col-md-6">
+    <div class="col-lg-3 col-md-6 mb-3">
       <div class="card border-0 shadow-sm bg-success text-white h-100 card-hover" style="background: linear-gradient(135deg, #198754 0%, #157347 100%);">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center">
             <div>
               <h6 class="text-white-50 mb-1">نوع القاعدة</h6>
-              <h3 class="mb-0 fw-bold">{{ current_db_type|upper }}</h3>
+              <h3 class="mb-0 font-weight-bold">{{ current_db_type|upper }}</h3>
               <small class="opacity-75">قاعدة البيانات</small>
             </div>
             <i class="fas fa-server fa-2x opacity-50"></i>
@@ -79,13 +79,13 @@
       </div>
     </div>
     
-    <div class="col-lg-3 col-md-6">
+    <div class="col-lg-3 col-md-6 mb-3">
       <div class="card border-0 shadow-sm bg-{{ schedule_status.color }} text-white h-100 backup-status-card card-hover">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center">
             <div>
               <h6 class="text-white-50 mb-1">الجدولة التلقائية</h6>
-              <h3 class="mb-0 fw-bold">{{ schedule_status.text }}</h3>
+              <h3 class="mb-0 font-weight-bold">{{ schedule_status.text }}</h3>
               <small class="opacity-75">التشغيل التالي: {{ schedule_status.next_run or '---' }}</small>
             </div>
             <i class="fas fa-clock fa-2x opacity-50"></i>
@@ -94,13 +94,13 @@
       </div>
     </div>
     
-    <div class="col-lg-3 col-md-6">
+    <div class="col-lg-3 col-md-6 mb-3">
       <div class="card border-0 shadow-sm bg-{{ backup_summary.color }} text-white h-100 backup-status-card card-hover">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center">
             <div>
               <h6 class="text-white-50 mb-1">آخر نسخة</h6>
-              <h3 class="mb-0 fw-bold">
+              <h3 class="mb-0 font-weight-bold">
                 {% if backup_summary.last_backup %}
                   {{ backup_summary.last_backup.date }}
                 {% else %}
@@ -116,8 +116,8 @@
     </div>
   </div>
   
-  <div class="row g-3 mb-4">
-    <div class="col-lg-6">
+  <div class="row mb-4">
+    <div class="col-lg-6 mb-3">
       <div class="card border-0 shadow-sm h-100">
         <div class="card-header bg-light d-flex justify-content-between align-items-center">
           <span><i class="fas fa-history"></i> أحدث النسخ</span>
@@ -170,7 +170,7 @@
         <h5 class="mb-1"><i class="fas fa-database"></i> الحالة الحالية</h5>
         <p class="mb-0">{{ backup_summary.message }}</p>
       </div>
-      <span class="fw-bold">{{ backup_summary.recommendation }}</span>
+      <span class="font-weight-bold">{{ backup_summary.recommendation }}</span>
     </div>
   </div>
 
@@ -213,7 +213,7 @@
                 <input type="hidden" name="action" value="create_backup">
                 
                 <div class="mb-3">
-                  <label class="form-label fw-bold">اسم النسخة (اختياري)</label>
+                  <label class="form-label font-weight-bold">اسم النسخة (اختياري)</label>
                   <input type="text" name="backup_name" class="form-control" placeholder="backup_custom_name">
                   <small class="text-muted">إذا تركته فارغاً سيتم التسمية تلقائياً</small>
                 </div>
@@ -340,7 +340,7 @@
                 <input type="hidden" name="action" value="schedule_backup">
                 
                 <div class="mb-4">
-                  <label class="form-label fw-bold">نوع الجدولة</label>
+                  <label class="form-label font-weight-bold">نوع الجدولة</label>
                   <select name="schedule_type" class="custom-select custom-select-lg" required>
                     <option value="hourly" {% if schedule_info.type == 'hourly' %}selected{% endif %}>كل ساعة</option>
                     <option value="daily" {% if schedule_info.type == 'daily' or not schedule_info.type %}selected{% endif %}>يومياً</option>
@@ -350,7 +350,7 @@
                 </div>
                 
                 <div class="mb-4">
-                  <label class="form-label fw-bold">الوقت</label>
+                  <label class="form-label font-weight-bold">الوقت</label>
                   <input type="time" name="schedule_time" class="form-control form-control-lg" value="{{ schedule_info.time or '03:00' }}" required>
                   <small class="text-muted">الوقت المفضل لإنشاء النسخة الاحتياطية</small>
                 </div>
@@ -399,7 +399,7 @@
                 {% for backup in json_backups %}
                 <tr>
                     <td>
-                    <i class="fas fa-file-code text-warning me-2"></i>
+                    <i class="fas fa-file-code text-warning ml-2"></i>
                     <strong>{{ backup.name }}</strong>
                     </td>
                     <td>
@@ -409,7 +409,7 @@
                     <td><span class="badge bg-secondary rounded-pill">{{ backup.size }}</span></td>
                     <td>{{ backup.age_hours }}</td>
                     <td class="text-center">
-                    <div class="d-flex justify-content-center gap-2">
+                    <div class="d-flex justify-content-center" style="gap: .5rem;">
                         <!-- تحميل -->
                         <a href="{{ url_for('advanced.download_backup', filename=backup.name) }}" class="btn btn-primary btn-sm" title="تحميل">
                         <i class="fas fa-download"></i>
@@ -420,7 +420,7 @@
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <div class="input-group input-group-sm" style="width: auto;">
                             <input type="text" name="confirm_token" class="form-control form-control-sm" placeholder="اكتب {{ backup.name }}" required style="width: 150px;">
-                            <button type="submit" class="btn btn-warning btn-sm text-dark fw-bold">
+                            <button type="submit" class="btn btn-warning btn-sm text-dark font-weight-bold">
                                 <i class="fas fa-recycle"></i> استعادة
                             </button>
                         </div>

@@ -2259,7 +2259,7 @@ def _get_partner_balance_details(partner: Partner | None) -> dict | None:
     """احسب رصيد الشريك الحالي من current_balance"""
     if not partner:
         return None
-    balance = float(partner.balance or 0)
+    balance = float(partner.current_balance or 0)
     return {
         "id": partner.id,
         "name": partner.name,

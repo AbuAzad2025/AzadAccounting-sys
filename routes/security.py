@@ -1242,6 +1242,13 @@ def database_manager():
     tab = request.args.get('tab', 'browse')
     selected_table = request.args.get('table')
     log_type = request.args.get('log_type', 'audit')
+
+    app_env = str(current_app.config.get("APP_ENV", "production") or "production").strip().lower()
+    is_production = (not bool(current_app.config.get("DEBUG", False))) and (app_env not in {"dev", "development", "local"})
+    allow_dangerous_consoles = str(os.environ.get("ALLOW_DANGEROUS_CONSOLES", "") or "").strip().lower() in {"1", "true", "yes", "y", "on"}
+    if is_production and (tab in {"sql", "python"}) and (not allow_dangerous_consoles):
+        flash('⛔ تم تعطيل SQL/Python Console في بيئة الإنتاج للأمان', 'danger')
+        return redirect(url_for('security.database_manager', tab='browse'))
     
     # ==== البيانات الأساسية (للجميع) ====
     tables = _get_all_tables()
@@ -1388,12 +1395,28 @@ def database_manager():
     
     # === 4) SQL Console ===
     if tab == 'sql' and request.method == 'POST':
-        if not current_user.has_permission('system_admin'):
-            flash('⚠️ غير مصرح - تحتاج صلاحية system_admin', 'danger')
-            return redirect(url_for('security.ultimate_control'))
+        app_env = str(current_app.config.get("ENV") or os.environ.get("FLASK_ENV") or os.environ.get("APP_ENV") or "").strip().lower()
+        is_production = (not bool(current_app.config.get("DEBUG", False))) and (app_env not in {"dev", "development", "local"})
+        allow_sql_console = str(os.environ.get("ENABLE_SQL_CONSOLE", "") or "").strip().lower() in {"1", "true", "yes", "y", "on"}
+        allow_sql_write = str(os.environ.get("ENABLE_SQL_WRITE_CONSOLE", "") or "").strip().lower() in {"1", "true", "yes", "y", "on"}
+        if (is_production and not allow_sql_console) or (not utils.is_super()):
+            flash('⚠️ غير مصرح - وحدة SQL معطلة', 'danger')
+            return redirect(url_for('security.database_manager', tab='browse'))
         sql_query = request.form.get('sql_query', '').strip()
+        if not sql_query:
+            flash('⚠️ الرجاء إدخال استعلام SQL', 'warning')
+            return redirect(url_for('security.database_manager', tab='sql'))
+        statements = [s.strip() for s in sql_query.split(";") if s.strip()]
+        if len(statements) != 1:
+            flash('⛔ غير مسموح بتنفيذ عدة أوامر في نفس الطلب', 'danger')
+            return redirect(url_for('security.database_manager', tab='sql'))
+        first_token = (statements[0].lstrip().split(None, 1) or [""])[0].upper()
+        readonly_tokens = {"SELECT", "WITH", "EXPLAIN", "SHOW"}
+        if (first_token not in readonly_tokens) and (not allow_sql_write):
+            flash('⛔ مسموح فقط باستعلامات القراءة (SELECT/WITH/EXPLAIN/SHOW)', 'danger')
+            return redirect(url_for('security.database_manager', tab='sql'))
         try:
-            result_proxy = db.session.execute(text(sql_query))
+            result_proxy = db.session.execute(text(statements[0]))
             try:
                 rows = result_proxy.fetchall()
                 cols = result_proxy.keys() if hasattr(result_proxy, 'keys') else []
@@ -1411,11 +1434,17 @@ def database_manager():
     
     # === 5) Python Console ===
     if tab == 'python' and request.method == 'POST':
-        if not current_user.has_permission('system_admin'):
-            flash('⚠️ غير مصرح - تحتاج صلاحية system_admin', 'danger')
-            return redirect(url_for('security.ultimate_control'))
+        app_env = str(current_app.config.get("ENV") or os.environ.get("FLASK_ENV") or os.environ.get("APP_ENV") or "").strip().lower()
+        is_production = (not bool(current_app.config.get("DEBUG", False))) and (app_env not in {"dev", "development", "local"})
+        allow_python_console = str(os.environ.get("ENABLE_PYTHON_CONSOLE", "") or "").strip().lower() in {"1", "true", "yes", "y", "on"}
+        if (is_production and not allow_python_console) or (not utils.is_super()):
+            flash('⚠️ غير مصرح - وحدة Python معطلة', 'danger')
+            return redirect(url_for('security.database_manager', tab='browse'))
         
         python_code = request.form.get('python_code', '').strip()
+        if not python_code:
+            flash('⚠️ الرجاء إدخال كود Python', 'warning')
+            return redirect(url_for('security.database_manager', tab='python'))
         
         dangerous_keywords = ['import os', 'import sys', 'import subprocess', '__import__', 'eval(', 'compile(', 'open(', 'file(', 'input(', 'execfile(']
         if any(keyword in python_code for keyword in dangerous_keywords):

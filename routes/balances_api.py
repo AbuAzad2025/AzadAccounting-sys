@@ -22,35 +22,42 @@ def balances_dashboard():
     for customer in customers:
         db.session.refresh(customer)
     
-    suppliers_total = sum(s.balance for s in suppliers)
-    partners_total = sum(p.balance for p in partners)
-    customers_total = sum(c.balance for c in customers)
+    suppliers_total = sum(float(s.current_balance or 0) for s in suppliers)
+    partners_total = sum(float(p.current_balance or 0) for p in partners)
+    customers_total = sum(float(c.current_balance or 0) for c in customers)
     
     summary = {
         'suppliers': {
             'count': len(suppliers),
             'total_balance': suppliers_total,
-            'positive': len([s for s in suppliers if s.balance > 0]),
-            'negative': len([s for s in suppliers if s.balance < 0])
+            'positive': len([s for s in suppliers if float(s.current_balance or 0) > 0]),
+            'negative': len([s for s in suppliers if float(s.current_balance or 0) < 0])
         },
         'partners': {
             'count': len(partners),
             'total_balance': partners_total,
-            'positive': len([p for p in partners if p.balance > 0]),
-            'negative': len([p for p in partners if p.balance < 0])
+            'positive': len([p for p in partners if float(p.current_balance or 0) > 0]),
+            'negative': len([p for p in partners if float(p.current_balance or 0) < 0])
         },
         'customers': {
             'count': len(customers),
             'total_balance': customers_total,
-            'positive': len([c for c in customers if c.balance > 0]),
-            'negative': len([c for c in customers if c.balance < 0])
+            'positive': len([c for c in customers if float(c.current_balance or 0) > 0]),
+            'negative': len([c for c in customers if float(c.current_balance or 0) < 0])
         }
     }
     
-    top_suppliers = sorted([s for s in suppliers if s.balance > 0], key=lambda x: x.balance, reverse=True)[:10]
+    top_suppliers = sorted(
+        [s for s in suppliers if float(s.current_balance or 0) > 0],
+        key=lambda x: float(x.current_balance or 0),
+        reverse=True,
+    )[:10]
     for supplier in top_suppliers:
         db.session.refresh(supplier)
-    top_customers = sorted([c for c in customers if c.balance < 0], key=lambda x: x.balance)[:10]
+    top_customers = sorted(
+        [c for c in customers if float(c.current_balance or 0) < 0],
+        key=lambda x: float(x.current_balance or 0),
+    )[:10]
     
     return render_template('reports/balances_dashboard.html',
                          summary=summary,
@@ -72,7 +79,7 @@ def get_supplier_balance(supplier_id):
         'entity_id': supplier.id,
         'entity_type': 'supplier',
         'name': supplier.name,
-        'balance': supplier.balance,
+        'balance': float(supplier.current_balance or 0),
         'balance_in_ils': supplier.balance_in_ils,
         'currency': supplier.currency,
         'opening_balance': float(supplier.opening_balance or 0)
@@ -101,7 +108,7 @@ def get_partner_balance(partner_id):
         'entity_id': partner.id,
         'entity_type': 'partner',
         'name': partner.name,
-        'balance': partner.balance,
+        'balance': float(partner.current_balance or 0),
         'balance_in_ils': partner.balance_in_ils,
         'currency': partner.currency,
         'opening_balance': float(partner.opening_balance or 0),
@@ -131,7 +138,7 @@ def get_customer_balance(customer_id):
         'entity_id': customer.id,
         'entity_type': 'customer',
         'name': customer.name,
-        'balance': customer.balance,
+        'balance': float(customer.current_balance or 0),
         'currency': customer.currency,
         'opening_balance': float(customer.opening_balance or 0),
         'credit_limit': float(customer.credit_limit or 0)
@@ -163,9 +170,9 @@ def get_balances_summary():
     for customer in customers:
         db.session.refresh(customer)
     
-    suppliers_total = sum(s.balance for s in suppliers)
-    partners_total = sum(p.balance for p in partners)
-    customers_total = sum(c.balance for c in customers)
+    suppliers_total = sum(float(s.current_balance or 0) for s in suppliers)
+    partners_total = sum(float(p.current_balance or 0) for p in partners)
+    customers_total = sum(float(c.current_balance or 0) for c in customers)
     
     summary = {
         'success': True,
@@ -173,20 +180,20 @@ def get_balances_summary():
         'suppliers': {
             'count': len(suppliers),
             'total_balance': suppliers_total,
-            'positive': len([s for s in suppliers if s.balance > 0]),
-            'negative': len([s for s in suppliers if s.balance < 0])
+            'positive': len([s for s in suppliers if float(s.current_balance or 0) > 0]),
+            'negative': len([s for s in suppliers if float(s.current_balance or 0) < 0])
         },
         'partners': {
             'count': len(partners),
             'total_balance': partners_total,
-            'positive': len([p for p in partners if p.balance > 0]),
-            'negative': len([p for p in partners if p.balance < 0])
+            'positive': len([p for p in partners if float(p.current_balance or 0) > 0]),
+            'negative': len([p for p in partners if float(p.current_balance or 0) < 0])
         },
         'customers': {
             'count': len(customers),
             'total_balance': customers_total,
-            'positive': len([c for c in customers if c.balance > 0]),
-            'negative': len([c for c in customers if c.balance < 0])
+            'positive': len([c for c in customers if float(c.current_balance or 0) > 0]),
+            'negative': len([c for c in customers if float(c.current_balance or 0) < 0])
         },
         'net_position': customers_total - suppliers_total - partners_total
     }

@@ -6,7 +6,7 @@ import re
 import unicodedata
 from datetime import datetime, date as _date, timezone
 from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
-from flask import Blueprint, flash, redirect, render_template, render_template_string, abort, request, url_for, Response, current_app, jsonify
+from flask import Blueprint, flash, redirect, render_template, render_template_string, abort, request, url_for, Response, current_app, jsonify, stream_with_context
 from flask_login import login_required, current_user
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload, selectinload
@@ -2567,61 +2567,69 @@ def pay(exp_id):
 @utils.permission_required("manage_expenses")
 def export_csv():
     query, _ = _base_query_with_filters()
-    rows = query.limit(50000).all()
-    output = io.StringIO()
-    output.write("\ufeff")
-    writer = csv.writer(output)
-    writer.writerow(
-        [
-            "ID",
-            "التاريخ",
-            "النوع",
-            "نوع المستفيد",
-            "المستفيد",
-            "الموظف",
-            "الشحنة",
-            "حساب مرفق",
-            "تسوية مخزون",
-            "بداية الفترة",
-            "نهاية الفترة",
-            "المبلغ",
-            "العملة",
-            "طريقة الدفع",
-            "الوصف",
-            "ملاحظات",
-            "رقم الفاتورة",
-            "مدفوع",
-            "الرصيد",
-        ]
-    )
-    for e in rows:
+    filename = f"expenses_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv"
+
+    def _generate():
+        output = io.StringIO()
+        output.write("\ufeff")
+        writer = csv.writer(output)
         writer.writerow(
             [
-                e.id,
-                e.date.isoformat() if e.date else "",
-                _csv_safe(e.type.name if e.type else ""),
-                _csv_safe(e.payee_type or ""),
-                _csv_safe(e.payee_name or e.paid_to or ""),
-                _csv_safe(e.employee.name if e.employee else ""),
-                _csv_safe(e.shipment.number if getattr(e, "shipment", None) else ""),
-                _csv_safe((e.utility_account.alias if e.utility_account and e.utility_account.alias else (e.utility_account.provider if e.utility_account else ""))),
-                _csv_safe(e.stock_adjustment_id if getattr(e, "stock_adjustment_id", None) else ""),
-                e.period_start.isoformat() if getattr(e, "period_start", None) else "",
-                e.period_end.isoformat() if getattr(e, "period_end", None) else "",
-                int(q0(getattr(e, "amount", 0) or 0)),
-                _csv_safe((e.currency or "").upper()),
-                _csv_safe(e.payment_method or ""),
-                _csv_safe(e.description),
-                _csv_safe(e.notes),
-                _csv_safe(e.tax_invoice_number),
-                int(q0(getattr(e, "total_paid", 0) or 0)),
-                int(q0(getattr(e, "balance", 0) or 0)),
+                "ID",
+                "التاريخ",
+                "النوع",
+                "نوع المستفيد",
+                "المستفيد",
+                "الموظف",
+                "الشحنة",
+                "حساب مرفق",
+                "تسوية مخزون",
+                "بداية الفترة",
+                "نهاية الفترة",
+                "المبلغ",
+                "العملة",
+                "طريقة الدفع",
+                "الوصف",
+                "ملاحظات",
+                "رقم الفاتورة",
+                "مدفوع",
+                "الرصيد",
             ]
         )
-    csv_data = output.getvalue()
-    filename = f"expenses_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv"
+        yield output.getvalue()
+        output.seek(0)
+        output.truncate(0)
+
+        for e in query.limit(50000).yield_per(1000):
+            writer.writerow(
+                [
+                    e.id,
+                    e.date.isoformat() if e.date else "",
+                    _csv_safe(e.type.name if e.type else ""),
+                    _csv_safe(e.payee_type or ""),
+                    _csv_safe(e.payee_name or e.paid_to or ""),
+                    _csv_safe(e.employee.name if e.employee else ""),
+                    _csv_safe(e.shipment.number if getattr(e, "shipment", None) else ""),
+                    _csv_safe((e.utility_account.alias if e.utility_account and e.utility_account.alias else (e.utility_account.provider if e.utility_account else ""))),
+                    _csv_safe(e.stock_adjustment_id if getattr(e, "stock_adjustment_id", None) else ""),
+                    e.period_start.isoformat() if getattr(e, "period_start", None) else "",
+                    e.period_end.isoformat() if getattr(e, "period_end", None) else "",
+                    int(q0(getattr(e, "amount", 0) or 0)),
+                    _csv_safe((e.currency or "").upper()),
+                    _csv_safe(e.payment_method or ""),
+                    _csv_safe(e.description),
+                    _csv_safe(e.notes),
+                    _csv_safe(e.tax_invoice_number),
+                    int(q0(getattr(e, "total_paid", 0) or 0)),
+                    int(q0(getattr(e, "balance", 0) or 0)),
+                ]
+            )
+            yield output.getvalue()
+            output.seek(0)
+            output.truncate(0)
+
     return Response(
-        csv_data,
+        stream_with_context(_generate()),
         mimetype="text/csv; charset=utf-8",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
@@ -2632,9 +2640,14 @@ def export_csv():
 def print_list():
     query, filt = _base_query_with_filters()
     rows = query.limit(50000).all()
-    total_amount = int(q0(sum(D(getattr(e, "amount", 0) or 0) for e in rows)))
-    total_paid = int(q0(sum(D(getattr(e, "total_paid", 0) or 0) for e in rows)))
-    total_balance = int(q0(sum(D(getattr(e, "balance", 0) or 0) for e in rows)))
+    totals_row = query.with_entities(
+        func.coalesce(func.sum(Expense.amount), 0),
+        func.coalesce(func.sum(Expense.total_paid), 0),
+        func.coalesce(func.sum(Expense.balance), 0),
+    ).first()
+    total_amount = int(q0((totals_row[0] if totals_row else 0) or 0))
+    total_paid = int(q0((totals_row[1] if totals_row else 0) or 0))
+    total_balance = int(q0((totals_row[2] if totals_row else 0) or 0))
     return render_template(
         "expenses/expenses_print.html",
         expenses=rows,
@@ -2891,34 +2904,37 @@ def generate_all_salaries():
 @utils.permission_required("manage_expenses")
 def payroll_summary():
     from models import ExpenseType
-    from decimal import Decimal
     from sqlalchemy import extract as sql_extract
     
     year = int(request.args.get('year', datetime.now().year))
     
     salary_type = ExpenseType.query.filter_by(code='SALARY').first()
     
-    monthly_data = []
-    
-    for month in range(1, 13):
-        if salary_type:
-            salaries = Expense.query.filter(
+    monthly_totals = {m: {"total_paid": 0.0, "employee_count": 0} for m in range(1, 13)}
+    if salary_type:
+        agg = (
+            db.session.query(
+                sql_extract("month", Expense.date).label("month"),
+                func.coalesce(func.sum(Expense.amount), 0).label("total_paid"),
+                func.count(func.distinct(Expense.employee_id)).label("employee_count"),
+            )
+            .filter(
                 Expense.type_id == salary_type.id,
-                sql_extract('month', Expense.date) == month,
-                sql_extract('year', Expense.date) == year
-            ).all()
-            
-            total_paid = sum(Decimal(str(s.amount or 0)) for s in salaries)
-            emp_count = len(set(s.employee_id for s in salaries))
-        else:
-            total_paid = Decimal('0')
-            emp_count = 0
-        
-        monthly_data.append({
-            'month': month,
-            'total_paid': float(total_paid),
-            'employee_count': emp_count
-        })
+                Expense.date.isnot(None),
+                sql_extract("year", Expense.date) == year,
+            )
+            .group_by(sql_extract("month", Expense.date))
+            .all()
+        )
+        for r in agg:
+            m = int(getattr(r, "month", 0) or 0)
+            if 1 <= m <= 12:
+                monthly_totals[m] = {
+                    "total_paid": float(getattr(r, "total_paid", 0) or 0),
+                    "employee_count": int(getattr(r, "employee_count", 0) or 0),
+                }
+    
+    monthly_data = [{"month": m, **monthly_totals[m]} for m in range(1, 13)]
     
     year_total = sum(m['total_paid'] for m in monthly_data)
     avg_monthly = year_total / 12 if year_total > 0 else 0

@@ -355,7 +355,9 @@
         <h5 class="modal-title">
           <i class="fas fa-key"></i> إدارة صلاحيات: <span id="permsUsername"></span>
         </h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        <button type="button" class="close text-white" data-dismiss="modal" aria-label="إغلاق">
+          <span aria-hidden="true">&times;</span>
+        </button>
       </div>
       <div class="modal-body">
         <div class="alert alert-info border-0">
@@ -366,7 +368,7 @@
         <div id="permissionsContent"></div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">إلغاء</button>
         <button type="button" class="btn btn-success" onclick="savePermissions()">
           <i class="fas fa-save"></i> حفظ
         </button>

@@ -2,13 +2,14 @@ import os
 import subprocess
 import sys
 from extensions import _get_pg_bin
+from urllib.parse import urlparse
 
 def generate_export():
     print("🚀 Starting export process...")
     
     # 1. Find pg_dump
     pg_dump = _get_pg_bin("pg_dump")
-    if not os.path.exists(pg_dump):
+    if pg_dump != "pg_dump" and not os.path.exists(pg_dump):
         print(f"❌ pg_dump not found at {pg_dump}")
         return
 
@@ -16,7 +17,23 @@ def generate_export():
 
     # 2. Configure environment
     env = os.environ.copy()
-    env["PGPASSWORD"] = "123"
+    db_url = env.get("DATABASE_URL") or env.get("SQLALCHEMY_DATABASE_URI") or ""
+    host = env.get("PGHOST") or "localhost"
+    port = env.get("PGPORT") or "5432"
+    user = env.get("PGUSER") or "postgres"
+    db_name = env.get("PGDATABASE") or "garage_db"
+    if db_url.startswith("postgresql"):
+        parsed = urlparse(db_url)
+        if parsed.hostname:
+            host = parsed.hostname
+        if parsed.port:
+            port = str(parsed.port)
+        if parsed.username:
+            user = parsed.username
+        if parsed.path and len(parsed.path) > 1:
+            db_name = parsed.path.lstrip("/")
+        if parsed.password:
+            env["PGPASSWORD"] = parsed.password
     
     output_file = "production_data.sql"
     
@@ -28,10 +45,10 @@ def generate_export():
     
     cmd = [
         pg_dump,
-        "-h", "localhost",
-        "-p", "5432",
-        "-U", "postgres",
-        "-d", "garage_db",
+        "-h", host,
+        "-p", str(port),
+        "-U", user,
+        "-d", db_name,
         "--data-only",
         "--column-inserts",
         "--no-owner",

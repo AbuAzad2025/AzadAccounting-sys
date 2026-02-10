@@ -9,11 +9,11 @@
   
   <div class="d-flex justify-content-between mb-3">
     <div class="btn-group" role="group">
-      <button type="button" class="btn btn-outline-primary rounded-pill me-2" onclick="window.history.back()">
-        <i class="fas fa-arrow-right me-1"></i> رجوع
+      <button type="button" class="btn btn-outline-primary rounded-pill mr-2" onclick="window.history.back()">
+        <i class="fas fa-arrow-right mr-1"></i> رجوع
       </button>
       <button type="button" class="btn btn-outline-primary rounded-pill" onclick="window.history.forward()">
-        تقدم <i class="fas fa-arrow-left ms-1"></i>
+        تقدم <i class="fas fa-arrow-left ml-1"></i>
       </button>
     </div>
     <a href="{{ url_for('advanced.owner_hub') }}" class="btn btn-primary shadow-sm rounded-pill">
@@ -33,19 +33,19 @@
             <input type="hidden" name="action" value="create_version">
             
             <div class="mb-3">
-              <label class="form-label fw-bold">رقم الإصدار</label>
+              <label class="form-label font-weight-bold">رقم الإصدار</label>
               <input type="text" name="version_name" class="form-control form-control-modern" 
                      placeholder="v1.0.0" required>
             </div>
             
             <div class="mb-3">
-              <label class="form-label fw-bold">ملاحظات</label>
+              <label class="form-label font-weight-bold">ملاحظات</label>
               <textarea name="version_notes" class="form-control form-control-modern" rows="4" 
                         placeholder="ما الجديد في هذا الإصدار؟"></textarea>
             </div>
             
             <div class="mb-3">
-              <label class="form-label fw-bold">ملخص التغييرات (Diff)</label>
+              <label class="form-label font-weight-bold">ملخص التغييرات (Diff)</label>
               <textarea name="version_diff" class="form-control form-control-modern" rows="3"
                         placeholder="- تحسين UI\n- إصلاح خطأ النسخ"></textarea>
               <small class="text-muted">ملاحظات إضافية تظهر في السجل</small>
@@ -67,7 +67,7 @@
         <div class="card-body">
           <div class="timeline">
             {% for version in versions %}
-            <div class="mb-4 p-3 border-start border-primary border-4 bg-light rounded">
+            <div class="mb-4 p-3 border-left border-primary border-4 bg-light rounded">
               <div class="d-flex justify-content-between align-items-start">
                 <div class="flex-grow-1">
                   <h6 class="mb-2">

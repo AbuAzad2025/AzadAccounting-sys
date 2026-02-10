@@ -20,27 +20,27 @@
     <div>
       <i class="fas fa-puzzle-piece"></i> <strong>تحكم بالوحدات:</strong> فعّل أو عطّل الوحدات حسب احتياجك
     </div>
-    <div class="d-flex align-items-center gap-2">
+    <div class="d-flex align-items-center" style="gap: .5rem;">
         <div class="btn-group shadow-sm rounded-pill overflow-hidden bg-white">
-            <button onclick="window.history.back()" class="btn btn-sm text-primary fw-bold border-end" title="رجوع">
+            <button onclick="window.history.back()" class="btn btn-sm text-primary font-weight-bold border-right" title="رجوع">
                 <i class="fas fa-arrow-right"></i>
             </button>
-            <button onclick="window.history.forward()" class="btn btn-sm text-primary fw-bold" title="تقدم">
+            <button onclick="window.history.forward()" class="btn btn-sm text-primary font-weight-bold" title="تقدم">
                 <i class="fas fa-arrow-left"></i>
             </button>
         </div>
-        <a href="{{ url_for('advanced.owner_hub') }}" class="btn btn-sm btn-light shadow-sm text-primary fw-bold">
-          <i class="fas fa-arrow-right me-1"></i> عودة للوحة المالك
+        <a href="{{ url_for('advanced.owner_hub') }}" class="btn btn-sm btn-light shadow-sm text-primary font-weight-bold">
+          <i class="fas fa-arrow-right ml-1"></i> عودة للوحة المالك
         </a>
     </div>
   </div>
 
-  <div class="row g-3 mb-4">
+  <div class="row mb-4">
     <div class="col-md-4">
       <div class="card border-0 shadow-sm h-100 card-hover bg-primary text-white" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);">
         <div class="card-body">
           <span class="text-white-50">إجمالي الوحدات</span>
-          <h3 class="mb-1 fw-bold">{{ stats.total }}</h3>
+          <h3 class="mb-1 font-weight-bold">{{ stats.total }}</h3>
           <small class="text-white-50">مفعل: {{ stats.active }}</small>
         </div>
       </div>
@@ -49,7 +49,7 @@
       <div class="card border-0 shadow-sm h-100 card-hover bg-success text-white" style="background: linear-gradient(135deg, #1cc88a 0%, #13855c 100%);">
         <div class="card-body">
           <span class="text-white-50">وحدات بحالة ممتازة</span>
-          <h3 class="mb-1 fw-bold">{{ stats.total - stats.blocked }}</h3>
+          <h3 class="mb-1 font-weight-bold">{{ stats.total - stats.blocked }}</h3>
           <small class="text-white-50">بلا اعتماديات مفقودة</small>
         </div>
       </div>
@@ -58,14 +58,14 @@
       <div class="card border-0 shadow-sm h-100 card-hover bg-warning text-white" style="background: linear-gradient(135deg, #f6c23e 0%, #dda20a 100%);">
         <div class="card-body">
           <span class="text-white-50">وحدات تتطلب اعتماديات</span>
-          <h3 class="mb-1 fw-bold">{{ stats.blocked }}</h3>
+          <h3 class="mb-1 font-weight-bold">{{ stats.blocked }}</h3>
           <small class="text-white-50">فعّل الاعتماديات أولاً</small>
         </div>
       </div>
     </div>
   </div>
 
-  <div class="row g-3">
+  <div class="row">
     {% for module in modules %}
     <div class="col-md-4">
       <div class="card border-0 shadow-sm h-100 {% if not module.enabled %}opacity-50{% endif %}">
@@ -75,8 +75,8 @@
             <input type="hidden" name="module_key" value="{{ module.key }}">
             
             <div class="d-flex align-items-center justify-content-between mb-3">
-              <div class="d-flex align-items-center gap-3">
-                <div class="p-3 rounded bg-{{ module.color }} bg-opacity-10">
+              <div class="d-flex align-items-center" style="gap: 1rem;">
+                <div class="p-3 rounded" style="background: rgba(0, 0, 0, 0.05);">
                   <i class="fas fa-{{ module.icon }} fa-2x text-{{ module.color }}"></i>
                 </div>
                 <div>
@@ -86,17 +86,18 @@
               </div>
               
               {% set disable_toggle = (not module.deps_ready and not module.enabled) %}
-              <div class="form-check form-switch" title="{% if disable_toggle %}فعّل الاعتماديات أولاً{% endif %}">
-                <input type="checkbox" name="enabled" class="form-check-input" 
-                       style="width: 3rem; height: 1.5rem;"
+              <div class="custom-control custom-switch" title="{% if disable_toggle %}فعّل الاعتماديات أولاً{% endif %}">
+                <input type="checkbox" name="enabled" class="custom-control-input"
+                       id="module_enabled_{{ module.key }}"
                        {% if module.enabled %}checked{% endif %}
                        {% if disable_toggle %}disabled{% endif %}
                        onchange="this.form.submit()">
+                <label class="custom-control-label" for="module_enabled_{{ module.key }}"></label>
               </div>
             </div>
           </form>
           
-          <div class="d-flex gap-2">
+          <div class="d-flex" style="gap: .5rem;">
             {% if module.enabled %}
               <span class="badge bg-success rounded-pill">مفعّل</span>
             {% else %}

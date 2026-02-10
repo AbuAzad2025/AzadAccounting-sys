@@ -7,12 +7,12 @@
   
   {% include 'advanced/_navigation.html' %}
   
-  <div class="d-flex justify-content-end mb-3 gap-2">
+  <div class="d-flex justify-content-end mb-3" style="gap: .5rem;">
     <div class="btn-group shadow-sm rounded-pill overflow-hidden bg-white">
-        <button onclick="window.history.back()" class="btn btn-sm text-primary fw-bold border-end" title="رجوع">
+        <button onclick="window.history.back()" class="btn btn-sm text-primary font-weight-bold border-right" title="رجوع">
             <i class="fas fa-arrow-right"></i>
         </button>
-        <button onclick="window.history.forward()" class="btn btn-sm text-primary fw-bold" title="تقدم">
+        <button onclick="window.history.forward()" class="btn btn-sm text-primary font-weight-bold" title="تقدم">
             <i class="fas fa-arrow-left"></i>
         </button>
     </div>
@@ -25,9 +25,9 @@
     <i class="fas fa-flag"></i> <strong>Feature Flags:</strong> تحكم دقيق بالمزايا - فعّل أو عطّل أي ميزة
   </div>
 
-  <div class="row g-3">
+  <div class="row">
     {% for flag in flags %}
-    <div class="col-md-6">
+    <div class="col-md-6 mb-3">
       <div class="card border-0 shadow-sm h-100">
         <div class="card-body">
           <form method="POST">
@@ -46,11 +46,12 @@
                 {% endif %}
               </div>
               
-              <div class="form-check form-switch">
-                <input type="checkbox" name="enabled" class="form-check-input" 
-                       style="width: 3rem; height: 1.5rem;"
+              <div class="custom-control custom-switch">
+                <input type="checkbox" name="enabled" class="custom-control-input"
+                       id="flag_enabled_{{ flag.key }}"
                        {% if flag.enabled %}checked{% endif %}
                        onchange="this.form.submit()">
+                <label class="custom-control-label" for="flag_enabled_{{ flag.key }}"></label>
               </div>
             </div>
           </form>

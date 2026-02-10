@@ -4,7 +4,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
 from werkzeug.exceptions import BadRequest
-from flask import Blueprint, Response, flash, jsonify, render_template, request, current_app, redirect, url_for
+from flask import Blueprint, Response, flash, jsonify, render_template, request, current_app, redirect, url_for, stream_with_context
 from sqlalchemy.orm import class_mapper, joinedload, load_only
 from sqlalchemy import func, cast, Date, desc, or_, and_, case
 from sqlalchemy.ext.hybrid import hybrid_property
@@ -540,33 +540,43 @@ def below_min_stock_report():
             .filter(Product.is_active.is_(True))
             .filter(StockLevel.min_stock.isnot(None))
             .filter(StockLevel.quantity < StockLevel.min_stock)
+            .options(joinedload(StockLevel.product), joinedload(StockLevel.warehouse))
             .order_by(Product.name.asc(), Warehouse.name.asc())
         )
         rows = q.all()
         
-        data = []
-        seen_products = set()
+        grouped: Dict[int, Dict[str, Any]] = {}
         for sl in rows:
-            pid = sl.product_id
-            if pid not in seen_products:
-                seen_products.add(pid)
-                product_stocks = [
-                    {
-                        "warehouse_id": s.warehouse_id,
-                        "warehouse_name": s.warehouse.name if s.warehouse else "غير محدد",
-                        "quantity": int(s.quantity or 0),
-                        "min_stock": int(s.min_stock or 0),
-                        "available": int(s.quantity or 0) - int(s.reserved_quantity or 0),
-                    }
-                    for s in rows if s.product_id == pid
-                ]
-                data.append({
-                    "id": sl.product.id,
-                    "name": sl.product.name,
-                    "sku": sl.product.sku or "",
-                    "total_on_hand": sum(s["quantity"] for s in product_stocks),
-                    "stocks": product_stocks,
-                })
+            pid = int(sl.product_id or 0)
+            if pid not in grouped:
+                grouped[pid] = {
+                    "product": sl.product,
+                    "stocks": [],
+                }
+            grouped[pid]["stocks"].append(
+                {
+                    "warehouse_id": sl.warehouse_id,
+                    "warehouse_name": sl.warehouse.name if sl.warehouse else "غير محدد",
+                    "quantity": int(sl.quantity or 0),
+                    "min_stock": int(sl.min_stock or 0),
+                    "available": int(sl.quantity or 0) - int(getattr(sl, "reserved_quantity", 0) or 0),
+                }
+            )
+
+        data = []
+        for pid, g in grouped.items():
+            p = g.get("product")
+            stocks = g.get("stocks") or []
+            data.append(
+                {
+                    "id": getattr(p, "id", pid),
+                    "name": getattr(p, "name", None),
+                    "sku": getattr(p, "sku", "") or "",
+                    "total_on_hand": sum(int(s.get("quantity") or 0) for s in stocks),
+                    "stocks": stocks,
+                }
+            )
+        data.sort(key=lambda x: (x.get("name") or "").lower())
         
         return render_template(
             "reports/below_min_stock.html",
@@ -1441,9 +1451,76 @@ def inventory_report():
         )
 
     if export_format == "csv":
-        rows = q.all()
-    else:
-        rows = q.limit(limit_rows).all()
+        header = ["Product", "SKU", "Barcode", "Total On Hand", "Reserved", "Available"]
+        for wh in display_warehouses:
+            header.extend([f"{wh.name} On Hand", f"{wh.name} Reserved"])
+
+        display_wh_ids = [w.id for w in display_warehouses]
+        q_stream = q.order_by(Product.name.asc(), StockLevel.product_id.asc(), StockLevel.warehouse_id.asc())
+
+        def _rows():
+            current_pid = None
+            current_product = None
+            by = None
+            total_on = 0
+            reserved_total = 0
+            low_flag = False
+
+            def _emit():
+                if current_pid is None or current_product is None or by is None:
+                    return None
+                if low_only and not low_flag:
+                    return None
+                available_total = int(total_on) - int(reserved_total)
+                base = [
+                    current_product.name or current_pid,
+                    current_product.sku or "",
+                    current_product.barcode or "",
+                    int(total_on),
+                    int(reserved_total),
+                    int(available_total),
+                ]
+                for wid in display_wh_ids:
+                    stock = by.get(wid) or {"on": 0, "res": 0}
+                    base.extend([int(stock.get("on", 0) or 0), int(stock.get("res", 0) or 0)])
+                return base
+
+            for sl in q_stream.yield_per(2000):
+                pid = sl.product_id
+                if current_pid is None:
+                    current_pid = pid
+                    current_product = sl.product
+                    by = {wid: {"on": 0, "res": 0} for wid in display_wh_ids}
+                    total_on = 0
+                    reserved_total = 0
+                    low_flag = False
+                elif pid != current_pid:
+                    row = _emit()
+                    if row is not None:
+                        yield row
+                    current_pid = pid
+                    current_product = sl.product
+                    by = {wid: {"on": 0, "res": 0} for wid in display_wh_ids}
+                    total_on = 0
+                    reserved_total = 0
+                    low_flag = False
+
+                on = int(sl.quantity or 0)
+                res = int(getattr(sl, "reserved_quantity", 0) or 0)
+                if sl.warehouse_id in by:
+                    by[sl.warehouse_id] = {"on": on, "res": res}
+                total_on += on
+                reserved_total += res
+                if getattr(sl, "min_stock", None) is not None and (sl.quantity or 0) < sl.min_stock:
+                    low_flag = True
+
+            row = _emit()
+            if row is not None:
+                yield row
+
+        return _stream_csv_rows(header, _rows(), "inventory_report.csv")
+
+    rows = q.limit(limit_rows).all()
     pivot = {}
     stock_levels_by_product = {}
     for sl in rows:
@@ -1568,34 +1645,6 @@ def inventory_report():
         "low_count": int(low_count_val),
     }
 
-    if export_format == "csv":
-        output = io.StringIO()
-        writer = csv.writer(output)
-        header = ["Product", "SKU", "Barcode", "Total On Hand", "Reserved", "Available"]
-        for wh in display_warehouses:
-            header.extend([f"{wh.name} On Hand", f"{wh.name} Reserved"])
-        writer.writerow(header)
-        for row in rows_data:
-            product = row["product"]
-            available_total = row["total"] - row["reserved_total"]
-            base = [
-                product.name or product.id,
-                product.sku or "",
-                product.barcode or "",
-                row["total"],
-                row["reserved_total"],
-                available_total,
-            ]
-            for wh in display_warehouses:
-                stock = row["by"].get(wh.id, {"on": 0, "res": 0})
-                base.extend([stock.get("on", 0), stock.get("res", 0)])
-            writer.writerow(base)
-        return Response(
-            output.getvalue(),
-            mimetype="text/csv",
-            headers={"Content-Disposition": "attachment; filename=inventory_report.csv"},
-        )
-
     return render_template(
         "reports/inventory.html",
         warehouses=display_warehouses,
@@ -1691,28 +1740,17 @@ def suppliers_report():
     totals = {"balance": total_balance}
 
     pagination = None
-    if export_format != "csv":
-        pagination = q.paginate(page=page, per_page=per_page, error_out=False)
-        suppliers = list(pagination.items or [])
-    else:
-        suppliers = q.limit(20000).all()
-
-    data = [{"id": s.id, "name": s.name, "balance": float(getattr(s, "current_balance", None) or getattr(s, "balance", 0) or 0)} for s in suppliers]
-
     if export_format == "csv":
-        import csv
-        import io
+        def _rows():
+            for s in q.yield_per(1000):
+                bal = float(getattr(s, "current_balance", None) or getattr(s, "balance", 0) or 0)
+                yield [s.id, s.name, bal]
 
-        output = io.StringIO()
-        writer = csv.writer(output)
-        writer.writerow(["ID", "Name", "Balance"])
-        for row in data:
-            writer.writerow([row["id"], row["name"], row["balance"]])
-        return Response(
-            output.getvalue(),
-            mimetype="text/csv",
-            headers={"Content-Disposition": "attachment; filename=suppliers_report.csv"},
-        )
+        return _stream_csv_rows(["ID", "Name", "Balance"], _rows(), "suppliers_report.csv")
+
+    pagination = q.paginate(page=page, per_page=per_page, error_out=False)
+    suppliers = list(pagination.items or [])
+    data = [{"id": s.id, "name": s.name, "balance": float(getattr(s, "current_balance", None) or getattr(s, "balance", 0) or 0)} for s in suppliers]
 
     return render_template(
         "reports/suppliers.html",
@@ -1759,24 +1797,32 @@ def partners_report():
     elif balance_filter == "zero":
         q = q.filter(Partner.current_balance == 0)
 
-    pagination = None
-    if export_format != "csv":
-        pagination = q.paginate(page=page, per_page=per_page, error_out=False)
-        partners = list(pagination.items or [])
-    else:
-        partners = q.limit(20000).all()
+    if export_format == "csv":
+        def _rows():
+            for partner in q.yield_per(500):
+                smart_balance = None
+                try:
+                    smart_balance = float(get_entity_balance_in_ils("PARTNER", int(partner.id)))
+                except Exception:
+                    smart_balance = None
+                balance = smart_balance if smart_balance is not None else float(partner.current_balance or 0)
+                share_pct = float(partner.share_percentage or 0)
+                source = "smart" if smart_balance is not None else "stored"
+                yield [partner.id, partner.name, balance, share_pct, source]
+
+        return _stream_csv_rows(["ID", "Name", "Balance", "Share %", "Source"], _rows(), "partners_report.csv")
+
+    pagination = q.paginate(page=page, per_page=per_page, error_out=False)
+    partners = list(pagination.items or [])
     data = []
     total_balance = 0.0
-
     for partner in partners:
         smart_balance = None
         try:
             smart_balance = float(get_entity_balance_in_ils("PARTNER", int(partner.id)))
         except Exception:
             smart_balance = None
-
         balance = smart_balance if smart_balance is not None else float(partner.current_balance or 0)
-
         data.append(
             {
                 "id": partner.id,
@@ -1787,23 +1833,7 @@ def partners_report():
             }
         )
         total_balance += balance
-
     totals = {"balance": total_balance}
-
-    if export_format == "csv":
-        import csv
-        import io
-
-        output = io.StringIO()
-        writer = csv.writer(output)
-        writer.writerow(["ID", "Name", "Balance", "Share %", "Source"])
-        for row in data:
-            writer.writerow([row["id"], row["name"], row["balance"], row["share_percentage"], row["source"]])
-        return Response(
-            output.getvalue(),
-            mimetype="text/csv",
-            headers={"Content-Disposition": "attachment; filename=partners_report.csv"},
-        )
 
     return render_template(
         "reports/partners.html",
@@ -2399,29 +2429,43 @@ def expenses_report():
                 for row in receipts_rows
             ])
             return Response(csv_text, mimetype="text/csv; charset=utf-8", headers={"Content-Disposition": "attachment; filename=receipts_by_user.csv"})
-        csv_rows = []
-        export_rows = q.options(
+        export_q = q.options(
             db.joinedload(Expense.type),
             db.joinedload(Expense.employee),
             db.joinedload(Expense.warehouse),
             db.joinedload(Expense.partner),
-        ).limit(20000).all()
-        for e in export_rows:
-            amount_ils = float(_to_ils(e.amount, e.currency, getattr(e, "fx_rate_used", None), getattr(e, "date", None)))
-            csv_rows.append({
-                "id": e.id,
-                "date": (e.date.strftime('%Y-%m-%d') if getattr(e, 'date', None) else ''),
-                "type": (e.type.name if getattr(e, 'type', None) else e.type_id),
-                "amount_ils": amount_ils,
-                "currency": e.currency or '',
-                "employee": (e.employee.name if getattr(e, 'employee', None) else ''),
-                "warehouse": (e.warehouse.name if getattr(e, 'warehouse', None) else ''),
-                "partner": (e.partner.name if getattr(e, 'partner', None) else ''),
-                "description": getattr(e, 'desc', None) or getattr(e, 'description', '') or '',
-                "is_paid": 'YES' if getattr(e, 'is_paid', False) else 'NO',
-            })
-        csv_text = _csv_from_rows(csv_rows)
-        return Response(csv_text, mimetype="text/csv; charset=utf-8", headers={"Content-Disposition": "attachment; filename=expenses.csv"})
+        ).limit(20000)
+
+        header = [
+            "id",
+            "date",
+            "type",
+            "amount_ils",
+            "currency",
+            "employee",
+            "warehouse",
+            "partner",
+            "description",
+            "is_paid",
+        ]
+
+        def _rows():
+            for e in export_q.yield_per(1000):
+                amount_ils = float(_to_ils(e.amount, e.currency, getattr(e, "fx_rate_used", None), getattr(e, "date", None)))
+                yield [
+                    e.id,
+                    (e.date.strftime("%Y-%m-%d") if getattr(e, "date", None) else ""),
+                    (e.type.name if getattr(e, "type", None) else e.type_id),
+                    amount_ils,
+                    e.currency or "",
+                    (e.employee.name if getattr(e, "employee", None) else ""),
+                    (e.warehouse.name if getattr(e, "warehouse", None) else ""),
+                    (e.partner.name if getattr(e, "partner", None) else ""),
+                    getattr(e, "desc", None) or getattr(e, "description", "") or "",
+                    ("YES" if getattr(e, "is_paid", False) else "NO"),
+                ]
+
+        return _stream_csv_rows(header, _rows(), "expenses.csv")
 
     query_args = request.args.to_dict()
     query_args.pop("page", None)
@@ -2608,6 +2652,31 @@ def _csv_from_rows(rows: List[Dict[str, Any]]):
     for r in rows:
         writer.writerow(r)
     return output.getvalue()
+
+
+def _stream_csv_rows(header: List[str], rows_iter, filename: str):
+    import io
+    import csv
+
+    def _gen():
+        buf = io.StringIO()
+        buf.write("\ufeff")
+        writer = csv.writer(buf)
+        writer.writerow(header)
+        yield buf.getvalue()
+        buf.seek(0)
+        buf.truncate(0)
+        for r in rows_iter:
+            writer.writerow(r)
+            yield buf.getvalue()
+            buf.seek(0)
+            buf.truncate(0)
+
+    return Response(
+        stream_with_context(_gen()),
+        mimetype="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
 
 @reports_bp.route("/export/dynamic.csv", methods=["POST"])
 @login_required

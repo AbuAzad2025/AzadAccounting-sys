@@ -2578,14 +2578,19 @@ def _create_custom_app_file(output_dir, selected_modules):
 # Modules: {', '.join(selected_modules)}
 
 from flask import Flask
+import os
 from flask_login import LoginManager
 from extensions import db, migrate, csrf
 from models import User
 
 def create_app():
     app = Flask(__name__)
-    app.config['SECRET_KEY'] = 'change-this-in-production'
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://user:password@localhost:5432/dbname'
+    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'change-this-in-production')
+    app.config['SQLALCHEMY_DATABASE_URI'] = (
+        os.environ.get('DATABASE_URL')
+        or os.environ.get('SQLALCHEMY_DATABASE_URI')
+        or 'sqlite:///app.db'
+    )
     
     db.init_app(app)
     migrate.init_app(app, db)
@@ -2611,7 +2616,8 @@ def create_app():
 
 if __name__ == '__main__':
     app = create_app()
-    app.run(debug=True)
+    debug = str(os.environ.get('FLASK_DEBUG', '') or '').strip().lower() in {'1', 'true', 'yes', 'y', 'on'}
+    app.run(debug=debug)
 """
     
     with open(os.path.join(output_dir, 'app.py'), 'w', encoding='utf-8') as f:
@@ -2663,8 +2669,6 @@ python app.py
 
 ```
 http://localhost:5000
-Username: admin
-Password: admin123
 ```
 
 ---

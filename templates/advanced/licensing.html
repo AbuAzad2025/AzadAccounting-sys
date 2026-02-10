@@ -28,12 +28,12 @@
   
   {% include 'advanced/_navigation.html' %}
   
-  <div class="d-flex justify-content-end mb-3 gap-2">
+  <div class="d-flex justify-content-end mb-3" style="gap: .5rem;">
       <div class="btn-group shadow-sm rounded-pill overflow-hidden bg-white">
-          <button onclick="window.history.back()" class="btn btn-sm text-primary fw-bold border-end" title="رجوع">
+          <button onclick="window.history.back()" class="btn btn-sm text-primary font-weight-bold border-right" title="رجوع">
               <i class="fas fa-arrow-right"></i>
           </button>
-          <button onclick="window.history.forward()" class="btn btn-sm text-primary fw-bold" title="تقدم">
+          <button onclick="window.history.forward()" class="btn btn-sm text-primary font-weight-bold" title="تقدم">
               <i class="fas fa-arrow-left"></i>
           </button>
       </div>
@@ -94,27 +94,27 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             
             <div class="mb-3">
-              <label class="form-label fw-bold">مفتاح الترخيص</label>
+              <label class="form-label font-weight-bold">مفتاح الترخيص</label>
               <input type="text" name="license_key" class="form-control form-control-modern" 
                      value="{{ license.key or '' }}"
                      placeholder="XXXX-XXXX-XXXX-XXXX" required>
             </div>
             
             <div class="mb-3">
-              <label class="form-label fw-bold">اسم العميل</label>
+              <label class="form-label font-weight-bold">اسم العميل</label>
               <input type="text" name="client_name" class="form-control form-control-modern" 
                      value="{{ license.client or '' }}"
                      placeholder="اسم الشركة/العميل" required>
             </div>
             
             <div class="mb-3">
-              <label class="form-label fw-bold">تاريخ الانتهاء</label>
+              <label class="form-label font-weight-bold">تاريخ الانتهاء</label>
               <input type="date" name="expiry_date" class="form-control form-control-modern" 
                      value="{{ license.expiry or '' }}" required>
             </div>
             
             <div class="mb-3">
-              <label class="form-label fw-bold">الحد الأقصى للمستخدمين</label>
+              <label class="form-label font-weight-bold">الحد الأقصى للمستخدمين</label>
               <input type="number" name="max_users" class="form-control form-control-modern" 
                      value="{{ license.max_users or '10' }}" required>
             </div>

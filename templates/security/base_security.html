@@ -610,7 +610,9 @@ document.body.dataset.tourName = '{% block tour_name %}dashboard{% endblock %}';
               <div>
                 {{ message }}
               </div>
-              <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>
+              <button type="button" class="close ml-auto" data-dismiss="alert" aria-label="إغلاق">
+                <span aria-hidden="true">&times;</span>
+              </button>
             </div>
           </div>
         {% endfor %}

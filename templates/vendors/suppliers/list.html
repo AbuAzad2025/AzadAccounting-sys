@@ -145,10 +145,10 @@
 
                                     {% if current_user.has_permission('manage_vendors') %}
                                     <div class="dropdown d-inline-block">
-                                        <button class="btn btn-sm btn-outline-secondary rounded-circle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <button class="btn btn-sm btn-outline-secondary rounded-circle" type="button" data-toggle="dropdown" aria-expanded="false">
                                             <i class="fas fa-ellipsis-v"></i>
                                         </button>
-                                        <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-3">
+                                        <ul class="dropdown-menu dropdown-menu-right shadow border-0 rounded-3">
                                             <li>
                                                 <a class="dropdown-item" href="{{ url_for('vendors_bp.suppliers_edit', id=s.id) }}">
                                                     <i class="fas fa-edit text-primary me-2"></i> تعديل

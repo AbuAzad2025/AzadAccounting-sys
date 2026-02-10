@@ -7,12 +7,12 @@
   
   {% include 'advanced/_navigation.html' %}
   
-  <div class="d-flex justify-content-end mb-3 gap-2">
+  <div class="d-flex justify-content-end mb-3" style="gap: .5rem;">
     <div class="btn-group shadow-sm rounded-pill overflow-hidden bg-white">
-        <button onclick="window.history.back()" class="btn btn-sm text-primary fw-bold border-end" title="رجوع">
+        <button onclick="window.history.back()" class="btn btn-sm text-primary font-weight-bold border-right" title="رجوع">
             <i class="fas fa-arrow-right"></i>
         </button>
-        <button onclick="window.history.forward()" class="btn btn-sm text-primary fw-bold" title="تقدم">
+        <button onclick="window.history.forward()" class="btn btn-sm text-primary font-weight-bold" title="تقدم">
             <i class="fas fa-arrow-left"></i>
         </button>
     </div>
@@ -25,8 +25,8 @@
     <i class="fas fa-info-circle"></i> <strong>دمج ذكي:</strong> رفع قاعدة بيانات قديمة ودمجها مع الحالية بذكاء
   </div>
 
-  <div class="row g-4 mb-4">
-    <div class="col-md-4">
+  <div class="row mb-4">
+    <div class="col-md-4 mb-3">
       <div class="card border-0 shadow-sm bg-primary text-white" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);">
         <div class="card-body text-center">
           <h3>{{ stats.current_db_size }}</h3>
@@ -34,7 +34,7 @@
         </div>
       </div>
     </div>
-    <div class="col-md-4">
+    <div class="col-md-4 mb-3">
       <div class="card border-0 shadow-sm bg-success text-white" style="background: linear-gradient(135deg, #1cc88a 0%, #13855c 100%);">
         <div class="card-body text-center">
           <h3>{{ stats.total_tables }}</h3>
@@ -42,7 +42,7 @@
         </div>
       </div>
     </div>
-    <div class="col-md-4">
+    <div class="col-md-4 mb-3">
       <div class="card border-0 shadow-sm bg-info text-white" style="background: linear-gradient(135deg, #36b9cc 0%, #258391 100%);">
         <div class="card-body text-center">
           <h3>{{ stats.total_records|default(0) }}</h3>
@@ -64,13 +64,13 @@
             <input type="hidden" name="action" value="preview">
             
             <div class="mb-4">
-              <label class="form-label fw-bold">رفع ملف بيانات</label>
+              <label class="form-label font-weight-bold">رفع ملف بيانات</label>
               <input type="file" name="db_file" class="form-control form-control-modern" required>
               <small class="text-muted">ميزة الدمج غير متاحة</small>
             </div>
             
             <div class="mb-4">
-              <label class="form-label fw-bold">وضع الدمج</label>
+              <label class="form-label font-weight-bold">وضع الدمج</label>
               <select name="merge_mode" class="custom-select form-control form-control-modern">
                 <option value="smart">ذكي (تجاهل المكرر)</option>
                 <option value="force">قوي (استبدال)</option>

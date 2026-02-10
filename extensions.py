@@ -339,9 +339,9 @@ def perform_backup_db(app=None):
                 if u.password:
                     env["PGPASSWORD"] = u.password
                 
-                # Construct command: pg_dump -h host -p port -U user -d dbname -Fc -f file
+                # Construct command: pg_dump -h host -p port -U user -d dbname -Fc -b -f file
                 # -Fc means Custom format (compressed, suitable for pg_restore)
-                cmd = [pg_dump_bin, "-h", u.host or "localhost", "-p", str(u.port or 5432), "-U", u.username or "postgres", "-d", u.database, "-Fc", "-f", backup_path]
+                cmd = [pg_dump_bin, "-h", u.host or "localhost", "-p", str(u.port or 5432), "-U", u.username or "postgres", "-d", u.database, "-Fc", "-b", "-f", backup_path]
                 
                 app.logger.info(f"Starting PostgreSQL backup to {backup_path}")
                 process = subprocess.run(cmd, env=env, capture_output=True, text=True)
@@ -744,31 +744,123 @@ def restore_database(app, backup_path):
             try:
                 import subprocess
                 from sqlalchemy.engine.url import make_url
+                from sqlalchemy import text
                 
                 u = make_url(uri)
                 env = os.environ.copy()
                 if u.password:
                     env["PGPASSWORD"] = u.password
+
+                try:
+                    if os.environ.get("PG_RESTORE_JOBS") is None:
+                        restore_jobs = int(min(max(os.cpu_count() or 4, 2), 8))
+                    else:
+                        restore_jobs = int(os.environ.get("PG_RESTORE_JOBS") or 4)
+                except Exception:
+                    restore_jobs = 4
+                restore_jobs = max(1, min(restore_jobs, 16))
+
+                raw_fast_restore = str(os.environ.get("FAST_RESTORE", "") or "").strip().lower()
+                if raw_fast_restore in {"0", "false", "no", "n", "off"}:
+                    fast_restore = False
+                elif raw_fast_restore in {"1", "true", "yes", "y", "on"}:
+                    fast_restore = True
+                else:
+                    fast_restore = True
+
+                raw_disable_triggers = str(os.environ.get("PG_RESTORE_DISABLE_TRIGGERS", "") or "").strip().lower()
+                disable_triggers = raw_disable_triggers in {"1", "true", "yes", "y", "on"}
+
+                raw_terminate = str(os.environ.get("PG_RESTORE_TERMINATE_CONNECTIONS", "") or "").strip().lower()
+                if raw_terminate in {"0", "false", "no", "n", "off"}:
+                    terminate_connections = False
+                elif raw_terminate in {"1", "true", "yes", "y", "on"}:
+                    terminate_connections = True
+                else:
+                    terminate_connections = True
+
+                try:
+                    db.session.remove()
+                except Exception:
+                    pass
+                try:
+                    db.engine.dispose()
+                except Exception:
+                    pass
+
+                if terminate_connections:
+                    try:
+                        db.session.execute(
+                            text(
+                                "SELECT pg_terminate_backend(pid) "
+                                "FROM pg_stat_activity "
+                                "WHERE datname = current_database() AND pid <> pg_backend_pid()"
+                            )
+                        )
+                        db.session.commit()
+                    except Exception as e:
+                        db.session.rollback()
+                        app.logger.warning(f"Terminate connections skipped: {e}")
                 
-                # Construct command: pg_restore -h host -p port -U user -d dbname --clean --if-exists backup_file
-                # --clean: drop database objects before creating them
-                # --if-exists: used with --clean to prevent errors if objects don't exist
                 pg_restore_bin = _get_pg_bin("pg_restore")
+                psql_bin = _get_pg_bin("psql")
+
+                if fast_restore:
+                    reset_sql = (
+                        "DO $$ DECLARE r record; BEGIN "
+                        "FOR r IN (SELECT nspname FROM pg_namespace "
+                        "WHERE nspname NOT LIKE 'pg_%' AND nspname <> 'information_schema') LOOP "
+                        "EXECUTE 'DROP SCHEMA IF EXISTS ' || quote_ident(r.nspname) || ' CASCADE'; "
+                        "END LOOP; "
+                        "EXECUTE 'CREATE SCHEMA IF NOT EXISTS public'; "
+                        "EXECUTE 'GRANT ALL ON SCHEMA public TO ' || quote_ident(current_user); "
+                        "EXECUTE 'GRANT USAGE ON SCHEMA public TO public'; "
+                        "END $$;"
+                    )
+                    reset_cmd = [
+                        psql_bin,
+                        "-h", u.host or "localhost",
+                        "-p", str(u.port or 5432),
+                        "-U", u.username or "postgres",
+                        "-d", u.database,
+                        "-v", "ON_ERROR_STOP=1",
+                        "-c", reset_sql,
+                    ]
+                    reset_proc = subprocess.run(reset_cmd, env=env, capture_output=True, text=True)
+                    if reset_proc.returncode != 0:
+                        app.logger.warning(f"Fast restore schema reset failed: {reset_proc.stderr}")
+                        fast_restore = False
+
                 cmd = [
                     pg_restore_bin,
                     "-h", u.host or "localhost", 
                     "-p", str(u.port or 5432), 
                     "-U", u.username or "postgres", 
                     "-d", u.database, 
-                    "--clean", 
-                    "--if-exists", 
                     "--no-owner",  # Skip ownership restoration
                     "--no-privileges",  # Skip privilege restoration
-                    backup_path
+                    "--exit-on-error",
                 ]
+
+                if not fast_restore:
+                    cmd.extend(["--clean", "--if-exists"])
+                if disable_triggers:
+                    cmd.append("--disable-triggers")
+                if restore_jobs > 1:
+                    cmd.extend(["-j", str(restore_jobs)])
+                cmd.append(backup_path)
                 
                 app.logger.info(f"Starting PostgreSQL restore from {backup_path}")
                 process = subprocess.run(cmd, env=env, capture_output=True, text=True)
+
+                try:
+                    db.session.remove()
+                except Exception:
+                    pass
+                try:
+                    db.engine.dispose()
+                except Exception:
+                    pass
                 
                 if process.returncode == 0:
                     app.logger.info(f"PostgreSQL restore completed successfully")

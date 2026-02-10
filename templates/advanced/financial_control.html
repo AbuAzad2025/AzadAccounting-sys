@@ -11,22 +11,22 @@
     <div>
       <i class="fas fa-shield-alt"></i> <strong>لوحة التحكم المالي:</strong> إعدادات حساسة - للمالك فقط
     </div>
-    <div class="d-flex gap-2">
+    <div class="d-flex" style="gap: .5rem;">
       <div class="btn-group shadow-sm rounded-pill overflow-hidden bg-white">
-          <button onclick="window.history.back()" class="btn btn-sm text-primary fw-bold border-end" title="رجوع">
+          <button onclick="window.history.back()" class="btn btn-sm text-primary font-weight-bold border-right" title="رجوع">
               <i class="fas fa-arrow-right"></i>
           </button>
-          <button onclick="window.history.forward()" class="btn btn-sm text-primary fw-bold" title="تقدم">
+          <button onclick="window.history.forward()" class="btn btn-sm text-primary font-weight-bold" title="تقدم">
               <i class="fas fa-arrow-left"></i>
           </button>
       </div>
-      <a href="{{ url_for('advanced.owner_hub') }}" class="btn btn-sm btn-light shadow-sm text-primary fw-bold">
-        <i class="fas fa-home me-1"></i> لوحة المالك
+      <a href="{{ url_for('advanced.owner_hub') }}" class="btn btn-sm btn-light shadow-sm text-primary font-weight-bold">
+        <i class="fas fa-home ml-1"></i> لوحة المالك
       </a>
     </div>
   </div>
 
-  <div class="row g-4">
+  <div class="row">
     
     <div class="col-lg-6">
       <div class="card border-0 shadow-sm h-100 card-hover">
@@ -39,10 +39,10 @@
             <input type="hidden" name="action" value="save_budget_settings">
             
             <div class="mb-3">
-              <div class="form-check form-switch">
-                <input type="checkbox" name="enable_budget_module" class="form-check-input" id="enable_budget" 
+              <div class="custom-control custom-switch">
+                <input type="checkbox" name="enable_budget_module" class="custom-control-input" id="enable_budget" 
                        {% if budget_settings.enable_budget_module %}checked{% endif %}>
-                <label class="form-check-label" for="enable_budget">
+                <label class="custom-control-label" for="enable_budget">
                   <strong>تفعيل وحدة الميزانية</strong>
                 </label>
               </div>
@@ -82,10 +82,10 @@
             </div>
 
             <div class="mb-3">
-              <div class="form-check form-switch">
-                <input type="checkbox" name="enable_budget_alerts" class="form-check-input" id="enable_alerts" 
+              <div class="custom-control custom-switch">
+                <input type="checkbox" name="enable_budget_alerts" class="custom-control-input" id="enable_alerts" 
                        {% if budget_settings.enable_budget_alerts %}checked{% endif %}>
-                <label class="form-check-label" for="enable_alerts">تفعيل التنبيهات</label>
+                <label class="custom-control-label" for="enable_alerts">تفعيل التنبيهات</label>
               </div>
             </div>
 
@@ -103,10 +103,10 @@
             </div>
 
             <div class="mb-3">
-              <div class="form-check form-switch">
-                <input type="checkbox" name="enable_budget_blocking" class="form-check-input" id="enable_blocking" 
+              <div class="custom-control custom-switch">
+                <input type="checkbox" name="enable_budget_blocking" class="custom-control-input" id="enable_blocking" 
                        {% if budget_settings.enable_budget_blocking %}checked{% endif %}>
-                <label class="form-check-label" for="enable_blocking">منع تجاوز الميزانية</label>
+                <label class="custom-control-label" for="enable_blocking">منع تجاوز الميزانية</label>
               </div>
               <small class="text-muted">منع إنشاء نفقات تتجاوز الميزانية المتاحة</small>
             </div>
@@ -138,10 +138,10 @@
             <input type="hidden" name="action" value="save_asset_settings">
             
             <div class="mb-3">
-              <div class="form-check form-switch">
-                <input type="checkbox" name="enable_fixed_assets" class="form-check-input" id="enable_assets" 
+              <div class="custom-control custom-switch">
+                <input type="checkbox" name="enable_fixed_assets" class="custom-control-input" id="enable_assets" 
                        {% if asset_settings.enable_fixed_assets %}checked{% endif %}>
-                <label class="form-check-label" for="enable_assets">
+                <label class="custom-control-label" for="enable_assets">
                   <strong>تفعيل وحدة الأصول الثابتة</strong>
                 </label>
               </div>
@@ -151,10 +151,10 @@
             <hr>
 
             <div class="mb-3">
-              <div class="form-check form-switch">
-                <input type="checkbox" name="enable_auto_depreciation" class="form-check-input" id="enable_depreciation" 
+              <div class="custom-control custom-switch">
+                <input type="checkbox" name="enable_auto_depreciation" class="custom-control-input" id="enable_depreciation" 
                        {% if asset_settings.enable_auto_depreciation %}checked{% endif %}>
-                <label class="form-check-label" for="enable_depreciation">تفعيل الاستهلاك التلقائي</label>
+                <label class="custom-control-label" for="enable_depreciation">تفعيل الاستهلاك التلقائي</label>
               </div>
             </div>
 
@@ -176,10 +176,10 @@
             <hr>
 
             <div class="mb-3">
-              <div class="form-check form-switch">
-                <input type="checkbox" name="auto_create_asset_from_expense" class="form-check-input" id="auto_asset" 
+              <div class="custom-control custom-switch">
+                <input type="checkbox" name="auto_create_asset_from_expense" class="custom-control-input" id="auto_asset" 
                        {% if asset_settings.auto_create_asset_from_expense %}checked{% endif %}>
-                <label class="form-check-label" for="auto_asset">تحويل النفقات الكبيرة لأصول تلقائياً</label>
+                <label class="custom-control-label" for="auto_asset">تحويل النفقات الكبيرة لأصول تلقائياً</label>
               </div>
             </div>
 

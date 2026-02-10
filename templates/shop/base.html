@@ -81,7 +81,7 @@
           <button class="btn btn-outline-light dropdown-toggle" type="button" data-toggle="dropdown">
             <i class="fas fa-user ml-2"></i> {{ current_user.name or current_user.username }}
           </button>
-          <ul class="dropdown-menu dropdown-menu-end">
+          <ul class="dropdown-menu dropdown-menu-right">
             {% if can_view_my_orders %}
             <li><a class="dropdown-item" href="{{ url_for('shop.preorder_list') }}">طلباتي</a></li>
             {% endif %}

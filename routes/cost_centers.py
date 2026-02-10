@@ -25,15 +25,45 @@ def index():
         parent_center = None
         cost_centers = CostCenter.query.filter_by(parent_id=None).order_by(CostCenter.code).all()
     
+    center_ids = [c.id for c in cost_centers]
+    alloc_stats = {}
+    if center_ids:
+        alloc_rows = (
+            db.session.query(
+                CostCenterAllocation.cost_center_id.label("center_id"),
+                func.coalesce(func.sum(CostCenterAllocation.amount), 0).label("total_allocated"),
+                func.count(CostCenterAllocation.id).label("allocations_count"),
+            )
+            .filter(CostCenterAllocation.cost_center_id.in_(center_ids))
+            .group_by(CostCenterAllocation.cost_center_id)
+            .all()
+        )
+        for r in alloc_rows:
+            cid = int(getattr(r, "center_id", 0) or 0)
+            alloc_stats[cid] = (
+                float(getattr(r, "total_allocated", 0) or 0),
+                int(getattr(r, "allocations_count", 0) or 0),
+            )
+
+    children_counts = {}
+    if center_ids:
+        child_rows = (
+            db.session.query(
+                CostCenter.parent_id.label("parent_id"),
+                func.count(CostCenter.id).label("children_count"),
+            )
+            .filter(CostCenter.parent_id.in_(center_ids))
+            .group_by(CostCenter.parent_id)
+            .all()
+        )
+        for r in child_rows:
+            pid = int(getattr(r, "parent_id", 0) or 0)
+            children_counts[pid] = int(getattr(r, "children_count", 0) or 0)
+
     centers_data = []
     for center in cost_centers:
-        total_allocated = db.session.query(func.sum(CostCenterAllocation.amount)).filter_by(
-            cost_center_id=center.id
-        ).scalar() or 0
-        
-        children_count = CostCenter.query.filter_by(parent_id=center.id).count()
-        
-        allocations_count = CostCenterAllocation.query.filter_by(cost_center_id=center.id).count()
+        total_allocated, allocations_count = alloc_stats.get(center.id, (0.0, 0))
+        children_count = children_counts.get(center.id, 0)
         
         centers_data.append({
             'center': center,
@@ -235,25 +265,41 @@ def report_summary():
     
     centers = query.order_by(CostCenter.code).all()
     
+    date_from_obj = None
+    date_to_obj = None
+    if date_from:
+        date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
+    if date_to:
+        date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
+
+    center_ids = [c.id for c in centers]
+    totals_by_center = {}
+    if center_ids:
+        alloc_filters = [CostCenterAllocation.cost_center_id.in_(center_ids)]
+        if date_from_obj:
+            alloc_filters.append(CostCenterAllocation.allocation_date >= date_from_obj)
+        if date_to_obj:
+            alloc_filters.append(CostCenterAllocation.allocation_date <= date_to_obj)
+        agg = (
+            db.session.query(
+                CostCenterAllocation.cost_center_id.label("center_id"),
+                func.coalesce(func.sum(CostCenterAllocation.amount), 0).label("total_allocated"),
+                func.count(CostCenterAllocation.id).label("allocations_count"),
+            )
+            .filter(*alloc_filters)
+            .group_by(CostCenterAllocation.cost_center_id)
+            .all()
+        )
+        for r in agg:
+            cid = int(getattr(r, "center_id", 0) or 0)
+            totals_by_center[cid] = (
+                float(getattr(r, "total_allocated", 0) or 0),
+                int(getattr(r, "allocations_count", 0) or 0),
+            )
+
     summary_data = []
-    
     for center in centers:
-        alloc_query = CostCenterAllocation.query.filter_by(cost_center_id=center.id)
-        
-        if date_from:
-            date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
-            alloc_query = alloc_query.filter(CostCenterAllocation.allocation_date >= date_from_obj)
-        
-        if date_to:
-            date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
-            alloc_query = alloc_query.filter(CostCenterAllocation.allocation_date <= date_to_obj)
-        
-        total_allocated = db.session.query(func.sum(CostCenterAllocation.amount)).filter(
-            alloc_query.whereclause
-        ).scalar() or 0
-        
-        allocations_count = alloc_query.count()
-        
+        total_allocated, allocations_count = totals_by_center.get(center.id, (0.0, 0))
         summary_data.append({
             'center': center,
             'total_allocated': float(total_allocated),
@@ -290,30 +336,60 @@ def report_comparison():
     period2_to = request.args.get('period2_to')
     
     centers = CostCenter.query.filter_by(is_active=True).order_by(CostCenter.code).all()
+    center_ids = [c.id for c in centers]
     
+    p1_from = None
+    p1_to = None
+    p2_from = None
+    p2_to = None
+    if period1_from and period1_to:
+        p1_from = datetime.strptime(period1_from, '%Y-%m-%d').date()
+        p1_to = datetime.strptime(period1_to, '%Y-%m-%d').date()
+    if period2_from and period2_to:
+        p2_from = datetime.strptime(period2_from, '%Y-%m-%d').date()
+        p2_to = datetime.strptime(period2_to, '%Y-%m-%d').date()
+
+    p1_totals = {}
+    p2_totals = {}
+    if center_ids and p1_from and p1_to:
+        rows = (
+            db.session.query(
+                CostCenterAllocation.cost_center_id.label("center_id"),
+                func.coalesce(func.sum(CostCenterAllocation.amount), 0).label("total"),
+            )
+            .filter(
+                CostCenterAllocation.cost_center_id.in_(center_ids),
+                CostCenterAllocation.allocation_date.between(p1_from, p1_to),
+            )
+            .group_by(CostCenterAllocation.cost_center_id)
+            .all()
+        )
+        for r in rows:
+            cid = int(getattr(r, "center_id", 0) or 0)
+            p1_totals[cid] = float(getattr(r, "total", 0) or 0)
+
+    if center_ids and p2_from and p2_to:
+        rows = (
+            db.session.query(
+                CostCenterAllocation.cost_center_id.label("center_id"),
+                func.coalesce(func.sum(CostCenterAllocation.amount), 0).label("total"),
+            )
+            .filter(
+                CostCenterAllocation.cost_center_id.in_(center_ids),
+                CostCenterAllocation.allocation_date.between(p2_from, p2_to),
+            )
+            .group_by(CostCenterAllocation.cost_center_id)
+            .all()
+        )
+        for r in rows:
+            cid = int(getattr(r, "center_id", 0) or 0)
+            p2_totals[cid] = float(getattr(r, "total", 0) or 0)
+
     comparison_data = []
     
     for center in centers:
-        period1_total = 0
-        period2_total = 0
-        
-        if period1_from and period1_to:
-            p1_from = datetime.strptime(period1_from, '%Y-%m-%d').date()
-            p1_to = datetime.strptime(period1_to, '%Y-%m-%d').date()
-            
-            period1_total = db.session.query(func.sum(CostCenterAllocation.amount)).filter(
-                CostCenterAllocation.cost_center_id == center.id,
-                CostCenterAllocation.allocation_date.between(p1_from, p1_to)
-            ).scalar() or 0
-        
-        if period2_from and period2_to:
-            p2_from = datetime.strptime(period2_from, '%Y-%m-%d').date()
-            p2_to = datetime.strptime(period2_to, '%Y-%m-%d').date()
-            
-            period2_total = db.session.query(func.sum(CostCenterAllocation.amount)).filter(
-                CostCenterAllocation.cost_center_id == center.id,
-                CostCenterAllocation.allocation_date.between(p2_from, p2_to)
-            ).scalar() or 0
+        period1_total = p1_totals.get(center.id, 0.0)
+        period2_total = p2_totals.get(center.id, 0.0)
         
         variance = float(period2_total) - float(period1_total)
         variance_percent = (variance / float(period1_total or 1)) * 100 if period1_total else 0

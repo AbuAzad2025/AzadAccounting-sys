@@ -34,12 +34,12 @@
   {% include 'advanced/_navigation.html' %}
 
   <div class="d-flex justify-content-between align-items-center mb-4">
-    <h4 class="mb-0 text-gray-800"><i class="fas fa-crown text-primary me-2"></i> لوحة المالك الشاملة</h4>
+    <h4 class="mb-0 text-gray-800"><i class="fas fa-crown text-primary ml-2"></i> لوحة المالك الشاملة</h4>
     <div class="btn-group shadow-sm rounded-pill overflow-hidden bg-white">
-        <a href="javascript:window.history.back()" class="btn btn-sm text-primary fw-bold border-end" title="رجوع">
+        <a href="javascript:window.history.back()" class="btn btn-sm text-primary font-weight-bold border-right" title="رجوع">
             <i class="fas fa-arrow-right"></i>
         </a>
-        <a href="javascript:window.history.forward()" class="btn btn-sm text-primary fw-bold" title="تقدم">
+        <a href="javascript:window.history.forward()" class="btn btn-sm text-primary font-weight-bold" title="تقدم">
             <i class="fas fa-arrow-left"></i>
         </a>
     </div>
@@ -57,18 +57,18 @@
             {% else %}
             الترخيص فعال حتى {{ license_info.expiry }}
             {% endif %}
-            <a href="{{ url_for('advanced.licensing') }}" class="btn btn-sm btn-light ms-3">إدارة الترخيص</a>
+            <a href="{{ url_for('advanced.licensing') }}" class="btn btn-sm btn-light ml-3">إدارة الترخيص</a>
         </div>
     </div>
   </div>
   {% endif %}
 
-  <div class="row g-3 mb-4">
-    <div class="col-md-3">
+  <div class="row mb-4">
+    <div class="col-md-3 mb-3">
       <a href="{{ url_for('advanced.database_optimizer') }}" class="text-decoration-none">
         <div class="card border-0 shadow-sm h-100 card-hover">
           <div class="card-body">
-            <span class="text-muted fw-bold">قواعد البيانات</span>
+            <span class="text-muted font-weight-bold">قواعد البيانات</span>
             <h3 class="mb-1 text-primary">{{ db_stats.size }}</h3>
             <small class="text-muted d-block">السجلات: {{ db_stats.records }}</small>
             <small class="text-muted">Tenants: {{ db_stats.tenants }}</small>
@@ -76,11 +76,11 @@
         </div>
       </a>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-3 mb-3">
       <a href="{{ url_for('advanced.backup_manager') }}" class="text-decoration-none">
         <div class="card border-0 shadow-sm h-100 card-hover">
           <div class="card-body">
-            <span class="text-muted fw-bold">النسخ الاحتياطية</span>
+            <span class="text-muted font-weight-bold">النسخ الاحتياطية</span>
             <h3 class="mb-1 text-dark">
               {% if backup_snapshot.name %}
                 {{ backup_snapshot.size }}
@@ -102,11 +102,11 @@
         </div>
       </a>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-3 mb-3">
       <a href="{{ url_for('advanced.multi_tenant') }}" class="text-decoration-none">
         <div class="card border-0 shadow-sm h-100 card-hover">
           <div class="card-body">
-            <span class="text-muted fw-bold">Tenants</span>
+            <span class="text-muted font-weight-bold">Tenants</span>
             <h3 class="mb-1 text-info">{{ tenant_stats.total }}</h3>
             <small class="text-success d-block">نشط: {{ tenant_stats.active }}</small>
             <small class="text-muted">متوقف: {{ tenant_stats.inactive }}</small>
@@ -114,11 +114,11 @@
         </div>
       </a>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-3 mb-3">
       <a href="{{ url_for('advanced.system_health') }}" class="text-decoration-none">
         <div class="card border-0 shadow-sm h-100 card-hover">
           <div class="card-body">
-            <span class="text-muted fw-bold">صحة النظام</span>
+            <span class="text-muted font-weight-bold">صحة النظام</span>
             <h3 class="mb-1 text-{{ 'success' if overall_health >= 80 else 'warning' if overall_health >= 60 else 'danger' }}">{{ overall_health }}%</h3>
             <small class="text-muted d-block">اختبارات: {{ health_checks|length }}</small>
             <span class="badge bg-{{ 'success' if overall_health >= 80 else 'warning' if overall_health >= 60 else 'danger' }} mt-2">
@@ -130,11 +130,11 @@
     </div>
   </div>
 
-  <div class="row g-3 mb-4">
+  <div class="row mb-4">
     <div class="col-lg-8">
       <div class="card border-0 shadow-sm h-100 card-hover">
         <div class="card-header gradient-header text-white d-flex justify-content-between align-items-center">
-          <span class="fw-bold"><i class="fas fa-bolt me-2"></i> اختصارات فورية</span>
+          <span class="font-weight-bold"><i class="fas fa-bolt ml-2"></i> اختصارات فورية</span>
           <span class="badge bg-white text-primary rounded-pill">{{ quick_links|length }}</span>
         </div>
         <div class="card-body">
@@ -154,7 +154,7 @@
     <div class="col-lg-4">
       <div class="card border-0 shadow-sm h-100 mb-3 card-hover">
         <div class="card-header bg-gradient-dark text-white">
-          <span class="fw-bold"><i class="fas fa-shield-alt me-2"></i> حالة الأمان</span>
+          <span class="font-weight-bold"><i class="fas fa-shield-alt ml-2"></i> حالة الأمان</span>
         </div>
         <div class="card-body">
           <div class="d-flex justify-content-between mb-2">
@@ -183,7 +183,7 @@
       {% if owner_alerts %}
     <div class="card border-0 shadow-sm h-100 card-hover">
       <div class="card-header bg-gradient-warning text-dark d-flex justify-content-between align-items-center">
-        <span class="fw-bold"><i class="fas fa-exclamation-triangle me-2"></i> تنبيهات سريعة</span>
+        <span class="font-weight-bold"><i class="fas fa-exclamation-triangle ml-2"></i> تنبيهات سريعة</span>
         <span class="badge bg-dark text-white rounded-pill">{{ owner_alerts|length }}</span>
       </div>
       <div class="card-body p-0">
@@ -191,8 +191,8 @@
         <ul class="list-group list-group-flush">
           {% for alert in owner_alerts %}
           <li class="list-group-item d-flex justify-content-between align-items-start">
-            <div class="d-flex gap-3">
-              <span class="p-2 rounded-circle bg-{{ alert.level }}">
+            <div class="d-flex">
+              <span class="p-2 rounded-circle bg-{{ alert.level }} ml-3">
                 <i class="fas fa-{{ alert.icon }}"></i>
               </span>
               <div>
@@ -398,17 +398,17 @@
 
   <div class="card border-0 shadow-sm mb-4">
     <div class="card-header bg-light d-flex justify-content-between align-items-center">
-      <span class="fw-bold text-secondary"><i class="fas fa-cubes me-2"></i> الوحدات</span>
+      <span class="font-weight-bold text-secondary"><i class="fas fa-cubes ml-2"></i> الوحدات</span>
       <span class="text-muted">متزامنة مع الترتيب الداخلي</span>
     </div>
     <div class="card-body">
-      <div class="row g-3">
+      <div class="row">
         {% for section in owner_sections_meta %}
-        <div class="col-md-3">
+        <div class="col-md-3 mb-3">
           <a href="{{ url_for(section.endpoint) }}" class="card border-0 shadow-sm h-100 text-decoration-none text-dark card-hover">
             <div class="card-body">
               <div class="d-flex justify-content-between align-items-center">
-                <h6 class="mb-0 fw-bold">{{ section.name }}</h6>
+                <h6 class="mb-0 font-weight-bold">{{ section.name }}</h6>
                 <i class="fas fa-{{ section.icon }} text-primary"></i>
               </div>
               <small class="text-muted text-uppercase">{{ section.category }}</small>
@@ -420,7 +420,7 @@
     </div>
   </div>
 
-  <div class="row g-3 mb-4">
+  <div class="row mb-4">
     <div class="col-lg-7">
       <div class="card border-0 shadow-sm h-100">
         <div class="card-header bg-gradient-secondary text-white d-flex justify-content-between align-items-center">
@@ -430,15 +430,15 @@
         <div class="card-body p-0">
           <div class="list-group list-group-flush">
             {% for item in owner_guide %}
-            <a href="{{ url_for(item.endpoint) }}" class="list-group-item list-group-item-action d-flex align-items-center gap-3">
-              <span class="badge rounded-circle bg-primary p-3">
+            <a href="{{ url_for(item.endpoint) }}" class="list-group-item list-group-item-action d-flex align-items-center">
+              <span class="badge rounded-circle bg-primary p-3 ml-3">
                 <i class="fas fa-{{ item.icon }} text-white"></i>
               </span>
               <div>
                 <strong>{{ item.title }}</strong>
                 <div class="text-muted small">{{ item.description }}</div>
               </div>
-              <i class="fas fa-chevron-left ms-auto text-muted"></i>
+              <i class="fas fa-chevron-left ml-auto text-muted"></i>
             </a>
             {% endfor %}
           </div>
@@ -458,7 +458,7 @@
           <div class="mb-3">
             <small class="text-muted">آخر تنفيذ:</small>
             {% if checklist_progress.last_run %}
-            <div class="fw-bold">{{ checklist_progress.last_run[:16] }}</div>
+            <div class="font-weight-bold">{{ checklist_progress.last_run[:16] }}</div>
             {% else %}
             <div class="text-muted">لم يتم التنفيذ بعد</div>
             {% endif %}

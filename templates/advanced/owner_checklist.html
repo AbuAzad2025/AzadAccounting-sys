@@ -11,33 +11,33 @@
       <i class="fas fa-clipboard-list"></i>
       قائمة تحقق تنفيذية لضمان سلامة النظام بعد التعديلات الكبرى.
     </div>
-    <div class="d-flex align-items-center gap-2">
+    <div class="d-flex align-items-center" style="gap: .5rem;">
         <div class="btn-group shadow-sm rounded-pill overflow-hidden bg-white">
-            <button onclick="window.history.back()" class="btn btn-sm text-primary fw-bold border-end" title="رجوع">
+            <button onclick="window.history.back()" class="btn btn-sm text-primary font-weight-bold border-right" title="رجوع">
                 <i class="fas fa-arrow-right"></i>
             </button>
-            <button onclick="window.history.forward()" class="btn btn-sm text-primary fw-bold" title="تقدم">
+            <button onclick="window.history.forward()" class="btn btn-sm text-primary font-weight-bold" title="تقدم">
                 <i class="fas fa-arrow-left"></i>
             </button>
         </div>
-        <a href="{{ url_for('advanced.owner_hub') }}" class="btn btn-sm btn-light shadow-sm text-primary fw-bold">
-          <i class="fas fa-arrow-right me-1"></i> عودة للوحة المالك
+        <a href="{{ url_for('advanced.owner_hub') }}" class="btn btn-sm btn-light shadow-sm text-primary font-weight-bold">
+          <i class="fas fa-arrow-right ml-1"></i> عودة للوحة المالك
         </a>
     </div>
   </div>
 
-  <div class="row g-3">
+  <div class="row">
     <div class="col-lg-8">
       <form method="post" class="card border-0 shadow-sm h-100 card-hover">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="card-header text-white d-flex justify-content-between align-items-center" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);">
-          <span class="fw-bold"><i class="fas fa-tasks me-2"></i>المهام الأساسية</span>
+          <span class="font-weight-bold"><i class="fas fa-tasks ml-2"></i>المهام الأساسية</span>
           <span class="badge bg-white text-primary rounded-pill">{{ progress.completed }}/{{ progress.total }}</span>
         </div>
         <div class="card-body p-0">
           <div class="list-group list-group-flush">
             {% for task in tasks %}
-            <label class="list-group-item d-flex align-items-start gap-3 p-3 list-group-item-action">
+            <label class="list-group-item d-flex align-items-start p-3 list-group-item-action" style="gap: 1rem;">
               <input class="form-check-input mt-2" type="checkbox" name="{{ task.key }}"
                      {% if task.key in state.completed %}checked{% endif %}>
               <div>
@@ -58,15 +58,15 @@
             {% endif %}
           </div>
           <button type="submit" class="btn btn-primary rounded-pill px-4 btn-modern">
-            <i class="fas fa-save me-2"></i> حفظ الحالة
+            <i class="fas fa-save ml-2"></i> حفظ الحالة
           </button>
         </div>
       </form>
     </div>
     <div class="col-lg-4">
       <div class="card border-0 shadow-sm h-100 card-hover">
-        <div class="card-header bg-light fw-bold">
-          <span><i class="fas fa-life-ring me-2 text-primary"></i> خطوات المراجعة</span>
+        <div class="card-header bg-light font-weight-bold">
+          <span><i class="fas fa-life-ring ml-2 text-primary"></i> خطوات المراجعة</span>
         </div>
         <div class="card-body">
           <ul class="list-unstyled mb-4">

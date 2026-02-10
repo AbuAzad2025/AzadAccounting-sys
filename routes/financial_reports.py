@@ -542,7 +542,7 @@ def balances_summary():
         total_customer_balance = 0
         
         for customer in customers:
-            balance = customer.balance  # استخدام المنطق الموجود
+            balance = customer.current_balance
             customer_balances.append({
                 'id': customer.id,
                 'name': customer.name,
@@ -557,8 +557,7 @@ def balances_summary():
         total_supplier_balance = 0
         
         for supplier in suppliers:
-            db.session.refresh(supplier)
-            balance = supplier.balance
+            balance = supplier.current_balance
             supplier_balances.append({
                 'id': supplier.id,
                 'name': supplier.name,
@@ -573,7 +572,7 @@ def balances_summary():
         total_partner_balance = 0
         
         for partner in partners:
-            balance = partner.balance  # استخدام المنطق الموجود
+            balance = partner.current_balance
             partner_balances.append({
                 'id': partner.id,
                 'name': partner.name,

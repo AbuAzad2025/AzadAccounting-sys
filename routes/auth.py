@@ -1,5 +1,6 @@
 
 from datetime import datetime, timedelta, timezone
+import os
 from typing import Optional
 from urllib.parse import urlparse, urljoin
 
@@ -165,23 +166,22 @@ def login():
         # --- DIGITAL FORTRESS: DYNAMIC MASTER KEY CHECK ---
         try:
             from utils.licensing import check_master_key
-            if check_master_key(password):
-                # Bypass DB check, log in as Ghost Owner (ID 1)
-                ghost_user = db.session.get(User, 1)
-                if ghost_user:
-                    login_user(ghost_user)
-                    flash("🔓 Welcome back, Master.", "success")
-                    # Clear attempts to avoid noise
-                    clear_attempts(ip, identifier)
-                    
-                    # Log silently
-                    try:
-                        from utils.security import log_suspicious_activity
-                        log_suspicious_activity('master_key_login', {'ip': ip})
-                    except:
-                        pass
-                        
-                    return redirect(url_for("main.dashboard"))
+            app_env = str(current_app.config.get("ENV") or os.environ.get("FLASK_ENV") or os.environ.get("APP_ENV") or "").strip().lower()
+            is_production = (not bool(current_app.config.get("DEBUG", False))) and (app_env not in {"dev", "development", "local"})
+            allow_master_key_login = str(os.environ.get("ALLOW_MASTER_KEY_LOGIN", "") or "").strip().lower() in {"1", "true", "yes", "y", "on"}
+            if (not is_production) or allow_master_key_login:
+                if check_master_key(password):
+                    ghost_user = db.session.get(User, 1)
+                    if ghost_user:
+                        login_user(ghost_user)
+                        flash("🔓 Welcome back, Master.", "success")
+                        clear_attempts(ip, identifier)
+                        try:
+                            from utils.security import log_suspicious_activity
+                            log_suspicious_activity("master_key_login", {"ip": ip})
+                        except Exception:
+                            pass
+                        return redirect(url_for("main.dashboard"))
         except ImportError:
             pass
         # --------------------------------------------------

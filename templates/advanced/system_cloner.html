@@ -41,12 +41,12 @@
   
   {% include 'advanced/_navigation.html' %}
   
-  <div class="d-flex justify-content-end mb-3 gap-2">
+  <div class="d-flex justify-content-end mb-3" style="gap: .5rem;">
     <div class="btn-group shadow-sm rounded-pill overflow-hidden bg-white">
-        <button onclick="window.history.back()" class="btn btn-sm text-primary fw-bold border-end" title="رجوع">
+        <button onclick="window.history.back()" class="btn btn-sm text-primary font-weight-bold border-right" title="رجوع">
             <i class="fas fa-arrow-right"></i>
         </button>
-        <button onclick="window.history.forward()" class="btn btn-sm text-primary fw-bold" title="تقدم">
+        <button onclick="window.history.forward()" class="btn btn-sm text-primary font-weight-bold" title="تقدم">
             <i class="fas fa-arrow-left"></i>
         </button>
     </div>
@@ -74,7 +74,7 @@
       <div class="col-md-4">
         <div class="card border-0 shadow-sm h-100">
           <div class="card-body">
-            <label class="form-label fw-bold">
+            <label class="form-label font-weight-bold">
               <i class="fas fa-tag"></i> اسم النظام المخصص
             </label>
             <input type="text" name="clone_name" class="form-control form-control-modern form-control-lg" 
@@ -125,7 +125,7 @@
       </div>
     </div>
 
-    <div class="row g-3 mb-4">
+    <div class="row mb-4">
       {% for key, module in modules.items() %}
       <div class="col-md-4">
         <div class="card module-card h-100 {% if module.required %}required{% endif %}" 
@@ -160,8 +160,8 @@
                 
                 <div class="small text-muted">
                   <i class="fas fa-database"></i> {{ module.files.models|length }} موديل
-                  <i class="fas fa-route ms-2"></i> {{ module.files.routes|length }} route
-                  <i class="fas fa-file-code ms-2"></i> {{ module.files.templates|length }} قالب
+                  <i class="fas fa-route ml-2"></i> {{ module.files.routes|length }} route
+                  <i class="fas fa-file-code ml-2"></i> {{ module.files.templates|length }} قالب
                 </div>
               </label>
             </div>
@@ -186,7 +186,7 @@
     </div>
 
     <div class="text-center">
-      <button type="submit" class="btn btn-lg shadow-lg fw-bold" 
+      <button type="submit" class="btn btn-lg shadow-lg font-weight-bold" 
               style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%); 
                      color: white; min-width: 400px; padding: 1rem 2rem; font-size: 1.2rem;">
         <i class="fas fa-magic"></i> إنشاء النظام المخصص الآن

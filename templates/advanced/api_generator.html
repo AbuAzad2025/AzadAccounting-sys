@@ -9,11 +9,11 @@
   
   <div class="d-flex justify-content-between mb-3">
     <div class="btn-group" role="group">
-      <button type="button" class="btn btn-outline-primary rounded-pill me-2" onclick="window.history.back()">
-        <i class="fas fa-arrow-right me-1"></i> رجوع
+      <button type="button" class="btn btn-outline-primary rounded-pill mr-2" onclick="window.history.back()">
+        <i class="fas fa-arrow-right mr-1"></i> رجوع
       </button>
       <button type="button" class="btn btn-outline-primary rounded-pill" onclick="window.history.forward()">
-        تقدم <i class="fas fa-arrow-left ms-1"></i>
+        تقدم <i class="fas fa-arrow-left ml-1"></i>
       </button>
     </div>
     <a href="{{ url_for('advanced.owner_hub') }}" class="btn btn-primary shadow-sm rounded-pill">
@@ -36,7 +36,7 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             
             <div class="mb-4">
-              <label class="form-label fw-bold">اختر الجدول</label>
+              <label class="form-label font-weight-bold">اختر الجدول</label>
               <select name="table_name" class="custom-select form-control-modern" required>
                 <option value="">-- اختر جدول --</option>
                 {% for table in tables %}
@@ -46,7 +46,7 @@
             </div>
             
             <div class="mb-4">
-              <label class="form-label fw-bold">Endpoints المطلوبة</label>
+              <label class="form-label font-weight-bold">Endpoints المطلوبة</label>
               <div class="row">
                 <div class="col-md-6">
                   <div class="form-check mb-2">

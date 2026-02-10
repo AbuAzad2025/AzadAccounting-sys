@@ -1831,6 +1831,7 @@ def _get_payments_to_partner(partner_id: int, partner: Partner, date_from: datet
             "source": "partner"
         })
     
+    seen_payment_ids = {it.get("payment_id") for it in items if it.get("payment_id")}
     if partner.customer_id:
         customer_payments = session.query(Payment).outerjoin(
             Check, Check.payment_id == Payment.id
@@ -1872,7 +1873,7 @@ def _get_payments_to_partner(partner_id: int, partner: Partner, date_from: datet
         ).all()
         
         for payment in sale_payments:
-            if not any(item['payment_id'] == payment.id for item in items):
+            if payment.id not in seen_payment_ids:
                 amount_ils = _get_payment_total_ils(payment)
                 total_ils += amount_ils
                 
@@ -1888,6 +1889,7 @@ def _get_payments_to_partner(partner_id: int, partner: Partner, date_from: datet
                     "notes": payment.notes,
                     "source": "sale"
                 })
+                seen_payment_ids.add(payment.id)
     
     from models import Expense
     expense_payments = session.query(Payment).join(
@@ -1904,7 +1906,7 @@ def _get_payments_to_partner(partner_id: int, partner: Partner, date_from: datet
     ).all()
     
     for payment in expense_payments:
-        if not any(item['payment_id'] == payment.id for item in items):
+        if payment.id not in seen_payment_ids:
             amount_ils = _get_payment_total_ils(payment)
             total_ils += amount_ils
             
@@ -1920,6 +1922,7 @@ def _get_payments_to_partner(partner_id: int, partner: Partner, date_from: datet
                 "notes": payment.notes or f"دفع مصروف #{payment.expense_id}",
                 "source": "expense"
             })
+            seen_payment_ids.add(payment.id)
     
     if partner.customer_id:
         from models import Invoice
@@ -1936,7 +1939,7 @@ def _get_payments_to_partner(partner_id: int, partner: Partner, date_from: datet
         ).all()
         
         for payment in invoice_payments:
-            if not any(item['payment_id'] == payment.id for item in items):
+            if payment.id not in seen_payment_ids:
                 amount_ils = _convert_to_ils(Decimal(str(payment.total_amount or 0)), payment.currency, payment.payment_date)
                 total_ils += amount_ils
                 
@@ -1952,6 +1955,7 @@ def _get_payments_to_partner(partner_id: int, partner: Partner, date_from: datet
                     "notes": payment.notes,
                     "source": "invoice"
                 })
+                seen_payment_ids.add(payment.id)
         
         from models import ServiceRequest
         service_payments = session.query(Payment).join(
@@ -1967,7 +1971,7 @@ def _get_payments_to_partner(partner_id: int, partner: Partner, date_from: datet
         ).all()
         
         for payment in service_payments:
-            if not any(item['payment_id'] == payment.id for item in items):
+            if payment.id not in seen_payment_ids:
                 amount_ils = _convert_to_ils(Decimal(str(payment.total_amount or 0)), payment.currency, payment.payment_date)
                 total_ils += amount_ils
                 
@@ -1983,6 +1987,7 @@ def _get_payments_to_partner(partner_id: int, partner: Partner, date_from: datet
                     "notes": payment.notes,
                     "source": "service"
                 })
+                seen_payment_ids.add(payment.id)
         
         from models import PreOrder
         preorder_payments = session.query(Payment).join(
@@ -1998,7 +2003,7 @@ def _get_payments_to_partner(partner_id: int, partner: Partner, date_from: datet
         ).all()
         
         for payment in preorder_payments:
-            if not any(item['payment_id'] == payment.id for item in items):
+            if payment.id not in seen_payment_ids:
                 amount_ils = _convert_to_ils(Decimal(str(payment.total_amount or 0)), payment.currency, payment.payment_date)
                 total_ils += amount_ils
                 
@@ -2014,6 +2019,7 @@ def _get_payments_to_partner(partner_id: int, partner: Partner, date_from: datet
                     "notes": payment.notes,
                     "source": "preorder"
                 })
+                seen_payment_ids.add(payment.id)
     
     from models import Check, CheckStatus
     manual_checks = session.query(Check).filter(
@@ -2336,6 +2342,7 @@ def _get_partner_payments_received(partner_id: int, partner: Partner, date_from:
             "source": "partner"
         })
     
+    seen_payment_ids = {it.get("payment_id") for it in items if it.get("payment_id")}
     if partner.customer_id:
         from models import PreOrder
         customer_payments = session.query(Payment).outerjoin(
@@ -2356,7 +2363,7 @@ def _get_partner_payments_received(partner_id: int, partner: Partner, date_from:
         ).all()
         
         for payment in customer_payments:
-            if not any(item['payment_id'] == payment.id for item in items):
+            if payment.id not in seen_payment_ids:
                 amount_ils = _get_payment_total_ils(payment)
                 total_ils += amount_ils
                 
@@ -2372,6 +2379,7 @@ def _get_partner_payments_received(partner_id: int, partner: Partner, date_from:
                     "notes": payment.notes,
                     "source": "customer"
                 })
+                seen_payment_ids.add(payment.id)
         
         sale_payments = session.query(Payment).join(
             Sale, Sale.id == Payment.sale_id
@@ -2393,7 +2401,7 @@ def _get_partner_payments_received(partner_id: int, partner: Partner, date_from:
         ).all()
         
         for payment in sale_payments:
-            if not any(item['payment_id'] == payment.id for item in items):
+            if payment.id not in seen_payment_ids:
                 amount_ils = _get_payment_total_ils(payment)
                 total_ils += amount_ils
                 
@@ -2409,6 +2417,7 @@ def _get_partner_payments_received(partner_id: int, partner: Partner, date_from:
                     "notes": payment.notes,
                     "source": "sale"
                 })
+                seen_payment_ids.add(payment.id)
         
         from models import Invoice
         invoice_payments = session.query(Payment).join(
@@ -2424,7 +2433,7 @@ def _get_partner_payments_received(partner_id: int, partner: Partner, date_from:
         ).all()
         
         for payment in invoice_payments:
-            if not any(item['payment_id'] == payment.id for item in items):
+            if payment.id not in seen_payment_ids:
                 amount_ils = _get_payment_total_ils(payment)
                 total_ils += amount_ils
                 
@@ -2440,6 +2449,7 @@ def _get_partner_payments_received(partner_id: int, partner: Partner, date_from:
                     "notes": payment.notes,
                     "source": "invoice"
                 })
+                seen_payment_ids.add(payment.id)
         
         from models import ServiceRequest
         service_payments = session.query(Payment).join(
@@ -2455,7 +2465,7 @@ def _get_partner_payments_received(partner_id: int, partner: Partner, date_from:
         ).all()
         
         for payment in service_payments:
-            if not any(item['payment_id'] == payment.id for item in items):
+            if payment.id not in seen_payment_ids:
                 amount_ils = _get_payment_total_ils(payment)
                 total_ils += amount_ils
                 
@@ -2471,6 +2481,7 @@ def _get_partner_payments_received(partner_id: int, partner: Partner, date_from:
                     "notes": payment.notes,
                     "source": "service"
                 })
+                seen_payment_ids.add(payment.id)
         
         from models import PreOrder
         preorder_payments = session.query(Payment).join(
@@ -2486,7 +2497,7 @@ def _get_partner_payments_received(partner_id: int, partner: Partner, date_from:
         ).all()
         
         for payment in preorder_payments:
-            if not any(item['payment_id'] == payment.id for item in items):
+            if payment.id not in seen_payment_ids:
                 amount_ils = _get_payment_total_ils(payment)
                 total_ils += amount_ils
                 
@@ -2502,6 +2513,7 @@ def _get_partner_payments_received(partner_id: int, partner: Partner, date_from:
                     "notes": payment.notes,
                     "source": "preorder"
                 })
+                seen_payment_ids.add(payment.id)
         
         preorders_with_prepaid = session.query(PreOrder).filter(
             PreOrder.customer_id == partner.customer_id,
