@@ -85,6 +85,13 @@
                      placeholder="com.azad.garage" required>
               <small class="text-muted">للنشر على Google Play / App Store</small>
             </div>
+
+            <div class="mb-3">
+              <label class="form-label fw-bold">رابط النظام (يفتح داخل التطبيق)</label>
+              <input type="url" name="base_url" class="form-control form-control-modern"
+                     value="{{ base_url_suggestion|default('') }}" placeholder="https://example.com" required>
+              <small class="text-muted">مثال: https://domain.com أو http://192.168.1.10:5000</small>
+            </div>
             
             <div class="mb-3">
               <label class="form-label fw-bold">أيقونة التطبيق</label>
@@ -102,30 +109,22 @@
           </div>
           <div class="card-body">
             <div class="row g-3">
-              <div class="col-md-4">
-                <div class="platform-card card text-center h-100" onclick="selectPlatform(this, 'android')">
-                  <div class="card-body">
-                    <i class="fab fa-android fa-3x text-success mb-2"></i>
-                    <h6>Android</h6>
-                    <input type="radio" name="platform" value="android" class="form-check-input">
-                  </div>
-                </div>
-              </div>
-              <div class="col-md-4">
-                <div class="platform-card card text-center h-100" onclick="selectPlatform(this, 'ios')">
+              <div class="col-md-6">
+                <div class="platform-card card text-center h-100" style="opacity:0.5; cursor:not-allowed;">
                   <div class="card-body">
                     <i class="fab fa-apple fa-3x text-dark mb-2"></i>
                     <h6>iOS</h6>
-                    <input type="radio" name="platform" value="ios" class="form-check-input">
+                    <div class="badge bg-secondary">قريباً</div>
+                    <input type="radio" name="platform" value="ios" class="form-check-input" disabled>
                   </div>
                 </div>
               </div>
-              <div class="col-md-4">
-                <div class="platform-card card text-center h-100 selected" onclick="selectPlatform(this, 'both')">
+              <div class="col-md-6">
+                <div class="platform-card card text-center h-100 selected" onclick="selectPlatform(this, 'android')">
                   <div class="card-body">
                     <i class="fas fa-mobile-alt fa-3x text-primary mb-2"></i>
-                    <h6>الاثنين</h6>
-                    <input type="radio" name="platform" value="both" class="form-check-input" checked>
+                    <h6>Android (مستحسن)</h6>
+                    <input type="radio" name="platform" value="android" class="form-check-input" checked>
                   </div>
                 </div>
               </div>
@@ -135,17 +134,11 @@
             
             <h6 class="mb-3">التقنيات المستخدمة:</h6>
             <div>
-              <span class="tech-badge" style="background: #02569B; color: white;">
-                <i class="fas fa-code"></i> Flutter
-              </span>
-              <span class="tech-badge" style="background: #61DAFB; color: #000;">
-                <i class="fab fa-react"></i> React Native
-              </span>
               <span class="tech-badge" style="background: #3DDC84; color: #000;">
                 <i class="fab fa-android"></i> Kotlin
               </span>
-              <span class="tech-badge" style="background: #000; color: white;">
-                <i class="fab fa-apple"></i> Swift
+              <span class="tech-badge" style="background: #1976d2; color: white;">
+                <i class="fas fa-globe"></i> WebView
               </span>
             </div>
           </div>
@@ -248,7 +241,8 @@
                      color: white; min-width: 400px; padding: 1rem 2rem; font-size: 1.2rem;">
         <i class="fas fa-rocket"></i> إنشاء التطبيق الآن
       </button>
-      <p class="text-muted mt-2 small">سيتم إنشاء: Flutter + React Native + Android + iOS</p>
+      <p class="text-muted mt-2 small">سيتم إنشاء: Android (Kotlin + WebView)</p>
+      <p class="text-muted mt-1 small">تم تعطيل iOS مؤقتاً لتجنب توليد مشروع غير قابل للبناء</p>
     </div>
   </form>
 

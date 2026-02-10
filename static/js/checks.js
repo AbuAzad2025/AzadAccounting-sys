@@ -202,6 +202,21 @@
         // تنظيف الجدول
         tbody.innerHTML = '';
         
+        function safeBadgeColor(value) {
+            const allowed = {
+                primary: true,
+                secondary: true,
+                success: true,
+                danger: true,
+                warning: true,
+                info: true,
+                dark: true,
+                light: true
+            };
+            const v = String(value || '').toLowerCase().trim();
+            return allowed[v] ? v : 'info';
+        }
+        
         let allRows = '';
         checks.forEach(function(check, index) {
             const token = check.token || check.id;
@@ -286,7 +301,7 @@
             }
             
             // عرض العملة وسعر الصرف
-            var currencyBadge = '<span class="badge badge-secondary">' + (check.currency || 'ILS') + '</span>';
+            var currencyBadge = '<span class="badge badge-secondary">' + htmlEscape(check.currency || 'ILS') + '</span>';
             var fxRateDisplay = '-';
             
             // سعر الصرف وقت الإصدار (إذا كانت العملة مختلفة)
@@ -312,13 +327,13 @@
             
             allRows += '<tr class="' + rowClass + '">' +
                 '<td>' + (index + 1) + '</td>' +
-                '<td><strong>' + (check.check_number || '-') + '</strong></td>' +
+                '<td><strong>' + htmlEscape(check.check_number || '-') + '</strong></td>' +
                 '<td><strong>' + formatCurrency(check.amount || 0) + '</strong></td>' +
                 '<td class="text-center">' + currencyBadge + '</td>' +
                 '<td class="text-center">' + fxRateDisplay + '</td>' +
-                '<td>' + (check.check_bank || '-') + '</td>' +
-                '<td>' + (check.entity_name || '-') + '</td>' +
-                '<td>' + (check.due_date_formatted || check.check_due_date || '-') + '</td>' +
+                '<td>' + htmlEscape(check.check_bank || '-') + '</td>' +
+                '<td>' + htmlEscape(check.entity_name || '-') + '</td>' +
+                '<td>' + htmlEscape(check.due_date_formatted || check.check_due_date || '-') + '</td>' +
                 '<td>' + (check.is_incoming ? '<span class="badge badge-success"><i class="fas fa-arrow-down"></i> وارد</span>' : '<span class="badge badge-danger"><i class="fas fa-arrow-up"></i> صادر</span>') + '</td>' +
                 (function(){
                     var reasonBadge = '';
@@ -328,9 +343,9 @@
                     } else if (n.indexOf('[return_reason=payment_refund]') !== -1) {
                         reasonBadge = ' <span class="badge badge-info">إرجاع دفعة</span>';
                     }
-                    return '<td><span class="badge badge-' + (check.badge_color || 'info') + '">' + (check.status_ar || check.status || '-') + '</span>' + reasonBadge + '</td>';
+                    return '<td><span class="badge badge-' + safeBadgeColor(check.badge_color) + '">' + htmlEscape(check.status_ar || check.status || '-') + '</span>' + reasonBadge + '</td>';
                 })() +
-                '<td><span class="badge badge-secondary">' + (check.source || '-') + '</span></td>' +
+                '<td><span class="badge badge-secondary">' + htmlEscape(check.source || '-') + '</span></td>' +
                 '<td>' + actionButtons + '</td>' +
                 '</tr>';
         });
@@ -367,15 +382,15 @@
         const cashedTotals = calcTotalByCurrency(categorized.cashed);
         
         $('#stat-pending-count').text(categorized.pending.length);
-        $('#stat-pending-amount').html(formatTotals(pendingTotals));
+        $('#stat-pending-amount').text(formatTotals(pendingTotals));
         
         $('#stat-cashed-count').text(categorized.cashed.length);
-        $('#stat-cashed-amount').html(formatTotals(cashedTotals));
+        $('#stat-cashed-amount').text(formatTotals(cashedTotals));
         
         const returnedTotal = (categorized.returned ? categorized.returned.length : 0) + (categorized.bounced ? categorized.bounced.length : 0);
         const returnedTotals = calcTotalByCurrency((categorized.returned || []).concat(categorized.bounced || []));
         $('#stat-returned-count').text(returnedTotal);
-        $('#stat-returned-amount').html(formatTotals(returnedTotals));
+        $('#stat-returned-amount').text(formatTotals(returnedTotals));
         
         // ✅ سيتم ملؤها من loadStatistics() من الباكند
         // $('#stat-overdue-count').text(categorized.overdue.length);

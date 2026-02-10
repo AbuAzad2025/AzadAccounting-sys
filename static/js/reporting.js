@@ -302,7 +302,7 @@
   function renderSummary(summary) {
     const host = $('#summary-cards');
     if (!host) return;
-    host.innerHTML = '';
+    host.textContent = '';
     const entries = Object.entries(summary || {});
     if (!entries.length) {
       host.classList.add('d-none');
@@ -311,13 +311,24 @@
     entries.forEach(([k, v]) => {
       const col = document.createElement('div');
       col.className = 'col-xl-2 col-lg-3 col-md-4 col-sm-6';
-      col.innerHTML = `
-        <div class="card text-center h-100 shadow-sm summary-card">
-          <div class="card-body">
-            <div class="text-muted small">${t(k)}</div>
-            <div class="fs-4 fw-bold">${formatVal(v)}</div>
-          </div>
-        </div>`;
+      const card = document.createElement('div');
+      card.className = 'card text-center h-100 shadow-sm summary-card';
+
+      const body = document.createElement('div');
+      body.className = 'card-body';
+
+      const keyEl = document.createElement('div');
+      keyEl.className = 'text-muted small';
+      keyEl.textContent = t(k);
+
+      const valEl = document.createElement('div');
+      valEl.className = 'fs-4 fw-bold';
+      valEl.textContent = formatVal(v);
+
+      body.appendChild(keyEl);
+      body.appendChild(valEl);
+      card.appendChild(body);
+      col.appendChild(card);
       host.appendChild(col);
     });
     host.classList.remove('d-none');

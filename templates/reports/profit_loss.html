@@ -48,7 +48,7 @@
     <div class="card summary-card border-success h-100">
       <div class="card-body text-center">
         <div class="text-success mb-2"><i class="fas fa-arrow-up fa-2x"></i></div>
-        <h4 class="mb-0 text-success">{{ "{:,.2f}".format(data.total_revenue) }} ₪</h4>
+        <h4 class="mb-0 text-success">{{ "{:,.2f}".format(data.total_revenue_ils) }} ₪</h4>
         <small class="text-muted">إجمالي الإيرادات</small>
       </div>
     </div>
@@ -58,22 +58,22 @@
     <div class="card summary-card border-danger h-100">
       <div class="card-body text-center">
         <div class="text-danger mb-2"><i class="fas fa-arrow-down fa-2x"></i></div>
-        <h4 class="mb-0 text-danger">{{ "{:,.2f}".format(data.total_expenses) }} ₪</h4>
+        <h4 class="mb-0 text-danger">{{ "{:,.2f}".format(data.total_expenses_ils) }} ₪</h4>
         <small class="text-muted">إجمالي المصروفات</small>
       </div>
     </div>
   </div>
 
   <div class="col-md-4">
-    <div class="card summary-card border-{% if data.net_profit >= 0 %}primary{% else %}warning{% endif %} h-100">
+    <div class="card summary-card border-{% if data.net_profit_ils >= 0 %}primary{% else %}warning{% endif %} h-100">
       <div class="card-body text-center">
-        <div class="text-{% if data.net_profit >= 0 %}primary{% else %}warning{% endif %} mb-2">
-          <i class="fas fa-{% if data.net_profit >= 0 %}trophy{% else %}exclamation-triangle{% endif %} fa-2x"></i>
+        <div class="text-{% if data.net_profit_ils >= 0 %}primary{% else %}warning{% endif %} mb-2">
+          <i class="fas fa-{% if data.net_profit_ils >= 0 %}trophy{% else %}exclamation-triangle{% endif %} fa-2x"></i>
         </div>
-        <h4 class="mb-0 text-{% if data.net_profit >= 0 %}primary{% else %}warning{% endif %}">
-          {{ "{:,.2f}".format(data.net_profit) }} ₪
+        <h4 class="mb-0 text-{% if data.net_profit_ils >= 0 %}primary{% else %}warning{% endif %}">
+          {{ "{:,.2f}".format(data.net_profit_ils) }} ₪
         </h4>
-        <small class="text-muted">صافي {% if data.net_profit >= 0 %}الربح{% else %}الخسارة{% endif %}</small>
+        <small class="text-muted">صافي {% if data.net_profit_ils >= 0 %}الربح{% else %}الخسارة{% endif %}</small>
       </div>
     </div>
   </div>
@@ -88,19 +88,23 @@
       <tbody>
         <tr>
           <td class="fw-bold"><i class="fas fa-shopping-cart"></i> المبيعات</td>
-          <td class="text-end">{{ "{:,.2f}".format(data.sales_revenue) }} ₪</td>
+          <td class="text-end">{{ "{:,.2f}".format(data.sales_revenue_ils) }} ₪</td>
         </tr>
         <tr>
           <td class="fw-bold"><i class="fas fa-wrench"></i> الصيانة</td>
-          <td class="text-end">{{ "{:,.2f}".format(data.service_revenue) }} ₪</td>
+          <td class="text-end">{{ "{:,.2f}".format(data.service_revenue_ils) }} ₪</td>
         </tr>
         <tr>
           <td class="fw-bold"><i class="fas fa-hand-holding-usd"></i> إيرادات أخرى</td>
-          <td class="text-end">{{ "{:,.2f}".format(data.other_revenue) }} ₪</td>
+          <td class="text-end">{{ "{:,.2f}".format(data.other_revenue_ils) }} ₪</td>
+        </tr>
+        <tr>
+          <td class="fw-bold"><i class="fas fa-undo"></i> مرتجعات</td>
+          <td class="text-end text-danger">- {{ "{:,.2f}".format(data.returns_total_ils) }} ₪</td>
         </tr>
         <tr class="table-success">
           <td class="fw-bold">إجمالي الإيرادات</td>
-          <td class="text-end fw-bold">{{ "{:,.2f}".format(data.total_revenue) }} ₪</td>
+          <td class="text-end fw-bold">{{ "{:,.2f}".format(data.total_revenue_ils) }} ₪</td>
         </tr>
       </tbody>
     </table>
@@ -116,24 +120,80 @@
       <tbody>
         <tr>
           <td class="fw-bold"><i class="fas fa-wallet"></i> مصاريف تشغيلية</td>
-          <td class="text-end">{{ "{:,.2f}".format(data.operational_expenses) }} ₪</td>
+          <td class="text-end">{{ "{:,.2f}".format(data.operational_expenses_ils) }} ₪</td>
         </tr>
         <tr>
           <td class="fw-bold"><i class="fas fa-users"></i> رواتب</td>
-          <td class="text-end">{{ "{:,.2f}".format(data.salary_expenses) }} ₪</td>
+          <td class="text-end">{{ "{:,.2f}".format(data.salary_expenses_ils) }} ₪</td>
         </tr>
         <tr>
           <td class="fw-bold"><i class="fas fa-dollar-sign"></i> مصاريف أخرى</td>
-          <td class="text-end">{{ "{:,.2f}".format(data.other_expenses) }} ₪</td>
+          <td class="text-end">{{ "{:,.2f}".format(data.other_expenses_ils) }} ₪</td>
         </tr>
         <tr class="table-danger">
           <td class="fw-bold">إجمالي المصروفات</td>
-          <td class="text-end fw-bold">{{ "{:,.2f}".format(data.total_expenses) }} ₪</td>
+          <td class="text-end fw-bold">{{ "{:,.2f}".format(data.total_expenses_ils) }} ₪</td>
         </tr>
       </tbody>
     </table>
   </div>
 </div>
+
+{% if data.sales_by_currency or data.services_by_currency or data.returns_by_currency or data.expenses_by_currency %}
+<div class="card shadow-sm mb-3">
+  <div class="card-header bg-light">
+    <h5 class="mb-0"><i class="fas fa-coins"></i> تفصيل حسب العملة</h5>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-bordered table-striped align-middle mb-0">
+        <thead class="table-secondary">
+          <tr>
+            <th>البند</th>
+            <th>العملة</th>
+            <th class="text-end">المبلغ (بالعملة)</th>
+            <th class="text-end">المبلغ بالشيكل</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in data.sales_by_currency or [] %}
+          <tr>
+            <td class="fw-semibold">المبيعات</td>
+            <td>{{ r.currency }}</td>
+            <td class="text-end">{{ "{:,.2f}".format(r.amount or 0) }}</td>
+            <td class="text-end">{{ "{:,.2f}".format(r.amount_ils or 0) }} ₪</td>
+          </tr>
+          {% endfor %}
+          {% for r in data.services_by_currency or [] %}
+          <tr>
+            <td class="fw-semibold">الصيانة</td>
+            <td>{{ r.currency }}</td>
+            <td class="text-end">{{ "{:,.2f}".format(r.amount or 0) }}</td>
+            <td class="text-end">{{ "{:,.2f}".format(r.amount_ils or 0) }} ₪</td>
+          </tr>
+          {% endfor %}
+          {% for r in data.returns_by_currency or [] %}
+          <tr>
+            <td class="fw-semibold">المرتجعات</td>
+            <td>{{ r.currency }}</td>
+            <td class="text-end">{{ "{:,.2f}".format(r.amount or 0) }}</td>
+            <td class="text-end">{{ "{:,.2f}".format(r.amount_ils or 0) }} ₪</td>
+          </tr>
+          {% endfor %}
+          {% for r in data.expenses_by_currency or [] %}
+          <tr>
+            <td class="fw-semibold">المصاريف</td>
+            <td>{{ r.currency }}</td>
+            <td class="text-end">{{ "{:,.2f}".format(r.amount or 0) }}</td>
+            <td class="text-end">{{ "{:,.2f}".format(r.amount_ils or 0) }} ₪</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
 
 <div class="card shadow-sm">
   <div class="card-header text-white" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);">
@@ -144,15 +204,15 @@
       <tbody>
         <tr>
           <td class="fw-bold">إجمالي الإيرادات</td>
-          <td class="text-end text-success fw-bold">{{ "{:,.2f}".format(data.total_revenue) }} ₪</td>
+          <td class="text-end text-success fw-bold">{{ "{:,.2f}".format(data.total_revenue_ils) }} ₪</td>
         </tr>
         <tr>
           <td class="fw-bold">إجمالي المصروفات</td>
-          <td class="text-end text-danger fw-bold">{{ "{:,.2f}".format(data.total_expenses) }} ₪</td>
+          <td class="text-end text-danger fw-bold">{{ "{:,.2f}".format(data.total_expenses_ils) }} ₪</td>
         </tr>
-        <tr class="table-{% if data.net_profit >= 0 %}primary{% else %}warning{% endif %}">
-          <td class="fw-bold fs-5">صافي {% if data.net_profit >= 0 %}الربح{% else %}الخسارة{% endif %}</td>
-          <td class="text-end fw-bold fs-5">{{ "{:,.2f}".format(data.net_profit|abs) }} ₪</td>
+        <tr class="table-{% if data.net_profit_ils >= 0 %}primary{% else %}warning{% endif %}">
+          <td class="fw-bold fs-5">صافي {% if data.net_profit_ils >= 0 %}الربح{% else %}الخسارة{% endif %}</td>
+          <td class="text-end fw-bold fs-5">{{ "{:,.2f}".format(data.net_profit_ils|abs) }} ₪</td>
         </tr>
         <tr>
           <td class="fw-bold">هامش الربح %</td>

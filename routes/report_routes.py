@@ -423,6 +423,46 @@ def _to_ils(amount, currency, ref_date):
             return value
     return value
 
+def _norm_currency(code):
+    return (code or "ILS").upper()
+
+def _to_ils_with_fx(amount, currency, fx_used, ref_date):
+    value = Decimal(str(amount or 0))
+    code = _norm_currency(currency)
+    if code == "ILS":
+        return value
+    if fx_used:
+        try:
+            return value * Decimal(str(fx_used))
+        except Exception:
+            pass
+    try:
+        return convert_amount(value, code, "ILS", ref_date)
+    except Exception:
+        return value
+
+def _currency_acc_add(acc: dict, currency, **kv):
+    code = _norm_currency(currency)
+    row = acc.get(code)
+    if not row:
+        row = {"currency": code}
+        acc[code] = row
+    for k, v in (kv or {}).items():
+        row[k] = row.get(k, Decimal("0.00")) + Decimal(str(v or 0))
+
+def _currency_acc_to_list(acc: dict) -> list:
+    out = []
+    for code in sorted((acc or {}).keys()):
+        row = acc[code]
+        out_row = {}
+        for k, v in (row or {}).items():
+            if k == "currency":
+                out_row[k] = v
+            else:
+                out_row[k] = float(v or 0)
+        out.append(out_row)
+    return out
+
 @reports_bp.route("/", methods=["GET"], endpoint="universal")
 @reports_bp.route("", methods=["GET"], endpoint="index")
 @login_required
@@ -560,10 +600,33 @@ def shipments_report():
     if end:
         q = q.filter(Shipment.shipment_date <= end)
     rows = q.order_by(Shipment.shipment_date.desc()).all()
+    by_currency = {}
+    value_before_ils_total = Decimal("0.00")
+    total_value_ils_total = Decimal("0.00")
+    for s in rows:
+        ref_dt = getattr(s, "shipment_date", None) or getattr(s, "date", None)
+        vb = Decimal(str(getattr(s, "value_before", 0) or 0))
+        tv = Decimal(str(getattr(s, "total_value", 0) or 0))
+        vb_ils = _to_ils_with_fx(vb, getattr(s, "currency", None), getattr(s, "fx_rate_used", None), ref_dt)
+        tv_ils = _to_ils_with_fx(tv, getattr(s, "currency", None), getattr(s, "fx_rate_used", None), ref_dt)
+        s.value_before_ils = float(vb_ils)
+        s.total_value_ils = float(tv_ils)
+        _currency_acc_add(
+            by_currency,
+            getattr(s, "currency", None),
+            value_before=vb,
+            total_value=tv,
+            value_before_ils=vb_ils,
+            total_value_ils=tv_ils,
+        )
+        value_before_ils_total += vb_ils
+        total_value_ils_total += tv_ils
+
     totals = {
         "shipments": len(rows),
-        "value_before": sum(float(s.value_before or 0) for s in rows),
-        "total_value": sum(float(s.total_value or 0) for s in rows),
+        "by_currency": _currency_acc_to_list(by_currency),
+        "value_before_ils": float(value_before_ils_total),
+        "total_value_ils": float(total_value_ils_total),
     }
     return render_template(
         "reports/shipments.html",
@@ -580,14 +643,52 @@ def shipments_report():
 @utils.permission_required("view_reports")
 def online_report():
     orders_count = db.session.query(func.count(OnlinePreOrder.id)).scalar() or 0
-    orders_total = db.session.query(func.coalesce(func.sum(OnlinePreOrder.total_amount), 0)).scalar() or 0
-    payments_total = db.session.query(func.coalesce(func.sum(OnlinePayment.amount), 0)).filter(OnlinePayment.status == "SUCCESS").scalar() or 0
     carts_active = db.session.query(func.count(OnlineCart.id)).filter(OnlineCart.status == "ACTIVE").scalar() or 0
+
+    ord_currency_expr = func.upper(func.coalesce(OnlinePreOrder.currency, "ILS"))
+    ord_fx_mult = case(
+        (ord_currency_expr == "ILS", 1),
+        else_=func.coalesce(OnlinePreOrder.fx_rate_used, 1),
+    )
+    orders_rows = (
+        db.session.query(
+            ord_currency_expr.label("currency"),
+            func.count(OnlinePreOrder.id).label("count"),
+            func.coalesce(func.sum(OnlinePreOrder.total_amount), 0).label("total"),
+            func.coalesce(func.sum(OnlinePreOrder.total_amount * ord_fx_mult), 0).label("total_ils"),
+        )
+        .group_by(ord_currency_expr)
+        .order_by(ord_currency_expr.asc())
+        .all()
+    )
+
+    pay_currency_expr = func.upper(func.coalesce(OnlinePayment.currency, "ILS"))
+    pay_fx_mult = case(
+        (pay_currency_expr == "ILS", 1),
+        else_=func.coalesce(OnlinePayment.fx_rate_used, 1),
+    )
+    payments_rows = (
+        db.session.query(
+            pay_currency_expr.label("currency"),
+            func.count(OnlinePayment.id).label("count"),
+            func.coalesce(func.sum(OnlinePayment.amount), 0).label("total"),
+            func.coalesce(func.sum(OnlinePayment.amount * pay_fx_mult), 0).label("total_ils"),
+        )
+        .filter(OnlinePayment.status == "SUCCESS")
+        .group_by(pay_currency_expr)
+        .order_by(pay_currency_expr.asc())
+        .all()
+    )
+
+    orders_total_ils = float(sum((r.total_ils or 0) for r in orders_rows) or 0)
+    payments_total_ils = float(sum((r.total_ils or 0) for r in payments_rows) or 0)
     return render_template(
         "reports/online.html",
         orders_count=orders_count,
-        orders_total=orders_total,
-        payments_total=payments_total,
+        orders_by_currency=[{"currency": r.currency, "count": int(r.count or 0), "total": float(r.total or 0), "total_ils": float(r.total_ils or 0)} for r in orders_rows],
+        payments_by_currency=[{"currency": r.currency, "count": int(r.count or 0), "total": float(r.total or 0), "total_ils": float(r.total_ils or 0)} for r in payments_rows],
+        orders_total_ils=orders_total_ils,
+        payments_total_ils=payments_total_ils,
         carts_active=carts_active,
         FIELD_LABELS=FIELD_LABELS
     )
@@ -645,6 +746,7 @@ def invoices_report():
     
     invoices = query.order_by(Invoice.invoice_date.desc()).all()
     
+    by_currency = {}
     total_amount = Decimal('0')
     total_paid = Decimal('0')
     balance_due = Decimal('0')
@@ -653,15 +755,35 @@ def invoices_report():
     
     today = datetime.now().date()
     for inv in invoices:
-        amount = Decimal(str(inv.computed_total or 0))
+        amount = Decimal(str(getattr(inv, "total_amount", None) or 0))
+        if amount == 0:
+            amount = Decimal(str(inv.computed_total or 0))
+        if str(getattr(inv, "kind", "") or "").upper() == "CREDIT_NOTE":
+            amount = -abs(amount)
         paid = Decimal(str(inv.total_paid or 0))
-        amount_ils = _to_ils(amount, getattr(inv, "currency", "ILS"), inv.invoice_date)
-        paid_ils = _to_ils(paid, getattr(inv, "currency", "ILS"), inv.invoice_date)
+        ref_dt = getattr(inv, "invoice_date", None)
+        amount_ils = _to_ils_with_fx(amount, getattr(inv, "currency", None), getattr(inv, "fx_rate_used", None), ref_dt)
+        paid_ils = _to_ils_with_fx(paid, getattr(inv, "currency", None), getattr(inv, "fx_rate_used", None), ref_dt)
+        due = amount - paid
+        due_ils = amount_ils - paid_ils
+        inv.total_amount_display = float(amount)
         inv.amount_ils = float(amount_ils)
         inv.paid_ils = float(paid_ils)
+        inv.balance_due_ils = float(due_ils)
         total_amount += amount_ils
         total_paid += paid_ils
-        balance_due += amount_ils - paid_ils
+        balance_due += due_ils
+
+        _currency_acc_add(
+            by_currency,
+            getattr(inv, "currency", None),
+            total_amount=amount,
+            total_amount_ils=amount_ils,
+            total_paid=paid,
+            total_paid_ils=paid_ils,
+            balance_due=due,
+            balance_due_ils=due_ils,
+        )
         
         if inv.due_date and inv.due_date.date() < today and inv.status != 'PAID':
             overdue_count += 1
@@ -674,7 +796,8 @@ def invoices_report():
         'total_paid': float(total_paid),
         'balance_due': float(balance_due),
         'overdue_count': overdue_count,
-        'credit_notes': credit_notes
+        'credit_notes': credit_notes,
+        "by_currency": _currency_acc_to_list(by_currency),
     }
     
     all_customers = Customer.query.filter_by(is_archived=False).order_by(Customer.name).all()
@@ -719,21 +842,62 @@ def preorders_report():
         query = query.filter(PreOrder.status == status_filter)
     
     preorders = query.order_by(PreOrder.preorder_date.desc()).all()
-    
-    total_amount = Decimal('0')
-    total_paid = Decimal('0')
-    balance_due = Decimal('0')
-    
+
+    preorder_ids = [int(p.id) for p in (preorders or []) if getattr(p, "id", None)]
+    paid_ils_by_preorder = {}
+    if preorder_ids:
+        pay_currency_expr = func.upper(func.coalesce(Payment.currency, "ILS"))
+        pay_fx_mult = case(
+            (pay_currency_expr == "ILS", 1),
+            else_=func.coalesce(Payment.fx_rate_used, 1),
+        )
+        paid_rows = (
+            db.session.query(
+                Payment.preorder_id,
+                func.coalesce(func.sum(Payment.total_amount * pay_fx_mult), 0).label("paid_ils"),
+            )
+            .filter(
+                Payment.preorder_id.in_(preorder_ids),
+                Payment.status == PaymentStatus.COMPLETED.value,
+                Payment.direction == PaymentDirection.IN.value,
+            )
+            .group_by(Payment.preorder_id)
+            .all()
+        )
+        paid_ils_by_preorder = {int(pid): Decimal(str(paid_ils or 0)) for pid, paid_ils in paid_rows}
+
+    by_currency = {}
+    total_amount_ils = Decimal("0.00")
+    total_paid_ils = Decimal("0.00")
+    balance_due_ils = Decimal("0.00")
+
     for pre in preorders:
-        total_amount += Decimal(str(pre.total_amount or 0))
-        total_paid += Decimal(str(pre.total_paid or 0))
-        balance_due += Decimal(str(pre.balance_due or 0))
-    
+        ref_dt = getattr(pre, "preorder_date", None) or getattr(pre, "created_at", None)
+        total_raw = Decimal(str(getattr(pre, "total_amount", 0) or 0))
+        total_ils = _to_ils_with_fx(total_raw, getattr(pre, "currency", None), getattr(pre, "fx_rate_used", None), ref_dt)
+        paid_ils = paid_ils_by_preorder.get(int(pre.id), Decimal("0.00"))
+        due_ils = total_ils - paid_ils
+
+        pre.total_amount_ils = float(total_ils)
+        pre.total_paid_ils = float(paid_ils)
+        pre.balance_due_ils = float(due_ils)
+
+        _currency_acc_add(
+            by_currency,
+            getattr(pre, "currency", None),
+            total_amount=total_raw,
+            total_amount_ils=total_ils,
+        )
+        total_amount_ils += total_ils
+        total_paid_ils += paid_ils
+        balance_due_ils += due_ils
+
     summary = {
-        'total_preorders': len(preorders),
-        'total_amount': float(total_amount),
-        'total_paid': float(total_paid),
-        'balance_due': float(balance_due)
+        "total_preorders": len(preorders),
+        "by_currency": _currency_acc_to_list(by_currency),
+        "total_amount_ils": float(total_amount_ils),
+        "total_paid_ils": float(total_paid_ils),
+        "balance_due_ils": float(balance_due_ils),
     }
     
     all_customers = Customer.query.filter_by(is_archived=False).order_by(Customer.name).all()
@@ -778,48 +942,117 @@ def profit_loss_report():
         query_returns = query_returns.filter(SaleReturn.created_at <= end_dt)
         query_expenses = query_expenses.filter(Expense.created_at <= end_dt)
     
-    sales = query_sales.all()
-    services = query_services.all()
-    returns = query_returns.all()
-    expenses = query_expenses.all()
-    
-    sales_revenue = sum(Decimal(str(s.total_amount or 0)) for s in sales)
-    service_revenue = sum(Decimal(str(s.total_amount or 0)) for s in services)
-    other_revenue = Decimal('0')
-    
-    returns_total = sum(Decimal(str(r.total_amount or 0)) for r in returns)
-    total_revenue = sales_revenue + service_revenue + other_revenue - returns_total
-    
-    operational_expenses = Decimal('0')
-    salary_expenses = Decimal('0')
-    other_expenses_total = Decimal('0')
-    
-    for exp in expenses:
-        exp_amount = Decimal(str(exp.amount or 0))
-        if hasattr(exp, 'expense_type') and exp.expense_type:
-            type_name = getattr(exp.expense_type, 'name', '')
-            if 'رواتب' in type_name or 'راتب' in type_name:
-                salary_expenses += exp_amount
-            else:
-                operational_expenses += exp_amount
-        else:
-            other_expenses_total += exp_amount
-    
-    total_expenses = operational_expenses + salary_expenses + other_expenses_total
-    net_profit = total_revenue - total_expenses
-    profit_margin = (float(net_profit) / float(total_revenue) * 100) if total_revenue > 0 else 0
-    
+    sales_currency_expr = func.upper(func.coalesce(Sale.currency, "ILS"))
+    sales_fx_mult = case(
+        (sales_currency_expr == "ILS", 1),
+        else_=func.coalesce(Sale.fx_rate_used, 1),
+    )
+    sales_amount_ils_expr = func.coalesce(Sale.total_amount, 0) * sales_fx_mult
+
+    srv_currency_expr = func.upper(func.coalesce(ServiceRequest.currency, "ILS"))
+    srv_fx_mult = case(
+        (srv_currency_expr == "ILS", 1),
+        else_=func.coalesce(ServiceRequest.fx_rate_used, 1),
+    )
+    srv_amount_ils_expr = func.coalesce(ServiceRequest.total_amount, 0) * srv_fx_mult
+
+    ret_currency_expr = func.upper(func.coalesce(SaleReturn.currency, "ILS"))
+    ret_fx_mult = case(
+        (ret_currency_expr == "ILS", 1),
+        else_=func.coalesce(SaleReturn.fx_rate_used, 1),
+    )
+    ret_amount_ils_expr = func.coalesce(SaleReturn.total_amount, 0) * ret_fx_mult
+
+    exp_currency_expr = func.upper(func.coalesce(Expense.currency, "ILS"))
+    exp_fx_mult = case(
+        (exp_currency_expr == "ILS", 1),
+        else_=func.coalesce(Expense.fx_rate_used, 1),
+    )
+    exp_amount_ils_expr = func.coalesce(Expense.amount, 0) * exp_fx_mult
+
+    sales_revenue_ils = Decimal(str(query_sales.with_entities(func.coalesce(func.sum(sales_amount_ils_expr), 0)).scalar() or 0))
+    service_revenue_ils = Decimal(str(query_services.with_entities(func.coalesce(func.sum(srv_amount_ils_expr), 0)).scalar() or 0))
+    returns_total_ils = Decimal(str(query_returns.with_entities(func.coalesce(func.sum(ret_amount_ils_expr), 0)).scalar() or 0))
+
+    from models import ExpenseType
+
+    type_name_expr = func.coalesce(ExpenseType.name, "")
+    salary_cond = or_(type_name_expr.like("%رواتب%"), type_name_expr.like("%راتب%"))
+    exp_q = query_expenses.join(ExpenseType, Expense.type_id == ExpenseType.id, isouter=True)
+    exp_agg = exp_q.with_entities(
+        func.coalesce(func.sum(exp_amount_ils_expr), 0).label("total"),
+        func.coalesce(func.sum(case((salary_cond, exp_amount_ils_expr), else_=0)), 0).label("salary"),
+        func.coalesce(func.sum(case((and_(~salary_cond, Expense.type_id.isnot(None)), exp_amount_ils_expr), else_=0)), 0).label("operational"),
+        func.coalesce(func.sum(case((Expense.type_id.is_(None), exp_amount_ils_expr), else_=0)), 0).label("other"),
+    ).first()
+
+    total_expenses_ils = Decimal(str(getattr(exp_agg, "total", 0) or 0))
+    salary_expenses_ils = Decimal(str(getattr(exp_agg, "salary", 0) or 0))
+    operational_expenses_ils = Decimal(str(getattr(exp_agg, "operational", 0) or 0))
+    other_expenses_ils = Decimal(str(getattr(exp_agg, "other", 0) or 0))
+
+    other_revenue_ils = Decimal("0.00")
+    total_revenue_ils = sales_revenue_ils + service_revenue_ils + other_revenue_ils - returns_total_ils
+    net_profit_ils = total_revenue_ils - total_expenses_ils
+    profit_margin = (float(net_profit_ils) / float(total_revenue_ils) * 100) if float(total_revenue_ils) > 0 else 0
+
+    sales_by_currency = (
+        query_sales.with_entities(
+            sales_currency_expr.label("currency"),
+            func.coalesce(func.sum(Sale.total_amount), 0).label("amount"),
+            func.coalesce(func.sum(sales_amount_ils_expr), 0).label("amount_ils"),
+        )
+        .group_by(sales_currency_expr)
+        .order_by(sales_currency_expr.asc())
+        .all()
+    )
+    services_by_currency = (
+        query_services.with_entities(
+            srv_currency_expr.label("currency"),
+            func.coalesce(func.sum(ServiceRequest.total_amount), 0).label("amount"),
+            func.coalesce(func.sum(srv_amount_ils_expr), 0).label("amount_ils"),
+        )
+        .group_by(srv_currency_expr)
+        .order_by(srv_currency_expr.asc())
+        .all()
+    )
+    returns_by_currency = (
+        query_returns.with_entities(
+            ret_currency_expr.label("currency"),
+            func.coalesce(func.sum(SaleReturn.total_amount), 0).label("amount"),
+            func.coalesce(func.sum(ret_amount_ils_expr), 0).label("amount_ils"),
+        )
+        .group_by(ret_currency_expr)
+        .order_by(ret_currency_expr.asc())
+        .all()
+    )
+    expenses_by_currency = (
+        query_expenses.with_entities(
+            exp_currency_expr.label("currency"),
+            func.coalesce(func.sum(Expense.amount), 0).label("amount"),
+            func.coalesce(func.sum(exp_amount_ils_expr), 0).label("amount_ils"),
+        )
+        .group_by(exp_currency_expr)
+        .order_by(exp_currency_expr.asc())
+        .all()
+    )
+
     data = {
-        'total_revenue': float(total_revenue),
-        'sales_revenue': float(sales_revenue),
-        'service_revenue': float(service_revenue),
-        'other_revenue': float(other_revenue),
-        'total_expenses': float(total_expenses),
-        'operational_expenses': float(operational_expenses),
-        'salary_expenses': float(salary_expenses),
-        'other_expenses': float(other_expenses_total),
-        'net_profit': float(net_profit),
-        'profit_margin': profit_margin
+        "total_revenue_ils": float(total_revenue_ils),
+        "sales_revenue_ils": float(sales_revenue_ils),
+        "service_revenue_ils": float(service_revenue_ils),
+        "other_revenue_ils": float(other_revenue_ils),
+        "returns_total_ils": float(returns_total_ils),
+        "total_expenses_ils": float(total_expenses_ils),
+        "operational_expenses_ils": float(operational_expenses_ils),
+        "salary_expenses_ils": float(salary_expenses_ils),
+        "other_expenses_ils": float(other_expenses_ils),
+        "net_profit_ils": float(net_profit_ils),
+        "profit_margin": profit_margin,
+        "sales_by_currency": [{"currency": r.currency, "amount": float(r.amount or 0), "amount_ils": float(r.amount_ils or 0)} for r in sales_by_currency],
+        "services_by_currency": [{"currency": r.currency, "amount": float(r.amount or 0), "amount_ils": float(r.amount_ils or 0)} for r in services_by_currency],
+        "returns_by_currency": [{"currency": r.currency, "amount": float(r.amount or 0), "amount_ils": float(r.amount_ils or 0)} for r in returns_by_currency],
+        "expenses_by_currency": [{"currency": r.currency, "amount": float(r.amount or 0), "amount_ils": float(r.amount_ils or 0)} for r in expenses_by_currency],
     }
     
     return render_template(
@@ -863,10 +1096,28 @@ def cash_flow_report():
         query_pay_in = query_pay_in.filter(Payment.payment_date <= end_dt)
         query_pay_out = query_pay_out.filter(Payment.payment_date <= end_dt)
     
+    pay_in_currency_expr = func.upper(func.coalesce(Payment.currency, "ILS"))
+    pay_in_fx_mult = case(
+        (pay_in_currency_expr == "ILS", 1),
+        else_=func.coalesce(Payment.fx_rate_used, 1),
+    )
+    pay_amount_ils_expr = func.coalesce(Payment.total_amount, 0) * pay_in_fx_mult
+
     payments_in = query_pay_in.all()
     payments_out = query_pay_out.all()
-    
-    customer_payments = sum(Decimal(str(p.total_amount or 0)) for p in payments_in)
+
+    for p in payments_in:
+        try:
+            p.amount_ils = float(_to_ils_with_fx(p.total_amount, getattr(p, "currency", None), getattr(p, "fx_rate_used", None), getattr(p, "payment_date", None)))
+        except Exception:
+            p.amount_ils = float(p.total_amount or 0)
+    for p in payments_out:
+        try:
+            p.amount_ils = float(_to_ils_with_fx(p.total_amount, getattr(p, "currency", None), getattr(p, "fx_rate_used", None), getattr(p, "payment_date", None)))
+        except Exception:
+            p.amount_ils = float(p.total_amount or 0)
+
+    customer_payments = Decimal(str(sum((getattr(p, "amount_ils", 0) or 0) for p in payments_in) or 0))
     cash_sales = Decimal('0')
     other_inflow = Decimal('0')
     
@@ -878,7 +1129,7 @@ def cash_flow_report():
     other_outflow = Decimal('0')
 
     for p in payments_out:
-        amt = Decimal(str(p.total_amount or 0))
+        amt = Decimal(str(getattr(p, "amount_ils", 0) or 0))
         et = getattr(p, 'entity_type', None)
         if str(getattr(et, 'value', et)).upper() == 'SUPPLIER':
             supplier_payments += amt
@@ -895,6 +1146,27 @@ def cash_flow_report():
     
     total_outflow = supplier_payments + salaries_paid + expenses_paid + other_outflow
     net_cash_flow = total_inflow - total_outflow
+
+    in_by_currency_rows = (
+        query_pay_in.with_entities(
+            pay_in_currency_expr.label("currency"),
+            func.coalesce(func.sum(Payment.total_amount), 0).label("amount"),
+            func.coalesce(func.sum(pay_amount_ils_expr), 0).label("amount_ils"),
+        )
+        .group_by(pay_in_currency_expr)
+        .order_by(pay_in_currency_expr.asc())
+        .all()
+    )
+    out_by_currency_rows = (
+        query_pay_out.with_entities(
+            pay_in_currency_expr.label("currency"),
+            func.coalesce(func.sum(Payment.total_amount), 0).label("amount"),
+            func.coalesce(func.sum(pay_amount_ils_expr), 0).label("amount_ils"),
+        )
+        .group_by(pay_in_currency_expr)
+        .order_by(pay_in_currency_expr.asc())
+        .all()
+    )
     
     data = {
         'total_inflow': float(total_inflow),
@@ -906,7 +1178,9 @@ def cash_flow_report():
         'salaries_paid': float(salaries_paid),
         'expenses_paid': float(expenses_paid),
         'other_outflow': float(other_outflow),
-        'net_cash_flow': float(net_cash_flow)
+        'net_cash_flow': float(net_cash_flow),
+        "in_by_currency": [{"currency": r.currency, "amount": float(r.amount or 0), "amount_ils": float(r.amount_ils or 0)} for r in in_by_currency_rows],
+        "out_by_currency": [{"currency": r.currency, "amount": float(r.amount or 0), "amount_ils": float(r.amount_ils or 0)} for r in out_by_currency_rows],
     }
     
     return render_template(
@@ -1015,12 +1289,13 @@ def payments_advanced_report():
     total_amount = float(getattr(agg, "total_amount", 0) or 0)
     completed_count = int(getattr(agg, "completed_count", 0) or 0)
 
+    method_expr = func.lower(func.coalesce(Payment.method, "other"))
     method_stats_rows = (
         base_q.with_entities(
-            func.lower(func.coalesce(Payment.method, "other")).label("method"),
+            method_expr.label("method"),
             func.coalesce(func.sum(amount_ils_expr), 0).label("total"),
         )
-        .group_by("method")
+        .group_by(method_expr)
         .order_by(func.coalesce(func.sum(amount_ils_expr), 0).desc())
         .all()
     )
@@ -1830,22 +2105,46 @@ def sales_advanced_report():
         except Exception:
             s.total_amount_ils = float(s.total_amount or 0)
 
+    currency_expr = func.upper(func.coalesce(Sale.currency, "ILS"))
+    by_currency_rows = (
+        base_q.with_entities(
+            currency_expr.label("currency"),
+            func.count(Sale.id).label("count"),
+            func.coalesce(func.sum(Sale.total_amount), 0).label("total_amount"),
+            func.coalesce(func.sum(total_amount_ils), 0).label("total_amount_ils"),
+        )
+        .group_by(currency_expr)
+        .order_by(currency_expr.asc())
+        .all()
+    )
+
     summary = {
         'total_sales': total_sales,
         'total_revenue': float(total_revenue),
+        "total_revenue_ils": float(total_revenue),
         'avg_sale': float(total_revenue / total_sales) if total_sales > 0 else 0,
         'total_items': total_items,
         'total_quantity': total_quantity,
         'avg_item_value': float(total_revenue / total_items) if total_items > 0 else 0,
+        "by_currency": [
+            {
+                "currency": r.currency,
+                "count": int(r.count or 0),
+                "total_amount": float(r.total_amount or 0),
+                "total_amount_ils": float(r.total_amount_ils or 0),
+            }
+            for r in by_currency_rows
+        ],
     }
 
+    day_expr = func.date(Sale.sale_date)
     daily_rows = (
         base_q.with_entities(
-            func.date(Sale.sale_date).label("day"),
+            day_expr.label("day"),
             func.coalesce(func.sum(total_amount_ils), 0).label("total"),
         )
-        .group_by("day")
-        .order_by("day")
+        .group_by(day_expr)
+        .order_by(day_expr)
         .all()
     )
     daily_sales = [{"date": str(d), "total": float(t or 0)} for d, t in daily_rows]
@@ -2019,13 +2318,14 @@ def expenses_report():
     emp_labels = []
     emp_values = []
     if tab == "expenses":
+        type_label_expr = func.coalesce(ExpenseType.name, "غير محدد")
         by_type_rows = (
             q.join(ExpenseType, Expense.type_id == ExpenseType.id, isouter=True)
             .with_entities(
-                func.coalesce(ExpenseType.name, "غير محدد").label("label"),
+                type_label_expr.label("label"),
                 func.coalesce(func.sum(amount_ils_expr), 0).label("total"),
             )
-            .group_by("label")
+            .group_by(type_label_expr)
             .order_by(func.coalesce(func.sum(amount_ils_expr), 0).desc())
             .limit(20)
             .all()
@@ -2033,13 +2333,14 @@ def expenses_report():
         type_labels = [str(lbl) for lbl, _ in by_type_rows]
         type_values = [float(t or 0) for _, t in by_type_rows]
 
+        emp_label_expr = func.coalesce(Employee.name, "غير محدد")
         by_emp_rows = (
             q.join(Employee, Expense.employee_id == Employee.id, isouter=True)
             .with_entities(
-                func.coalesce(Employee.name, "غير محدد").label("label"),
+                emp_label_expr.label("label"),
                 func.coalesce(func.sum(amount_ils_expr), 0).label("total"),
             )
-            .group_by("label")
+            .group_by(emp_label_expr)
             .order_by(func.coalesce(func.sum(amount_ils_expr), 0).desc())
             .limit(20)
             .all()

@@ -1324,7 +1324,7 @@ def create_app(config_object=Config) -> Flask:
     @app.context_processor
     def inject_system_settings():
         try:
-            cache_key = "system_settings:bundle:v1"
+            cache_key = "system_settings:bundle:v2"
             cached = cache.get(cache_key)
             if cached:
                 return dict(system_settings=cached)
@@ -1341,6 +1341,11 @@ def create_app(config_object=Config) -> Flask:
                 'TAX_NUMBER',
                 'CURRENCY_SYMBOL',
                 'TIMEZONE',
+                'MARKETING_MODULES',
+                'MARKETING_APIS',
+                'MARKETING_INDEXES',
+                'MARKETING_OTHER_SYSTEMS',
+                'MARKETING_PRICE_FROM_USD',
             ]
 
             rows = SystemSettings.query.filter(SystemSettings.key.in_(keys)).all()
@@ -1370,6 +1375,11 @@ def create_app(config_object=Config) -> Flask:
                 'TAX_NUMBER': _coerce('TAX_NUMBER', ''),
                 'CURRENCY_SYMBOL': _coerce('CURRENCY_SYMBOL', '$'),
                 'TIMEZONE': _coerce('TIMEZONE', 'UTC'),
+                'marketing_modules': _coerce('MARKETING_MODULES', '40+'),
+                'marketing_apis': _coerce('MARKETING_APIS', '133'),
+                'marketing_indexes': _coerce('MARKETING_INDEXES', '89'),
+                'marketing_other_systems': _coerce('MARKETING_OTHER_SYSTEMS', '4'),
+                'marketing_price_from_usd': _coerce('MARKETING_PRICE_FROM_USD', '500'),
             }
 
             cache.set(cache_key, settings, timeout=1800)

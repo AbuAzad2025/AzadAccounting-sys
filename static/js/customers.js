@@ -7,6 +7,7 @@
   const qs = (sel, root = document) => root.querySelector(sel);
   const qsa = (sel, root = document) => Array.from(root.querySelectorAll(sel));
   const isEmail = v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+  const stripScripts = (html) => String(html || '').replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
   const FIELD_LABELS = {
     name: 'اسم العميل',
     phone: 'رقم الهاتف',
@@ -515,10 +516,10 @@
       if (customersRequestController !== controller) return;
       
       if (customersTableWrapper && typeof data.table_html === "string") {
-        customersTableWrapper.innerHTML = data.table_html;
+        customersTableWrapper.innerHTML = stripScripts(data.table_html);
       }
       if (paginationWrapper) {
-        paginationWrapper.innerHTML = data.pagination_html || "";
+        paginationWrapper.innerHTML = stripScripts(data.pagination_html || "");
       }
       if (customersSearchSummary && typeof data.total_filtered === "number") {
         customersSearchSummary.textContent = `إجمالي النتائج: ${data.total_filtered}`;

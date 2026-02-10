@@ -1786,13 +1786,8 @@ def suppliers_statement(supplier_id: int):
     
     current_balance = float(supplier.current_balance or 0)
     
-    if abs(float(final_balance_from_ledger - Decimal(str(current_balance)))) > 0.01:
-        from flask import current_app
-        current_app.logger.warning(
-            f"⚠️ عدم تطابق الرصيد في كشف حساب المورد {supplier_id}: "
-            f"current_balance={current_balance}, calculated_balance={float(final_balance_from_ledger)}, "
-            f"difference={abs(float(final_balance_from_ledger - Decimal(str(current_balance))))}"
-        )
+    diff_val = abs(float(final_balance_from_ledger - Decimal(str(current_balance))))
+    if diff_val > 0.01:
         try:
             from utils.supplier_balance_updater import update_supplier_balance_components
             from sqlalchemy.orm import sessionmaker
@@ -1801,15 +1796,23 @@ def suppliers_statement(supplier_id: int):
             try:
                 update_supplier_balance_components(supplier_id, session)
                 session.commit()
-                db.session.refresh(supplier)
-                current_balance = float(supplier.current_balance or 0)
-            except Exception as e:
+            except Exception:
                 session.rollback()
-                current_app.logger.warning(f"⚠️ تعذر إعادة احتساب رصيد المورد {supplier_id}: {e}")
             finally:
                 session.close()
-        except Exception as e:
-            current_app.logger.warning(f"⚠️ تعذر إعادة احتساب رصيد المورد {supplier_id}: {e}")
+        except Exception:
+            pass
+
+        db.session.refresh(supplier)
+        current_balance = float(supplier.current_balance or 0)
+        diff_val2 = abs(float(final_balance_from_ledger - Decimal(str(current_balance))))
+        if diff_val2 > 0.01:
+            from flask import current_app
+            current_app.logger.warning(
+                f"⚠️ عدم تطابق الرصيد في كشف حساب المورد {supplier_id}: "
+                f"current_balance={current_balance}, calculated_balance={float(final_balance_from_ledger)}, "
+                f"difference={diff_val2}"
+            )
     
     from routes.supplier_settlements import _calculate_smart_supplier_balance
     balance_data = _calculate_smart_supplier_balance(

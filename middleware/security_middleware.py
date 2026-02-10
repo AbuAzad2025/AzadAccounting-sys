@@ -43,8 +43,16 @@ def check_ip_allowed(ip):
     
     if enable_country_block:
         try:
+            import ipaddress
             import requests
-            response = requests.get(f'http://ip-api.com/json/{ip}?fields=countryCode', timeout=2)
+            try:
+                ip_obj = ipaddress.ip_address(str(ip))
+                if ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_reserved or ip_obj.is_link_local:
+                    return {'allowed': True, 'reason': 'Local IP bypassed country block'}
+            except Exception:
+                pass
+            
+            response = requests.get(f'https://ip-api.com/json/{ip}?fields=countryCode', timeout=2)
             if response.status_code == 200:
                 data = response.json()
                 country_code = data.get('countryCode', '')

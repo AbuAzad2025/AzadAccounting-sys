@@ -684,13 +684,14 @@ def list_sales():
         ),
         else_=total_amount_ils,
     )
+    status_expr = func.upper(func.coalesce(Sale.status, "DRAFT"))
     by_status_rows = (
         summary_q.with_entities(
-            func.upper(func.coalesce(Sale.status, "DRAFT")).label("status"),
+            status_expr.label("status"),
             func.count(Sale.id).label("cnt"),
             func.coalesce(func.sum(net_amount_ils), 0).label("amt"),
         )
-        .group_by("status")
+        .group_by(status_expr)
         .all()
     )
     sales_by_status: dict[str, dict[str, float | int]] = {

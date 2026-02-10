@@ -9,30 +9,48 @@
 <li class="breadcrumb-item active">دفتر الأستاذ</li>
 {% endblock %}
 
+{% block body_class %}ledger-page{% endblock %}
+
 {% block head_extra %}
 <style>
-/* تمديد الصفحة على كامل العرض */
-.content-wrapper {
-    margin-left: 0 !important;
-    padding: 0 !important;
+html[data-ui-mode="mobile"] body.ledger-page .content-wrapper {
+  padding: 0 !important;
+}
+html[data-ui-mode="mobile"] body.ledger-page .content {
+  padding: 5px !important;
+  margin: 0 !important;
+}
+html[data-ui-mode="mobile"] body.ledger-page .content-header {
+  padding-left: 15px !important;
+  padding-right: 15px !important;
+}
+html[data-ui-mode="mobile"] body.ledger-page .content-wrapper .container-fluid {
+  max-width: 100% !important;
+  width: 100% !important;
+  padding-left: 5px !important;
+  padding-right: 5px !important;
+  margin: 0 !important;
 }
 
-.content {
+@media (max-width: 991.98px) {
+  html:not([data-ui-mode="desktop"]) body.ledger-page .content-wrapper {
+    padding: 0 !important;
+  }
+  html:not([data-ui-mode="desktop"]) body.ledger-page .content {
     padding: 5px !important;
     margin: 0 !important;
-}
-
-.content-header {
+  }
+  html:not([data-ui-mode="desktop"]) body.ledger-page .content-header {
     padding-left: 15px !important;
     padding-right: 15px !important;
-}
-
-.container-fluid {
+  }
+  html:not([data-ui-mode="desktop"]) body.ledger-page .content-wrapper .container-fluid {
     max-width: 100% !important;
     width: 100% !important;
     padding-left: 5px !important;
     padding-right: 5px !important;
     margin: 0 !important;
+  }
 }
 
 /* جعل الجدول يتمدد بشكل كامل */
@@ -87,15 +105,28 @@
     padding: 0 !important;
 }
 
-/* إزالة أي padding إضافي */
-.row {
-    margin-left: 0 !important;
-    margin-right: 0 !important;
+html[data-ui-mode="mobile"] body.ledger-page .row {
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+html[data-ui-mode="mobile"] body.ledger-page .col,
+html[data-ui-mode="mobile"] body.ledger-page .col-12,
+html[data-ui-mode="mobile"] body.ledger-page .col-md-12 {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
 }
 
-.col, .col-12, .col-md-12 {
+@media (max-width: 991.98px) {
+  html:not([data-ui-mode="desktop"]) body.ledger-page .row {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+  html:not([data-ui-mode="desktop"]) body.ledger-page .col,
+  html:not([data-ui-mode="desktop"]) body.ledger-page .col-12,
+  html:not([data-ui-mode="desktop"]) body.ledger-page .col-md-12 {
     padding-left: 0 !important;
     padding-right: 0 !important;
+  }
 }
 
 /* تنسيق موحد لجميع الجداول */
@@ -1669,12 +1700,14 @@ $(document).ready(function() {
     $('#to-date').val(today);
     $('#ledger-search').prop('disabled', true);
     loadLedgerData();
+    loadLedgerStatistics();
     loadAccountsSummary();
     loadReceivablesSummary();
     $('#filter-form').on('submit', function(e) {
         e.preventDefault();
         setCurrentPage(1);
         loadLedgerData();
+        loadLedgerStatistics();
         loadAccountsSummary();
         loadReceivablesSummary();
     });
@@ -1715,6 +1748,7 @@ function loadLedgerData() {
     if (searchValue) {
         parts.push(`q=${encodeURIComponent(searchValue)}`);
     }
+    parts.push('include_stats=0');
     parts.push(`sort=${sort}`);
     parts.push(`order=${order}`);
     parts.push(`page=${page}`);
@@ -1742,7 +1776,9 @@ function loadLedgerData() {
                 }
             }
             updateLedgerTable(response.data, response.totals);
-            updateStatistics(response.statistics);
+            if (response.statistics && Object.keys(response.statistics).length) {
+                updateStatistics(response.statistics);
+            }
             if (response.pagination) {
                 updatePagination(response.pagination);
             }
@@ -1750,7 +1786,31 @@ function loadLedgerData() {
         },
         error: function(xhr, status, error) {
             showAlert('خطأ في تحميل البيانات', 'error');
+            try {
+                const tbody = $('#ledger-table').find('tbody');
+                tbody.empty();
+                tbody.append('<tr><td colspan="9" class="text-center text-danger py-4"><i class="fas fa-exclamation-triangle"></i> تعذر تحميل دفتر الأستاذ</td></tr>');
+                $('.ledger-pagination-wrapper').addClass('d-none');
+                $('#ledger-pagination-summary').text('');
+                $('#ledger-pagination').empty();
+            } catch (e) {}
             $('#ledger-search').prop('disabled', false);
+        }
+    });
+}
+
+function loadLedgerStatistics() {
+    const formData = $('#filter-form').serialize();
+
+    $.ajax({
+        url: '{{ url_for("ledger.get_ledger_statistics") }}',
+        method: 'GET',
+        data: formData,
+        success: function(response) {
+            updateStatistics((response && response.statistics) ? response.statistics : {});
+        },
+        error: function(xhr, status, error) {
+            showAlert('تعذر تحميل الإحصائيات', 'error');
         }
     });
 }

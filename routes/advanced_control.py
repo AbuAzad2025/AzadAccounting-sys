@@ -2703,6 +2703,7 @@ def mobile_app_generator():
         selected_modules = request.form.getlist('modules')
         app_icon = request.files.get('app_icon')
         package_name = request.form.get('package_name', 'com.azad.garage')
+        base_url = (request.form.get('base_url') or '').strip()
         
         try:
             result = _generate_mobile_app(
@@ -2710,15 +2711,16 @@ def mobile_app_generator():
                 platform=app_platform,
                 modules=selected_modules,
                 package_name=package_name,
-                icon=app_icon
+                icon=app_icon,
+                base_url=base_url
             )
             
-            flash(f'✅ تم إنشاء تطبيق: {app_name}', 'success')
+            flash(f'✅ تم إنشاء تطبيق: {result.get("display_name") or app_name}', 'success')
             flash(f'📱 المنصة: {result["platform"]}', 'info')
             flash(f'📦 الحجم: {result["size"]}', 'info')
             flash(f'📍 الموقع: {result["output_path"]}', 'info')
             
-            return redirect(url_for('advanced.mobile_app_generator', download=app_name))
+            return redirect(url_for('advanced.mobile_app_generator', download=result.get("download_name") or app_name))
             
         except Exception as e:
             flash(f'❌ خطأ: {str(e)}', 'danger')
@@ -2742,11 +2744,13 @@ def mobile_app_generator():
                 })
     
     download_ready = request.args.get('download')
+    base_url_suggestion = (request.host_url or '').rstrip('/')
     
     return render_template('advanced/mobile_app_generator.html', 
                          modules=available_modules,
                          mobile_apps=mobile_apps,
-                         download_ready=download_ready)
+                         download_ready=download_ready,
+                         base_url_suggestion=base_url_suggestion)
 
 
 def _get_mobile_modules():
@@ -2816,24 +2820,48 @@ def _get_mobile_modules():
     }
 
 
-def _generate_mobile_app(app_name, platform, modules, package_name, icon=None):
+def _generate_mobile_app(app_name, platform, modules, package_name, icon=None, base_url=""):
     """إنشاء تطبيق موبايل"""
-    
-    output_dir = os.path.join(current_app.root_path, 'instance', 'mobile_apps', app_name)
+
+    import re
+    from urllib.parse import urlparse
+
+    safe_app_dir = secure_filename(app_name) or "GarageApp"
+    app_name_clean = (app_name or "GarageApp").strip()[:60] or "GarageApp"
+
+    package_name_clean = (package_name or "").strip()
+    if not re.fullmatch(r"[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)+", package_name_clean):
+        raise ValueError("اسم الحزمة غير صحيح. مثال: com.example.app")
+
+    base_url_clean = (base_url or "").strip()
+    if not base_url_clean:
+        base_url_clean = (request.host_url or "").rstrip("/")
+    if not base_url_clean:
+        raise ValueError("رابط النظام مطلوب")
+
+    parsed = urlparse(base_url_clean)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        raise ValueError("رابط النظام غير صحيح. مثال: https://example.com")
+    base_url_clean = f"{parsed.scheme}://{parsed.netloc}{parsed.path or ''}".rstrip("/")
+
+    if platform in ["ios", "both"]:
+        raise ValueError("مولد iOS غير جاهز حالياً لتجنب توليد مشروع غير قابل للبناء")
+
+    output_dir = os.path.join(current_app.root_path, "instance", "mobile_apps", safe_app_dir)
     os.makedirs(output_dir, exist_ok=True)
-    
-    if platform in ['android', 'both']:
-        _create_android_project(output_dir, app_name, package_name, modules, icon)
-    
-    if platform in ['ios', 'both']:
-        _create_ios_project(output_dir, app_name, package_name, modules, icon)
-    
-    _create_flutter_project(output_dir, app_name, package_name, modules)
-    _create_react_native_config(output_dir, app_name, package_name, modules)
-    _create_mobile_readme(output_dir, app_name, platform, modules)
+
+    _create_android_project(
+        output_dir=output_dir,
+        app_name=app_name_clean,
+        package_name=package_name_clean,
+        modules=modules,
+        icon=icon,
+        base_url=base_url_clean,
+    )
+    _create_mobile_readme(output_dir, app_name_clean, "android", modules, base_url_clean)
     
     import zipfile
-    zip_path = os.path.join(current_app.root_path, 'instance', 'mobile_apps', f'{app_name}.zip')
+    zip_path = os.path.join(current_app.root_path, "instance", "mobile_apps", f"{safe_app_dir}.zip")
     with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
         for root, dirs, files in os.walk(output_dir):
             for file in files:
@@ -2846,8 +2874,10 @@ def _generate_mobile_app(app_name, platform, modules, package_name, icon=None):
     return {
         'output_path': output_dir,
         'zip_path': zip_path,
-        'platform': platform,
-        'size': f'{size_mb:.2f} MB'
+        'platform': "android",
+        'size': f'{size_mb:.2f} MB',
+        'download_name': safe_app_dir,
+        'display_name': app_name_clean
     }
 
 
@@ -2963,12 +2993,134 @@ class SalesScreen extends StatelessWidget {{
         f.write(main_dart)
 
 
-def _create_android_project(output_dir, app_name, package_name, modules, icon):
+def _create_android_project(output_dir, app_name, package_name, modules, icon, base_url):
     """إنشاء مشروع Android"""
-    
-    android_dir = os.path.join(output_dir, 'android')
-    os.makedirs(android_dir, exist_ok=True)
-    
+
+    import re
+
+    project_dir = os.path.join(output_dir, "android")
+    app_dir = os.path.join(project_dir, "app")
+    src_main = os.path.join(app_dir, "src", "main")
+    java_dir = os.path.join(src_main, "java")
+    res_dir = os.path.join(src_main, "res")
+
+    for p in [project_dir, app_dir, src_main, java_dir, res_dir]:
+        os.makedirs(p, exist_ok=True)
+
+    safe_project_name = re.sub(r"[^A-Za-z0-9_]", "_", app_name.strip()) or "GarageApp"
+
+    settings_gradle = f"""pluginManagement {{
+    repositories {{
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }}
+}}
+
+dependencyResolutionManagement {{
+    repositories {{
+        google()
+        mavenCentral()
+    }}
+}}
+
+rootProject.name = "{safe_project_name}"
+include(":app")
+"""
+    with open(os.path.join(project_dir, "settings.gradle.kts"), "w", encoding="utf-8") as f:
+        f.write(settings_gradle)
+
+    root_gradle = """buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath("com.android.tools.build:gradle:8.2.2")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.22")
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+"""
+    with open(os.path.join(project_dir, "build.gradle.kts"), "w", encoding="utf-8") as f:
+        f.write(root_gradle)
+
+    gradle_props = """org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+android.useAndroidX=true
+android.enableJetifier=true
+kotlin.code.style=official
+"""
+    with open(os.path.join(project_dir, "gradle.properties"), "w", encoding="utf-8") as f:
+        f.write(gradle_props)
+
+    app_gradle = f"""plugins {{
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+}}
+
+android {{
+    namespace = "{package_name}"
+    compileSdk = 34
+
+    defaultConfig {{
+        applicationId = "{package_name}"
+        minSdk = 21
+        targetSdk = 34
+        versionCode = 1
+        versionName = "1.0"
+    }}
+
+    buildTypes {{
+        release {{
+            isMinifyEnabled = false
+        }}
+    }}
+
+    compileOptions {{
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }}
+
+    kotlinOptions {{
+        jvmTarget = "17"
+    }}
+}}
+
+dependencies {{
+    implementation("androidx.core:core-ktx:1.12.0")
+    implementation("androidx.appcompat:appcompat:1.6.1")
+    implementation("com.google.android.material:material:1.11.0")
+}}
+"""
+    with open(os.path.join(app_dir, "build.gradle.kts"), "w", encoding="utf-8") as f:
+        f.write(app_gradle)
+
+    package_path = package_name.replace(".", os.sep)
+    main_pkg_dir = os.path.join(java_dir, package_path)
+    os.makedirs(main_pkg_dir, exist_ok=True)
+
+    os.makedirs(os.path.join(res_dir, "layout"), exist_ok=True)
+    os.makedirs(os.path.join(res_dir, "values"), exist_ok=True)
+    os.makedirs(os.path.join(res_dir, "xml"), exist_ok=True)
+
+    network_security = """<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
+"""
+    with open(os.path.join(res_dir, "xml", "network_security_config.xml"), "w", encoding="utf-8") as f:
+        f.write(network_security)
+
     manifest = f"""<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="{package_name}">
@@ -2978,79 +3130,238 @@ def _create_android_project(output_dir, app_name, package_name, modules, icon):
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 
     <application
-        android:label="{app_name}"
+        android:label="@string/app_name"
         android:icon="@mipmap/ic_launcher"
-        android:usesCleartextTraffic="true">
+        android:roundIcon="@mipmap/ic_launcher"
+        android:theme="@style/Theme.GarageApp"
+        android:usesCleartextTraffic="true"
+        android:networkSecurityConfig="@xml/network_security_config">
         <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.GarageApp">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
     </application>
+
 </manifest>
 """
-    
-    with open(os.path.join(android_dir, 'AndroidManifest.xml'), 'w', encoding='utf-8') as f:
+    with open(os.path.join(src_main, "AndroidManifest.xml"), "w", encoding="utf-8") as f:
         f.write(manifest)
-    
-    build_gradle = f"""android {{
-    compileSdkVersion 34
-    defaultConfig {{
-        applicationId "{package_name}"
-        minSdkVersion 21
-        targetSdkVersion 34
-        versionCode 1
-        versionName "1.0"
+
+    strings_xml = f"""<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">{app_name}</string>
+    <string name="app_base_url">{base_url}</string>
+</resources>
+"""
+    with open(os.path.join(res_dir, "values", "strings.xml"), "w", encoding="utf-8") as f:
+        f.write(strings_xml)
+
+    themes_xml = """<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Theme.GarageApp" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/black</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="m">false</item>
+    </style>
+</resources>
+"""
+    with open(os.path.join(res_dir, "values", "themes.xml"), "w", encoding="utf-8") as f:
+        f.write(themes_xml)
+
+    colors_xml = """<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ic_launcher_background">#667EEA</color>
+</resources>
+"""
+    with open(os.path.join(res_dir, "values", "colors.xml"), "w", encoding="utf-8") as f:
+        f.write(colors_xml)
+
+    os.makedirs(os.path.join(res_dir, "drawable"), exist_ok=True)
+    ic_foreground = """<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,18c-19.882,0 -36,16.118 -36,36s16.118,36 36,36 36,-16.118 36,-36S73.882,18 54,18z" />
+</vector>
+"""
+    with open(os.path.join(res_dir, "drawable", "ic_launcher_foreground.xml"), "w", encoding="utf-8") as f:
+        f.write(ic_foreground)
+
+    os.makedirs(os.path.join(res_dir, "mipmap-anydpi-v26"), exist_ok=True)
+    ic_launcher_xml = """<?xml version="1.0" encoding="utf-8"?>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ic_launcher_background" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground" />
+</adaptive-icon>
+"""
+    with open(os.path.join(res_dir, "mipmap-anydpi-v26", "ic_launcher.xml"), "w", encoding="utf-8") as f:
+        f.write(ic_launcher_xml)
+    with open(os.path.join(res_dir, "mipmap-anydpi-v26", "ic_launcher_round.xml"), "w", encoding="utf-8") as f:
+        f.write(ic_launcher_xml)
+
+    activity_main = """<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <WebView
+        android:id="@+id/webview"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+</FrameLayout>
+"""
+    with open(os.path.join(res_dir, "layout", "activity_main.xml"), "w", encoding="utf-8") as f:
+        f.write(activity_main)
+
+    main_activity = f"""package {package_name}
+
+import android.annotation.SuppressLint
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.os.Bundle
+import android.webkit.URLUtil
+import android.webkit.GeolocationPermissions
+import android.webkit.PermissionRequest
+import android.webkit.ValueCallback
+import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
+import android.webkit.WebSettings
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import androidx.appcompat.app.AppCompatActivity
+
+class MainActivity : AppCompatActivity() {{
+    private lateinit var webView: WebView
+    private var filePathCallback: ValueCallback<Array<Uri>>? = null
+    private val fileChooserRequestCode = 1001
+
+    @SuppressLint("SetJavaScriptEnabled")
+    override fun onCreate(savedInstanceState: Bundle?) {{
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+
+        webView = findViewById(R.id.webview)
+        val s = webView.settings
+        s.javaScriptEnabled = true
+        s.domStorageEnabled = true
+        s.databaseEnabled = true
+        s.cacheMode = WebSettings.LOAD_DEFAULT
+        s.javaScriptCanOpenWindowsAutomatically = false
+        s.setSupportMultipleWindows(false)
+        s.mediaPlaybackRequiresUserGesture = false
+        s.allowFileAccess = false
+        s.allowContentAccess = false
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {{
+            s.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+        }}
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {{
+            s.safeBrowsingEnabled = true
+        }}
+
+        webView.webViewClient = object : WebViewClient() {{
+            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {{
+                val u = request.url
+                val scheme = u.scheme ?: ""
+                if (scheme == "http" || scheme == "https") {{
+                    return false
+                }}
+                return try {{
+                    startActivity(Intent(Intent.ACTION_VIEW, u))
+                    true
+                }} catch (e: Exception) {{
+                    false
+                }}
+            }}
+        }}
+
+        webView.webChromeClient = object : WebChromeClient() {{
+            override fun onPermissionRequest(request: PermissionRequest) {{
+                runOnUiThread {{
+                    request.grant(request.resources)
+                }}
+            }}
+
+            override fun onGeolocationPermissionsShowPrompt(
+                origin: String,
+                callback: GeolocationPermissions.Callback
+            ) {{
+                callback.invoke(origin, true, false)
+            }}
+
+            override fun onShowFileChooser(
+                webView: WebView,
+                filePathCallback: ValueCallback<Array<Uri>>,
+                fileChooserParams: FileChooserParams
+            ): Boolean {{
+                this@MainActivity.filePathCallback?.onReceiveValue(null)
+                this@MainActivity.filePathCallback = filePathCallback
+                return try {{
+                    startActivityForResult(fileChooserParams.createIntent(), fileChooserRequestCode)
+                    true
+                }} catch (e: Exception) {{
+                    this@MainActivity.filePathCallback = null
+                    false
+                }}
+            }}
+        }}
+
+        val url = getString(R.string.app_base_url)
+        webView.loadUrl(url)
     }}
-    buildTypes {{
-        release {{
-            minifyEnabled true
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+
+    @Deprecated("Deprecated in Android")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {{
+        if (requestCode == fileChooserRequestCode) {{
+            val result = WebChromeClient.FileChooserParams.parseResult(resultCode, data)
+            filePathCallback?.onReceiveValue(result)
+            filePathCallback = null
+            return
+        }}
+        super.onActivityResult(requestCode, resultCode, data)
+    }}
+
+    override fun onBackPressed() {{
+        if (webView.canGoBack()) {{
+            webView.goBack()
+        }} else {{
+            super.onBackPressed()
         }}
     }}
 }}
-
-dependencies {{
-    implementation 'androidx.appcompat:appcompat:1.6.1'
-    implementation 'com.google.android.material:material:1.10.0'
-    implementation 'com.squareup.retrofit2:retrofit:2.9.0'
-    implementation 'com.squareup.retrofit2:converter-gson:2.9.0'
-}}
 """
-    
-    with open(os.path.join(android_dir, 'build.gradle'), 'w', encoding='utf-8') as f:
-        f.write(build_gradle)
+    with open(os.path.join(main_pkg_dir, "MainActivity.kt"), "w", encoding="utf-8") as f:
+        f.write(main_activity)
+
+    if icon and getattr(icon, "filename", ""):
+        try:
+            icon.seek(0)
+            icon_bytes = icon.read()
+            if icon_bytes:
+                for d in ["mipmap-mdpi", "mipmap-hdpi", "mipmap-xhdpi", "mipmap-xxhdpi", "mipmap-xxxhdpi"]:
+                    os.makedirs(os.path.join(res_dir, d), exist_ok=True)
+                    with open(os.path.join(res_dir, d, "ic_launcher.png"), "wb") as f:
+                        f.write(icon_bytes)
+        except Exception:
+            pass
 
 
 def _create_ios_project(output_dir, app_name, package_name, modules, icon):
     """إنشاء مشروع iOS"""
     
-    ios_dir = os.path.join(output_dir, 'ios')
-    os.makedirs(ios_dir, exist_ok=True)
-    
-    info_plist = f"""<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>CFBundleName</key>
-    <string>{app_name}</string>
-    <key>CFBundleIdentifier</key>
-    <string>{package_name}</string>
-    <key>CFBundleVersion</key>
-    <string>1.0</string>
-    <key>NSCameraUsageDescription</key>
-    <string>نحتاج للكاميرا لمسح الباركود</string>
-    <key>NSLocationWhenInUseUsageDescription</key>
-    <string>نحتاج للموقع لتتبع الشحنات</string>
-</dict>
-</plist>
-"""
-    
-    with open(os.path.join(ios_dir, 'Info.plist'), 'w', encoding='utf-8') as f:
-        f.write(info_plist)
+    raise ValueError("مولد iOS غير جاهز حالياً لتجنب توليد مشروع غير قابل للبناء")
 
 
 def _create_react_native_config(output_dir, app_name, package_name, modules):
@@ -3107,7 +3418,7 @@ export default function App() {{
         f.write(app_js)
 
 
-def _create_mobile_readme(output_dir, app_name, platform, modules):
+def _create_mobile_readme(output_dir, app_name, platform, modules, base_url):
     """إنشاء README للتطبيق"""
     
     readme = f"""# {app_name} - Mobile App
@@ -3115,49 +3426,29 @@ def _create_mobile_readme(output_dir, app_name, platform, modules):
 تطبيق موبايل تم إنشاؤه بواسطة Mobile App Generator
 
 ## المنصات:
-- {'✅ Android' if platform in ['android', 'both'] else '❌ Android'}
-- {'✅ iOS' if platform in ['ios', 'both'] else '❌ iOS'}
+- ✅ Android (WebView Wrapper)
+- ❌ iOS (غير متاح حالياً)
 
 ## التقنيات المستخدمة:
-- **Flutter**: تطبيق عابر للمنصات
-- **React Native**: بديل JavaScript
-- **Native Android**: Kotlin/Java
-- **Native iOS**: Swift
+- **Android Native**: Kotlin + WebView
 
 ## الوحدات المضمنة:
 {len(modules)} وحدة
 
 ## البناء:
 
-### Flutter:
-```bash
-cd flutter_app
-flutter pub get
-flutter run
-```
-
-### React Native:
-```bash
-cd react_native
-npm install
-npm run android  # أو npm run ios
-```
-
 ### Android Native:
 ```bash
 cd android
-./gradlew assembleRelease
 ```
 
 ## الاتصال بالسيرفر:
 
-تأكد من تحديث API URL في:
-- Flutter: `lib/config.dart`
-- React Native: `src/config.js`
-- Android: `app/src/main/java/config/ApiConfig.java`
+تأكد من تحديث رابط النظام داخل:
+- Android: `app/src/main/res/values/strings.xml`
 
 ```
-API_URL = "http://your-server-ip:5000"
+app_base_url = "{base_url}"
 ```
 
 ---

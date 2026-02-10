@@ -42,6 +42,13 @@ main_bp = Blueprint("main", __name__, template_folder="templates")
 def favicon():
     return send_from_directory(current_app.static_folder, "favicon.ico", mimetype="image/vnd.microsoft.icon")
 
+@main_bp.route("/login", methods=["GET"], endpoint="login_alias")
+def login_alias():
+    nxt = request.args.get("next")
+    if nxt:
+        return redirect(url_for("auth.login", next=nxt))
+    return redirect(url_for("auth.login"))
+
 @main_bp.route("/", methods=["GET"], endpoint="dashboard")
 @login_required
 def dashboard():
@@ -681,11 +688,12 @@ def dashboard():
     service_metrics = {"day_labels": [], "day_counts": []}
     customer_metrics = {}
     if _has_perm("view_reports"):
+        day_expr = func.date(ServiceRequest.start_time)
         rows = (
-            db.session.query(func.date(ServiceRequest.start_time).label("day"), func.count(ServiceRequest.id).label("cnt"))
+            db.session.query(day_expr.label("day"), func.count(ServiceRequest.id).label("cnt"))
             .filter(ServiceRequest.start_time >= week_start_dt, ServiceRequest.start_time < week_end_dt)
-            .group_by("day")
-            .order_by("day")
+            .group_by(day_expr)
+            .order_by(day_expr)
             .all()
         )
         service_metrics = {

@@ -546,7 +546,36 @@
     
     $.get(`/api/search/${target}`, { q: query })
       .done(data => {
-        $container.html(data.html || 'لا توجد نتائج');
+        const sanitizeHtmlFragment = (raw) => {
+          try {
+            const html = String(raw || '');
+            const parsed = new DOMParser().parseFromString(html, 'text/html');
+            if (!parsed) return '';
+            parsed.querySelectorAll('script').forEach(n => n.remove());
+            parsed.querySelectorAll('*').forEach(el => {
+              Array.from(el.attributes || []).forEach(attr => {
+                const name = String(attr.name || '').toLowerCase();
+                const value = String(attr.value || '');
+                if (name.startsWith('on')) {
+                  el.removeAttribute(attr.name);
+                  return;
+                }
+                if ((name === 'href' || name === 'src') && /^\s*javascript:/i.test(value)) {
+                  el.removeAttribute(attr.name);
+                }
+              });
+            });
+            return parsed.body ? parsed.body.innerHTML : '';
+          } catch (_) {
+            return '';
+          }
+        };
+        const safeHtml = sanitizeHtmlFragment(data && data.html);
+        if (safeHtml) {
+          $container.html(safeHtml);
+        } else {
+          $container.text('لا توجد نتائج');
+        }
       })
       .fail(() => {
         $container.html('<div class="alert alert-danger">خطأ في البحث</div>');

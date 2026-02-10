@@ -96,9 +96,9 @@
       <div class="sidebar-section">
         <h6 class="sidebar-title">📚 تعرف علينا</h6>
         <ul class="sidebar-menu">
-          <li><a href="{{ url_for('user_guide.index') }}"><i class="fas fa-star"></i> المميزات (40+ وحدة)</a></li>
-          <li><a href="{{ url_for('pricing.index') }}"><i class="fas fa-tags"></i> الأسعار (من $500/سنة)</a></li>
-          <li><a href="{{ url_for('other_systems.index') }}"><i class="fas fa-cogs"></i> أنظمتنا الأخرى (4 أنظمة)</a></li>
+          <li><a href="{{ url_for('user_guide.index') }}"><i class="fas fa-star"></i> المميزات ({{ system_settings.marketing_modules or '40+' }} وحدة)</a></li>
+          <li><a href="{{ url_for('pricing.index') }}"><i class="fas fa-tags"></i> الأسعار (من ${{ system_settings.marketing_price_from_usd or '500' }}/سنة)</a></li>
+          <li><a href="{{ url_for('other_systems.index') }}"><i class="fas fa-cogs"></i> أنظمتنا الأخرى ({{ system_settings.marketing_other_systems or '4' }} أنظمة)</a></li>
         </ul>
       </div>
       
@@ -122,9 +122,9 @@
             <i class="fas fa-rocket ml-1"></i> نظام احترافي 100%
           </div>
           <div class="small">
-            <strong>40+</strong> وحدة •
-            <strong>133</strong> API •
-            <strong>89</strong> فهرس
+            <strong>{{ system_settings.marketing_modules or '40+' }}</strong> وحدة •
+            <strong>{{ system_settings.marketing_apis or '133' }}</strong> API •
+            <strong>{{ system_settings.marketing_indexes or '89' }}</strong> فهرس
           </div>
         </div>
         {% if system_settings and system_settings.COMPANY_ADDRESS %}

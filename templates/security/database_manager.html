@@ -1465,7 +1465,15 @@ function executeVacuum() {
   .then(r => r.json())
   .then(data => {
     const div = document.getElementById('vacuum-result');
-    div.innerHTML = `<div class="alert alert-${data.success ? 'success' : 'danger'}"><i class="fas fa-${data.success ? 'check' : 'times'}"></i> ${data.message}</div>`;
+    div.innerHTML = '';
+    const alert = document.createElement('div');
+    alert.className = `alert alert-${data.success ? 'success' : 'danger'}`;
+    const icon = document.createElement('i');
+    icon.className = `fas fa-${data.success ? 'check' : 'times'}`;
+    const text = document.createTextNode(' ' + String(data.message || ''));
+    alert.appendChild(icon);
+    alert.appendChild(text);
+    div.appendChild(alert);
   });
 }
 
@@ -1478,7 +1486,15 @@ function executeAnalyze() {
   .then(r => r.json())
   .then(data => {
     const div = document.getElementById('analyze-result');
-    div.innerHTML = `<div class="alert alert-${data.success ? 'success' : 'danger'}"><i class="fas fa-${data.success ? 'check' : 'times'}"></i> ${data.message}</div>`;
+    div.innerHTML = '';
+    const alert = document.createElement('div');
+    alert.className = `alert alert-${data.success ? 'success' : 'danger'}`;
+    const icon = document.createElement('i');
+    icon.className = `fas fa-${data.success ? 'check' : 'times'}`;
+    const text = document.createTextNode(' ' + String(data.message || ''));
+    alert.appendChild(icon);
+    alert.appendChild(text);
+    div.appendChild(alert);
   });
 }
 
@@ -1491,7 +1507,15 @@ function executeCheckpoint() {
   .then(r => r.json())
   .then(data => {
     const div = document.getElementById('checkpoint-result');
-    div.innerHTML = `<div class="alert alert-${data.success ? 'success' : 'danger'}"><i class="fas fa-${data.success ? 'check' : 'times'}"></i> ${data.message}</div>`;
+    div.innerHTML = '';
+    const alert = document.createElement('div');
+    alert.className = `alert alert-${data.success ? 'success' : 'danger'}`;
+    const icon = document.createElement('i');
+    icon.className = `fas fa-${data.success ? 'check' : 'times'}`;
+    const text = document.createTextNode(' ' + String(data.message || ''));
+    alert.appendChild(icon);
+    alert.appendChild(text);
+    div.appendChild(alert);
   });
 }
 
@@ -1501,7 +1525,24 @@ function getDBInfo() {
   .then(r => r.json())
   .then(data => {
     const div = document.getElementById('db-info-result');
-    div.innerHTML = `<div class="mt-2"><small><strong>حجم DB:</strong> ${data.db_size || 'N/A'}</small><br><small><strong>Page size:</strong> ${data.page_size || 'N/A'}</small></div>`;
+    div.innerHTML = '';
+    const wrap = document.createElement('div');
+    wrap.className = 'mt-2';
+    const s1 = document.createElement('small');
+    const b1 = document.createElement('strong');
+    b1.textContent = 'حجم DB:';
+    s1.appendChild(b1);
+    s1.appendChild(document.createTextNode(' ' + String(data.db_size || 'N/A')));
+    const br = document.createElement('br');
+    const s2 = document.createElement('small');
+    const b2 = document.createElement('strong');
+    b2.textContent = 'Page size:';
+    s2.appendChild(b2);
+    s2.appendChild(document.createTextNode(' ' + String(data.page_size || 'N/A')));
+    wrap.appendChild(s1);
+    wrap.appendChild(br);
+    wrap.appendChild(s2);
+    div.appendChild(wrap);
   });
 }
 </script>

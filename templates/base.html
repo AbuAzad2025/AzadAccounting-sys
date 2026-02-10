@@ -144,6 +144,29 @@
   <link rel="stylesheet" href="{{ static_url('css/style.css') }}">
   <link rel="preload" href="{{ static_url('css/ui.css') }}" as="style">
   <link rel="stylesheet" href="{{ static_url('css/ui.css') }}">
+  <link rel="stylesheet" href="{{ static_url('css/mobile.css') }}" id="mobile-css" data-default-media="(max-width: 575.98px)" media="(max-width: 575.98px)">
+  <script>
+    (function() {
+      const html = document.documentElement;
+      const link = document.getElementById('mobile-css');
+      const stored = (function() {
+        try { return localStorage.getItem('ui_mode') || 'auto'; } catch (e) { return 'auto'; }
+      })();
+      const mode = stored === 'mobile' || stored === 'tablet' || stored === 'desktop' ? stored : 'auto';
+      const autoMode = (function() {
+        try {
+          if (window.matchMedia('(max-width: 575.98px)').matches) return 'mobile';
+          if (window.matchMedia('(min-width: 576px) and (max-width: 991.98px)').matches) return 'tablet';
+          return 'desktop';
+        } catch (_) {
+          return 'desktop';
+        }
+      })();
+      const effective = mode === 'auto' ? autoMode : mode;
+      html.setAttribute('data-ui-mode', effective);
+      if (link) link.media = effective === 'mobile' ? 'all' : 'not all';
+    })();
+  </script>
   <link rel="stylesheet" href="{{ static_url('css/security_dark_mode.css') }}">
   
   <!-- Numbers Fix CSS - Force English Numbers -->
@@ -198,6 +221,7 @@
   
   {% block styles %}{% endblock %}
   {% block head_extra %}{% endblock %}
+  {% block extra_head %}{% endblock %}
   
   {% if False %}
   <!-- Enhanced Styles -->
@@ -328,35 +352,45 @@
     
     /* Mobile + Tablet (< 992px) */
     @media (max-width: 991.98px) {
-      .main-sidebar {
+      html:not([data-ui-mode="desktop"]) .main-sidebar {
         width: 280px !important;
         transform: translateX(-100%);
         transition: transform 0.3s ease;
       }
       
-      body[data-sidebar-position="right"] .main-sidebar {
+      html:not([data-ui-mode="desktop"]) body[data-sidebar-position="right"] .main-sidebar {
         transform: translateX(100%);
       }
       
-      body.sidebar-open .main-sidebar {
+      html:not([data-ui-mode="desktop"]) body.sidebar-open .main-sidebar {
         transform: translateX(0);
       }
       
-      .content-wrapper,
-      .main-footer,
-      .main-header.navbar {
+      html:not([data-ui-mode="desktop"]) .content-wrapper,
+      html:not([data-ui-mode="desktop"]) .main-footer,
+      html:not([data-ui-mode="desktop"]) .main-header.navbar {
         margin-left: 0 !important;
         margin-right: 0 !important;
         width: 100% !important;
         max-width: 100% !important;
       }
       
-      .breadcrumb {
+      html:not([data-ui-mode="desktop"]) .breadcrumb {
         font-size: 12px;
       }
       
-      .card {
+      html:not([data-ui-mode="desktop"]) .card {
         margin-bottom: 15px;
+      }
+
+      html[data-ui-mode="tablet"] .table-responsive {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      html[data-ui-mode="tablet"] .dataTables_wrapper {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch;
       }
     }
     
@@ -491,7 +525,7 @@
 
     /* Sidebar Collapse على Mobile */
     @media (max-width: 991.98px) {
-      body.sidebar-collapse .main-sidebar {
+      html:not([data-ui-mode="desktop"]) body.sidebar-collapse .main-sidebar {
         transform: translateX(-100%);
       }
     }
@@ -757,12 +791,47 @@
   {% include 'partials/footer.html' %}
 </div>
 
-<script src="{{ url_for('static', filename='adminlte/plugins/jquery/jquery.min.js') }}" defer></script>
-<script src="{{ url_for('static', filename='adminlte/plugins/bootstrap/js/bootstrap.bundle.min.js') }}" defer></script>
-<script src="{{ url_for('static', filename='adminlte/plugins/overlayScrollbars/js/jquery.overlayScrollbars.min.js') }}" defer></script>
-<script src="{{ url_for('static', filename='adminlte/js/adminlte.min.js') }}" defer></script>
-<script src="{{ static_url('js/datatables-arabic.js') }}" defer></script>
-<script src="{{ static_url('js/archive.js') }}" defer></script>
+{% if current_user.is_authenticated %}
+<nav class="gm-mobile-bottom-nav d-lg-none" aria-label="التنقل السريع">
+  {% if 'main.dashboard' in current_app.view_functions %}
+  <a class="gm-tab" href="{{ url_for('main.dashboard') }}">
+    <i class="fas fa-home"></i>
+    <span>الرئيسية</span>
+  </a>
+  {% endif %}
+  {% if (has_perm('view_customers') or has_perm('manage_customers')) and ('customers_bp.list_customers' in current_app.view_functions) %}
+  <a class="gm-tab" href="{{ url_for('customers_bp.list_customers') }}">
+    <i class="fas fa-users"></i>
+    <span>العملاء</span>
+  </a>
+  {% endif %}
+  {% if (has_perm('view_sales') or has_perm('manage_sales')) and ('sales_bp.list_sales' in current_app.view_functions) %}
+  <a class="gm-tab" href="{{ url_for('sales_bp.list_sales') }}">
+    <i class="fas fa-shopping-cart"></i>
+    <span>المبيعات</span>
+  </a>
+  {% endif %}
+  {% if (has_perm('view_service') or has_perm('manage_service')) and ('service.list_requests' in current_app.view_functions) %}
+  <a class="gm-tab" href="{{ url_for('service.list_requests') }}">
+    <i class="fas fa-wrench"></i>
+    <span>الصيانة</span>
+  </a>
+  {% endif %}
+  {% if has_perm('view_reports') and ('reports_bp.dynamic_report' in current_app.view_functions) %}
+  <a class="gm-tab" href="{{ url_for('reports_bp.dynamic_report') }}">
+    <i class="fas fa-chart-line"></i>
+    <span>التقارير</span>
+  </a>
+  {% endif %}
+</nav>
+{% endif %}
+
+<script src="{{ url_for('static', filename='adminlte/plugins/jquery/jquery.min.js') }}"></script>
+<script src="{{ url_for('static', filename='adminlte/plugins/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
+<script src="{{ url_for('static', filename='adminlte/plugins/overlayScrollbars/js/jquery.overlayScrollbars.min.js') }}"></script>
+<script src="{{ url_for('static', filename='adminlte/js/adminlte.min.js') }}"></script>
+<script src="{{ static_url('js/datatables-arabic.js') }}"></script>
+<script src="{{ static_url('js/archive.js') }}"></script>
 
 <script>
   (function () {
@@ -792,22 +861,80 @@
   })();
 </script>
 
-<script src="{{ static_url('js/fx_utils.js') }}" defer></script>
+<script src="{{ static_url('js/fx_utils.js') }}"></script>
 {% if show_charts %}
-<script src="{{ static_url('js/charts.js') }}" defer></script>
+<script src="{{ static_url('js/charts.js') }}"></script>
 {% endif %}
-<script src="{{ static_url('js/app.js') }}" defer></script>
-<script src="{{ static_url('js/ux-enhancements.js') }}" defer></script>
-<script src="{{ static_url('js/confirm_dangerous_operations.js') }}" defer></script>
-<script src="{{ static_url('js/security_keyboard_shortcuts.js') }}" defer></script>
-<script src="{{ static_url('js/security_dark_mode.js') }}" defer></script>
-<script src="{{ static_url('js/security_mega_enhancements.js') }}" defer></script>
-<script src="{{ static_url('js/realtime_logs.js') }}" defer></script>
-<script src="{{ static_url('js/module_specific_enhancements.js') }}" defer></script>
+<script src="{{ static_url('js/app.js') }}"></script>
+<script src="{{ static_url('js/ux-enhancements.js') }}"></script>
+<script src="{{ static_url('js/confirm_dangerous_operations.js') }}"></script>
+<script src="{{ static_url('js/security_keyboard_shortcuts.js') }}"></script>
+<script src="{{ static_url('js/security_dark_mode.js') }}"></script>
+<script src="{{ static_url('js/security_mega_enhancements.js') }}"></script>
+<script src="{{ static_url('js/realtime_logs.js') }}"></script>
+<script src="{{ static_url('js/module_specific_enhancements.js') }}"></script>
 
 {% block extra_js %}{% endblock %}
 
 <script>
+function applyUIMode(mode, silent) {
+  const html = document.documentElement;
+  const link = document.getElementById('mobile-css');
+  const stored = (function() {
+    try { return mode || localStorage.getItem('ui_mode') || 'auto'; } catch (e) { return mode || 'auto'; }
+  })();
+  const next = stored === 'mobile' || stored === 'tablet' || stored === 'desktop' ? stored : 'auto';
+  const autoMode = (function() {
+    try {
+      if (window.matchMedia('(max-width: 575.98px)').matches) return 'mobile';
+      if (window.matchMedia('(min-width: 576px) and (max-width: 991.98px)').matches) return 'tablet';
+      return 'desktop';
+    } catch (_) {
+      return 'desktop';
+    }
+  })();
+  const effective = next === 'auto' ? autoMode : next;
+  html.setAttribute('data-ui-mode', effective);
+  if (link) link.media = effective === 'mobile' ? 'all' : 'not all';
+  if (document.body && effective === 'desktop') {
+    document.body.classList.remove('sidebar-open');
+    const backdrop = document.getElementById('gm-sidebar-backdrop');
+    if (backdrop) backdrop.remove();
+    document.body.classList.remove('gm-mobile');
+  }
+  syncUIModeButton(next);
+  if (typeof applySidebarPosition === 'function' && document.body) {
+    const currentPos = (function() {
+      try { return localStorage.getItem('sidebarPosition') || 'left'; } catch (e) { return 'left'; }
+    })();
+    applySidebarPosition(currentPos);
+  }
+  if (!silent) {
+    try { window.dispatchEvent(new Event('resize')); } catch (_) {}
+  }
+  try { if (window.AppCharts && typeof window.AppCharts.refresh === 'function') window.AppCharts.refresh(); } catch (_) {}
+}
+
+function toggleUIMode() {
+  const current = (function() {
+    try { return localStorage.getItem('ui_mode') || 'auto'; } catch (e) { return 'auto'; }
+  })();
+  const next = current === 'auto' ? 'mobile' : (current === 'mobile' ? 'tablet' : (current === 'tablet' ? 'desktop' : 'auto'));
+  try { localStorage.setItem('ui_mode', next); } catch (_) {}
+  applyUIMode(next);
+}
+
+function syncUIModeButton(mode) {
+  const btn = document.getElementById('ui-mode-toggle-btn');
+  const icon = document.getElementById('ui-mode-toggle-icon');
+  if (icon) {
+    icon.className = mode === 'mobile' ? 'fas fa-mobile-alt' : (mode === 'tablet' ? 'fas fa-tablet-alt' : (mode === 'desktop' ? 'fas fa-desktop' : 'fas fa-magic'));
+  }
+  if (btn) {
+    btn.setAttribute('title', mode === 'mobile' ? 'وضع العرض: موبايل' : (mode === 'tablet' ? 'وضع العرض: تابلت' : (mode === 'desktop' ? 'وضع العرض: كمبيوتر' : 'وضع العرض: تلقائي')));
+  }
+}
+
 // ========== تبديل موقع Sidebar يمين/يسار ==========
 function toggleSidebarPosition() {
   const body = document.body;
@@ -866,6 +993,10 @@ function applySidebarPosition(position) {
   body.setAttribute('data-sidebar-position', position);
   
   function getBreakpoint() {
+    const forced = (document.documentElement.getAttribute('data-ui-mode') || '').toLowerCase();
+    if (forced === 'desktop') return 'desktop';
+    if (forced === 'tablet') return 'tablet';
+    if (forced === 'mobile') return 'mobile';
     if (window.matchMedia('(max-width: 575.98px)').matches) return 'mobile';
     if (window.matchMedia('(min-width: 576px) and (max-width: 991.98px)').matches) return 'tablet';
     if (window.matchMedia('(min-width: 992px) and (max-width: 1399.98px)').matches) return 'desktop';
@@ -883,7 +1014,7 @@ function applySidebarPosition(position) {
       sidebarWidth = '0px';
       break;
     case 'tablet':
-      sidebarWidth = '250px';
+      sidebarWidth = '0px';
       break;
     case 'desktop':
       sidebarWidth = '280px';
@@ -897,7 +1028,7 @@ function applySidebarPosition(position) {
   }
   
   // تطبيق التغييرات فوراً على العناصر
-  if (breakpoint === 'mobile') {
+  if (breakpoint === 'mobile' || breakpoint === 'tablet') {
     // على الموبايل: إزالة كل الـ margins
     if (contentWrapper) {
       contentWrapper.style.setProperty('margin-left', '0', 'important');
@@ -960,6 +1091,7 @@ function applySidebarPosition(position) {
 
 // تطبيق الموقع المحفوظ عند تحميل الصفحة
 document.addEventListener('DOMContentLoaded', function() {
+  applyUIMode();
   const savedPosition = localStorage.getItem('sidebarPosition') || 'left';
   applySidebarPosition(savedPosition);
   
@@ -975,6 +1107,10 @@ let resizeTimeout;
 window.addEventListener('resize', function() {
   clearTimeout(resizeTimeout);
   resizeTimeout = setTimeout(function() {
+    try {
+      const currentMode = localStorage.getItem('ui_mode') || 'auto';
+      if (currentMode === 'auto') applyUIMode('auto', true);
+    } catch (_) {}
     const savedPosition = localStorage.getItem('sidebarPosition') || 'left';
     applySidebarPosition(savedPosition);
   }, 150);
@@ -1007,20 +1143,24 @@ handleBreakpointChange(desktopQuery, 'desktop');
   
   // التحقق من الموبايل باستخدام matchMedia للدقة
   function isMobile() {
-    return window.matchMedia('(max-width: 768px)').matches;
+    const forced = (document.documentElement.getAttribute('data-ui-mode') || '').toLowerCase();
+    if (forced === 'mobile' || forced === 'tablet') return true;
+    if (forced === 'desktop') return false;
+    return !!(window.matchMedia && window.matchMedia('(max-width: 991.98px)').matches);
   }
   
   // وظيفة للحصول على حجم الشاشة الحالي
   function getScreenSize() {
     const width = window.innerWidth;
     const height = window.innerHeight;
+    const forced = (document.documentElement.getAttribute('data-ui-mode') || '').toLowerCase();
     
     return {
       width: width,
       height: height,
-      isMobile: window.matchMedia('(max-width: 768px)').matches,
-      isTablet: window.matchMedia('(min-width: 769px) and (max-width: 991px)').matches,
-      isDesktop: window.matchMedia('(min-width: 992px)').matches,
+      isMobile: forced === 'mobile' ? true : (forced === 'tablet' || forced === 'desktop' ? false : !!(window.matchMedia && window.matchMedia('(max-width: 575.98px)').matches)),
+      isTablet: forced === 'tablet' ? true : (forced === 'mobile' || forced === 'desktop' ? false : !!(window.matchMedia && window.matchMedia('(min-width: 576px) and (max-width: 991.98px)').matches)),
+      isDesktop: forced === 'desktop' ? true : (forced === 'mobile' || forced === 'tablet' ? false : !!(window.matchMedia && window.matchMedia('(min-width: 992px)').matches)),
       orientation: width > height ? 'landscape' : 'portrait',
       breakpoint: (() => {
         if (width < 576) return 'xs';
@@ -1040,53 +1180,176 @@ handleBreakpointChange(desktopQuery, 'desktop');
     const body = document.body;
     const sidebar = document.querySelector('.main-sidebar');
     const pushmenuBtns = Array.from(document.querySelectorAll('[data-widget="pushmenu"]'));
+    const navbar = document.querySelector('.main-header.navbar');
+    const ensureBackdrop = function() {
+      let el = document.getElementById('gm-sidebar-backdrop');
+      if (el) return el;
+      el = document.createElement('div');
+      el.id = 'gm-sidebar-backdrop';
+      el.style.position = 'fixed';
+      el.style.left = '0';
+      el.style.right = '0';
+      el.style.bottom = '0';
+      el.style.top = 'var(--gm-navbar-height, 60px)';
+      el.style.background = 'rgba(0, 0, 0, 0.5)';
+      el.style.zIndex = '1039';
+      el.style.display = 'none';
+      el.style.pointerEvents = 'auto';
+      el.addEventListener('click', function(e) {
+        if (!isMobile()) return;
+        try { e.preventDefault(); } catch (_) {}
+        try { e.stopPropagation(); } catch (_) {}
+        body.classList.remove('sidebar-open');
+        el.style.display = 'none';
+      });
+      document.body.appendChild(el);
+      return el;
+    };
+    if (navbar) {
+      document.documentElement.style.setProperty('--gm-navbar-height', `${navbar.offsetHeight}px`);
+    }
     body.classList.add('gm-mobile');
+    const backdrop = ensureBackdrop();
     
     // إغلاق Sidebar افتراضياً على الموبايل
     if (sidebar && !body.classList.contains('sidebar-open')) {
       sidebar.style.display = 'block';
     }
+    backdrop.style.display = body.classList.contains('sidebar-open') ? 'block' : 'none';
     
     // التعامل مع فتح/إغلاق Sidebar
     pushmenuBtns.forEach(btn => {
       if (!btn || btn.dataset.gmPushmenuBound === '1') return;
-      btn.addEventListener('click', function(e) {
-        e.preventDefault();
+      let lastToggleAt = 0;
+      const toggleSidebar = function(e) {
+        if (!isMobile()) {
+          return;
+        }
+        const now = Date.now();
+        if (now - lastToggleAt < 450) {
+          try { e.preventDefault(); } catch (_) {}
+          try { e.stopImmediatePropagation(); } catch (_) {}
+          try { e.stopPropagation(); } catch (_) {}
+          return;
+        }
+        lastToggleAt = now;
+        try { e.preventDefault(); } catch (_) {}
+        try { e.stopImmediatePropagation(); } catch (_) {}
+        try { e.stopPropagation(); } catch (_) {}
+        body.classList.remove('sidebar-collapse');
+        body.classList.remove('sidebar-hidden');
         body.classList.toggle('sidebar-open');
-      });
+        backdrop.style.display = body.classList.contains('sidebar-open') ? 'block' : 'none';
+      };
+      btn.addEventListener('click', toggleSidebar, { capture: true });
+      btn.addEventListener('touchend', toggleSidebar, { passive: false, capture: true });
+      btn.addEventListener('pointerup', toggleSidebar, { capture: true });
       btn.dataset.gmPushmenuBound = '1';
     });
     
     // إغلاق Sidebar عند النقر على الـ Overlay
     if (body.dataset.gmMobileListeners !== '1') {
       body.addEventListener('click', function(e) {
+        if (!isMobile()) {
+          return;
+        }
         const currentBtns = Array.from(document.querySelectorAll('[data-widget="pushmenu"]'));
         const clickedPush = currentBtns.some(btn => btn && btn.contains(e.target));
         const currentSidebar = document.querySelector('.main-sidebar');
         if (body.classList.contains('sidebar-open') && currentSidebar && !currentSidebar.contains(e.target) && !clickedPush) {
           body.classList.remove('sidebar-open');
+          backdrop.style.display = 'none';
         }
       });
-      
-      if (sidebar) {
-        sidebar.addEventListener('click', function(e) {
-          e.stopPropagation();
-        });
-      }
+
+      const treeviewToggles = Array.from(document.querySelectorAll('.main-sidebar .nav-item.has-treeview > .nav-link'));
+      treeviewToggles.forEach(link => {
+        if (!link || link.dataset.gmTreeBound === '1') return;
+        let lastToggleAt = 0;
+        const onToggle = function(e) {
+          if (!isMobile()) return;
+          const href = (this.getAttribute('href') || '').trim();
+          const parentItem = this.closest('.nav-item.has-treeview');
+          if (!parentItem) return;
+          const hasSub = parentItem.querySelector('.nav-treeview');
+          if (!hasSub) return;
+          if (href && href !== '#') return;
+          const now = Date.now();
+          if (now - lastToggleAt < 350) {
+            try { e.preventDefault(); } catch (_) {}
+            return;
+          }
+          lastToggleAt = now;
+          try { e.preventDefault(); } catch (_) {}
+          parentItem.classList.toggle('menu-open');
+          hasSub.style.display = parentItem.classList.contains('menu-open') ? 'block' : 'none';
+        };
+        link.addEventListener('click', onToggle);
+        link.addEventListener('touchend', onToggle, { passive: false });
+        link.addEventListener('pointerup', onToggle);
+        link.dataset.gmTreeBound = '1';
+      });
+
+      document.querySelectorAll('.main-sidebar .nav-item.has-treeview').forEach(item => {
+        const sub = item.querySelector('.nav-treeview');
+        if (!sub) return;
+        sub.style.display = item.classList.contains('menu-open') ? 'block' : 'none';
+      });
       
       const sidebarLinks = document.querySelectorAll('.main-sidebar .nav-link');
       sidebarLinks.forEach(link => {
         link.addEventListener('click', function() {
-          if (isMobile()) {
-            setTimeout(() => {
-              body.classList.remove('sidebar-open');
-            }, 300);
-          }
+          if (!isMobile()) return;
+          const href = (this.getAttribute('href') || '').trim();
+          if (!href || href === '#') return;
+          setTimeout(() => {
+            body.classList.remove('sidebar-open');
+            backdrop.style.display = 'none';
+          }, 200);
         });
       });
+
+      const closeBtn = document.querySelector('.main-sidebar .gm-sidebar-close');
+      if (closeBtn) {
+        closeBtn.addEventListener('click', function(e) {
+          if (!isMobile()) return;
+          try { e.preventDefault(); } catch (_) {}
+          try { e.stopPropagation(); } catch (_) {}
+          body.classList.remove('sidebar-open');
+          backdrop.style.display = 'none';
+        });
+        closeBtn.addEventListener('touchend', function(e) {
+          if (!isMobile()) return;
+          try { e.preventDefault(); } catch (_) {}
+          try { e.stopPropagation(); } catch (_) {}
+          body.classList.remove('sidebar-open');
+          backdrop.style.display = 'none';
+        }, { passive: false });
+      }
       body.dataset.gmMobileListeners = '1';
     }
     
+    (function() {
+      const maxHeight = window.matchMedia('(max-width: 375px)').matches ? 200 : 220;
+      document.querySelectorAll('.card-body').forEach(el => {
+        if (!el.querySelector('canvas.chartjs-chart')) return;
+        try {
+          const h = parseInt(window.getComputedStyle(el).height || '0', 10);
+          if (h && h > maxHeight) {
+            el.style.setProperty('height', `${maxHeight}px`, 'important');
+          }
+        } catch (e) {}
+      });
+      const wrap = document.getElementById('paymentsChartWrap');
+      if (wrap) {
+        try {
+          const h = parseInt(window.getComputedStyle(wrap).height || '0', 10);
+          if (h && h > maxHeight) {
+            wrap.style.setProperty('height', `${maxHeight}px`, 'important');
+          }
+        } catch (e) {}
+      }
+    })();
   }
 
   function initMobileBottomNavActive() {
@@ -1116,40 +1379,12 @@ handleBreakpointChange(desktopQuery, 'desktop');
   
   // تحسينات اللمس
   function enhanceTouchInteractions() {
-    // إضافة تأثير ripple للأزرار
-    document.querySelectorAll('.btn, .nav-link').forEach(element => {
-      element.addEventListener('touchstart', function() {
-        this.style.opacity = '0.8';
-      });
-      
-      element.addEventListener('touchend', function() {
-        this.style.opacity = '1';
-      });
-    });
+    return;
   }
   
   // تحسين الجداول للموبايل
   function enhanceTables() {
-    if (!isMobile()) return;
-    
-    const tables = document.querySelectorAll('.table:not(.no-mobile-cards)');
-    tables.forEach(table => {
-      // إضافة class للتحويل إلى بطاقات
-      table.classList.add('table-mobile-cards');
-      
-      // إضافة data-label لكل خلية
-      const headers = table.querySelectorAll('thead th');
-      const rows = table.querySelectorAll('tbody tr');
-      
-      rows.forEach(row => {
-        const cells = row.querySelectorAll('td');
-        cells.forEach((cell, index) => {
-          if (headers[index]) {
-            cell.setAttribute('data-label', headers[index].textContent.trim());
-          }
-        });
-      });
-    });
+    return;
   }
   
   // منع Zoom عند double-tap

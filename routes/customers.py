@@ -2512,10 +2512,9 @@ def account_statement(customer_id):
     balance_period = total_credit_period - total_debit_period
     
     if abs(float(balance - running)) > 0.01:
-        current_app.logger.warning(
-            f"⚠️ عدم تطابق الرصيد في كشف حساب العميل {customer_id}: "
-            f"balance_from_totals={balance}, running_balance={running}, "
-            f"difference={abs(float(balance - running))}"
+        current_app.logger.debug(
+            f"balance_statement_totals_mismatch customer_id={customer_id} "
+            f"balance_from_totals={balance} running_balance={running} diff={abs(float(balance - running))}"
         )
     
     db.session.refresh(c)
@@ -2525,12 +2524,8 @@ def account_statement(customer_id):
     if entries:
         final_running_balance = entries[-1]["balance"]
     
-    if abs(float(current_balance - final_running_balance)) > 0.01:
-        current_app.logger.warning(
-            f"⚠️ عدم تطابق الرصيد في كشف حساب العميل {customer_id}: "
-            f"current_balance={current_balance}, calculated_balance={final_running_balance}, "
-            f"difference={abs(float(current_balance - final_running_balance))}"
-        )
+    diff_val = abs(float(current_balance - final_running_balance))
+    if diff_val > 0.01:
         try:
             from utils.customer_balance_updater import update_customer_balance_components
             from sqlalchemy.orm import sessionmaker
@@ -2539,18 +2534,22 @@ def account_statement(customer_id):
             try:
                 update_customer_balance_components(customer_id, session)
                 session.commit()
-                db.session.refresh(c)
-                current_balance = D(c.current_balance or 0)
-            except Exception as e:
+            except Exception:
                 session.rollback()
-                current_app.logger.warning(f"⚠️ تعذر إعادة احتساب رصيد العميل {customer_id}: {e}")
             finally:
                 session.close()
-        except Exception as e:
-            current_app.logger.warning(f"⚠️ تعذر إعادة احتساب رصيد العميل {customer_id}: {e}")
+        except Exception:
+            pass
 
         db.session.refresh(c)
         current_balance = D(c.current_balance or 0)
+        diff_val2 = abs(float(current_balance - final_running_balance))
+        if diff_val2 > 0.01:
+            current_app.logger.warning(
+                f"⚠️ عدم تطابق الرصيد في كشف حساب العميل {customer_id}: "
+                f"current_balance={current_balance}, calculated_balance={final_running_balance}, "
+                f"difference={diff_val2}"
+            )
 
     total_invoices_calc = D('0.00')
     for inv in invoices:

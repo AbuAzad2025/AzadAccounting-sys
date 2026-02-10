@@ -17,9 +17,17 @@
     var el = document.createElement('div');
     el.className = 'alert alert-' + type + ' alert-dismissible fade show shadow-sm mb-2';
     el.setAttribute('role', 'alert');
-    // Bootstrap 4 close button
-    var closeBtn = '<button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>';
-    el.innerHTML = message + closeBtn;
+    el.appendChild(document.createTextNode(String(message == null ? '' : message)));
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'close';
+    btn.setAttribute('data-dismiss', 'alert');
+    btn.setAttribute('aria-label', 'Close');
+    var span = document.createElement('span');
+    span.setAttribute('aria-hidden', 'true');
+    span.textContent = '×';
+    btn.appendChild(span);
+    el.appendChild(btn);
     c.appendChild(el);
     setTimeout(function () {
       if (!el.parentNode) return;

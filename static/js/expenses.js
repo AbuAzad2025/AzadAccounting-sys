@@ -1,3 +1,4 @@
+(() => {
 document.addEventListener('DOMContentLoaded', function () {
   "use strict";
 
@@ -12,6 +13,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   const $one = (sel, ctx) => (ctx || document).querySelector(sel);
   const $all = (sel, ctx) => Array.from((ctx || document).querySelectorAll(sel));
+  const stripScripts = (html) => String(html || '').replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
   let expensesAjaxSeq = 0;
 
   function setDisabled(el, disabled) {
@@ -21,7 +23,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (isSelect2 && window.jQuery) jQuery(el).trigger('change.select2');
     if (disabled) el.setAttribute('disabled', 'disabled'); else el.removeAttribute('disabled');
   }
-})();
+  
 
   function clearFieldValues(container) {
     if (!container) return;
@@ -303,14 +305,14 @@ document.addEventListener('DOMContentLoaded', function () {
           if (requestId !== expensesAjaxSeq) return;
 
           if (typeof data.table_html === 'string') {
-            tableWrapper.innerHTML = data.table_html;
+            tableWrapper.innerHTML = stripScripts(data.table_html);
           } else {
             tableWrapper.innerHTML = previousTable;
           }
 
           if (typeof data.summary_html === 'string' && document.getElementById('expenses-summary-wrapper')) {
             const currentSummary = document.getElementById('expenses-summary-wrapper');
-            currentSummary.outerHTML = data.summary_html;
+            currentSummary.outerHTML = stripScripts(data.summary_html);
             summaryWrapper = document.getElementById('expenses-summary-wrapper');
           } else {
             summaryWrapper = document.getElementById('expenses-summary-wrapper');

@@ -8,6 +8,7 @@
   const qsa=(s,el=document)=>Array.from(el.querySelectorAll(s));
   const on=(el,ev,cb)=>el&&el.addEventListener(ev,cb,{passive:false});
   const toNum=v=>{const n=parseFloat((v??'').toString().replace(/[^\d.-]/g,''));return Number.isFinite(n)?n:0;};
+  const stripScripts = (html) => String(html || '').replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
   function loadScriptOnce(src){return new Promise(res=>{if(document.querySelector(`script[src="${src}"]`)) return res();const s=document.createElement('script');s.src=src;s.onload=res;document.head.appendChild(s);});}
   function loadCssOnce(href){if(!document.querySelector(`link[href="${href}"]`)){const l=document.createElement('link');l.rel='stylesheet';l.href=href;document.head.appendChild(l);}}
   function loadJQueryOnce(){return new Promise(res=>{if(window.jQuery) return res();const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/jquery@3.6.4/dist/jquery.min.js';s.onload=()=>res();document.head.appendChild(s);});}
@@ -60,9 +61,9 @@
         return res.json();
       }).then(data=>{
         if(requestId!==salesRequestId) return;
-        if(typeof data.table_html==='string'){salesTableWrapper.innerHTML=data.table_html;}
-        if(paginationWrapper){paginationWrapper.innerHTML=data.pagination_html||'';}
-        if(salesSummaryWrapper){salesSummaryWrapper.innerHTML=data.summary_html||'';}
+        if(typeof data.table_html==='string'){salesTableWrapper.innerHTML=stripScripts(data.table_html);}
+        if(paginationWrapper){paginationWrapper.innerHTML=stripScripts(data.pagination_html||'');}
+        if(salesSummaryWrapper){salesSummaryWrapper.innerHTML=stripScripts(data.summary_html||'');}
         if(salesSearchSummary&&typeof data.total_filtered==='number'){salesSearchSummary.textContent=`إجمالي النتائج: ${data.total_filtered}`;}
         initSalesTable();
         urlObj.searchParams.delete('ajax');
@@ -444,10 +445,14 @@
       
       const entries = Array.from(fxRatesUsed.entries());
       if(entries.length > 0){
-        const ratesHtml = entries.map(([pair, rate]) => 
-          `<span class="badge bg-info me-1">${pair} = ${rate}</span>`
-        ).join(' ');
-        fxInfo.innerHTML = ratesHtml;
+        fxInfo.textContent = '';
+        entries.forEach(([pair, rate]) => {
+          const badge = document.createElement('span');
+          badge.className = 'badge bg-info me-1';
+          badge.textContent = `${pair} = ${rate}`;
+          fxInfo.appendChild(badge);
+          fxInfo.appendChild(document.createTextNode(' '));
+        });
         fxRow.style.display = '';
       } else {
         fxRow.style.display = 'none';

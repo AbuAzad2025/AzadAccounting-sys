@@ -7,13 +7,13 @@
       </a>
     </li>
     
-    <li class="nav-item">
+    <li class="nav-item d-none d-lg-block">
       <button class="nav-link btn btn-link text-white nav-strong" onclick="toggleSidebarFull()" title="إخفاء/إظهار القائمة بالكامل" style="border: none; background: none;">
         <i class="fas fa-expand-arrows-alt" id="sidebar-full-toggle-icon"></i>
       </button>
     </li>
     
-    <li class="nav-item">
+    <li class="nav-item d-none d-lg-block">
       <button class="nav-link btn btn-link text-white nav-strong" onclick="toggleSidebarPosition()" title="تبديل موقع القائمة" style="border: none; background: none;">
         <i class="fas fa-exchange-alt"></i>
       </button>
@@ -25,8 +25,14 @@
       </button>
     </li>
 
-    {% if current_user.is_authenticated and (has_perm('view_shop') or has_perm('manage_shop')) %}
     <li class="nav-item">
+      <button class="nav-link btn btn-link text-white nav-strong" onclick="toggleUIMode()" id="ui-mode-toggle-btn" title="وضع العرض: تلقائي" style="border: none; background: none;">
+        <i class="fas fa-magic" id="ui-mode-toggle-icon"></i>
+      </button>
+    </li>
+
+    {% if current_user.is_authenticated and (has_perm('view_shop') or has_perm('manage_shop')) %}
+    <li class="nav-item d-none d-lg-block">
       <a class="nav-link nav-strong" href="{{ url_for('shop.catalog') }}" target="_blank" title="المتجر">
         <i class="fas fa-store"></i>
       </a>
@@ -38,7 +44,7 @@
       {% set ai_enabled = (ai_enabled_value|string).lower() == 'true' %}
       {% if ai_enabled %}
         {% if can('access_ai_assistant') and current_user.is_system %}
-        <li class="nav-item">
+        <li class="nav-item d-none d-lg-block">
           <a class="nav-link nav-strong" href="{{ url_for('ai.assistant') }}" title="المساعد الذكي">
             <i class="fas fa-robot"></i>
           </a>

@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}لوحة التحكم{% endblock %}
 {% block page_title %}لوحة التحكم{% endblock %}
+{% block body_class %}dashboard-page{% endblock %}
 {% block breadcrumb %}
 <li class="breadcrumb-item active">الرئيسية</li>
 {% endblock %}
@@ -28,6 +29,79 @@
       <button type="button" class="btn btn-sm text-white fw-bold shadow-sm px-3" style="background:linear-gradient(45deg,#11998e,#38ef7d)" onclick="toggleAutomatedBackup()">
         <i class="fas fa-clock ml-1"></i> <span id="backup-toggle-text">نسخ تلقائي</span>
       </button>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="gm-quick-actions d-lg-none mb-3">
+    <div class="gm-quick-actions-title">الوصول السريع</div>
+    <div class="row g-2">
+      {% if (is_module_enabled is not defined) or is_module_enabled('customers') %}
+      {% if has_perm('view_customers') or has_perm('manage_customers') %}
+      <div class="col-4">
+        <a class="gm-action-tile" href="{{ url_for('customers_bp.list_customers') }}">
+          <span class="gm-action-icon bg-success"><i class="fas fa-users"></i></span>
+          <span class="gm-action-label">العملاء</span>
+        </a>
+      </div>
+      {% endif %}
+      {% endif %}
+
+      {% if (is_module_enabled is not defined) or is_module_enabled('sales') %}
+      {% if has_perm('view_sales') or has_perm('manage_sales') %}
+      <div class="col-4">
+        <a class="gm-action-tile" href="{{ url_for('sales_bp.list_sales') }}">
+          <span class="gm-action-icon bg-info"><i class="fas fa-shopping-cart"></i></span>
+          <span class="gm-action-label">المبيعات</span>
+        </a>
+      </div>
+      {% endif %}
+      {% endif %}
+
+      {% if (is_module_enabled is not defined) or is_module_enabled('service') %}
+      {% if has_perm('view_service') or has_perm('manage_service') %}
+      <div class="col-4">
+        <a class="gm-action-tile" href="{{ url_for('service.list_requests') }}">
+          <span class="gm-action-icon bg-warning"><i class="fas fa-wrench"></i></span>
+          <span class="gm-action-label">الصيانة</span>
+        </a>
+      </div>
+      {% endif %}
+      {% endif %}
+
+      {% if (is_module_enabled is not defined) or is_module_enabled('warehouses') %}
+      {% if has_perm('view_warehouses') or has_perm('manage_warehouses') %}
+      {% if 'warehouse_bp.list' in current_app.view_functions %}
+      <div class="col-4">
+        <a class="gm-action-tile" href="{{ url_for('warehouse_bp.list') }}">
+          <span class="gm-action-icon bg-primary"><i class="fas fa-boxes"></i></span>
+          <span class="gm-action-label">المخزون</span>
+        </a>
+      </div>
+      {% endif %}
+      {% endif %}
+      {% endif %}
+
+      {% if has_perm('manage_shipments') %}
+      {% if 'shipments_bp.list_shipments' in current_app.view_functions %}
+      <div class="col-4">
+        <a class="gm-action-tile" href="{{ url_for('shipments_bp.list_shipments') }}">
+          <span class="gm-action-icon bg-danger"><i class="fas fa-truck"></i></span>
+          <span class="gm-action-label">الشحن</span>
+        </a>
+      </div>
+      {% endif %}
+      {% endif %}
+
+      {% if has_perm('view_reports') %}
+      {% if 'reports_bp.dynamic_report' in current_app.view_functions %}
+      <div class="col-4">
+        <a class="gm-action-tile" href="{{ url_for('reports_bp.dynamic_report') }}">
+          <span class="gm-action-icon bg-secondary"><i class="fas fa-chart-line"></i></span>
+          <span class="gm-action-label">التقارير</span>
+        </a>
+      </div>
+      {% endif %}
       {% endif %}
     </div>
   </div>

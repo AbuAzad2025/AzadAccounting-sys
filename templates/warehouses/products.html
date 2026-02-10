@@ -516,7 +516,15 @@
         
         const alert = document.createElement('div');
         alert.className = `alert alert-${type} alert-dismissible fade show`;
-        alert.innerHTML = `<strong>${message}</strong><button type="button" class="close" data-dismiss="alert"></button>`;
+        const strong = document.createElement('strong');
+        strong.textContent = String(message || '');
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'close';
+        btn.setAttribute('data-dismiss', 'alert');
+        btn.addEventListener('click', function() { try { alert.remove(); } catch(e) {} });
+        alert.appendChild(strong);
+        alert.appendChild(btn);
         container.appendChild(alert);
         
         setTimeout(() => alert.remove(), 5000);

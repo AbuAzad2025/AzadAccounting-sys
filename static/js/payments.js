@@ -256,7 +256,11 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!list.length) {
       const message = 'لا توجد بيانات';
       const tr = document.createElement('tr');
-      tr.innerHTML = '<td colspan="13" class="text-center text-muted py-4">' + message + '</td>';
+      const td = document.createElement('td');
+      td.colSpan = 13;
+      td.className = 'text-center text-muted py-4';
+      td.textContent = message;
+      tr.appendChild(td);
       tbody.appendChild(tr);
       return;
     }
@@ -513,13 +517,23 @@ document.addEventListener('DOMContentLoaded', function() {
   function renderPagination(totalPages, currentPage) {
     const ul = document.querySelector('#pagination');
     if (!ul) return;
-    ul.innerHTML = '';
+    ul.textContent = '';
     totalPages = Math.max(1, totalPages || 1);
     currentPage = Math.min(Math.max(1, currentPage || 1), totalPages);
     function add(page, label, disabled, active, isEllipsis=false) {
       const li = document.createElement('li');
       li.className = 'page-item ' + (disabled ? 'disabled' : '') + ' ' + (active ? 'active' : '');
-      li.innerHTML = '<a class="page-link' + (isEllipsis ? '' : '" data-page="' + page + '"') + '" href="#" ' + (isEllipsis ? 'tabindex="-1" aria-disabled="true"' : '') + '>' + label + '</a>';
+      const a = document.createElement('a');
+      a.className = 'page-link';
+      a.href = '#';
+      a.textContent = String(label || '');
+      if (isEllipsis) {
+        a.tabIndex = -1;
+        a.setAttribute('aria-disabled', 'true');
+      } else {
+        a.dataset.page = String(page);
+      }
+      li.appendChild(a);
       ul.appendChild(li);
     }
     add(currentPage - 1, 'السابق', currentPage <= 1, false);

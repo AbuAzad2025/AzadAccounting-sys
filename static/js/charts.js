@@ -11,6 +11,15 @@
     try { return raw ? JSON.parse(raw) : fallback; } catch { return fallback; }
   };
 
+  function escapeHtml(value) {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
   function buildDataPreviewHtml(el) {
     const labels = parseJsonSafe(el.getAttribute('data-labels'), []);
     const rawDatasets = parseJsonSafe(el.getAttribute('data-datasets'), null);
@@ -30,7 +39,7 @@
     }
 
     if (!rows.length) return '';
-    const items = rows.map(r => `<tr><td>${String(r.label ?? '')}</td><td>${String(r.value ?? '')}</td></tr>`).join('');
+    const items = rows.map(r => `<tr><td>${escapeHtml(r.label)}</td><td>${escapeHtml(r.value)}</td></tr>`).join('');
     return `
       <div class="chart-fallback-preview">
         <div class="chart-fallback-preview-title">معاينة بيانات (آخر 8 نقاط)</div>
@@ -74,11 +83,14 @@
 
     const overlay = document.createElement('div');
     overlay.className = 'chart-fallback';
+    const safeTitle = escapeHtml(title);
+    const safeMessage = escapeHtml(message);
+    const safeDetail = escapeHtml(detail);
     overlay.innerHTML = `
       <div class="chart-fallback-inner">
-        <div class="chart-fallback-title">${title}</div>
-        <div class="chart-fallback-message">${message}</div>
-        ${detail ? `<div class="chart-fallback-detail">${detail}</div>` : ''}
+        <div class="chart-fallback-title">${safeTitle}</div>
+        <div class="chart-fallback-message">${safeMessage}</div>
+        ${detail ? `<div class="chart-fallback-detail">${safeDetail}</div>` : ''}
         ${previewHtml || ''}
         ${canRetry ? `<button type="button" class="btn btn-sm btn-primary chart-fallback-retry">إعادة المحاولة</button>` : ''}
       </div>
@@ -132,12 +144,12 @@
     }
     if (chartLibrariesPromise) return chartLibrariesPromise;
     const chartSources = [
-      '/static/vendor/chart.umd.min.js',
-      'https://cdn.jsdelivr.net/npm/chart.js'
+      'https://cdn.jsdelivr.net/npm/chart.js',
+      '/static/vendor/chart.umd.min.js'
     ];
     const labelSources = [
-      '/static/vendor/chartjs-plugin-datalabels.min.js',
-      'https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2'
+      'https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2',
+      '/static/vendor/chartjs-plugin-datalabels.min.js'
     ];
     const tryLoadFirstAvailable = (sources) => sources.reduce((p, src) => p.catch(() => loadExternalScript(src)), Promise.reject(new Error('init')));
     const sources = [
@@ -162,6 +174,8 @@
 
     const isRTL = (document.dir || document.documentElement.getAttribute('dir') || '').toLowerCase() === 'rtl';
     const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+    const uiMode = (document.documentElement.getAttribute('data-ui-mode') || '').toLowerCase();
+    const isCompact = uiMode === 'mobile' || (uiMode !== 'desktop' && window.matchMedia && window.matchMedia('(max-width: 768px)').matches);
     const fallbackPalette = ['#0d6efd','#198754','#dc3545','#fd7e14','#20c997','#6f42c1','#0dcaf0','#6610f2','#6c757d','#198754'];
     const varColor = (name, fallback) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
     const palette = [
@@ -286,18 +300,45 @@
     function showDataDetails(data, datasetIndex, dataIndex) {
       const detailsContainer = document.getElementById('chart-details');
       if (detailsContainer) {
-        detailsContainer.innerHTML = `
-        <div class="card">
-          <div class="card-header">
-            <h5 class="card-title">تفاصيل البيانات</h5>
-          </div>
-          <div class="card-body">
-            <p><strong>القيمة:</strong> ${formatValue(data, { currency: 'ILS' })}</p>
-            <p><strong>المجموعة:</strong> ${datasetIndex + 1}</p>
-            <p><strong>الفهرس:</strong> ${dataIndex + 1}</p>
-          </div>
-        </div>
-      `;
+        detailsContainer.textContent = '';
+        const card = document.createElement('div');
+        card.className = 'card';
+
+        const header = document.createElement('div');
+        header.className = 'card-header';
+        const title = document.createElement('h5');
+        title.className = 'card-title';
+        title.textContent = 'تفاصيل البيانات';
+        header.appendChild(title);
+
+        const body = document.createElement('div');
+        body.className = 'card-body';
+
+        const pValue = document.createElement('p');
+        const strongValue = document.createElement('strong');
+        strongValue.textContent = 'القيمة:';
+        pValue.appendChild(strongValue);
+        pValue.appendChild(document.createTextNode(' ' + formatValue(data, { currency: 'ILS' })));
+
+        const pDataset = document.createElement('p');
+        const strongDataset = document.createElement('strong');
+        strongDataset.textContent = 'المجموعة:';
+        pDataset.appendChild(strongDataset);
+        pDataset.appendChild(document.createTextNode(' ' + String((datasetIndex || 0) + 1)));
+
+        const pIndex = document.createElement('p');
+        const strongIndex = document.createElement('strong');
+        strongIndex.textContent = 'الفهرس:';
+        pIndex.appendChild(strongIndex);
+        pIndex.appendChild(document.createTextNode(' ' + String((dataIndex || 0) + 1)));
+
+        body.appendChild(pValue);
+        body.appendChild(pDataset);
+        body.appendChild(pIndex);
+
+        card.appendChild(header);
+        card.appendChild(body);
+        detailsContainer.appendChild(card);
       }
     }
 
@@ -354,12 +395,23 @@
       const unit = el.getAttribute('data-unit');
       const digits = parseInt(el.getAttribute('data-digits') || '2', 10);
       const stacked = el.getAttribute('data-stacked') === '1';
+      const tickFontSize = isCompact ? 10 : 11;
+      const legendFontSize = isCompact ? 10 : 12;
       const tickFormat = {
         callback: val => formatValue(val, { currency, unit, digits }),
-        maxTicksLimit: 8
+        maxTicksLimit: isCompact ? 5 : 8
       };
       const plugins = {
-        legend: { display: true, rtl: isRTL, labels: { usePointStyle: true } },
+        legend: {
+          display: true,
+          rtl: isRTL,
+          position: isCompact ? 'bottom' : 'top',
+          labels: {
+            usePointStyle: true,
+            padding: isCompact ? 12 : 20,
+            font: { family: 'Cairo, sans-serif', size: legendFontSize }
+          }
+        },
         tooltip: {
           enabled: true,
           rtl: isRTL,
@@ -391,8 +443,8 @@
         },
         plugins,
         scales: {
-          x: { stacked, grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true } },
-          y: { stacked, beginAtZero: true, ticks: tickFormat }
+          x: { stacked, grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, font: { family: 'Cairo, sans-serif', size: tickFontSize } } },
+          y: { stacked, beginAtZero: true, ticks: { ...tickFormat, font: { family: 'Cairo, sans-serif', size: tickFontSize } } }
         }
       };
     }
@@ -426,6 +478,18 @@
     function initCanvas(el) {
       const ctx = el.getContext('2d');
       if (!ctx) return;
+      if (isCompact) {
+        const parent = el.parentElement;
+        if (parent) {
+          try {
+            const h = parseInt(window.getComputedStyle(parent).height || '0', 10);
+            const maxH = window.matchMedia && window.matchMedia('(max-width: 375px)').matches ? 200 : 220;
+            if (h && h > maxH) {
+              parent.style.setProperty('height', `${maxH}px`, 'important');
+            }
+          } catch (e) {}
+        }
+      }
       clearChartFallback(el);
       showLoader(el);
       setTimeout(() => {

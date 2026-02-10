@@ -1388,6 +1388,9 @@ def database_manager():
     
     # === 4) SQL Console ===
     if tab == 'sql' and request.method == 'POST':
+        if not current_user.has_permission('system_admin'):
+            flash('⚠️ غير مصرح - تحتاج صلاحية system_admin', 'danger')
+            return redirect(url_for('security.ultimate_control'))
         sql_query = request.form.get('sql_query', '').strip()
         try:
             result_proxy = db.session.execute(text(sql_query))

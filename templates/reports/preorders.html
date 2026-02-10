@@ -27,7 +27,7 @@
     <div class="card summary-card border-success h-100">
       <div class="card-body text-center">
         <div class="text-success mb-2"><i class="fas fa-dollar-sign fa-2x"></i></div>
-        <h5 class="mb-0 text-success">{{ "{:,.2f}".format(summary.total_amount) }} ₪</h5>
+        <h5 class="mb-0 text-success">{{ "{:,.2f}".format(summary.total_amount_ils) }} ₪</h5>
         <small class="text-muted">إجمالي القيمة</small>
       </div>
     </div>
@@ -37,7 +37,7 @@
     <div class="card summary-card border-info h-100">
       <div class="card-body text-center">
         <div class="text-info mb-2"><i class="fas fa-hand-holding-usd fa-2x"></i></div>
-        <h5 class="mb-0 text-info">{{ "{:,.2f}".format(summary.total_paid) }} ₪</h5>
+        <h5 class="mb-0 text-info">{{ "{:,.2f}".format(summary.total_paid_ils) }} ₪</h5>
         <small class="text-muted">المدفوع</small>
       </div>
     </div>
@@ -47,12 +47,42 @@
     <div class="card summary-card border-warning h-100">
       <div class="card-body text-center">
         <div class="text-warning mb-2"><i class="fas fa-hourglass-half fa-2x"></i></div>
-        <h5 class="mb-0 text-warning">{{ "{:,.2f}".format(summary.balance_due) }} ₪</h5>
+        <h5 class="mb-0 text-warning">{{ "{:,.2f}".format(summary.balance_due_ils) }} ₪</h5>
         <small class="text-muted">المتبقي</small>
       </div>
     </div>
   </div>
 </div>
+
+{% if summary.by_currency %}
+<div class="card shadow-sm mb-3">
+  <div class="card-header bg-light">
+    <i class="fas fa-coins"></i> تفصيل حسب العملة
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-bordered table-striped align-middle mb-0">
+        <thead class="table-secondary">
+          <tr>
+            <th>العملة</th>
+            <th class="text-end">الإجمالي (بالعملة)</th>
+            <th class="text-end">الإجمالي بالشيكل</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in summary.by_currency %}
+          <tr>
+            <td class="fw-semibold">{{ row.currency }}</td>
+            <td class="text-end">{{ "{:,.2f}".format(row.total_amount or 0) }}</td>
+            <td class="text-end">{{ "{:,.2f}".format(row.total_amount_ils|default(0)) }} ₪</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
 
 <div class="card shadow-sm mb-3">
   <div class="card-header bg-info text-white">
@@ -130,12 +160,19 @@
     {% endif %}
   </td>
   <td class="text-center">1</td>
-  <td class="text-end">{{ "{:,.2f}".format(pre.total_amount) }} ₪</td>
-  <td class="text-end">{{ "{:,.2f}".format(pre.total_paid) }} ₪</td>
   <td class="text-end">
-    {% set remaining = pre.total_amount|float - pre.total_paid|float %}
-    <span class="{% if remaining > 0 %}text-warning fw-bold{% else %}text-success{% endif %}">
-      {{ "{:,.2f}".format(remaining) }} ₪
+    <strong>{{ "{:,.2f}".format(pre.total_amount_ils|default(pre.total_amount)) }} ₪</strong>
+    {% if pre.currency and pre.currency != 'ILS' %}
+    <div class="small text-muted">{{ "{:,.2f}".format(pre.total_amount or 0) }} {{ pre.currency }}</div>
+    {% endif %}
+  </td>
+  <td class="text-end">
+    <strong>{{ "{:,.2f}".format(pre.total_paid_ils|default(pre.total_paid)) }} ₪</strong>
+  </td>
+  <td class="text-end">
+    {% set remaining_ils = pre.balance_due_ils|default((pre.total_amount|float - pre.total_paid|float)) %}
+    <span class="{% if remaining_ils > 0 %}text-warning fw-bold{% else %}text-success{% endif %}">
+      {{ "{:,.2f}".format(remaining_ils) }} ₪
     </span>
   </td>
   <td class="text-center">
@@ -163,9 +200,9 @@
 <tfoot>
 <tr class="table-success fw-bold">
   <td colspan="5" class="text-center">الإجماليات</td>
-  <td class="text-end">{{ "{:,.2f}".format(summary.total_amount) }} ₪</td>
-  <td class="text-end">{{ "{:,.2f}".format(summary.total_paid) }} ₪</td>
-  <td class="text-end">{{ "{:,.2f}".format(summary.balance_due) }} ₪</td>
+  <td class="text-end">{{ "{:,.2f}".format(summary.total_amount_ils) }} ₪</td>
+  <td class="text-end">{{ "{:,.2f}".format(summary.total_paid_ils) }} ₪</td>
+  <td class="text-end">{{ "{:,.2f}".format(summary.balance_due_ils) }} ₪</td>
   <td colspan="2"></td>
 </tr>
 </tfoot>
@@ -176,4 +213,3 @@
 
 </div>
 {% endblock %}
-

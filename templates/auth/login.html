@@ -95,7 +95,7 @@
     <div class="row mb-3">
       <div class="col-12">
         <a href="{{ url_for('user_guide.index') }}" class="btn btn-info w-100 font-weight-bold py-2">
-          <i class="fas fa-star ml-2"></i> المميزات (40+ وحدة • 133 API)
+          <i class="fas fa-star ml-2"></i> المميزات ({{ system_settings.marketing_modules or '40+' }} وحدة • {{ system_settings.marketing_apis or '133' }} API)
         </a>
       </div>
     </div>
@@ -103,13 +103,13 @@
       <div class="col-6 mb-2">
         <a href="{{ url_for('pricing.index') }}" class="btn btn-warning w-100">
           <i class="fas fa-tags ml-1"></i> الأسعار<br>
-          <small>من $500/سنة</small>
+          <small>من ${{ system_settings.marketing_price_from_usd or '500' }}/سنة</small>
         </a>
       </div>
       <div class="col-6 mb-2">
         <a href="{{ url_for('other_systems.index') }}" class="btn btn-secondary w-100">
           <i class="fas fa-cogs ml-1"></i> أنظمة أخرى<br>
-          <small>4 أنظمة</small>
+          <small>{{ system_settings.marketing_other_systems or '4' }} أنظمة</small>
         </a>
       </div>
     </div>
@@ -130,13 +130,13 @@
         </h6>
         <div class="row small">
           <div class="col-4">
-            <strong>40+</strong><br>وحدة
+            <strong>{{ system_settings.marketing_modules or '40+' }}</strong><br>وحدة
           </div>
           <div class="col-4">
-            <strong>133</strong><br>API
+            <strong>{{ system_settings.marketing_apis or '133' }}</strong><br>API
           </div>
           <div class="col-4">
-            <strong>89</strong><br>فهرس
+            <strong>{{ system_settings.marketing_indexes or '89' }}</strong><br>فهرس
           </div>
         </div>
       </div>

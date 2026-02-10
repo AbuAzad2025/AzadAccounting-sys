@@ -128,30 +128,8 @@
     },
 
     initMobileNav() {
-      if (window.innerWidth <= 768 && !document.querySelector('.mobile-bottom-nav')) {
-        const navHTML = `
-          <nav class="mobile-bottom-nav">
-            <a href="/" ${window.location.pathname === '/' ? 'class="active"' : ''}>
-              <i class="fas fa-home"></i>
-              <span>الرئيسية</span>
-            </a>
-            <a href="/customers/" ${window.location.pathname.includes('/customers') ? 'class="active"' : ''}>
-              <i class="fas fa-users"></i>
-              <span>العملاء</span>
-            </a>
-            <a href="/sales/" ${window.location.pathname.includes('/sales') ? 'class="active"' : ''}>
-              <i class="fas fa-shopping-cart"></i>
-              <span>المبيعات</span>
-            </a>
-            <a href="/service/list" ${window.location.pathname.includes('/service') ? 'class="active"' : ''}>
-              <i class="fas fa-wrench"></i>
-              <span>الصيانة</span>
-            </a>
-          </nav>
-        `;
-        
-        document.body.insertAdjacentHTML('beforeend', navHTML);
-      }
+      if (document.querySelector('.gm-mobile-bottom-nav')) return;
+      return;
     },
 
     showLoading() {

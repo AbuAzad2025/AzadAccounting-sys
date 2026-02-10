@@ -4,15 +4,16 @@ import json
 from flask import Blueprint, request, jsonify, render_template, current_app, abort
 from flask_login import login_required, current_user
 from flask_wtf.csrf import CSRFProtect
-from sqlalchemy import func, and_, or_, desc
-from extensions import db, perform_backup_db
+from sqlalchemy import func, and_, or_, desc, case
+from extensions import db, perform_backup_db, cache
 import utils
 from models import (
     Sale, SaleReturn, Expense, Payment, ServiceRequest,
     Customer, Supplier, Partner,
     Product, StockLevel, GLBatch, GLEntry, Account,
     Invoice, PreOrder, Shipment, Employee,
-    PaymentSplit, PaymentEntityType, GL_ACCOUNTS, AuditLog
+    PaymentSplit, PaymentEntityType, GL_ACCOUNTS, AuditLog,
+    SaleLine, ServicePart
 )
 from services.ledger_service import (
     SmartEntityExtractor, LedgerQueryOptimizer, CurrencyConverter,
@@ -31,6 +32,233 @@ def _restrict_super_admin():
 
 def extract_entity_from_batch(batch: GLBatch):
     return SmartEntityExtractor.extract_from_batch(batch)
+
+def _parse_ledger_date_range(from_date_str: str | None, to_date_str: str | None):
+    from_date = datetime.strptime(from_date_str, "%Y-%m-%d") if from_date_str else None
+    to_date = (
+        datetime.strptime(to_date_str, "%Y-%m-%d").replace(hour=23, minute=59, second=59)
+        if to_date_str
+        else None
+    )
+    return from_date, to_date
+
+def _calculate_ledger_statistics(from_date: datetime | None, to_date: datetime | None):
+    cache_key = f"ledger_statistics_{from_date.strftime('%Y%m%d') if from_date else 'all'}_{to_date.strftime('%Y%m%d') if to_date else 'all'}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    base_gl = db.session.query(GLEntry).join(GLBatch).filter(GLBatch.status == "POSTED")
+    if from_date:
+        base_gl = base_gl.filter(GLBatch.posted_at >= from_date)
+    if to_date:
+        base_gl = base_gl.filter(GLBatch.posted_at <= to_date)
+
+    sales_accounts = {GL_ACCOUNTS.get("SALES", "4000_SALES"), GL_ACCOUNTS.get("REV", "4000_SALES")}
+    sales_accounts = [acc for acc in sales_accounts if acc]
+    service_rev_account = GL_ACCOUNTS.get("SERVICE_REV", "4100_SERVICE_REVENUE")
+
+    total_sales = float(
+        (base_gl.filter(GLEntry.account.in_(sales_accounts)).with_entities(func.sum(GLEntry.credit - GLEntry.debit)).scalar() or 0)
+    )
+    total_services = float(
+        (base_gl.filter(GLEntry.account == service_rev_account).with_entities(func.sum(GLEntry.credit - GLEntry.debit)).scalar() or 0)
+    )
+
+    cogs_exchange_account = GL_ACCOUNTS.get("COGS_EXCHANGE", "5105_COGS_EXCHANGE")
+
+    expense_base = base_gl.join(Account, Account.code == GLEntry.account).filter(Account.type == "EXPENSE")
+    total_cogs = float(
+        (
+            expense_base.filter(or_(GLEntry.account.like("51%"), GLEntry.account == cogs_exchange_account))
+            .with_entities(func.sum(GLEntry.debit - GLEntry.credit))
+            .scalar()
+            or 0
+        )
+    )
+    total_expenses = float(
+        (
+            expense_base.filter(~GLEntry.account.like("51%"), GLEntry.account != cogs_exchange_account)
+            .with_entities(func.sum(GLEntry.debit - GLEntry.credit))
+            .scalar()
+            or 0
+        )
+    )
+
+    cogs_details_rows = (
+        expense_base.filter(or_(GLEntry.account.like("51%"), GLEntry.account == cogs_exchange_account))
+        .with_entities(
+            GLEntry.account.label("account"),
+            Account.name.label("name"),
+            func.sum(GLEntry.debit - GLEntry.credit).label("amount"),
+        )
+        .group_by(GLEntry.account, Account.name)
+        .having(func.sum(GLEntry.debit - GLEntry.credit) != 0)
+        .order_by(func.sum(GLEntry.debit - GLEntry.credit).desc())
+        .limit(10)
+        .all()
+    )
+    cogs_details = [{"account": r.account, "name": r.name, "amount": float(r.amount or 0)} for r in cogs_details_rows]
+
+    total_service_costs = 0.0
+    unit_cost_expr = case(
+        (func.coalesce(Product.purchase_price, 0) > 0, Product.purchase_price),
+        (func.coalesce(Product.cost_after_shipping, 0) > 0, Product.cost_after_shipping),
+        (func.coalesce(Product.cost_before_shipping, 0) > 0, Product.cost_before_shipping),
+        (func.coalesce(Product.price, 0) > 0, Product.price * 0.70),
+        else_=0,
+    )
+    service_parts_base = (
+        db.session.query(func.sum(ServicePart.quantity * unit_cost_expr))
+        .join(Product, Product.id == ServicePart.part_id)
+        .join(ServiceRequest, ServiceRequest.id == ServicePart.service_id)
+    )
+    if from_date:
+        service_parts_base = service_parts_base.filter(ServiceRequest.created_at >= from_date)
+    if to_date:
+        service_parts_base = service_parts_base.filter(ServiceRequest.created_at <= to_date)
+    total_service_costs = float(service_parts_base.scalar() or 0)
+
+    total_preorders = 0.0
+    preorder_group_q = db.session.query(
+        func.coalesce(PreOrder.currency, "ILS").label("currency"),
+        func.sum(PreOrder.total_amount).label("total_amount"),
+    )
+    if from_date:
+        preorder_group_q = preorder_group_q.filter(PreOrder.created_at >= from_date)
+    if to_date:
+        preorder_group_q = preorder_group_q.filter(PreOrder.created_at <= to_date)
+    preorder_groups = preorder_group_q.group_by(func.coalesce(PreOrder.currency, "ILS")).all()
+    fx_anchor_date = (to_date or from_date or datetime.now(timezone.utc).replace(tzinfo=None))
+    for row in preorder_groups:
+        amount = float(row.total_amount or 0)
+        currency = (row.currency or "ILS").upper()
+        if currency == "ILS":
+            total_preorders += amount
+        else:
+            rate = LedgerCache.get_fx_rate(currency, "ILS", fx_anchor_date) or 1.0
+            total_preorders += float(amount * float(rate))
+
+    total_stock_value_stats = 0.0
+    total_stock_qty_stats = 0
+    stock_groups = (
+        db.session.query(
+            func.coalesce(Product.currency, "ILS").label("currency"),
+            func.sum(StockLevel.quantity).label("qty"),
+            func.sum(StockLevel.quantity * func.coalesce(Product.purchase_price, 0)).label("value"),
+        )
+        .join(StockLevel, StockLevel.product_id == Product.id)
+        .filter(StockLevel.quantity > 0)
+        .group_by(func.coalesce(Product.currency, "ILS"))
+        .all()
+    )
+    for row in stock_groups:
+        qty = float(row.qty or 0)
+        value = float(row.value or 0)
+        currency = (row.currency or "ILS").upper()
+        total_stock_qty_stats += int(qty)
+        if currency == "ILS":
+            total_stock_value_stats += value
+        else:
+            rate = LedgerCache.get_fx_rate(currency, "ILS", fx_anchor_date) or 1.0
+            total_stock_value_stats += float(value * float(rate))
+
+    has_any_cost_expr = or_(
+        func.coalesce(Product.purchase_price, 0) > 0,
+        func.coalesce(Product.cost_after_shipping, 0) > 0,
+        func.coalesce(Product.cost_before_shipping, 0) > 0,
+    )
+    has_price_expr = func.coalesce(Product.price, 0) > 0
+
+    sale_lines_base = (
+        db.session.query(SaleLine)
+        .join(Product, Product.id == SaleLine.product_id)
+        .join(Sale, Sale.id == SaleLine.sale_id)
+        .filter(Sale.status == "CONFIRMED")
+    )
+    if from_date:
+        sale_lines_base = sale_lines_base.filter(Sale.sale_date >= from_date)
+    if to_date:
+        sale_lines_base = sale_lines_base.filter(Sale.sale_date <= to_date)
+
+    estimated_count = int(
+        (sale_lines_base.filter(~has_any_cost_expr, has_price_expr).with_entities(func.count(SaleLine.id)).scalar() or 0)
+    )
+    no_cost_count = int(
+        (sale_lines_base.filter(~has_any_cost_expr, ~has_price_expr).with_entities(func.count(SaleLine.id)).scalar() or 0)
+    )
+
+    estimated_products_rows = (
+        sale_lines_base.filter(~has_any_cost_expr, has_price_expr)
+        .with_entities(
+            Product.id.label("id"),
+            Product.name.label("name"),
+            Product.price.label("selling_price"),
+            func.sum(SaleLine.quantity).label("qty_sold"),
+        )
+        .group_by(Product.id, Product.name, Product.price)
+        .order_by(func.sum(SaleLine.quantity).desc())
+        .limit(200)
+        .all()
+    )
+    estimated_products = [
+        {
+            "id": int(r.id),
+            "name": r.name,
+            "selling_price": float(r.selling_price or 0),
+            "estimated_cost": float(float(r.selling_price or 0) * 0.70),
+            "qty_sold": float(r.qty_sold or 0),
+        }
+        for r in estimated_products_rows
+    ]
+
+    products_without_cost_rows = (
+        sale_lines_base.filter(~has_any_cost_expr, ~has_price_expr)
+        .with_entities(
+            Product.id.label("id"),
+            Product.name.label("name"),
+            func.sum(SaleLine.quantity).label("qty_sold"),
+        )
+        .group_by(Product.id, Product.name)
+        .order_by(func.sum(SaleLine.quantity).desc())
+        .limit(200)
+        .all()
+    )
+    products_without_cost = [
+        {"id": int(r.id), "name": r.name, "qty_sold": float(r.qty_sold or 0)} for r in products_without_cost_rows
+    ]
+
+    gross_profit_sales = total_sales - total_cogs
+    gross_profit_services = total_services - total_service_costs
+    total_gross_profit = gross_profit_sales + gross_profit_services
+    net_profit = total_gross_profit - total_expenses
+    total_revenue = total_sales + total_services
+    profit_margin = (net_profit / total_revenue * 100) if total_revenue > 0 else 0
+
+    statistics = {
+        "total_sales": total_sales,
+        "total_cogs": total_cogs,
+        "gross_profit_sales": gross_profit_sales,
+        "total_services": total_services,
+        "total_service_costs": total_service_costs,
+        "gross_profit_services": gross_profit_services,
+        "total_gross_profit": total_gross_profit,
+        "total_revenue": total_revenue,
+        "total_expenses": total_expenses,
+        "net_profit": net_profit,
+        "profit_margin": profit_margin,
+        "total_preorders": total_preorders,
+        "total_stock_value": total_stock_value_stats,
+        "total_stock_qty": total_stock_qty_stats,
+        "cogs_details": cogs_details,
+        "estimated_products_count": estimated_count,
+        "estimated_products": estimated_products,
+        "products_without_cost_count": no_cost_count,
+        "products_without_cost": products_without_cost,
+    }
+
+    cache.set(cache_key, statistics, timeout=600)
+    return statistics
 
 @ledger_bp.route("/", methods=["GET"], endpoint="index")
 @login_required
@@ -176,15 +404,12 @@ def create_manual_entry():
 def get_ledger_data():
     """جلب بيانات دفتر الأستاذ من قاعدة البيانات الحقيقية"""
     try:
-        from models import fx_rate
-        
         from_date_str = request.args.get('from_date')
         to_date_str = request.args.get('to_date')
         transaction_type = request.args.get('transaction_type', '').strip()
         
         # تحليل التواريخ
-        from_date = datetime.strptime(from_date_str, '%Y-%m-%d') if from_date_str else None
-        to_date = datetime.strptime(to_date_str, '%Y-%m-%d').replace(hour=23, minute=59, second=59) if to_date_str else None
+        from_date, to_date = _parse_ledger_date_range(from_date_str, to_date_str)
         
         ledger_entries = []
         running_balance = 0.0
@@ -193,7 +418,12 @@ def get_ledger_data():
         # بدلاً من تجميع البيانات يدوياً من جداول المبيعات والمصاريف، نقوم بجلب القيود مباشرة من GLEntry
         # هذا يضمن دقة محاسبية (Debit = Credit) وعدم ازدواجية، ويعكس دفتر اليومية العام.
 
-        query = db.session.query(GLEntry, GLBatch, Account).join(GLBatch, GLEntry.batch_id == GLBatch.id).outerjoin(Account, GLEntry.account == Account.code)
+        query = (
+            db.session.query(GLEntry, GLBatch, Account)
+            .join(GLBatch, GLEntry.batch_id == GLBatch.id)
+            .outerjoin(Account, GLEntry.account == Account.code)
+            .filter(GLBatch.status == "POSTED")
+        )
         
         if from_date:
             query = query.filter(GLBatch.posted_at >= from_date)
@@ -341,311 +571,9 @@ def get_ledger_data():
             running_balance += entry['debit'] - entry['credit']
             entry['balance'] = running_balance
         
-        # حساب الإحصائيات الحقيقية من قاعدة البيانات
-        from models import fx_rate
-        
-        # 1. إجمالي المبيعات
-        sales_query = Sale.query.filter(Sale.status == 'CONFIRMED')
-        if from_date:
-            sales_query = sales_query.filter(Sale.sale_date >= from_date)
-        if to_date:
-            sales_query = sales_query.filter(Sale.sale_date <= to_date)
-        
-        total_sales = 0.0
-        for sale in sales_query.all():
-            amount = float(sale.total_amount or 0)
-            if sale.currency and sale.currency != 'ILS':
-                try:
-                    rate = fx_rate(sale.currency, 'ILS', sale.sale_date, raise_on_missing=False)
-                    if rate > 0:
-                        amount = float(amount * float(rate))
-                    else:
-                        current_app.logger.warning(f"⚠️ سعر صرف مفقود في إحصائيات دفتر الأستاذ: {sale.currency}/ILS للبيع #{sale.id}")
-                except Exception as e:
-                    current_app.logger.error(f"❌ خطأ في تحويل العملة في إحصائيات دفتر الأستاذ للبيع #{sale.id}: {str(e)}")
-            total_sales += amount
-        
-        # 2. إجمالي المشتريات والنفقات
-        expenses_query = Expense.query
-        if from_date:
-            expenses_query = expenses_query.filter(Expense.date >= from_date)
-        if to_date:
-            expenses_query = expenses_query.filter(Expense.date <= to_date)
-        
-        total_expenses = 0.0
-        for expense in expenses_query.all():
-            amount = float(expense.amount or 0)
-            if expense.currency and expense.currency != 'ILS':
-                try:
-                    rate = fx_rate(expense.currency, 'ILS', expense.date, raise_on_missing=False)
-                    if rate > 0:
-                        amount = float(amount * float(rate))
-                    else:
-                        current_app.logger.warning(f"⚠️ سعر صرف مفقود في إحصائيات دفتر الأستاذ: {expense.currency}/ILS للمصروف #{expense.id}")
-                except Exception as e:
-                    current_app.logger.error(f"❌ خطأ في تحويل العملة في إحصائيات دفتر الأستاذ للمصروف #{expense.id}: {str(e)}")
-            total_expenses += amount
-        
-        # 3. إجمالي الخدمات (الصيانة)
-        services_query = ServiceRequest.query
-        if from_date:
-            services_query = services_query.filter(ServiceRequest.created_at >= from_date)
-        if to_date:
-            services_query = services_query.filter(ServiceRequest.created_at <= to_date)
-        
-        total_services = 0.0
-        for service in services_query.limit(10000).all():
-            # استخدام total_amount المحفوظ في قاعدة البيانات (بعد الخصم والضريبة)
-            service_total = float(service.total_amount or 0)
-            
-            # إذا كان total_amount غير موجود أو صفر، نحسبه يدوياً
-            if service_total <= 0:
-                parts_total = float(service.parts_total or 0)
-                labor_total = float(service.labor_total or 0)
-                discount = float(service.discount_total or 0)
-                tax_rate = float(service.tax_rate or 0)
-                
-                # الحساب: (parts + labor - discount) * (1 + tax_rate/100)
-                subtotal = parts_total + labor_total - discount
-                if subtotal < 0:
-                    subtotal = 0
-                tax_amount = subtotal * (tax_rate / 100.0)
-                service_total = subtotal + tax_amount
-            
-            # تحويل للشيقل إذا كانت بعملة أخرى
-            service_currency = getattr(service, 'currency', 'ILS') or 'ILS'
-            if service_currency != 'ILS':
-                try:
-                    rate = fx_rate(service_currency, 'ILS', service.created_at or datetime.now(timezone.utc).replace(tzinfo=None), raise_on_missing=False)
-                    if rate > 0:
-                        service_total = float(service_total * float(rate))
-                    else:
-                        current_app.logger.warning(f"⚠️ سعر صرف مفقود في إحصائيات دفتر الأستاذ: {service_currency}/ILS للخدمة #{service.id}")
-                except Exception as e:
-                    current_app.logger.error(f"❌ خطأ في تحويل العملة في إحصائيات دفتر الأستاذ للخدمة #{service.id}: {str(e)}")
-            
-            total_services += service_total
-        
-        # 4. حساب تكلفة البضاعة المباعة (COGS - Cost of Goods Sold)
-        from models import SaleLine
-        
-        total_cogs = 0.0  # تكلفة البضاعة المباعة
-        cogs_details = []
-        products_without_cost = []  # منتجات بدون تكلفة شراء
-        estimated_products = []  # منتجات تم تقدير تكلفتها
-        
-        # جلب جميع أسطر المبيعات في الفترة
-        sale_lines_query = (
-            db.session.query(SaleLine)
-            .join(Sale, Sale.id == SaleLine.sale_id)
-        )
-        if from_date:
-            sale_lines_query = sale_lines_query.filter(Sale.sale_date >= from_date)
-        if to_date:
-            sale_lines_query = sale_lines_query.filter(Sale.sale_date <= to_date)
-        
-        for line in sale_lines_query.limit(100000).all():
-            if line.product:
-                qty_sold = float(line.quantity or 0)
-                product = line.product
-                unit_cost = None
-                cost_source = None
-                
-                # 1️⃣ محاولة استخدام تكلفة الشراء (الأفضل)
-                if product.purchase_price and product.purchase_price > 0:
-                    unit_cost = float(product.purchase_price)
-                    cost_source = "purchase_price"
-                # 2️⃣ التكلفة بعد الشحن
-                elif product.cost_after_shipping and product.cost_after_shipping > 0:
-                    unit_cost = float(product.cost_after_shipping)
-                    cost_source = "cost_after_shipping"
-                # 3️⃣ التكلفة قبل الشحن
-                elif product.cost_before_shipping and product.cost_before_shipping > 0:
-                    unit_cost = float(product.cost_before_shipping)
-                    cost_source = "cost_before_shipping"
-                # 4️⃣ تقدير محافظ: 70% من سعر البيع
-                elif product.price and product.price > 0:
-                    unit_cost = float(product.price) * 0.70  # 70% من سعر البيع
-                    cost_source = "estimated_70%"
-                    
-                    # تسجيل تحذير
-                    current_app.logger.warning(
-                        f"⚠️ تقدير تكلفة المنتج '{product.name}' (#{product.id}): "
-                        f"استخدام 70% من سعر البيع = {unit_cost:.2f} ₪"
-                    )
-                    
-                    # إضافة للقائمة
-                    estimated_products.append({
-                        'id': product.id,
-                        'name': product.name,
-                        'selling_price': float(product.price),
-                        'estimated_cost': unit_cost,
-                        'qty_sold': qty_sold
-                    })
-                # 5️⃣ لا يوجد أي سعر - تجاهل المنتج
-                else:
-                    current_app.logger.error(
-                        f"❌ المنتج '{product.name}' (#{product.id}) بدون تكلفة أو سعر - "
-                        f"تم تجاهله من حساب COGS"
-                    )
-                    products_without_cost.append({
-                        'id': product.id,
-                        'name': product.name,
-                        'qty_sold': qty_sold
-                    })
-                    continue  # تخطي هذا المنتج
-                
-                line_cogs = qty_sold * unit_cost
-                total_cogs += line_cogs
-                
-                if len(cogs_details) < 10:  # حفظ أول 10 لأغراض التفصيل
-                    cogs_details.append({
-                        'product': product.name,
-                        'qty': qty_sold,
-                        'unit_cost': unit_cost,
-                        'total': line_cogs,
-                        'source': cost_source
-                    })
-        
-        # 5. حساب تكلفة الخدمات (قطع الغيار المستخدمة)
-        from models import ServicePart
-        
-        total_service_costs = 0.0
-        
-        service_parts_query = (
-            db.session.query(ServicePart)
-            .join(ServiceRequest, ServiceRequest.id == ServicePart.service_id)
-        )
-        if from_date:
-            service_parts_query = service_parts_query.filter(ServiceRequest.created_at >= from_date)
-        if to_date:
-            service_parts_query = service_parts_query.filter(ServiceRequest.created_at <= to_date)
-        
-        for part in service_parts_query.limit(50000).all():
-            if part.part:  # part هو المنتج
-                qty_used = float(part.quantity or 0)
-                product = part.part
-                unit_cost = None
-                
-                # نفس المنطق: تكلفة فعلية أو تقدير
-                if product.purchase_price and product.purchase_price > 0:
-                    unit_cost = float(product.purchase_price)
-                elif product.cost_after_shipping and product.cost_after_shipping > 0:
-                    unit_cost = float(product.cost_after_shipping)
-                elif product.cost_before_shipping and product.cost_before_shipping > 0:
-                    unit_cost = float(product.cost_before_shipping)
-                elif product.price and product.price > 0:
-                    unit_cost = float(product.price) * 0.70  # 70% من سعر البيع
-                    current_app.logger.warning(
-                        f"⚠️ تقدير تكلفة قطعة الغيار '{product.name}' في الخدمات: "
-                        f"70% من سعر البيع = {unit_cost:.2f} ₪"
-                    )
-                    if product.id not in [p['id'] for p in estimated_products]:
-                        estimated_products.append({
-                            'id': product.id,
-                            'name': product.name,
-                            'selling_price': float(product.price),
-                            'estimated_cost': unit_cost,
-                            'qty_sold': qty_used,
-                            'in_service': True
-                        })
-                else:
-                    current_app.logger.error(
-                        f"❌ قطعة الغيار '{product.name}' بدون تكلفة - تم تجاهلها من حساب تكاليف الخدمات"
-                    )
-                    if product.id not in [p['id'] for p in products_without_cost]:
-                        products_without_cost.append({
-                            'id': product.id,
-                            'name': product.name,
-                            'qty_sold': qty_used,
-                            'in_service': True
-                        })
-                    continue
-                
-                total_service_costs += qty_used * unit_cost
-        
-        # 6. حساب الحجوزات المسبقة
-        preorders_query = PreOrder.query
-        if from_date:
-            preorders_query = preorders_query.filter(PreOrder.created_at >= from_date)
-        if to_date:
-            preorders_query = preorders_query.filter(PreOrder.created_at <= to_date)
-        
-        total_preorders = 0.0
-        for preorder in preorders_query.limit(10000).all():
-            amount = float(preorder.total_amount or 0)
-            preorder_currency = getattr(preorder, 'currency', 'ILS') or 'ILS'
-            if preorder_currency != 'ILS':
-                try:
-                    rate = fx_rate(preorder_currency, 'ILS', preorder.created_at or datetime.now(timezone.utc).replace(tzinfo=None), raise_on_missing=False)
-                    if rate > 0:
-                        amount = float(amount * float(rate))
-                except Exception as e:
-                    current_app.logger.warning(f"⚠️ خطأ في تحويل عملة الحجز المسبق #{preorder.id}: {str(e)}")
-            total_preorders += amount
-        
-        # 7. حساب قيمة المخزون (مجمّع حسب المنتج) - بسعر التكلفة
-        total_stock_value_stats = 0.0
-        total_stock_qty_stats = 0
-        
-        stock_summary_stats = (
-            db.session.query(
-                Product.id,
-                Product.name,
-                Product.purchase_price,
-                Product.currency,
-                func.sum(StockLevel.quantity).label('total_qty')
-            )
-            .join(StockLevel, StockLevel.product_id == Product.id)
-            .filter(StockLevel.quantity > 0)
-            .group_by(Product.id, Product.name, Product.purchase_price, Product.currency)
-            .all()
-        )
-        
-        for row in stock_summary_stats:
-            qty = float(row.total_qty or 0)
-            price = float(row.purchase_price or 0)  # سعر التكلفة وليس سعر البيع
-            product_currency = row.currency
-            
-            # تحويل للشيقل
-            if product_currency and product_currency != 'ILS' and price > 0:
-                try:
-                    rate = fx_rate(product_currency, 'ILS', datetime.now(timezone.utc).replace(tzinfo=None), raise_on_missing=False)
-                    if rate and rate > 0:
-                        price = float(price * float(rate))
-                except Exception:
-                    pass
-            
-            total_stock_value_stats += qty * price
-            total_stock_qty_stats += int(qty)
-        
-        # 8. صافي الربح الحقيقي
-        gross_profit_sales = total_sales - total_cogs  # ربح المبيعات
-        gross_profit_services = total_services - total_service_costs  # ربح الخدمات
-        total_gross_profit = gross_profit_sales + gross_profit_services
-        net_profit = total_gross_profit - total_expenses  # الربح الصافي
-        
-        statistics = {
-            "total_sales": total_sales,
-            "total_cogs": total_cogs,
-            "gross_profit_sales": gross_profit_sales,
-            "total_services": total_services,
-            "total_service_costs": total_service_costs,
-            "gross_profit_services": gross_profit_services,
-            "total_gross_profit": total_gross_profit,
-            "total_revenue": total_sales + total_services,
-            "total_expenses": total_expenses,
-            "net_profit": net_profit,
-            "profit_margin": (net_profit / (total_sales + total_services) * 100) if (total_sales + total_services) > 0 else 0,
-            "total_preorders": total_preorders,
-            "total_stock_value": total_stock_value_stats,
-            "total_stock_qty": total_stock_qty_stats,
-            "cogs_details": cogs_details,
-            "estimated_products_count": len(estimated_products),
-            "estimated_products": estimated_products,
-            "products_without_cost_count": len(products_without_cost),
-            "products_without_cost": products_without_cost
-        }
+        include_stats_raw = (request.args.get("include_stats") or "").strip().lower()
+        include_stats = include_stats_raw in {"1", "true", "yes", "y", "on"}
+        statistics = _calculate_ledger_statistics(from_date, to_date) if include_stats else {}
         
         search_term = (request.args.get('q') or '').strip()
         filtered_entries = ledger_entries
@@ -714,6 +642,20 @@ def get_ledger_data():
     except Exception as e:
         current_app.logger.error(f"Error in get_ledger_data: {str(e)}")
         return jsonify({"error": str(e), "data": [], "statistics": {}}), 500
+
+@ledger_bp.route("/statistics", methods=["GET"], endpoint="get_ledger_statistics")
+@login_required
+@utils.permission_required("manage_ledger")
+def get_ledger_statistics():
+    try:
+        from_date_str = request.args.get("from_date")
+        to_date_str = request.args.get("to_date")
+        from_date, to_date = _parse_ledger_date_range(from_date_str, to_date_str)
+        statistics = _calculate_ledger_statistics(from_date, to_date)
+        return jsonify({"statistics": statistics})
+    except Exception as e:
+        current_app.logger.error(f"Error in get_ledger_statistics: {str(e)}")
+        return jsonify({"error": str(e), "statistics": {}}), 500
 
 @ledger_bp.route("/cogs-audit", methods=["GET"], endpoint="cogs_audit_report")
 @login_required

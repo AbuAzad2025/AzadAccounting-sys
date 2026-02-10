@@ -40,6 +40,8 @@ img{
   height:auto;
 }
 
+.gm-mobile-bottom-nav{display:none;}
+
 .fw-bold{font-weight:700!important;}
 .fw-semibold{font-weight:600!important;}
 .text-decoration-none{text-decoration:none!important;}

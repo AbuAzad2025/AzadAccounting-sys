@@ -926,6 +926,7 @@ def init_extensions(app):
                 AuditLog,
                 Customer,
                 Supplier,
+                Partner,
                 GLBatch,
                 GLEntry,
                 GL_ACCOUNTS,
@@ -934,126 +935,352 @@ def init_extensions(app):
             with app.app_context():
                 tol = float(app.config.get("ENTITY_BALANCE_AUDIT_TOLERANCE", 0.01) or 0.01)
                 as_of_dt = datetime.now(timezone.utc)
+                auto_fix = bool(app.config.get("ENTITY_BALANCE_AUDIT_AUTO_FIX", True))
 
                 ar_account = (GL_ACCOUNTS.get("AR") or "1100_AR").upper()
                 ap_account = (GL_ACCOUNTS.get("AP") or "2000_AP").upper()
 
-                customer_gl_sq = (
-                    db.session.query(
-                        GLBatch.entity_id.label("entity_id"),
-                        func.coalesce(func.sum(GLEntry.debit - GLEntry.credit), 0).label("gl_balance"),
+                def _compute_snapshot():
+                    customer_gl_sq = (
+                        db.session.query(
+                            GLBatch.entity_id.label("entity_id"),
+                            func.coalesce(func.sum(GLEntry.debit - GLEntry.credit), 0).label("gl_balance"),
+                        )
+                        .join(GLEntry, GLEntry.batch_id == GLBatch.id)
+                        .filter(
+                            GLBatch.status == "POSTED",
+                            GLBatch.posted_at <= as_of_dt,
+                            GLBatch.entity_type == "CUSTOMER",
+                            GLEntry.account == ar_account,
+                        )
+                        .group_by(GLBatch.entity_id)
+                        .subquery()
                     )
-                    .join(GLEntry, GLEntry.batch_id == GLBatch.id)
-                    .filter(
-                        GLBatch.status == "POSTED",
-                        GLBatch.posted_at <= as_of_dt,
-                        GLBatch.entity_type == "CUSTOMER",
-                        GLEntry.account == ar_account,
+
+                    supplier_gl_sq = (
+                        db.session.query(
+                            GLBatch.entity_id.label("entity_id"),
+                            func.coalesce(func.sum(GLEntry.credit - GLEntry.debit), 0).label("gl_balance"),
+                        )
+                        .join(GLEntry, GLEntry.batch_id == GLBatch.id)
+                        .filter(
+                            GLBatch.status == "POSTED",
+                            GLBatch.posted_at <= as_of_dt,
+                            GLBatch.entity_type == "SUPPLIER",
+                            GLEntry.account == ap_account,
+                        )
+                        .group_by(GLBatch.entity_id)
+                        .subquery()
                     )
-                    .group_by(GLBatch.entity_id)
-                    .subquery()
-                )
 
-                supplier_gl_sq = (
-                    db.session.query(
-                        GLBatch.entity_id.label("entity_id"),
-                        func.coalesce(func.sum(GLEntry.credit - GLEntry.debit), 0).label("gl_balance"),
+                    partner_gl_sq = (
+                        db.session.query(
+                            GLBatch.entity_id.label("entity_id"),
+                            func.coalesce(func.sum(GLEntry.credit - GLEntry.debit), 0).label("gl_balance"),
+                        )
+                        .join(GLEntry, GLEntry.batch_id == GLBatch.id)
+                        .filter(
+                            GLBatch.status == "POSTED",
+                            GLBatch.posted_at <= as_of_dt,
+                            GLBatch.entity_type == "PARTNER",
+                            GLEntry.account == ap_account,
+                        )
+                        .group_by(GLBatch.entity_id)
+                        .subquery()
                     )
-                    .join(GLEntry, GLEntry.batch_id == GLBatch.id)
-                    .filter(
-                        GLBatch.status == "POSTED",
-                        GLBatch.posted_at <= as_of_dt,
-                        GLBatch.entity_type == "SUPPLIER",
-                        GLEntry.account == ap_account,
+
+                    partner_gl_present = (
+                        db.session.query(func.count(GLBatch.id))
+                        .filter(GLBatch.status == "POSTED", GLBatch.entity_type == "PARTNER", GLBatch.posted_at <= as_of_dt)
+                        .scalar()
+                        or 0
                     )
-                    .group_by(GLBatch.entity_id)
-                    .subquery()
-                )
 
-                partner_gl_present = (
-                    db.session.query(func.count(GLBatch.id))
-                    .filter(GLBatch.status == "POSTED", GLBatch.entity_type == "PARTNER", GLBatch.posted_at <= as_of_dt)
-                    .scalar()
-                    or 0
-                )
-
-                cust_stored = func.coalesce(Customer.current_balance, 0)
-                cust_gl = func.coalesce(customer_gl_sq.c.gl_balance, 0)
-                cust_diff = cust_gl - (-cust_stored)
-                customers_q = db.session.query(Customer.id).outerjoin(customer_gl_sq, customer_gl_sq.c.entity_id == Customer.id)
-                customers_mismatch_count = customers_q.with_entities(func.count()).filter(func.abs(cust_diff) > tol).scalar() or 0
-                customers_mismatch_total_abs = (
-                    customers_q.with_entities(func.coalesce(func.sum(func.abs(cust_diff)), 0)).filter(func.abs(cust_diff) > tol).scalar()
-                    or 0
-                )
-
-                supp_stored = func.coalesce(Supplier.current_balance, 0)
-                supp_gl = func.coalesce(supplier_gl_sq.c.gl_balance, 0)
-                supp_diff = supp_gl - supp_stored
-                suppliers_q = db.session.query(Supplier.id).outerjoin(supplier_gl_sq, supplier_gl_sq.c.entity_id == Supplier.id)
-                suppliers_mismatch_count = suppliers_q.with_entities(func.count()).filter(func.abs(supp_diff) > tol).scalar() or 0
-                suppliers_mismatch_total_abs = (
-                    suppliers_q.with_entities(func.coalesce(func.sum(func.abs(supp_diff)), 0)).filter(func.abs(supp_diff) > tol).scalar()
-                    or 0
-                )
-
-                posted_batches_missing_entity = (
-                    db.session.query(func.count(GLBatch.id))
-                    .filter(
-                        GLBatch.status == "POSTED",
-                        GLBatch.posted_at <= as_of_dt,
-                        or_(GLBatch.entity_type.is_(None), GLBatch.entity_id.is_(None)),
+                    cust_stored = func.coalesce(Customer.current_balance, 0)
+                    cust_gl = func.coalesce(customer_gl_sq.c.gl_balance, 0)
+                    cust_diff = cust_gl - (-cust_stored)
+                    customers_q = db.session.query(Customer.id).outerjoin(customer_gl_sq, customer_gl_sq.c.entity_id == Customer.id)
+                    customers_mismatch_count = customers_q.with_entities(func.count()).filter(func.abs(cust_diff) > tol).scalar() or 0
+                    customers_mismatch_total_abs = (
+                        customers_q.with_entities(func.coalesce(func.sum(func.abs(cust_diff)), 0)).filter(func.abs(cust_diff) > tol).scalar()
+                        or 0
                     )
-                    .scalar()
-                    or 0
-                )
 
-                ar_unassigned = (
-                    db.session.query(func.coalesce(func.sum(GLEntry.debit - GLEntry.credit), 0))
-                    .join(GLBatch, GLBatch.id == GLEntry.batch_id)
-                    .filter(
-                        GLBatch.status == "POSTED",
-                        GLBatch.posted_at <= as_of_dt,
-                        GLEntry.account == ar_account,
-                        or_(
-                            GLBatch.entity_type.is_(None),
-                            GLBatch.entity_id.is_(None),
-                            GLBatch.entity_type != "CUSTOMER",
-                        ),
+                    supp_stored = func.coalesce(Supplier.current_balance, 0)
+                    supp_gl = func.coalesce(supplier_gl_sq.c.gl_balance, 0)
+                    supp_diff = supp_gl - supp_stored
+                    suppliers_q = db.session.query(Supplier.id).outerjoin(supplier_gl_sq, supplier_gl_sq.c.entity_id == Supplier.id)
+                    suppliers_mismatch_count = suppliers_q.with_entities(func.count()).filter(func.abs(supp_diff) > tol).scalar() or 0
+                    suppliers_mismatch_total_abs = (
+                        suppliers_q.with_entities(func.coalesce(func.sum(func.abs(supp_diff)), 0)).filter(func.abs(supp_diff) > tol).scalar()
+                        or 0
                     )
-                    .scalar()
-                    or 0
-                )
 
-                ap_unassigned = (
-                    db.session.query(func.coalesce(func.sum(GLEntry.credit - GLEntry.debit), 0))
-                    .join(GLBatch, GLBatch.id == GLEntry.batch_id)
-                    .filter(
-                        GLBatch.status == "POSTED",
-                        GLBatch.posted_at <= as_of_dt,
-                        GLEntry.account == ap_account,
-                        or_(
-                            GLBatch.entity_type.is_(None),
-                            GLBatch.entity_id.is_(None),
-                            ~GLBatch.entity_type.in_(["SUPPLIER", "PARTNER"]),
-                        ),
+                    part_stored = func.coalesce(Partner.current_balance, 0)
+                    part_gl = func.coalesce(partner_gl_sq.c.gl_balance, 0)
+                    part_diff = part_gl - part_stored
+                    partners_q = db.session.query(Partner.id).outerjoin(partner_gl_sq, partner_gl_sq.c.entity_id == Partner.id)
+                    partners_mismatch_count = partners_q.with_entities(func.count()).filter(func.abs(part_diff) > tol).scalar() or 0
+                    partners_mismatch_total_abs = (
+                        partners_q.with_entities(func.coalesce(func.sum(func.abs(part_diff)), 0)).filter(func.abs(part_diff) > tol).scalar()
+                        or 0
                     )
-                    .scalar()
-                    or 0
-                )
+
+                    posted_batches_missing_entity = (
+                        db.session.query(func.count(GLBatch.id))
+                        .filter(
+                            GLBatch.status == "POSTED",
+                            GLBatch.posted_at <= as_of_dt,
+                            or_(GLBatch.entity_type.is_(None), GLBatch.entity_id.is_(None)),
+                        )
+                        .scalar()
+                        or 0
+                    )
+
+                    ar_unassigned = (
+                        db.session.query(func.coalesce(func.sum(GLEntry.debit - GLEntry.credit), 0))
+                        .join(GLBatch, GLBatch.id == GLEntry.batch_id)
+                        .filter(
+                            GLBatch.status == "POSTED",
+                            GLBatch.posted_at <= as_of_dt,
+                            GLEntry.account == ar_account,
+                            or_(
+                                GLBatch.entity_type.is_(None),
+                                GLBatch.entity_id.is_(None),
+                                GLBatch.entity_type != "CUSTOMER",
+                            ),
+                        )
+                        .scalar()
+                        or 0
+                    )
+
+                    ap_unassigned = (
+                        db.session.query(func.coalesce(func.sum(GLEntry.credit - GLEntry.debit), 0))
+                        .join(GLBatch, GLBatch.id == GLEntry.batch_id)
+                        .filter(
+                            GLBatch.status == "POSTED",
+                            GLBatch.posted_at <= as_of_dt,
+                            GLEntry.account == ap_account,
+                            or_(
+                                GLBatch.entity_type.is_(None),
+                                GLBatch.entity_id.is_(None),
+                                ~GLBatch.entity_type.in_(["SUPPLIER", "PARTNER"]),
+                            ),
+                        )
+                        .scalar()
+                        or 0
+                    )
+
+                    return {
+                        "customers_mismatch_count": int(customers_mismatch_count),
+                        "customers_mismatch_total_abs": float(customers_mismatch_total_abs),
+                        "suppliers_mismatch_count": int(suppliers_mismatch_count),
+                        "suppliers_mismatch_total_abs": float(suppliers_mismatch_total_abs),
+                        "partners_mismatch_count": int(partners_mismatch_count),
+                        "partners_mismatch_total_abs": float(partners_mismatch_total_abs),
+                        "partner_gl_present": bool(partner_gl_present),
+                        "posted_batches_missing_entity": int(posted_batches_missing_entity),
+                        "ar_unassigned_balance": float(ar_unassigned),
+                        "ap_unassigned_balance": float(ap_unassigned),
+                    }
+
+                def _find_target_ids():
+                    customer_gl_sq = (
+                        db.session.query(
+                            GLBatch.entity_id.label("entity_id"),
+                            func.coalesce(func.sum(GLEntry.debit - GLEntry.credit), 0).label("gl_balance"),
+                        )
+                        .join(GLEntry, GLEntry.batch_id == GLBatch.id)
+                        .filter(
+                            GLBatch.status == "POSTED",
+                            GLBatch.posted_at <= as_of_dt,
+                            GLBatch.entity_type == "CUSTOMER",
+                            GLEntry.account == ar_account,
+                        )
+                        .group_by(GLBatch.entity_id)
+                        .subquery()
+                    )
+                    supplier_gl_sq = (
+                        db.session.query(
+                            GLBatch.entity_id.label("entity_id"),
+                            func.coalesce(func.sum(GLEntry.credit - GLEntry.debit), 0).label("gl_balance"),
+                        )
+                        .join(GLEntry, GLEntry.batch_id == GLBatch.id)
+                        .filter(
+                            GLBatch.status == "POSTED",
+                            GLBatch.posted_at <= as_of_dt,
+                            GLBatch.entity_type == "SUPPLIER",
+                            GLEntry.account == ap_account,
+                        )
+                        .group_by(GLBatch.entity_id)
+                        .subquery()
+                    )
+                    partner_gl_sq = (
+                        db.session.query(
+                            GLBatch.entity_id.label("entity_id"),
+                            func.coalesce(func.sum(GLEntry.credit - GLEntry.debit), 0).label("gl_balance"),
+                        )
+                        .join(GLEntry, GLEntry.batch_id == GLBatch.id)
+                        .filter(
+                            GLBatch.status == "POSTED",
+                            GLBatch.posted_at <= as_of_dt,
+                            GLBatch.entity_type == "PARTNER",
+                            GLEntry.account == ap_account,
+                        )
+                        .group_by(GLBatch.entity_id)
+                        .subquery()
+                    )
+
+                    max_customers = int(app.config.get("ENTITY_BALANCE_AUTO_FIX_MAX_CUSTOMERS", 300) or 300)
+                    max_suppliers = int(app.config.get("ENTITY_BALANCE_AUTO_FIX_MAX_SUPPLIERS", 300) or 300)
+                    max_partners = int(app.config.get("ENTITY_BALANCE_AUTO_FIX_MAX_PARTNERS", 300) or 300)
+
+                    cust_stored = func.coalesce(Customer.current_balance, 0)
+                    cust_gl = func.coalesce(customer_gl_sq.c.gl_balance, 0)
+                    cust_diff = cust_gl - (-cust_stored)
+                    customers_q = db.session.query(Customer.id).outerjoin(customer_gl_sq, customer_gl_sq.c.entity_id == Customer.id)
+                    customer_ids = [int(r.id) for r in customers_q.filter(func.abs(cust_diff) > tol).order_by(func.abs(cust_diff).desc()).limit(max_customers).all()]
+
+                    supp_stored = func.coalesce(Supplier.current_balance, 0)
+                    supp_gl = func.coalesce(supplier_gl_sq.c.gl_balance, 0)
+                    supp_diff = supp_gl - supp_stored
+                    suppliers_q = db.session.query(Supplier.id).outerjoin(supplier_gl_sq, supplier_gl_sq.c.entity_id == Supplier.id)
+                    supplier_ids = [int(r.id) for r in suppliers_q.filter(func.abs(supp_diff) > tol).order_by(func.abs(supp_diff).desc()).limit(max_suppliers).all()]
+
+                    part_stored = func.coalesce(Partner.current_balance, 0)
+                    part_gl = func.coalesce(partner_gl_sq.c.gl_balance, 0)
+                    part_diff = part_gl - part_stored
+                    partners_q = db.session.query(Partner.id).outerjoin(partner_gl_sq, partner_gl_sq.c.entity_id == Partner.id)
+                    partner_ids = [int(r.id) for r in partners_q.filter(func.abs(part_diff) > tol).order_by(func.abs(part_diff).desc()).limit(max_partners).all()]
+
+                    return {"customers": customer_ids, "suppliers": supplier_ids, "partners": partner_ids}
+
+                before = _compute_snapshot()
+                fix_stats = None
+
+                if auto_fix and (
+                    before.get("customers_mismatch_count")
+                    or before.get("suppliers_mismatch_count")
+                    or before.get("partners_mismatch_count")
+                    or before.get("posted_batches_missing_entity")
+                ):
+                    fix_stats = {
+                        "gl_batches": {"found": 0, "updated": 0, "skipped": 0},
+                        "recalculated": {"customers": 0, "suppliers": 0, "partners": 0},
+                    }
+
+                    try:
+                        from services.ledger_service import SmartEntityExtractor
+
+                        supported_source_types = {
+                            "PAYMENT",
+                            "PAYMENT_SPLIT",
+                            "SALE",
+                            "INVOICE",
+                            "EXPENSE",
+                            "SERVICE",
+                            "PREORDER",
+                            "SHIPMENT",
+                        }
+                        max_batches = int(app.config.get("ENTITY_BALANCE_AUTO_FIX_MAX_BATCHES", 2000) or 2000)
+                        q = (
+                            db.session.query(GLBatch)
+                            .filter(GLBatch.status == "POSTED", GLBatch.posted_at <= as_of_dt)
+                            .filter(or_(GLBatch.entity_type.is_(None), GLBatch.entity_id.is_(None)))
+                            .filter(GLBatch.source_type.isnot(None), GLBatch.source_id.isnot(None))
+                            .filter(func.upper(GLBatch.source_type).in_(supported_source_types))
+                            .order_by(GLBatch.id.desc())
+                            .limit(max_batches)
+                        )
+                        batches = q.all()
+                        fix_stats["gl_batches"]["found"] = len(batches)
+                        for b in batches:
+                            try:
+                                _, _, entity_id, entity_type = SmartEntityExtractor.extract_from_batch(b)
+                                if not entity_type or not entity_id:
+                                    fix_stats["gl_batches"]["skipped"] += 1
+                                    continue
+                                entity_type_u = str(entity_type).upper()
+                                if entity_type_u not in {"CUSTOMER", "SUPPLIER", "PARTNER", "EMPLOYEE"}:
+                                    fix_stats["gl_batches"]["skipped"] += 1
+                                    continue
+                                b.entity_type = entity_type_u
+                                b.entity_id = int(entity_id)
+                                fix_stats["gl_batches"]["updated"] += 1
+                            except Exception:
+                                fix_stats["gl_batches"]["skipped"] += 1
+                        if fix_stats["gl_batches"]["updated"]:
+                            db.session.commit()
+                    except Exception:
+                        try:
+                            db.session.rollback()
+                        except Exception:
+                            pass
+
+                    try:
+                        targets = _find_target_ids()
+                    except Exception:
+                        targets = {"customers": [], "suppliers": [], "partners": []}
+
+                    try:
+                        from utils.customer_balance_updater import update_customer_balance_components
+                    except Exception:
+                        update_customer_balance_components = None
+                    try:
+                        from utils.supplier_balance_updater import update_supplier_balance_components
+                    except Exception:
+                        update_supplier_balance_components = None
+                    try:
+                        from models import update_partner_balance
+                    except Exception:
+                        update_partner_balance = None
+
+                    for cid in targets.get("customers", []):
+                        if not update_customer_balance_components:
+                            break
+                        try:
+                            update_customer_balance_components(int(cid), db.session)
+                            fix_stats["recalculated"]["customers"] += 1
+                        except Exception:
+                            try:
+                                db.session.rollback()
+                            except Exception:
+                                pass
+
+                    for sid in targets.get("suppliers", []):
+                        if not update_supplier_balance_components:
+                            break
+                        try:
+                            update_supplier_balance_components(int(sid), db.session)
+                            fix_stats["recalculated"]["suppliers"] += 1
+                        except Exception:
+                            try:
+                                db.session.rollback()
+                            except Exception:
+                                pass
+
+                    for pid in targets.get("partners", []):
+                        if not update_partner_balance:
+                            break
+                        try:
+                            update_partner_balance(int(pid), db.session)
+                            fix_stats["recalculated"]["partners"] += 1
+                        except Exception:
+                            try:
+                                db.session.rollback()
+                            except Exception:
+                                pass
+
+                after = _compute_snapshot()
 
                 summary = {
                     "as_of": as_of_dt.isoformat(),
                     "tolerance": tol,
                     "accounts": {"ar": ar_account, "ap": ap_account},
-                    "customers_mismatch_count": int(customers_mismatch_count),
-                    "customers_mismatch_total_abs": float(customers_mismatch_total_abs),
-                    "suppliers_mismatch_count": int(suppliers_mismatch_count),
-                    "suppliers_mismatch_total_abs": float(suppliers_mismatch_total_abs),
-                    "partner_gl_present": bool(partner_gl_present),
-                    "posted_batches_missing_entity": int(posted_batches_missing_entity),
-                    "ar_unassigned_balance": float(ar_unassigned),
-                    "ap_unassigned_balance": float(ap_unassigned),
+                    "auto_fix": bool(auto_fix),
+                    "before": before,
+                    "after": after,
+                    "fix_stats": fix_stats,
                 }
 
                 try:

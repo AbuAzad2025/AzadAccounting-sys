@@ -8,6 +8,19 @@
   const grid = document.getElementById('notesGrid');
   const btnOpenCreate = document.getElementById('btnOpenCreate');
 
+  function escapeHtml(value) {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function stripScripts(html) {
+    return String(html || '').replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+  }
+
   function showAlert(message, type) {
     if (!alertBox) return;
     alertBox.textContent = message;
@@ -23,7 +36,7 @@
     modalTitle && (modalTitle.textContent = title);
     const res = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
     const html = await res.text();
-    modalBody.innerHTML = html;
+    modalBody.innerHTML = stripScripts(html);
     $('#noteModal').modal('show');
     wireForm('#noteForm', formMode, noteId);
   }
@@ -38,31 +51,35 @@
 
   function cardHTML(note) {
     const badgeClassMap = { URGENT: 'badge-danger', HIGH: 'badge-warning', MEDIUM: 'badge-info' };
-    const badgeClass = badgeClassMap[note.priority] || 'badge-secondary';
+    const priority = note && note.priority ? String(note.priority) : '';
+    const badgeClass = badgeClassMap[priority] || 'badge-secondary';
+    const noteId = note && typeof note.id !== 'undefined' ? String(note.id) : '';
+    const noteIdEsc = escapeHtml(noteId);
+    const noteHref = '/notes/' + encodeURIComponent(noteId);
     return `
-      <div class="col-md-6 col-lg-4 mb-3" id="note-card-${note.id}">
-        <div class="card note-card h-100 ${note.is_pinned ? 'border-warning' : ''}">
+      <div class="col-md-6 col-lg-4 mb-3" id="note-card-${noteIdEsc}">
+        <div class="card note-card h-100 ${note && note.is_pinned ? 'border-warning' : ''}">
           <div class="card-header d-flex align-items-center justify-content-between">
             <div class="d-flex align-items-center">
               <i class="fas fa-user mr-2 text-muted"></i>
-              <strong>${note.author || '-'}</strong>
+              <strong>${escapeHtml(note && note.author ? note.author : '-')}</strong>
             </div>
-            ${note.priority ? `<span class="badge badge-pill ${badgeClass}">${note.priority}</span>` : ''}
+            ${priority ? `<span class="badge badge-pill ${badgeClass}">${escapeHtml(priority)}</span>` : ''}
           </div>
           <div class="card-body">
-            ${note.is_pinned ? `<div class="mb-2"><i class="fas fa-thumbtack text-warning" title="مثبّت"></i></div>` : ''}
-            <p class="mb-3 pre-wrap">${note.content || ''}</p>
+            ${note && note.is_pinned ? `<div class="mb-2"><i class="fas fa-thumbtack text-warning" title="مثبّت"></i></div>` : ''}
+            <p class="mb-3 pre-wrap">${escapeHtml(note && note.content ? note.content : '')}</p>
             <div class="small text-muted d-flex flex-wrap">
-              <span><i class="fas fa-clock"></i> ${note.created_at || '-'}</span>
+              <span><i class="fas fa-clock"></i> ${escapeHtml(note && note.created_at ? note.created_at : '-')}</span>
             </div>
           </div>
           <div class="card-footer d-flex justify-content-between">
             <div class="btn-group">
-              <button class="btn btn-sm btn-outline-primary btn-edit-note" data-id="${note.id}"><i class="fas fa-edit"></i></button>
-              <button class="btn btn-sm btn-outline-danger btn-delete-note" data-id="${note.id}"><i class="fas fa-trash"></i></button>
-              <button class="btn btn-sm btn-outline-warning btn-pin-note" data-id="${note.id}"><i class="fas fa-thumbtack"></i></button>
+              <button class="btn btn-sm btn-outline-primary btn-edit-note" data-id="${noteIdEsc}"><i class="fas fa-edit"></i></button>
+              <button class="btn btn-sm btn-outline-danger btn-delete-note" data-id="${noteIdEsc}"><i class="fas fa-trash"></i></button>
+              <button class="btn btn-sm btn-outline-warning btn-pin-note" data-id="${noteIdEsc}"><i class="fas fa-thumbtack"></i></button>
             </div>
-            <a href="/notes/${note.id}" class="btn btn-sm btn-outline-secondary">تفاصيل</a>
+            <a href="${escapeHtml(noteHref)}" class="btn btn-sm btn-outline-secondary">تفاصيل</a>
           </div>
         </div>
       </div>`;
