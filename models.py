@@ -4922,124 +4922,103 @@ def _preorder_before_update(mapper, connection, target):
         if n not in allowed: raise ValueError("preorder.invalid_status_transition")
 
 # ===== إنشاء قيود GL تلقائية للحجوزات =====
-@event.listens_for(PreOrder, "after_insert")
-@event.listens_for(PreOrder, "after_update")
-def _preorder_gl_batch_upsert(mapper, connection, target: "PreOrder"):
-    """إنشاء/تحديث GLBatch للحجز المسبق تلقائياً - قيد مزدوج احترافي"""
-    
-    if hasattr(target, '_skip_gl_entry') and target._skip_gl_entry:
+def _preorder_gl_upsert_core(connection, target: "PreOrder") -> None:
+    """منطق إنشاء/تحديث قيد GL للحجز (يُستدعى من معاملة منفصلة بعد commit)."""
+    if hasattr(target, "_skip_gl_entry") and target._skip_gl_entry:
         return
-    
-    try:
-        from flask import current_app
-    except ImportError:
-        current_app = None
-    
-    status_val = getattr(target, 'status', None)
-    if hasattr(status_val, 'value'):
-        status_val = status_val.value
-    
-    if status_val == 'CANCELLED' or (hasattr(target, 'cancelled_at') and target.cancelled_at):
-        try:
-            prepaid = float(target.prepaid_amount or 0)
-            if prepaid > 0:
-                amount_ils = prepaid
-                if target.currency and target.currency != 'ILS':
-                    try:
-                        rate = _fx_rate_local_via_connection(connection, target.currency, 'ILS', target.preorder_date or datetime.now(timezone.utc))
-                        if rate and rate > 0:
-                            amount_ils = float(prepaid * float(rate))
-                    except Exception:
-                        pass
-                
-                ar_account = GL_ACCOUNTS.get("AR", "1100_AR")
-                advance_account = GL_ACCOUNTS.get("ADVANCE", "2300_ADV_PAY")
-                
-                entries = [
-                    (advance_account, amount_ils, 0),
-                    (ar_account, 0, amount_ils),
-                ]
-                
-                _gl_upsert_batch_and_entries(
-                    connection,
-                    source_type="PREORDER_REVERSAL",
-                    source_id=target.id,
-                    purpose="REVERSAL",
-                    currency="ILS",
-                    memo=f"عكس قيد - إلغاء حجز #{target.id}",
-                    entries=entries,
-                    ref=f"REV-PRE-{target.id}",
-                    entity_type="CUSTOMER",
-                    entity_id=target.customer_id
-                )
-        except Exception as e:
-            if current_app:
-                current_app.logger.warning(f"⚠️ خطأ في عكس قيد الحجز #{target.id}: {e}")
+    status_val = getattr(target, "status", None)
+    status_val = getattr(status_val, "value", status_val)
+    if status_val == "CANCELLED" or (hasattr(target, "cancelled_at") and target.cancelled_at):
+        prepaid = float(target.prepaid_amount or 0)
+        if prepaid <= 0:
+            return
+        amount_ils = prepaid
+        if target.currency and target.currency != "ILS":
+            try:
+                rate = _fx_rate_local_via_connection(connection, target.currency, "ILS", target.preorder_date or datetime.now(timezone.utc))
+                if rate and rate > 0:
+                    amount_ils = float(prepaid * float(rate))
+            except Exception:
+                pass
+        ar_account = GL_ACCOUNTS.get("AR", "1100_AR")
+        advance_account = GL_ACCOUNTS.get("ADVANCE", "2300_ADV_PAY")
+        entries = [(advance_account, amount_ils, 0), (ar_account, 0, amount_ils)]
+        _gl_upsert_batch_and_entries(
+            connection,
+            source_type="PREORDER_REVERSAL",
+            source_id=target.id,
+            purpose="REVERSAL",
+            currency="ILS",
+            memo=f"Reversal - cancelled preorder #{target.id}",
+            entries=entries,
+            ref=f"REV-PRE-{target.id}",
+            entity_type="CUSTOMER",
+            entity_id=target.customer_id,
+        )
         return
-    
     prepaid = float(target.prepaid_amount or 0)
     if prepaid <= 0:
         return
-    
+    payment_check = connection.execute(
+        sa_text("""
+            SELECT COUNT(1) FROM payments
+            WHERE preorder_id = :pid AND status = :status AND direction = :direction
+        """),
+        {"pid": target.id, "status": PaymentStatus.COMPLETED.value, "direction": PaymentDirection.IN.value},
+    ).scalar() or 0
+    if payment_check > 0:
+        return
+    amount_ils = prepaid
+    if target.currency and target.currency != "ILS":
+        try:
+            rate = _fx_rate_local_via_connection(connection, target.currency, "ILS", target.preorder_date or datetime.now(timezone.utc))
+            if rate and rate > 0:
+                amount_ils = float(prepaid * float(rate))
+        except Exception:
+            pass
+    ar_account = GL_ACCOUNTS.get("AR", "1100_AR")
+    advance_account = GL_ACCOUNTS.get("ADVANCE", "2300_ADV_PAY")
+    entries = [(ar_account, amount_ils, 0), (advance_account, 0, amount_ils)]
+    _gl_upsert_batch_and_entries(
+        connection,
+        source_type="PREORDER",
+        source_id=target.id,
+        purpose="PREORDER",
+        currency="ILS",
+        memo=f"Preorder - {target.reference or target.id}",
+        entries=entries,
+        ref=target.reference or f"PRE-{target.id}",
+        entity_type="CUSTOMER" if target.customer_id else "SUPPLIER",
+        entity_id=target.customer_id or target.supplier_id,
+    )
+
+
+def run_preorder_gl_sync_after_commit(preorder_id: int) -> None:
+    """إنشاء/تحديث قيد GL للحجز في معاملة منفصلة بعد commit. لا يُلقي استثناءات."""
+    if not preorder_id:
+        return
     try:
-        payment_check = connection.execute(
-            sa_text("""
-                SELECT COUNT(1) FROM payments 
-                WHERE preorder_id = :pid 
-                AND status = :status 
-                AND direction = :direction
-            """),
-            {
-                "pid": target.id,
-                "status": PaymentStatus.COMPLETED.value,
-                "direction": PaymentDirection.IN.value
-            }
-        ).scalar() or 0
-        
-        if payment_check > 0:
-            return
-        
-        from flask import current_app
-        
-        amount_ils = prepaid
-        if target.currency and target.currency != 'ILS':
-            try:
-                rate = _fx_rate_local_via_connection(connection, target.currency, 'ILS', target.preorder_date or datetime.now(timezone.utc))
-                if rate and rate > 0:
-                    amount_ils = float(prepaid * float(rate))
-            except Exception as e:
-                if current_app:
-                    current_app.logger.warning(f"⚠️ خطأ في تحويل العملة للحجز #{target.id}: {e}")
-        
-        ar_account = GL_ACCOUNTS.get("AR", "1100_AR")
-        advance_account = GL_ACCOUNTS.get("ADVANCE", "2300_ADV_PAY")
-        
-        entries = [
-            (ar_account, amount_ils, 0),
-            (advance_account, 0, amount_ils),
-        ]
-        
-        memo = f"حجز مسبق - عربون {target.reference or target.id}"
-        
-        _gl_upsert_batch_and_entries(
-            connection,
-            source_type="PREORDER",
-            source_id=target.id,
-            purpose="PREORDER",
-            currency="ILS",
-            memo=memo,
-            entries=entries,
-            ref=target.reference or f"PRE-{target.id}",
-            entity_type="CUSTOMER" if target.customer_id else "SUPPLIER",
-            entity_id=target.customer_id or target.supplier_id
-        )
-        
-        if current_app:
-            current_app.logger.info(f"✅ تم إنشاء قيد دفتر الأستاذ للحجز #{target.id} - عربون: {amount_ils} ILS")
+        from extensions import db
+        from sqlalchemy.orm import Session
+        session = Session(db.engine)
+        try:
+            pre = session.get(PreOrder, preorder_id)
+            if not pre:
+                return
+            _preorder_gl_upsert_core(session.connection(), pre)
+            session.commit()
+        finally:
+            session.close()
     except Exception as e:
-        from flask import current_app
         if current_app:
-            current_app.logger.error(f"⚠️ خطأ في إنشاء GLBatch للحجز #{target.id}: {e}", exc_info=True)
+            current_app.logger.warning("PreOrder GL sync failed for preorder_id=%s: %s", preorder_id, e, exc_info=True)
+
+
+@event.listens_for(PreOrder, "after_insert")
+@event.listens_for(PreOrder, "after_update")
+def _preorder_gl_batch_upsert(mapper, connection, target: "PreOrder"):
+    """معطّل: القيد يُنفّذ بعد commit عبر run_preorder_gl_sync_after_commit."""
+    return
 
 @event.listens_for(PreOrder, "after_update")
 def _preorder_reservation_flow(mapper, connection, target: "PreOrder"):
@@ -5476,293 +5455,243 @@ def _sale_delete_tax_entry(mapper, connection, target: "Sale"):
     except Exception:
         pass
 
+def _sale_gl_upsert_core(connection, target: "Sale") -> None:
+    """منطق إنشاء/تحديث قيد GL للبيع (يُستدعى من معاملة منفصلة بعد commit)."""
+    from decimal import Decimal, ROUND_HALF_UP
+    from sqlalchemy import select as sa_select
+    if target.status != SaleStatus.CONFIRMED.value:
+        return
+    amount = Decimal(str(target.total_amount or 0))
+    if amount <= 0:
+        return
+    amount_ils = amount
+    exchange_rate = Decimal(1)
+    if target.currency and target.currency != 'ILS':
+        try:
+            rate = _fx_rate_local_via_connection(connection, target.currency, 'ILS', target.sale_date or datetime.now(timezone.utc))
+            if rate and rate > 0:
+                exchange_rate = Decimal(str(rate))
+                amount_ils = amount * exchange_rate
+        except Exception:
+            pass
+    sale_lines = connection.execute(
+        sa_select(
+            SaleLine.id,
+            SaleLine.product_id,
+            SaleLine.warehouse_id,
+            SaleLine.quantity,
+            SaleLine.unit_price,
+            SaleLine.discount_rate,
+            SaleLine.tax_rate,
+        ).where(SaleLine.sale_id == target.id)
+    ).fetchall()
+    if not sale_lines:
+        return
+    entries = []
+    total_revenue_company = Decimal(0)
+    total_revenue_partners = {}
+    total_cogs_suppliers = {}
+    for line in sale_lines:
+        line_id, product_id, warehouse_id, qty, unit_price, disc_rate, tax_rate = line
+        gross = Decimal(str(qty or 0)) * Decimal(str(unit_price or 0))
+        discount = gross * (Decimal(str(disc_rate or 0)) / Decimal(100))
+        taxable = gross - discount
+        tax = taxable * (Decimal(str(tax_rate or 0)) / Decimal(100))
+        line_total = (taxable + tax) * exchange_rate
+        wh_result = connection.execute(
+            sa_text("SELECT warehouse_type, partner_id, supplier_id, share_percent FROM warehouses WHERE id = :wid"),
+            {"wid": warehouse_id},
+        ).fetchone()
+        if not wh_result:
+            total_revenue_company += line_total
+            continue
+        wh_type, wh_partner_id, wh_supplier_id, wh_share_pct = wh_result
+        if wh_type == 'PARTNER':
+            partners_result = connection.execute(
+                sa_text("""
+                    SELECT partner_id, share_percent FROM product_partners WHERE product_id = :pid
+                    UNION
+                    SELECT partner_id, share_percentage FROM warehouse_partner_shares WHERE product_id = :pid AND warehouse_id = :wid
+                """),
+                {"pid": product_id, "wid": warehouse_id},
+            ).fetchall()
+            if partners_result:
+                total_partner_share = sum(Decimal(str(p[1] or 0)) for p in partners_result)
+                company_share_pct = Decimal(100) - total_partner_share
+                if company_share_pct > 0:
+                    total_revenue_company += line_total * (company_share_pct / Decimal(100))
+                for partner_id, share_pct in partners_result:
+                    partner_amount = line_total * (Decimal(str(share_pct or 0)) / Decimal(100))
+                    total_revenue_partners[partner_id] = total_revenue_partners.get(partner_id, Decimal(0)) + partner_amount
+            else:
+                total_revenue_company += line_total
+        elif wh_type == 'EXCHANGE':
+            exchange_result = connection.execute(
+                sa_text("""
+                    SELECT supplier_id, unit_cost FROM exchange_transactions
+                    WHERE product_id = :pid AND warehouse_id = :wid AND supplier_id IS NOT NULL
+                    ORDER BY created_at DESC LIMIT 1
+                """),
+                {"pid": product_id, "wid": warehouse_id},
+            ).fetchone()
+            if exchange_result:
+                supplier_id, unit_cost = exchange_result
+                cogs_amount = Decimal(str(qty or 0)) * Decimal(str(unit_cost or 0))
+                total_revenue_company += line_total
+                total_cogs_suppliers[supplier_id] = total_cogs_suppliers.get(supplier_id, Decimal(0)) + cogs_amount
+            else:
+                total_revenue_company += line_total
+        else:
+            total_revenue_company += line_total
+    def _q2(v: Decimal) -> Decimal:
+        return (v or Decimal(0)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    global_discount = _q2(Decimal(str(target.discount_total or 0)) * exchange_rate)
+    shipping_income = _q2(Decimal(str(target.shipping_cost or 0)) * exchange_rate)
+    partners_sum = _q2(sum(total_revenue_partners.values()))
+    total_revenue_company = _q2(total_revenue_company)
+    gross_revenue_total = _q2(total_revenue_company + partners_sum)
+    total_credits = _q2(gross_revenue_total + shipping_income)
+    ar_amount = _q2(total_credits - global_discount)
+    if ar_amount <= 0:
+        return
+    entries.append((GL_ACCOUNTS.get("AR", "1100_AR"), ar_amount, Decimal(0)))
+    if global_discount > 0:
+        entries.append((GL_ACCOUNTS.get("DISCOUNT_ALLOWED", "4050_SALES_DISCOUNT"), global_discount, Decimal(0)))
+    if shipping_income > 0:
+        entries.append((GL_ACCOUNTS.get("SHIPPING_INCOME", "4200_SHIPPING_INCOME"), Decimal(0), shipping_income))
+    diff = _q2((ar_amount + global_discount) - total_credits)
+    if abs(diff) <= Decimal("0.01"):
+        total_revenue_company = _q2(total_revenue_company + diff)
+    if total_revenue_company > 0:
+        entries.append((GL_ACCOUNTS.get("REV", "4000_SALES"), Decimal(0), total_revenue_company))
+    for partner_id, amount in total_revenue_partners.items():
+        amt = _q2(Decimal(amount))
+        if amt > 0:
+            entries.append((GL_ACCOUNTS.get("AP", "2000_AP"), Decimal(0), amt))
+    for supplier_id, cogs in total_cogs_suppliers.items():
+        cogs_amt = _q2(Decimal(cogs))
+        if cogs_amt > 0:
+            entries.append((GL_ACCOUNTS.get("COGS", "5100_COGS"), cogs_amt, Decimal(0)))
+            entries.append((GL_ACCOUNTS.get("AP", "2000_AP"), Decimal(0), cogs_amt))
+    customer_name = getattr(getattr(target, "customer", None), "name", None) or "Customer"
+    memo = f"Sale #{target.sale_number or target.id} - {customer_name}"
+    _gl_upsert_batch_and_entries(
+        connection,
+        source_type="SALE",
+        source_id=target.id,
+        purpose="REVENUE",
+        currency="ILS",
+        memo=memo,
+        entries=entries,
+        ref=target.sale_number or f"SALE-{target.id}",
+        entity_type="CUSTOMER",
+        entity_id=target.customer_id,
+    )
+
+
+def run_sale_gl_sync_after_commit(sale_id: int) -> None:
+    """إنشاء/تحديث قيد GL للبيع في معاملة منفصلة بعد commit. لا يُلقي استثناءات."""
+    if not sale_id:
+        return
+    try:
+        from extensions import db
+        from sqlalchemy.orm import Session, joinedload
+        session = Session(db.engine)
+        try:
+            sale = session.execute(
+                select(Sale).options(joinedload(Sale.customer)).where(Sale.id == sale_id)
+            ).unique().scalar_one_or_none()
+            if not sale:
+                return
+            _sale_gl_upsert_core(session.connection(), sale)
+            session.commit()
+        finally:
+            session.close()
+    except Exception as e:
+        if current_app:
+            current_app.logger.warning("Sale GL sync failed for sale_id=%s: %s", sale_id, e, exc_info=True)
+
+
+def build_sale_reversal_snapshot(sale: "Sale") -> dict:
+    """لقطة بيانات البيع لاستخدامها في قيد العكس بعد الحذف."""
+    try:
+        return {
+            "sale_id": sale.id,
+            "amount": float(sale.total_amount or 0),
+            "currency": sale.currency or "ILS",
+            "sale_date": getattr(sale, "sale_date", None),
+            "ar_account": GL_ACCOUNTS.get("AR", "1100_AR"),
+            "revenue_account": GL_ACCOUNTS.get("SALES", "4000_SALES"),
+            "entity_type": "CUSTOMER",
+            "entity_id": sale.customer_id,
+        }
+    except Exception:
+        return {"sale_id": getattr(sale, "id", None), "amount": 0}
+
+
+def run_sale_gl_reversal_after_delete(snapshot: dict) -> None:
+    """تسجيل قيد عكسي SALE_REVERSAL بعد حذف البيع، في معاملة منفصلة."""
+    if not snapshot or not snapshot.get("sale_id"):
+        return
+    try:
+        from extensions import db
+        sale_id = int(snapshot["sale_id"])
+        amount = float(snapshot.get("amount") or 0)
+        if amount <= 0:
+            return
+        currency = (str(snapshot.get("currency") or "ILS").strip().upper() or "ILS")
+        amount_ils = amount
+        if currency != "ILS":
+            try:
+                with db.engine.connect() as c:
+                    rate = _fx_rate_local_via_connection(
+                        c, currency, "ILS", snapshot.get("sale_date") or datetime.now(timezone.utc)
+                    )
+                    if rate and rate > 0:
+                        amount_ils = amount * float(rate)
+            except Exception:
+                pass
+        ar_account = (str(snapshot.get("ar_account") or "1100_AR").strip().upper())
+        revenue_account = (str(snapshot.get("revenue_account") or "4000_SALES").strip().upper())
+        entity_type = snapshot.get("entity_type")
+        entity_id = snapshot.get("entity_id")
+        try:
+            entity_id = int(entity_id) if entity_id is not None else None
+        except (TypeError, ValueError):
+            entity_id = None
+        entries = [(revenue_account, 0, amount_ils), (ar_account, amount_ils, 0)]
+        memo = f"Reversal - deleted sale #{sale_id}"
+        ref = f"REV-SALE-{sale_id}"
+        with db.engine.connect() as conn:
+            with conn.begin():
+                _gl_upsert_batch_and_entries(
+                    conn,
+                    source_type="SALE_REVERSAL",
+                    source_id=sale_id,
+                    purpose="REVERSAL",
+                    currency="ILS",
+                    memo=memo,
+                    entries=entries,
+                    ref=ref,
+                    entity_type=entity_type,
+                    entity_id=entity_id,
+                )
+    except Exception as e:
+        if current_app:
+            current_app.logger.warning("Sale GL reversal failed for sale_id=%s: %s", snapshot.get("sale_id"), e, exc_info=True)
+
+
 @event.listens_for(Sale, "after_insert")
 @event.listens_for(Sale, "after_update")
 def _sale_gl_batch_upsert(mapper, connection, target: "Sale"):
-    """إنشاء/تحديث GLBatch للبيع تلقائياً"""
-    # فقط للمبيعات المؤكدة
-    if target.status != SaleStatus.CONFIRMED.value:
-        return
-    
-    try:
-        with connection.begin_nested():
-            # تحويل المبلغ للشيقل
-            from decimal import Decimal, ROUND_HALF_UP
-            amount = Decimal(str(target.total_amount or 0))
-            if amount <= 0:
-                return
-            
-            # تحويل العملة
-            amount_ils = amount
-            exchange_rate = Decimal(1)
-
-            if target.currency and target.currency != 'ILS':
-                try:
-                    rate = _fx_rate_local_via_connection(connection, target.currency, 'ILS', target.sale_date or datetime.now(timezone.utc))
-                    if rate and rate > 0:
-                        exchange_rate = Decimal(str(rate))
-                        amount_ils = amount * exchange_rate
-                except Exception:
-                    pass
-            
-            # جلب SaleLines لتحليل نسب الشركاء/الموردين
-            from sqlalchemy import select as sa_select
-            sale_lines = connection.execute(
-                sa_select(
-                    SaleLine.id,
-                    SaleLine.product_id,
-                    SaleLine.warehouse_id,
-                    SaleLine.quantity,
-                    SaleLine.unit_price,
-                    SaleLine.discount_rate,
-                    SaleLine.tax_rate
-                ).where(SaleLine.sale_id == target.id)
-            ).fetchall()
-            
-            if not sale_lines:
-                return  # لا توجد بنود
-            
-            entries = []
-            
-            # تحليل كل SaleLine
-            total_revenue_company = Decimal(0)
-            total_revenue_partners = {}  # {partner_id: amount}
-            total_cogs_suppliers = {}    # {supplier_id: amount}
-            
-            for line in sale_lines:
-                line_id, product_id, warehouse_id, qty, unit_price, disc_rate, tax_rate = line
-                
-                # حساب صافي المبلغ للبند
-                gross = Decimal(str(qty or 0)) * Decimal(str(unit_price or 0))
-                discount = gross * (Decimal(str(disc_rate or 0)) / Decimal(100))
-                taxable = gross - discount
-                tax = taxable * (Decimal(str(tax_rate or 0)) / Decimal(100))
-                line_total = (taxable + tax) * exchange_rate
-                
-                # جلب نوع المستودع
-                wh_result = connection.execute(
-                    sa_text("SELECT warehouse_type, partner_id, supplier_id, share_percent FROM warehouses WHERE id = :wid"),
-                    {"wid": warehouse_id}
-                ).fetchone()
-                
-                if not wh_result:
-                    # مستودع غير موجود - نعتبره MAIN
-                    total_revenue_company += line_total
-                    continue
-                
-                wh_type, wh_partner_id, wh_supplier_id, wh_share_pct = wh_result
-                
-                # تحليل حسب نوع المستودع
-                if wh_type == 'PARTNER':
-                    # بضاعة شريك - جلب الشركاء والنسب
-                    partners_result = connection.execute(
-                        sa_text("""
-                            SELECT partner_id, share_percent FROM product_partners
-                            WHERE product_id = :pid
-                            UNION
-                            SELECT partner_id, share_percentage FROM warehouse_partner_shares
-                            WHERE product_id = :pid AND warehouse_id = :wid
-                        """),
-                        {"pid": product_id, "wid": warehouse_id}
-                    ).fetchall()
-                    
-                    if partners_result:
-                        # تقسيم الإيراد حسب النسب
-                        total_partner_share = sum(Decimal(str(p[1] or 0)) for p in partners_result)
-                        company_share_pct = Decimal(100) - total_partner_share
-                        
-                        # نصيب الشركة
-                        if company_share_pct > 0:
-                            total_revenue_company += line_total * (company_share_pct / Decimal(100))
-                        
-                        # نصيب الشركاء
-                        for partner_id, share_pct in partners_result:
-                            partner_amount = line_total * (Decimal(str(share_pct or 0)) / Decimal(100))
-                            total_revenue_partners[partner_id] = total_revenue_partners.get(partner_id, Decimal(0)) + partner_amount
-                    else:
-                        # لا توجد نسب محددة - نعتبره 100% للشركة
-                        total_revenue_company += line_total
-                
-                elif wh_type == 'EXCHANGE':
-                    # بضاعة عهدة - جلب المورد والتكلفة
-                    exchange_result = connection.execute(
-                        sa_text("""
-                            SELECT supplier_id, unit_cost
-                            FROM exchange_transactions
-                            WHERE product_id = :pid AND warehouse_id = :wid
-                              AND supplier_id IS NOT NULL
-                            ORDER BY created_at DESC
-                            LIMIT 1
-                        """),
-                        {"pid": product_id, "wid": warehouse_id}
-                    ).fetchone()
-                    
-                    if exchange_result:
-                        supplier_id, unit_cost = exchange_result
-                        cogs_amount = Decimal(str(qty or 0)) * Decimal(str(unit_cost or 0))
-                        
-                        # الإيراد للشركة
-                        total_revenue_company += line_total
-                        
-                        # COGS للمورد
-                        total_cogs_suppliers[supplier_id] = total_cogs_suppliers.get(supplier_id, Decimal(0)) + cogs_amount
-                    else:
-                        # لا توجد معاملات عهدة - نعتبره MAIN
-                        total_revenue_company += line_total
-                
-                else:  # MAIN أو غير محدد
-                    total_revenue_company += line_total
-            
-            # معالجة الخصم الكلي وتكاليف الشحن
-            def _q2(v: Decimal) -> Decimal:
-                return (v or Decimal(0)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-
-            global_discount = _q2(Decimal(str(target.discount_total or 0)) * exchange_rate)
-            shipping_income = _q2(Decimal(str(target.shipping_cost or 0)) * exchange_rate)
-
-            partners_sum = _q2(sum(total_revenue_partners.values()))
-            total_revenue_company = _q2(total_revenue_company)
-            gross_revenue_total = _q2(total_revenue_company + partners_sum)
-            total_credits = _q2(gross_revenue_total + shipping_income)
-            ar_amount = _q2(total_credits - global_discount)
-            if ar_amount <= 0:
-                return
-
-            entries.append((GL_ACCOUNTS.get("AR", "1100_AR"), ar_amount, Decimal(0)))
-            if global_discount > 0:
-                entries.append((GL_ACCOUNTS.get("DISCOUNT_ALLOWED", "4050_SALES_DISCOUNT"), global_discount, Decimal(0)))
-            if shipping_income > 0:
-                entries.append((GL_ACCOUNTS.get("SHIPPING_INCOME", "4200_SHIPPING_INCOME"), Decimal(0), shipping_income))
-
-            diff = _q2((ar_amount + global_discount) - total_credits)
-            if abs(diff) <= Decimal("0.01"):
-                total_revenue_company = _q2(total_revenue_company + diff)
-            
-            if total_revenue_company > 0:
-                entries.append((GL_ACCOUNTS.get("REV", "4000_SALES"), Decimal(0), total_revenue_company))
-            
-            # دائن: حسابات الشركاء (AP)
-            for partner_id, amount in total_revenue_partners.items():
-                amt = _q2(Decimal(amount))
-                if amt > 0:
-                    entries.append((GL_ACCOUNTS.get("AP", "2000_AP"), Decimal(0), amt))
-            
-            # مدين: COGS + دائن: حسابات الموردين (AP)
-            for supplier_id, cogs in total_cogs_suppliers.items():
-                cogs_amt = _q2(Decimal(cogs))
-                if cogs_amt > 0:
-                    entries.append((GL_ACCOUNTS.get("COGS", "5100_COGS"), cogs_amt, Decimal(0)))
-                    entries.append((GL_ACCOUNTS.get("AP", "2000_AP"), Decimal(0), cogs_amt))
-            
-            customer_name = target.customer.name if target.customer else "عميل"
-            memo = f"فاتورة مبيعات #{target.sale_number or target.id} - {customer_name}"
-            
-            _gl_upsert_batch_and_entries(
-                connection,
-                source_type="SALE",
-                source_id=target.id,
-                purpose="REVENUE",
-                currency="ILS",
-                memo=memo,
-                entries=entries,
-                ref=target.sale_number or f"SALE-{target.id}",
-                entity_type="CUSTOMER",
-                entity_id=target.customer_id
-            )
-    except Exception as e:
-        # تسجيل الخطأ بشكل مفصل وعدم إيقاف العملية
-        from flask import current_app
-        import traceback
-        error_msg = f"⚠️ خطأ في إنشاء GLBatch للبيع #{target.id}: {e}"
-        current_app.logger.error(error_msg)
-        current_app.logger.debug(traceback.format_exc())
-        # محاولة إعادة المحاولة مرة واحدة
-        try:
-            with connection.begin_nested():
-                # إعادة المحاولة بعد ثانية واحدة
-                import time
-                time.sleep(0.1)
-                # إعادة تنفيذ نفس الكود
-                if target.status == SaleStatus.CONFIRMED.value:
-                    amount = float(target.total_amount or 0)
-                    if amount > 0:
-                        # محاولة إنشاء قيد مبسط
-                        amount_ils = amount
-                        if target.currency and target.currency != 'ILS':
-                            try:
-                                rate = _fx_rate_local_via_connection(connection, target.currency, 'ILS', target.sale_date or datetime.now(timezone.utc))
-                                if rate and rate > 0:
-                                    amount_ils = float(amount * float(rate))
-                            except Exception:
-                                pass
-                        entries = [
-                            (GL_ACCOUNTS.get("AR", "1100_AR"), amount_ils, 0),
-                            (GL_ACCOUNTS.get("REV", "4000_SALES"), 0, amount_ils),
-                        ]
-                        _gl_upsert_batch_and_entries(
-                            connection,
-                            source_type="SALE",
-                            source_id=target.id,
-                            purpose="REVENUE",
-                            currency="ILS",
-                            memo=f"فاتورة مبيعات #{target.sale_number or target.id}",
-                            entries=entries,
-                            ref=target.sale_number or f"SALE-{target.id}",
-                            entity_type="CUSTOMER",
-                            entity_id=target.customer_id
-                        )
-                        current_app.logger.info(f"✅ تم إصلاح GLBatch للبيع #{target.id} بعد إعادة المحاولة")
-        except Exception as retry_e:
-            current_app.logger.error(f"❌ فشلت إعادة المحاولة للبيع #{target.id}: {retry_e}")
+    """معطّل: القيد يُنفّذ بعد commit عبر run_sale_gl_sync_after_commit."""
+    return
 
 
 @event.listens_for(Sale, "before_delete")
 def _sale_gl_batch_reverse(mapper, connection, target: "Sale"):
-    """إنشاء قيد عكسي عند حذف البيع (أصح محاسبياً)"""
-    try:
-        if hasattr(target, '_skip_gl_reversal') and target._skip_gl_reversal:
-            return
-        if target.status != SaleStatus.CONFIRMED.value:
-            return
-        
-        total_amount = float(target.total_amount or 0)
-        if total_amount <= 0:
-            return
-        
-        amount_ils = total_amount
-        if target.currency and target.currency != 'ILS':
-            try:
-                rate = _fx_rate_local_via_connection(connection, target.currency, 'ILS', target.sale_date or datetime.now(timezone.utc))
-                if rate and rate > 0:
-                    amount_ils = float(total_amount * float(rate))
-            except Exception:
-                pass
-        
-        ar_account = GL_ACCOUNTS.get("AR", "1100_AR")
-        revenue_account = GL_ACCOUNTS.get("SALES", "4000_SALES")
-        
-        entries = [
-            (revenue_account, amount_ils, 0),
-            (ar_account, 0, amount_ils),
-        ]
-        
-        memo = f"عكس قيد - حذف مبيعة #{target.id}"
-        
-        _gl_upsert_batch_and_entries(
-            connection,
-            source_type="SALE_REVERSAL",
-            source_id=target.id,
-            purpose="REVERSAL",
-            currency="ILS",
-            memo=memo,
-            entries=entries,
-            ref=f"REV-SALE-{target.id}",
-            entity_type="CUSTOMER",
-            entity_id=target.customer_id
-        )
-    except Exception as e:
-        from flask import current_app
-        current_app.logger.warning(f"⚠️ خطأ في عكس قيد البيع #{target.id}: {e}")
+    """معطّل: القيد العكسي يُنفّذ من المسار بعد الحذف عبر run_sale_gl_reversal_after_delete."""
+    return
 
 
 class SaleLine(db.Model, TimestampMixin):
@@ -6693,123 +6622,111 @@ def _invoice_delete_tax_entry(mapper, connection, target: "Invoice"):
         pass
 
 # ===== إنشاء قيود GL تلقائية للفواتير =====
-@event.listens_for(Invoice, "after_insert")
-@event.listens_for(Invoice, "after_update")
-def _invoice_gl_batch_upsert(mapper, connection, target: "Invoice"):
-    """إنشاء/تحديث GLBatch للفاتورة تلقائياً - قيد مزدوج احترافي"""
-    
-    # إذا الفاتورة ملغاة، عكس القيد بدلاً من حذفه
+def _invoice_gl_upsert_core(connection, target: "Invoice") -> None:
+    """منطق إنشاء/تحديث قيد GL للفاتورة (يُستدعى من معاملة منفصلة بعد commit)."""
     if target.cancelled_at:
-        try:
-            amount = float(target.total_amount or 0)
-            if amount > 0:
-                amount_ils = amount
-                if target.currency and target.currency != 'ILS':
-                    try:
-                        rate = _fx_rate_local_via_connection(connection, target.currency, 'ILS', target.invoice_date or datetime.now(timezone.utc))
-                        if rate and rate > 0:
-                            amount_ils = float(amount * float(rate))
-                    except Exception:
-                        pass
-                
-                entity_type = "CUSTOMER" if target.customer_id else ("SUPPLIER" if target.supplier_id else "PARTNER")
-                entity_id = target.customer_id or target.supplier_id or target.partner_id
-                
-                if entity_type == "CUSTOMER":
-                    ar_account = GL_ACCOUNTS.get("AR", "1100_AR")
-                    revenue_account = GL_ACCOUNTS.get("SALES", "4000_SALES")
-                    entries = [
-                        (revenue_account, amount_ils, 0),  # مدين: Sales Revenue (إيراد نقص - الإيرادات تنقص بالمدين)
-                        (ar_account, 0, amount_ils),  # دائن: AR (أصل نقص - الأصول تنقص بالدائن)
-                    ]
-                else:
-                    ap_account = GL_ACCOUNTS.get("AP", "2000_AP")
-                    purchase_account = GL_ACCOUNTS.get("PURCHASES", "5100_PURCHASES")
-                    entries = [
-                        (purchase_account, amount_ils, 0),  # مدين: Purchases (تكلفة نقص - المصروفات تنقص بالدائن)
-                        (ap_account, 0, amount_ils),  # دائن: AP (خصم نقص - الخصوم تنقص بالمدين)
-                    ]
-                
-                _gl_upsert_batch_and_entries(
-                    connection,
-                    source_type="INVOICE_REVERSAL",
-                    source_id=target.id,
-                    purpose="REVERSAL",
-                    currency="ILS",
-                    memo=f"عكس قيد - إلغاء فاتورة #{target.id}",
-                    entries=entries,
-                    ref=f"REV-INV-{target.id}",
-                    entity_type=entity_type,
-                    entity_id=entity_id
-                )
-        except Exception:
-            pass
-        return
-    
-    # التحقق من وجود مبلغ
-    amount = float(target.total_amount or 0)
-    if amount <= 0:
-        return
-    
-    try:
-        # تحويل العملة للشيقل
+        amount = float(target.total_amount or 0)
+        if amount <= 0:
+            return
         amount_ils = amount
-        if target.currency and target.currency != 'ILS':
+        if target.currency and target.currency != "ILS":
             try:
-                rate = _fx_rate_local_via_connection(connection, target.currency, 'ILS', target.invoice_date or datetime.now(timezone.utc))
+                rate = _fx_rate_local_via_connection(connection, target.currency, "ILS", target.invoice_date or datetime.now(timezone.utc))
                 if rate and rate > 0:
                     amount_ils = float(amount * float(rate))
             except Exception:
                 pass
-        
-        # تحديد نوع الكيان والحساب
-        entity_type = "CUSTOMER"
-        entity_id = target.customer_id
-        ar_account = GL_ACCOUNTS.get("AR", "1100_AR")
-        
-        if target.supplier_id:
-            entity_type = "SUPPLIER"
-            entity_id = target.supplier_id
-            ar_account = GL_ACCOUNTS.get("AP", "2000_AP")
-        elif target.partner_id:
-            entity_type = "PARTNER"
-            entity_id = target.partner_id
-            ar_account = GL_ACCOUNTS.get("AP", "2000_AP")
-        
-        # القيد المحاسبي للفاتورة:
-        # مدين: حساب العملاء/الموردين (AR/AP)
-        # دائن: حساب المبيعات/المشتريات (SALES/PURCHASES)
-        
+        entity_type = "CUSTOMER" if target.customer_id else ("SUPPLIER" if target.supplier_id else "PARTNER")
+        entity_id = target.customer_id or target.supplier_id or target.partner_id
         if entity_type == "CUSTOMER":
-            # فاتورة بيع للعميل (مبدأ القيد المزدوج)
-            entries = [
-                (ar_account, amount_ils, 0),  # مدين: AR (أصل زاد - الأصول تزيد بالمدين)
-                (GL_ACCOUNTS.get("REV", "4000_SALES"), 0, amount_ils),  # دائن: Sales Revenue (إيراد زاد - الإيرادات تزيد بالدائن)
-            ]
-            memo = f"فاتورة بيع - {target.invoice_number}"
+            ar_account = GL_ACCOUNTS.get("AR", "1100_AR")
+            revenue_account = GL_ACCOUNTS.get("SALES", "4000_SALES")
+            entries = [(revenue_account, amount_ils, 0), (ar_account, 0, amount_ils)]
         else:
-            # فاتورة شراء من المورد/الشريك
-            entries = [
-                (GL_ACCOUNTS.get("PURCHASES", "5100_PURCHASES"), amount_ils, 0),  # مدين: المشتريات
-                (ar_account, 0, amount_ils),  # دائن: حساب الموردين
-            ]
-            memo = f"فاتورة شراء - {target.invoice_number}"
-        
+            ap_account = GL_ACCOUNTS.get("AP", "2000_AP")
+            purchase_account = GL_ACCOUNTS.get("PURCHASES", "5100_PURCHASES")
+            entries = [(purchase_account, amount_ils, 0), (ap_account, 0, amount_ils)]
         _gl_upsert_batch_and_entries(
             connection,
-            source_type="INVOICE",
+            source_type="INVOICE_REVERSAL",
             source_id=target.id,
-            purpose="INVOICE",
+            purpose="REVERSAL",
             currency="ILS",
-            memo=memo,
+            memo=f"Reversal - cancelled invoice #{target.id}",
             entries=entries,
-            ref=target.invoice_number,
+            ref=f"REV-INV-{target.id}",
             entity_type=entity_type,
-            entity_id=entity_id
+            entity_id=entity_id,
         )
+        return
+    amount = float(target.total_amount or 0)
+    if amount <= 0:
+        return
+    amount_ils = amount
+    if target.currency and target.currency != "ILS":
+        try:
+            rate = _fx_rate_local_via_connection(connection, target.currency, "ILS", target.invoice_date or datetime.now(timezone.utc))
+            if rate and rate > 0:
+                amount_ils = float(amount * float(rate))
+        except Exception:
+            pass
+    entity_type = "CUSTOMER"
+    entity_id = target.customer_id
+    ar_account = GL_ACCOUNTS.get("AR", "1100_AR")
+    if target.supplier_id:
+        entity_type = "SUPPLIER"
+        entity_id = target.supplier_id
+        ar_account = GL_ACCOUNTS.get("AP", "2000_AP")
+    elif target.partner_id:
+        entity_type = "PARTNER"
+        entity_id = target.partner_id
+        ar_account = GL_ACCOUNTS.get("AP", "2000_AP")
+    if entity_type == "CUSTOMER":
+        entries = [(ar_account, amount_ils, 0), (GL_ACCOUNTS.get("REV", "4000_SALES"), 0, amount_ils)]
+        memo = f"Invoice sale - {target.invoice_number}"
+    else:
+        entries = [(GL_ACCOUNTS.get("PURCHASES", "5100_PURCHASES"), amount_ils, 0), (ar_account, 0, amount_ils)]
+        memo = f"Invoice purchase - {target.invoice_number}"
+    _gl_upsert_batch_and_entries(
+        connection,
+        source_type="INVOICE",
+        source_id=target.id,
+        purpose="INVOICE",
+        currency="ILS",
+        memo=memo,
+        entries=entries,
+        ref=target.invoice_number,
+        entity_type=entity_type,
+        entity_id=entity_id,
+    )
+
+
+def run_invoice_gl_sync_after_commit(invoice_id: int) -> None:
+    """إنشاء/تحديث قيد GL للفاتورة في معاملة منفصلة بعد commit. لا يُلقي استثناءات."""
+    if not invoice_id:
+        return
+    try:
+        from extensions import db
+        from sqlalchemy.orm import Session
+        session = Session(db.engine)
+        try:
+            inv = session.get(Invoice, invoice_id)
+            if not inv:
+                return
+            _invoice_gl_upsert_core(session.connection(), inv)
+            session.commit()
+        finally:
+            session.close()
     except Exception as e:
-        from flask import current_app
-        current_app.logger.warning(f"⚠️ خطأ في إنشاء GLBatch للفاتورة #{target.id}: {e}")
+        if current_app:
+            current_app.logger.warning("Invoice GL sync failed for invoice_id=%s: %s", invoice_id, e, exc_info=True)
+
+
+@event.listens_for(Invoice, "after_insert")
+@event.listens_for(Invoice, "after_update")
+def _invoice_gl_batch_upsert(mapper, connection, target: "Invoice"):
+    """معطّل: القيد يُنفّذ بعد commit عبر run_invoice_gl_sync_after_commit."""
+    return
 
 @event.listens_for(InvoiceLine, "after_insert")
 @event.listens_for(InvoiceLine, "after_update")
@@ -6822,74 +6739,7 @@ def _inv_line_touch_invoice(mapper, connection, target: "InvoiceLine"):
         # 1. إعادة حساب المجموع
         _recompute_invoice_totals(connection, invoice_id)
         
-        # 2. إنشاء/تحديث GLBatch
-        # قراءة الفاتورة من DB مباشرة بعد التحديث
-        inv_data = connection.execute(
-            sa_text("""
-                SELECT id, invoice_number, total_amount, cancelled_at, 
-                       customer_id, supplier_id, partner_id, currency, 
-                       fx_rate_used, invoice_date
-                FROM invoices WHERE id = :id
-            """),
-            {"id": invoice_id}
-        ).first()
-        
-        if inv_data and inv_data[2] > 0 and not inv_data[3]:  # total > 0 and not cancelled
-            # تحديد نوع الكيان
-            entity_type = "CUSTOMER"
-            entity_id = inv_data[4]  # customer_id
-            ar_account = "1100_AR"
-            
-            if inv_data[5]:  # supplier_id
-                entity_type = "SUPPLIER"
-                entity_id = inv_data[5]
-                ar_account = "2000_AP"
-            elif inv_data[6]:  # partner_id
-                entity_type = "PARTNER"
-                entity_id = inv_data[6]
-                ar_account = "2000_AP"
-            
-            # المبلغ
-            amount_ils = float(inv_data[2])  # total_amount
-            try:
-                cur = inv_data[7] or "ILS"
-                if cur != "ILS":
-                    fx_used = float(inv_data[8] or 0)
-                    if fx_used > 0:
-                        amount_ils = float(float(inv_data[2]) * fx_used)
-                    else:
-                        rate = _fx_rate_local_via_connection(connection, cur, "ILS", inv_data[9] or datetime.now(timezone.utc))
-                        if rate and rate > 0:
-                            amount_ils = float(float(inv_data[2]) * float(rate))
-            except Exception:
-                pass
-            
-            # القيد المحاسبي
-            if entity_type == "CUSTOMER":
-                entries = [
-                    (ar_account, amount_ils, 0),  # مدين: AR
-                    ("4000_SALES", 0, amount_ils),  # دائن: Sales
-                ]
-                memo = f"فاتورة بيع - {inv_data[1]}"
-            else:
-                entries = [
-                    ("5100_PURCHASES", amount_ils, 0),  # مدين: Purchases
-                    (ar_account, 0, amount_ils),  # دائن: AP
-                ]
-                memo = f"فاتورة شراء - {inv_data[1]}"
-            
-            _gl_upsert_batch_and_entries(
-                connection,
-                source_type="INVOICE",
-                source_id=invoice_id,
-                purpose="INVOICE",
-                currency="ILS",
-                memo=memo,
-                entries=entries,
-                ref=inv_data[1],
-                entity_type=entity_type,
-                entity_id=entity_id
-            )
+        # 2. GL للفاتورة يُنفّذ من المسار بعد commit عبر run_invoice_gl_sync_after_commit(invoice_id)
 
 class ProductSupplierLoan(db.Model, TimestampMixin):
     __tablename__ = 'product_supplier_loans'
@@ -7297,14 +7147,12 @@ _EXPENSE_LEDGER_BEHAVIORS = {"IMMEDIATE", "PARTIAL", "ON_ACCOUNT"}
 
 
 def _expense_type_meta_from_connection(connection, expense_type_id: int | None) -> dict:
+    """يُستدعى من داخل savepoint عند مزامنة GL للمصروف؛ عند الفشل يُترك الاستثناء لينتشر."""
     if not expense_type_id:
         return {}
-    try:
-        value = connection.execute(
-            select(ExpenseType.fields_meta).where(ExpenseType.id == expense_type_id)
-        ).scalar_one_or_none()
-    except Exception:
-        return {}
+    value = connection.execute(
+        select(ExpenseType.fields_meta).where(ExpenseType.id == expense_type_id)
+    ).scalar_one_or_none()
     return value if isinstance(value, dict) else {}
 
 
@@ -7414,278 +7262,253 @@ def _payment_update_supplier_balance_on_delete(mapper, connection, target: "Paym
     except Exception:
         pass
 
-@event.listens_for(Payment, "after_update")
-def _payment_gl_batch_upsert(mapper, connection, target: "Payment"):
-    """
-    إنشاء/تحديث GLBatch للدفعة (للدفعات القديمة فقط).
-    
-    ⚠️ ملاحظة: تم إزالة `after_insert` لأن النظام الجديد يعتمد كلياً على `PaymentSplit`.
-    الدفعات الجديدة يجب أن تحتوي على splits، والتي بدورها ستنشئ قيودها الخاصة.
-    هذا يمنع ازدواجية القيود عند إنشاء دفعة جديدة.
-    """
-    if hasattr(target, '_skip_gl_entry') and target._skip_gl_entry:
+def _payment_gl_upsert_core(connection, target: "Payment") -> None:
+    """منطق إنشاء/تحديث قيد GL للدفعة (يُستدعى من معاملة منفصلة بعد commit)."""
+    if hasattr(target, "_skip_gl_entry") and target._skip_gl_entry:
         return
-    
-    if '[SETTLED=true]' in (target.notes or ''):
+    if "[SETTLED=true]" in (target.notes or ""):
         return
-    
-    if '[FROM_MANUAL_CHECK=true]' in (target.notes or ''):
+    if "[FROM_MANUAL_CHECK=true]" in (target.notes or ""):
         return
-    
-    # ✅ التعامل مع الحالات المختلفة:
-    # PENDING (شيك معلق) → قيد: شيكات تحت التحصيل ↔ AR
-    # COMPLETED → قيد: بنك/صندوق ↔ AR (للنقد) أو تحديث الشيك (للشيك)
-    # BOUNCED/FAILED → حذف القيد (إلغاء)
-    
-    # إذا الدفعة ملغاة أو مرفوضة، عكس القيد بدلاً من حذفه
     if target.status in [PaymentStatus.FAILED.value, PaymentStatus.CANCELLED.value]:
-        try:
-            amount = float(target.total_amount or 0)
-            if amount > 0:
-                amount_ils = amount
-                if target.currency and target.currency != 'ILS':
-                    try:
-                        rate = _fx_rate_local_via_connection(connection, target.currency, 'ILS', target.payment_date or datetime.now(timezone.utc))
-                        if rate and rate > 0:
-                            amount_ils = float(amount * float(rate))
-                    except Exception:
-                        pass
-                
-                method_val = getattr(target, 'method', 'CASH')
-                if hasattr(method_val, 'value'):
-                    method_val = method_val.value
-                payment_method = str(method_val or 'CASH').upper()
-                cash_account = GL_ACCOUNTS.get(PAYMENT_GL_MAP.get(payment_method, 'CASH'), "1000_CASH")
-                
-                direction = target.direction
-                entity_type = target.entity_type or 'OTHER'
-                
-                if direction == PaymentDirection.IN.value:
-                    if entity_type == 'CUSTOMER':
-                        ar_account = GL_ACCOUNTS.get("AR", "1100_AR")
-                        entries = [(ar_account, amount_ils, 0), (cash_account, 0, amount_ils)]
-                    else:
-                        entries = [(cash_account, 0, amount_ils), (ar_account, amount_ils, 0)]
-                else:
-                    if entity_type == 'SUPPLIER':
-                        ap_account = GL_ACCOUNTS.get("AP", "2000_AP")
-                        entries = [(ap_account, 0, amount_ils), (cash_account, amount_ils, 0)]
-                    else:
-                        entries = [(cash_account, 0, amount_ils), (ap_account, amount_ils, 0)]
-                
-                _gl_upsert_batch_and_entries(
-                    connection,
-                    source_type="PAYMENT_CANCELLATION",
-                    source_id=target.id,
-                    purpose="REVERSAL",
-                    currency="ILS",
-                    memo=f"عكس قيد - إلغاء دفعة #{target.id}",
-                    entries=entries,
-                    ref=f"REV-CANCEL-PAY-{target.id}",
-                    entity_type=entity_type,
-                    entity_id=target.customer_id or target.supplier_id or target.partner_id
-                )
-        except Exception:
-            pass
-        return
-    
-    # ✅ فحص إذا كانت الدفعة لديها splits
-    # إذا كانت لديها splits، نتخطى إنشاء GL entries للـ Payment
-    # لأن كل split سينشئ GL entries منفصلة
-    splits_count = connection.execute(
-        sa_text("SELECT COUNT(1) FROM payment_splits WHERE payment_id = :pid"),
-        {"pid": target.id}
-    ).scalar() or 0
-    
-    if splits_count > 0:
-        # ✅ الدفعة لديها splits - كل split سينشئ GL entries منفصلة
-        # لا ننشئ GL entries للـ Payment ككل
-        return
-    
-    # ✅ للشيكات المعلقة: إنشاء قيد في "شيكات تحت التحصيل"
-    # للدفعات المكتملة: إنشاء قيد عادي في البنك/الصندوق
-    if target.status not in [PaymentStatus.COMPLETED.value, PaymentStatus.PENDING.value]:
-        return
-    
-    # ✅ فحص إذا كانت شيك معلق
-    is_pending_check = (target.status == PaymentStatus.PENDING.value and 
-                       target.method == PaymentMethod.CHEQUE.value)
-    
-    try:
-        # تحويل المبلغ للشيقل
         amount = float(target.total_amount or 0)
         if amount <= 0:
             return
-        
-        # تحويل العملة
         amount_ils = amount
-        if target.currency and target.currency != 'ILS':
+        if target.currency and target.currency != "ILS":
             try:
-                rate = _fx_rate_local_via_connection(connection, target.currency, 'ILS', target.payment_date or datetime.now(timezone.utc))
+                rate = _fx_rate_local_via_connection(connection, target.currency, "ILS", target.payment_date or datetime.now(timezone.utc))
                 if rate and rate > 0:
                     amount_ils = float(amount * float(rate))
             except Exception:
                 pass
-        
-        # تحديد الحساب النقدي حسب طريقة الدفع والحالة
-        # ✅ للشيكات المعلقة: استخدام "شيكات تحت التحصيل" (وارد) أو "شيكات مستحقة" (صادر)
-        # ✅ للدفعات المكتملة: استخدام البنك/الصندوق
-        if is_pending_check:
-            # تحديد حسب الاتجاه
-            if target.direction == PaymentDirection.IN.value:
-                cash_account = "1150_CHQ_REC"  # شيكات تحت التحصيل (أصل)
+        method_val = getattr(target, "method", "CASH")
+        if hasattr(method_val, "value"):
+            method_val = method_val.value
+        payment_method = str(method_val or "CASH").upper()
+        cash_account = GL_ACCOUNTS.get(PAYMENT_GL_MAP.get(payment_method, "CASH"), "1000_CASH")
+        direction = target.direction
+        entity_type = target.entity_type or "OTHER"
+        ar_account = GL_ACCOUNTS.get("AR", "1100_AR")
+        ap_account = GL_ACCOUNTS.get("AP", "2000_AP")
+        if direction == PaymentDirection.IN.value:
+            if entity_type == "CUSTOMER":
+                entries = [(ar_account, amount_ils, 0), (cash_account, 0, amount_ils)]
             else:
-                cash_account = "2150_CHQ_PAY"  # شيكات مستحقة الدفع (خصم)
-        elif target.method == PaymentMethod.BANK.value:
-            cash_account = GL_ACCOUNTS.get("BANK", "1010_BANK")
-        elif target.method == PaymentMethod.CARD.value:
-            cash_account = GL_ACCOUNTS.get("CARD", "1020_CARD_CLEARING")
+                entries = [(cash_account, 0, amount_ils), (ap_account, amount_ils, 0)]
         else:
-            cash_account = GL_ACCOUNTS.get("CASH", "1000_CASH")
-        
-        expense_ledger_ctx = _payment_expense_ledger(connection, target) if target.expense_id else None
-
-        is_preorder = (target.entity_type == PaymentEntityType.PREORDER.value if hasattr(PaymentEntityType, "PREORDER") else str(target.entity_type or "") == "PREORDER") or target.preorder_id
-        
-        if is_preorder:
-            entity_account = GL_ACCOUNTS.get("ADVANCE", "2300_ADV_PAY")
-            entity_name = "عربون حجز"
-        elif target.entity_type == PaymentEntityType.SUPPLIER.value or target.supplier_id:
-            entity_account = GL_ACCOUNTS.get("AP", "2000_AP")
-            entity_name = "مورد"
-        elif target.entity_type == PaymentEntityType.PARTNER.value or target.partner_id:
-            entity_account = GL_ACCOUNTS.get("AP", "2000_AP")
-            entity_name = "شريك"
-        elif target.entity_type == PaymentEntityType.EXPENSE.value or target.expense_id:
-            entity_account = GL_ACCOUNTS.get("AP", "2000_AP")
-            entity_name = "مصروف"
-        elif target.service_id or target.sale_id or target.invoice_id or target.customer_id:
-            entity_account = GL_ACCOUNTS.get("AR", "1100_AR")
-            entity_name = "عميل"
-        else:
-            entity_account = GL_ACCOUNTS.get("AR", "1100_AR")
-            entity_name = "عميل"
-
-        if expense_ledger_ctx:
-            if expense_ledger_ctx.get("counterparty_account"):
-                entity_account = expense_ledger_ctx["counterparty_account"]
-            elif expense_ledger_ctx.get("behavior") == "IMMEDIATE" and expense_ledger_ctx.get("cash_account"):
-                entity_account = expense_ledger_ctx["cash_account"]
-            if not is_pending_check and expense_ledger_ctx.get("cash_account"):
-                cash_account = expense_ledger_ctx["cash_account"]
-        
-        # القيد المحاسبي حسب الاتجاه (مبدأ القيد المزدوج):
-        # IN (وارد): مدين النقدية/الشيكات (أصل زاد)، دائن العميل/المورد (أصل نقص أو خصم نقص)
-        # OUT (صادر): مدين العميل/المورد (أصل زاد أو خصم زاد)، دائن النقدية/الشيكات (أصل نقص)
-        # القاعدة: الأصول تزيد بالمدين وتنقص بالدائن | الخصوم تزيد بالدائن وتنقص بالمدين
-        if target.direction == PaymentDirection.IN.value:
-            entries = [
-                (cash_account, amount_ils, 0),  # مدين: النقدية/الشيكات (أصل زاد - الأصول تزيد بالمدين)
-                (entity_account, 0, amount_ils),  # دائن: AR/AP (أصل نقص أو خصم نقص - الأصول تنقص بالدائن، الخصوم تنقص بالمدين)
-            ]
-            if is_preorder:
-                memo = f"عربون حجز مسبق - {target.payment_number or target.id}"
-            elif is_pending_check:
-                memo = f"شيك معلق من {entity_name} - {target.check_number or target.payment_number or target.id}"
+            if entity_type == "SUPPLIER":
+                entries = [(ap_account, 0, amount_ils), (cash_account, amount_ils, 0)]
             else:
-                memo = f"قبض من {entity_name} - {target.payment_number or target.id}"
-        else:  # OUT
-            entries = [
-                (entity_account, amount_ils, 0),  # مدين: العميل/المورد
-                (cash_account, 0, amount_ils),  # دائن: النقدية أو شيكات مستحقة
-            ]
-            if is_pending_check:
-                memo = f"شيك صادر لـ {entity_name} - {target.check_number or target.payment_number or target.id}"
-            else:
-                memo = f"سداد لـ {entity_name} - {target.payment_number or target.id}"
-        
+                entries = [(cash_account, 0, amount_ils), (ar_account, amount_ils, 0)]
         _gl_upsert_batch_and_entries(
             connection,
-            source_type="PAYMENT",
+            source_type="PAYMENT_CANCELLATION",
             source_id=target.id,
-            purpose="PREORDER_PAYMENT" if is_preorder else "PAYMENT",
+            purpose="REVERSAL",
             currency="ILS",
-            memo=memo,
+            memo=f"Reversal - cancelled payment #{target.id}",
             entries=entries,
-            ref=target.payment_number or f"PMT-{target.id}",
-            entity_type=target.entity_type,
-            entity_id=_payment_entity_id_for(target)
+            ref=f"REV-CANCEL-PAY-{target.id}",
+            entity_type=entity_type,
+            entity_id=target.customer_id or target.supplier_id or target.partner_id,
         )
-        
-        if is_preorder:
+        return
+    splits_count = connection.execute(
+        sa_text("SELECT COUNT(1) FROM payment_splits WHERE payment_id = :pid"),
+        {"pid": target.id},
+    ).scalar() or 0
+    if splits_count > 0:
+        return
+    if target.status not in [PaymentStatus.COMPLETED.value, PaymentStatus.PENDING.value]:
+        return
+    is_pending_check = (
+        target.status == PaymentStatus.PENDING.value
+        and target.method == PaymentMethod.CHEQUE.value
+    )
+    amount = float(target.total_amount or 0)
+    if amount <= 0:
+        return
+    amount_ils = amount
+    if target.currency and target.currency != "ILS":
+        try:
+            rate = _fx_rate_local_via_connection(connection, target.currency, "ILS", target.payment_date or datetime.now(timezone.utc))
+            if rate and rate > 0:
+                amount_ils = float(amount * float(rate))
+        except Exception:
+            pass
+    if is_pending_check:
+        cash_account = "1150_CHQ_REC" if target.direction == PaymentDirection.IN.value else "2150_CHQ_PAY"
+    elif target.method == PaymentMethod.BANK.value:
+        cash_account = GL_ACCOUNTS.get("BANK", "1010_BANK")
+    elif target.method == PaymentMethod.CARD.value:
+        cash_account = GL_ACCOUNTS.get("CARD", "1020_CARD_CLEARING")
+    else:
+        cash_account = GL_ACCOUNTS.get("CASH", "1000_CASH")
+    expense_ledger_ctx = _payment_expense_ledger(connection, target) if target.expense_id else None
+    is_preorder = (
+        (target.entity_type == PaymentEntityType.PREORDER.value if hasattr(PaymentEntityType, "PREORDER") else str(target.entity_type or "") == "PREORDER")
+        or target.preorder_id
+    )
+    if is_preorder:
+        entity_account = GL_ACCOUNTS.get("ADVANCE", "2300_ADV_PAY")
+        entity_name = "Advance"
+    elif target.entity_type == PaymentEntityType.SUPPLIER.value or target.supplier_id:
+        entity_account = GL_ACCOUNTS.get("AP", "2000_AP")
+        entity_name = "Supplier"
+    elif target.entity_type == PaymentEntityType.PARTNER.value or target.partner_id:
+        entity_account = GL_ACCOUNTS.get("AP", "2000_AP")
+        entity_name = "Partner"
+    elif target.entity_type == PaymentEntityType.EXPENSE.value or target.expense_id:
+        entity_account = GL_ACCOUNTS.get("AP", "2000_AP")
+        entity_name = "Expense"
+    elif target.service_id or target.sale_id or target.invoice_id or target.customer_id:
+        entity_account = GL_ACCOUNTS.get("AR", "1100_AR")
+        entity_name = "Customer"
+    else:
+        entity_account = GL_ACCOUNTS.get("AR", "1100_AR")
+        entity_name = "Customer"
+    if expense_ledger_ctx:
+        if expense_ledger_ctx.get("counterparty_account"):
+            entity_account = expense_ledger_ctx["counterparty_account"]
+        elif expense_ledger_ctx.get("behavior") == "IMMEDIATE" and expense_ledger_ctx.get("cash_account"):
+            entity_account = expense_ledger_ctx["cash_account"]
+        if not is_pending_check and expense_ledger_ctx.get("cash_account"):
+            cash_account = expense_ledger_ctx["cash_account"]
+    if target.direction == PaymentDirection.IN.value:
+        entries = [(cash_account, amount_ils, 0), (entity_account, 0, amount_ils)]
+        memo = f"Payment IN from {entity_name} - {target.payment_number or target.id}"
+    else:
+        entries = [(entity_account, amount_ils, 0), (cash_account, 0, amount_ils)]
+        memo = f"Payment OUT to {entity_name} - {target.payment_number or target.id}"
+    _gl_upsert_batch_and_entries(
+        connection,
+        source_type="PAYMENT",
+        source_id=target.id,
+        purpose="PREORDER_PAYMENT" if is_preorder else "PAYMENT",
+        currency="ILS",
+        memo=memo,
+        entries=entries,
+        ref=target.payment_number or f"PMT-{target.id}",
+        entity_type=target.entity_type,
+        entity_id=_payment_entity_id_for(target),
+    )
+
+
+def run_payment_gl_sync_after_commit(payment_id: int) -> None:
+    """إنشاء/تحديث قيد GL للدفعة في معاملة منفصلة بعد commit. لا يُلقي استثناءات."""
+    if not payment_id:
+        return
+    try:
+        from extensions import db
+        from sqlalchemy.orm import Session
+        session = Session(db.engine)
+        try:
+            payment = session.get(Payment, payment_id)
+            if not payment:
+                return
+            _payment_gl_upsert_core(session.connection(), payment)
+            session.commit()
+        finally:
+            session.close()
+    except Exception as e:
+        if current_app:
+            current_app.logger.warning("Payment GL sync failed for payment_id=%s: %s", payment_id, e, exc_info=True)
+
+
+def build_payment_reversal_snapshot(payment: "Payment") -> dict:
+    """لقطة بيانات الدفعة لاستخدامها في قيد العكس بعد الحذف."""
+    try:
+        return {
+            "payment_id": payment.id,
+            "amount": float(payment.total_amount or 0),
+            "currency": payment.currency or "ILS",
+            "payment_date": getattr(payment, "payment_date", None),
+            "direction": getattr(payment, "direction", None),
+            "entity_type": getattr(payment, "entity_type", None),
+            "customer_id": getattr(payment, "customer_id", None),
+            "supplier_id": getattr(payment, "supplier_id", None),
+            "partner_id": getattr(payment, "partner_id", None),
+            "method": getattr(payment, "method", "CASH"),
+        }
+    except Exception:
+        return {"payment_id": getattr(payment, "id", None), "amount": 0}
+
+
+def run_payment_gl_reversal_after_delete(snapshot: dict) -> None:
+    """تسجيل قيد عكسي PAYMENT_REVERSAL بعد حذف الدفعة، في معاملة منفصلة."""
+    if not snapshot or not snapshot.get("payment_id"):
+        return
+    try:
+        from extensions import db
+        payment_id = int(snapshot["payment_id"])
+        amount = float(snapshot.get("amount") or 0)
+        if amount <= 0:
+            return
+        currency = (str(snapshot.get("currency") or "ILS").strip().upper() or "ILS")
+        amount_ils = amount
+        if currency != "ILS":
             try:
-                from flask import current_app
-                if current_app:
-                    current_app.logger.info(f"✅ تم إنشاء قيد دفتر الأستاذ لعربون الحجز - Payment #{target.id} - PreOrder #{target.preorder_id} - المبلغ: {amount_ils} ILS")
+                with db.engine.connect() as c:
+                    rate = _fx_rate_local_via_connection(c, currency, "ILS", snapshot.get("payment_date") or datetime.now(timezone.utc))
+                    if rate and rate > 0:
+                        amount_ils = amount * float(rate)
             except Exception:
                 pass
+        method_val = snapshot.get("method", "CASH")
+        if hasattr(method_val, "value"):
+            method_val = method_val.value
+        payment_method = str(method_val or "CASH").upper()
+        cash_account = GL_ACCOUNTS.get(PAYMENT_GL_MAP.get(payment_method, "CASH"), "1000_CASH")
+        direction_raw = snapshot.get("direction")
+        direction = str(getattr(direction_raw, "value", direction_raw) or "OUT").upper()
+        entity_type = snapshot.get("entity_type") or "OTHER"
+        ar_account = GL_ACCOUNTS.get("AR", "1100_AR")
+        ap_account = GL_ACCOUNTS.get("AP", "2000_AP")
+        if direction == "IN":
+            if entity_type == "CUSTOMER":
+                entries = [(ar_account, amount_ils, 0), (cash_account, 0, amount_ils)]
+            else:
+                entries = [(cash_account, 0, amount_ils), (ap_account, amount_ils, 0)]
+        else:
+            if entity_type == "SUPPLIER":
+                entries = [(ap_account, 0, amount_ils), (cash_account, amount_ils, 0)]
+            else:
+                entries = [(cash_account, 0, amount_ils), (ar_account, amount_ils, 0)]
+        entity_id = snapshot.get("customer_id") or snapshot.get("supplier_id") or snapshot.get("partner_id")
+        try:
+            entity_id = int(entity_id) if entity_id is not None else None
+        except (TypeError, ValueError):
+            entity_id = None
+        with db.engine.connect() as conn:
+            with conn.begin():
+                _gl_upsert_batch_and_entries(
+                    conn,
+                    source_type="PAYMENT_REVERSAL",
+                    source_id=payment_id,
+                    purpose="REVERSAL",
+                    currency="ILS",
+                    memo=f"Reversal - deleted payment #{payment_id}",
+                    entries=entries,
+                    ref=f"REV-PAY-{payment_id}",
+                    entity_type=entity_type,
+                    entity_id=entity_id,
+                )
     except Exception as e:
-        from flask import current_app
         if current_app:
-            current_app.logger.error(f"⚠️ خطأ في إنشاء GLBatch للدفعة #{target.id}: {e}", exc_info=True)
+            current_app.logger.warning("Payment GL reversal failed for payment_id=%s: %s", snapshot.get("payment_id"), e, exc_info=True)
+
+
+@event.listens_for(Payment, "after_update")
+def _payment_gl_batch_upsert(mapper, connection, target: "Payment"):
+    """معطّل: القيد يُنفّذ بعد commit عبر run_payment_gl_sync_after_commit."""
+    return
 
 
 @event.listens_for(Payment, "before_delete")
 def _payment_gl_batch_reverse(mapper, connection, target: "Payment"):
-    """إنشاء قيد عكسي عند حذف الدفعة (أصح محاسبياً)"""
-    try:
-        if hasattr(target, '_skip_gl_reversal') and target._skip_gl_reversal:
-            return
-        if target.status != PaymentStatus.COMPLETED.value:
-            return
-        
-        amount = float(target.total_amount or 0)
-        if amount <= 0:
-            return
-        
-        amount_ils = amount
-        if target.currency and target.currency != 'ILS':
-            try:
-                rate = _fx_rate_local_via_connection(connection, target.currency, 'ILS', target.payment_date or datetime.now(timezone.utc))
-                if rate and rate > 0:
-                    amount_ils = float(amount * float(rate))
-            except Exception:
-                pass
-        
-        method_val = getattr(target, 'method', 'CASH')
-        if hasattr(method_val, 'value'):
-            method_val = method_val.value
-        payment_method = str(method_val or 'CASH').upper()
-        cash_account = GL_ACCOUNTS.get(PAYMENT_GL_MAP.get(payment_method, 'CASH'), "1000_CASH")
-        
-        direction = target.direction
-        entity_type = target.entity_type or 'OTHER'
-        
-        if direction == PaymentDirection.IN.value:
-            if entity_type == 'CUSTOMER':
-                ar_account = GL_ACCOUNTS.get("AR", "1200_AR")
-                entries = [(ar_account, amount_ils, 0), (cash_account, 0, amount_ils)]
-            else:
-                entries = [(cash_account, 0, amount_ils), (ar_account, amount_ils, 0)]
-        else:
-            if entity_type == 'SUPPLIER':
-                ap_account = GL_ACCOUNTS.get("AP", "2000_AP")
-                entries = [(ap_account, 0, amount_ils), (cash_account, amount_ils, 0)]
-            else:
-                entries = [(cash_account, 0, amount_ils), (ap_account, amount_ils, 0)]
-        
-        memo = f"عكس قيد - حذف دفعة #{target.id}"
-        
-        _gl_upsert_batch_and_entries(
-            connection,
-            source_type="PAYMENT_REVERSAL",
-            source_id=target.id,
-            purpose="REVERSAL",
-            currency="ILS",
-            memo=memo,
-            entries=entries,
-            ref=f"REV-PAY-{target.id}",
-            entity_type=entity_type,
-            entity_id=target.customer_id or target.supplier_id or target.partner_id
-        )
-    except Exception as e:
-        from flask import current_app
-        current_app.logger.warning(f"⚠️ خطأ في عكس قيد الدفعة #{target.id}: {e}")
+    """معطّل: القيد العكسي يُنفّذ من المسار بعد الحذف عبر run_payment_gl_reversal_after_delete."""
+    return
 
 
 @event.listens_for(Payment, "after_insert", propagate=True)
@@ -9832,10 +9655,88 @@ def _set_completed_at_on_status_change(target, value, oldvalue, initiator):
     if newv == ServiceStatus.COMPLETED.value and not target.completed_at:
         target.completed_at = datetime.now(timezone.utc)
 
+def run_service_gl_sync_after_commit(service_id: int) -> None:
+    """إنشاء/تحديث قيد GL للصيانة في معاملة منفصلة بعد commit. لا يُلقي استثناءات."""
+    if not service_id:
+        return
+    try:
+        from extensions import db
+        with db.engine.connect() as conn:
+            with conn.begin():
+                _service_gl_batch_upsert_sql(conn, service_id)
+    except Exception as e:
+        if current_app:
+            current_app.logger.warning("Service GL sync failed for service_id=%s: %s", service_id, e, exc_info=True)
+
+
+def build_service_reversal_snapshot(service: "ServiceRequest") -> dict:
+    """لقطة بيانات الصيانة لاستخدامها في قيد العكس بعد الحذف."""
+    try:
+        amount_ils = float(service.total_amount or 0)
+        if service.currency and service.currency != "ILS":
+            try:
+                from extensions import db
+                with db.engine.connect() as c:
+                    rate = _fx_rate_local_via_connection(c, service.currency, "ILS", service.received_at or datetime.now(timezone.utc))
+                    if rate and rate > 0:
+                        amount_ils = float(service.total_amount or 0) * float(rate)
+            except Exception:
+                pass
+        return {
+            "service_id": service.id,
+            "amount": amount_ils,
+            "currency": service.currency or "ILS",
+            "entity_type": "CUSTOMER",
+            "entity_id": service.customer_id,
+        }
+    except Exception:
+        return {"service_id": getattr(service, "id", None), "amount": 0}
+
+
+def run_service_gl_reversal_after_delete(snapshot: dict) -> None:
+    """تسجيل قيد عكسي SERVICE_REVERSAL بعد حذف الصيانة، في معاملة منفصلة."""
+    if not snapshot or not snapshot.get("service_id"):
+        return
+    try:
+        from extensions import db
+        service_id = int(snapshot["service_id"])
+        amount = float(snapshot.get("amount") or 0)
+        if amount <= 0:
+            return
+        currency = (str(snapshot.get("currency") or "ILS").strip().upper() or "ILS")
+        ar_account = GL_ACCOUNTS.get("AR", "1100_AR")
+        revenue_account = GL_ACCOUNTS.get("SALES", "4000_SALES")
+        entity_type = snapshot.get("entity_type")
+        entity_id = snapshot.get("entity_id")
+        try:
+            entity_id = int(entity_id) if entity_id is not None else None
+        except (TypeError, ValueError):
+            entity_id = None
+        entries = [(revenue_account, 0, amount), (ar_account, amount, 0)]
+        with db.engine.connect() as conn:
+            with conn.begin():
+                _gl_upsert_batch_and_entries(
+                    conn,
+                    source_type="SERVICE_REVERSAL",
+                    source_id=service_id,
+                    purpose="REVERSAL",
+                    currency=currency,
+                    memo=f"Reversal - deleted service #{service_id}",
+                    entries=entries,
+                    ref=f"REV-SRV-{service_id}",
+                    entity_type=entity_type,
+                    entity_id=entity_id,
+                )
+    except Exception as e:
+        if current_app:
+            current_app.logger.warning("Service GL reversal failed for service_id=%s: %s", snapshot.get("service_id"), e, exc_info=True)
+
+
 @event.listens_for(ServiceRequest, "after_insert")
 @event.listens_for(ServiceRequest, "after_update")
 def _service_gl_batch_upsert(mapper, connection, target: "ServiceRequest"):
-    _service_gl_batch_upsert_sql(connection, int(getattr(target, "id", 0) or 0))
+    """معطّل: القيد يُنفّذ بعد commit عبر run_service_gl_sync_after_commit."""
+    return
 
 
 def _service_gl_batch_upsert_sql(connection, service_id: int) -> None:
@@ -9923,48 +9824,8 @@ def _service_gl_batch_upsert_sql(connection, service_id: int) -> None:
 
 @event.listens_for(ServiceRequest, "before_delete")
 def _service_gl_batch_reverse(mapper, connection, target: "ServiceRequest"):
-    try:
-        if hasattr(target, '_skip_gl_reversal') and target._skip_gl_reversal:
-            return
-        if int(getattr(target, "invoice_id", 0) or 0) > 0:
-            return
-
-        total_amount = float(target.total_amount or 0)
-        if total_amount <= 0:
-            return
-        
-        amount_ils = total_amount
-        if target.currency and target.currency != 'ILS':
-            try:
-                rate = _fx_rate_local_via_connection(connection, target.currency, 'ILS', target.received_at or datetime.now(timezone.utc))
-                if rate and rate > 0:
-                    amount_ils = float(total_amount * float(rate))
-            except Exception:
-                pass
-        
-        ar_account = GL_ACCOUNTS.get("AR", "1100_AR")
-        revenue_account = GL_ACCOUNTS.get("SALES", "4000_SALES")
-        
-        entries = [
-            (revenue_account, amount_ils, 0),
-            (ar_account, 0, amount_ils),
-        ]
-        
-        _gl_upsert_batch_and_entries(
-            connection,
-            source_type="SERVICE_REVERSAL",
-            source_id=target.id,
-            purpose="REVERSAL",
-            currency="ILS",
-            memo=f"عكس قيد - حذف صيانة #{target.id}",
-            entries=entries,
-            ref=f"REV-SRV-{target.id}",
-            entity_type="CUSTOMER",
-            entity_id=target.customer_id
-        )
-    except Exception as e:
-        from flask import current_app
-        current_app.logger.warning(f"⚠️ خطأ في عكس قيد الصيانة #{target.id}: {e}")
+    """معطّل: القيد العكسي يُنفّذ من المسار بعد الحذف عبر run_service_gl_reversal_after_delete."""
+    return
 
 @event.listens_for(ServiceRequest, "after_update")
 def _gl_on_service_complete(mapper, connection, target: "ServiceRequest"):
@@ -11848,7 +11709,11 @@ def _ensure_account_exists(connection, account_code: str) -> bool:
         
         account_name_map = {
             "5000_EXPENSES": "Expenses",
+            "5100_SUPPLIER_EXPENSES": "Supplier Expenses",
+            "5100_SUPPLIER_EXPENS": "Supplier Expenses",
             "2000_AP": "Accounts Payable",
+            "2150_PAYROLL_CLEARING": "Payroll Clearing",
+            "6100_SALARIES": "Salaries",
             "1000_CASH": "Cash",
             "1010_BANK": "Bank",
             "1020_CARD_CLEARING": "Card Clearing",
@@ -11876,212 +11741,190 @@ def _ensure_account_exists(connection, account_code: str) -> bool:
 @event.listens_for(Expense, "after_insert")
 @event.listens_for(Expense, "after_update")
 def _expense_gl_batch_upsert(mapper, connection, target: "Expense"):
-    """إنشاء/تحديث GLBatch للمصروف تلقائياً وفق إعدادات النوع"""
-    try:
-        if getattr(target, "is_archived", False):
-            return
-        amount = float(q(target.amount or 0))
-        if amount <= 0:
-            existing_batch = connection.execute(
-                sa_text("""
-                    SELECT id FROM gl_batches
-                    WHERE source_type = 'EXPENSE' AND source_id = :sid AND purpose = 'ACCRUAL'
-                """),
-                {"sid": target.id}
-            ).scalar_one_or_none()
-            if existing_batch:
-                connection.execute(
-                    sa_text("DELETE FROM gl_entries WHERE batch_id = :bid"),
-                    {"bid": existing_batch}
-                )
-                connection.execute(
-                    sa_text("DELETE FROM gl_batches WHERE id = :bid"),
-                    {"bid": existing_batch}
-                )
-            return
-
-        ledger = _expense_type_ledger_settings(connection, getattr(target, "type_id", None))
-        expense_account = ledger.get("expense_account") or GL_ACCOUNTS.get("EXP", "5000_EXPENSES")
-        counterparty_account = ledger.get("counterparty_account") or GL_ACCOUNTS.get("AP", "2000_AP")
-        if ledger.get("behavior") == "IMMEDIATE" and not ledger.get("counterparty_account"):
-            counterparty_account = ledger.get("cash_account") or counterparty_account or GL_ACCOUNTS.get("CASH", "1000_CASH")
-        
-        if not expense_account or not counterparty_account:
-            expense_account = GL_ACCOUNTS.get("EXP", "5000_EXPENSES")
-            counterparty_account = GL_ACCOUNTS.get("AP", "2000_AP")
-        
-        _ensure_account_exists(connection, expense_account)
-        _ensure_account_exists(connection, counterparty_account)
-
-        amount_ils = amount
-        posting_currency = "ILS"
-        original_currency = (getattr(target, "currency", None) or "ILS").upper()
-        if original_currency != "ILS":
-            try:
-                rate = _fx_rate_local_via_connection(connection, original_currency, "ILS", getattr(target, "date", None) or datetime.now(timezone.utc))
-                if rate and rate > 0:
-                    amount_ils = float(amount * float(rate))
-            except Exception:
-                pass
-
-        # ✅ تحديد نوع المصروف: توريد خدمة للمورد أم مصروف عادي
-        exp_type_code = None
-        try:
-            if getattr(target, "type_id", None):
-                exp_type_row = connection.execute(
-                    select(ExpenseType.code).where(ExpenseType.id == target.type_id)
-                ).scalar_one_or_none()
-                exp_type_code = (exp_type_row or "").strip().upper() if exp_type_row else None
-        except Exception:
-            pass
-        
-        # ✅ للمصروفات من نوع SUPPLIER_EXPENSE أو PARTNER_EXPENSE (توريد خدمة):
-        # القيد: مدين AP (دين المورد/الشريك علينا) / دائن Expense (توريد خدمة = ورد لنا خدمة)
-        # عند الدفع لاحقاً: مدين Cash / دائن AP (تسديد الدين)
-        is_supplier_service = (
-            exp_type_code == "SUPPLIER_EXPENSE" or
-            (getattr(target, "supplier_id", None) and getattr(target, "payee_type", "").upper() == "SUPPLIER")
-        )
-        is_partner_service = (
-            exp_type_code == "PARTNER_EXPENSE" or
-            (getattr(target, "partner_id", None) and getattr(target, "payee_type", "").upper() == "PARTNER")
-        )
-        
-        if is_supplier_service or is_partner_service:
-            # ✅ توريد خدمة = ورد لنا خدمة = زاد ديننا له
-            # القيد: مدين Expense / دائن AP
-            # Expense مدين (مصروف زاد - المصروفات تزيد بالمدين)
-            # AP دائن (دين المورد/الشريك علينا زاد - الخصوم تزيد بالدائن)
-            entries = [
-                (expense_account, amount_ils, 0.0),  # مدين: Expense (مصروف زاد - المصروفات تزيد بالمدين)
-                (counterparty_account, 0.0, amount_ils),  # دائن: AP (دين المورد/الشريك علينا زاد - الخصوم تزيد بالدائن)
-            ]
-        else:
-            # ✅ المصروفات العادية: مدين Expense / دائن Cash أو AP
-            entries = [
-                (expense_account, amount_ils, 0.0),
-                (counterparty_account, 0.0, amount_ils),
-            ]
-        entity_type, entity_id = _expense_entity_pair(target)
-        
-        try:
-            _gl_upsert_batch_and_entries(
-                connection,
-                source_type="EXPENSE",
-                source_id=target.id,
-                purpose="ACCRUAL",
-                currency=posting_currency,
-                memo=f"قيد {'توريد خدمة' if (is_supplier_service or is_partner_service) else 'مصروف'} #{target.id}",
-                entries=entries,
-                ref=f"EXP-{target.id}",
-                entity_type=entity_type,
-                entity_id=entity_id,
-            )
-        except ValueError as ve:
-            from flask import current_app
-            import traceback
-            if "existing POSTED GL batch" in str(ve):
-                current_app.logger.debug(f"ℹ️ قيد موجود مسبقاً للمصروف #{target.id}")
-            else:
-                error_msg = f"⚠️ خطأ في إنشاء GLBatch للمصروف #{target.id}: {ve}"
-                current_app.logger.error(error_msg)
-                current_app.logger.debug(traceback.format_exc())
-                # محاولة إصلاح تلقائية
-                try:
-                    existing_batch = connection.execute(
-                        sa_text("""
-                            SELECT id FROM gl_batches
-                            WHERE source_type = 'EXPENSE' AND source_id = :sid AND purpose = 'ACCRUAL'
-                            LIMIT 1
-                        """),
-                        {"sid": target.id}
-                    ).scalar_one_or_none()
-                    if not existing_batch:
-                        current_app.logger.info(f"🔧 محاولة إصلاح قيد المصروف #{target.id}")
-                        _ensure_account_exists(connection, expense_account)
-                        _ensure_account_exists(connection, counterparty_account)
-                        _gl_upsert_batch_and_entries(
-                            connection,
-                            source_type="EXPENSE",
-                            source_id=target.id,
-                            purpose="ACCRUAL",
-                            currency=posting_currency,
-                            memo=f"قيد {'توريد خدمة' if (is_supplier_service or is_partner_service) else 'مصروف'} #{target.id}",
-                            entries=entries,
-                            ref=f"EXP-{target.id}",
-                            entity_type=entity_type,
-                            entity_id=entity_id,
-                        )
-                        current_app.logger.info(f"✅ تم إصلاح قيد المصروف #{target.id}")
-                except Exception as retry_e:
-                    current_app.logger.error(f"❌ فشل إصلاح قيد المصروف #{target.id}: {retry_e}")
-                    current_app.logger.debug(traceback.format_exc())
-        except Exception as e:
-            from flask import current_app
-            import traceback
-            error_msg = f"⚠️ خطأ عام في معالجة المصروف #{target.id}: {e}"
-            current_app.logger.error(error_msg)
-            current_app.logger.debug(traceback.format_exc())
-    except Exception as outer_e:
-        from flask import current_app
-        import traceback
-        error_msg = f"⚠️ خطأ خارجي في معالجة المصروف #{target.id}: {outer_e}"
-        current_app.logger.error(error_msg)
-        current_app.logger.debug(traceback.format_exc())
+    """معطّل: القيد المحاسبي لا يُنفّذ أثناء الحفظ حتى لا يفشل حفظ المصروف."""
+    return
 
 
 @event.listens_for(Expense, "before_delete")
 def _expense_gl_batch_reverse(mapper, connection, target: "Expense"):
-    """إنشاء قيد عكسي عند حذف المصروف (أصح محاسبياً)"""
+    """معطّل: القيد العكسي يُنفّذ من المسار بعد الحذف في معاملة منفصلة (run_expense_gl_reversal_after_delete)."""
+    return
+
+
+def _expense_entity_pair_from_row(row) -> tuple[str | None, int | None]:
+    """استخراج (entity_type, entity_id) من صف مصروف (dict أو Row)."""
+    def _g(k, default=None):
+        return row.get(k, default) if hasattr(row, "get") else getattr(row, k, default)
+    if _g("customer_id"):
+        return ("CUSTOMER", int(_g("customer_id")))
+    if _g("supplier_id"):
+        return ("SUPPLIER", int(_g("supplier_id")))
+    if _g("partner_id"):
+        return ("PARTNER", int(_g("partner_id")))
+    if _g("employee_id"):
+        return ("EMPLOYEE", int(_g("employee_id")))
+    payee_type = (str(_g("payee_type") or "").strip().upper())
+    payee_entity_id = _g("payee_entity_id")
+    if payee_type in {"SUPPLIER", "PARTNER", "CUSTOMER", "EMPLOYEE"} and payee_entity_id:
+        try:
+            return (payee_type, int(payee_entity_id))
+        except (TypeError, ValueError):
+            return (payee_type, None)
+    return (None, None)
+
+
+def run_expense_gl_sync_after_commit(expense_id: int) -> bool:
+    """
+    إنشاء/تحديث قيد دفتر الأستاذ (ACCRUAL) للمصروف في معاملة منفصلة بعد حفظ المصروف.
+    يُرجع True إذا تم إنشاء/تحديث القيد، False عند التخطي أو الفشل. لا يُلقي استثناءات.
+    """
+    if not expense_id:
+        return False
     try:
-        amount = float(target.amount or 0)
+        import sys
+        print(f" [GL] مزامنة دفتر الأستاذ للمصروف expense_id={expense_id}", file=sys.stderr, flush=True)
+        from extensions import db
+        row = None
+        with db.engine.connect() as conn_read:
+            with conn_read.begin():
+                row = conn_read.execute(
+                    select(
+                        Expense.id,
+                        Expense.type_id,
+                        Expense.amount,
+                        Expense.currency,
+                        Expense.supplier_id,
+                        Expense.partner_id,
+                        Expense.customer_id,
+                        Expense.employee_id,
+                        Expense.payee_type,
+                        Expense.payee_entity_id,
+                    ).where(Expense.id == expense_id)
+                ).mappings().first()
+        if not row:
+            if current_app:
+                current_app.logger.debug("Expense GL sync: مصروف غير موجود id=%s", expense_id)
+            return False
+        row = dict(row)
+        type_id = row.get("type_id")
+        amount = float(row.get("amount") or 0)
+        if amount <= 0:
+            if current_app:
+                current_app.logger.debug("Expense GL sync: تخطي مبلغ غير موجب expense_id=%s amount=%s", expense_id, amount)
+            return False
+        currency = (str(row.get("currency") or "ILS").strip().upper() or "ILS")
+        ledger = {"expense_account": "5000_EXPENSES", "counterparty_account": "2000_AP"}
+        conn = db.engine.connect()
+        try:
+            conn.rollback()
+            try:
+                with conn.begin():
+                    ledger = _expense_type_ledger_settings(conn, type_id)
+            except Exception:
+                conn.rollback()
+            conn.rollback()
+            expense_account = (ledger.get("expense_account") or "5000_EXPENSES").strip().upper()
+            counterparty_account = (ledger.get("counterparty_account") or "2000_AP").strip().upper()
+            entity_type, entity_id = _expense_entity_pair_from_row(row)
+            entries = [
+                (expense_account, amount, 0),
+                (counterparty_account, 0, amount),
+            ]
+            memo = f"Expense #{expense_id}"
+            ref = f"EXP-{expense_id}"
+            with conn.begin():
+                batch_id = _gl_upsert_batch_and_entries(
+                    conn,
+                    source_type="EXPENSE",
+                    source_id=expense_id,
+                    purpose="ACCRUAL",
+                    currency=currency,
+                    memo=memo,
+                    entries=entries,
+                    ref=ref,
+                    entity_type=entity_type,
+                    entity_id=entity_id,
+                )
+        finally:
+            conn.close()
+        if current_app:
+            current_app.logger.info("تم إنشاء/تحديث قيد دفتر الأستاذ للمصروف expense_id=%s batch_id=%s", expense_id, batch_id)
+        return True
+    except Exception as e:
+        if current_app:
+            current_app.logger.warning("Expense GL sync failed for expense_id=%s: %s", expense_id, e, exc_info=True)
+        return False
+
+
+def run_expense_gl_reversal_after_delete(snapshot: dict) -> None:
+    """
+    تسجيل قيد عكسي (EXPENSE_REVERSAL) بعد حذف المصروف، في معاملة منفصلة.
+    snapshot يجب أن يحتوي: expense_id, amount, currency, expense_account, counterparty_account, entity_type, entity_id, payee_name (اختياري).
+    لا يُلقي استثناءات.
+    """
+    if not snapshot or not snapshot.get("expense_id"):
+        return
+    try:
+        from extensions import db
+        expense_id = int(snapshot["expense_id"])
+        amount = float(snapshot.get("amount") or 0)
         if amount <= 0:
             return
-        
-        amount_ils = amount
-        if target.currency and target.currency != 'ILS':
-            try:
-                rate = _fx_rate_local_via_connection(connection, target.currency, 'ILS', target.date or datetime.now(timezone.utc))
-                if rate and rate > 0:
-                    amount_ils = float(amount * float(rate))
-            except Exception:
-                pass
-        
-        expense_account = GL_ACCOUNTS.get("EXP", "5000_EXPENSES")
+        currency = str(snapshot.get("currency") or "ILS").strip().upper() or "ILS"
+        expense_account = str(snapshot.get("expense_account") or "5000_EXPENSES").strip().upper()
+        counterparty_account = str(snapshot.get("counterparty_account") or "2000_AP").strip().upper()
+        entity_type = snapshot.get("entity_type")
+        entity_id = snapshot.get("entity_id")
         try:
-            etype_row = connection.execute(
-                select(ExpenseType.fields_meta).where(ExpenseType.id == target.type_id)
-            ).scalar()
-            if etype_row and isinstance(etype_row, dict):
-                expense_account = etype_row.get("gl_account_code") or expense_account
-        except Exception:
-            pass
-        
-        payment_method = (target.payment_method or 'cash').upper()
-        cash_account = GL_ACCOUNTS.get(PAYMENT_GL_MAP.get(payment_method, 'CASH'), "1000_CASH")
-        
+            entity_id = int(entity_id) if entity_id is not None else None
+        except (TypeError, ValueError):
+            entity_id = None
+        payee_name = snapshot.get("payee_name") or ""
+        memo = f"Reversal - deleted expense #{expense_id}" + (f" - {payee_name}" if payee_name else "")
+        ref = f"EXP-REV-{expense_id}"
         entries = [
-            (cash_account, amount_ils, 0),
-            (expense_account, 0, amount_ils),
+            (expense_account, 0, amount),
+            (counterparty_account, amount, 0),
         ]
-        
-        memo = f"عكس قيد - حذف مصروف #{target.id} - {target.description or target.payee_name or ''}"
-        
-        _gl_upsert_batch_and_entries(
-            connection,
-            source_type="EXPENSE_REVERSAL",
-            source_id=target.id,
-            purpose="REVERSAL",
-            currency="ILS",
-            memo=memo,
-            entries=entries,
-            ref=f"REV-EXP-{target.id}",
-            entity_type=target.payee_type,
-            entity_id=target.payee_entity_id
-        )
+        with db.engine.connect() as conn:
+            with conn.begin():
+                _gl_upsert_batch_and_entries(
+                    conn,
+                    source_type="EXPENSE_REVERSAL",
+                    source_id=expense_id,
+                    purpose="REVERSAL",
+                    currency=currency,
+                    memo=memo,
+                    entries=entries,
+                    ref=ref,
+                    entity_type=entity_type,
+                    entity_id=entity_id,
+                )
     except Exception as e:
-        from flask import current_app
-        current_app.logger.warning(f"⚠️ خطأ في عكس قيد المصروف #{target.id}: {e}")
+        if current_app:
+            current_app.logger.warning("Expense GL reversal failed for expense_id=%s: %s", snapshot.get("expense_id"), e, exc_info=True)
+
+
+def build_expense_reversal_snapshot(expense: "Expense") -> dict:
+    """بناء لقطة بيانات المصروف لاستخدامها في قيد العكس بعد الحذف."""
+    try:
+        from extensions import db
+        with db.engine.connect() as conn:
+            with conn.begin():
+                ledger = _expense_type_ledger_settings(conn, getattr(expense, "type_id", None))
+        entity_type, entity_id = _expense_entity_pair(expense)
+        return {
+            "expense_id": getattr(expense, "id", None),
+            "amount": float(getattr(expense, "amount", 0) or 0),
+            "currency": (getattr(expense, "currency", None) or "ILS"),
+            "expense_account": (ledger.get("expense_account") or "5000_EXPENSES").strip().upper(),
+            "counterparty_account": (ledger.get("counterparty_account") or "2000_AP").strip().upper(),
+            "entity_type": entity_type,
+            "entity_id": entity_id,
+            "payee_name": (getattr(expense, "payee_name", None) or getattr(expense, "paid_to", None) or ""),
+        }
+    except Exception:
+        return {"expense_id": getattr(expense, "id", None), "amount": 0}
 
 
 @event.listens_for(PreOrder, "before_insert")
@@ -12139,45 +11982,57 @@ def _sale_normalize_update(mapper, connection, target: "Sale"):
 
 
 # ===== إنشاء قيود GL تلقائية لمرتجعات المبيعات =====
-@event.listens_for(SaleReturn, "after_insert")
-@event.listens_for(SaleReturn, "after_update")
-def _sale_return_gl_batch_upsert(mapper, connection, target: "SaleReturn"):
-    """إنشاء/تحديث GLBatch لمرتجع المبيعات تلقائياً"""
-    
-    # فقط للمرتجعات المؤكدة
-    if target.status != 'CONFIRMED':
+def _sale_return_gl_upsert_core(connection, target: "SaleReturn") -> None:
+    """منطق قيد GL لمرتجع المبيعات (يُستدعى من معاملة منفصلة بعد commit)."""
+    if target.status != "CONFIRMED":
         return
-    
     amount = float(target.total_amount or 0)
     if amount <= 0:
         return
-    
+    entries = [
+        (GL_ACCOUNTS.get("REV", "4000_SALES"), amount, 0),
+        (GL_ACCOUNTS.get("AR", "1100_AR"), 0, amount),
+    ]
+    _gl_upsert_batch_and_entries(
+        connection,
+        source_type="SALE_RETURN",
+        source_id=target.id,
+        purpose="RETURN",
+        currency="ILS",
+        memo=f"Sale return #{target.id}",
+        entries=entries,
+        ref=f"RET-{target.id}",
+        entity_type="CUSTOMER",
+        entity_id=target.customer_id,
+    )
+
+
+def run_sale_return_gl_sync_after_commit(sale_return_id: int) -> None:
+    """إنشاء/تحديث قيد GL لمرتجع المبيعات في معاملة منفصلة بعد commit. لا يُلقي استثناءات."""
+    if not sale_return_id:
+        return
     try:
-        # القيد المحاسبي للمرتجع (عكس البيع):
-        # مدين: 4000_SALES (إرجاع من المبيعات)
-        # دائن: 1100_AR (تخفيض ذمم العميل)
-        entries = [
-            (GL_ACCOUNTS.get("REV", "4000_SALES"), amount, 0),  # مدين: المبيعات (سالب)
-            (GL_ACCOUNTS.get("AR", "1100_AR"), 0, amount),  # دائن: حساب العملاء
-        ]
-        
-        memo = f"مرتجع مبيعات - {target.id}"
-        
-        _gl_upsert_batch_and_entries(
-            connection,
-            source_type="SALE_RETURN",
-            source_id=target.id,
-            purpose="RETURN",
-            currency="ILS",
-            memo=memo,
-            entries=entries,
-            ref=f"RET-{target.id}",
-            entity_type="CUSTOMER",
-            entity_id=target.customer_id
-        )
+        from extensions import db
+        from sqlalchemy.orm import Session
+        session = Session(db.engine)
+        try:
+            sr = session.get(SaleReturn, sale_return_id)
+            if not sr:
+                return
+            _sale_return_gl_upsert_core(session.connection(), sr)
+            session.commit()
+        finally:
+            session.close()
     except Exception as e:
-        from flask import current_app
-        current_app.logger.warning(f"⚠️ خطأ في إنشاء GLBatch للمرتجع #{target.id}: {e}")
+        if current_app:
+            current_app.logger.warning("SaleReturn GL sync failed for sale_return_id=%s: %s", sale_return_id, e, exc_info=True)
+
+
+@event.listens_for(SaleReturn, "after_insert")
+@event.listens_for(SaleReturn, "after_update")
+def _sale_return_gl_batch_upsert(mapper, connection, target: "SaleReturn"):
+    """معطّل: القيد يُنفّذ بعد commit عبر run_sale_return_gl_sync_after_commit."""
+    return
 
 @event.listens_for(SaleReturn, "before_insert")
 def _sale_return_normalize_insert(mapper, connection, target: "SaleReturn"):
@@ -12748,9 +12603,8 @@ def _gl_upsert_batch_and_entries(
             Account.is_active.is_(True)
         )
     ).scalars().all()
-    
-    found_set = set(found_codes)
-    required_set = set(accs)
+    found_set = set((str(c or "").strip().upper() for c in found_codes))
+    required_set = set((str(a or "").strip().upper() for a in accs))
     
     if found_set != required_set:
         missing = required_set - found_set
@@ -12763,7 +12617,7 @@ def _gl_upsert_batch_and_entries(
                 Account.is_active.is_(True)
             )
         ).scalars().all()
-        found_set = set(found_codes)
+        found_set = set((str(c or "").strip().upper() for c in found_codes))
         
         if found_set != required_set:
             still_missing = required_set - found_set

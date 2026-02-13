@@ -457,11 +457,16 @@ def get_ledger_data():
             'EXPENSE': 'مصروف',
             'PURCHASE': 'مشتريات',
             'PAYMENT': 'دفعة',
+            'PAYMENT_SPLIT': 'توزيع دفعة',
             'MANUAL': 'قيد يدوي',
             'OPENING_BALANCE': 'رصيد افتتاحي',
             'SERVICE': 'صيانة',
             'PREORDER': 'حجز مسبق',
-            'EXCHANGE': 'توريد/صرف'
+            'INVOICE': 'فاتورة',
+            'ONLINE_PREORDER': 'حجز أونلاين',
+            'EXPENSE_REVERSAL': 'عكس مصروف',
+            'EXCHANGE': 'توريد/صرف',
+            'SHIPMENT': 'شحنة',
         }
 
         payment_split_cache = {}

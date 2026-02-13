@@ -20,6 +20,7 @@ from models import (
     Employee,
     ExpenseType,
     Expense,
+    GLBatch,
     Shipment,
     UtilityAccount,
     StockAdjustment,
@@ -34,6 +35,9 @@ from models import (
     PaymentEntityType,
     ensure_currency,
     Branch,
+    run_expense_gl_sync_after_commit,
+    run_expense_gl_reversal_after_delete,
+    build_expense_reversal_snapshot,
 )
 from models import fx_rate
 import utils
@@ -312,6 +316,51 @@ def _create_partial_payments(expense: Expense, entries):
         db.session.add(payment)
         created.append(payment)
     return created
+
+
+def _ensure_expense_paid_on_create(expense: Expense, partial_entries: list) -> None:
+    base_currency = (expense.currency or "ILS").upper()
+    total_amount = D(str(expense.amount or 0))
+    total_from_partial = D("0")
+    for entry in partial_entries:
+        amt = D(str(entry.get("amount") or 0))
+        cur = (str(entry.get("currency") or base_currency)).strip().upper()
+        if cur == base_currency:
+            total_from_partial += amt
+        else:
+            try:
+                total_from_partial += D(str(ensure_currency(amt, cur, base_currency, entry.get("payment_date"))))
+            except Exception:
+                pass
+    remaining = total_amount - total_from_partial
+    if remaining <= D("0.005"):
+        return
+    pay_date = expense.date
+    if hasattr(pay_date, "date"):
+        pay_date = pay_date.date() if pay_date else datetime.now(timezone.utc).replace(tzinfo=None)
+    elif not pay_date:
+        pay_date = datetime.now(timezone.utc).replace(tzinfo=None)
+    expense_ref = f"مصروف #{expense.id}"
+    if expense.description:
+        expense_ref += f" - {expense.description}"
+    elif expense.type and expense.type.name:
+        expense_ref += f" - {expense.type.name}"
+    payment = Payment(
+        payment_date=pay_date,
+        total_amount=remaining,
+        currency=base_currency,
+        method=(expense.payment_method or "cash").lower(),
+        status=PaymentStatus.COMPLETED.value,
+        direction=PaymentDirection.OUT.value,
+        entity_type=PaymentEntityType.EXPENSE.value,
+        expense_id=expense.id,
+        reference=expense_ref,
+        notes=expense.description or None,
+        receiver_name=expense.payee_name or expense.paid_to or expense.beneficiary_name,
+        created_by=current_user.id if current_user.is_authenticated else None,
+    )
+    _ensure_payment_number(payment)
+    db.session.add(payment)
 
 
 def _default_expense_branch_id():
@@ -836,7 +885,6 @@ def generate_salary(emp_id):
     
     employee = _get_or_404(Employee, emp_id)
     
-    # Get form data
     month = int(request.form.get('month', date.today().month))
     year = int(request.form.get('year', date.today().year))
     
@@ -1739,7 +1787,6 @@ def detail(exp_id):
     method_labels = []
     for p in exp.payments or []:
         payment_method = _method_label(p.method)
-        # ✅ إذا كانت الدفعة لديها splits، نعرض كل split كدفعة منفصلة
         if p.splits:
             for split in sorted(p.splits, key=lambda s: getattr(s, "id", 0)):
                 details = split.details or {}
@@ -1755,7 +1802,6 @@ def detail(exp_id):
                 method_label = _method_label(split.method)
                 method_labels.append(method_label)
                 
-                # ✅ جلب معلومات الشيك المرتبط بـ split (إن وجد)
                 split_check = None
                 split_check_status = None
                 if 'check' in (str(split.method) or '').lower() or 'cheque' in (str(split.method) or '').lower():
@@ -1770,7 +1816,6 @@ def detail(exp_id):
                     if split_checks:
                         split_check = split_checks[0]
                         split_check_status = str(getattr(split_check, 'status', 'PENDING') or 'PENDING')
-                        # استخدام معلومات الشيك من Check record إذا كانت متوفرة
                         if not check_number:
                             check_number = split_check.check_number
                         if not check_bank:
@@ -1778,13 +1823,11 @@ def detail(exp_id):
                         if not check_due:
                             check_due = split_check.check_due_date
                 
-                # ✅ حساب المبلغ المحول للـ ILS
                 split_amount = split.amount or 0
                 split_converted_amount = split.converted_amount or 0
                 split_currency = split.currency or p.currency or "ILS"
                 converted_currency = split.converted_currency or p.currency or "ILS"
                 
-                # استخدام المبلغ المحول إذا كان موجوداً
                 if split_converted_amount > 0 and converted_currency == "ILS":
                     amount_to_display = split_converted_amount
                 else:
@@ -1798,19 +1841,18 @@ def detail(exp_id):
                         "converted_amount": split_converted_amount if converted_currency == "ILS" else None,
                         "converted_currency": converted_currency,
                         "status": split_check_status if split_check_status else p.status,
-                        "number": f"SPLIT-{split.id}-PMT-{p.payment_number or p.id}",  # ✅ رقم يميز كل split
+                        "number": f"SPLIT-{split.id}-PMT-{p.payment_number or p.id}",
                         "payment_id": p.id,
-                        "split_id": split.id,  # ✅ إضافة split_id لتمييز كل split
+                        "split_id": split.id,
                         "method": method_label,
                         "check_number": check_number,
                         "check_bank": check_bank,
                         "check_due_date": _coerce_datetime(check_due),
-                        "is_split": True,  # ✅ علامة أن هذا split
-                        "check_status": split_check_status,  # ✅ حالة الشيك المرتبط
+                        "is_split": True,
+                        "check_status": split_check_status,
                     }
                 )
         else:
-            # ✅ الدفعة بدون splits - نعرضها كالمعتاد
             method_labels.append(payment_method)
             payment_rows.append(
                 {
@@ -1820,12 +1862,12 @@ def detail(exp_id):
                     "status": p.status,
                     "number": p.payment_number or p.id,
                     "payment_id": p.id,
-                    "split_id": None,  # ✅ بدون split
+                    "split_id": None,
                     "method": payment_method,
                     "check_number": p.check_number,
                     "check_bank": p.check_bank,
                     "check_due_date": _coerce_datetime(p.check_due_date),
-                    "is_split": False,  # ✅ علامة أن هذا ليس split
+                    "is_split": False,
                 }
             )
 
@@ -1950,6 +1992,53 @@ def add():
             if not getattr(form, "stock_adjustment_id", None) or form.stock_adjustment_id.data == 0:
                 exp.stock_adjustment_id = None
 
+        if not exp.branch_id or exp.branch_id == 0:
+            exp.branch_id = _default_expense_branch_id() or (int(form.branch_id.data) if getattr(form, "branch_id", None) and form.branch_id.data else None)
+        if not exp.branch_id:
+            flash("⚠️ يرجى اختيار الفرع من القائمة أو إنشاء فرع نشط في النظام.", "warning")
+            return _render_expense_form(form, is_edit=False, types_meta=types_meta, types_list=types_list, **render_kwargs)
+
+        if supplier_service_mode and service_supplier and (not exp.supplier_id or exp.supplier_id == 0):
+            exp.supplier_id = service_supplier.id
+            exp.payee_type = "SUPPLIER"
+            exp.payee_entity_id = service_supplier.id
+            exp.payee_name = service_supplier.name
+            if not exp.paid_to:
+                exp.paid_to = service_supplier.name
+            if not exp.beneficiary_name:
+                exp.beneficiary_name = service_supplier.name
+        if partner_service_mode and service_partner and (not exp.partner_id or exp.partner_id == 0):
+            exp.partner_id = service_partner.id
+            exp.payee_type = "PARTNER"
+            exp.payee_entity_id = service_partner.id
+            exp.payee_name = service_partner.name
+            if not exp.paid_to:
+                exp.paid_to = service_partner.name
+            if not exp.beneficiary_name:
+                exp.beneficiary_name = service_partner.name
+        raw_sup = request.form.get("supplier_id")
+        if raw_sup and (not exp.supplier_id or exp.supplier_id == 0):
+            try:
+                sid = int(raw_sup)
+                if sid and db.session.get(Supplier, sid):
+                    exp.supplier_id = sid
+                    exp.payee_type = "SUPPLIER"
+                    exp.payee_entity_id = sid
+                    exp.payee_name = getattr(db.session.get(Supplier, sid), "name", None) or exp.payee_name
+            except (TypeError, ValueError):
+                pass
+        raw_part = request.form.get("partner_id")
+        if raw_part and (not exp.partner_id or exp.partner_id == 0):
+            try:
+                pid = int(raw_part)
+                if pid and db.session.get(Partner, pid):
+                    exp.partner_id = pid
+                    exp.payee_type = "PARTNER"
+                    exp.payee_entity_id = pid
+                    exp.payee_name = getattr(db.session.get(Partner, pid), "name", None) or exp.payee_name
+            except (TypeError, ValueError):
+                pass
+
         partial_payload_raw = request.form.get("partial_payments_payload")
         partial_entries = _parse_partial_payments_payload(
             partial_payload_raw,
@@ -1994,11 +2083,25 @@ def add():
                         current_app.logger.info(f"✅ تم تعديل راتب الموظف #{emp.id} تلقائياً للصافي: {suggested_net}")
         except Exception as e:
             current_app.logger.warning(f"⚠️ فشل حساب الراتب الصافي التلقائي: {e}")
-        
+
+        if not exp.branch_id:
+            exp.branch_id = _default_expense_branch_id()
+        if not exp.branch_id:
+            flash("⚠️ لا يوجد فرع نشط. يرجى إنشاء فرع من إدارة الفروع.", "warning")
+            return _render_expense_form(form, is_edit=False, types_meta=types_meta, types_list=types_list, **render_kwargs)
+        etype = db.session.get(ExpenseType, exp.type_id) if exp.type_id else None
+        if etype and (getattr(etype, "code", "") or "").upper() == "SUPPLIER_EXPENSE" and (not exp.supplier_id or exp.supplier_id == 0):
+            flash("⚠️ مصروف مورد يتطلب اختيار المورد. يرجى اختيار المورد من القائمة.", "warning")
+            return _render_expense_form(form, is_edit=False, types_meta=types_meta, types_list=types_list, **render_kwargs)
+        if etype and (getattr(etype, "code", "") or "").upper() == "PARTNER_EXPENSE" and (not exp.partner_id or exp.partner_id == 0):
+            flash("⚠️ مصروف شريك يتطلب اختيار الشريك. يرجى اختيار الشريك من القائمة.", "warning")
+            return _render_expense_form(form, is_edit=False, types_meta=types_meta, types_list=types_list, **render_kwargs)
+
         db.session.add(exp)
         db.session.flush()
         try:
             _create_partial_payments(exp, partial_entries)
+            _ensure_expense_paid_on_create(exp, partial_entries)
         except ValueError as perr:
             db.session.rollback()
             flash(str(perr), "danger")
@@ -2007,7 +2110,15 @@ def add():
         try:
             db.session.commit()
             flash("✅ تمت إضافة المصروف بنجاح", "success")
-            
+            try:
+                gl_ok = run_expense_gl_sync_after_commit(exp.id)
+                if gl_ok:
+                    flash("📒 تم تسجيل القيد في دفتر الأستاذ.", "success")
+                else:
+                    flash("⚠️ لم يُسجّل القيد في دفتر الأستاذ. عدّل المصروف واحفظه لإعادة المحاولة، أو راجع السجلات.", "warning")
+            except Exception as sync_err:
+                current_app.logger.warning("مزامنة دفتر الأستاذ للمصروف %s فشلت: %s", exp.id, sync_err, exc_info=True)
+                flash("⚠️ لم يُسجّل القيد في دفتر الأستاذ. عدّل المصروف واحفظه لإعادة المحاولة.", "warning")
             try:
                 from models import EmployeeAdvanceInstallment
                 from dateutil.relativedelta import relativedelta
@@ -2176,9 +2287,14 @@ def quick_supplier_service():
     exp.payment_method = "cash"
     exp.payment_details = None
     db.session.add(exp)
+    db.session.flush()
+    _ensure_expense_paid_on_create(exp, [])
     db.session.commit()
 
-    # تحديث رصيد المورد فوراً
+    try:
+        run_expense_gl_sync_after_commit(exp.id)
+    except Exception as sync_err:
+        current_app.logger.warning("مزامنة دفتر الأستاذ للمصروف %s (خدمة سريعة مورد) فشلت: %s", exp.id, sync_err, exc_info=True)
     try:
         utils.update_entity_balance("SUPPLIER", supplier.id)
     except Exception as e:
@@ -2236,6 +2352,7 @@ def quick_supplier_service_pay():
     ]
     try:
         _create_partial_payments(expense, entries)
+        _ensure_expense_paid_on_create(expense, entries)
         db.session.commit()
     except ValueError as err:
         db.session.rollback()
@@ -2308,9 +2425,14 @@ def quick_partner_service():
     exp.payment_method = "cash"
     exp.payment_details = None
     db.session.add(exp)
+    db.session.flush()
+    _ensure_expense_paid_on_create(exp, [])
     db.session.commit()
 
-    # تحديث رصيد الشريك فوراً
+    try:
+        run_expense_gl_sync_after_commit(exp.id)
+    except Exception as sync_err:
+        current_app.logger.warning("مزامنة دفتر الأستاذ للمصروف %s (خدمة سريعة شريك) فشلت: %s", exp.id, sync_err, exc_info=True)
     try:
         utils.update_entity_balance("PARTNER", partner.id)
     except Exception as e:
@@ -2368,6 +2490,7 @@ def quick_partner_service_pay():
     ]
     try:
         _create_partial_payments(expense, entries)
+        _ensure_expense_paid_on_create(expense, entries)
         db.session.commit()
     except ValueError as err:
         db.session.rollback()
@@ -2484,9 +2607,16 @@ def edit(exp_id):
         try:
             db.session.flush()
             _create_partial_payments(exp, partial_entries)
+            _ensure_expense_paid_on_create(exp, partial_entries)
             db.session.commit()
 
-            # تحديث أرصدة الجهات المرتبطة بشكل فوري
+            try:
+                gl_ok = run_expense_gl_sync_after_commit(exp.id)
+                if not gl_ok:
+                    flash("⚠️ لم يُحدّث قيد دفتر الأستاذ. راجع السجلات أو أعد الحفظ.", "warning")
+            except Exception as sync_err:
+                current_app.logger.warning("مزامنة دفتر الأستاذ للمصروف %s (تعديل) فشلت: %s", exp.id, sync_err, exc_info=True)
+                flash("⚠️ لم يُحدّث قيد دفتر الأستاذ.", "warning")
             try:
                 after_pairs = _expense_related_entity_pairs(exp)
                 _refresh_entity_balances(before_pairs | after_pairs)
@@ -2504,18 +2634,77 @@ def edit(exp_id):
     
     return _render_expense_form(form, is_edit=True, types_meta=types_meta, types_list=types_list, expense=exp)
 
+@expenses_bp.route("/sync-to-ledger", methods=["POST"], endpoint="sync_expenses_to_ledger")
+@login_required
+@utils.permission_required("manage_expenses")
+def sync_expenses_to_ledger():
+    try:
+        from sqlalchemy import and_
+        ids = [
+            r[0]
+            for r in db.session.query(Expense.id)
+            .outerjoin(
+                GLBatch,
+                and_(
+                    GLBatch.source_type == "EXPENSE",
+                    GLBatch.purpose == "ACCRUAL",
+                    GLBatch.status == "POSTED",
+                    GLBatch.source_id == Expense.id,
+                ),
+            )
+            .filter(Expense.amount > 0)
+            .filter(GLBatch.id.is_(None))
+            .all()
+        ]
+        synced = 0
+        failed = 0
+        first_error = None
+        for eid in ids:
+            try:
+                if run_expense_gl_sync_after_commit(eid):
+                    synced += 1
+            except Exception as e:
+                failed += 1
+                if first_error is None:
+                    first_error = str(e)
+                    current_app.logger.exception("مزامنة دفتر الأستاذ للمصروف %s فشلت", eid)
+        expense_batches_count = db.session.query(GLBatch).filter(
+            GLBatch.source_type == "EXPENSE",
+            GLBatch.status == "POSTED",
+        ).count()
+        if synced or failed:
+            msg = f"تمت مزامنة {synced} من {len(ids)} مصروف مع دفتر الأستاذ."
+            if failed:
+                msg += f" فشل {failed}."
+            if first_error:
+                msg += f" سبب أول فشل: {first_error[:200]}"
+            flash(msg, "success" if synced else "warning")
+        else:
+            flash("لا توجد مصاريف تحتاج مزامنة؛ كل المصاريف مسجّلة في دفتر الأستاذ.", "info")
+        if expense_batches_count > 0:
+            flash(f"عدد قيود المصاريف في دفتر الأستاذ حالياً: {expense_batches_count}. تأكد من عدم تطبيق فلتر تاريخ يخفيها.", "info")
+    except Exception as e:
+        current_app.logger.exception("sync_expenses_to_ledger")
+        flash(f"خطأ أثناء مزامنة المصاريف: {e}", "danger")
+    return redirect(url_for("expenses_bp.list_expenses"))
+
+
 @expenses_bp.route("/delete/<int:exp_id>", methods=["POST"], endpoint="delete")
 @login_required
 @utils.permission_required("manage_expenses")
 def delete(exp_id):
     exp = _get_or_404(Expense, exp_id)
     before_pairs = _expense_related_entity_pairs(exp)
-    
+    reversal_snapshot = build_expense_reversal_snapshot(exp)
+
     try:
         db.session.delete(exp)
         db.session.commit()
-        
-        # تحديث أرصدة الجهات المرتبطة بشكل فوري
+
+        try:
+            run_expense_gl_reversal_after_delete(reversal_snapshot)
+        except Exception:
+            pass
         try:
             _refresh_entity_balances(before_pairs)
         except Exception as e:
@@ -2531,7 +2720,6 @@ def delete(exp_id):
 @login_required
 @utils.permission_required("manage_expenses")
 def pay(exp_id):
-    """إعادة توجيه لإنشاء دفعة للنفقة مع البيانات الكاملة"""
     exp = _get_or_404(Expense, exp_id)
     
     amount_src = getattr(exp, "balance", None)
@@ -2860,6 +3048,7 @@ def generate_all_salaries():
                 current_app.logger.warning(f"❌ موظف {emp.name} ليس لديه branch_id")
                 continue
             
+            user_name = getattr(current_user, "full_name", None) or getattr(current_user, "name", None) or getattr(current_user, "username", None) or "النظام"
             new_expense = Expense(
                 type_id=salary_type.id,
                 employee_id=emp.id,
@@ -2868,10 +3057,17 @@ def generate_all_salaries():
                 description=f'راتب {month}/{year} - {emp.name}',
                 payment_method='bank',
                 branch_id=emp.branch_id,
-                site_id=emp.site_id
+                site_id=emp.site_id,
+                payee_type='EMPLOYEE',
+                payee_entity_id=emp.id,
+                payee_name=emp.name,
+                paid_to=emp.name,
+                disbursed_by=user_name,
             )
             
             db.session.add(new_expense)
+            db.session.flush()
+            _ensure_expense_paid_on_create(new_expense, [])
             
             for inst in installments:
                 inst.paid = True
