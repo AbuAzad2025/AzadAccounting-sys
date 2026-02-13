@@ -1,9 +1,14 @@
 #!/usr/bin/env python
-# تشغيل زرع فئات المنتجات محلياً (بدون الاعتماد على flask cli)
 import os
 import sys
 
-os.chdir(os.path.dirname(os.path.abspath(__file__)))
+_ = os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
+def _out(msg):
+    try:
+        print(msg)
+    except UnicodeEncodeError:
+        print(msg.encode("ascii", "replace").decode("ascii"))
 
 from app import create_app
 from extensions import db
@@ -17,9 +22,18 @@ CATEGORIES = [
 ]
 
 def main():
-    app = create_app()
+    try:
+        app = create_app()
+    except Exception as e:
+        _out("ERROR create_app: " + str(e))
+        return 1
     with app.app_context():
-        existing = {c.name.strip().lower(): c for c in ProductCategory.query.all()}
+        try:
+            existing = {c.name.strip().lower(): c for c in ProductCategory.query.all()}
+        except Exception as e:
+            _out("ERROR query ProductCategory: " + str(e))
+            return 1
+        _out("Existing categories count: " + str(len(existing)))
         added = 0
         for name in CATEGORIES:
             name = (name or "").strip()
@@ -29,9 +43,14 @@ def main():
             db.session.add(c)
             existing[name.lower()] = c
             added += 1
-            print(f"  + {name}")
-        db.session.commit()
-        print(f"✅ تمت إضافة {added} فئة. (الإجمالي: {len(existing)})")
+            _out("  + " + name)
+        try:
+            db.session.commit()
+        except Exception as e:
+            _out("ERROR commit: " + str(e))
+            db.session.rollback()
+            return 1
+        _out("OK added: " + str(added) + " total: " + str(len(existing)))
     return 0
 
 if __name__ == "__main__":
