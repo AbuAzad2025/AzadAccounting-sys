@@ -839,16 +839,6 @@ def permissions_csv():
 @login_required
 @limiter.limit("60/minute")
 def search_categories():
-    allowed = (
-        utils.is_super()
-        or utils.is_admin()
-        or _user_has_any(
-            "manage_inventory", "view_inventory", "manage_service", "view_service",
-            "manage_warehouses", "view_warehouses", "manage_products", "view_products",
-        )
-    )
-    if not allowed:
-        abort(403)
     q = (request.args.get("q") or "").strip()
     limit = _limit_from_request(100, 200) if not q else _limit_from_request(20, 50)
     query = ProductCategory.query
