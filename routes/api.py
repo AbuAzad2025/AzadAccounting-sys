@@ -839,11 +839,18 @@ def permissions_csv():
 @login_required
 @limiter.limit("60/minute")
 def search_categories():
-    allowed = utils.is_super() or utils.is_admin() or _user_has_any("manage_inventory", "view_inventory", "manage_service", "view_service")
+    allowed = (
+        utils.is_super()
+        or utils.is_admin()
+        or _user_has_any(
+            "manage_inventory", "view_inventory", "manage_service", "view_service",
+            "manage_warehouses", "view_warehouses", "manage_products", "view_products",
+        )
+    )
     if not allowed:
         abort(403)
     q = (request.args.get("q") or "").strip()
-    limit = _limit_from_request(20, 50)
+    limit = _limit_from_request(100, 200) if not q else _limit_from_request(20, 50)
     query = ProductCategory.query
     if q:
         query = query.filter(func.lower(ProductCategory.name).like(f"%{q.lower()}%"))
@@ -1262,8 +1269,9 @@ def product_info(pid: int):
     })
 
 @bp.post("/categories")
+@csrf.exempt
 @login_required
-@permission_required("manage_inventory")
+@permission_required("manage_inventory", "manage_warehouses")
 @limiter.limit("30/minute")
 def create_category():
     data = request.get_json(silent=True) or request.form or {}
@@ -1272,12 +1280,12 @@ def create_category():
         return jsonify({"error": "الاسم مطلوب"}), 400
     exists = ProductCategory.query.filter(func.lower(ProductCategory.name) == name.lower()).first()
     if exists:
-        return jsonify({"id": exists.id, "text": exists.name, "dupe": True}), 200
+        return jsonify({"id": exists.id, "text": exists.name, "name": exists.name, "dupe": True}), 200
     c = ProductCategory(name=name)
     db.session.add(c)
     try:
         db.session.commit()
-        return jsonify({"id": c.id, "text": c.name}), 201
+        return jsonify({"id": c.id, "text": c.name, "name": c.name}), 201
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 400

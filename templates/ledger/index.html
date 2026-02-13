@@ -1266,6 +1266,7 @@ html[data-ui-mode="mobile"] body.ledger-page .col-md-12 {
                             </h4>
                         </div>
                         <div class="card-body">
+                            <div id="trial-balance-unbalanced-warning" class="alert alert-danger py-2 mb-2" style="display: none;" role="alert"></div>
                             <div class="table-responsive">
                                 <table class="table table-bordered table-hover table-sm">
                                     <thead class="table-light">
@@ -2360,11 +2361,17 @@ function updateAccountsSummary(data, totals) {
         tbody.append(row);
     });
     
-    // ✅ استخدام الإجماليات من الباكند
     if (totals) {
         $('#accounts-total-debit').text(formatCurrency(totals.total_debit));
         $('#accounts-total-credit').text(formatCurrency(totals.total_credit));
         $('#accounts-net-balance').text(formatCurrency(totals.net_balance));
+        const warn = document.getElementById('trial-balance-unbalanced-warning');
+        if (warn) {
+            warn.style.display = totals.balanced === false ? 'block' : 'none';
+            if (totals.balanced === false && totals.net_balance !== undefined) {
+                warn.textContent = 'تنبيه: المدين لا يساوي الدائن (فرق: ' + formatCurrency(totals.net_balance) + '). راجع القيود.';
+            }
+        }
     }
 }
 

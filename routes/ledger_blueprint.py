@@ -1797,7 +1797,7 @@ def get_accounts_summary():
                 func.sum(GLEntry.credit).label("tc"),
             )
             .join(Account, Account.code == GLEntry.account)
-            .join(GLBatch)
+            .join(GLBatch, GLBatch.id == GLEntry.batch_id)
             .filter(GLBatch.status == "POSTED")
         )
         if from_date:
@@ -1819,13 +1819,14 @@ def get_accounts_summary():
             "الضرائب المستحقة": {"debit": 0.0, "credit": 0.0},
             "حقوق الملكية": {"debit": 0.0, "credit": 0.0},
             "أصول أخرى": {"debit": 0.0, "credit": 0.0},
+            "متفرقات": {"debit": 0.0, "credit": 0.0},
         }
 
         for r in rows:
             code = (r.account or "").upper()
-            acc_type = (r.type or "").upper()
-            debit = float(r.td or 0)
-            credit = float(r.tc or 0)
+            acc_type = (str(r.type or "").strip()).upper()
+            debit = round(float(r.td or 0), 2)
+            credit = round(float(r.tc or 0), 2)
 
             if acc_type == "REVENUE":
                 if code.startswith("4000"):
@@ -1856,7 +1857,7 @@ def get_accounts_summary():
             elif acc_type == "EQUITY":
                 g = groups["حقوق الملكية"]
             else:
-                continue
+                g = groups["متفرقات"]
 
             g["debit"] += debit
             g["credit"] += credit
@@ -1873,6 +1874,7 @@ def get_accounts_summary():
             "الضرائب المستحقة",
             "حقوق الملكية",
             "أصول أخرى",
+            "متفرقات",
         ]
         accounts = []
         total_debit = 0.0
@@ -1886,17 +1888,25 @@ def get_accounts_summary():
             accounts.append(
                 {
                     "name": name,
-                    "debit_balance": g["debit"],
-                    "credit_balance": g["credit"],
+                    "debit_balance": round(g["debit"], 2),
+                    "credit_balance": round(g["credit"], 2),
                 }
             )
             total_debit += g["debit"]
             total_credit += g["credit"]
 
+        total_debit = round(total_debit, 2)
+        total_credit = round(total_credit, 2)
+        diff = round(total_debit - total_credit, 2)
+        balanced = abs(diff) < 0.02
+        if not balanced:
+            current_app.logger.warning("Trial balance unbalanced: debit=%s credit=%s diff=%s", total_debit, total_credit, diff)
+
         accounts_totals = {
             "total_debit": total_debit,
             "total_credit": total_credit,
-            "net_balance": total_debit - total_credit,
+            "net_balance": diff,
+            "balanced": balanced,
         }
 
         return jsonify({"accounts": accounts, "totals": accounts_totals})
