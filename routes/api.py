@@ -11,6 +11,7 @@ from sqlalchemy.orm import aliased
 from sqlalchemy.sql import exists
 from extensions import csrf, db, limiter
 import logging
+import uuid
 import utils
 from utils import permission_required
 from barcodes import validate_barcode
@@ -855,10 +856,15 @@ def search_categories():
         # Optional diagnostics to help production debugging (privileged users only).
         if want_debug and is_privileged:
             try:
+                db_url = db.engine.url.render_as_string(hide_password=True)
+            except Exception:
+                db_url = None
+            try:
                 total = ProductCategory.query.count()
             except Exception:
                 total = None
             payload["meta"] = {
+                "db": db_url,
                 "q": q,
                 "limit": limit,
                 "returned": len(results),
