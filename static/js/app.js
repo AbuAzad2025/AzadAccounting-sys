@@ -414,22 +414,24 @@
       $el.data("s2-initialized", 1);
 
       const url = $el.data("url") || $el.data("endpoint");
-      if (!url) return;
-
       const parent = $el.closest(".modal");
       const delay = +$el.data("delay") || 250;
       const limit = +$el.data("limit") || 20;
       const minLen = +$el.data("min-length") || 0;
 
-      $el.select2({
+      const opts = {
         dir: "rtl",
         width: "100%",
         language: "ar",
         placeholder: $el.attr("placeholder") || "اختر...",
         allowClear: String($el.data("allow-clear") || "").toLowerCase() === "true" || $el.data("allowClear") == 1,
         minimumInputLength: minLen,
-        dropdownParent: parent.length ? parent : $(document.body),
-        ajax: {
+        dropdownParent: parent.length ? parent : $(document.body)
+      };
+
+      const $options = $el.find("option");
+      if (url && $options.length === 0) {
+        opts.ajax = {
           url,
           dataType: "json",
           delay,
@@ -441,8 +443,17 @@
               text: x.text || x.name || String(x.id)
             }))
           })
-        }
-      });
+        };
+      } else if ($options.length > 0) {
+        opts.data = $options.map(function () {
+          const o = this;
+          const val = o.value;
+          const text = (o.textContent || o.innerText || "").trim() || val;
+          return { id: val, text: text };
+        }).get();
+      }
+
+      $el.select2(opts);
 
       const val = $el.val();
       const txt = $el.data("initial-text");
