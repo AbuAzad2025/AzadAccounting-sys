@@ -841,11 +841,35 @@ def permissions_csv():
 def search_categories():
     q = (request.args.get("q") or "").strip()
     limit = _limit_from_request(100, 200) if not q else _limit_from_request(20, 50)
-    query = ProductCategory.query
-    if q:
-        query = query.filter(func.lower(ProductCategory.name).like(f"%{q.lower()}%"))
-    results = query.order_by(ProductCategory.name).limit(limit).all()
-    return jsonify({"results": [{"id": c.id, "text": c.name} for c in results]})
+    want_debug = (request.args.get("debug") or "").strip() in ("1", "true", "yes")
+    is_privileged = bool(utils.is_super() or utils.is_admin())
+
+    try:
+        query = ProductCategory.query
+        if q:
+            query = query.filter(func.lower(ProductCategory.name).like(f"%{q.lower()}%"))
+        results = query.order_by(ProductCategory.name).limit(limit).all()
+
+        payload = {"results": [{"id": c.id, "text": c.name} for c in results]}
+
+        # Optional diagnostics to help production debugging (privileged users only).
+        if want_debug and is_privileged:
+            try:
+                total = ProductCategory.query.count()
+            except Exception:
+                total = None
+            payload["meta"] = {
+                "q": q,
+                "limit": limit,
+                "returned": len(results),
+                "total": total,
+            }
+
+        return jsonify(payload)
+    except Exception as e:
+        trace_id = str(uuid.uuid4())
+        logging.exception("search_categories failed [%s]: %s", trace_id, e)
+        return jsonify({"results": [], "error": "search_categories_failed", "trace_id": trace_id}), 500
 
 def _user_has_any(*codes):
     fn = getattr(current_user, "has_permission", None)

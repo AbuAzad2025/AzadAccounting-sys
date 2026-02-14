@@ -13,6 +13,7 @@ def _out(msg):
 from app import create_app
 from extensions import db
 from models import ProductCategory
+from sqlalchemy import text
 
 CATEGORIES = [
     "محركات", "قطع غيار", "GEARBOX", "HYD PUMP", "HYD PARTS", "كوبلنات", "فلاتر", "بخاخات",
@@ -28,6 +29,21 @@ def main():
         _out("ERROR create_app: " + str(e))
         return 1
     with app.app_context():
+        # Show DB target to avoid seeding the wrong database (common in production).
+        try:
+            url = db.engine.url.render_as_string(hide_password=True)
+        except Exception:
+            url = "<unknown>"
+        _out("DB: " + str(url))
+        if str(url).startswith("sqlite:///") and os.environ.get("ALLOW_SQLITE_SEED", "").strip() != "1":
+            _out("ERROR: Detected SQLite DB. Refusing to seed unless ALLOW_SQLITE_SEED=1 is set.")
+            _out("Tip: ensure DATABASE_URL/SQLALCHEMY_DATABASE_URI is set for production.")
+            return 2
+        try:
+            db.session.execute(text("SELECT 1"))
+        except Exception as e:
+            _out("ERROR DB connectivity: " + str(e))
+            return 1
         try:
             existing = {c.name.strip().lower(): c for c in ProductCategory.query.all()}
         except Exception as e:
@@ -50,7 +66,11 @@ def main():
             _out("ERROR commit: " + str(e))
             db.session.rollback()
             return 1
-        _out("OK added: " + str(added) + " total: " + str(len(existing)))
+        try:
+            total_now = ProductCategory.query.count()
+        except Exception:
+            total_now = len(existing)
+        _out("OK added: " + str(added) + " total: " + str(total_now))
     return 0
 
 if __name__ == "__main__":
