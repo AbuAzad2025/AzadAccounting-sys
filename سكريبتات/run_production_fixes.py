@@ -69,6 +69,7 @@ def main():
         mark_expenses_fully_paid,
         run_entity_balance_auto_fix,
         fix_sales_sequence,
+        purge_test_data,
     )
 
     print("1) تصحيح أنواع الحسابات")
@@ -99,10 +100,16 @@ def main():
 
         print("9) مزامنة تسلسلات Postgres وتصحيح seller_id")
         fix_sales_sequence.main()
+        
+        print("10) حذف بيانات الاختبار (Purge)")
+        os.environ["CONFIRM_DELETE"] = "1"
+        os.environ["CONFIRM_PHRASE"] = "DELETE_TEST_DATA"
+        purge_test_data.run()
     else:
         print("7) تخطي mark_expenses_fully_paid (يتطلب تنفيذ فعلي)")
         print("8) تخطي run_entity_balance_auto_fix (يتطلب تنفيذ فعلي)")
         print("9) تخطي fix_sales_sequence (يتطلب تنفيذ فعلي)")
+        print("10) تخطي purge_test_data (يتطلب تنفيذ فعلي)")
 
     print("=== انتهى التنفيذ ===")
 
