@@ -30,35 +30,29 @@ def fix_production_data(app=None, dry_run: bool = False):
             print(f"⚠️ Found {len(payments_no_splits)} payments without splits. Creating them now...")
             count = 0
             for payment in payments_no_splits:
+                if dry_run:
+                    count += 1
+                    continue
                 try:
-                    if dry_run:
-                        count += 1
-                        continue
                     split = PaymentSplit(
                         payment_id=payment.id,
                         amount=payment.total_amount,
                         currency=payment.currency,
                         method=payment.method,
-                        details={"auto_created": True, "reason": "migration_fix_v1"},
-                        converted_amount=payment.total_amount,
-                        converted_currency=payment.currency
+                        details={"auto_created": True, "reason": "migration_fix_v1"}
                     )
                     db.session.add(split)
+                    db.session.commit()
                     count += 1
                 except Exception as e:
+                    db.session.rollback()
                     print(f"❌ Error creating split for Payment {payment.id}: {e}")
             
-            try:
-                if dry_run:
-                    db.session.rollback()
-                    print(f"✅ Dry-Run: Would create {count} missing splits.")
-                else:
-                    db.session.commit()
-                    print(f"✅ Successfully created {count} missing splits.")
-            except Exception as e:
+            if dry_run:
                 db.session.rollback()
-                print(f"❌ Failed to commit new splits: {e}")
-                return
+                print(f"✅ Dry-Run: Would create {count} missing splits.")
+            else:
+                print(f"✅ Successfully created {count} missing splits.")
 
         # --- Phase 2: Ensure GL Batches for All Splits ---
         print("--- Phase 2: Ensuring GL Batches for all Splits ---")
@@ -75,24 +69,25 @@ def fix_production_data(app=None, dry_run: bool = False):
         fixed_gl_count = 0
         
         for split in splits:
-            # Check if GL Batch exists
             exists = db.session.query(GLBatch).filter(
                 GLBatch.source_type == 'PAYMENT_SPLIT',
                 GLBatch.source_id == split.id
             ).first()
-            
+
             if not exists:
                 print(f"⚠️ Split {split.id} (Payment {split.payment_id}) missing GL Batch. Triggering update...")
                 if dry_run:
                     fixed_gl_count += 1
                     continue
-                # Force update by modifying details
-                d = dict(split.details or {})
-                d['force_gl_update'] = True
-                split.details = d
-                
-                db.session.add(split)
-                fixed_gl_count += 1
+                try:
+                    with db.session.begin_nested():
+                        d = dict(split.details or {})
+                        d['force_gl_update'] = True
+                        split.details = d
+                        db.session.add(split)
+                    fixed_gl_count += 1
+                except Exception as e:
+                    print(f"❌ Error updating split {split.id}: {e}")
         
         if fixed_gl_count > 0:
             try:

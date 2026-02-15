@@ -4322,7 +4322,7 @@ def restore_upgrade_production(backup_path: str, force: bool, confirm_restore: b
         click.echo("✅ تم تطبيق التهجير الموجود في الكود.")
 
     if not skip_fix:
-        from fix_production_data import fix_production_data
+        from سكريبتات.fix_production_data import fix_production_data
         fix_production_data(app=current_app._get_current_object(), dry_run=dry_run_fix)
         click.echo("✅ تم تشغيل إصلاح البيانات.")
 

@@ -1,15 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-ضمان وجود حسابات دفتر الأستاذ المطلوبة للنظام الجديد (GL).
+Ensure required GL accounts exist for the new system (6200/2200, VAT, etc.).
+Same as سكريبتات/ensure_gl_accounts_standalone.py — run from project root:
 
-يُدرج الحسابات الناقصة في جدول accounts حسب الخريطة المرجعية في التطبيق،
-بحيث تتوافق قاعدة الإنتاج مع النظام الجديد (ضريبة الدخل 6200/2200، VAT، إلخ).
-
-الاستخدام من جذر المشروع:
   python سكريبتات/ensure_gl_accounts_standalone.py [--dry-run]
-
-يعتمد على متغيرات البيئة (DATABASE_URL أو PGHOST/PGDATABASE/...) أو instance/garage.db.
 """
 from __future__ import print_function
 
@@ -62,7 +57,6 @@ def _get_db_uri(prefer_sqlite=False):
     return None
 
 
-# خريطة الحسابات المطلوبة للنظام الجديد (مطابقة models._ensure_account_exists)
 ACCOUNT_NAME_MAP = {
     "1000_CASH": "الصندوق",
     "1010_BANK": "البنك",
@@ -76,8 +70,9 @@ ACCOUNT_NAME_MAP = {
     "2000_AP": "ذمم الموردين والخصوم",
     "2100_VAT_PAYABLE": "ضريبة القيمة المضافة",
     "2200_INCOME_TAX_PAYABLE": "ضريبة الدخل المستحقة",
+    "2200_PARTNER_CLEARING": "تسوية الشركاء",
     "2150_CHQ_PAY": "شيكات تحت الدفع",
-    "2150_PAYROLL_CLEARING": "قيد الرواتب",
+    "2150_PAYROLL_CLR": "قيد الرواتب",
     "2300_ADV_PAY": "إيرادات مقدمة",
     "3000_EQUITY": "حقوق الملكية",
     "3100_OWNER_CURRENT": "حساب المالك الجاري",
@@ -189,34 +184,6 @@ def run_ensure(dry_run=True):
         return {"would_insert": len(to_insert)}
 
     print("[2/4] Inserting {} account(s)...".format(len(to_insert)), flush=True)
-    if not uri.startswith("sqlite:///"):
-        # PostgreSQL: توسيع عمود code إن كان VARCHAR(20) لاستيعاب أكواد أطول (مثل 6200_INCOME_TAX_EXPENSE)
-        try:
-            import psycopg2
-            from urllib.parse import urlparse
-            parsed = urlparse(uri)
-            conn_expand = psycopg2.connect(
-                host=parsed.hostname or "localhost",
-                port=parsed.port or 5432,
-                dbname=(parsed.path or "").lstrip("/"),
-                user=parsed.username,
-                password=parsed.password,
-                connect_timeout=5,
-            )
-            cur_expand = conn_expand.cursor()
-            cur_expand.execute(
-                "SELECT character_maximum_length FROM information_schema.columns WHERE table_name = 'accounts' AND column_name = 'code'"
-            )
-            row = cur_expand.fetchone()
-            if row and row[0] is not None and row[0] < 50:
-                cur_expand.execute("ALTER TABLE accounts ALTER COLUMN code TYPE VARCHAR(50)")
-                conn_expand.commit()
-                print("  (expanded accounts.code to VARCHAR(50))", flush=True)
-            cur_expand.close()
-            conn_expand.close()
-        except Exception as e:
-            print("  WARN: could not expand accounts.code:", e, flush=True)
-
     if uri.startswith("sqlite:///"):
         import sqlite3
         db_path = uri.replace("sqlite:///", "").lstrip("/")

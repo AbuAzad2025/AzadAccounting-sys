@@ -1,7 +1,13 @@
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from typing import Any
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+os.chdir(ROOT)
 
 from app import create_app
 from extensions import db, perform_backup_db

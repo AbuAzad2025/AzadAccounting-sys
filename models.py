@@ -8049,28 +8049,28 @@ def _payment_split_create_check_auto(mapper, connection, target: "PaymentSplit")
                 if sale_customer_row:
                     customer_id = sale_customer_row[0]
         
-        # إنشاء سجل الشيك
-        connection.execute(
-            Check.__table__.insert().values(
-                check_number=check_number,
-                check_bank=check_bank,
-                check_date=payment_date,
-                check_due_date=check_due_date,
-                amount=float(getattr(target, 'amount', 0) or 0),
-                currency=(payment_row['currency'] or 'ILS').upper(),
-                direction=str(payment_row['direction'] or 'IN').upper(),
-                status='PENDING',
-                payment_id=target.payment_id,  # ✅ ربط بالدفعة الأصلية
-                customer_id=customer_id,  # ✅ من Payment أو Sale
-                supplier_id=supplier_id,
-                partner_id=partner_id,
-                reference_number=f"PMT-SPLIT-{target.id}",
-                notes=f"شيك من دفعة جزئية #{target.id} - دفعة رقم {payment_row['payment_number']}",
-                created_by_id=created_by_id,
-                created_at=datetime.now(timezone.utc),
-                updated_at=datetime.now(timezone.utc)
+        with connection.begin_nested():
+            connection.execute(
+                Check.__table__.insert().values(
+                    check_number=check_number,
+                    check_bank=check_bank,
+                    check_date=payment_date,
+                    check_due_date=check_due_date,
+                    amount=float(getattr(target, 'amount', 0) or 0),
+                    currency=(payment_row['currency'] or 'ILS').upper(),
+                    direction=str(payment_row['direction'] or 'IN').upper(),
+                    status='PENDING',
+                    payment_id=target.payment_id,
+                    customer_id=customer_id,
+                    supplier_id=supplier_id,
+                    partner_id=partner_id,
+                    reference_number=f"PMT-SPLIT-{target.id}",
+                    notes=f"شيك من دفعة جزئية #{target.id} - دفعة رقم {payment_row['payment_number']}",
+                    created_by_id=created_by_id,
+                    created_at=datetime.now(timezone.utc),
+                    updated_at=datetime.now(timezone.utc)
+                )
             )
-        )
         
         from flask import current_app
         current_app.logger.info(f"✅ تم إنشاء سجل شيك رقم {check_number} من دفعة جزئية #{target.id}")
@@ -8086,192 +8086,171 @@ def _payment_split_create_check_auto(mapper, connection, target: "PaymentSplit")
 def _payment_split_gl_batch_upsert(mapper, connection, target: "PaymentSplit"):
     """✅ إنشاء/تحديث GLBatch لكل split منفصلاً - كل split يُعامل كدفعة مستقلة"""
     try:
-        # جلب معلومات الدفعة الأصلية
-        payment_row = connection.execute(
-            sa_text("""
-                SELECT id, payment_number, payment_date, currency, direction, status,
-                       customer_id, supplier_id, partner_id, entity_type, expense_id, created_by,
-                       sale_id, invoice_id, service_id, preorder_id, shipment_id
-                FROM payments 
-                WHERE id = :pid
-            """),
-            {"pid": target.payment_id}
-        ).mappings().first()
-        
-        if not payment_row:
-            return
-        
-        # ✅ FIX: تنظيف GLBatch الخاص بالدفعة الأم إذا وُجد
-        # إذا تم إنشاء الدفعة أولاً (مما أنشأ GLBatch) ثم أضيفت الـ Splits،
-        # يجب حذف قيد الدفعة الأم لتجنب التكرار (Double Counting)، لأن الـ Splits ستنشئ قيودها الخاصة.
-        connection.execute(
-            sa_text("DELETE FROM gl_batches WHERE source_type = 'PAYMENT' AND source_id = :pid"),
-            {"pid": target.payment_id}
-        )
-        
-        payment_status = payment_row['status']
-        
-        # إذا الدفعة ملغاة أو مرفوضة، نتخطى إنشاء GL entries
-        if payment_status in [PaymentStatus.FAILED.value, PaymentStatus.CANCELLED.value]:
-            return
-        
-        # للشيكات المعلقة والمكتملة فقط
-        if payment_status not in [PaymentStatus.COMPLETED.value, PaymentStatus.PENDING.value]:
-            return
-        
-        # تحويل المبلغ للشيقل
-        amount = float(target.converted_amount or target.amount or 0)
-        if amount <= 0:
-            return
-        
-        # استخدام العملة المحولة إذا كانت موجودة
-        split_currency = target.converted_currency or target.currency or payment_row['currency'] or 'ILS'
-        amount_ils = amount
-        
-        # إذا لم تكن العملة ILS، تحويلها (إذا لم تكن محولة مسبقاً)
-        if split_currency != 'ILS' and not target.converted_amount:
+        with connection.begin_nested():
+            payment_row = connection.execute(
+                sa_text("""
+                    SELECT id, payment_number, payment_date, currency, direction, status,
+                           customer_id, supplier_id, partner_id, entity_type, expense_id, created_by,
+                           sale_id, invoice_id, service_id, preorder_id, shipment_id
+                    FROM payments 
+                    WHERE id = :pid
+                """),
+                {"pid": target.payment_id}
+            ).mappings().first()
+            
+            if not payment_row:
+                return
+            
+            connection.execute(
+                sa_text("DELETE FROM gl_batches WHERE source_type = 'PAYMENT' AND source_id = :pid"),
+                {"pid": target.payment_id}
+            )
+            
+            payment_status = payment_row['status']
+            
+            if payment_status in [PaymentStatus.FAILED.value, PaymentStatus.CANCELLED.value]:
+                return
+            
+            if payment_status not in [PaymentStatus.COMPLETED.value, PaymentStatus.PENDING.value]:
+                return
+            
+            amount = float(target.converted_amount or target.amount or 0)
+            if amount <= 0:
+                return
+            
+            split_currency = target.converted_currency or target.currency or payment_row['currency'] or 'ILS'
+            amount_ils = amount
+            
+            if split_currency != 'ILS' and not target.converted_amount:
+                try:
+                    rate = _fx_rate_local_via_connection(connection, split_currency, 'ILS', payment_row['payment_date'] or datetime.now(timezone.utc))
+                    if rate and rate > 0:
+                        amount_ils = float(amount * float(rate))
+                except Exception:
+                    pass
+            
+            method_val = getattr(target, 'method', None)
+            if hasattr(method_val, 'value'):
+                method_val = method_val.value
+            split_method = str(method_val or 'CASH').upper()
+            
+            is_pending_check = (payment_status == PaymentStatus.PENDING.value and 
+                               ('CHECK' in split_method or 'CHEQUE' in split_method))
+            
+            if is_pending_check:
+                if payment_row['direction'] == PaymentDirection.IN.value:
+                    cash_account = "1150_CHQ_REC"
+                else:
+                    cash_account = "2150_CHQ_PAY"
+            elif split_method == PaymentMethod.BANK.value:
+                cash_account = GL_ACCOUNTS.get("BANK", "1010_BANK")
+            elif split_method == PaymentMethod.CARD.value:
+                cash_account = GL_ACCOUNTS.get("CARD", "1020_CARD_CLEARING")
+            else:
+                cash_account = GL_ACCOUNTS.get("CASH", "1000_CASH")
+            
+            payment_entity_type = payment_row['entity_type'] or 'OTHER'
+            customer_id = payment_row['customer_id']
+            supplier_id = payment_row['supplier_id']
+            partner_id = payment_row['partner_id']
+            sale_id = payment_row.get('sale_id')
+            invoice_id = payment_row.get('invoice_id')
+            service_id = payment_row.get('service_id')
+            preorder_id = payment_row.get('preorder_id')
+            
+            batch_entity_type = None
+            batch_entity_id = None
+            derived_customer_id = customer_id
             try:
-                rate = _fx_rate_local_via_connection(connection, split_currency, 'ILS', payment_row['payment_date'] or datetime.now(timezone.utc))
-                if rate and rate > 0:
-                    amount_ils = float(amount * float(rate))
+                if not derived_customer_id and sale_id:
+                    derived_customer_id = connection.execute(sa_text("SELECT customer_id FROM sales WHERE id=:id"), {"id": int(sale_id)}).scalar()
+                if not derived_customer_id and invoice_id:
+                    derived_customer_id = connection.execute(sa_text("SELECT customer_id FROM invoices WHERE id=:id"), {"id": int(invoice_id)}).scalar()
+                if not derived_customer_id and service_id:
+                    derived_customer_id = connection.execute(sa_text("SELECT customer_id FROM service_requests WHERE id=:id"), {"id": int(service_id)}).scalar()
+                if not derived_customer_id and preorder_id:
+                    derived_customer_id = connection.execute(sa_text("SELECT customer_id FROM preorders WHERE id=:id"), {"id": int(preorder_id)}).scalar()
             except Exception:
                 pass
-        
-        # تحديد طريقة الدفع للـ split
-        method_val = getattr(target, 'method', None)
-        if hasattr(method_val, 'value'):
-            method_val = method_val.value
-        split_method = str(method_val or 'CASH').upper()
-        
-        # ✅ فحص إذا كانت شيك معلق
-        is_pending_check = (payment_status == PaymentStatus.PENDING.value and 
-                           ('CHECK' in split_method or 'CHEQUE' in split_method))
-        
-        # تحديد الحساب النقدي حسب طريقة الدفع والحالة
-        if is_pending_check:
-            # للشيكات المعلقة: استخدام "شيكات تحت التحصيل" (وارد) أو "شيكات مستحقة" (صادر)
+            
+            if derived_customer_id:
+                batch_entity_type = "CUSTOMER"
+                batch_entity_id = int(derived_customer_id)
+            elif supplier_id:
+                batch_entity_type = "SUPPLIER"
+                batch_entity_id = int(supplier_id)
+            elif partner_id:
+                batch_entity_type = "PARTNER"
+                batch_entity_id = int(partner_id)
+            
+            entity_account = GL_ACCOUNTS.get("AR", "1100_AR")
+            entity_name = "عميل"
+            
+            if payment_entity_type == PaymentEntityType.SUPPLIER.value or supplier_id:
+                entity_account = GL_ACCOUNTS.get("AP", "2000_AP")
+                entity_name = "مورد"
+            elif payment_entity_type == PaymentEntityType.PARTNER.value or partner_id:
+                entity_account = GL_ACCOUNTS.get("AP", "2000_AP")
+                entity_name = "شريك"
+            elif payment_entity_type == PaymentEntityType.EXPENSE.value or payment_row['expense_id']:
+                entity_account = GL_ACCOUNTS.get("AP", "2000_AP")
+                entity_name = "مصروف"
+            
+            expense_id = payment_row['expense_id']
+            if expense_id:
+                try:
+                    expense_type_id = connection.execute(
+                        sa_text("SELECT type_id FROM expenses WHERE id = :eid"),
+                        {"eid": expense_id}
+                    ).scalar()
+                    
+                    if expense_type_id:
+                        expense_ledger_ctx = _expense_type_ledger_settings(connection, expense_type_id)
+                        if expense_ledger_ctx:
+                            if expense_ledger_ctx.get("counterparty_account"):
+                                entity_account = expense_ledger_ctx["counterparty_account"]
+                            elif expense_ledger_ctx.get("behavior") == "IMMEDIATE" and expense_ledger_ctx.get("cash_account"):
+                                entity_account = expense_ledger_ctx["cash_account"]
+                            if not is_pending_check and expense_ledger_ctx.get("cash_account"):
+                                cash_account = expense_ledger_ctx["cash_account"]
+                except Exception:
+                    pass
+            
             if payment_row['direction'] == PaymentDirection.IN.value:
-                cash_account = "1150_CHQ_REC"  # شيكات تحت التحصيل (أصل)
+                entries = [
+                    (cash_account, amount_ils, 0),
+                    (entity_account, 0, amount_ils),
+                ]
+                if is_pending_check:
+                    method_display = "شيك" if 'CHECK' in split_method or 'CHEQUE' in split_method else "نقد"
+                    memo = f"شيك معلق من {entity_name} - Split #{target.id} - {payment_row['payment_number'] or payment_row['id']}"
+                else:
+                    method_display = "نقد" if 'CASH' in split_method else ("شيك" if 'CHECK' in split_method else "بنك")
+                    memo = f"قبض {method_display} من {entity_name} - Split #{target.id} - {payment_row['payment_number'] or payment_row['id']}"
             else:
-                cash_account = "2150_CHQ_PAY"  # شيكات مستحقة الدفع (خصم)
-        elif split_method == PaymentMethod.BANK.value:
-            cash_account = GL_ACCOUNTS.get("BANK", "1010_BANK")
-        elif split_method == PaymentMethod.CARD.value:
-            cash_account = GL_ACCOUNTS.get("CARD", "1020_CARD_CLEARING")
-        else:
-            cash_account = GL_ACCOUNTS.get("CASH", "1000_CASH")
-        
-        # تحديد الحساب الآخر حسب نوع الكيان
-        payment_entity_type = payment_row['entity_type'] or 'OTHER'
-        customer_id = payment_row['customer_id']
-        supplier_id = payment_row['supplier_id']
-        partner_id = payment_row['partner_id']
-        sale_id = payment_row.get('sale_id')
-        invoice_id = payment_row.get('invoice_id')
-        service_id = payment_row.get('service_id')
-        preorder_id = payment_row.get('preorder_id')
-        
-        batch_entity_type = None
-        batch_entity_id = None
-        derived_customer_id = customer_id
-        try:
-            if not derived_customer_id and sale_id:
-                derived_customer_id = connection.execute(sa_text("SELECT customer_id FROM sales WHERE id=:id"), {"id": int(sale_id)}).scalar()
-            if not derived_customer_id and invoice_id:
-                derived_customer_id = connection.execute(sa_text("SELECT customer_id FROM invoices WHERE id=:id"), {"id": int(invoice_id)}).scalar()
-            if not derived_customer_id and service_id:
-                derived_customer_id = connection.execute(sa_text("SELECT customer_id FROM service_requests WHERE id=:id"), {"id": int(service_id)}).scalar()
-            if not derived_customer_id and preorder_id:
-                derived_customer_id = connection.execute(sa_text("SELECT customer_id FROM preorders WHERE id=:id"), {"id": int(preorder_id)}).scalar()
-        except Exception:
-            pass
-        
-        if derived_customer_id:
-            batch_entity_type = "CUSTOMER"
-            batch_entity_id = int(derived_customer_id)
-        elif supplier_id:
-            batch_entity_type = "SUPPLIER"
-            batch_entity_id = int(supplier_id)
-        elif partner_id:
-            batch_entity_type = "PARTNER"
-            batch_entity_id = int(partner_id)
-        
-        entity_account = GL_ACCOUNTS.get("AR", "1100_AR")  # افتراضي للعملاء
-        entity_name = "عميل"
-        
-        if payment_entity_type == PaymentEntityType.SUPPLIER.value or supplier_id:
-            entity_account = GL_ACCOUNTS.get("AP", "2000_AP")
-            entity_name = "مورد"
-        elif payment_entity_type == PaymentEntityType.PARTNER.value or partner_id:
-            entity_account = GL_ACCOUNTS.get("AP", "2000_AP")  # الشركاء يُعاملون كـ AP
-            entity_name = "شريك"
-        elif payment_entity_type == PaymentEntityType.EXPENSE.value or payment_row['expense_id']:
-            entity_account = GL_ACCOUNTS.get("AP", "2000_AP")
-            entity_name = "مصروف"
-        
-        # معالجة Expense ledger إذا كان موجوداً
-        expense_id = payment_row['expense_id']
-        if expense_id:
-            try:
-                # جلب expense type_id من connection
-                expense_type_id = connection.execute(
-                    sa_text("SELECT type_id FROM expenses WHERE id = :eid"),
-                    {"eid": expense_id}
-                ).scalar()
-                
-                if expense_type_id:
-                    expense_ledger_ctx = _expense_type_ledger_settings(connection, expense_type_id)
-                    if expense_ledger_ctx:
-                        if expense_ledger_ctx.get("counterparty_account"):
-                            entity_account = expense_ledger_ctx["counterparty_account"]
-                        elif expense_ledger_ctx.get("behavior") == "IMMEDIATE" and expense_ledger_ctx.get("cash_account"):
-                            entity_account = expense_ledger_ctx["cash_account"]
-                        if not is_pending_check and expense_ledger_ctx.get("cash_account"):
-                            cash_account = expense_ledger_ctx["cash_account"]
-            except Exception:
-                pass
-        
-        # القيد المحاسبي حسب الاتجاه:
-        # IN (وارد): مدين النقدية/الشيكات، دائن العميل/المورد
-        # OUT (صادر): مدين العميل/المورد، دائن النقدية/الشيكات
-        if payment_row['direction'] == PaymentDirection.IN.value:
-            entries = [
-                (cash_account, amount_ils, 0),  # مدين: النقدية أو شيكات تحت التحصيل
-                (entity_account, 0, amount_ils),  # دائن: العميل/المورد
-            ]
-            if is_pending_check:
-                method_display = "شيك" if 'CHECK' in split_method or 'CHEQUE' in split_method else "نقد"
-                memo = f"شيك معلق من {entity_name} - Split #{target.id} - {payment_row['payment_number'] or payment_row['id']}"
-            else:
-                method_display = "نقد" if 'CASH' in split_method else ("شيك" if 'CHECK' in split_method else "بنك")
-                memo = f"قبض {method_display} من {entity_name} - Split #{target.id} - {payment_row['payment_number'] or payment_row['id']}"
-        else:  # OUT
-            entries = [
-                (entity_account, amount_ils, 0),  # مدين: العميل/المورد
-                (cash_account, 0, amount_ils),  # دائن: النقدية أو شيكات مستحقة
-            ]
-            if is_pending_check:
-                method_display = "شيك" if 'CHECK' in split_method or 'CHEQUE' in split_method else "نقد"
-                memo = f"شيك صادر لـ {entity_name} - Split #{target.id} - {payment_row['payment_number'] or payment_row['id']}"
-            else:
-                method_display = "نقد" if 'CASH' in split_method else ("شيك" if 'CHECK' in split_method else "بنك")
-                memo = f"سداد {method_display} لـ {entity_name} - Split #{target.id} - {payment_row['payment_number'] or payment_row['id']}"
-        
-        # ✅ إنشاء GL entries لكل split منفصلاً
-        # source_type = "PAYMENT_SPLIT" بدلاً من "PAYMENT"
-        # source_id = split.id بدلاً من payment.id
-        _gl_upsert_batch_and_entries(
-            connection,
-            source_type="PAYMENT_SPLIT",
-            source_id=target.id,
-            purpose="PAYMENT",
-            currency="ILS",
-            memo=memo,
-            entries=entries,
-            ref=f"SPLIT-{target.id}-PMT-{payment_row['payment_number'] or payment_row['id']}",
-            entity_type=batch_entity_type,
-            entity_id=batch_entity_id
-        )
+                entries = [
+                    (entity_account, amount_ils, 0),
+                    (cash_account, 0, amount_ils),
+                ]
+                if is_pending_check:
+                    method_display = "شيك" if 'CHECK' in split_method or 'CHEQUE' in split_method else "نقد"
+                    memo = f"شيك صادر لـ {entity_name} - Split #{target.id} - {payment_row['payment_number'] or payment_row['id']}"
+                else:
+                    method_display = "نقد" if 'CASH' in split_method else ("شيك" if 'CHECK' in split_method else "بنك")
+                    memo = f"سداد {method_display} لـ {entity_name} - Split #{target.id} - {payment_row['payment_number'] or payment_row['id']}"
+            
+            _gl_upsert_batch_and_entries(
+                connection,
+                source_type="PAYMENT_SPLIT",
+                source_id=target.id,
+                purpose="PAYMENT",
+                currency="ILS",
+                memo=memo,
+                entries=entries,
+                ref=f"SPLIT-{target.id}-PMT-{payment_row['payment_number'] or payment_row['id']}",
+                entity_type=batch_entity_type,
+                entity_id=batch_entity_id
+            )
         
         from flask import current_app
         current_app.logger.info(f"✅ تم إنشاء GLBatch للـ Split #{target.id} - الدفعة {payment_row['payment_number'] or payment_row['id']}")
@@ -11942,8 +11921,9 @@ def _ensure_account_exists(connection, account_code: str) -> bool:
             "2000_AP": "ذمم الموردين والخصوم",
             "2100_VAT_PAYABLE": "ضريبة القيمة المضافة",
             "2200_INCOME_TAX_PAYABLE": "ضريبة الدخل المستحقة",
+            "2200_PARTNER_CLEARING": "تسوية الشركاء",
             "2150_CHQ_PAY": "شيكات تحت الدفع",
-            "2150_PAYROLL_CLEARING": "قيد الرواتب",
+            "2150_PAYROLL_CLR": "قيد الرواتب",
             "2300_ADV_PAY": "إيرادات مقدمة",
             "3000_EQUITY": "حقوق الملكية",
             "3100_OWNER_CURRENT": "حساب المالك الجاري",

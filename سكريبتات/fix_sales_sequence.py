@@ -15,52 +15,45 @@ def _q_ident(name: str) -> str:
 
 
 def sync_all_sequences():
-    from sqlalchemy import inspect as sa_inspect
-    insp = sa_inspect(db.engine)
-    tables = insp.get_table_names(schema="public")
     synced = []
-    skipped = []
-    for tbl in tables:
-        try:
-            seq_name = db.session.execute(
-                text("SELECT pg_get_serial_sequence(:tname, 'id')"),
-                {"tname": f'public.{tbl}'}
-            ).scalar()
-            if not seq_name:
-                skipped.append(tbl)
-                continue
-            qt = f'public.{_q_ident(tbl)}'
-            max_id = db.session.execute(text(f"SELECT COALESCE(MAX(id), 0) FROM {qt}")).scalar() or 0
-            is_called = bool(max_id > 0)
-            val = max_id if is_called else 1
-            db.session.execute(
-                text("SELECT setval(:seq::regclass, :val, :called)"),
-                {"seq": seq_name, "val": int(val), "called": is_called}
-            )
-            synced.append((tbl, seq_name, int(max_id)))
-        except Exception:
-            db.session.rollback()
-            skipped.append(tbl)
+    rows = db.session.execute(text("""
+        SELECT c.relname AS table_name, s.relname AS seq_name
+        FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        JOIN pg_attribute a ON a.attrelid = c.oid AND a.attname = 'id' AND a.attnum > 0
+        JOIN pg_depend d ON d.refobjid = c.oid AND d.refobjsubid = a.attnum
+        JOIN pg_class s ON s.oid = d.objid
+        WHERE n.nspname = 'public' AND c.relkind = 'r' AND s.relkind = 'S'
+    """)).mappings().all()
+    for row in rows:
+        tbl = row["table_name"]
+        seq = row["seq_name"]
+        qt = f'public.{_q_ident(tbl)}'
+        qseq = f'public.{_q_ident(seq)}'
+        max_id = db.session.execute(text(f"SELECT COALESCE(MAX(id), 0) FROM {qt}")).scalar() or 0
+        is_called = bool(max_id > 0)
+        val = max_id if is_called else 1
+        db.session.execute(
+            text("SELECT setval(to_regclass(:seq), :val, :called)"),
+            {"seq": qseq, "val": int(val), "called": is_called}
+        )
+        synced.append((tbl, qseq, int(max_id)))
     try:
         db.session.commit()
     except Exception:
         db.session.rollback()
         raise
-    return synced, skipped
+    return synced
 
 
 def main():
     app = create_app()
     with app.app_context():
         try:
-            synced, skipped = sync_all_sequences()
+            synced = sync_all_sequences()
             print("✅ تمت مزامنة التسلسلات")
             for tbl, seq, m in synced:
                 print(f" - {tbl}: seq={seq} max_id={m}")
-            if skipped:
-                print("⚠️ جداول متروكة بدون تسلسل id:")
-                for tbl in skipped:
-                    print(f" - {tbl}")
 
             try:
                 from models import AuditLog

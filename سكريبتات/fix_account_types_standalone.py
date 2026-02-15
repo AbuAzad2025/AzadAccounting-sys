@@ -1,11 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-نسخة مستقلة لتصحيح أنواع الحسابات — بدون اعتماد على SQLAlchemy أو تحميل التطبيق.
-تدعم SQLite (مدمج) و PostgreSQL (يحتاج psycopg2-binary).
-الاستخدام: من جذر المشروع
-  python scripts/fix_account_types_standalone.py [--dry-run]
-  أو: python سكريبتات/fix_account_types_standalone.py [--dry-run]
+نسخة مستقلة لتصحيح أنواع الحسابات — تعتمد على config واتصال قاعدة البيانات فقط.
+الاستخدام من جذر المشروع: python سكريبتات/fix_account_types_standalone.py [--dry-run]
 """
 from __future__ import print_function
 
@@ -18,6 +15,7 @@ if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 os.chdir(ROOT)
 
+# Load .env without importing full config (avoids slow/hanging imports)
 def _load_dotenv_simple():
     try:
         from dotenv import load_dotenv
@@ -104,6 +102,7 @@ def run_fix_standalone(dry_run=True):
         finally:
             conn.close()
     else:
+        # PostgreSQL via psycopg2
         try:
             import psycopg2
             from urllib.parse import urlparse
@@ -139,6 +138,7 @@ def run_fix_standalone(dry_run=True):
     if dry_run:
         print("DRY-RUN - accounts to fix:")
         for _rid, code, name, current, expected in to_update:
+            # Avoid printing Arabic name on Windows console (cp1252)
             name_safe = (name or "")[:30].encode("ascii", "replace").decode() if name else ""
             print("  {} | {} -> {}  [{}]".format(code, current, expected, name_safe))
         print("Count: {}".format(len(to_update)))
