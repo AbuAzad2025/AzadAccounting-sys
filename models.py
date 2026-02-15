@@ -11970,8 +11970,10 @@ def _ensure_account_exists(connection, account_code: str) -> bool:
             {"code": account_code, "name": account_name, "type": account_type}
         )
         return True
-    except Exception:
-        return False
+    except Exception as e:
+        from flask import current_app
+        current_app.logger.error(f"❌ فشل إنشاء حساب محاسبي: {account_code} - {e}")
+        raise
 
 
 @event.listens_for(Expense, "after_insert")
@@ -12862,8 +12864,9 @@ def _gl_upsert_batch_and_entries(
     
     if found_set != required_set:
         missing = required_set - found_set
-        for missing_code in missing:
-            _ensure_account_exists(connection, missing_code)
+        with connection.begin_nested():
+            for missing_code in missing:
+                _ensure_account_exists(connection, missing_code)
         
         found_codes = connection.execute(
             select(Account.code).where(
