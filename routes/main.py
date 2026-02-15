@@ -816,25 +816,27 @@ def restore_db():
 @login_required
 def automated_backup_status():
     if not utils.is_super():
-        # إرجاع بيانات فارغة بدون خطأ للمستخدمين العاديين
         return jsonify({"enabled": False, "next_run": None, "schedule": "غير متاح"})
-    
-    from extensions import scheduler
-    jobs = scheduler.get_jobs()
-    backup_job = next((job for job in jobs if job.id == 'automated_daily_backup'), None)
-    
-    if backup_job:
-        return jsonify({
-            "enabled": True,
-            "next_run": backup_job.next_run_time.isoformat() if backup_job.next_run_time else None,
-            "schedule": "يومياً الساعة 3:00 صباحاً"
-        })
-    else:
+
+    try:
+        from extensions import scheduler
+        if not scheduler:
+            return jsonify({"enabled": False, "next_run": None, "schedule": "غير مفعّل"})
+        jobs = scheduler.get_jobs()
+        backup_job = next((job for job in jobs if job.id == 'automated_daily_backup'), None)
+        if backup_job:
+            return jsonify({
+                "enabled": True,
+                "next_run": backup_job.next_run_time.isoformat() if backup_job.next_run_time else None,
+                "schedule": "يومياً الساعة 3:00 صباحاً"
+            })
         return jsonify({
             "enabled": False,
             "next_run": None,
             "schedule": "غير مفعّل"
         })
+    except Exception:
+        return jsonify({"enabled": False, "next_run": None, "schedule": "غير متاح"})
 
 @main_bp.route("/toggle-automated-backup", methods=["POST"], endpoint="toggle_automated_backup")
 @login_required
