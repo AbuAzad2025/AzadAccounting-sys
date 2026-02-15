@@ -33,7 +33,7 @@
     </a>
   </div>
   <div>
-    <span class="badge bg-success">v5.0</span>
+    <span class="badge bg-success">{{ stats.system_version if stats and stats.system_version else '1.0.0' }}</span>
     {% if stats %}
     <span class="badge bg-info">{{ stats.total_modules }} وحدة</span>
     <span class="badge bg-warning text-dark">{{ stats.total_apis }} API</span>
@@ -45,4 +45,3 @@
     {% endif %}
   </div>
 </div>
-

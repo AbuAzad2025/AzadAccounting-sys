@@ -1,4 +1,3 @@
-/* static/css/users.css */
 .user-role {
   display: inline-flex;
   align-items: center;
@@ -34,7 +33,6 @@
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 .table .btn-sm:hover {
-  /* transform: translateY(-2px); */
   box-shadow: 0 4px 8px rgba(0,0,0,0.25);
 }
 

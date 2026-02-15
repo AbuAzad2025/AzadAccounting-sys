@@ -81,18 +81,13 @@
   
   <div class="navbar-brand ml-auto d-flex align-items-center" style="margin-left: 10px !important;">
     <a href="{{ url_for('main.dashboard') }}" class="company-logo-link">
-      {% if system_settings and system_settings.custom_logo %}
-        <img src="{{ url_for('static', filename=system_settings.custom_logo.replace('static/', '')) }}" alt="Logo" loading="lazy" decoding="async" style="height:32px;width:auto;max-width:140px;object-fit:contain;">
-      {% else %}
-        <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Logo" loading="lazy" decoding="async" style="height:32px;width:auto;max-width:140px;object-fit:contain;">
-      {% endif %}
+      <img src="{{ url_for('static', filename='img/azad_logo.png') }}" alt="ازاد" loading="lazy" decoding="async" style="height:32px;width:auto;max-width:140px;object-fit:contain;">
       <span class="company-logo-text">{{ system_settings.company_name or system_settings.system_name or 'النظام' }}</span>
     </a>
   </div>
   
 
   {% if current_user.is_authenticated %}
-  <!-- معلومات المستخدم والدور -->
   <ul class="navbar-nav mr-auto">
     <li class="nav-item">
       <span class="navbar-text text-white d-flex align-items-center">
@@ -105,7 +100,6 @@
   <ul class="navbar-nav ml-auto">
     <li class="nav-item dropdown">
       <a class="nav-link d-flex align-items-center" data-toggle="dropdown" href="#" aria-expanded="false">
-        <!-- صورة المستخدم أو أيقونة -->
         <div class="user-avatar mr-2">
           {% if current_user.avatar_url %}
             <img src="{{ current_user.avatar_url }}" class="rounded-circle" width="32" height="32" alt="صورة المستخدم" loading="lazy" decoding="async">
@@ -118,8 +112,7 @@
         <span class="font-weight-bold">{{ current_user.username }}</span>
         <i class="fas fa-chevron-down ml-2"></i>
       </a>
-      <div class="dropdown-menu dropdown-menu-right" style="min-width: 280px; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); background-color: #ffffff;">
-        <!-- معلومات المستخدم في الأعلى -->
+      <div class="dropdown-menu dropdown-menu-right gm-navbar-dropdown">
         <div class="dropdown-header bg-light text-center py-3">
           <div class="user-info">
             {% if current_user.avatar_url %}
@@ -135,55 +128,35 @@
         </div>
         
         <div class="dropdown-divider"></div>
-        
-        <!-- روابط الملف الشخصي -->
-        <a href="{{ url_for('users_bp.profile') }}" class="dropdown-item py-2" style="color: #000000; font-weight: 700; font-size: 15px;">
-          <i class="fas fa-user-cog mr-3" style="color: #0056b3; font-size: 16px;"></i> <strong>الملف الشخصي</strong>
+        <a href="{{ url_for('users_bp.profile') }}" class="dropdown-item py-2 gm-navbar-dropdown-item">
+          <i class="fas fa-user-cog mr-3 text-primary"></i> <strong>الملف الشخصي</strong>
         </a>
         
-        <a href="{{ url_for('users_bp.edit_profile') }}" class="dropdown-item py-2" style="color: #000000; font-weight: 700; font-size: 15px;">
-          <i class="fas fa-edit mr-3" style="color: #28a745; font-size: 16px;"></i> <strong>تعديل الملف الشخصي</strong>
+        <a href="{{ url_for('users_bp.edit_profile') }}" class="dropdown-item py-2 gm-navbar-dropdown-item">
+          <i class="fas fa-edit mr-3 text-success"></i> <strong>تعديل الملف الشخصي</strong>
         </a>
-
-        <a href="{{ url_for('users_bp.change_password') }}" class="dropdown-item py-2" style="color: #000000; font-weight: 700; font-size: 15px;">
-          <i class="fas fa-key mr-3" style="color: #ffc107; font-size: 16px;"></i> <strong>تغيير كلمة المرور</strong>
+        <a href="{{ url_for('users_bp.change_password') }}" class="dropdown-item py-2 gm-navbar-dropdown-item">
+          <i class="fas fa-key mr-3 text-warning"></i> <strong>تغيير كلمة المرور</strong>
         </a>
-
         {% if has_perm('manage_users') %}
         <div class="dropdown-divider"></div>
-        <h6 class="dropdown-header" style="color: #0056b3; font-weight: 800; font-size: 15px; background-color: #e7f3ff; padding: 8px; border-radius: 5px;">
-          <i class="fas fa-users mr-2"></i> <strong>إدارة المستخدمين</strong>
-        </h6>
-        <a href="{{ url_for('users_bp.create_user') }}" class="dropdown-item py-2" style="color: #000000; font-weight: 700; font-size: 15px;">
-          <i class="fas fa-user-plus mr-3" style="color: #17a2b8; font-size: 16px;"></i> <strong>إضافة مستخدم</strong>
-        </a>
-        <a href="{{ url_for('users_bp.list_users') if url_for('users_bp.list_users') else '#' }}" class="dropdown-item py-2" style="color: #000000; font-weight: 700; font-size: 15px;">
-          <i class="fas fa-list mr-3" style="color: #17a2b8; font-size: 16px;"></i> <strong>قائمة المستخدمين</strong>
-        </a>
+        <h6 class="dropdown-header gm-navbar-dropdown-section"><i class="fas fa-users mr-2"></i> <strong>إدارة المستخدمين</strong></h6>
+        <a href="{{ url_for('users_bp.create_user') }}" class="dropdown-item py-2 gm-navbar-dropdown-item"><i class="fas fa-user-plus mr-3 text-info"></i> <strong>إضافة مستخدم</strong></a>
+        <a href="{{ url_for('users_bp.list_users') if url_for('users_bp.list_users') else '#' }}" class="dropdown-item py-2 gm-navbar-dropdown-item"><i class="fas fa-list mr-3 text-info"></i> <strong>قائمة المستخدمين</strong></a>
         {% endif %}
-
         {% if has_perm('backup_database') or has_perm('restore_database') %}
         <div class="dropdown-divider"></div>
-        <h6 class="dropdown-header" style="color: #e67e22; font-weight: 800; font-size: 15px; background-color: #fff3cd; padding: 8px; border-radius: 5px;">
-          <i class="fas fa-database mr-2"></i> <strong>النسخ الاحتياطي</strong>
-        </h6>
+        <h6 class="dropdown-header gm-navbar-dropdown-section gm-navbar-dropdown-section-warn"><i class="fas fa-database mr-2"></i> <strong>النسخ الاحتياطي</strong></h6>
         {% if has_perm('backup_database') %}
-        <a href="{{ url_for('main.backup_db') }}" class="dropdown-item py-2" style="color: #000000; font-weight: 700; font-size: 15px;">
-          <i class="fas fa-download mr-3" style="color: #28a745; font-size: 16px;"></i> <strong>نسخ احتياطي</strong>
-        </a>
+        <a href="{{ url_for('main.backup_db') }}" class="dropdown-item py-2 gm-navbar-dropdown-item"><i class="fas fa-download mr-3 text-success"></i> <strong>نسخ احتياطي</strong></a>
         {% endif %}
         {% if has_perm('restore_database') %}
-        <a href="{{ url_for('main.restore_db') }}" class="dropdown-item py-2" style="color: #000000; font-weight: 700; font-size: 15px;">
-          <i class="fas fa-upload mr-3" style="color: #ffc107; font-size: 16px;"></i> <strong>استعادة نسخة</strong>
-        </a>
+        <a href="{{ url_for('main.restore_db') }}" class="dropdown-item py-2 gm-navbar-dropdown-item"><i class="fas fa-upload mr-3 text-warning"></i> <strong>استعادة نسخة</strong></a>
         {% endif %}
         {% endif %}
-
         <div class="dropdown-divider"></div>
-        
-        <!-- تسجيل الخروج -->
         <div class="px-3 py-2">
-          <button type="button" class="btn btn-danger btn-block" style="font-weight: 700; font-size: 15px; padding: 10px; border-radius: 8px;" data-toggle="modal" data-target="#logoutModalNavbar">
+          <button type="button" class="btn btn-danger btn-block gm-navbar-logout-btn" data-toggle="modal" data-target="#logoutModalNavbar">
             <i class="fas fa-sign-out-alt mr-2"></i> <strong>تسجيل خروج</strong>
           </button>
         </div>
@@ -193,7 +166,6 @@
   {% endif %}
 </nav>
 
-<!-- Logout Modal -->
 <div class="modal fade" id="logoutModalNavbar" tabindex="-1" role="dialog" aria-labelledby="logoutModalLabel" aria-hidden="true">
   <div class="modal-dialog" role="document">
     <div class="modal-content">
@@ -374,25 +346,4 @@ document.addEventListener('DOMContentLoaded', function() {
 updateDateTime();
 updateExchangeRates();
 
-// تحسينات إضافية للنافبار
-document.addEventListener('DOMContentLoaded', function() {
-    // إضافة تأثير hover للعناصر باستخدام vanilla JavaScript
-    const navbarTextElements = document.querySelectorAll('.navbar-text');
-    navbarTextElements.forEach(element => {
-        element.addEventListener('mouseenter', function() {
-            this.classList.add('text-warning');
-        });
-        element.addEventListener('mouseleave', function() {
-            this.classList.remove('text-warning');
-        });
-        
-        // إضافة تأثير النقر
-        element.addEventListener('click', function() {
-            this.classList.add('text-info');
-            setTimeout(() => {
-                this.classList.remove('text-info');
-            }, 1000);
-        });
-    });
-});
 </script>

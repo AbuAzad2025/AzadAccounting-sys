@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}تسوية مورد {{ ss.supplier.name }} ({{ ss.code }}){% endblock %}
+{% block title %}تسوية مورد {{ ss.supplier.name|default('—') }} ({{ ss.code }}){% endblock %}
 
 {% block head_extra %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/statement-print.css') }}">
@@ -116,7 +116,7 @@
                 <div class="settlement-header">
                     <div class="row align-items-center">
                         <div class="col-md-8">
-                            <h3 class="mb-2"><i class="fas fa-truck"></i> {{ ss.supplier.name }}</h3>
+                            <h3 class="mb-2"><i class="fas fa-truck"></i> {{ ss.supplier.name|default('—') }}</h3>
                             <p class="mb-0">
                                 <i class="fas fa-barcode"></i> رقم التسوية: <strong>{{ ss.code }}</strong>
                             </p>
@@ -758,7 +758,7 @@
                                     <tbody>
                                         {% for item in balance_data.expenses.get('items', []) %}
                                         <tr>
-                                            <td>{{ item.reference }}</td>
+                                            <td>{{ item.reference or '—' }}</td>
                                             <td><small>{{ item.date[:10] if item.date else '-' }}</small></td>
                                             <td>
                                                 <small>{{ item.description or item.expense_type }}</small>
@@ -974,7 +974,7 @@
                                         <div class="col-md-6">
                                             <p><strong>📊 الحالة:</strong> <span class="badge bg-info">{{ settlement.status }}</span></p>
                                             {% if settlement.notes %}
-                                            <p><strong>📝 ملاحظات:</strong> {{ settlement.notes }}</p>
+                                            <p><strong>📝 ملاحظات:</strong> {{ settlement.notes or '—' }}</p>
                                             {% endif %}
                                         </div>
                                     </div>
@@ -1063,7 +1063,7 @@
       return;
     }
     const doc = printWindow.document;
-    doc.write('<html><head><title>{{ supplier.name }} - {{ ss.code }}</title>');
+    doc.write('<html><head><title>{{ supplier.name|default('—') }} - {{ ss.code }}</title>');
     document.querySelectorAll('link[rel="stylesheet"]').forEach(link => {
       if (link.href) {
         doc.write('<link rel="stylesheet" href="' + link.href + '">');
@@ -1146,7 +1146,7 @@
     printWindow.document.write('</style></head><body>');
     printWindow.document.write('<div class="print-header">');
     printWindow.document.write('<h2>' + title + '</h2>');
-    printWindow.document.write('<p>{{ supplier.name }} | {{ ss.from_date.strftime("%Y-%m-%d") }} - {{ ss.to_date.strftime("%Y-%m-%d") }}</p>');
+    printWindow.document.write('<p>{{ supplier.name|default('—') }} | {{ ss.from_date.strftime("%Y-%m-%d") }} - {{ ss.to_date.strftime("%Y-%m-%d") }}</p>');
     printWindow.document.write('</div>');
     printWindow.document.write(table.outerHTML);
     printWindow.document.write('<div class="print-footer">');

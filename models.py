@@ -3551,6 +3551,50 @@ def _find_partner_share_percentage(partner_id: int, product_id: int | None, ware
     return pct
 
 
+def _partner_ids_for_product_warehouse(product_id: int | None, warehouse_id: int | None):
+    partner_ids = set()
+    if product_id:
+        for (pid,) in db.session.query(ProductPartner.partner_id).filter(ProductPartner.product_id == product_id).all():
+            partner_ids.add(pid)
+        for (pid,) in db.session.query(WarehousePartnerShare.partner_id).filter(
+            WarehousePartnerShare.product_id == product_id,
+            WarehousePartnerShare.warehouse_id == warehouse_id,
+        ).all():
+            partner_ids.add(pid)
+    if warehouse_id:
+        for (pid,) in db.session.query(WarehousePartnerShare.partner_id).filter(
+            WarehousePartnerShare.warehouse_id == warehouse_id,
+            WarehousePartnerShare.product_id.is_(None),
+        ).all():
+            partner_ids.add(pid)
+    return list(partner_ids)
+
+
+def _compute_service_partner_shares(service_id: int):
+    total_amount = Decimal("0")
+    partner_shares = {}
+    service = db.session.get(ServiceRequest, service_id)
+    if not service:
+        return total_amount, partner_shares
+    total_amount = _D(service.total_amount or 0)
+    for sp in getattr(service, "parts", []) or []:
+        base = _D(sp.quantity or 0) * _D(sp.unit_price or 0) - _D(sp.discount or 0)
+        if base <= 0:
+            continue
+        if sp.partner_id and float(sp.share_percentage or 0) > 0:
+            share_amt = base * Decimal(str(float(sp.share_percentage or 0) / 100.0))
+            partner_shares[sp.partner_id] = partner_shares.get(sp.partner_id, Decimal("0")) + share_amt
+        else:
+            for pid in _partner_ids_for_product_warehouse(sp.part_id, sp.warehouse_id):
+                pct = _find_partner_share_percentage(pid, sp.part_id, sp.warehouse_id)
+                if pct > 0:
+                    share_amt = base * Decimal(str(pct / 100.0))
+                    partner_shares[pid] = partner_shares.get(pid, Decimal("0")) + share_amt
+    for k in list(partner_shares.keys()):
+        partner_shares[k] = _Q2(partner_shares[k])
+    return total_amount, partner_shares
+
+
 def build_partner_settlement_draft(partner_id: int, date_from: datetime, date_to: datetime, *, currency: str = "ILS") -> PartnerSettlement:
     ps = PartnerSettlement(partner_id=partner_id, from_date=date_from, to_date=date_to, currency=(currency or "ILS").upper(), status=PartnerSettlementStatus.DRAFT.value)
     total_gross = Decimal("0.00")
@@ -5489,6 +5533,8 @@ def _sale_gl_upsert_core(connection, target: "Sale") -> None:
         return
     entries = []
     total_revenue_company = Decimal(0)
+    total_revenue_company_base = Decimal(0)
+    total_revenue_company_tax = Decimal(0)
     total_revenue_partners = {}
     total_cogs_suppliers = {}
     for line in sale_lines:
@@ -5497,13 +5543,17 @@ def _sale_gl_upsert_core(connection, target: "Sale") -> None:
         discount = gross * (Decimal(str(disc_rate or 0)) / Decimal(100))
         taxable = gross - discount
         tax = taxable * (Decimal(str(tax_rate or 0)) / Decimal(100))
-        line_total = (taxable + tax) * exchange_rate
+        line_base_ils = taxable * exchange_rate
+        line_tax_ils = tax * exchange_rate
+        line_total = line_base_ils + line_tax_ils
         wh_result = connection.execute(
             sa_text("SELECT warehouse_type, partner_id, supplier_id, share_percent FROM warehouses WHERE id = :wid"),
             {"wid": warehouse_id},
         ).fetchone()
         if not wh_result:
             total_revenue_company += line_total
+            total_revenue_company_base += line_base_ils
+            total_revenue_company_tax += line_tax_ils
             continue
         wh_type, wh_partner_id, wh_supplier_id, wh_share_pct = wh_result
         if wh_type == 'PARTNER':
@@ -5520,11 +5570,15 @@ def _sale_gl_upsert_core(connection, target: "Sale") -> None:
                 company_share_pct = Decimal(100) - total_partner_share
                 if company_share_pct > 0:
                     total_revenue_company += line_total * (company_share_pct / Decimal(100))
+                    total_revenue_company_base += line_base_ils * (company_share_pct / Decimal(100))
+                    total_revenue_company_tax += line_tax_ils * (company_share_pct / Decimal(100))
                 for partner_id, share_pct in partners_result:
                     partner_amount = line_total * (Decimal(str(share_pct or 0)) / Decimal(100))
                     total_revenue_partners[partner_id] = total_revenue_partners.get(partner_id, Decimal(0)) + partner_amount
             else:
                 total_revenue_company += line_total
+                total_revenue_company_base += line_base_ils
+                total_revenue_company_tax += line_tax_ils
         elif wh_type == 'EXCHANGE':
             exchange_result = connection.execute(
                 sa_text("""
@@ -5538,17 +5592,25 @@ def _sale_gl_upsert_core(connection, target: "Sale") -> None:
                 supplier_id, unit_cost = exchange_result
                 cogs_amount = Decimal(str(qty or 0)) * Decimal(str(unit_cost or 0))
                 total_revenue_company += line_total
+                total_revenue_company_base += line_base_ils
+                total_revenue_company_tax += line_tax_ils
                 total_cogs_suppliers[supplier_id] = total_cogs_suppliers.get(supplier_id, Decimal(0)) + cogs_amount
             else:
                 total_revenue_company += line_total
+                total_revenue_company_base += line_base_ils
+                total_revenue_company_tax += line_tax_ils
         else:
             total_revenue_company += line_total
+            total_revenue_company_base += line_base_ils
+            total_revenue_company_tax += line_tax_ils
     def _q2(v: Decimal) -> Decimal:
         return (v or Decimal(0)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     global_discount = _q2(Decimal(str(target.discount_total or 0)) * exchange_rate)
     shipping_income = _q2(Decimal(str(target.shipping_cost or 0)) * exchange_rate)
     partners_sum = _q2(sum(total_revenue_partners.values()))
-    total_revenue_company = _q2(total_revenue_company)
+    total_revenue_company_base = _q2(total_revenue_company_base)
+    total_revenue_company_tax = _q2(total_revenue_company_tax)
+    total_revenue_company = _q2(total_revenue_company_base + total_revenue_company_tax)
     gross_revenue_total = _q2(total_revenue_company + partners_sum)
     total_credits = _q2(gross_revenue_total + shipping_income)
     ar_amount = _q2(total_credits - global_discount)
@@ -5562,12 +5624,11 @@ def _sale_gl_upsert_core(connection, target: "Sale") -> None:
     diff = _q2((ar_amount + global_discount) - total_credits)
     if abs(diff) <= Decimal("0.01"):
         total_revenue_company = _q2(total_revenue_company + diff)
-    if total_revenue_company > 0:
-        entries.append((GL_ACCOUNTS.get("REV", "4000_SALES"), Decimal(0), total_revenue_company))
-    for partner_id, amount in total_revenue_partners.items():
-        amt = _q2(Decimal(amount))
-        if amt > 0:
-            entries.append((GL_ACCOUNTS.get("AP", "2000_AP"), Decimal(0), amt))
+        total_revenue_company_base = _q2(total_revenue_company - total_revenue_company_tax)
+    if total_revenue_company_base > 0:
+        entries.append((GL_ACCOUNTS.get("REV", "4000_SALES"), Decimal(0), total_revenue_company_base))
+    if total_revenue_company_tax > 0:
+        entries.append((GL_ACCOUNTS.get("VAT", "2100_VAT_PAYABLE"), Decimal(0), total_revenue_company_tax))
     for supplier_id, cogs in total_cogs_suppliers.items():
         cogs_amt = _q2(Decimal(cogs))
         if cogs_amt > 0:
@@ -5587,6 +5648,29 @@ def _sale_gl_upsert_core(connection, target: "Sale") -> None:
         entity_type="CUSTOMER",
         entity_id=target.customer_id,
     )
+
+    batch_ids_ps = connection.execute(
+        sa_text("SELECT id FROM gl_batches WHERE source_type = 'SALE_PARTNER_SHARE' AND source_id = :sid"),
+        {"sid": target.id},
+    ).fetchall()
+    for (bid,) in batch_ids_ps:
+        connection.execute(sa_text("DELETE FROM gl_entries WHERE batch_id = :bid"), {"bid": int(bid)})
+        connection.execute(sa_text("DELETE FROM gl_batches WHERE id = :bid"), {"bid": int(bid)})
+    for partner_id, amount in total_revenue_partners.items():
+        amt = _q2(Decimal(amount))
+        if amt > 0:
+            _gl_upsert_batch_and_entries(
+                connection,
+                source_type="SALE_PARTNER_SHARE",
+                source_id=target.id,
+                purpose=f"PARTNER_{partner_id}",
+                currency="ILS",
+                memo=f"حصة شريك من بيع #{target.sale_number or target.id}",
+                entries=[(GL_ACCOUNTS.get("AP", "2000_AP"), Decimal(0), amt)],
+                ref=f"SALE-{target.id}-P{partner_id}",
+                entity_type="PARTNER",
+                entity_id=partner_id,
+            )
 
 
 def run_sale_gl_sync_after_commit(sale_id: int) -> None:
@@ -5664,6 +5748,13 @@ def run_sale_gl_reversal_after_delete(snapshot: dict) -> None:
         ref = f"REV-SALE-{sale_id}"
         with db.engine.connect() as conn:
             with conn.begin():
+                batch_ids_ps = conn.execute(
+                    sa_text("SELECT id FROM gl_batches WHERE source_type = 'SALE_PARTNER_SHARE' AND source_id = :sid"),
+                    {"sid": sale_id},
+                ).fetchall()
+                for (bid,) in batch_ids_ps:
+                    conn.execute(sa_text("DELETE FROM gl_entries WHERE batch_id = :bid"), {"bid": int(bid)})
+                    conn.execute(sa_text("DELETE FROM gl_batches WHERE id = :bid"), {"bid": int(bid)})
                 _gl_upsert_batch_and_entries(
                     conn,
                     source_type="SALE_REVERSAL",
@@ -9560,22 +9651,50 @@ def _service_create_tax_entry(mapper, connection, target: ServiceRequest):
     """إنشاء/تحديث سجل ضريبي للصيانة تلقائياً"""
     if target.status not in ['COMPLETED', 'CLOSED']:
         return
-    
-    tax_amount = float(target.tax_amount or 0)
-    if tax_amount <= 0:
-        return
-    
+
     try:
-        from sqlalchemy import select as sa_select, delete as sa_delete
-        
+        from sqlalchemy import delete as sa_delete
+
         service_date = target.received_at or datetime.now(timezone.utc)
-        total_amount = float(target.total_cost or 0)
-        base_amount = total_amount - tax_amount
-        
-        if base_amount > 0:
-            tax_rate = (tax_amount / base_amount) * 100.0
-        else:
+        base_amount = float(getattr(target, "total_amount", 0) or 0)
+        if base_amount <= 0:
             return
+
+        tax_rate = float(getattr(target, "tax_rate", 0) or 0)
+        if tax_rate <= 0:
+            try:
+                vat_enabled = connection.execute(
+                    sa_text("SELECT value FROM system_settings WHERE key = 'vat_enabled' LIMIT 1")
+                ).scalar()
+                vat_enabled = str(vat_enabled or "").strip().lower() in ("1", "true", "yes", "on")
+            except Exception:
+                vat_enabled = False
+
+            if vat_enabled:
+                try:
+                    default_rate = connection.execute(
+                        sa_text("SELECT value FROM system_settings WHERE key = 'default_vat_rate' LIMIT 1")
+                    ).scalar()
+                    tax_rate = float(str(default_rate or "0").strip() or 0)
+                except Exception:
+                    tax_rate = 0
+
+                if tax_rate > 0:
+                    try:
+                        connection.execute(
+                            sa_text("UPDATE service_requests SET tax_rate = :r WHERE id = :sid"),
+                            {"r": tax_rate, "sid": int(target.id)},
+                        )
+                    except Exception:
+                        pass
+
+        if tax_rate <= 0:
+            return
+
+        tax_amount = round(base_amount * (tax_rate / 100.0), 2)
+        if tax_amount <= 0:
+            return
+        total_amount = round(base_amount + tax_amount, 2)
         
         connection.execute(
             sa_delete(TaxEntry).where(
@@ -9590,7 +9709,7 @@ def _service_create_tax_entry(mapper, connection, target: ServiceRequest):
                 transaction_type='SERVICE',
                 transaction_id=target.id,
                 transaction_reference=target.service_number,
-                tax_rate=tax_rate,
+                tax_rate=float(tax_rate),
                 base_amount=base_amount,
                 tax_amount=tax_amount,
                 total_amount=total_amount,
@@ -9715,6 +9834,13 @@ def run_service_gl_reversal_after_delete(snapshot: dict) -> None:
         entries = [(revenue_account, 0, amount), (ar_account, amount, 0)]
         with db.engine.connect() as conn:
             with conn.begin():
+                batch_ids_ps = conn.execute(
+                    sa_text("SELECT id FROM gl_batches WHERE source_type = 'SERVICE_PARTNER_SHARE' AND source_id = :sid"),
+                    {"sid": service_id},
+                ).fetchall()
+                for (bid,) in batch_ids_ps:
+                    conn.execute(sa_text("DELETE FROM gl_entries WHERE batch_id = :bid"), {"bid": int(bid)})
+                    conn.execute(sa_text("DELETE FROM gl_batches WHERE id = :bid"), {"bid": int(bid)})
                 _gl_upsert_batch_and_entries(
                     conn,
                     source_type="SERVICE_REVERSAL",
@@ -9786,6 +9912,71 @@ def _service_gl_batch_upsert_sql(connection, service_id: int) -> None:
             except Exception:
                 pass
 
+        total_local = float(total_amount or 0)
+        partner_totals = {}
+        parts_rows = connection.execute(
+            sa_text(
+                "SELECT part_id, warehouse_id, quantity, unit_price, discount, partner_id, share_percentage FROM service_parts WHERE service_id = :sid"
+            ),
+            {"sid": sid},
+        ).fetchall()
+        for prow in parts_rows:
+            qty = float(prow.quantity or 0)
+            up = float(prow.unit_price or 0)
+            disc = float(prow.discount or 0)
+            line_total = qty * up - disc
+            if line_total <= 0:
+                continue
+            pid_cur = prow.partner_id
+            pct_cur = float(prow.share_percentage or 0)
+            if pid_cur and pct_cur > 0:
+                partner_totals[pid_cur] = partner_totals.get(pid_cur, 0.0) + line_total * (pct_cur / 100.0)
+            else:
+                part_id = prow.part_id
+                wh_id = prow.warehouse_id
+                pp_rows = connection.execute(
+                    sa_text("SELECT partner_id, share_percent FROM product_partners WHERE product_id = :pid"),
+                    {"pid": part_id},
+                ).fetchall()
+                for (partner_id, pct) in pp_rows:
+                    pct = float(pct or 0)
+                    if pct > 0:
+                        partner_totals[partner_id] = partner_totals.get(partner_id, 0.0) + line_total * (pct / 100.0)
+                wps_rows = connection.execute(
+                    sa_text(
+                        "SELECT partner_id, share_percentage FROM warehouse_partner_shares WHERE product_id = :pid AND warehouse_id = :wid"
+                    ),
+                    {"pid": part_id, "wid": wh_id},
+                ).fetchall()
+                for (pid2, pct2) in wps_rows:
+                    if pid2 in partner_totals:
+                        continue
+                    pct2 = float(pct2 or 0)
+                    if pct2 > 0:
+                        partner_totals[pid2] = partner_totals.get(pid2, 0.0) + line_total * (pct2 / 100.0)
+                if wh_id:
+                    wps2 = connection.execute(
+                        sa_text(
+                            "SELECT partner_id, share_percentage FROM warehouse_partner_shares WHERE warehouse_id = :wid AND product_id IS NULL"
+                        ),
+                        {"wid": wh_id},
+                    ).fetchall()
+                    for (pid3, pct3) in wps2:
+                        if pid3 in partner_totals:
+                            continue
+                        pct3 = float(pct3 or 0)
+                        if pct3 > 0:
+                            partner_totals[pid3] = partner_totals.get(pid3, 0.0) + line_total * (pct3 / 100.0)
+
+        total_partner_local = sum(partner_totals.values())
+        company_share_local = max(0.0, total_local - total_partner_local)
+        if total_local > 0:
+            company_share_ils = amount_ils * (company_share_local / total_local)
+            partner_shares_ils = {int(pid): round(amount_ils * (amt / total_local), 2) for pid, amt in partner_totals.items() if amt > 0}
+        else:
+            company_share_ils = amount_ils
+            partner_shares_ils = {}
+
         existing_batch = connection.execute(
             sa_text(
                 """
@@ -9802,9 +9993,17 @@ def _service_gl_batch_upsert_sql(connection, service_id: int) -> None:
             connection.execute(sa_text("DELETE FROM gl_entries WHERE batch_id = :bid"), {"bid": existing_batch})
             connection.execute(sa_text("DELETE FROM gl_batches WHERE id = :bid"), {"bid": existing_batch})
 
+        batch_ids_ps = connection.execute(
+            sa_text("SELECT id FROM gl_batches WHERE source_type = 'SERVICE_PARTNER_SHARE' AND source_id = :sid"),
+            {"sid": sid},
+        ).fetchall()
+        for (bid,) in batch_ids_ps:
+            connection.execute(sa_text("DELETE FROM gl_entries WHERE batch_id = :bid"), {"bid": int(bid)})
+            connection.execute(sa_text("DELETE FROM gl_batches WHERE id = :bid"), {"bid": int(bid)})
+
         entries = [
             (GL_ACCOUNTS.get("AR", "1100_AR"), amount_ils, 0),
-            (GL_ACCOUNTS.get("SERVICE_REV", "4100_SERVICE_REVENUE"), 0, amount_ils),
+            (GL_ACCOUNTS.get("SERVICE_REV", "4100_SERVICE_REVENUE"), 0, company_share_ils),
         ]
         memo = f"صيانة - {service_number or sid}"
         _gl_upsert_batch_and_entries(
@@ -9819,6 +10018,21 @@ def _service_gl_batch_upsert_sql(connection, service_id: int) -> None:
             entity_type="CUSTOMER",
             entity_id=customer_id,
         )
+        ap_code = (GL_ACCOUNTS.get("AP", "2000_AP") or "2000_AP").upper()
+        for partner_id, amt in partner_shares_ils.items():
+            if amt > 0:
+                _gl_upsert_batch_and_entries(
+                    connection,
+                    source_type="SERVICE_PARTNER_SHARE",
+                    source_id=sid,
+                    purpose=f"PARTNER_{partner_id}",
+                    currency=cur,
+                    memo=f"حصة شريك من صيانة #{service_number or sid}",
+                    entries=[(ap_code, 0, amt)],
+                    ref=f"SRV-{sid}-P{partner_id}",
+                    entity_type="PARTNER",
+                    entity_id=partner_id,
+                )
     except Exception:
         return
 
@@ -9934,7 +10148,11 @@ class ServicePart(db.Model, TimestampMixin):
 
     @hybrid_property
     def tax_amount(self):
-        return Decimal('0.00')
+        rate = _D(self.tax_rate or 0) / _D(100)
+        taxable = _D(self.taxable_amount)
+        if taxable < _D(0):
+            taxable = _D(0)
+        return _Q2(taxable * rate)
 
     @hybrid_property
     def line_total(self):
@@ -9956,13 +10174,13 @@ class ServicePart(db.Model, TimestampMixin):
             "quantity": int(self.quantity or 0),
             "unit_price": float(self.unit_price or 0),
             "discount": float(self.discount or 0),
-            "tax_rate": 0.0,
+            "tax_rate": float(self.tax_rate or 0),
             "note": self.note,
             "notes": self.notes,
             "gross_amount": float(self.gross_amount),
             "discount_amount": float(self.discount_amount),
             "taxable_amount": float(self.taxable_amount),
-            "tax_amount": 0.0,
+            "tax_amount": float(self.tax_amount),
             "line_total": float(self.line_total),
             "net_total": float(self.net_total),
         }
@@ -10035,7 +10253,11 @@ class ServiceTask(db.Model, TimestampMixin):
 
     @hybrid_property
     def tax_amount(self):
-        return Decimal('0.00')
+        rate = _D(self.tax_rate or 0) / _D(100)
+        taxable = _D(self.taxable_amount)
+        if taxable < _D(0):
+            taxable = _D(0)
+        return _Q2(taxable * rate)
 
     @hybrid_property
     def line_total(self):
@@ -10056,12 +10278,12 @@ class ServiceTask(db.Model, TimestampMixin):
             "quantity": int(self.quantity or 0),
             "unit_price": float(self.unit_price or 0),
             "discount": float(self.discount or 0),
-            "tax_rate": 0.0,
+            "tax_rate": float(self.tax_rate or 0),
             "note": self.note,
             "gross_amount": float(self.gross_amount),
             "discount_amount": float(self.discount_amount),
             "taxable_amount": float(self.taxable_amount),
-            "tax_amount": 0.0,
+            "tax_amount": float(self.tax_amount),
             "line_total": float(self.line_total),
             "net_total": float(self.net_total),
         }
@@ -11708,23 +11930,57 @@ def _ensure_account_exists(connection, account_code: str) -> bool:
             return True
         
         account_name_map = {
-            "5000_EXPENSES": "Expenses",
-            "5100_SUPPLIER_EXPENSES": "Supplier Expenses",
-            "5100_SUPPLIER_EXPENS": "Supplier Expenses",
-            "2000_AP": "Accounts Payable",
-            "2150_PAYROLL_CLEARING": "Payroll Clearing",
-            "6100_SALARIES": "Salaries",
-            "1000_CASH": "Cash",
-            "1010_BANK": "Bank",
-            "1020_CARD_CLEARING": "Card Clearing",
-            "6960_HOME_EXPENSE": "Home Expenses",
-            "3100_OWNER_CURRENT": "Owner Current Account",
-            "6500_FUEL": "Fuel",
-            "6600_OFFICE": "Office Supplies",
+            "1000_CASH": "الصندوق",
+            "1010_BANK": "البنك",
+            "1020_CARD_CLEARING": "البطاقات",
+            "1100_AR": "ذمم العملاء",
+            "1150_CHQ_REC": "شيكات تحت التحصيل",
+            "1205_INV_EXCHANGE": "مخزون توريد تبادل",
+            "1300_INVENTORY": "المخزون",
+            "1300_INV_RSV": "احتياطي مخزون",
+            "1599_ACC_DEP": "مخصص إهلاك متراكم",
+            "2000_AP": "ذمم الموردين والخصوم",
+            "2100_VAT_PAYABLE": "ضريبة القيمة المضافة",
+            "2200_INCOME_TAX_PAYABLE": "ضريبة الدخل المستحقة",
+            "2150_CHQ_PAY": "شيكات تحت الدفع",
+            "2150_PAYROLL_CLEARING": "قيد الرواتب",
+            "2300_ADV_PAY": "إيرادات مقدمة",
+            "3000_EQUITY": "حقوق الملكية",
+            "3100_OWNER_CURRENT": "حساب المالك الجاري",
+            "3200_CURRENT_EARNINGS": "أرباح محتجزة جارية",
+            "4000_SALES": "المبيعات",
+            "4050_SALES_DISCOUNT": "خصم المبيعات",
+            "4100_SERVICE_REVENUE": "إيراد الخدمات",
+            "4200_SHIPPING_INCOME": "إيراد الشحن",
+            "5000_EXPENSES": "مصروفات",
+            "5100_COGS": "تكلفة البضاعة المباعة",
+            "5100_PURCHASES": "المشتريات",
+            "5100_SUPPLIER_EXPENSES": "مصروفات موردين",
+            "5100_SUPPLIER_EXPENS": "مصروفات موردين",
+            "5105_COGS_EXCHANGE": "تكلفة توريد تبادل",
+            "6100_SALARIES": "الرواتب",
+            "6500_FUEL": "وقود",
+            "6600_OFFICE": "مستلزمات مكتب",
+            "6200_INCOME_TAX_EXPENSE": "ضريبة الدخل (مصروف)",
+            "6800_DEPRECIATION": "إهلاك",
+            "6960_HOME_EXPENSE": "مصروفات منزلية",
         }
-        
+        type_by_prefix = (
+            ("1", "ASSET"),
+            ("2", "LIABILITY"),
+            ("3", "EQUITY"),
+            ("4", "REVENUE"),
+            ("5", "EXPENSE"),
+            ("6", "EXPENSE"),
+        )
         account_name = account_name_map.get(account_code, account_code.replace("_", " ").title())
-        account_type = "EXPENSE" if account_code.startswith("5") or account_code.startswith("6") else "LIABILITY" if account_code.startswith("2") else "ASSET"
+        account_type = None
+        for prefix, at in type_by_prefix:
+            if account_code.startswith(prefix):
+                account_type = at
+                break
+        if not account_type:
+            account_type = "ASSET"
         
         connection.execute(
             sa_text("""
@@ -11781,8 +12037,6 @@ def run_expense_gl_sync_after_commit(expense_id: int) -> bool:
     if not expense_id:
         return False
     try:
-        import sys
-        print(f" [GL] مزامنة دفتر الأستاذ للمصروف expense_id={expense_id}", file=sys.stderr, flush=True)
         from extensions import db
         row = None
         with db.engine.connect() as conn_read:
@@ -11833,6 +12087,14 @@ def run_expense_gl_sync_after_commit(expense_id: int) -> bool:
             memo = f"Expense #{expense_id}"
             ref = f"EXP-{expense_id}"
             with conn.begin():
+                # استبدال قيد المصروف الحالي (عند التعديل) ليبقى دفتر الأستاذ يعكس البيانات الحالية
+                conn.execute(
+                    sa_text("""
+                        DELETE FROM gl_batches
+                        WHERE source_type = 'EXPENSE' AND source_id = :eid AND purpose = 'ACCRUAL'
+                    """),
+                    {"eid": expense_id}
+                )
                 batch_id = _gl_upsert_batch_and_entries(
                     conn,
                     source_type="EXPENSE",
@@ -11924,7 +12186,17 @@ def build_expense_reversal_snapshot(expense: "Expense") -> dict:
             "payee_name": (getattr(expense, "payee_name", None) or getattr(expense, "paid_to", None) or ""),
         }
     except Exception:
-        return {"expense_id": getattr(expense, "id", None), "amount": 0}
+        # عند الفشل نُرجع الحد الأدنى لإنشاء قيد عكس بحسابات افتراضية حتى لا يبقى قيد بدون عكس
+        return {
+            "expense_id": getattr(expense, "id", None),
+            "amount": float(getattr(expense, "amount", 0) or 0),
+            "currency": (getattr(expense, "currency", None) or "ILS"),
+            "expense_account": "5000_EXPENSES",
+            "counterparty_account": "2000_AP",
+            "entity_type": None,
+            "entity_id": None,
+            "payee_name": "",
+        }
 
 
 @event.listens_for(PreOrder, "before_insert")
@@ -12422,7 +12694,7 @@ class Account(db.Model, TimestampMixin):
     __tablename__ = "accounts"
 
     id = db.Column(db.Integer, primary_key=True)
-    code = db.Column(db.String(20), unique=True, nullable=False, index=True)
+    code = db.Column(db.String(50), unique=True, nullable=False, index=True)
     name = db.Column(db.String(100), nullable=False)
     type = db.Column(sa_str_enum(["ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"], name="account_type"), nullable=False)
     is_active = db.Column(db.Boolean, default=True, nullable=False)
@@ -12504,7 +12776,7 @@ class GLEntry(db.Model, TimestampMixin):
 
     id = db.Column(db.Integer, primary_key=True)
     batch_id = db.Column(db.Integer, db.ForeignKey("gl_batches.id", ondelete="CASCADE"), nullable=False, index=True)
-    account = db.Column(db.String(20), db.ForeignKey("accounts.code", ondelete="RESTRICT"), nullable=False, index=True)
+    account = db.Column(db.String(50), db.ForeignKey("accounts.code", ondelete="RESTRICT"), nullable=False, index=True)
     debit = db.Column(db.Numeric(12, 2), default=0, nullable=False)
     credit = db.Column(db.Numeric(12, 2), default=0, nullable=False)
     currency = db.Column(db.String(10), default="ILS", nullable=False)
@@ -12557,6 +12829,8 @@ GL_ACCOUNTS = {
     "SALES": "4000_SALES",
     "SERVICE_REV": "4100_SERVICE_REVENUE",
     "VAT": "2100_VAT_PAYABLE",
+    "INCOME_TAX_PAYABLE": "2200_INCOME_TAX_PAYABLE",
+    "INCOME_TAX_EXP": "6200_INCOME_TAX_EXPENSE",
     "CASH": "1000_CASH",
     "BANK": "1010_BANK",
     "CARD": "1020_CARD_CLEARING",
@@ -13645,7 +13919,7 @@ class Budget(db.Model, TimestampMixin, AuditMixin):
 
     id = db.Column(db.Integer, primary_key=True)
     fiscal_year = db.Column(db.Integer, nullable=False, index=True)
-    account_code = db.Column(db.String(20), db.ForeignKey("accounts.code", ondelete="RESTRICT"), nullable=False, index=True)
+    account_code = db.Column(db.String(50), db.ForeignKey("accounts.code", ondelete="RESTRICT"), nullable=False, index=True)
     branch_id = db.Column(db.Integer, db.ForeignKey("branches.id", ondelete="CASCADE"), index=True)
     site_id = db.Column(db.Integer, db.ForeignKey("sites.id", ondelete="CASCADE"), index=True)
     
@@ -13720,8 +13994,8 @@ class FixedAssetCategory(db.Model, TimestampMixin):
     id = db.Column(db.Integer, primary_key=True)
     code = db.Column(db.String(20), unique=True, nullable=False, index=True)
     name = db.Column(db.String(100), nullable=False, index=True)
-    account_code = db.Column(db.String(20), db.ForeignKey("accounts.code", ondelete="RESTRICT"), nullable=False)
-    depreciation_account_code = db.Column(db.String(20), db.ForeignKey("accounts.code", ondelete="RESTRICT"), nullable=False)
+    account_code = db.Column(db.String(50), db.ForeignKey("accounts.code", ondelete="RESTRICT"), nullable=False)
+    depreciation_account_code = db.Column(db.String(50), db.ForeignKey("accounts.code", ondelete="RESTRICT"), nullable=False)
     
     useful_life_years = db.Column(db.Integer, nullable=False, default=5)
     depreciation_method = db.Column(sa_str_enum(["STRAIGHT_LINE", "DECLINING_BALANCE"], name="depreciation_method"), nullable=False, default="STRAIGHT_LINE")
@@ -13861,7 +14135,7 @@ class BankAccount(db.Model, TimestampMixin, AuditMixin):
     swift_code = db.Column(db.String(11))
     currency = db.Column(db.String(10), nullable=False, default="ILS", index=True)
     branch_id = db.Column(db.Integer, db.ForeignKey("branches.id"), index=True)
-    gl_account_code = db.Column(db.String(20), db.ForeignKey("accounts.code", ondelete="RESTRICT"), nullable=False)
+    gl_account_code = db.Column(db.String(50), db.ForeignKey("accounts.code", ondelete="RESTRICT"), nullable=False)
     opening_balance = db.Column(db.Numeric(15, 2), nullable=False, default=0)
     current_balance = db.Column(db.Numeric(15, 2), nullable=False, default=0)
     last_reconciled_date = db.Column(db.Date, index=True)

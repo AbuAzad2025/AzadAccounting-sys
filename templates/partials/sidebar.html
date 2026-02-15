@@ -1,12 +1,10 @@
-<!-- templates/_sidebar.html -->
 <aside class="main-sidebar sidebar-dark-primary elevation-4" dir="rtl">
-  
   <div class="garage-brand-area">
     <a href="{{ url_for('main.dashboard') }}" class="garage-brand-link">
       {% if system_settings and system_settings.custom_logo %}
-        <img src="{{ url_for('static', filename=system_settings.custom_logo.replace('static/', '')) }}" alt="Logo" class="garage-brand-image" loading="lazy" decoding="async">
+        <img src="{{ url_for('static', filename=system_settings.custom_logo.replace('static/', '')) }}" alt="Logo" class="garage-brand-image" loading="lazy" decoding="async" style="height:36px;max-width:120px;object-fit:contain;">
       {% else %}
-        <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Logo" class="garage-brand-image" loading="lazy" decoding="async">
+        <img src="{{ url_for('static', filename='img/azad_logo.png') }}" alt="ازاد" class="garage-brand-image" loading="lazy" decoding="async" style="height:36px;max-width:120px;object-fit:contain;">
       {% endif %}
       <span class="garage-brand-text">{{ system_settings.company_name or system_settings.system_name or 'النظام' }}</span>
     </a>
@@ -24,9 +22,9 @@
       </div>
       <div class="image">
         {% if system_settings and system_settings.custom_logo %}
-          <img src="{{ url_for('static', filename=system_settings.custom_logo.replace('static/', '')) }}" class="img-circle elevation-2" alt="Logo" loading="lazy" decoding="async">
+          <img src="{{ url_for('static', filename=system_settings.custom_logo.replace('static/', '')) }}" class="img-circle elevation-2" alt="Logo" loading="lazy" decoding="async" style="height:40px;width:40px;object-fit:contain;">
         {% else %}
-          <img src="{{ url_for('static', filename='img/logo.png') }}" class="img-circle elevation-2" alt="Logo" loading="lazy" decoding="async">
+          <img src="{{ url_for('static', filename='img/azad_logo.png') }}" class="img-circle elevation-2" alt="ازاد" loading="lazy" decoding="async" style="height:40px;width:40px;object-fit:contain;">
         {% endif %}
       </div>
     </div>

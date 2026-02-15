@@ -197,9 +197,9 @@
   </td>
   <td>
     {% if sale.customer %}
-    <strong>{{ sale.customer.name }}</strong>
-    {% if sale.customer.phone %}
-    <br><small class="text-muted"><i class="fas fa-phone"></i> {{ sale.customer.phone }}</small>
+    <strong>{{ sale.customer.name if sale.customer else '—' }}</strong>
+    {% if sale.customer and (sale.customer.phone or '') %}
+    <br><small class="text-muted"><i class="fas fa-phone"></i> {{ sale.customer.phone or '—' }}</small>
     {% endif %}
     {% else %}
     <span class="text-muted">بدون عميل</span>
@@ -227,9 +227,9 @@
   </td>
   <td class="text-center">
     {% if sale.seller_employee %}
-      <small>{{ sale.seller_employee.name }}</small>
+      <small>{{ sale.seller_employee.name if sale.seller_employee else '—' }}</small>
     {% elif sale.seller %}
-      <small>{{ sale.seller.username }}</small>
+      <small>{{ sale.seller.username if sale.seller else '—' }}</small>
     {% else %}
       <span class="text-muted">-</span>
     {% endif %}

@@ -899,11 +899,11 @@ def generate_salary(emp_id):
     check_number = request.form.get('check_number', '').strip()
     check_bank = request.form.get('check_bank', '').strip()
     check_due_date = request.form.get('check_due_date', '')
-    check_payee = request.form.get('check_payee', employee.name).strip()
+    check_payee = request.form.get('check_payee', employee.name or '').strip()
     bank_transfer_ref = request.form.get('transfer_reference', '').strip()
     bank_name = request.form.get('bank_name', '').strip()
     account_number = request.form.get('account_number', '').strip()
-    account_holder = request.form.get('account_holder', employee.name).strip()
+    account_holder = request.form.get('account_holder', employee.name or '').strip()
     payment_details = request.form.get('payment_details', '').strip()
     
     monthly_deductions = Decimal(str(employee.total_deductions))
@@ -2524,8 +2524,8 @@ def edit(exp_id):
     employees = Employee.query.order_by(Employee.name).limit(200).all()
     form.employee_id.choices = [(0, '-- اختر موظفاً --')]
     if exp.employee_id and exp.employee and exp.employee not in employees:
-        form.employee_id.choices.append((exp.employee.id, f"✓ {exp.employee.name}"))
-    form.employee_id.choices += [(e.id, e.name) for e in employees]
+        form.employee_id.choices.append((exp.employee.id, f"✓ {exp.employee.name or '—'}"))
+    form.employee_id.choices += [(e.id, e.name or '—') for e in employees]
     
     utilities = UtilityAccount.query.filter_by(is_active=True).order_by(UtilityAccount.provider).limit(100).all()
     form.utility_account_id.choices = [(0, '-- اختر حساب --')]
@@ -2536,8 +2536,8 @@ def edit(exp_id):
     warehouses = Warehouse.query.filter_by(is_active=True).order_by(Warehouse.name).limit(100).all()
     form.warehouse_id.choices = [(0, '-- اختر مستودع --')]
     if exp.warehouse_id and exp.warehouse and exp.warehouse not in warehouses:
-        form.warehouse_id.choices.append((exp.warehouse.id, f"✓ {exp.warehouse.name}"))
-    form.warehouse_id.choices += [(w.id, w.name) for w in warehouses]
+        form.warehouse_id.choices.append((exp.warehouse.id, f"✓ {exp.warehouse.name or '—'}"))
+    form.warehouse_id.choices += [(w.id, w.name or '—') for w in warehouses]
     
     shipments = Shipment.query.order_by(Shipment.id.desc()).limit(50).all()
     form.shipment_id.choices = [(0, '-- اختر شحنة --')]
@@ -2548,14 +2548,14 @@ def edit(exp_id):
     partners = Partner.query.filter_by(is_archived=False).order_by(Partner.name).limit(100).all()
     form.partner_id.choices = [(0, '-- اختر شريك --')]
     if exp.partner_id and exp.partner and exp.partner not in partners:
-        form.partner_id.choices.append((exp.partner.id, f"✓ {exp.partner.name}"))
-    form.partner_id.choices += [(p.id, p.name) for p in partners]
+        form.partner_id.choices.append((exp.partner.id, f"✓ {exp.partner.name or '—'}"))
+    form.partner_id.choices += [(p.id, p.name or '—') for p in partners]
     
     suppliers = Supplier.query.filter_by(is_archived=False).order_by(Supplier.name).limit(100).all()
     form.supplier_id.choices = [(0, '-- اختر مورد --')]
     if exp.supplier_id and exp.supplier and exp.supplier not in suppliers:
-        form.supplier_id.choices.append((exp.supplier.id, f"✓ {exp.supplier.name}"))
-    form.supplier_id.choices += [(s.id, s.name) for s in suppliers]
+        form.supplier_id.choices.append((exp.supplier.id, f"✓ {exp.supplier.name or '—'}"))
+    form.supplier_id.choices += [(s.id, s.name or '—') for s in suppliers]
     
     customers_query = Customer.query
     if hasattr(Customer, 'is_archived'):
@@ -2565,11 +2565,11 @@ def edit(exp_id):
     current_customer_id = exp.customer_id or (exp.payee_entity_id if getattr(exp, 'payee_type', '').upper() == 'CUSTOMER' else None)
     if current_customer_id:
         if exp.customer_id and exp.customer and exp.customer not in customers:
-            form.customer_id.choices.append((exp.customer.id, f"✓ {exp.customer.name}"))
+            form.customer_id.choices.append((exp.customer.id, f"✓ {exp.customer.name or '—'}"))
         elif not any(c.id == current_customer_id for c in customers):
             form.customer_id.choices.append((current_customer_id, f"✓ {exp.payee_name or f'عميل #{current_customer_id}'}"))
         form.customer_id.data = current_customer_id
-    form.customer_id.choices += [(c.id, c.name) for c in customers]
+    form.customer_id.choices += [(c.id, c.name or '—') for c in customers]
     
     adjustments = StockAdjustment.query.order_by(StockAdjustment.id.desc()).limit(50).all()
     form.stock_adjustment_id.choices = [(0, '-- اختر تسوية --')]
@@ -2728,14 +2728,14 @@ def pay(exp_id):
     amount = int(q0(amount_src))
     
     payee = exp.payee_name or (exp.employee.name if exp.employee else None) or 'غير محدد'
-    expense_type = exp.type.name if exp.type else 'مصروف'
+    expense_type = (exp.type.name if exp.type else None) or 'مصروف'
     expense_ref = exp.tax_invoice_number or f'EXP-{exp.id}'
     
     reference = f'دفع {expense_type} لـ {payee} - {expense_ref}'
     notes = f'دفع نفقة: {exp.description or expense_type} - المستفيد: {payee}'
     
     if exp.employee:
-        notes += f' - موظف: {exp.employee.name}'
+        notes += f' - موظف: {exp.employee.name or ""}'
     
     return redirect(
         url_for(

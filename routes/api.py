@@ -1029,11 +1029,11 @@ def get_supplier(id):
 def update_supplier(id):
     s = db.get_or_404(Supplier, id)
     data = request.get_json(silent=True) or request.form or {}
-    s.name = (data.get("name") or s.name).strip()
-    s.phone = (data.get("phone") or s.phone).strip()
-    s.identity_number = (data.get("identity_number") or s.identity_number).strip()
-    s.address = (data.get("address") or s.address).strip()
-    s.notes = (data.get("notes") or s.notes).strip()
+    s.name = (data.get("name") or s.name or "").strip()
+    s.phone = (data.get("phone") or s.phone or "").strip()
+    s.identity_number = (data.get("identity_number") or s.identity_number or "").strip()
+    s.address = (data.get("address") or s.address or "").strip()
+    s.notes = (data.get("notes") or s.notes or "").strip()
     try:
         db.session.commit()
         return jsonify({"id": s.id, "text": s.name})

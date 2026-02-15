@@ -28,6 +28,13 @@
                 <i class="fas fa-download"></i> تصدير
               </a>
             </form>
+            <form method="POST" action="{{ url_for('security.reconcile_tax_report', period=period) }}" class="d-inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-warning mb-2 ml-2"
+                      onclick="return confirm('سيتم إنشاء سجلات VAT وقيد محاسبي تصحيحي لهذه الفترة. هل تريد المتابعة؟');">
+                <i class="fas fa-magic"></i> تصحيح VAT
+              </button>
+            </form>
           </div>
         </div>
       </div>
@@ -95,6 +102,14 @@
               NET VAT = OUTPUT VAT ({{ "%.2f"|format(summary.output_vat) }}) - INPUT VAT ({{ "%.2f"|format(summary.input_vat) }})
               = <strong>{{ "%.2f"|format(summary.net_vat) }} ₪</strong>
             </div>
+
+            {% if confirmed_sales_without_vat and confirmed_sales_without_vat > 0 %}
+            <div class="alert alert-warning">
+              <i class="fas fa-exclamation-triangle"></i>
+              يوجد <strong>{{ confirmed_sales_without_vat }}</strong> مبيعات مؤكدة في هذه الفترة بدون VAT (نسبة الضريبة = 0).
+              هذا يعني أن <strong>OUTPUT VAT</strong> سيظهر صفرًا حتى يتم إصدار الفواتير بنظام VAT أو كان السعر شاملة الضريبة وتم استخدام زر "تصحيح VAT".
+            </div>
+            {% endif %}
             {% else %}
             <div class="alert alert-warning">
               <i class="fas fa-exclamation-triangle"></i> {{ summary.error }}

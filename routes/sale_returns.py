@@ -13,6 +13,7 @@ from typing import Optional
 from extensions import db
 from models import (
     SaleReturn, SaleReturnLine, Sale, SaleLine,
+    run_sale_return_gl_sync_after_commit,
     Customer, Product, Warehouse, User, AuditLog
 )
 from forms import SaleReturnForm, SaleReturnLineForm
@@ -257,7 +258,10 @@ def create_return(sale_id=None):
             db.session.flush()
             
             db.session.commit()
-            
+            try:
+                run_sale_return_gl_sync_after_commit(sale_return.id)
+            except Exception:
+                pass
             # Audit log
             try:
                 audit = AuditLog(
@@ -472,7 +476,10 @@ def edit_return(return_id):
             sale_return.total_amount = total_amount.quantize(Decimal('0.01'))
             
             db.session.commit()
-            
+            try:
+                run_sale_return_gl_sync_after_commit(sale_return.id)
+            except Exception:
+                pass
             # Audit log
             try:
                 audit = AuditLog(
@@ -529,7 +536,10 @@ def confirm_return(return_id):
     try:
         sale_return.status = 'CONFIRMED'
         db.session.commit()
-        
+        try:
+            run_sale_return_gl_sync_after_commit(sale_return.id)
+        except Exception:
+            pass
         # Audit log
         try:
             audit = AuditLog(

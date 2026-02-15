@@ -133,7 +133,7 @@
             <tbody id="top-suppliers">
               {% for s in top_suppliers %}
               <tr>
-                <td>{{ s.name }}</td>
+                <td>{{ s.name or '—' }}</td>
                 <td class="text-danger">{{ "%.2f"|format(s.balance) }} ₪</td>
               </tr>
               {% endfor %}
@@ -159,7 +159,7 @@
             <tbody id="top-customers">
               {% for c in top_customers %}
               <tr>
-                <td>{{ c.name }}</td>
+                <td>{{ c.name or '—' }}</td>
                 <td class="text-danger" data-balance-customer="{{ c.id }}" data-balance-abs="1">{{ "%.2f"|format(c.balance|abs) }} ₪</td>
               </tr>
               {% endfor %}

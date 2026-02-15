@@ -12,7 +12,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload, selectinload, load_only
 from extensions import db, cache
 from models import Sale, SaleLine, Invoice, Customer, Product, AuditLog, Warehouse, User, Payment, StockLevel, Employee, CostCenter, SaleStatus
-from models import convert_amount
+from models import convert_amount, run_sale_gl_sync_after_commit
 
 
 def _utc_now_naive() -> datetime:
@@ -280,7 +280,11 @@ def _attach_lines(sale: Sale, lines_payload: List[Dict[str, Any]]) -> None:
     if getattr(sale, "id", None):
         SaleLine.query.filter_by(sale_id=sale.id).delete(synchronize_session=False)
         db.session.flush()
+    sale_tax = getattr(sale, "tax_rate", None) or 0
     for d in lines_payload:
+        line_tax = d.get("tax_rate") or 0
+        if line_tax == 0 and sale_tax:
+            line_tax = float(sale_tax)
         db.session.add(SaleLine(
             sale_id=sale.id,
             product_id=d["product_id"],
@@ -288,7 +292,7 @@ def _attach_lines(sale: Sale, lines_payload: List[Dict[str, Any]]) -> None:
             quantity=d["quantity"],
             unit_price=d["unit_price"],
             discount_rate=d.get("discount_rate", 0),
-            tax_rate=d.get("tax_rate", 0),
+            tax_rate=line_tax,
             line_receiver=d.get("line_receiver"),
             note=d.get("note"),
         ))
@@ -982,6 +986,15 @@ def _resolve_unit_price(product_id: int, warehouse_id: Optional[int]) -> float:
 @login_required
 def create_sale():
     form = SaleForm()
+    if request.method == "GET":
+        try:
+            from utils import get_vat_rate, is_vat_enabled
+            if is_vat_enabled():
+                form.tax_rate.data = get_vat_rate()
+            else:
+                form.tax_rate.data = 0
+        except Exception:
+            pass
     if request.method == "POST" and not form.validate_on_submit():
         current_app.logger.warning("Sale form errors: %s", form.errors)
         current_app.logger.debug("POST data: %r", request.form.to_dict(flat=False))
@@ -1012,6 +1025,14 @@ def create_sale():
                 notes_clean = None
             else:
                 notes_clean = notes_raw or None
+            sale_tax = form.tax_rate.data or 0
+            if sale_tax == 0:
+                try:
+                    from utils import get_vat_rate, is_vat_enabled
+                    if is_vat_enabled():
+                        sale_tax = get_vat_rate()
+                except Exception:
+                    pass
             sale = Sale(
                 sale_number=None,
                 customer_id=form.customer_id.data,
@@ -1021,7 +1042,7 @@ def create_sale():
                 status=target_status,
                 payment_status="PENDING",
                 currency=(form.currency.data or "ILS").upper(),
-                tax_rate=form.tax_rate.data or 0,
+                tax_rate=sale_tax,
                 discount_total=form.discount_total.data or 0,
                 shipping_address=(form.shipping_address.data or '').strip() or None,
                 billing_address=(form.billing_address.data or '').strip() or None,
@@ -1039,26 +1060,12 @@ def create_sale():
             if require_stock and target_status == "CONFIRMED":
                 _deduct_stock(sale)
             _log(sale, "CREATE", None, sale_to_dict(sale))
-            
-            # تسجيل ضريبة VAT تلقائياً
-            if sale.tax_rate and sale.tax_rate > 0:
-                try:
-                    from utils import create_tax_entry
-                    subtotal = float(sale.total_amount or 0) / (1 + float(sale.tax_rate) / 100)
-                    create_tax_entry(
-                        entry_type='OUTPUT_VAT',
-                        transaction_type='SALE',
-                        transaction_id=sale.id,
-                        base_amount=subtotal,
-                        tax_rate=float(sale.tax_rate),
-                        reference=sale.sale_number,
-                        customer_id=sale.customer_id,
-                        currency=sale.currency
-                    )
-                except Exception as e:
-                    current_app.logger.warning(f'⚠️ Tax entry failed: {e}')
-            
+            # TaxEntry يُنشأ تلقائياً من حدث _sale_create_tax_entry في models بعد التأكيد
             db.session.commit()
+            try:
+                run_sale_gl_sync_after_commit(sale.id)
+            except Exception:
+                pass
             flash("✅ تم إنشاء الفاتورة.", "success")
             return redirect(url_for("sales_bp.sale_detail", id=sale.id))
         except SQLAlchemyError as e:
@@ -1244,7 +1251,15 @@ def edit_sale(id: int):
             sale.sale_date = form.sale_date.data or sale.sale_date
             sale.status = target_status or sale.status
             sale.currency = (form.currency.data or sale.currency or "ILS").upper()
-            sale.tax_rate = form.tax_rate.data or 0
+            sale_tax = form.tax_rate.data or 0
+            if sale_tax == 0:
+                try:
+                    from utils import get_vat_rate, is_vat_enabled
+                    if is_vat_enabled():
+                        sale_tax = get_vat_rate()
+                except Exception:
+                    pass
+            sale.tax_rate = sale_tax
             sale.discount_total = form.discount_total.data or 0
             sale.shipping_address = (form.shipping_address.data or '').strip() or None
             sale.billing_address = (form.billing_address.data or '').strip() or None
@@ -1264,7 +1279,10 @@ def edit_sale(id: int):
                 _reserve_stock(sale)
             _log(sale, "UPDATE", old, sale_to_dict(sale))
             db.session.commit()
-            
+            try:
+                run_sale_gl_sync_after_commit(sale.id)
+            except Exception:
+                pass
             # تحديث رصيد العميل
             try:
                 from utils.customer_balance_updater import update_customer_balance_components
@@ -1334,7 +1352,10 @@ def quick_sell():
             _reserve_stock(sale)
         _log(sale, "CREATE", None, sale_to_dict(sale))
         db.session.commit()
-        
+        try:
+            run_sale_gl_sync_after_commit(sale.id)
+        except Exception:
+            pass
         # تحديث رصيد العميل
         try:
             from utils.customer_balance_updater import update_customer_balance_components

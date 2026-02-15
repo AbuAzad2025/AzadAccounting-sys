@@ -17,6 +17,9 @@ from sqlalchemy.orm import joinedload
 from extensions import db, cache
 from models import (
     ServiceRequest, ServicePart, ServiceTask, Customer, Product,
+    run_service_gl_sync_after_commit,
+    build_service_reversal_snapshot,
+    run_service_gl_reversal_after_delete,
     Warehouse, AuditLog, User, EquipmentType, StockLevel, Partner,
     Permission, Role, ServiceStatus, _service_consumes_stock, ServicePriority, WarehouseType,
     Payment, PaymentStatus, PaymentDirection, PaymentEntityType
@@ -522,9 +525,20 @@ def create_request():
         status_val = getattr(ServiceStatus, _stat_code, ServiceStatus.PENDING)
 
         service=ServiceRequest(service_number=f"SRV-{datetime.now(timezone.utc):%Y%m%d%H%M%S}", customer_id=customer.id, vehicle_vrn=form.vehicle_vrn.data, vehicle_type_id=utils._get_id(form.vehicle_type_id.data) if form.vehicle_type_id.data else None, vehicle_model=form.vehicle_model.data, chassis_number=form.chassis_number.data, problem_description=form.problem_description.data, priority=priority_val, estimated_duration=form.estimated_duration.data, status=status_val, received_at=datetime.now(timezone.utc).replace(tzinfo=None), consume_stock=bool(form.consume_stock.data))
+        try:
+            from utils import get_vat_rate, is_vat_enabled
+            if is_vat_enabled():
+                service.tax_rate = get_vat_rate()
+        except Exception:
+            pass
         db.session.add(service)
         try:
-            db.session.commit(); log_service_action(service,"CREATE")
+            db.session.commit()
+            try:
+                run_service_gl_sync_after_commit(service.id)
+            except Exception:
+                pass
+            log_service_action(service,"CREATE")
             _refresh_service_related_balances(service)
             if customer.phone: utils.send_whatsapp_message(customer.phone, f"تم استلام طلب الصيانة رقم {service.service_number}.")
             flash("✅ تم إنشاء طلب الصيانة بنجاح","success")
@@ -543,6 +557,10 @@ def view_request(rid):
     try:
         _update_service_totals(service)
         db.session.commit()
+        try:
+            run_service_gl_sync_after_commit(service.id)
+        except Exception:
+            pass
     except Exception:
         db.session.rollback()
     
@@ -582,6 +600,10 @@ def update_diagnosis(rid):
     try:
         _consume_service_stock_once(service)
         db.session.commit()
+        try:
+            run_service_gl_sync_after_commit(service.id)
+        except Exception:
+            pass
         log_service_action(service,"DIAGNOSIS", old_data=old, new_data={'problem_description':service.problem_description,'diagnosis':service.diagnosis,'resolution':service.resolution,'estimated_duration':service.estimated_duration,'estimated_cost':str(service.estimated_cost or 0),'status':getattr(service.status,"value",service.status)})
         _refresh_service_related_balances(service)
         if service.customer and service.customer.phone: utils.send_whatsapp_message(service.customer.phone, f"تم تحديث ملاحظات المهندس للمركبة {service.vehicle_vrn}.")
@@ -604,7 +626,13 @@ def update_discount_tax(rid):
     try:
         discount_total = Decimal(request.form.get('discount_total', 0) or 0)
         tax_rate = Decimal(request.form.get('tax_rate', 0) or 0)
-        
+        if tax_rate == 0:
+            try:
+                from utils import get_vat_rate, is_vat_enabled
+                if is_vat_enabled():
+                    tax_rate = Decimal(str(get_vat_rate()))
+            except Exception:
+                pass
         # حساب إجمالي الفاتورة للتحقق
         parts_sum = sum((p.line_total or 0) for p in service.parts)
         tasks_sum = sum((t.line_total or 0) for t in service.tasks)
@@ -636,7 +664,10 @@ def update_discount_tax(rid):
         _update_service_totals(service)
         
         db.session.commit()
-        
+        try:
+            run_service_gl_sync_after_commit(service.id)
+        except Exception:
+            pass
         # تسجيل في الـ audit log
         log_service_action(service, "UPDATE_DISCOUNT_TAX", 
                           old_data=old_data, 
@@ -679,6 +710,10 @@ def toggle_service(rid, action):
                 service.completed_at=None
         else: abort(400)
         db.session.commit()
+        try:
+            run_service_gl_sync_after_commit(service.id)
+        except Exception:
+            pass
         _refresh_service_related_balances(service)
         
         if action=='complete':
@@ -715,6 +750,15 @@ def add_part(rid):
         unit_price = Decimal(request.form.get('unit_price'))
         discount = Decimal(request.form.get('discount', 0) or 0)
         tax_rate = Decimal(request.form.get('tax_rate', 0) or 0)
+        if tax_rate == 0 and getattr(service, 'tax_rate', 0):
+            tax_rate = Decimal(str(service.tax_rate))
+        if tax_rate == 0:
+            try:
+                from utils import get_vat_rate, is_vat_enabled
+                if is_vat_enabled():
+                    tax_rate = Decimal(str(get_vat_rate()))
+            except Exception:
+                pass
         note = (request.form.get('note') or '').strip() or None
         
         # Validation
@@ -769,6 +813,10 @@ def add_part(rid):
         
         _update_service_totals(service)
         db.session.commit()
+        try:
+            run_service_gl_sync_after_commit(service.id)
+        except Exception:
+            pass
         _refresh_service_related_balances(service)
         flash('✅ تمت إضافة القطعة بنجاح','success')
         
@@ -808,6 +856,10 @@ def delete_part(pid):
         service.updated_at=datetime.now(timezone.utc).replace(tzinfo=None)
         _update_service_totals(service)
         db.session.commit()
+        try:
+            run_service_gl_sync_after_commit(service.id)
+        except Exception:
+            pass
         _refresh_service_related_balances(service)
         flash('✅ تم حذف القطعة ومعالجة المخزون','success')
     except SQLAlchemyError as e:
@@ -833,6 +885,15 @@ def add_task(rid):
         unit_price = Decimal(request.form.get('unit_price'))
         discount = Decimal(request.form.get('discount', 0) or 0)
         tax_rate = Decimal(request.form.get('tax_rate', 0) or 0)
+        if tax_rate == 0 and getattr(service, 'tax_rate', 0):
+            tax_rate = Decimal(str(service.tax_rate))
+        if tax_rate == 0:
+            try:
+                from utils import get_vat_rate, is_vat_enabled
+                if is_vat_enabled():
+                    tax_rate = Decimal(str(get_vat_rate()))
+            except Exception:
+                pass
         note = (request.form.get('note') or '').strip() or None
         
         # Validation
@@ -877,6 +938,10 @@ def add_task(rid):
         service.updated_at=datetime.now(timezone.utc).replace(tzinfo=None)
         _update_service_totals(service)
         db.session.commit()
+        try:
+            run_service_gl_sync_after_commit(service.id)
+        except Exception:
+            pass
         _refresh_service_related_balances(service)
         flash('✅ تمت إضافة المهمة بنجاح','success')
         
@@ -906,6 +971,10 @@ def delete_task(tid):
         service.updated_at=datetime.now(timezone.utc).replace(tzinfo=None)
         _update_service_totals(service)
         db.session.commit()
+        try:
+            run_service_gl_sync_after_commit(service.id)
+        except Exception:
+            pass
         _refresh_service_related_balances(service)
         flash('✅ تم حذف المهمة','success')
     except SQLAlchemyError as e:
@@ -968,13 +1037,13 @@ def create_invoice(rid):
 @login_required
 def service_report(rid):
     service=_get_or_404(ServiceRequest, rid); pdf=generate_service_receipt_pdf(service)
-    return Response(pdf, mimetype='application/pdf', headers={'Content-Disposition': f'inline; filename=service_report_{service.service_number}.pdf'})
+    return Response(pdf, mimetype='application/pdf', headers={'Content-Disposition': f'inline; filename=service_report_{service.service_number or service.id}.pdf'})
 
 @service_bp.route('/<int:rid>/pdf')
 @login_required
 def export_pdf(rid):
     service=_get_or_404(ServiceRequest, rid); pdf=generate_service_receipt_pdf(service)
-    return Response(pdf, mimetype='application/pdf', headers={'Content-Disposition': f'attachment; filename=service_{service.service_number}.pdf'})
+    return Response(pdf, mimetype='application/pdf', headers={'Content-Disposition': f'attachment; filename=service_{service.service_number or service.id}.pdf'})
 
 @service_bp.route('/<int:rid>/delete', methods=['POST'])
 @login_required
@@ -989,9 +1058,14 @@ def delete_request(rid):
                 partner_ids.add(int(pid))
     except Exception:
         partner_ids = set()
+    reversal_snapshot = build_service_reversal_snapshot(service)
     try:
         with db.session.begin():
             _release_service_stock_once(service); db.session.delete(service)
+        try:
+            run_service_gl_reversal_after_delete(reversal_snapshot)
+        except Exception:
+            pass
         flash('✅ تم حذف الطلب ومعالجة المخزون','success')
         try:
             if customer_id:
@@ -1097,7 +1171,7 @@ def generate_service_receipt_pdf(service_request):
     buffer=io.BytesIO(); c=canvas.Canvas(buffer, pagesize=A4); width,height=A4
     c.setFont("Helvetica-Bold",16); c.drawString(20*mm,height-20*mm,"إيصال صيانة")
     c.setFont("Helvetica",10); y=height-30*mm
-    c.drawString(20*mm,y,f"رقم الطلب: {service_request.service_number}")
+    c.drawString(20*mm,y,f"رقم الطلب: {service_request.service_number or service_request.id or ''}")
     c.drawString(120*mm,y,f"التاريخ: {service_request.received_at.strftime('%Y-%m-%d') if getattr(service_request,'received_at',None) else ''}")
     y-=8*mm; c.drawString(20*mm,y,f"العميل: {service_request.customer.name if service_request.customer else (getattr(service_request,'name',None) or '-')}")
     c.drawString(120*mm,y,f"لوحة المركبة: {service_request.vehicle_vrn or ''}")

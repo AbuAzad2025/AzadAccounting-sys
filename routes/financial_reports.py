@@ -7,9 +7,10 @@ import json
 
 from models import (
     db, Account, GLBatch, GLEntry, Customer, Supplier, Partner,
-    Sale, Payment, Expense, Invoice, ServiceRequest
+    Sale, Payment, Expense, Invoice, ServiceRequest,
+    GL_ACCOUNTS, _gl_upsert_batch_and_entries, _ensure_account_exists,
 )
-from utils import permission_required
+from utils import permission_required, get_income_tax_rate
 
 # إنشاء Blueprint
 financial_reports_bp = Blueprint('financial_reports', __name__, url_prefix='/reports/financial')
@@ -18,6 +19,100 @@ financial_reports_bp = Blueprint('financial_reports', __name__, url_prefix='/rep
 @permission_required('view_reports')
 def index():
     return render_template('reports/financial/index.html')
+
+
+@financial_reports_bp.route('/accrue-income-tax', methods=['POST'])
+@permission_required('view_reports')
+def accrue_income_tax():
+    """استحقاق ضريبة الدخل على الربح: قيد من مدين 6200 (مصروف ضريبة) دائن 2200 (ضريبة مستحقة)."""
+    try:
+        start_date = request.form.get('start_date') or request.json.get('start_date') if request.is_json else None
+        end_date = request.form.get('end_date') or request.json.get('end_date') if request.is_json else None
+        if not start_date or not end_date:
+            return jsonify({'success': False, 'error': 'start_date و end_date مطلوبان'}), 400
+        if isinstance(start_date, str):
+            start_date = datetime.fromisoformat(start_date.replace('Z', '+00:00')).date()
+        if isinstance(end_date, str):
+            end_date = datetime.fromisoformat(end_date.replace('Z', '+00:00')).date()
+        start_dt = datetime.combine(start_date, datetime.min.time())
+        end_dt = datetime.combine(end_date, datetime.max.time())
+
+        revenue = db.session.query(
+            func.coalesce(func.sum(GLEntry.credit - GLEntry.debit), 0)
+        ).join(GLBatch).join(Account, Account.code == GLEntry.account).filter(
+            GLBatch.status == 'POSTED',
+            GLBatch.posted_at >= start_dt,
+            GLBatch.posted_at <= end_dt,
+            Account.type == 'REVENUE'
+        ).scalar() or 0
+
+        expenses = db.session.query(
+            func.coalesce(func.sum(GLEntry.debit - GLEntry.credit), 0)
+        ).join(GLBatch).join(Account, Account.code == GLEntry.account).filter(
+            GLBatch.status == 'POSTED',
+            GLBatch.posted_at >= start_dt,
+            GLBatch.posted_at <= end_dt,
+            Account.type == 'EXPENSE'
+        ).scalar() or 0
+
+        profit_before_tax = float(revenue) - float(expenses)
+        if profit_before_tax <= 0:
+            return jsonify({
+                'success': True,
+                'posted': False,
+                'reason': 'no_profit',
+                'profit_before_tax': round(profit_before_tax, 2),
+                'message': 'لا يوجد ربح موجب للفترة؛ لم يُنشأ قيد ضريبة.'
+            })
+
+        tax_rate = get_income_tax_rate()
+        tax_amount = round(profit_before_tax * (tax_rate / 100.0), 2)
+        if tax_amount <= 0:
+            return jsonify({
+                'success': True,
+                'posted': False,
+                'reason': 'zero_tax',
+                'profit_before_tax': round(profit_before_tax, 2),
+                'message': 'مبلغ الضريبة صفر.'
+            })
+
+        period_key = start_date.strftime('%Y-%m')
+        acc_exp = GL_ACCOUNTS.get('INCOME_TAX_EXP', '6200_INCOME_TAX_EXPENSE')
+        acc_pay = GL_ACCOUNTS.get('INCOME_TAX_PAYABLE', '2200_INCOME_TAX_PAYABLE')
+        conn = db.session.connection()
+        _ensure_account_exists(conn, acc_exp)
+        _ensure_account_exists(conn, acc_pay)
+        memo = f"استحقاق ضريبة الدخل عن الفترة {start_date} إلى {end_date} (الربح قبل الضريبة: {profit_before_tax:.2f}، النسبة: {tax_rate}%)"
+        _gl_upsert_batch_and_entries(
+            conn,
+            source_type='TAX_ACCRUAL',
+            source_id=0,
+            purpose=f'INCOME_TAX_{period_key}',
+            currency='ILS',
+            memo=memo,
+            entries=[
+                (acc_exp, tax_amount, 0.0),
+                (acc_pay, 0.0, tax_amount),
+            ],
+            ref=f'TAX-{period_key}',
+            entity_type=None,
+            entity_id=None,
+        )
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'posted': True,
+            'profit_before_tax': round(profit_before_tax, 2),
+            'tax_rate': tax_rate,
+            'tax_amount': tax_amount,
+            'period_key': period_key,
+            'message': f'تم ترحيل استحقاق ضريبة الدخل: {tax_amount} (مدين 6200، دائن 2200).'
+        })
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception('accrue_income_tax failed')
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 
 @financial_reports_bp.route('/income-statement')
 @permission_required('view_reports')
@@ -159,8 +254,10 @@ def income_statement():
             'gross_margin': (gross_profit / total_revenue * 100) if total_revenue > 0 else 0,
             'operating_expenses': operating_expenses,
             'operating_profit': operating_profit,
+            'profit_before_tax': operating_profit,
             'operating_margin': (operating_profit / total_revenue * 100) if total_revenue > 0 else 0,
             'total_taxes': total_taxes,
+            'income_tax_expense': total_taxes,
             'net_profit': net_profit,
             'net_margin': (net_profit / total_revenue * 100) if total_revenue > 0 else 0,
             'is_profit': net_profit >= 0,
@@ -305,16 +402,15 @@ def balance_sheet():
             or_(Account.type == 'LIABILITY', Account.type == 'EQUITY')
         ).group_by(GLEntry.account, Account.name).having(func.sum(GLEntry.credit - GLEntry.debit) != 0).all()
         
-        # إضافة سطر الأرباح المحتجزة إلى التفاصيل يدوياً
+        # إضافة سطر الأرباح المحتجزة إلى تفاصيل الخصوم وحقوق الملكية
+        from types import SimpleNamespace
+        liabilities_equity_list = list(liabilities_equity_details)
         if abs(retained_earnings) > 0.001:
-            # تحويل القائمة إلى قائمة قابلة للتعديل (لأن SQLAlchemy ترجع tuples غير قابلة للتعديل أو كائنات خاصة)
-            # ولكن هنا نرجع كائنات Row، لذا سنقوم بإنشاء قائمة جديدة من القواميس أو الكائنات المشابهة
-            # الأسهل هو التعامل معها في الـ Template أو تحويلها هنا
-            pass # سيتم التعامل معها عند العرض أو إضافتها ككائن وهمي إذا لزم الأمر
-            
-            # لغايات العرض في JSON والـ Template، سنقوم بدمجها
-            # لكن assets_details و liabilities_equity_details هي قوائم من النتائج
-            # سنقوم بتحويلها لقواميس في مرحلة JSON، وفي الـ Template يمكننا إضافة سطر إضافي
+            liabilities_equity_list.append(SimpleNamespace(
+                account='3900_RETAINED_EARNINGS',
+                name='أرباح محتجزة (إيرادات − مصاريف تراكمية)',
+                balance=float(retained_earnings)
+            ))
         
         total_assets = float(current_assets) + float(fixed_assets)
         total_liabilities_equity = float(current_liabilities) + float(equity)
@@ -327,10 +423,11 @@ def balance_sheet():
             'total_assets': total_assets,
             'current_liabilities': float(current_liabilities),
             'equity': float(equity),
+            'retained_earnings': float(retained_earnings),
             'total_liabilities_equity': total_liabilities_equity,
             'is_balanced': is_balanced,
             'assets_details': assets_details,
-            'liabilities_equity_details': liabilities_equity_details
+            'liabilities_equity_details': liabilities_equity_list
         }
         
         # إذا طلب JSON
@@ -345,12 +442,13 @@ def balance_sheet():
                     'total_assets': total_assets,
                     'current_liabilities': float(current_liabilities),
                     'equity': float(equity),
+                    'retained_earnings': float(retained_earnings),
                     'total_liabilities_equity': total_liabilities_equity,
                     'is_balanced': is_balanced
                 },
                 'details': {
                     'assets': [{'account': a.account, 'name': a.name, 'balance': float(a.balance)} for a in assets_details],
-                    'liabilities_equity': [{'account': l.account, 'name': l.name, 'balance': float(l.balance)} for l in liabilities_equity_details]
+                    'liabilities_equity': [{'account': l.account, 'name': l.name, 'balance': float(l.balance)} for l in liabilities_equity_list]
                 }
             })
         
@@ -545,9 +643,9 @@ def balances_summary():
             balance = customer.current_balance
             customer_balances.append({
                 'id': customer.id,
-                'name': customer.name,
+                'name': customer.name or '',
                 'balance': float(balance),
-                'currency': customer.currency
+                'currency': customer.currency or 'ILS'
             })
             total_customer_balance += float(balance)
         
@@ -560,9 +658,9 @@ def balances_summary():
             balance = supplier.current_balance
             supplier_balances.append({
                 'id': supplier.id,
-                'name': supplier.name,
+                'name': supplier.name or '',
                 'balance': float(balance),
-                'currency': supplier.currency
+                'currency': supplier.currency or 'ILS'
             })
             total_supplier_balance += float(balance)
         
@@ -575,9 +673,9 @@ def balances_summary():
             balance = partner.current_balance
             partner_balances.append({
                 'id': partner.id,
-                'name': partner.name,
+                'name': partner.name or '',
                 'balance': float(balance),
-                'currency': partner.currency
+                'currency': partner.currency or 'ILS'
             })
             total_partner_balance += float(balance)
         
@@ -931,7 +1029,7 @@ def aging_report():
                     
                     aging_data.append({
                         'id': customer.id,
-                        'name': customer.name,
+                        'name': customer.name or '',
                         'balance': abs(balance),
                         'balance_display': f"{abs(balance):,.2f}",
                         'age_days': age_days,
@@ -974,7 +1072,7 @@ def aging_report():
                     
                     aging_data.append({
                         'id': supplier.id,
-                        'name': supplier.name,
+                        'name': supplier.name or '',
                         'balance': balance,
                         'balance_display': f"{balance:,.2f}",
                         'age_days': age_days,
@@ -1032,7 +1130,7 @@ def aging_report():
                         
                         aging_data.append({
                             'id': partner.id,
-                            'name': partner.name,
+                            'name': partner.name or '',
                             'balance': balance,
                             'balance_display': f"{balance:,.2f}",
                             'age_days': age_days,
@@ -1171,7 +1269,7 @@ def expense_breakdown():
         
         breakdown_data = [{
             'account': exp.account,
-            'name': exp.name,
+            'name': exp.name or '',
             'amount': float(exp.amount),
             'percentage': (float(exp.amount) / total_expenses * 100) if total_expenses > 0 else 0
         } for exp in expense_breakdown]

@@ -207,11 +207,11 @@
   <td>{{ inv.invoice_date.strftime('%Y-%m-%d') if inv.invoice_date else '-' }}</td>
   <td>
     {% if inv.customer %}
-    <i class="fas fa-user text-primary"></i> {{ inv.customer.name }}
+    <i class="fas fa-user text-primary"></i> {{ inv.customer.name if inv.customer else '—' }}
     {% elif inv.supplier %}
-    <i class="fas fa-truck text-success"></i> {{ inv.supplier.name }}
+    <i class="fas fa-truck text-success"></i> {{ inv.supplier.name if inv.supplier else '—' }}
     {% elif inv.partner %}
-    <i class="fas fa-handshake text-warning"></i> {{ inv.partner.name }}
+    <i class="fas fa-handshake text-warning"></i> {{ inv.partner.name or '—' }}
     {% else %}
     <span class="text-muted">-</span>
     {% endif %}
@@ -225,9 +225,9 @@
   </td>
   <td>
     {% if inv.sale and inv.sale.seller_employee %}
-      {{ inv.sale.seller_employee.name }}
+      {{ inv.sale.seller_employee.name if inv.sale and inv.sale.seller_employee else '—' }}
     {% elif inv.sale and inv.sale.seller %}
-      {{ inv.sale.seller.username }}
+      {{ inv.sale.seller.username if inv.sale and inv.sale.seller else '—' }}
     {% else %}
       <span class="text-muted">-</span>
     {% endif %}

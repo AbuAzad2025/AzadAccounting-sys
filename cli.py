@@ -26,7 +26,7 @@ from models import (
     Account, AuditLog, Branch, Site, Check, CheckStatus, Customer, Employee, ExchangeTransaction, Expense, ExpenseType, GLBatch,
     GLEntry, GL_ACCOUNTS, Invoice, Note, OnlineCart, OnlineCartItem, OnlinePayment, OnlinePreOrder, OnlinePreOrderItem,
     Partner, PartnerSettlement, Payment, PaymentDirection, PaymentEntityType, PaymentMethod, PaymentStatus, Permission,
-    PreOrder, Product, Role, Sale, SaleLine, ServicePart, ServiceRequest, ServiceStatus, ServiceTask,
+    PreOrder, Product, ProductCategory, Role, Sale, SaleLine, ServicePart, ServiceRequest, ServiceStatus, ServiceTask,
     Shipment, ShipmentItem, StockAdjustment, StockAdjustmentItem, StockLevel, Supplier,
     SupplierSettlement, Transfer, TransferDirection, Warehouse, _ensure_customer_for_counterparty, _gl_upsert_batch_and_entries,
     build_partner_settlement_draft, build_supplier_settlement_draft, convert_amount, User,
@@ -4207,6 +4207,77 @@ def checks_sync_due(target_date, direction, limit, dry_run, note):
         db.session.commit()
         click.echo("\n📝 تم تسجيل العملية في سجل التدقيق.")
 
+# قائمة فئات المنتجات الافتراضية (الاسم الخاطئ "lkj[hj 2" مُصحّح إلى "قطع غيار")
+PRODUCT_CATEGORIES_DEFAULT = [
+    "محركات", "قطع غيار", "GEARBOX", "HYD PUMP", "HYD PARTS", "كوبلنات", "فلاتر", "بخاخات",
+    "محركات ديزل", "جلود اهتزاز", "زيوت وشحمة", "الكترونيات", "كسكيتات", "مراوح تبريد",
+    "برابيش هواء وماء ماتور", "رديترات", "قطع محركات جديدة", "متفرقات", "قطع محركات مستعملة",
+    "معدات", "خدمات", "مولدات وماكنات", "شحن وجمرك",
+]
+
+@click.command("seed-product-categories")
+@with_appcontext
+def seed_product_categories() -> None:
+    """زرع فئات المنتجات الافتراضية (23 فئة). يضيف فقط الأسماء غير الموجودة."""
+    existing = {(c.name or "").strip().lower(): c for c in ProductCategory.query.all()}
+    added = 0
+    for name in PRODUCT_CATEGORIES_DEFAULT:
+        name = (name or "").strip()
+        if not name or name.lower() in existing:
+            continue
+        c = ProductCategory(name=name)
+        db.session.add(c)
+        existing[name.lower()] = c
+        added += 1
+        click.echo(f"  + {name}")
+    try:
+        db.session.commit()
+        click.echo(f"✅ تمت إضافة {added} فئة. (الإجمالي: {len(existing)})")
+    except Exception as e:
+        db.session.rollback()
+        raise click.ClickException(str(e))
+
+
+@click.command("restore-product-categories")
+@click.option("--backup-path", type=click.Path(exists=True), required=True, help="مسار ملف النسخة الاحتياطية .sql (مثال: instance/backups/backup_20260207_230002.sql)")
+@with_appcontext
+def restore_product_categories(backup_path: str) -> None:
+    """استعادة فئات المنتجات من ملف نسخة احتياطية SQL. يضيف فقط الأسماء غير الموجودة."""
+    with open(backup_path, "r", encoding="utf-8", errors="replace") as f:
+        content = f.read()
+    start_marker = "COPY public.product_categories ("
+    if start_marker not in content:
+        raise click.ClickException("لم يُعثر على جدول product_categories في الملف.")
+    start = content.index(start_marker)
+    end = content.find("\n\\.\n", start)
+    if end == -1:
+        end = content.find("\n\\.", start)
+    if end == -1:
+        raise click.ClickException("لم يُعثر على نهاية بيانات product_categories.")
+    block = content[start:end]
+    lines = [ln for ln in block.split("\n") if ln.strip() and not ln.strip().startswith("COPY ")]
+    existing = {(c.name or "").strip().lower(): c for c in ProductCategory.query.all()}
+    added = 0
+    for line in lines:
+        parts = line.split("\t")
+        if len(parts) < 2:
+            continue
+        name = (parts[1] or "").strip()
+        if not name or name.lower() in existing:
+            continue
+        c = ProductCategory(name=name)
+        db.session.add(c)
+        existing[name.lower()] = c
+        added += 1
+        click.echo(f"  + {name}")
+    try:
+        db.session.commit()
+        click.echo(f"تمت إضافة {added} فئة.")
+    except Exception as e:
+        db.session.rollback()
+        raise click.ClickException(str(e))
+
+
 @click.command("restore-upgrade-production")
 @click.option("--backup-path", default=os.path.join("instance", "backup_20260207_000139.dump"), show_default=True)
 @click.option("--force", is_flag=True, default=False)
@@ -4314,6 +4385,7 @@ def register_cli(app) -> None:
         optimize_db, perf_snapshot, recompute_sale_returns, link_missing_counterparties,
         seed_employees, seed_salaries, seed_expenses_demo, seed_customer_statement_demo, seed_branches,
         workflow_check_timeouts, gl_recreate_payments, sync_balances, audit_integrity, checks_sync_due,
+        seed_product_categories, restore_product_categories,
         restore_upgrade_production,
         upgrade_production
     ]

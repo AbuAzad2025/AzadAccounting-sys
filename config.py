@@ -293,7 +293,9 @@ class Config:
 
     BACKUP_DIR = os.environ.get("BACKUP_DIR", os.path.join(instance_dir, "backups"))
     BACKUP_DB_DIR = BACKUP_DIR
+    BACKUP_SQL_DIR = os.environ.get("BACKUP_SQL_DIR", os.path.join(BACKUP_DIR, "sql"))
     os.makedirs(BACKUP_DB_DIR, exist_ok=True)
+    os.makedirs(BACKUP_SQL_DIR, exist_ok=True)
     BACKUP_KEEP_LAST = _int("BACKUP_KEEP_LAST", 5)
     BACKUP_DB_INTERVAL = timedelta(hours=1)
 

@@ -247,8 +247,7 @@ body {
   padding: 1.5rem 2.25rem;
 }
 
-/* Responsive */
-@media (max-width: 991px) {
+@media (max-width: 991.98px) {
   .security-sidebar {
     transform: translateX(100%);
   }
@@ -427,111 +426,34 @@ document.body.dataset.tourName = '{% block tour_name %}dashboard{% endblock %}';
     <span>Database Manager</span>
     <span class="menu-badge bg-primary">11 أداة</span>
   </a>
-  
+
   <div class="security-menu-category">
-    <i class="fas fa-robot"></i> الذكاء الاصطناعي
+    <i class="fas fa-th-large"></i> المراكز الموحدة
   </div>
-  <a href="{{ url_for('ai.hub') }}" class="security-menu-item">
+  <a href="{{ url_for('ai.hub') }}" class="security-menu-item {% if request.endpoint == 'ai.hub' %}active{% endif %}">
     <i class="fas fa-brain"></i>
     <span>AI Hub</span>
   </a>
-  <a href="{{ url_for('ai_admin.ai_settings') }}" class="security-menu-item">
-    <i class="fas fa-cogs"></i>
-    <span>إعدادات AI</span>
-  </a>
-  
-  <div class="security-menu-category">
-    <i class="fas fa-shield-alt"></i> الأمان والمراقبة
-  </div>
   <a href="{{ url_for('security.security_center') }}" class="security-menu-item {% if request.endpoint == 'security.security_center' %}active{% endif %}">
     <i class="fas fa-lock"></i>
     <span>Security Center</span>
   </a>
-  <a href="{{ url_for('security.audit_log_viewer') }}" class="security-menu-item {% if 'audit_log' in request.endpoint %}active{% endif %}">
-    <i class="fas fa-history"></i>
-    <span>Audit Log</span>
-  </a>
-  <a href="{{ url_for('security.monitoring_dashboard') }}" class="security-menu-item {% if 'monitoring' in request.endpoint %}active{% endif %}">
-    <i class="fas fa-chart-line"></i>
-    <span>Live Monitoring</span>
-  </a>
-  <a href="{{ url_for('security.blocked_ips') }}" class="security-menu-item {% if 'blocked_ips' in request.endpoint %}active{% endif %}">
-    <i class="fas fa-ban"></i>
-    <span>IPs محظورة</span>
-    <span class="menu-badge bg-danger">{{ stats.blocked_ips|default(0) if stats else 0 }}</span>
-  </a>
-  <a href="{{ url_for('security.blocked_countries') }}" class="security-menu-item {% if 'blocked_countries' in request.endpoint %}active{% endif %}">
-    <i class="fas fa-globe"></i>
-    <span>دول محظورة</span>
-  </a>
-  
-  <div class="security-menu-category">
-    <i class="fas fa-users"></i> المستخدمين والصلاحيات
-  </div>
   <a href="{{ url_for('security.users_center') }}" class="security-menu-item {% if request.endpoint == 'security.users_center' %}active{% endif %}">
     <i class="fas fa-users-cog"></i>
     <span>Users Center</span>
   </a>
-  <a href="{{ url_for('security.user_control') }}" class="security-menu-item {% if 'user_control' in request.endpoint %}active{% endif %}">
-    <i class="fas fa-user-shield"></i>
-    <span>User Control</span>
-  </a>
-  <a href="{{ url_for('security.permissions_manager') }}" class="security-menu-item {% if 'permissions' in request.endpoint %}active{% endif %}">
-    <i class="fas fa-key"></i>
-    <span>Permissions</span>
-  </a>
-  
-  <div class="security-menu-category">
-    <i class="fas fa-cog"></i> الإعدادات
-  </div>
   <a href="{{ url_for('security.settings_center') }}" class="security-menu-item {% if 'settings_center' in request.endpoint %}active{% endif %}">
     <i class="fas fa-sliders-h"></i>
     <span>Settings Center</span>
     <span class="menu-badge bg-warning text-dark">8 أدوات</span>
   </a>
-  <a href="{{ url_for('security.system_settings') }}" class="security-menu-item {% if 'system_settings' in request.endpoint %}active{% endif %}">
-    <i class="fas fa-wrench"></i>
-    <span>System Settings</span>
-  </a>
-  <a href="{{ url_for('security.theme_editor') }}" class="security-menu-item {% if 'theme' in request.endpoint %}active{% endif %}">
-    <i class="fas fa-palette"></i>
-    <span>Theme Editor</span>
-  </a>
-  <a href="{{ url_for('security.logo_manager') }}" class="security-menu-item {% if 'logo' in request.endpoint %}active{% endif %}">
-    <i class="fas fa-image"></i>
-    <span>Logo Manager</span>
-  </a>
-  
-  <div class="security-menu-category">
-    <i class="fas fa-chart-bar"></i> التقارير والأداء
-  </div>
   <a href="{{ url_for('security.reports_center') }}" class="security-menu-item {% if 'reports_center' in request.endpoint %}active{% endif %}">
     <i class="fas fa-file-alt"></i>
     <span>Reports Center</span>
   </a>
-  <a href="{{ url_for('security.performance_monitor') }}" class="security-menu-item {% if 'performance' in request.endpoint %}active{% endif %}">
-    <i class="fas fa-tachometer-alt"></i>
-    <span>Performance</span>
-  </a>
-  <a href="{{ url_for('security.tax_reports') }}" class="security-menu-item {% if 'tax' in request.endpoint %}active{% endif %}">
-    <i class="fas fa-file-invoice-dollar"></i>
-    <span>Tax Reports</span>
-  </a>
-  
-  <div class="security-menu-category">
-    <i class="fas fa-tools"></i> الأدوات والتكاملات
-  </div>
   <a href="{{ url_for('security.tools_center') }}" class="security-menu-item {% if 'tools_center' in request.endpoint %}active{% endif %}">
     <i class="fas fa-toolbox"></i>
     <span>Tools Center</span>
-  </a>
-  <a href="{{ url_for('security.integrations') }}" class="security-menu-item {% if 'integrations' in request.endpoint %}active{% endif %}">
-    <i class="fas fa-plug"></i>
-    <span>Integrations</span>
-  </a>
-  <a href="{{ url_for('security.email_manager') }}" class="security-menu-item {% if 'email' in request.endpoint %}active{% endif %}">
-    <i class="fas fa-envelope"></i>
-    <span>Email Manager</span>
   </a>
   
   <div class="security-menu-category">
@@ -554,16 +476,11 @@ document.body.dataset.tourName = '{% block tour_name %}dashboard{% endblock %}';
     <span>Emergency Tools</span>
     <span class="menu-badge bg-danger">!</span>
   </a>
-  <a href="{{ url_for('security.system_cleanup') }}" class="security-menu-item {% if 'cleanup' in request.endpoint %}active{% endif %}">
-    <i class="fas fa-broom"></i>
-    <span>System Cleanup</span>
-  </a>
   
   <div style="height: 50px;"></div>
 </div>
 
 <div class="security-content" id="securityContent">
-  <!-- Top Fixed Header -->
   <div class="security-page-header">
     <button class="security-toggle-btn" id="sidebarToggle">
       <i class="fas fa-bars"></i>
@@ -586,9 +503,7 @@ document.body.dataset.tourName = '{% block tour_name %}dashboard{% endblock %}';
       {% block security_actions %}{% endblock %}
     </div>
   </div>
-
   <div class="container-fluid">
-    <!-- Page Title Section -->
     <div class="page-title-wrapper">
       <div class="d-flex align-items-center">
         <div class="me-3 display-6 text-primary">
@@ -699,4 +614,3 @@ document.body.dataset.tourName = '{% block tour_name %}dashboard{% endblock %}';
 <script src="{{ url_for('static', filename='js/enhanced-tabs.js') }}"></script>
 
 {% endblock %}
-

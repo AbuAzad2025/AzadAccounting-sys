@@ -70,10 +70,10 @@
                   <div class="d-flex align-items-start">
                     <i class="fas fa-circle text-{% if audit.success %}success{% else %}danger{% endif %} mt-1" style="font-size: 0.5rem; margin-left: 10px;"></i>
                     <div>
-                      <strong>{{ audit.event_type or 'نشاط' }}</strong>
+                      <strong>{{ audit.event or 'نشاط' }}</strong>
                       <br><small class="text-muted">
-                        <i class="fas fa-user"></i> {{ audit.username or 'غير معروف' }}
-                        {% if audit.ip_address %} | <i class="fas fa-network-wired"></i> {{ audit.ip_address }}{% endif %}
+                        <i class="fas fa-user"></i> {{ audit.user.username if audit.user else 'غير معروف' }}
+                        {% if audit.ip %} | <i class="fas fa-network-wired"></i> {{ audit.ip }}{% endif %}
                       </small>
                     </div>
                   </div>

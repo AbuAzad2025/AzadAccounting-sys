@@ -6,9 +6,12 @@ import time
 import platform
 from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
 from datetime import datetime, timezone
-from flask import Flask, url_for, request, current_app, render_template, g, redirect, make_response
+from flask import Flask, url_for, request, current_app, render_template, g, redirect, make_response, jsonify
 from werkzeug.routing import BuildError
-from flask_cors import CORS
+try:
+    from flask_cors import CORS
+except ImportError:
+    CORS = None
 from flask_login import AnonymousUserMixin, current_user
 from jinja2 import ChoiceLoader, FileSystemLoader
 
@@ -980,19 +983,20 @@ def create_app(config_object=Config) -> Flask:
     else:
         app.logger.warning("System integrity check skipped by configuration.")
 
-    CORS(
-        app,
-        resources={
-            r"/api/*": {
-                "origins": app.config.get("CORS_ORIGINS", ["http://localhost:5000"]),
-                "supports_credentials": app.config.get("CORS_SUPPORTS_CREDENTIALS", True),
-                "allow_headers": ["Content-Type", "Authorization", "X-CSRF-TOKEN"],
-                "methods": ["GET", "POST", "PUT", "DELETE", "PATCH"],
-                "max_age": 3600,
-            }
-        },
-    )
-    
+    if CORS is not None:
+        CORS(
+            app,
+            resources={
+                r"/api/*": {
+                    "origins": app.config.get("CORS_ORIGINS", ["http://localhost:5000"]),
+                    "supports_credentials": app.config.get("CORS_SUPPORTS_CREDENTIALS", True),
+                    "allow_headers": ["Content-Type", "Authorization", "X-CSRF-TOKEN"],
+                    "methods": ["GET", "POST", "PUT", "DELETE", "PATCH"],
+                    "max_age": 3600,
+                }
+            },
+        )
+
     @app.after_request
     def security_headers(response):
         # حماية من XSS
@@ -1054,6 +1058,9 @@ def create_app(config_object=Config) -> Flask:
     @app.errorhandler(403)
     def _forbidden(e):
         app.logger.error("403 FORBIDDEN: %s", request.path)
+        if request.path.startswith("/api/") or request.accept_mimetypes.best == "application/json" or request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            from flask import jsonify
+            return jsonify({"error": "غير مصرح لك بهذا الإجراء", "message": "غير مصرح لك بهذا الإجراء"}), 403
         try:
             return render_template("errors/403.html", path=request.path), 403
         except Exception:

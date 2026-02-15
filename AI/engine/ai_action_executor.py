@@ -524,7 +524,8 @@ class ActionExecutor:
             - total: الإجمالي
         """
         try:
-            from models import Invoice
+            from models import Invoice, InvoiceSource
+            from models import run_invoice_gl_sync_after_commit
             
             if not params.get('invoice_type'):
                 return {'success': False, 'message': '❌ نوع الفاتورة مطلوب'}
@@ -532,17 +533,28 @@ class ActionExecutor:
             if not params.get('total'):
                 return {'success': False, 'message': '❌ الإجمالي مطلوب'}
             
+            # نموذج Invoice يتطلب invoice_number؛ إن لم يُمرَّر نولّد مؤقتاً
+            inv_num = params.get('invoice_number') or f"AI-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
+            customer_id = params.get('customer_id')
+            if not customer_id and not params.get('supplier_id'):
+                return {'success': False, 'message': '❌ customer_id أو supplier_id مطلوب'}
             invoice = Invoice(
-                invoice_type=params['invoice_type'],
-                customer_id=params.get('customer_id'),
+                invoice_number=inv_num,
+                invoice_date=datetime.now(timezone.utc),
+                customer_id=customer_id or 1,
                 supplier_id=params.get('supplier_id'),
                 total_amount=Decimal(str(params['total'])),
                 notes=params.get('notes', '').strip() if params.get('notes') else None,
-                created_by_id=self.user_id
+                source=InvoiceSource.MANUAL.value,
             )
             
             db.session.add(invoice)
             db.session.commit()
+            
+            try:
+                run_invoice_gl_sync_after_commit(invoice.id)
+            except Exception:
+                pass
             
             return {
                 'success': True,

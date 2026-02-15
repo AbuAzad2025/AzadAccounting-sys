@@ -65,6 +65,7 @@ from models import (
     Supplier,
     SupplierLoanSettlement,
     get_fx_rate_with_fallback,
+    run_payment_gl_sync_after_commit,
 )
 import utils
 from routes.partner_settlements import _calculate_smart_partner_balance
@@ -1729,7 +1730,10 @@ def create_payment():
                     # فقط عند دفع المبيعة المرتبطة بالحجز (انظر payment.sale_id)
                     pass
                 db.session.commit()
-                
+                try:
+                    run_payment_gl_sync_after_commit(payment.id)
+                except Exception:
+                    pass
                 created_checks = False
                 payment_method_str = str(payment.method).upper()
                 if ('CHECK' in payment_method_str or 'CHEQUE' in payment_method_str) and payment.check_number and payment.check_bank:
@@ -1927,7 +1931,10 @@ def create_expense_payment(exp_id):
                 
         db.session.add(payment)
         db.session.commit()
-        
+        try:
+            run_payment_gl_sync_after_commit(payment.id)
+        except Exception:
+            pass
         # تحديث الأرصدة بشكل فوري
         try:
             if payment.supplier_id:
@@ -2038,7 +2045,10 @@ def update_payment_status(payment_id: int):
     try:
         payment.status = new_status
         db.session.commit()
-        
+        try:
+            run_payment_gl_sync_after_commit(payment.id)
+        except Exception:
+            pass
         return jsonify(success=True, message="تم تحديث حالة الدفعة بنجاح", status=new_status)
         
     except Exception as e:

@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import login_required
 from extensions import db
-from models import RecurringInvoiceTemplate, RecurringInvoiceSchedule, Invoice, InvoiceLine, Customer, Branch, Site, TaxEntry
+from models import RecurringInvoiceTemplate, RecurringInvoiceSchedule, Invoice, InvoiceLine, Customer, Branch, Site, TaxEntry, run_invoice_gl_sync_after_commit
 from datetime import datetime, date, timedelta
 from decimal import Decimal
 from sqlalchemy import or_
@@ -60,6 +60,13 @@ def add_template():
             amount = Decimal(request.form.get('amount', 0))
             currency = request.form.get('currency', 'ILS').strip()
             tax_rate = Decimal(request.form.get('tax_rate', 0))
+            if tax_rate == 0:
+                try:
+                    from utils import get_vat_rate, is_vat_enabled
+                    if is_vat_enabled():
+                        tax_rate = Decimal(str(get_vat_rate()))
+                except Exception:
+                    pass
             frequency = request.form.get('frequency', '').strip()
             start_date_str = request.form.get('start_date', '').strip()
             end_date_str = request.form.get('end_date', '').strip()
@@ -136,7 +143,15 @@ def edit_template(template_id):
             template.description = request.form.get('description', '').strip()
             template.amount = Decimal(request.form.get('amount', 0))
             template.currency = request.form.get('currency', 'ILS').strip()
-            template.tax_rate = Decimal(request.form.get('tax_rate', 0))
+            tr = Decimal(request.form.get('tax_rate', 0))
+            if tr == 0:
+                try:
+                    from utils import get_vat_rate, is_vat_enabled
+                    if is_vat_enabled():
+                        tr = Decimal(str(get_vat_rate()))
+                except Exception:
+                    pass
+            template.tax_rate = tr
             template.frequency = request.form.get('frequency', '').strip()
             
             start_date_str = request.form.get('start_date', '').strip()
@@ -257,6 +272,13 @@ def _generate_recurring_invoice(template, invoice_date=None):
     
     base_amount = Decimal(str(template.amount))
     tax_rate = Decimal(str(template.tax_rate or 0))
+    if tax_rate == 0:
+        try:
+            from utils import get_vat_rate, is_vat_enabled
+            if is_vat_enabled():
+                tax_rate = Decimal(str(get_vat_rate()))
+        except Exception:
+            pass
     tax_amount = base_amount * (tax_rate / 100)
     total_amount = base_amount + tax_amount
     
@@ -342,7 +364,10 @@ def generate_now(template_id):
     try:
         new_invoice = _generate_recurring_invoice(template)
         db.session.commit()
-        
+        try:
+            run_invoice_gl_sync_after_commit(new_invoice.id)
+        except Exception:
+            pass
         return jsonify({
             'success': True,
             'invoice_id': new_invoice.id,

@@ -154,7 +154,7 @@
   <td>{{ pre.created_at.strftime('%Y-%m-%d') if pre.created_at else '-' }}</td>
   <td>
     {% if pre.customer %}
-    {{ pre.customer.name }}
+    {{ pre.customer.name if pre.customer else '—' }}
     {% else %}
     <span class="text-muted">-</span>
     {% endif %}

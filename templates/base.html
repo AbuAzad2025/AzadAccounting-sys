@@ -3,15 +3,13 @@
 <head>
   <meta charset="utf-8">
   <title>{% block title %}{{ system_settings.system_name or 'شركة ازاد' }} - {{ system_settings.company_name or 'شركة ازاد' }}{% endblock %}</title>
-  
-  <!-- Mobile Optimization Meta Tags -->
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="{{ system_settings.system_name or 'شركة ازاد' }}">
   <meta name="format-detection" content="telephone=yes">
-  <meta name="theme-color" content="#667eea">
+  <meta name="theme-color" content="{{ system_settings.primary_color or '#667eea' }}">
   
   <meta name="description" content="{{ system_settings.system_name or 'نظام إدارة الكراج المتكامل' }} - {{ system_settings.company_name or 'شركة ازاد للأنظمة الذكية' }}">
   <meta name="keywords" content="نظام إدارة الكراج، إدارة المركبات، صيانة السيارات، {{ system_settings.company_name or 'شركة ازاد' }}">
@@ -107,11 +105,8 @@
     }
   })();
   </script>
-  
-  <!-- PWA Manifest -->
   <link rel="manifest" href="{{ static_url('manifest.json') }}">
   
-  <!-- Favicon -->
   {% if system_settings.custom_favicon %}
   <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename=system_settings.custom_favicon.replace('static/', '')) }}">
   <link rel="apple-touch-icon" href="{{ url_for('static', filename=system_settings.custom_favicon.replace('static/', '')) }}">
@@ -124,22 +119,16 @@
 
   <meta name="gm-company-name" content="{{ system_settings.company_name or system_settings.system_name or 'النظام' }}">
   <meta name="gm-logo-url" content="{% if system_settings.custom_logo %}{{ url_for('static', filename=system_settings.custom_logo.replace('static/', '')) }}{% else %}{{ url_for('static', filename='img/logo.png') }}{% endif %}">
-  
-  <!-- Google Fonts - Async Loading -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="preload" href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;600;700;800&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
   <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;600;700;800&display=swap"></noscript>
-  
-  <!-- CSS Libraries - Preload Critical -->
   <link rel="preload" href="{{ static_url('adminlte/css/adminlte.min.css') }}" as="style">
   <link rel="preload" href="{{ static_url('adminlte/plugins/fontawesome-free/css/all.min.css') }}" as="style">
   <link rel="stylesheet" href="{{ static_url('adminlte/plugins/fontawesome-free/css/all.min.css') }}">
   <link rel="stylesheet" href="{{ static_url('adminlte/plugins/overlayScrollbars/css/OverlayScrollbars.min.css') }}">
   <link rel="stylesheet" href="{{ static_url('adminlte/css/adminlte.min.css') }}">
   <link rel="stylesheet" href="{{ static_url('adminlte/plugins/select2/css/select2.min.css') }}">
-  
-  <!-- Custom CSS -->
   <link rel="preload" href="{{ static_url('css/style.css') }}" as="style">
   <link rel="stylesheet" href="{{ static_url('css/style.css') }}">
   <link rel="preload" href="{{ static_url('css/ui.css') }}" as="style">
@@ -168,14 +157,8 @@
     })();
   </script>
   <link rel="stylesheet" href="{{ static_url('css/security_dark_mode.css') }}">
-  
-  <!-- Numbers Fix CSS - Force English Numbers -->
   <link rel="stylesheet" href="{{ static_url('css/numbers-fix.css') }}">
-  
-  <!-- Print Styles - A4 Professional Format -->
   <link rel="stylesheet" href="{{ static_url('css/print.css') }}" media="print">
-  
-  <!-- Performance & Event Utilities (loaded early for all pages) -->
   <script src="{{ static_url('js/csrf-utils.js') }}" defer></script>
   <script src="{{ static_url('js/event-utils.js') }}" defer></script>
   {% if config.get('SOCKETIO_ENABLED', False) %}
@@ -186,8 +169,6 @@
   <script src="{{ static_url('js/common-utils.js') }}" defer></script>
   <script src="{{ static_url('js/performance-utils.js') }}" defer></script>
   <script src="{{ static_url('js/safe-enhancements.js') }}" defer></script>
-  
-  <!-- Dynamic System Colors from Security Settings -->
   {% if system_settings.primary_color %}
   <style>
     :root {
@@ -224,7 +205,6 @@
   {% block extra_head %}{% endblock %}
   
   {% if False %}
-  <!-- Enhanced Styles -->
   <style>
     /* ضمان عدم اختفاء المحتوى */
     .content-wrapper,
@@ -352,6 +332,14 @@
     
     /* Mobile + Tablet (< 992px) */
     @media (max-width: 991.98px) {
+      html:not([data-ui-mode="desktop"]),
+      html:not([data-ui-mode="desktop"]) body {
+        overflow-x: hidden;
+        max-width: 100vw;
+      }
+      html:not([data-ui-mode="desktop"]) .content-wrapper {
+        overflow-x: hidden;
+      }
       html:not([data-ui-mode="desktop"]) .main-sidebar {
         width: 280px !important;
         transform: translateX(-100%);
@@ -390,6 +378,10 @@
 
       html[data-ui-mode="tablet"] .dataTables_wrapper {
         overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch;
+      }
+      html:not([data-ui-mode="desktop"]) .content-wrapper .table-responsive {
+        max-width: 100%;
         -webkit-overflow-scrolling: touch;
       }
     }
@@ -931,6 +923,13 @@
 <body class="hold-transition sidebar-mini layout-fixed text-sm layout-navbar-fixed sidebar-collapse-left ui-v2 {% block body_class %}{% endblock %}">
 <div class="wrapper">
   {% include 'partials/navbar.html' %}
+  <div id="gm-open-in-app-banner" class="gm-open-in-app-banner d-none" role="banner" aria-label="فتح كتطبيق">
+    <div class="gm-open-in-app-inner">
+      <span class="gm-open-in-app-text"><i class="fas fa-mobile-alt ml-2"></i>افتح كتطبيق لتجربة أفضل</span>
+      <button type="button" id="install-app-btn" class="btn btn-sm btn-light gm-open-in-app-btn">فتح كتطبيق</button>
+      <button type="button" class="gm-open-in-app-dismiss" aria-label="إخفاء"><i class="fas fa-times"></i></button>
+    </div>
+  </div>
   {% include 'partials/sidebar.html' %}
   <div class="content-wrapper">
     <div class="content-header">
@@ -1651,26 +1650,42 @@ handleBreakpointChange(desktopQuery, 'desktop');
     });
   });
   
-  // دعم PWA - إضافة للشاشة الرئيسية
-  let deferredPrompt;
-  window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault();
-    deferredPrompt = e;
-    
-    // عرض زر تثبيت مخصص (اختياري)
-    const installBtn = document.getElementById('install-app-btn');
-    if (installBtn) {
-      installBtn.style.display = 'block';
-      installBtn.addEventListener('click', async () => {
-        if (deferredPrompt) {
-          deferredPrompt.prompt();
-          const { outcome } = await deferredPrompt.userChoice;
-          deferredPrompt = null;
-          installBtn.style.display = 'none';
-        }
-      });
+  (function openInAppBanner() {
+    var banner = document.getElementById('gm-open-in-app-banner');
+    if (!banner) return;
+    var isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator && window.navigator.standalone) || (document.referrer && document.referrer.indexOf('android-app://') === 0);
+    if (isStandalone) document.body.classList.add('gm-standalone');
+    var isMobile = window.matchMedia('(max-width: 991.98px)').matches;
+    try { if (localStorage.getItem('gm_open_in_app_dismissed') === '1') return; } catch (e) {}
+    if (!isMobile || isStandalone) return;
+    var installBtn = document.getElementById('install-app-btn');
+    var dismissBtn = banner.querySelector('.gm-open-in-app-dismiss');
+    function showBanner() { banner.classList.remove('d-none'); document.body.classList.add('gm-banner-visible'); }
+    function hideBanner() { banner.classList.add('d-none'); document.body.classList.remove('gm-banner-visible'); try { localStorage.setItem('gm_open_in_app_dismissed', '1'); } catch (e) {} }
+    if (dismissBtn) dismissBtn.addEventListener('click', hideBanner);
+    var deferredPrompt;
+    window.addEventListener('beforeinstallprompt', function(e) {
+      e.preventDefault();
+      deferredPrompt = e;
+      showBanner();
+      if (installBtn && !installBtn._bound) {
+        installBtn._bound = true;
+        installBtn.addEventListener('click', function() {
+          if (deferredPrompt) {
+            deferredPrompt.prompt();
+            deferredPrompt.userChoice.then(function(r) { deferredPrompt = null; hideBanner(); }).catch(function() { hideBanner(); });
+          }
+        });
+      }
+    });
+    if (isMobile && !isStandalone && (window.navigator.userAgent.indexOf('iPhone') !== -1 || window.navigator.userAgent.indexOf('iPad') !== -1)) {
+      showBanner();
+      if (installBtn) {
+        installBtn.textContent = 'إضافة للشاشة الرئيسية';
+        installBtn.addEventListener('click', function() { hideBanner(); });
+      }
     }
-  });
+  })();
   
   // تسجيل Service Worker - موقّف على صفحات الأمن لتجنّب كاش قديم
   if ('serviceWorker' in navigator) {

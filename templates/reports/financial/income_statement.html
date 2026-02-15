@@ -18,12 +18,12 @@
 
             <div class="row mb-4">
                 <div class="col-md-4">
-                    <label>من تاريخ:</label>
-                    <input type="date" id="from_date" class="form-control" value="{{ from_date.strftime('%Y-%m-%d') }}">
+                    <label for="from_date">من تاريخ:</label>
+                    <input type="date" id="from_date" class="form-control" value="{{ from_date.strftime('%Y-%m-%d') }}" title="من تاريخ" aria-label="من تاريخ">
                 </div>
                 <div class="col-md-4">
-                    <label>إلى تاريخ:</label>
-                    <input type="date" id="to_date" class="form-control" value="{{ to_date.strftime('%Y-%m-%d') }}">
+                    <label for="to_date">إلى تاريخ:</label>
+                    <input type="date" id="to_date" class="form-control" value="{{ to_date.strftime('%Y-%m-%d') }}" title="إلى تاريخ" aria-label="إلى تاريخ">
                 </div>
                 <div class="col-md-4">
                     <label>&nbsp;</label>
@@ -46,7 +46,7 @@
                         <tbody>
                             {% for rev in revenues %}
                             <tr>
-                                <td>{{ rev.name }} <small class="text-muted">({{ rev.account }})</small></td>
+                                <td>{{ rev.name or '—' }} <small class="text-muted">({{ rev.account or '' }})</small></td>
                                 <td class="text-end fw-bold">{{ "{:,.2f}".format(rev.amount) }} ₪</td>
                             </tr>
                             {% endfor %}
@@ -62,41 +62,88 @@
                                 <td class="text-end">{{ "{:,.2f}".format(total_revenue) }} ₪</td>
                             </tr>
                         </tfoot>
-                        
-                        
+
+                        <thead class="table-secondary mt-3">
+                            <tr>
+                                <th colspan="2"><h5 class="mb-0">📦 تكلفة البضاعة المباعة (COGS)</h5></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for c in cogs_details %}
+                            <tr>
+                                <td>{{ c.name or '—' }} <small class="text-muted">({{ c.account or '' }})</small></td>
+                                <td class="text-end fw-bold">{{ "{:,.2f}".format(c.amount) }} ₪</td>
+                            </tr>
+                            {% endfor %}
+                            {% if not cogs_details %}
+                            <tr>
+                                <td colspan="2" class="text-center text-muted">لا توجد تكلفة بضاعة في الفترة</td>
+                            </tr>
+                            {% endif %}
+                        </tbody>
+                        <tfoot class="table-secondary fw-bold">
+                            <tr>
+                                <td>إجمالي تكلفة البضاعة المباعة</td>
+                                <td class="text-end">{{ "{:,.2f}".format(total_cogs) }} ₪</td>
+                            </tr>
+                            <tr>
+                                <td>إجمالي الربح (Gross Profit)</td>
+                                <td class="text-end">{{ "{:,.2f}".format(gross_profit) }} ₪</td>
+                            </tr>
+                        </tfoot>
 
                         <thead class="table-danger mt-3">
                             <tr>
-                                <th colspan="2"><h5 class="mb-0">📉 المصاريف</h5></th>
+                                <th colspan="2"><h5 class="mb-0">📉 المصاريف التشغيلية</h5></th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for exp in expenses %}
                             <tr>
-                                <td>{{ exp.name }} <small class="text-muted">({{ exp.account }})</small></td>
+                                <td>{{ exp.name or '—' }} <small class="text-muted">({{ exp.account or '' }})</small></td>
                                 <td class="text-end fw-bold">{{ "{:,.2f}".format(exp.amount) }} ₪</td>
                             </tr>
                             {% endfor %}
                             {% if not expenses %}
                             <tr>
-                                <td colspan="2" class="text-center text-muted">لا توجد مصاريف في الفترة المحددة</td>
+                                <td colspan="2" class="text-center text-muted">لا توجد مصاريف تشغيلية في الفترة</td>
                             </tr>
                             {% endif %}
                         </tbody>
                         <tfoot class="table-danger fw-bold">
                             <tr>
-                                <td>إجمالي المصاريف</td>
+                                <td>إجمالي المصاريف التشغيلية</td>
                                 <td class="text-end">{{ "{:,.2f}".format(operating_expenses) }} ₪</td>
                             </tr>
+                            <tr>
+                                <td>الربح التشغيلي / الربح قبل الضريبة</td>
+                                <td class="text-end">{{ "{:,.2f}".format(profit_before_tax) }} ₪</td>
+                            </tr>
                         </tfoot>
-                        
-                        
+
+                        <thead class="table-info">
+                            <tr>
+                                <th colspan="2"><h5 class="mb-0">🏛 ضريبة الدخل (مخصومة من الربح)</h5></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>مصروف ضريبة الدخل (6200) / التزام ضريبة مستحقة (2200)</td>
+                                <td class="text-end fw-bold">{{ "{:,.2f}".format(income_tax_expense) }} ₪</td>
+                            </tr>
+                        </tbody>
+                        <tfoot class="table-info fw-bold">
+                            <tr>
+                                <td>إجمالي الضريبة</td>
+                                <td class="text-end">{{ "{:,.2f}".format(total_taxes) }} ₪</td>
+                            </tr>
+                        </tfoot>
 
                         <tfoot class="{% if is_profit %}table-primary{% else %}table-warning{% endif %} fw-bold fs-5">
                             <tr>
                                 <td>
                                     {% if is_profit %}
-                                    🎉 صافي الربح
+                                    🎉 صافي الربح بعد الضريبة
                                     {% else %}
                                     ⚠️ صافي الخسارة
                                     {% endif %}

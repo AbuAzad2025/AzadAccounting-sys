@@ -89,7 +89,7 @@ section.content .container-fluid {
   <ol class="breadcrumb bg-white px-3 py-2 rounded mb-4">
     <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">الرئيسية</a></li>
     <li class="breadcrumb-item"><a href="{{ url_for('vendors_bp.suppliers_list') }}">الموردون</a></li>
-    <li class="breadcrumb-item active">كشف حساب {{ supplier.name }}</li>
+    <li class="breadcrumb-item active">كشف حساب {{ supplier.name|default('—') }}</li>
   </ol>
 </nav>
 {% endblock %}
@@ -149,7 +149,7 @@ section.content .container-fluid {
       class="btn btn-outline-success btn-settle"
       data-entity-type="SUPPLIER"
       data-id="{{ supplier.id }}"
-      data-name="{{ supplier.name }}"
+      data-name="{{ supplier.name|default('') }}"
       data-balance="{{ balance|float }}"
       data-currency="{{ supplier.currency or 'ILS' }}">
       <i class="fas fa-scale-balanced ms-1"></i> تسوية الرصيد
@@ -401,7 +401,7 @@ section.content .container-fluid {
   <div class="card shadow-sm rounded">
     <div class="card-header bg-primary text-white">
       <h5 class="card-title m-0">
-        <i class="fas fa-file-invoice ms-2"></i> كشف حساب: {{ supplier.name }}
+        <i class="fas fa-file-invoice ms-2"></i> كشف حساب: {{ supplier.name|default('—') }}
       </h5>
       {% if date_from or date_to %}
       <div class="small mt-1">
@@ -807,7 +807,7 @@ section.content .container-fluid {
     if (!table) return;
     
     const printWindow = window.open('', '', 'height=800,width=1000');
-    printWindow.document.write('<html><head><title>كشف حساب - {{ supplier.name }}</title>');
+    printWindow.document.write('<html><head><title>كشف حساب - {{ supplier.name|default('—') }}</title>');
     printWindow.document.write('<meta charset="UTF-8">');
     printWindow.document.write('<style>');
     printWindow.document.write('* { margin: 0; padding: 0; box-sizing: border-box; }');
@@ -835,9 +835,9 @@ section.content .container-fluid {
     printWindow.document.write('<div class="supplier-info">');
     printWindow.document.write('<table><tr>');
     printWindow.document.write('<td style="width: 55%;">');
-    printWindow.document.write('<div><strong>المورد:</strong> {{ supplier.name }}</div>');
+    printWindow.document.write('<div><strong>المورد:</strong> {{ supplier.name|default('—') }}</div>');
     {% if supplier.phone %}
-    printWindow.document.write('<div><strong>الهاتف:</strong> {{ supplier.phone }}</div>');
+    printWindow.document.write('<div><strong>الهاتف:</strong> {{ supplier.phone|default('') }}</div>');
     {% endif %}
     {% if supplier.email %}
     printWindow.document.write('<div><strong>البريد:</strong> {{ supplier.email }}</div>');

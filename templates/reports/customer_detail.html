@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 
-{% block title %}كشف مفصل للعميل - {{ customer.name }}{% endblock %}
+{% block title %}كشف مفصل للعميل - {{ customer.name|default('—') }}{% endblock %}
 
 {% block content %}
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2 class="mb-0">
             <i class="fas fa-user text-primary ml-2"></i>
-            كشف مفصل للعميل: {{ customer.name }}
+            كشف مفصل للعميل: {{ customer.name|default('—') }}
         </h2>
         <div class="btn-group">
             <div class="btn-group shadow-sm rounded-pill overflow-hidden bg-white ms-2">
@@ -35,7 +35,7 @@
                 <div class="card-body">
                     <div class="row">
                         <div class="col-sm-6">
-                            <strong>الاسم:</strong> {{ customer.name }}<br>
+                            <strong>الاسم:</strong> {{ customer.name or '—' }}<br>
                             <strong>الهاتف:</strong> {{ customer.phone or 'غير محدد' }}<br>
                             <strong>البريد الإلكتروني:</strong> {{ customer.email or 'غير محدد' }}
                         </div>

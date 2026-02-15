@@ -1,15 +1,10 @@
 <footer class="main-footer enhanced-footer text-center" dir="rtl">
   <div class="container">
     <div class="footer-brand">
-      {% if system_settings and system_settings.custom_logo %}
-        <img src="{{ url_for('static', filename=system_settings.custom_logo.replace('static/', '')) }}"
-             alt="Logo"
-             class="footer-logo">
-      {% else %}
-        <img src="{{ url_for('static', filename='img/logo.png') }}"
-             alt="Logo"
-             class="footer-logo">
-      {% endif %}
+      <img src="{{ url_for('static', filename='img/azad_logo.png') }}"
+           alt="ازاد"
+           class="footer-logo"
+           style="height:28px;max-width:90px;object-fit:contain;">
       <div class="footer-company">
         <strong class="footer-company-name">{{ system_settings.company_name or system_settings.system_name or 'النظام' }}</strong>
         <small class="footer-system-name">{{ system_settings.system_name or 'نظام إدارة متكامل' }}</small>

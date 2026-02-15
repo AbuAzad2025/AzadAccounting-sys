@@ -438,16 +438,29 @@ def create_check_record(
     db.session.add(check)
     return check, True
 
+# أنواع قيود الشيكات في gl_batches (يجب حذفها أو عكسها عند حذف الشيك)
+CHECK_GL_SOURCE_TYPES = ('CHECK', 'check_manual', 'check_payment', 'check_payment_split')
+
+
+def _delete_check_gl_batches(connection, check_id):
+    """حذف كل قيود GL المرتبطة بشيك (حسب source_id وكل أنواع الشيك المعروفة)."""
+    from sqlalchemy import text as sa_text
+    placeholders = ", ".join(f":st{i}" for i in range(len(CHECK_GL_SOURCE_TYPES)))
+    params = {"cid": check_id, **{f"st{i}": st for i, st in enumerate(CHECK_GL_SOURCE_TYPES)}}
+    connection.execute(
+        sa_text(f"DELETE FROM gl_batches WHERE source_id = :cid AND source_type IN ({placeholders})"),
+        params
+    )
+
+
 @event.listens_for(Check, 'before_delete')
 def _check_gl_batch_reverse(mapper, connection, target):
-    """إنشاء قيد عكسي عند حذف الشيك (أصح محاسبياً)"""
+    """إنشاء قيد عكسي عند حذف الشيك (أصح محاسبياً). حذف القيود الأصلية أولاً ثم إنشاء العكس إن لزم."""
+    from sqlalchemy import text as sa_text
     try:
+        # دائماً حذف القيود الأصلية المرتبطة بالشيك (بأي source_type: check_manual, check_payment، إلخ)
+        _delete_check_gl_batches(connection, target.id)
         if hasattr(target, '_skip_gl_reversal') and target._skip_gl_reversal:
-            from sqlalchemy import text as sa_text
-            connection.execute(
-                sa_text("DELETE FROM gl_batches WHERE source_type = 'CHECK' AND source_id = :cid"),
-                {"cid": target.id}
-            )
             return
         
         amount = float(target.amount or 0)
@@ -2738,17 +2751,17 @@ class CheckActionService:
             entity_type = 'SUPPLIER'
             entity_id = expense.supplier_id
             if expense.supplier:
-                entity_name = expense.supplier.name
+                entity_name = (expense.supplier.name or "") or (entity_name or "")
         elif expense.partner_id:
             entity_type = 'PARTNER'
             entity_id = expense.partner_id
             if expense.partner:
-                entity_name = expense.partner.name
+                entity_name = (expense.partner.name or "") or entity_name
         elif expense.customer_id:
             entity_type = 'CUSTOMER'
             entity_id = expense.customer_id
             if expense.customer:
-                entity_name = expense.customer.name
+                entity_name = (expense.customer.name or "") or entity_name
         amount = Decimal(str(expense.amount or 0))
         currency = expense.currency or 'ILS'
         return CheckActionContext(
@@ -3045,29 +3058,29 @@ def get_checks():
 
             def _resolve_entity(payment):
                 if payment.customer:
-                    name = payment.customer.name
+                    name = (payment.customer.name or "") or ""
                     return name, 'عميل', f"/customers/{payment.customer.id}", 'CUSTOMER', payment.customer.id
                 sale = getattr(payment, 'sale', None)
                 if sale and getattr(sale, 'customer', None):
-                    name = sale.customer.name
+                    name = (sale.customer.name or "") or ""
                     return name, 'عميل', f"/customers/{sale.customer.id}", 'CUSTOMER', sale.customer.id
                 invoice = getattr(payment, 'invoice', None)
                 if invoice and getattr(invoice, 'customer', None):
-                    name = invoice.customer.name
+                    name = (invoice.customer.name or "") or ""
                     return name, 'عميل', f"/customers/{invoice.customer.id}", 'CUSTOMER', invoice.customer.id
                 preorder = getattr(payment, 'preorder', None)
                 if preorder and getattr(preorder, 'customer', None):
-                    name = preorder.customer.name
+                    name = (preorder.customer.name or "") or ""
                     return name, 'عميل', f"/customers/{preorder.customer.id}", 'CUSTOMER', preorder.customer.id
                 service_request = getattr(payment, 'service', None)
                 if service_request and getattr(service_request, 'customer', None):
-                    name = service_request.customer.name
+                    name = (service_request.customer.name or "") or ""
                     return name, 'عميل', f"/customers/{service_request.customer.id}", 'CUSTOMER', service_request.customer.id
                 if payment.supplier:
-                    name = payment.supplier.name
+                    name = (payment.supplier.name or "") or ""
                     return name, 'مورد', f"/vendors/{payment.supplier.id}", 'SUPPLIER', payment.supplier.id
                 if payment.partner:
-                    name = payment.partner.name
+                    name = (payment.partner.name or "") or ""
                     return name, 'شريك', f"/partners/{payment.partner.id}", 'PARTNER', payment.partner.id
                 return '', '', '', None, None
 
@@ -4587,13 +4600,13 @@ def get_alerts():
         for check in overdue_manual_checks:
             entity_name = ''
             if check.customer:
-                entity_name = check.customer.name
+                entity_name = (check.customer.name or "") or ""
             elif check.supplier:
-                entity_name = check.supplier.name
+                entity_name = (check.supplier.name or "") or ""
             elif check.partner:
-                entity_name = check.partner.name
+                entity_name = (check.partner.name or "") or ""
             else:
-                entity_name = check.drawer_name or check.payee_name or 'غير محدد'
+                entity_name = (check.drawer_name or check.payee_name or "") or 'غير محدد'
             
             is_incoming = check.direction == PaymentDirection.IN.value
             if is_incoming:
@@ -4635,11 +4648,11 @@ def get_alerts():
             
             entity_name = ''
             if check.customer:
-                entity_name = check.customer.name
+                entity_name = (check.customer.name or "") or ""
             elif check.supplier:
-                entity_name = check.supplier.name
+                entity_name = (check.supplier.name or "") or ""
             elif check.partner:
-                entity_name = check.partner.name
+                entity_name = (check.partner.name or "") or ""
             else:
                 entity_name = 'غير محدد'
             
@@ -4680,11 +4693,11 @@ def get_alerts():
         for check in due_soon_checks:
             entity_name = ''
             if check.customer:
-                entity_name = check.customer.name
+                entity_name = (check.customer.name or "") or ""
             elif check.supplier:
-                entity_name = check.supplier.name
+                entity_name = (check.supplier.name or "") or ""
             elif check.partner:
-                entity_name = check.partner.name
+                entity_name = (check.partner.name or "") or ""
             else:
                 entity_name = 'غير محدد'
             

@@ -65,6 +65,12 @@ def _calculate_ledger_statistics(from_date: datetime | None, to_date: datetime |
         (base_gl.filter(GLEntry.account == service_rev_account).with_entities(func.sum(GLEntry.credit - GLEntry.debit)).scalar() or 0)
     )
 
+    revenue_base = base_gl.join(Account, Account.code == GLEntry.account).filter(Account.type == "REVENUE")
+    total_revenue = float(
+        (revenue_base.with_entities(func.sum(GLEntry.credit - GLEntry.debit)).scalar() or 0)
+    )
+    other_revenue = total_revenue - total_sales - total_services
+
     cogs_exchange_account = GL_ACCOUNTS.get("COGS_EXCHANGE", "5105_COGS_EXCHANGE")
 
     expense_base = base_gl.join(Account, Account.code == GLEntry.account).filter(Account.type == "EXPENSE")
@@ -230,9 +236,8 @@ def _calculate_ledger_statistics(from_date: datetime | None, to_date: datetime |
 
     gross_profit_sales = total_sales - total_cogs
     gross_profit_services = total_services - total_service_costs
-    total_gross_profit = gross_profit_sales + gross_profit_services
+    total_gross_profit = total_revenue - total_cogs - total_service_costs
     net_profit = total_gross_profit - total_expenses
-    total_revenue = total_sales + total_services
     profit_margin = (net_profit / total_revenue * 100) if total_revenue > 0 else 0
 
     statistics = {
@@ -244,6 +249,7 @@ def _calculate_ledger_statistics(from_date: datetime | None, to_date: datetime |
         "gross_profit_services": gross_profit_services,
         "total_gross_profit": total_gross_profit,
         "total_revenue": total_revenue,
+        "other_revenue": other_revenue,
         "total_expenses": total_expenses,
         "net_profit": net_profit,
         "profit_margin": profit_margin,
@@ -434,39 +440,100 @@ def get_ledger_data():
             tt_upper = transaction_type.strip().upper()
             if tt_upper == 'SALE':
                 query = query.filter(GLBatch.source_type == 'SALE')
+            elif tt_upper == 'SALE_PARTNER_SHARE':
+                query = query.filter(GLBatch.source_type == 'SALE_PARTNER_SHARE')
             elif tt_upper in ['SALE_RETURN', 'RETURN']:
                 query = query.filter(GLBatch.source_type == 'SALE_RETURN')
             elif tt_upper in ['PURCHASE', 'EXPENSE']:
                 query = query.filter(GLBatch.source_type.in_(['EXPENSE', 'PURCHASE']))
             elif tt_upper == 'PAYMENT':
-                 query = query.filter(GLBatch.source_type == 'PAYMENT')
+                query = query.filter(GLBatch.source_type == 'PAYMENT')
+            elif tt_upper == 'PAYMENT_SPLIT':
+                query = query.filter(GLBatch.source_type == 'PAYMENT_SPLIT')
             elif tt_upper == 'OPENING':
-                 query = query.filter(GLBatch.purpose == 'OPENING_BALANCE')
+                query = query.filter(GLBatch.purpose == 'OPENING_BALANCE')
             elif tt_upper in ['MANUAL', 'JOURNAL']:
-                 query = query.filter(GLBatch.source_type == 'MANUAL')
+                query = query.filter(GLBatch.source_type == 'MANUAL')
             elif tt_upper == 'SERVICE':
                 query = query.filter(GLBatch.source_type == 'SERVICE')
+            elif tt_upper == 'SERVICE_PARTNER_SHARE':
+                query = query.filter(GLBatch.source_type == 'SERVICE_PARTNER_SHARE')
+            elif tt_upper == 'INVOICE':
+                query = query.filter(GLBatch.source_type == 'INVOICE')
+            elif tt_upper == 'PREORDER':
+                query = query.filter(GLBatch.source_type == 'PREORDER')
+            elif tt_upper == 'SHIPMENT':
+                query = query.filter(GLBatch.source_type == 'SHIPMENT')
+            elif tt_upper == 'EXCHANGE':
+                query = query.filter(GLBatch.source_type == 'EXCHANGE')
+            elif tt_upper == 'CHECK':
+                query = query.filter(GLBatch.source_type.in_([
+                    'CHECK', 'CHECK_REVERSAL',
+                    'check_manual', 'check_payment', 'check_payment_split'
+                ]))
+            elif tt_upper == 'CLOSING':
+                query = query.filter(GLBatch.source_type == 'CLOSING_ENTRY')
+            elif tt_upper == 'TAX_ACCRUAL':
+                query = query.filter(GLBatch.source_type == 'TAX_ACCRUAL')
+            elif tt_upper == 'REVERSAL':
+                query = query.filter(
+                    GLBatch.source_type.in_([
+                        'REVERSAL', 'SALE_REVERSAL', 'PAYMENT_REVERSAL', 'EXPENSE_REVERSAL',
+                        'SERVICE_REVERSAL', 'SHIPMENT_REVERSAL', 'INVOICE_REVERSAL',
+                        'PREORDER_REVERSAL', 'ONLINE_ORDER_REVERSAL'
+                    ])
+                )
+            elif tt_upper == 'ONLINE_PREORDER':
+                query = query.filter(GLBatch.source_type.in_(['ONLINE_PREORDER', 'ONLINE_ORDER']))
 
         # ترتيب حسب التاريخ، ثم رقم القيد، ثم المدين أولاً (المتعارف عليه في اليومية)
         entries = query.order_by(GLBatch.posted_at, GLBatch.id, desc(GLEntry.debit)).limit(5000).all()
         
-        # قاموس لترجمة أنواع العمليات
+        # قاموس لترجمة أنواع العمليات — يشمل كل source_type المستخدمة لعدم إخفاء أي قيد
         type_map = {
             'SALE': 'مبيعات',
+            'SALE_PARTNER_SHARE': 'حصة شريك من مبيعة',
             'SALE_RETURN': 'مرتجع مبيعات',
+            'SALE_REVERSAL': 'عكس مبيعة',
             'EXPENSE': 'مصروف',
+            'EXPENSE_REVERSAL': 'عكس مصروف',
             'PURCHASE': 'مشتريات',
             'PAYMENT': 'دفعة',
+            'PAYMENT_REVERSAL': 'عكس دفعة',
+            'PAYMENT_CANCELLATION': 'إلغاء دفعة',
             'PAYMENT_SPLIT': 'توزيع دفعة',
             'MANUAL': 'قيد يدوي',
             'OPENING_BALANCE': 'رصيد افتتاحي',
             'SERVICE': 'صيانة',
+            'SERVICE_PARTNER_SHARE': 'حصة شريك من صيانة',
+            'SERVICE_REVERSAL': 'عكس صيانة',
             'PREORDER': 'حجز مسبق',
+            'PREORDER_REVERSAL': 'عكس حجز',
             'INVOICE': 'فاتورة',
+            'INVOICE_REVERSAL': 'عكس فاتورة',
             'ONLINE_PREORDER': 'حجز أونلاين',
-            'EXPENSE_REVERSAL': 'عكس مصروف',
+            'ONLINE_ORDER': 'طلب أونلاين',
+            'ONLINE_ORDER_REVERSAL': 'عكس طلب أونلاين',
             'EXCHANGE': 'توريد/صرف',
+            'EXCHANGE_PURCHASE': 'شراء توريد',
+            'EXCHANGE_RETURN': 'مرتجع توريد',
+            'EXCHANGE_ADJUST': 'تسوية توريد',
             'SHIPMENT': 'شحنة',
+            'SHIPMENT_REVERSAL': 'عكس شحنة',
+            'CHECK': 'شيك',
+            'CHECK_REVERSAL': 'عكس شيك',
+            'TAX_ACCRUAL': 'استحقاق ضريبة الدخل',
+            'check_manual': 'شيك يدوي',
+            'check_payment': 'شيك دفعة',
+            'check_payment_split': 'شيك توزيع دفعة',
+            'CLOSING_ENTRY': 'قيد إقفال',
+            'REVERSAL': 'قيد عكسي',
+            'CONSUME_SALE': 'استهلاك مبيعة',
+            'CONSUME_SERVICE': 'استهلاك خدمة',
+            'LOAN_SETTLEMENT': 'تسوية قرض',
+            'SUPPLIER_INVOICE': 'فاتورة مورد',
+            'PROJECT_COST': 'تكلفة مشروع',
+            'PROJECT_REVENUE': 'إيراد مشروع',
         }
 
         payment_split_cache = {}
@@ -1165,7 +1232,17 @@ def fix_gl_entities_for_entity_audit():
             GLBatch.posted_at <= as_of_dt,
         )
 
-        supported_source_types = {"PAYMENT", "PAYMENT_SPLIT", "SALE", "INVOICE", "EXPENSE", "SERVICE", "PREORDER", "SHIPMENT"}
+        supported_source_types = {
+            "PAYMENT", "PAYMENT_SPLIT", "SALE", "INVOICE", "EXPENSE", "SERVICE", "PREORDER", "SHIPMENT",
+            "CHECK", "CHECK_REVERSAL", "check_manual", "check_payment", "check_payment_split",
+            "EXCHANGE", "MANUAL", "CLOSING_ENTRY", "REVERSAL",
+            "SALE_REVERSAL", "PAYMENT_REVERSAL", "EXPENSE_REVERSAL", "SERVICE_REVERSAL",
+            "SHIPMENT_REVERSAL", "INVOICE_REVERSAL", "PREORDER_REVERSAL", "ONLINE_ORDER_REVERSAL",
+            "ONLINE_PREORDER", "ONLINE_ORDER", "EXCHANGE_PURCHASE", "EXCHANGE_RETURN", "EXCHANGE_ADJUST",
+            "CONSUME_SALE", "CONSUME_SERVICE", "LOAN_SETTLEMENT", "SUPPLIER_INVOICE",
+            "PROJECT_COST", "PROJECT_REVENUE", "SALE_PARTNER_SHARE", "SERVICE_PARTNER_SHARE",
+            "TAX_ACCRUAL",
+        }
         if override:
             q = q.filter(
                 GLBatch.source_type.isnot(None),
@@ -1534,7 +1611,7 @@ def auto_fix_entity_balance_audit():
             GLBatch.status == "POSTED",
             GLBatch.posted_at <= as_of_dt,
         )
-        supported_source_types = {"PAYMENT", "PAYMENT_SPLIT", "SALE", "INVOICE", "EXPENSE", "SERVICE", "PREORDER", "SHIPMENT"}
+        supported_source_types = {"PAYMENT", "PAYMENT_SPLIT", "SALE", "SALE_PARTNER_SHARE", "SERVICE", "SERVICE_PARTNER_SHARE", "INVOICE", "EXPENSE", "PREORDER", "SHIPMENT"}
         if override:
             q = q.filter(
                 GLBatch.source_type.isnot(None),
@@ -1850,7 +1927,7 @@ def get_accounts_summary():
                 else:
                     g = groups["أصول أخرى"]
             elif acc_type == "LIABILITY":
-                if code.startswith("2100"):
+                if code.startswith("2100") or code.startswith("2200"):
                     g = groups["الضرائب المستحقة"]
                 else:
                     g = groups["ذمم الموردين والخصوم الأخرى"]
@@ -1920,269 +1997,139 @@ def get_accounts_summary():
 @login_required
 @utils.permission_required("manage_ledger")
 def get_receivables_detailed_summary():
-    """جلب ملخص الذمم التفصيلي مع أعمار الديون"""
     try:
         from_date_str = request.args.get('from_date')
         to_date_str = request.args.get('to_date')
-        
         from_date = datetime.strptime(from_date_str, '%Y-%m-%d') if from_date_str else None
-        to_date = datetime.strptime(to_date_str, '%Y-%m-%d').replace(hour=23, minute=59, second=59) if to_date_str else None
-        
+        to_date = datetime.strptime(to_date_str, '%Y-%m-%d').replace(hour=23, minute=59, second=59) if to_date_str else datetime.now(timezone.utc).replace(tzinfo=None)
+        as_of = to_date
         receivables = []
         today = datetime.now(timezone.utc).replace(tzinfo=None)
-        
-        # 1. العملاء (Customers) مع أعمار الديون
-        from models import fx_rate
-        
-        customers = Customer.query.limit(10000).all()
-        for customer in customers:
-            from decimal import Decimal
-            
-            db.session.refresh(customer)
-            balance = Decimal(str(customer.current_balance or 0))
-            
-            if balance == 0:
+        ar_account = (GL_ACCOUNTS.get("AR") or "1100_AR").upper()
+        ap_account = (GL_ACCOUNTS.get("AP") or "2000_AP").upper()
+
+        cust_gl = (
+            db.session.query(
+                GLBatch.entity_id,
+                func.coalesce(func.sum(GLEntry.debit - GLEntry.credit), 0).label("gl_balance"),
+            )
+            .join(GLEntry, GLBatch.id == GLEntry.batch_id)
+            .filter(GLBatch.status == "POSTED", GLBatch.entity_type == "CUSTOMER", GLEntry.account == ar_account, GLBatch.posted_at <= as_of)
+            .group_by(GLBatch.entity_id)
+        )
+        cust_balances = {r.entity_id: float(r.gl_balance or 0) for r in cust_gl.all()}
+
+        supp_gl = (
+            db.session.query(
+                GLBatch.entity_id,
+                func.coalesce(func.sum(GLEntry.credit - GLEntry.debit), 0).label("gl_balance"),
+            )
+            .join(GLEntry, GLBatch.id == GLEntry.batch_id)
+            .filter(GLBatch.status == "POSTED", GLBatch.entity_type == "SUPPLIER", GLEntry.account == ap_account, GLBatch.posted_at <= as_of)
+            .group_by(GLBatch.entity_id)
+        )
+        supp_balances = {r.entity_id: float(r.gl_balance or 0) for r in supp_gl.all()}
+
+        part_gl = (
+            db.session.query(
+                GLBatch.entity_id,
+                func.coalesce(func.sum(GLEntry.credit - GLEntry.debit), 0).label("gl_balance"),
+            )
+            .join(GLEntry, GLBatch.id == GLEntry.batch_id)
+            .filter(GLBatch.status == "POSTED", GLBatch.entity_type == "PARTNER", GLEntry.account == ap_account, GLBatch.posted_at <= as_of)
+            .group_by(GLBatch.entity_id)
+        )
+        part_balances = {r.entity_id: float(r.gl_balance or 0) for r in part_gl.all()}
+
+        for cid, balance in cust_balances.items():
+            if not cid:
                 continue
-            
+            if abs(balance) < 0.01:
+                continue
+            customer = db.session.get(Customer, cid)
+            name = customer.name if customer else f"عميل #{cid}"
             oldest_date = None
             last_payment_date = None
-            
-            oldest_sale = Sale.query.filter(Sale.customer_id == customer.id, Sale.status == 'CONFIRMED').order_by(Sale.sale_date.asc()).first()
+            oldest_sale = Sale.query.filter(Sale.customer_id == cid, Sale.status == 'CONFIRMED').order_by(Sale.sale_date.asc()).first()
             if oldest_sale and oldest_sale.sale_date:
                 oldest_date = oldest_sale.sale_date
-            
-            oldest_invoice = Invoice.query.filter(Invoice.customer_id == customer.id, Invoice.cancelled_at.is_(None)).order_by(Invoice.invoice_date.asc()).first()
+            oldest_invoice = Invoice.query.filter(Invoice.customer_id == cid, Invoice.cancelled_at.is_(None)).order_by(Invoice.invoice_date.asc()).first()
             if oldest_invoice:
                 ref_dt = oldest_invoice.invoice_date or oldest_invoice.created_at
                 if ref_dt and (oldest_date is None or ref_dt < oldest_date):
                     oldest_date = ref_dt
-            
-            oldest_service = ServiceRequest.query.filter(ServiceRequest.customer_id == customer.id).order_by(ServiceRequest.received_at.asc()).first()
+            oldest_service = ServiceRequest.query.filter(ServiceRequest.customer_id == cid).order_by(ServiceRequest.received_at.asc()).first()
             if oldest_service:
                 ref_dt = oldest_service.received_at or oldest_service.created_at
                 if ref_dt and (oldest_date is None or ref_dt < oldest_date):
                     oldest_date = ref_dt
-            
-            last_payment = Payment.query.filter(
-                Payment.customer_id == customer.id
-            ).order_by(Payment.payment_date.desc()).first()
-            if not last_payment:
-                last_payment = Payment.query.join(Sale, Payment.sale_id == Sale.id).filter(
-                    Sale.customer_id == customer.id
-                ).order_by(Payment.payment_date.desc()).first()
-            if not last_payment:
-                last_payment = Payment.query.join(Invoice, Payment.invoice_id == Invoice.id).filter(
-                    Invoice.customer_id == customer.id
-                ).order_by(Payment.payment_date.desc()).first()
-            
+            last_payment = Payment.query.filter(Payment.customer_id == cid).order_by(Payment.payment_date.desc()).first()
             if last_payment and last_payment.payment_date:
                 last_payment_date = last_payment.payment_date
-            
-            days_overdue = 0
-            if balance < 0 and oldest_date:
-                days_overdue = (today - oldest_date).days
-            
-            last_transaction = last_payment_date if last_payment_date else oldest_date
+            days_overdue = (today - oldest_date).days if balance > 0 and oldest_date else 0
+            last_transaction = last_payment_date or oldest_date
             last_transaction_str = last_transaction.strftime('%Y-%m-%d') if last_transaction else None
-            
             receivables.append({
-                "name": customer.name,
+                "name": name,
                 "type": "customer",
                 "type_ar": "عميل",
-                "balance": float(balance),
-                "debit": float(abs(balance)) if balance < 0 else 0.0,
-                "credit": float(balance) if balance > 0 else 0.0,
+                "balance": balance,
+                "debit": balance if balance > 0 else 0.0,
+                "credit": abs(balance) if balance < 0 else 0.0,
                 "days_overdue": days_overdue,
                 "last_transaction": last_transaction_str
             })
         
-        # 2. الموردين (Suppliers) مع أعمار الديون
-        suppliers = Supplier.query.limit(10000).all()
-        for supplier in suppliers:
-            # حساب المشتريات من المورد (النفقات)
-            expenses_query = Expense.query.filter(
-                Expense.payee_type == 'SUPPLIER',
-                Expense.payee_entity_id == supplier.id
-            )
-            if from_date:
-                expenses_query = expenses_query.filter(Expense.date >= from_date)
-            if to_date:
-                expenses_query = expenses_query.filter(Expense.date <= to_date)
-            
-            total_purchases = 0.0
-            oldest_expense_date = None
-            
-            for expense in expenses_query.limit(10000).all():
-                amount = float(expense.amount or 0)
-                if expense.currency and expense.currency != 'ILS':
-                    try:
-                        rate = fx_rate(expense.currency, 'ILS', expense.date, raise_on_missing=False)
-                        if rate > 0:
-                            amount = float(amount * float(rate))
-                    except Exception:
-                        pass
-                total_purchases += amount
-                
-                if not oldest_expense_date or expense.date < oldest_expense_date:
-                    oldest_expense_date = expense.date
-            
-            # حساب الدفعات للمورد
-            payments_query = Payment.query.filter(
-                Payment.supplier_id == supplier.id,
-                Payment.direction == 'OUT',
-                Payment.status == 'COMPLETED'
-            )
-            if from_date:
-                payments_query = payments_query.filter(Payment.payment_date >= from_date)
-            if to_date:
-                payments_query = payments_query.filter(Payment.payment_date <= to_date)
-            
-            total_payments = 0.0
-            last_payment_date = None
-            
-            for payment in payments_query.limit(10000).all():
-                amount = float(payment.total_amount or 0)
-                if payment.currency and payment.currency != 'ILS':
-                    try:
-                        rate = fx_rate(payment.currency, 'ILS', payment.payment_date, raise_on_missing=False)
-                        if rate > 0:
-                            amount = float(amount * float(rate))
-                    except Exception:
-                        pass
-                total_payments += amount
-                
-                if not last_payment_date or payment.payment_date > last_payment_date:
-                    last_payment_date = payment.payment_date
-            
-            # حساب عمر الدين
-            days_overdue = 0
-            if total_purchases > total_payments and oldest_expense_date:
-                days_overdue = (today - oldest_expense_date).days
-            
-            # آخر حركة
-            last_transaction = last_payment_date if last_payment_date else oldest_expense_date
+        for sid, balance in supp_balances.items():
+            if abs(balance) < 0.01:
+                continue
+            supplier = db.session.get(Supplier, sid)
+            name = supplier.name if supplier else f"مورد #{sid}"
+            oldest_exp = Expense.query.filter(Expense.payee_type == 'SUPPLIER', Expense.payee_entity_id == sid).order_by(Expense.date.asc()).first()
+            last_pay = Payment.query.filter(Payment.supplier_id == sid).order_by(Payment.payment_date.desc()).first()
+            oldest_date = oldest_exp.date if oldest_exp else None
+            last_transaction = last_pay.payment_date if last_pay and last_pay.payment_date else oldest_date
             last_transaction_str = last_transaction.strftime('%Y-%m-%d') if last_transaction else None
-            
-            if total_purchases > 0 or total_payments > 0:
-                receivables.append({
-                    "name": supplier.name,
-                    "type": "supplier",
-                    "type_ar": "مورد",
-                    "debit": total_payments,
-                    "credit": total_purchases,
-                    "balance": float(total_purchases - total_payments),
-                    "days_overdue": days_overdue,
-                    "last_transaction": last_transaction_str
-                })
-        
-        # 3. الشركاء (Partners)
-        partners = Partner.query.limit(10000).all()
-        for partner in partners:
-            # حساب النفقات المرتبطة بالشريك
-            expenses_query = Expense.query.filter(
-                Expense.payee_type == 'PARTNER',
-                Expense.payee_entity_id == partner.id
-            )
-            if from_date:
-                expenses_query = expenses_query.filter(Expense.date >= from_date)
-            if to_date:
-                expenses_query = expenses_query.filter(Expense.date <= to_date)
-            
-            total_expenses = 0.0
-            oldest_expense_date = None
-            
-            for expense in expenses_query.limit(10000).all():
-                amount = float(expense.amount or 0)
-                if expense.currency and expense.currency != 'ILS':
-                    try:
-                        rate = fx_rate(expense.currency, 'ILS', expense.date, raise_on_missing=False)
-                        if rate > 0:
-                            amount = float(amount * float(rate))
-                    except Exception:
-                        pass
-                total_expenses += amount
-                
-                if not oldest_expense_date or expense.date < oldest_expense_date:
-                    oldest_expense_date = expense.date
-            
-            # حساب الدفعات من/إلى الشريك
-            payments_in_query = Payment.query.filter(
-                Payment.partner_id == partner.id,
-                Payment.direction == 'IN',
-                Payment.status == 'COMPLETED'
-            )
-            payments_out_query = Payment.query.filter(
-                Payment.partner_id == partner.id,
-                Payment.direction == 'OUT',
-                Payment.status == 'COMPLETED'
-            )
-            
-            if from_date:
-                payments_in_query = payments_in_query.filter(Payment.payment_date >= from_date)
-                payments_out_query = payments_out_query.filter(Payment.payment_date >= from_date)
-            if to_date:
-                payments_in_query = payments_in_query.filter(Payment.payment_date <= to_date)
-                payments_out_query = payments_out_query.filter(Payment.payment_date <= to_date)
-            
-            total_in = 0.0
-            total_out = 0.0
-            last_payment_date = None
-            
-            for payment in payments_in_query.all():
-                amount = float(payment.total_amount or 0)
-                if payment.currency and payment.currency != 'ILS':
-                    try:
-                        rate = fx_rate(payment.currency, 'ILS', payment.payment_date, raise_on_missing=False)
-                        if rate > 0:
-                            amount = float(amount * float(rate))
-                    except Exception:
-                        pass
-                total_in += amount
-                
-                if not last_payment_date or payment.payment_date > last_payment_date:
-                    last_payment_date = payment.payment_date
-            
-            for payment in payments_out_query.all():
-                amount = float(payment.total_amount or 0)
-                if payment.currency and payment.currency != 'ILS':
-                    try:
-                        rate = fx_rate(payment.currency, 'ILS', payment.payment_date, raise_on_missing=False)
-                        if rate > 0:
-                            amount = float(amount * float(rate))
-                    except Exception:
-                        pass
-                total_out += amount
-                
-                if not last_payment_date or payment.payment_date > last_payment_date:
-                    last_payment_date = payment.payment_date
-            
-            # حساب عمر الدين
-            days_overdue = 0
-            balance = (total_in + total_expenses) - total_out
-            if balance < 0 and oldest_expense_date:
-                days_overdue = (today - oldest_expense_date).days
-            
-            # آخر حركة
-            last_transaction = last_payment_date if last_payment_date else oldest_expense_date
+            days_overdue = (today - oldest_date).days if balance > 0 and oldest_date else 0
+            receivables.append({
+                "name": name,
+                "type": "supplier",
+                "type_ar": "مورد",
+                "debit": balance if balance < 0 else 0.0,
+                "credit": balance if balance > 0 else 0.0,
+                "balance": balance,
+                "days_overdue": days_overdue,
+                "last_transaction": last_transaction_str
+            })
+
+        for pid, balance in part_balances.items():
+            if abs(balance) < 0.01:
+                continue
+            partner = db.session.get(Partner, pid)
+            name = partner.name if partner else f"شريك #{pid}"
+            oldest_exp = Expense.query.filter(Expense.payee_type == 'PARTNER', Expense.payee_entity_id == pid).order_by(Expense.date.asc()).first()
+            last_pay = Payment.query.filter(Payment.partner_id == pid).order_by(Payment.payment_date.desc()).first()
+            oldest_date = oldest_exp.date if oldest_exp else None
+            last_transaction = last_pay.payment_date if last_pay and last_pay.payment_date else oldest_date
             last_transaction_str = last_transaction.strftime('%Y-%m-%d') if last_transaction else None
-            
-            if total_in > 0 or total_out > 0 or total_expenses > 0:
-                receivables.append({
-                    "name": partner.name,
-                    "type": "partner",
-                    "type_ar": "شريك",
-                    "debit": total_in + total_expenses,
-                    "credit": total_out,
-                    "balance": float(total_out - (total_in + total_expenses)),
-                    "days_overdue": days_overdue,
-                    "last_transaction": last_transaction_str
-                })
-        
-        # حساب إجماليات الذمم من الباكند
+            days_overdue = (today - oldest_date).days if balance > 0 and oldest_date else 0
+            receivables.append({
+                "name": name,
+                "type": "partner",
+                "type_ar": "شريك",
+                "debit": balance if balance < 0 else 0.0,
+                "credit": balance if balance > 0 else 0.0,
+                "balance": balance,
+                "days_overdue": days_overdue,
+                "last_transaction": last_transaction_str
+            })
+
+        total_debit = sum(r["debit"] for r in receivables)
+        total_credit = sum(r["credit"] for r in receivables)
         receivables_totals = {
-            'total_debit': sum([r['debit'] for r in receivables]),
-            'total_credit': sum([r['credit'] for r in receivables]),
-            'net_balance': sum([r['credit'] for r in receivables]) - sum([r['debit'] for r in receivables])
+            'total_debit': total_debit,
+            'total_credit': total_credit,
+            'net_balance': total_credit - total_debit
         }
         
         return jsonify({

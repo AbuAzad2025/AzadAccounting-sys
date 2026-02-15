@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}كشف مفصل للشريك - {{ partner.name }}{% endblock %}
+{% block title %}كشف مفصل للشريك - {{ partner.name or '—' }}{% endblock %}
 
 {% block head_extra %}
 <style>
@@ -56,7 +56,7 @@
     <div class="d-flex justify-content-between align-items-center mb-4 no-print">
         <h2 class="mb-0">
             <i class="fas fa-handshake text-primary ml-2"></i>
-            كشف مفصل للشريك: {{ partner.name }}
+            كشف مفصل للشريك: {{ partner.name or '—' }}
         </h2>
         <div class="btn-group shadow-sm rounded-pill overflow-hidden bg-white">
             <button onclick="window.history.back()" class="btn btn-sm text-primary fw-bold border-end" title="رجوع">
@@ -83,7 +83,7 @@
                 <div class="card-body">
                     <div class="row">
                         <div class="col-sm-6">
-                            <strong>الاسم:</strong> {{ partner.name }}<br>
+                            <strong>الاسم:</strong> {{ partner.name or '—' }}<br>
                             <strong>الهاتف:</strong> {{ partner.phone_number or 'غير محدد' }}<br>
                             <strong>البريد الإلكتروني:</strong> {{ partner.email or 'غير محدد' }}
                         </div>
@@ -802,7 +802,7 @@ document.addEventListener('DOMContentLoaded', function() {
 // دالة لطباعة التقرير الكامل للشريك
 function printPartnerFullReport() {
     const printWindow = window.open('', '', 'height=800,width=1000');
-    printWindow.document.write('<html><head><title>كشف مفصل - {{ partner.name }}</title>');
+    printWindow.document.write('<html><head><title>كشف مفصل - {{ partner.name or '—' }}</title>');
     printWindow.document.write('<meta charset="UTF-8">');
     printWindow.document.write('<style>');
     printWindow.document.write('* { margin: 0; padding: 0; box-sizing: border-box; }');
@@ -825,13 +825,13 @@ function printPartnerFullReport() {
     printWindow.document.write('</style></head><body>');
     
     // الترويسة
-    printWindow.document.write('<h2>كشف مفصل للشريك: {{ partner.name }}</h2>');
+    printWindow.document.write('<h2>كشف مفصل للشريك: {{ partner.name or '—' }}</h2>');
     
     // معلومات الشريك
     printWindow.document.write('<div class="partner-info">');
     printWindow.document.write('<table><tr>');
     printWindow.document.write('<td style="width: 50%;">');
-    printWindow.document.write('<div><strong>الاسم:</strong> {{ partner.name }}</div>');
+    printWindow.document.write('<div><strong>الاسم:</strong> {{ partner.name or '—' }}</div>');
     printWindow.document.write('<div><strong>الهاتف:</strong> {{ partner.phone_number or "غير محدد" }}</div>');
     printWindow.document.write('<div><strong>البريد:</strong> {{ partner.email or "غير محدد" }}</div>');
     printWindow.document.write('<div><strong>نسبة المشاركة:</strong> {{ partner.share_percentage or 0 }}%</div>');

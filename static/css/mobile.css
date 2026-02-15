@@ -1,11 +1,3 @@
-/* ═══════════════════════════════════════════════════════════════════
-   📱 Mobile Optimizations for Garage Manager System
-   تحسينات النظام للأجهزة المحمولة
-   Version: 2.0
-   ═══════════════════════════════════════════════════════════════════ */
-
-/* ═══ 0. Performance Optimizations ═══ */
-
 :root {
   --gm-navbar-height: 60px;
   --gm-sidebar-width: 280px;
@@ -13,12 +5,15 @@
   --gm-bottom-nav-height: 64px;
 }
 
+html[data-ui-mode="mobile"] {
+  --gm-gutter: 16px;
+}
+
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
 }
 
-/* منع Scroll الأفقي على جميع الأجهزة */
 html[data-ui-mode="mobile"] {
   overflow-x: hidden;
   width: 100%;
@@ -37,14 +32,12 @@ html[data-ui-mode="mobile"] body {
   margin: 0;
 }
 
-/* تحسين تحميل الصور */
 html[data-ui-mode="mobile"] img {
   content-visibility: auto;
   max-width: 100%;
   height: auto;
 }
 
-/* تحسين الرسوم */
 html[data-ui-mode="mobile"] * {
   -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
   -webkit-touch-callout: none;
@@ -56,7 +49,6 @@ html[data-ui-mode="mobile"] * {
   box-sizing: border-box;
 }
 
-/* تحسين التمرير */
 html[data-ui-mode="mobile"] .content-wrapper {
   -webkit-overflow-scrolling: touch;
   overflow-x: hidden !important;
@@ -92,10 +84,12 @@ html[data-ui-mode="mobile"] .main-header.navbar {
   width: 100%;
   max-width: 100vw;
   min-height: var(--gm-navbar-height, 60px);
-  padding: 0.5rem;
-  padding-left: calc(0.5rem + env(safe-area-inset-left));
-  padding-right: calc(0.5rem + env(safe-area-inset-right));
+  padding: 0.5rem 0.75rem;
+  padding-left: calc(0.75rem + env(safe-area-inset-left));
+  padding-right: calc(0.75rem + env(safe-area-inset-right));
   padding-top: calc(0.5rem + env(safe-area-inset-top));
+  box-shadow: 0 2px 16px rgba(0,0,0,0.08);
+  border-bottom: 1px solid rgba(255,255,255,0.12);
 }
 
 html[data-ui-mode="mobile"] .navbar-info-center {
@@ -143,24 +137,26 @@ html[data-ui-mode="mobile"] .main-sidebar {
   top: var(--gm-navbar-height, 60px) !important;
   bottom: 0 !important;
   z-index: 1049 !important;
-  width: min(88vw, var(--gm-sidebar-width, 280px)) !important;
+  width: min(88vw, var(--gm-sidebar-width, 300px)) !important;
   max-width: 88vw !important;
   left: 0 !important;
   right: auto !important;
   height: calc(100vh - var(--gm-navbar-height, 60px)) !important;
   transform: translate3d(-100%, 0, 0) !important;
-  transition: transform 0.25s ease-in-out !important;
-  box-shadow: 0 12px 24px rgba(0,0,0,0.25) !important;
+  transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1) !important;
+  box-shadow: 24px 0 48px rgba(0,0,0,0.18), 12px 0 24px rgba(0,0,0,0.12) !important;
   will-change: transform !important;
   backface-visibility: hidden !important;
   overflow: hidden !important;
   pointer-events: auto !important;
+  border: none !important;
 }
 
 html[data-ui-mode="mobile"] body[data-sidebar-position="right"] .main-sidebar {
   left: auto !important;
   right: 0 !important;
   transform: translate3d(100%, 0, 0) !important;
+  box-shadow: -24px 0 48px rgba(0,0,0,0.18), -12px 0 24px rgba(0,0,0,0.12) !important;
 }
 
 html[data-ui-mode="mobile"] body.sidebar-open .main-sidebar {
@@ -168,13 +164,13 @@ html[data-ui-mode="mobile"] body.sidebar-open .main-sidebar {
 }
 
 html[data-ui-mode="mobile"] body[data-sidebar-position="left"] .main-sidebar {
-  border-top-right-radius: 18px !important;
-  border-bottom-right-radius: 18px !important;
+  border-top-right-radius: 24px !important;
+  border-bottom-right-radius: 24px !important;
 }
 
 html[data-ui-mode="mobile"] body[data-sidebar-position="right"] .main-sidebar {
-  border-top-left-radius: 18px !important;
-  border-bottom-left-radius: 18px !important;
+  border-top-left-radius: 24px !important;
+  border-bottom-left-radius: 24px !important;
 }
 
 html[data-ui-mode="mobile"] .main-sidebar .garage-brand-area {
@@ -184,38 +180,55 @@ html[data-ui-mode="mobile"] .main-sidebar .garage-brand-area {
   display: flex !important;
   align-items: center !important;
   justify-content: space-between !important;
-  gap: 10px !important;
-  padding: 12px 12px !important;
-  padding-top: calc(12px + env(safe-area-inset-top)) !important;
-  background: rgba(255,255,255,0.22) !important;
-  backdrop-filter: blur(12px) !important;
-  -webkit-backdrop-filter: blur(12px) !important;
-  border-bottom: 1px solid rgba(255,255,255,0.22) !important;
+  gap: 12px !important;
+  padding: 14px 16px !important;
+  padding-top: max(14px, env(safe-area-inset-top)) !important;
+  background: rgba(255,255,255,0.28) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border-bottom: 1px solid rgba(255,255,255,0.25) !important;
+  flex-shrink: 0 !important;
 }
 
 html[data-ui-mode="mobile"] .main-sidebar .garage-brand-link {
   min-width: 0 !important;
   flex: 1 1 auto !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
 }
 
 html[data-ui-mode="mobile"] .main-sidebar .garage-brand-text {
   white-space: nowrap !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
+  font-weight: 700 !important;
+  font-size: 0.95rem !important;
+  letter-spacing: -0.01em !important;
 }
 
 html[data-ui-mode="mobile"] .main-sidebar .gm-sidebar-close {
-  border: 1px solid rgba(255,255,255,0.28) !important;
-  background: rgba(255,255,255,0.18) !important;
-  color: rgba(11,17,32,.90) !important;
-  width: 40px !important;
-  height: 40px !important;
+  border: none !important;
+  background: rgba(255,255,255,0.35) !important;
+  color: rgba(15,23,42,0.95) !important;
+  width: 44px !important;
+  height: 44px !important;
+  min-width: 44px !important;
+  min-height: 44px !important;
   border-radius: 14px !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
   padding: 0 !important;
   flex: 0 0 auto !important;
+  font-size: 1.1rem !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
+  transition: background 0.2s ease, transform 0.15s ease !important;
+}
+
+html[data-ui-mode="mobile"] .main-sidebar .gm-sidebar-close:active {
+  transform: scale(0.96) !important;
+  background: rgba(255,255,255,0.5) !important;
 }
 
 html[data-ui-mode="mobile"] .main-sidebar .sidebar {
@@ -229,36 +242,47 @@ html[data-ui-mode="mobile"] .main-sidebar .sidebar {
 }
 
 html[data-ui-mode="mobile"] .main-sidebar .user-panel {
-  margin: 10px 10px 8px !important;
-  padding: 10px 10px !important;
+  margin: 12px 14px 10px !important;
+  padding: 12px 14px !important;
   border-radius: 16px !important;
-  background: rgba(255,255,255,0.16) !important;
-  border: 1px solid rgba(255,255,255,0.20) !important;
-  backdrop-filter: blur(10px) !important;
-  -webkit-backdrop-filter: blur(10px) !important;
+  background: rgba(255,255,255,0.2) !important;
+  border: 1px solid rgba(255,255,255,0.22) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
 }
 
 html[data-ui-mode="mobile"] .main-sidebar .user-panel .image img {
-  width: 32px !important;
-  height: 32px !important;
+  width: 36px !important;
+  height: 36px !important;
+  border-radius: 50% !important;
 }
 
 html[data-ui-mode="mobile"] .main-sidebar .nav-sidebar .nav-link {
   display: flex !important;
   align-items: center !important;
-  gap: 10px !important;
-  padding: 12px 12px !important;
-  margin: 6px 10px !important;
+  gap: 12px !important;
+  padding: 12px 14px !important;
+  margin: 4px 12px !important;
   min-height: 48px !important;
-  border-radius: 16px !important;
+  border-radius: 14px !important;
+  transition: background 0.18s ease, color 0.18s ease !important;
+}
+
+html[data-ui-mode="mobile"] .main-sidebar .nav-sidebar .nav-link:hover {
+  background: rgba(255,255,255,0.12) !important;
+}
+
+html[data-ui-mode="mobile"] .main-sidebar .nav-sidebar .nav-link.active {
+  background: rgba(255,255,255,0.28) !important;
+  font-weight: 600 !important;
 }
 
 html[data-ui-mode="mobile"] .main-sidebar .nav-sidebar .nav-link > .nav-icon {
-  flex: 0 0 26px !important;
-  width: 26px !important;
+  flex: 0 0 28px !important;
+  width: 28px !important;
   text-align: center !important;
   margin: 0 !important;
-  font-size: 1.1rem !important;
+  font-size: 1.15rem !important;
 }
 
 html[data-ui-mode="mobile"] .main-sidebar .nav-sidebar .nav-link p {
@@ -270,14 +294,15 @@ html[data-ui-mode="mobile"] .main-sidebar .nav-sidebar .nav-link p {
   gap: 10px !important;
   margin: 0 !important;
   white-space: normal !important;
-  line-height: 1.25 !important;
+  line-height: 1.3 !important;
+  font-size: 0.9rem !important;
 }
 
 html[data-ui-mode="mobile"] .main-sidebar .nav-sidebar .nav-link p .right {
   margin: 0 !important;
   flex: 0 0 auto !important;
-  opacity: 0.85 !important;
-  transition: transform 0.18s ease !important;
+  opacity: 0.8 !important;
+  transition: transform 0.2s ease !important;
 }
 
 html[data-ui-mode="mobile"] .main-sidebar .nav-item.menu-open > a .right {
@@ -285,18 +310,20 @@ html[data-ui-mode="mobile"] .main-sidebar .nav-item.menu-open > a .right {
 }
 
 html[data-ui-mode="mobile"] .main-sidebar .nav-treeview {
-  padding: 0 !important;
+  padding: 0 0 6px !important;
 }
 
 html[data-ui-mode="mobile"] .main-sidebar .nav-treeview > .nav-item > .nav-link {
-  padding-inline-start: 18px !important;
+  padding-inline-start: 20px !important;
+  margin: 2px 12px !important;
+  min-height: 44px !important;
 }
 
 html[data-ui-mode="mobile"] .main-sidebar .nav-treeview > .nav-item > .nav-link > .nav-icon {
   flex: 0 0 22px !important;
   width: 22px !important;
   font-size: 0.9rem !important;
-  opacity: 0.9 !important;
+  opacity: 0.88 !important;
 }
 
 html[data-ui-mode="mobile"] body.sidebar-open {
@@ -304,15 +331,15 @@ html[data-ui-mode="mobile"] body.sidebar-open {
 }
 
 html[data-ui-mode="mobile"] body.sidebar-open::before {
-  content: none !important;
+  content: "" !important;
   position: fixed;
   top: var(--gm-navbar-height, 60px);
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.45);
   z-index: 1039;
-  animation: fadeIn 0.2s ease;
+  animation: fadeIn 0.22s ease;
   pointer-events: none;
 }
 
@@ -331,12 +358,13 @@ html[data-ui-mode="mobile"] .content-wrapper {
 }
 
 html[data-ui-mode="mobile"] .content-wrapper .content {
-  padding: var(--gm-gutter, 12px) !important;
+  padding: var(--gm-gutter, 16px) !important;
+  padding-top: 0.75rem !important;
   width: 100% !important;
   max-width: 100% !important;
   overflow-x: hidden !important;
   overflow-y: visible !important;
-  padding-bottom: calc(var(--gm-gutter, 12px) + var(--gm-bottom-nav-height, 64px) + env(safe-area-inset-bottom)) !important;
+  padding-bottom: calc(var(--gm-gutter, 16px) + var(--gm-bottom-nav-height, 64px) + env(safe-area-inset-bottom)) !important;
 }
 
 html[data-ui-mode="mobile"] .content-wrapper .container-fluid {
@@ -347,17 +375,32 @@ html[data-ui-mode="mobile"] .content-wrapper .container-fluid {
 }
 
 html[data-ui-mode="mobile"] .row {
-  margin-left: -6px !important;
-  margin-right: -6px !important;
+  margin-left: -8px !important;
+  margin-right: -8px !important;
 }
 
 html[data-ui-mode="mobile"] .row > [class*="col-"],
 html[data-ui-mode="mobile"] .row > .col,
 html[data-ui-mode="mobile"] .row > .col-auto {
-  padding-left: 6px !important;
-  padding-right: 6px !important;
+  padding-left: 8px !important;
+  padding-right: 8px !important;
   flex: 0 0 100% !important;
   max-width: 100% !important;
+}
+
+html[data-ui-mode="mobile"] .content-wrapper .content > .row,
+html[data-ui-mode="mobile"] .content-wrapper .content > .container-fluid,
+html[data-ui-mode="mobile"] .content-wrapper .content > .card,
+html[data-ui-mode="mobile"] .content-wrapper .content > .alert,
+html[data-ui-mode="mobile"] .content-wrapper .content > .table-responsive {
+  margin-top: 0 !important;
+}
+html[data-ui-mode="mobile"] .content-wrapper .content > * + .row,
+html[data-ui-mode="mobile"] .content-wrapper .content > * + .container-fluid,
+html[data-ui-mode="mobile"] .content-wrapper .content > * + .card,
+html[data-ui-mode="mobile"] .content-wrapper .content > * + .alert,
+html[data-ui-mode="mobile"] .content-wrapper .content > * + .table-responsive {
+  margin-top: 1rem !important;
 }
 
 html[data-ui-mode="mobile"] .btn-group,
@@ -449,21 +492,28 @@ html[data-ui-mode="mobile"] .gm-mobile-bottom-nav {
   bottom: 0;
   height: calc(var(--gm-bottom-nav-height, 64px) + env(safe-area-inset-bottom));
   padding-bottom: env(safe-area-inset-bottom);
-  background: rgba(255, 255, 255, 0.96);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border-top: 1px solid rgba(0,0,0,0.08);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid rgba(0,0,0,0.06);
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -4px 24px rgba(0,0,0,0.06);
   z-index: 1035;
   display: flex;
   align-items: center;
   justify-content: space-around;
+  gap: 4px;
 }
 
 html[data-ui-mode="mobile"] .gm-mobile-bottom-nav .gm-tab {
+  position: relative;
   flex: 1;
   min-width: 0;
+  max-width: 100px;
   text-decoration: none;
-  color: #5b6472;
+  color: #64748b;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -471,19 +521,60 @@ html[data-ui-mode="mobile"] .gm-mobile-bottom-nav .gm-tab {
   gap: 4px;
   height: var(--gm-bottom-nav-height, 64px);
   font-size: 11px;
+  font-weight: 500;
+  padding: 8px 6px !important;
+  min-height: 44px;
+  border-radius: 14px;
+  transition: color 0.2s ease, background 0.2s ease;
+}
+
+html[data-ui-mode="mobile"] .gm-mobile-bottom-nav .gm-tab:active {
+  background: rgba(0,0,0,0.04);
 }
 
 html[data-ui-mode="mobile"] .gm-mobile-bottom-nav .gm-tab i {
-  font-size: 18px;
+  font-size: 1.35rem !important;
   line-height: 1;
+  transition: transform 0.2s ease;
 }
 
 html[data-ui-mode="mobile"] .gm-mobile-bottom-nav .gm-tab.active {
   color: #2563eb;
+  font-weight: 600;
 }
 
 html[data-ui-mode="mobile"] .gm-mobile-bottom-nav .gm-tab.active i {
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+}
+
+html[data-ui-mode="mobile"] .gm-mobile-bottom-nav .gm-tab.active::before {
+  content: "";
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 24px;
+  height: 3px;
+  border-radius: 2px;
+  background: #2563eb;
+}
+
+html[data-ui-mode="mobile"] .content-wrapper .btn:not(.btn-sm):not(.btn-xs) {
+  min-height: 44px;
+}
+html[data-ui-mode="mobile"] .content-wrapper .btn-group .btn {
+  min-height: 44px;
+}
+html[data-ui-mode="mobile"] .content-wrapper .dropdown-toggle {
+  min-width: 44px;
+  min-height: 44px;
+}
+html[data-ui-mode="mobile"] .content-wrapper .pagination .page-link {
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 html[data-ui-mode="mobile"] .card-body.p-0 {
@@ -502,15 +593,19 @@ html[data-ui-mode="mobile"] .dashboard-page .gm-quick-actions {
   background: #ffffff;
   border: 1px solid rgba(0,0,0,0.08);
   border-radius: 16px;
-  padding: 12px;
-  box-shadow: 0 6px 18px rgba(0,0,0,0.06);
+  padding: var(--gm-gutter, 16px);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.06);
 }
 
 html[data-ui-mode="mobile"] .dashboard-page .gm-quick-actions-title {
   font-weight: 800;
   color: #0f172a;
-  font-size: 0.95rem;
-  margin-bottom: 10px;
+  font-size: 1rem;
+  margin-bottom: 12px;
+}
+
+html[data-ui-mode="mobile"] .dashboard-page .gm-quick-actions .row.g-2 {
+  gap: 10px !important;
 }
 
 html[data-ui-mode="mobile"] .dashboard-page .gm-action-tile {
@@ -518,12 +613,13 @@ html[data-ui-mode="mobile"] .dashboard-page .gm-action-tile {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 8px;
   text-decoration: none;
   background: #f8fafc;
   border: 1px solid rgba(2,6,23,0.08);
   border-radius: 16px;
-  padding: 10px 6px;
+  padding: 14px 10px;
+  min-height: 88px;
   height: 100%;
   color: #0f172a;
 }
@@ -554,13 +650,13 @@ html[data-ui-mode="mobile"] .dashboard-page .gm-action-label {
 }
 
 html[data-ui-mode="mobile"] .content-header {
-  padding: 0.75rem 0.5rem !important;
+  padding: 1rem var(--gm-gutter, 16px) !important;
 }
 
 html[data-ui-mode="mobile"] .content-header .row {
   flex-direction: column !important;
   align-items: flex-start !important;
-  gap: 0.35rem !important;
+  gap: 0.5rem !important;
 }
 
 html[data-ui-mode="mobile"] .content-header .col-sm-6 {
@@ -569,8 +665,10 @@ html[data-ui-mode="mobile"] .content-header .col-sm-6 {
 }
 
 html[data-ui-mode="mobile"] .content-header h1 {
-  font-size: 1.05rem !important;
-  line-height: 1.25 !important;
+  font-size: 1.2rem !important;
+  line-height: 1.35 !important;
+  font-weight: 800 !important;
+  margin-bottom: 0 !important;
 }
 
 html[data-ui-mode="mobile"] .content-header .breadcrumb,
@@ -583,20 +681,23 @@ html[data-ui-mode="mobile"] .content-header .breadcrumb.float-sm-left {
 
 html[data-ui-mode="mobile"] .card {
   border-radius: 16px !important;
-  box-shadow: 0 6px 18px rgba(0,0,0,0.06) !important;
-  margin-bottom: 12px !important;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.06) !important;
+  margin-bottom: 1rem !important;
+  border: 1px solid rgba(0,0,0,0.06) !important;
 }
 
 html[data-ui-mode="mobile"] .card-header {
-  padding: 12px 12px !important;
+  padding: 14px var(--gm-gutter, 16px) !important;
   display: flex !important;
   flex-direction: column !important;
   align-items: stretch !important;
-  gap: 8px !important;
+  gap: 10px !important;
 }
 
 html[data-ui-mode="mobile"] .card-header .card-title {
   white-space: normal !important;
+  font-size: 1rem !important;
+  font-weight: 700 !important;
 }
 
 html[data-ui-mode="mobile"] .card-header > .card-tools {
@@ -608,11 +709,24 @@ html[data-ui-mode="mobile"] .card-header > .card-tools {
 }
 
 html[data-ui-mode="mobile"] .card-body {
-  padding: 12px !important;
+  padding: 14px var(--gm-gutter, 16px) !important;
 }
 
 html[data-ui-mode="mobile"] .card-footer {
-  padding: 12px !important;
+  padding: 14px var(--gm-gutter, 16px) !important;
+}
+
+html[data-ui-mode="mobile"] .alert {
+  border-radius: 14px !important;
+  padding: 14px var(--gm-gutter, 16px) !important;
+  margin-bottom: 1rem !important;
+}
+
+html[data-ui-mode="mobile"] .list-group-item {
+  padding: 14px var(--gm-gutter, 16px) !important;
+  min-height: 48px !important;
+  display: flex !important;
+  align-items: center !important;
 }
 
 html[data-ui-mode="mobile"] .btn,
@@ -634,6 +748,11 @@ html[data-ui-mode="mobile"] textarea {
   min-height: 44px !important;
   font-size: 16px !important;
   border-radius: 14px !important;
+}
+
+html[data-ui-mode="mobile"] .form-group,
+html[data-ui-mode="mobile"] .mb-3.form-group {
+  margin-bottom: 1rem !important;
 }
 
 html[data-ui-mode="mobile"] .select2-container .select2-selection--single {
@@ -672,6 +791,14 @@ html[data-ui-mode="mobile"] .table td,
 html[data-ui-mode="mobile"] .table th {
   overflow-wrap: anywhere !important;
   word-break: break-word !important;
+  padding: 12px 10px !important;
+  min-height: 48px !important;
+  vertical-align: middle !important;
+}
+
+html[data-ui-mode="mobile"] .table thead th {
+  padding: 12px 10px !important;
+  font-weight: 700 !important;
 }
 
 html[data-ui-mode="mobile"] .main-footer {
@@ -682,6 +809,7 @@ html[data-ui-mode="mobile"] .dataTables_wrapper {
   width: 100% !important;
   max-width: 100% !important;
   overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch !important;
 }
 
 html[data-ui-mode="mobile"] .dataTables_wrapper .dataTables_filter input {
@@ -718,10 +846,7 @@ html[data-ui-mode="mobile"] .col-lg-10 {
   max-width: 100% !important;
 }
 
-/* ═══ 1. القواعد الأساسية للموبايل ═══ */
 @media (max-width: 768px) and (pointer: coarse) {
-  
-  /* ═══ HTML و Body ═══ */
   html[data-ui-mode="mobile"] {
     font-size: 14px !important;
     -webkit-text-size-adjust: 100%;
@@ -734,7 +859,6 @@ html[data-ui-mode="mobile"] .col-lg-10 {
     overflow-x: hidden !important;
   }
   
-  /* ═══ تحسين الـ Viewport ═══ */
   html[data-ui-mode="mobile"] .wrapper {
     overflow-x: hidden !important;
   }
@@ -765,7 +889,6 @@ html[data-ui-mode="mobile"] .col-lg-10 {
     flex-wrap: wrap !important;
   }
   
-  /* ═══ 2. Navbar - الشريط العلوي ═══ */
   html[data-ui-mode="mobile"] .main-header.navbar {
     position: fixed !important;
     top: 0 !important;
@@ -801,26 +924,22 @@ html[data-ui-mode="mobile"] .col-lg-10 {
     display: none !important;
   }
   
-  /* إخفاء العناصر غير المهمة في Navbar على الموبايل */
   html[data-ui-mode="mobile"] .navbar-brand .company-logo-text,
   html[data-ui-mode="mobile"] .navbar-brand .badge:not(#sidebar-position-badge),
   html[data-ui-mode="mobile"] .navbar-text {
     display: none !important;
   }
   
-  /* تصغير شعار الشركة */
   html[data-ui-mode="mobile"] .company-logo {
     height: 35px !important;
     width: auto !important;
   }
   
-  /* تحسين أزرار Navbar */
   html[data-ui-mode="mobile"] .navbar-nav .nav-link {
     padding: 0.5rem !important;
     font-size: 1.1rem !important;
   }
   
-  /* إخفاء أسعار الصرف على الموبايل الصغير */
   @media (max-width: 576px) {
     html[data-ui-mode="mobile"] .navbar-brand .badge {
       font-size: 0.65rem !important;
@@ -836,33 +955,38 @@ html[data-ui-mode="mobile"] .col-lg-10 {
     }
   }
   
-  /* ═══ 3. Sidebar - القائمة الجانبية ═══ */
   html[data-ui-mode="mobile"] .main-sidebar {
     position: fixed !important;
     top: var(--gm-navbar-height, 60px) !important;
     bottom: 0 !important;
     z-index: 1049 !important;
-    width: min(88vw, var(--gm-sidebar-width, 280px)) !important;
+    width: min(88vw, var(--gm-sidebar-width, 300px)) !important;
     max-width: 88vw !important;
     left: 0 !important;
     right: auto !important;
     height: calc(100vh - var(--gm-navbar-height, 60px)) !important;
     transform: translate3d(-100%, 0, 0) !important;
-    transition: transform 0.25s ease-in-out !important;
-    box-shadow: 0 12px 24px rgba(0,0,0,0.25) !important;
+    transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1) !important;
+    box-shadow: 24px 0 48px rgba(0,0,0,0.18), 12px 0 24px rgba(0,0,0,0.12) !important;
     will-change: transform !important;
     backface-visibility: hidden !important;
     overflow: hidden !important;
     pointer-events: auto !important;
+    border-top-right-radius: 24px !important;
+    border-bottom-right-radius: 24px !important;
   }
 
   html[data-ui-mode="mobile"] body[data-sidebar-position="right"] .main-sidebar {
     left: auto !important;
     right: 0 !important;
     transform: translate3d(100%, 0, 0) !important;
+    box-shadow: -24px 0 48px rgba(0,0,0,0.18), -12px 0 24px rgba(0,0,0,0.12) !important;
+    border-top-right-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+    border-top-left-radius: 24px !important;
+    border-bottom-left-radius: 24px !important;
   }
   
-  /* عند فتح Sidebar */
   html[data-ui-mode="mobile"] body.sidebar-open .main-sidebar {
     transform: translate3d(0, 0, 0) !important;
   }
@@ -877,7 +1001,6 @@ html[data-ui-mode="mobile"] .col-lg-10 {
     touch-action: pan-y;
   }
   
-  /* Overlay عند فتح Sidebar */
   html[data-ui-mode="mobile"] body.sidebar-open {
     overflow: hidden !important;
   }
@@ -900,7 +1023,6 @@ html[data-ui-mode="mobile"] .col-lg-10 {
     to { opacity: 1; }
   }
   
-  /* تصغير لوجو الشركة في Sidebar */
   html[data-ui-mode="mobile"] .garage-brand-image {
     height: 50px !important;
     width: auto !important;
@@ -911,7 +1033,6 @@ html[data-ui-mode="mobile"] .col-lg-10 {
     line-height: 1.2 !important;
   }
   
-  /* تحسين عناصر القائمة */
   html[data-ui-mode="mobile"] .nav-sidebar .nav-item {
     margin-bottom: 0.25rem !important;
   }
@@ -926,7 +1047,6 @@ html[data-ui-mode="mobile"] .col-lg-10 {
     width: 25px !important;
   }
   
-  /* ═══ 4. Content Wrapper - المحتوى الرئيسي ═══ */
   html[data-ui-mode="mobile"] .content-wrapper {
     margin-left: 0 !important;
     margin-right: 0 !important;
@@ -963,7 +1083,6 @@ html[data-ui-mode="mobile"] .col-lg-10 {
     width: 100% !important;
   }
   
-  /* ═══ 5. البطاقات (Cards) ═══ */
   html[data-ui-mode="mobile"] .card {
     margin-bottom: 1rem !important;
     border-radius: 0.75rem !important;
@@ -983,7 +1102,6 @@ html[data-ui-mode="mobile"] .col-lg-10 {
     padding: 0.75rem !important;
   }
   
-  /* بطاقات الإحصائيات */
   html[data-ui-mode="mobile"] .row.g-3 {
     gap: 0.75rem !important;
   }
@@ -993,7 +1111,6 @@ html[data-ui-mode="mobile"] .col-lg-10 {
     max-width: 100% !important;
   }
   
-  /* ═══ 6. الجداول (Tables) ═══ */
   html[data-ui-mode="mobile"] .table-responsive {
     overflow-x: auto !important;
     -webkit-overflow-scrolling: touch !important;
@@ -1034,7 +1151,6 @@ html[data-ui-mode="mobile"] .col-lg-10 {
     vertical-align: middle !important;
   }
   
-  /* تحويل الجداول إلى بطاقات على الموبايل الصغير */
   @media (max-width: 576px) {
     html[data-ui-mode="mobile"] .table-mobile-cards thead {
       display: none !important;
@@ -1070,12 +1186,11 @@ html[data-ui-mode="mobile"] .col-lg-10 {
     }
   }
   
-  /* ═══ 7. النماذج (Forms) ═══ */
   html[data-ui-mode="mobile"] .form-control {
     font-size: 1rem !important;
     padding: 0.75rem !important;
     border-radius: 0.5rem !important;
-    min-height: 44px !important; /* معايير Apple للمس */
+    min-height: 44px !important;
   }
   
   html[data-ui-mode="mobile"] .form-label {
@@ -1094,7 +1209,6 @@ html[data-ui-mode="mobile"] .col-lg-10 {
     min-height: 100px !important;
   }
   
-  /* حقول الإدخال في صف واحد */
   html[data-ui-mode="mobile"] .form-row,
   html[data-ui-mode="mobile"] .row.g-3 {
     margin-left: -0.375rem !important;
@@ -1107,7 +1221,6 @@ html[data-ui-mode="mobile"] .col-lg-10 {
     padding-right: 0.375rem !important;
   }
   
-  /* ═══ 8. الأزرار (Buttons) ═══ */
   html[data-ui-mode="mobile"] .btn {
     font-size: 0.95rem !important;
     padding: 0.65rem 1.25rem !important;
@@ -1129,7 +1242,6 @@ html[data-ui-mode="mobile"] .col-lg-10 {
     min-height: 50px !important;
   }
   
-  /* مجموعات الأزرار */
   html[data-ui-mode="mobile"] .btn-group {
     display: flex !important;
     flex-wrap: wrap !important;
@@ -1147,7 +1259,6 @@ html[data-ui-mode="mobile"] .col-lg-10 {
     width: 100% !important;
   }
   
-  /* ═══ 9. Modal - النوافذ المنبثقة ═══ */
   html[data-ui-mode="mobile"] .modal-backdrop {
     pointer-events: none !important;
     z-index: 1040 !important;
@@ -1200,7 +1311,6 @@ html[data-ui-mode="mobile"] .col-lg-10 {
     position: relative;
   }
   
-  /* ═══ 10. Dropdown - القوائم المنسدلة ═══ */
   html[data-ui-mode="mobile"] .dropdown-menu {
     font-size: 0.95rem !important;
     max-width: calc(100vw - 2rem) !important;
@@ -1217,7 +1327,6 @@ html[data-ui-mode="mobile"] .col-lg-10 {
     padding: 0.5rem 1rem !important;
   }
   
-  /* ═══ 11. Breadcrumb - مسار التنقل ═══ */
   html[data-ui-mode="mobile"] .breadcrumb {
     font-size: 0.85rem !important;
     padding: 0.5rem !important;
@@ -1229,7 +1338,6 @@ html[data-ui-mode="mobile"] .col-lg-10 {
     display: inline-flex !important;
   }
   
-  /* ═══ 12. Pagination - الترقيم ═══ */
   html[data-ui-mode="mobile"] .pagination {
     flex-wrap: wrap !important;
     gap: 0.25rem !important;
@@ -1242,7 +1350,6 @@ html[data-ui-mode="mobile"] .col-lg-10 {
     min-height: 40px !important;
   }
   
-  /* ═══ 13. Alert - التنبيهات ═══ */
   html[data-ui-mode="mobile"] .alert {
     font-size: 0.9rem !important;
     padding: 0.75rem !important;
@@ -1250,19 +1357,16 @@ html[data-ui-mode="mobile"] .col-lg-10 {
     border-radius: 0.75rem !important;
   }
   
-  /* ═══ 14. Badge - الشارات ═══ */
   html[data-ui-mode="mobile"] .badge {
     font-size: 0.8rem !important;
     padding: 0.35rem 0.6rem !important;
     border-radius: 0.5rem !important;
   }
   
-  /* ═══ 15. Icons - الأيقونات ═══ */
   html[data-ui-mode="mobile"] .fas, html[data-ui-mode="mobile"] .far, html[data-ui-mode="mobile"] .fab {
     font-size: 1.1rem !important;
   }
   
-  /* ═══ 16. Dashboard Charts - رسوم بيانية ═══ */
   html[data-ui-mode="mobile"] .chart-container {
     position: relative !important;
     height: 220px !important;
@@ -1274,7 +1378,6 @@ html[data-ui-mode="mobile"] .col-lg-10 {
     max-height: 220px !important;
   }
   
-  /* ═══ 17. Footer ═══ */
   html[data-ui-mode="mobile"] .main-footer {
     margin-left: 0 !important;
     margin-right: 0 !important;
@@ -1283,9 +1386,6 @@ html[data-ui-mode="mobile"] .col-lg-10 {
     text-align: center !important;
   }
   
-  /* ═══ 18. تحسينات خاصة بالصفحات ═══ */
-  
-  /* صفحة المبيعات */
   html[data-ui-mode="mobile"] .sale-line {
     display: flex !important;
     flex-direction: column !important;
@@ -1296,7 +1396,6 @@ html[data-ui-mode="mobile"] .col-lg-10 {
     width: 100% !important;
   }
   
-  /* صفحة الشحنات */
   html[data-ui-mode="mobile"] .shipment-item,
   html[data-ui-mode="mobile"] .shipment-partner {
     padding: 1rem !important;
@@ -1308,7 +1407,6 @@ html[data-ui-mode="mobile"] .col-lg-10 {
     margin-right: -0.5rem !important;
   }
   
-  /* صفحة كشف الحساب */
   html[data-ui-mode="mobile"] .account-statement .table {
     font-size: 0.75rem !important;
   }
@@ -1317,7 +1415,6 @@ html[data-ui-mode="mobile"] .col-lg-10 {
     padding: 0.5rem !important;
   }
   
-  /* ═══ 19. Select2 - القوائم المتقدمة ═══ */
   html[data-ui-mode="mobile"] .select2-container {
     width: 100% !important;
   }
@@ -1344,7 +1441,6 @@ html[data-ui-mode="mobile"] .col-lg-10 {
     min-height: 44px !important;
   }
   
-  /* ═══ 20. DataTables - جداول البيانات ═══ */
   html[data-ui-mode="mobile"] .dataTables_wrapper .dataTables_length,
   html[data-ui-mode="mobile"] .dataTables_wrapper .dataTables_filter,
   html[data-ui-mode="mobile"] .dataTables_wrapper .dataTables_info,
@@ -1357,7 +1453,6 @@ html[data-ui-mode="mobile"] .col-lg-10 {
     margin-top: 0.5rem !important;
   }
   
-  /* ═══ 21. تحسينات الطباعة ═══ */
   @media print {
     .main-sidebar,
     .main-header,
@@ -1376,9 +1471,6 @@ html[data-ui-mode="mobile"] .col-lg-10 {
     }
   }
   
-  /* ═══ 22. تحسينات إمكانية الوصول ═══ */
-  
-  /* تكبير منطقة اللمس */
   html[data-ui-mode="mobile"] a,
   html[data-ui-mode="mobile"] button,
   html[data-ui-mode="mobile"] .btn,
@@ -1387,43 +1479,30 @@ html[data-ui-mode="mobile"] .col-lg-10 {
     min-height: 44px !important;
   }
   
-  /* تباين أفضل للنصوص */
   html[data-ui-mode="mobile"] .text-muted {
     color: #6c757d !important;
     font-weight: 500 !important;
   }
   
-  /* ═══ 23. Animations - الحركات ═══ */
-  /* ═══ 24. تحسينات الأداء ═══ */
-  
-  /* تحسين التمرير */
   html[data-ui-mode="mobile"] .content-wrapper,
   html[data-ui-mode="mobile"] .modal-body,
   html[data-ui-mode="mobile"] .table-responsive {
     -webkit-overflow-scrolling: touch !important;
   }
   
-  /* تحسين الخطوط */
   html[data-ui-mode="mobile"] * {
     -webkit-font-smoothing: antialiased !important;
     -moz-osx-font-smoothing: grayscale !important;
   }
   
-  /* ═══ 25. إخفاء عناصر غير ضرورية ═══ */
-  
   html[data-ui-mode="mobile"] .no-mobile {
     display: none !important;
   }
   
-  /* إخفاء أعمدة معينة في الجداول */
   html[data-ui-mode="mobile"] .table .hide-mobile {
     display: none !important;
 }
 }
-
-/* ═══════════════════════════════════════════════════════════════════
-   📱 Landscape Mode - الوضع الأفقي
-   ═══════════════════════════════════════════════════════════════════ */
 
 @media (max-width: 768px) and (orientation: landscape) and (pointer: coarse) {
   html[data-ui-mode="mobile"] .main-header.navbar {
@@ -1438,10 +1517,6 @@ html[data-ui-mode="mobile"] .col-lg-10 {
     max-height: calc(100vh - 150px) !important;
   }
 }
-
-/* ═══════════════════════════════════════════════════════════════════
-   📱 iPhone Specific Sizes - أحجام iPhone المحددة
-   ═══════════════════════════════════════════════════════════════════ */
 
 html[data-ui-mode="mobile"], html[data-ui-mode="mobile"] body {
   width: 100%;
@@ -1476,7 +1551,6 @@ html[data-ui-mode="mobile"] .content-wrapper .table-responsive {
   overflow-y: visible !important;
 }
 
-/* iPhone SE / 6/7/8 (375px) */
 @media (max-width: 375px) and (pointer: coarse) {
   html[data-ui-mode="mobile"] {
     font-size: 13px !important;
@@ -1497,7 +1571,6 @@ html[data-ui-mode="mobile"] .content-wrapper .table-responsive {
   }
 }
 
-/* iPhone X/XS/11 Pro (375px with notch) - portrait */
 @media (max-width: 390px) and (pointer: coarse) {
   html[data-ui-mode="mobile"] {
     font-size: 14px !important;
@@ -1519,7 +1592,6 @@ html[data-ui-mode="mobile"] .content-wrapper .table-responsive {
   }
 }
 
-/* iPhone 6/7/8 Plus / XR / 11 (414px) */
 @media (min-width: 390px) and (max-width: 414px) and (pointer: coarse) {
   html[data-ui-mode="mobile"] {
     font-size: 14px !important;
@@ -1539,7 +1611,6 @@ html[data-ui-mode="mobile"] .content-wrapper .table-responsive {
   }
 }
 
-/* iPhone 12/13/14 Pro Max (428px) */
 @media (min-width: 414px) and (max-width: 428px) and (pointer: coarse) {
   html[data-ui-mode="mobile"] {
     font-size: 15px !important;
@@ -1555,7 +1626,6 @@ html[data-ui-mode="mobile"] .content-wrapper .table-responsive {
   }
 }
 
-/* iPhone with notch support - landscape */
 @media (max-width: 896px) and (orientation: landscape) and (pointer: coarse) {
   html[data-ui-mode="mobile"] body {
     padding-left: env(safe-area-inset-left);
@@ -1568,7 +1638,6 @@ html[data-ui-mode="mobile"] .content-wrapper .table-responsive {
   }
 }
 
-/* Fix horizontal scroll on all iPhone sizes */
 @media (max-width: 428px) and (pointer: coarse) {
   html[data-ui-mode="mobile"] .container,
   html[data-ui-mode="mobile"] .container-fluid {
@@ -1604,19 +1673,13 @@ html[data-ui-mode="mobile"] .content-wrapper .table-responsive {
   }
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   🔄 تحسينات Touch - تفاعلات اللمس
-   ═══════════════════════════════════════════════════════════════════ */
-
 @media (hover: none) and (pointer: coarse) {
-  /* إزالة hover effects على الأجهزة التي تعمل باللمس */
   html[data-ui-mode="mobile"] .btn:hover,
   html[data-ui-mode="mobile"] .nav-link:hover,
   html[data-ui-mode="mobile"] .dropdown-item:hover {
     transform: none !important;
   }
   
-  /* إضافة تأثير active بدلاً من hover */
   html[data-ui-mode="mobile"] .btn:active,
   html[data-ui-mode="mobile"] .nav-link:active,
   html[data-ui-mode="mobile"] .dropdown-item:active {
@@ -1624,10 +1687,6 @@ html[data-ui-mode="mobile"] .content-wrapper .table-responsive {
     transform: none !important;
   }
 }
-
-/* ═══════════════════════════════════════════════════════════════════
-   🌙 Dark Mode على الموبايل
-   ═══════════════════════════════════════════════════════════════════ */
 
 @media (max-width: 768px) and (prefers-color-scheme: dark) and (pointer: coarse) {
   html[data-ui-mode="mobile"] body {
@@ -1652,3 +1711,62 @@ html[data-ui-mode="mobile"] .content-wrapper .table-responsive {
   }
 }
 
+.gm-open-in-app-banner {
+  position: fixed;
+  top: var(--gm-navbar-height, 60px);
+  left: 0;
+  right: 0;
+  z-index: 1035;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  padding-top: max(10px, env(safe-area-inset-top));
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+}
+.gm-open-in-app-banner.d-none { display: none !important; }
+.gm-open-in-app-banner .gm-open-in-app-inner { display: flex; align-items: center; gap: 12px; width: 100%; }
+.gm-open-in-app-banner .gm-open-in-app-text { flex: 1; font-size: 0.9rem; font-weight: 500; min-width: 0; }
+.gm-open-in-app-banner #install-app-btn {
+  padding: 8px 14px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  background: #fff;
+  color: #667eea;
+  border: none;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+.gm-open-in-app-banner .gm-open-in-app-dismiss {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,255,255,0.2);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 1.2rem;
+  line-height: 1;
+}
+@media (max-width: 991.98px) {
+  body.gm-banner-visible .content-wrapper {
+    margin-top: calc(var(--gm-navbar-height, 60px) + 52px);
+  }
+}
+body.gm-standalone .gm-open-in-app-banner,
+@media (display-mode: standalone) {
+  .gm-open-in-app-banner { display: none !important; }
+}
+@media (display-mode: standalone) {
+  .main-header.navbar {
+    padding-top: calc(0.5rem + env(safe-area-inset-top));
+    padding-left: calc(0.5rem + env(safe-area-inset-left));
+    padding-right: calc(0.5rem + env(safe-area-inset-right));
+  }
+}

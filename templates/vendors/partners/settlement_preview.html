@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{% if balance_data and balance_data.success %}التسوية الذكية{% else %}تسوية شريك{% endif %} - {{ partner.name }}{% endblock %}
+{% block title %}{% if balance_data and balance_data.success %}التسوية الذكية{% else %}تسوية شريك{% endif %} - {{ partner.name|default('—') }}{% endblock %}
 
 {% block head_extra %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/statement-print.css') }}">
@@ -578,7 +578,7 @@ section.content .container-fluid .col-md-12 {
                 <div class="settlement-header">
                     <div class="row align-items-center">
                         <div class="col-md-8">
-                            <h3 class="mb-2"><i class="fas fa-handshake"></i> {{ partner.name }}</h3>
+                            <h3 class="mb-2"><i class="fas fa-handshake"></i> {{ partner.name|default('—') }}</h3>
                             <p class="mb-1">
                                 <i class="fas fa-calendar-alt"></i> <strong>الفترة:</strong> 
                                 {{ date_from.strftime("%Y-%m-%d") }} → {{ date_to.strftime("%Y-%m-%d") }}
@@ -1030,9 +1030,9 @@ section.content .container-fluid .col-md-12 {
                             <tbody>
                                 {% for item in balance_data.obligations.service_fees.get('items', []) %}
                                 <tr>
-                                    <td><code>{{ item.service_number }}</code></td>
+                                    <td><code>{{ item.service_number or item.id or '—' }}</code></td>
                                     <td><small>{{ item.date }}</small></td>
-                                    <td><small>{{ item.description }}</small></td>
+                                    <td><small>{{ item.description or '—' }}</small></td>
                                     <td class="text-end">{{ "%.2f"|format(item.amount) }}</td>
                                     <td>{{ item.currency }}</td>
                                     <td class="text-end"><strong>{{ "%.2f"|format(item.amount_ils) }}</strong></td>
@@ -1131,7 +1131,7 @@ section.content .container-fluid .col-md-12 {
                                 <tbody>
                                     {% for item in balance_data.expenses.get('items', []) %}
                                     <tr>
-                                        <td>{{ item.reference }}</td>
+                                        <td>{{ item.reference or '—' }}</td>
                                         <td><small>{{ item.date[:10] if item.date else '-' }}</small></td>
                                         <td>
                                             <small>{{ item.description or item.expense_type }}</small>
@@ -1328,7 +1328,7 @@ section.content .container-fluid .col-md-12 {
     printWindow.document.write('</style></head><body>');
     printWindow.document.write('<div class="print-header">');
     printWindow.document.write('<h2>' + title + '</h2>');
-    printWindow.document.write('<p>{{ partner.name }} | {{ date_from.strftime("%Y-%m-%d") }} - {{ date_to.strftime("%Y-%m-%d") }}</p>');
+    printWindow.document.write('<p>{{ partner.name|default('—') }} | {{ date_from.strftime("%Y-%m-%d") }} - {{ date_to.strftime("%Y-%m-%d") }}</p>');
     printWindow.document.write('</div>');
     printWindow.document.write(table.outerHTML);
     printWindow.document.write('<div class="print-footer">');

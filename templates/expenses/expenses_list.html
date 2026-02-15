@@ -352,6 +352,12 @@
         <a href="{{ url_for('expenses_bp.create_expense') }}" class="btn btn-light btn-sm shadow-sm text-success fw-bold">
           <i class="fas fa-plus ml-1"></i>إضافة مصروف
         </a>
+        <form method="post" action="{{ url_for('expenses_bp.sync_expenses_to_ledger') }}" class="d-inline" onsubmit="return confirm('مزامنة كل المصاريف التي لا يوجَد لها قيد في دفتر الأستاذ؟');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-light btn-sm shadow-sm text-info fw-bold">
+            <i class="fas fa-book ml-1"></i>مزامنة مع دفتر الأستاذ
+          </button>
+        </form>
         {% endif %}
       </div>
     </div>

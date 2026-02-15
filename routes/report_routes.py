@@ -752,7 +752,7 @@ def invoices_report():
     if kind:
         query = query.filter(Invoice.kind == kind)
     if status_filter:
-        query = query.filter(Invoice.status == status_filter.strip().upper())
+        query = query.filter(Invoice.status == (status_filter or '').strip().upper())
     
     invoices = query.order_by(Invoice.invoice_date.desc()).all()
     
@@ -957,7 +957,13 @@ def profit_loss_report():
         (sales_currency_expr == "ILS", 1),
         else_=func.coalesce(Sale.fx_rate_used, 1),
     )
-    sales_amount_ils_expr = func.coalesce(Sale.total_amount, 0) * sales_fx_mult
+    # إيراد المبيعات بدون ضريبة (أساس قابل للضريبة + الشحن) لاحتساب الربح محاسبياً
+    sales_revenue_excl_vat = (
+        (func.coalesce(Sale.total_amount, 0) - func.coalesce(Sale.shipping_cost, 0))
+        / (1 + func.coalesce(Sale.tax_rate, 0) / 100.0)
+        + func.coalesce(Sale.shipping_cost, 0)
+    )
+    sales_amount_ils_expr = sales_revenue_excl_vat * sales_fx_mult
 
     srv_currency_expr = func.upper(func.coalesce(ServiceRequest.currency, "ILS"))
     srv_fx_mult = case(
@@ -1744,13 +1750,13 @@ def suppliers_report():
         def _rows():
             for s in q.yield_per(1000):
                 bal = float(getattr(s, "current_balance", None) or getattr(s, "balance", 0) or 0)
-                yield [s.id, s.name, bal]
+                yield [s.id, s.name or '', bal]
 
         return _stream_csv_rows(["ID", "Name", "Balance"], _rows(), "suppliers_report.csv")
 
     pagination = q.paginate(page=page, per_page=per_page, error_out=False)
     suppliers = list(pagination.items or [])
-    data = [{"id": s.id, "name": s.name, "balance": float(getattr(s, "current_balance", None) or getattr(s, "balance", 0) or 0)} for s in suppliers]
+    data = [{"id": s.id, "name": s.name or '', "balance": float(getattr(s, "current_balance", None) or getattr(s, "balance", 0) or 0)} for s in suppliers]
 
     return render_template(
         "reports/suppliers.html",
@@ -1808,7 +1814,7 @@ def partners_report():
                 balance = smart_balance if smart_balance is not None else float(partner.current_balance or 0)
                 share_pct = float(partner.share_percentage or 0)
                 source = "smart" if smart_balance is not None else "stored"
-                yield [partner.id, partner.name, balance, share_pct, source]
+                yield [partner.id, partner.name or '', balance, share_pct, source]
 
         return _stream_csv_rows(["ID", "Name", "Balance", "Share %", "Source"], _rows(), "partners_report.csv")
 
@@ -1826,7 +1832,7 @@ def partners_report():
         data.append(
             {
                 "id": partner.id,
-                "name": partner.name,
+                "name": partner.name or '',
                 "balance": balance,
                 "share_percentage": float(partner.share_percentage or 0),
                 "source": "smart" if smart_balance is not None else "stored",
@@ -1953,7 +1959,7 @@ def customers_advanced_report():
         data.append(
             {
                 "id": cid,
-                "name": c.name,
+                "name": c.name or "",
                 "phone": c.phone or "",
                 "email": c.email or "",
                 "total_invoiced": total_invoiced,
@@ -2455,12 +2461,12 @@ def expenses_report():
                 yield [
                     e.id,
                     (e.date.strftime("%Y-%m-%d") if getattr(e, "date", None) else ""),
-                    (e.type.name if getattr(e, "type", None) else e.type_id),
+                    (getattr(e.type, "name", None) or e.type_id if getattr(e, "type", None) else e.type_id),
                     amount_ils,
                     e.currency or "",
-                    (e.employee.name if getattr(e, "employee", None) else ""),
-                    (e.warehouse.name if getattr(e, "warehouse", None) else ""),
-                    (e.partner.name if getattr(e, "partner", None) else ""),
+                    (getattr(e.employee, "name", None) or "" if getattr(e, "employee", None) else ""),
+                    (getattr(e.warehouse, "name", None) or "" if getattr(e, "warehouse", None) else ""),
+                    (getattr(e.partner, "name", None) or "" if getattr(e, "partner", None) else ""),
                     getattr(e, "desc", None) or getattr(e, "description", "") or "",
                     ("YES" if getattr(e, "is_paid", False) else "NO"),
                 ]

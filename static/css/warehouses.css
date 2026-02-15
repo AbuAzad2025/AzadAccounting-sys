@@ -110,7 +110,6 @@
   padding-left: 0.5rem;
 }
 
-/* أزرار التنقل محسّنة */
 .warehouse-nav-buttons {
   background: #f8f9fa;
   padding: 0.75rem;
@@ -129,7 +128,6 @@
 }
 
 .warehouse-nav-buttons .btn:hover {
-  /* transform: translateY(-2px); */
   box-shadow: 0 4px 12px rgba(0,0,0,0.15);
 }
 
@@ -138,9 +136,6 @@
   letter-spacing: 0.3px;
 }
 
-/* ألوان الأزرار تم نقلها إلى templates/warehouses/base.html لتجنب التعارض */
-
-/* Responsive للشاشات الصغيرة */
 @media (max-width: 768px) {
   .warehouse-nav-buttons {
     flex-direction: column;
@@ -152,7 +147,6 @@
   }
 }
 
-/* تحسينات صفحة تفاصيل المستودع */
 .warehouse-detail-actions {
   background: #f8f9fa;
   padding: 1rem;
@@ -176,7 +170,6 @@
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
 
-/* تحسين النماذج القابلة للطي */
 .card-header .btn-link {
   color: #495057;
   font-weight: 600;
@@ -194,7 +187,6 @@
   transform: rotate(90deg);
 }
 
-/* تحسين الحقول مع التوضيحات */
 .form-label {
   font-weight: 600;
   color: #495057;
@@ -210,7 +202,6 @@
   color: #007bff;
 }
 
-/* تحسين الأيقونات */
 .fa-box { color: #28a745; }
 .fa-hashtag { color: #17a2b8; }
 .fa-exclamation-triangle { color: #ffc107; }
@@ -232,7 +223,6 @@
 
 .content-header .dropdown-menu { max-width: 100%; }
 
-/* تحسين النافبار الفرعي للمستودعات */
 .warehouses-page .content-header {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
   color: #ffffff !important;
@@ -292,17 +282,14 @@ input:required, select:required, textarea:required { border-color: #dc3545; }
 .is-required .select2-container .select2-selection { border-color: #dc3545; }
 .was-validated :invalid { border-color: #dc3545; }
 
-/* وضع الأعمدة الموسّعة */
 .expanded-col { display: none; }
 .expanded-on .expanded-col { display: table-cell !important; }
 
-/* تحسين العرض عند التوسيع مع DataTables */
 .dataTables_wrapper.expanded-on .table { table-layout: auto; }
 .table .expanded-col input { min-width: 120px; }
 
-/* رأس الجدول مع DataTables + scrollX */
 .dataTables_wrapper .dataTables_scrollHead thead th {
-  background-color: #f8f9fa !important; /* مثل .table-light */
+  background-color: #f8f9fa !important;
   color: #212529 !important;
   white-space: nowrap;
   padding-top: .65rem;
@@ -312,24 +299,20 @@ input:required, select:required, textarea:required { border-color: #dc3545; }
   text-overflow: initial !important;
 }
 
-/* موضع أرقام أولوية الفرز (إن ظهرت) */
 table.dataTable thead .dt-orderable-asc span.dt-column-order,
 table.dataTable thead .dt-orderable-desc span.dt-column-order {
   right: .35rem;
   left: auto;
 }
 
-/* إخفاء الأعمدة الديناميكية */
 .column-hidden {
   display: none !important;
 }
 
-/* إظهار الأعمدة عند الحاجة */
 .column-visible {
   display: table-cell !important;
 }
 
-/* ضمان عمل showColumn/hideColumn مع DataTables */
 .dataTables_wrapper .column-hidden {
   display: none !important;
 }

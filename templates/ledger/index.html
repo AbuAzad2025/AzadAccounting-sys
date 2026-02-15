@@ -929,11 +929,24 @@ html[data-ui-mode="mobile"] body.ledger-page .col-md-12 {
                                             <select class="form-control" id="transaction-type" name="transaction_type">
                                                 <option value="">جميع العمليات</option>
                                                 <option value="sale">مبيعات</option>
+                                                <option value="sale_partner_share">حصة شريك من مبيعة</option>
+                                                <option value="return">مرتجع مبيعات</option>
                                                 <option value="purchase">مشتريات</option>
                                                 <option value="expense">نفقات</option>
                                                 <option value="payment">دفعات</option>
-                                                <option value="maintenance">صيانة</option>
-                                                <option value="service">خدمات</option>
+                                                <option value="payment_split">توزيع دفعة</option>
+                                                <option value="service">صيانة / خدمات</option>
+                                                <option value="service_partner_share">حصة شريك من صيانة</option>
+                                                <option value="invoice">فاتورة</option>
+                                                <option value="preorder">حجز مسبق</option>
+                                                <option value="shipment">شحنة</option>
+                                                <option value="exchange">توريد / صرف</option>
+                                                <option value="check">شيك</option>
+                                                <option value="opening">رصيد افتتاحي</option>
+                                                <option value="manual">قيد يدوي</option>
+                                                <option value="closing">قيد إقفال</option>
+                                                <option value="reversal">قيود عكسية</option>
+                                                <option value="online_preorder">حجز أونلاين</option>
                                             </select>
                                         </div>
                                     </div>
@@ -1131,6 +1144,10 @@ html[data-ui-mode="mobile"] body.ledger-page .col-md-12 {
                                         <tr>
                                             <td class="pr-5">&nbsp;&nbsp;&nbsp;&nbsp;الخدمات والصيانة</td>
                                             <td class="text-end" id="pnl-services">0.00 ₪</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="pr-5">&nbsp;&nbsp;&nbsp;&nbsp;إيرادات أخرى (خصم مبيعات، شحن، غيره)</td>
+                                            <td class="text-end" id="pnl-other-revenue">0.00 ₪</td>
                                         </tr>
                                         <tr class="table-info">
                                             <td><strong>إجمالي الإيرادات</strong></td>
@@ -2377,22 +2394,21 @@ function updateAccountsSummary(data, totals) {
 
 // دالة تحديث قائمة الدخل
 function updateProfitAndLoss(stats) {
-    // ✅ استخدام الحسابات من الباكند مباشرة - أدق وأأمن!
     const sales = stats.total_sales || 0;
     const services = stats.total_services || 0;
+    const otherRevenue = stats.other_revenue || 0;
     const cogs = stats.total_cogs || 0;
     const serviceCosts = stats.total_service_costs || 0;
     const expenses = stats.total_expenses || 0;
-    
-    // ✅ الباكند يحسب هذه القيم - لا نحسبها في JavaScript!
     const totalRevenue = stats.total_revenue || 0;
     const totalDirectCosts = cogs + serviceCosts;
     const grossProfit = stats.total_gross_profit || 0;
     const netProfit = stats.net_profit || 0;
     const margin = stats.profit_margin || 0;
-    
+
     $('#pnl-sales').text(formatCurrency(sales) + ' ₪');
     $('#pnl-services').text(formatCurrency(services) + ' ₪');
+    $('#pnl-other-revenue').text(formatCurrency(otherRevenue) + ' ₪');
     $('#pnl-total-revenue').text(formatCurrency(totalRevenue) + ' ₪');
     $('#pnl-cogs').text(formatCurrency(cogs) + ' ₪');
     $('#pnl-service-costs').text(formatCurrency(serviceCosts) + ' ₪');
@@ -2806,15 +2822,13 @@ function showAlert(message, type) {
 function updateWaterfallChart(stats) {
     const ctx = document.getElementById('waterfallChart');
     if (!ctx) return;
-    
-    const sales = stats.total_sales || 0;
-    const services = stats.total_services || 0;
+
+    const totalRevenue = stats.total_revenue || 0;
     const cogs = stats.total_cogs || 0;
+    const serviceCosts = stats.total_service_costs || 0;
     const expenses = stats.total_expenses || 0;
-    
-    const totalRevenue = sales + services;
-    const grossProfit = totalRevenue - cogs;
-    const netProfit = grossProfit - expenses;
+    const grossProfit = stats.total_gross_profit || 0;
+    const netProfit = stats.net_profit || 0;
     
     if (waterfallChart) {
         waterfallChart.destroy();

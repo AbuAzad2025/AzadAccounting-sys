@@ -65,6 +65,7 @@ from models import (
     PaymentStatus,
     PreOrder,
     PreOrderStatus,
+    run_preorder_gl_sync_after_commit,
     Product,
     ProductPartnerShare,
     Shipment,
@@ -1633,11 +1634,11 @@ def preview_inventory(warehouse_id: int):
                 for share in shares:
                     if share.partner:
                         partner_info.append({
-                            'name': share.partner.name,
+                            'name': share.partner.name or '',
                             'share_percentage': float(share.share_percentage) if share.share_percentage else 0,
                             'balance': float(share.partner.balance) if share.partner.balance else 0,
-                            'phone': share.partner.phone_number,
-                            'email': share.partner.email
+                            'phone': share.partner.phone_number or '',
+                            'email': share.partner.email or ''
                         })
                 product_partners[row.product_id] = partner_info
     
@@ -1653,10 +1654,10 @@ def preview_inventory(warehouse_id: int):
             if last_exchange and last_exchange.supplier:
                 db.session.refresh(last_exchange.supplier)
                 product_suppliers[row.product_id] = {
-                    'name': last_exchange.supplier.name,
-                    'phone': last_exchange.supplier.phone,
+                    'name': last_exchange.supplier.name or '',
+                    'phone': last_exchange.supplier.phone or '',
                     'balance': float(last_exchange.supplier.balance) if last_exchange.supplier.balance else 0,
-                    'email': last_exchange.supplier.email
+                    'email': last_exchange.supplier.email or ''
                 }
     
     return render_template(
@@ -1677,6 +1678,14 @@ def add_product(id):
 
     product_form = ProductForm()
     stock_form = StockLevelForm(meta={"csrf": False})
+
+    try:
+        product_form.category_id.choices = [
+            (c.id, c.name)
+            for c in ProductCategory.query.order_by(ProductCategory.name).all()
+        ]
+    except Exception:
+        product_form.category_id.choices = []
 
     wtype_raw = getattr(warehouse.warehouse_type, "value", str(warehouse.warehouse_type))
     wtype = (wtype_raw or "").upper()
@@ -1811,14 +1820,21 @@ SELECT setval(
 
             product_form.apply_to(product)
             product.warehouse_id = warehouse.id
+            raw_cat = request.form.get("category_id")
+            if raw_cat and (not product.category_id or product.category_id == 0):
+                try:
+                    cid = int(raw_cat)
+                    if cid and db.session.get(ProductCategory, cid):
+                        product.category_id = cid
+                except (TypeError, ValueError):
+                    pass
+            if not product.category_id and product.category_name:
+                product.category_id = _ensure_category_id(product.category_name)
             if existing_product:
                 for field_name, old_val in preserve_if_blank.items():
                     if hasattr(product_form, field_name):
                         if _is_blank(getattr(product_form, field_name).data):
                             setattr(product, field_name, old_val)
-
-            if not product.category_id and product.category_name:
-                product.category_id = _ensure_category_id(product.category_name)
 
             if product_form.vehicle_type_id.data:
                 try:
@@ -3297,6 +3313,10 @@ def preorder_create():
 
         try:
             db.session.commit()
+            try:
+                run_preorder_gl_sync_after_commit(preorder.id)
+            except Exception:
+                pass
         except IntegrityError as e:
             db.session.rollback()
             if "preorders.reference" in str(e).lower() and not user_ref:
@@ -3304,6 +3324,10 @@ def preorder_create():
                 db.session.add(preorder)
                 try:
                     db.session.commit()
+                    try:
+                        run_preorder_gl_sync_after_commit(preorder.id)
+                    except Exception:
+                        pass
                 except SQLAlchemyError as ee:
                     db.session.rollback()
                     flash(f"تعذر حفظ الحجز: {getattr(ee, 'orig', ee)}", "danger")
@@ -3520,6 +3544,10 @@ def preorder_convert_to_sale(preorder_id):
         
         db.session.commit()
         try:
+            run_preorder_gl_sync_after_commit(preorder.id)
+        except Exception:
+            pass
+        try:
             from utils.customer_balance_updater import update_customer_balance_components
             update_customer_balance_components(preorder.customer_id, db.session)
         except Exception:
@@ -3580,6 +3608,10 @@ def preorder_fulfill(preorder_id):
                 return redirect(url_for("warehouse_bp.preorder_detail", preorder_id=preorder_id))
             sl.quantity = available - qty
             db.session.commit()
+            try:
+                run_preorder_gl_sync_after_commit(preorder.id)
+            except Exception:
+                pass
             try:
                 from utils.customer_balance_updater import update_customer_balance_components
                 update_customer_balance_components(preorder.customer_id, db.session)

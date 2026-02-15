@@ -749,6 +749,7 @@ def index_old():
         - صلاحيات محددة عبر PBAC
         - لا أحد يدخل بدون access_owner_dashboard
     """
+    return redirect(url_for("security.index"))
     from datetime import datetime, timedelta, timezone
     
     # إحصائيات المستخدمين
@@ -2684,8 +2685,9 @@ def get_cached_security_stats():
         total_tables = 0
         total_relations = 0
     
-    # حساب عدد Routes (APIs)
-    total_apis = len([rule for rule in current_app.url_map.iter_rules() if 'security' in rule.endpoint])
+    # حساب عدد Routes (APIs) بشكل حقيقي (كل النظام)
+    total_apis = len([rule for rule in current_app.url_map.iter_rules() if rule.endpoint != "static"])
+    system_version = str(SystemSettings.get_setting("system_version", "1.0.0") or "1.0.0").strip()
     
     return {
         'total_users': total_users,
@@ -2702,7 +2704,7 @@ def get_cached_security_stats():
         'active_sessions': online_users,
         # 🔄 إحصائيات ديناميكية
         'total_services': total_tables,
-        'system_version': 'v5.0.0',
+        'system_version': system_version,
         'total_modules': f'{total_tables}+',
         'total_apis': total_apis,
         'total_indexes': total_indexes,
@@ -7390,10 +7392,11 @@ def tax_reports():
     - تقارير شهرية/سنوية
     - الإقرارات الضريبية
     """
-    from models import TaxEntry
+    from models import TaxEntry, Sale, SaleStatus
     from utils import get_tax_summary
     from sqlalchemy import func
     from datetime import datetime
+    from calendar import monthrange
     
     # الفترة
     period = request.args.get('period', datetime.now().strftime('%Y-%m'))
@@ -7425,6 +7428,30 @@ def tax_reports():
         if period_key not in yearly_data:
             yearly_data[period_key] = {}
         yearly_data[period_key][entry_type] = float(total or 0)
+
+    confirmed_sales_count = 0
+    confirmed_sales_without_vat = 0
+    try:
+        y_str, m_str = str(period).split("-", 1)
+        y = int(y_str)
+        m = int(m_str)
+        last_day = monthrange(y, m)[1]
+        start_dt = datetime(y, m, 1)
+        end_dt = datetime(y, m, last_day, 23, 59, 59, 999999)
+        confirmed_sales_count = Sale.query.filter(
+            Sale.status == SaleStatus.CONFIRMED.value,
+            Sale.sale_date >= start_dt,
+            Sale.sale_date <= end_dt,
+        ).count()
+        confirmed_sales_without_vat = Sale.query.filter(
+            Sale.status == SaleStatus.CONFIRMED.value,
+            Sale.sale_date >= start_dt,
+            Sale.sale_date <= end_dt,
+            (Sale.tax_rate.is_(None)) | (Sale.tax_rate <= 0),
+        ).count()
+    except Exception:
+        confirmed_sales_count = 0
+        confirmed_sales_without_vat = 0
     
     return render_template(
         'security/tax_reports.html',
@@ -7432,8 +7459,349 @@ def tax_reports():
         summary=summary,
         entries=entries,
         yearly_data=yearly_data,
-        current_year=year
+        current_year=year,
+        confirmed_sales_count=confirmed_sales_count,
+        confirmed_sales_without_vat=confirmed_sales_without_vat,
     )
+
+
+def _vat_backfill_sales_for_period(period: str) -> dict:
+    from datetime import datetime
+    from calendar import monthrange
+    from decimal import Decimal, ROUND_HALF_UP
+    from sqlalchemy.orm import joinedload
+    from models import (
+        db,
+        TaxEntry,
+        Sale,
+        SaleStatus,
+        ServiceRequest,
+        ServiceStatus,
+        GLBatch,
+        GLEntry,
+        SystemSettings,
+        _ensure_account_exists,
+        convert_amount,
+    )
+
+    try:
+        year_str, month_str = str(period or "").split("-", 1)
+        year = int(year_str)
+        month = int(month_str)
+        if month < 1 or month > 12:
+            raise ValueError("invalid month")
+    except Exception:
+        raise ValueError("invalid_period")
+
+    vat_enabled_row = SystemSettings.query.filter_by(key="vat_enabled").first()
+    vat_enabled = str(getattr(vat_enabled_row, "value", "") or "").strip().lower() in ("1", "true", "yes", "on")
+    if not vat_enabled:
+        return {
+            "period": period,
+            "vat_enabled": False,
+            "created_count": 0,
+            "missing_vat_count": 0,
+            "posted_batch": False,
+            "vat_total_ils": 0.0,
+            "message": "⚠️ VAT غير مفعّل في إعدادات النظام.",
+            "message_level": "warning",
+        }
+
+    vat_rate_row = SystemSettings.query.filter_by(key="default_vat_rate").first()
+    try:
+        vat_rate = float(str(getattr(vat_rate_row, "value", "") or "16").strip() or 16.0)
+    except Exception:
+        vat_rate = 16.0
+    if vat_rate <= 0:
+        vat_rate = 16.0
+
+    start_dt = datetime(year, month, 1)
+    last_day = monthrange(year, month)[1]
+    end_dt = datetime(year, month, last_day, 23, 59, 59, 999999)
+
+    existing_sale_ids = {
+        int(x[0])
+        for x in db.session.query(TaxEntry.transaction_id).filter(
+            TaxEntry.tax_period == period,
+            TaxEntry.transaction_type == "SALE",
+            TaxEntry.entry_type == "OUTPUT_VAT",
+        ).all()
+        if x and x[0] is not None
+    }
+
+    sales = (
+        Sale.query.options(joinedload(Sale.lines))
+        .filter(
+            Sale.status == SaleStatus.CONFIRMED.value,
+            Sale.sale_date >= start_dt,
+            Sale.sale_date <= end_dt,
+        )
+        .all()
+    )
+
+    created_count = 0
+    missing_vat_count = 0
+    vat_total_ils = Decimal("0.00")
+    tolerance = Decimal("0.50")
+    created_service_count = 0
+    updated_service_count = 0
+
+    for s in sales:
+        try:
+            sid = int(getattr(s, "id", 0) or 0)
+        except Exception:
+            sid = 0
+        if not sid or sid in existing_sale_ids:
+            continue
+
+        total = Decimal(str(getattr(s, "total_amount", 0) or 0))
+        if total <= Decimal("0"):
+            continue
+
+        sale_rate = Decimal(str(getattr(s, "tax_rate", 0) or 0))
+        if sale_rate <= Decimal("0"):
+            sale_rate = Decimal(str(vat_rate))
+
+        subtotal_net = Decimal("0.00")
+        for ln in (getattr(s, "lines", None) or []):
+            try:
+                subtotal_net += Decimal(str(getattr(ln, "net_amount", 0) or 0))
+            except Exception:
+                continue
+
+        disc = Decimal(str(getattr(s, "discount_total", 0) or 0))
+        ship = Decimal(str(getattr(s, "shipping_cost", 0) or 0))
+        base_for_tax = (subtotal_net - disc + ship).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        if base_for_tax < Decimal("0.00"):
+            base_for_tax = Decimal("0.00")
+
+        expected_with_vat = (base_for_tax * (Decimal("1") + (sale_rate / Decimal("100")))).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
+        )
+        expected_no_vat = base_for_tax
+
+        if abs(total - expected_with_vat) > tolerance and abs(total - expected_with_vat) > abs(total - expected_no_vat):
+            missing_vat_count += 1
+            continue
+
+        denom = (Decimal("1") + (sale_rate / Decimal("100")))
+        base = (total / denom).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        tax = (total - base).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        if tax <= Decimal("0.00"):
+            continue
+
+        currency = (getattr(s, "currency", None) or "ILS").upper()
+        try:
+            if currency == "ILS":
+                vat_ils = tax
+            else:
+                vat_ils = convert_amount(tax, currency, "ILS", getattr(s, "sale_date", None))
+        except Exception:
+            try:
+                fx_raw = Decimal(str(getattr(s, "fx_rate_used", 0) or 0))
+                if fx_raw > Decimal("0"):
+                    vat_ils = (tax * fx_raw).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                else:
+                    vat_ils = tax
+            except Exception:
+                vat_ils = tax
+
+        vat_total_ils += vat_ils.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+        te = TaxEntry(
+            entry_type="OUTPUT_VAT",
+            transaction_type="SALE",
+            transaction_id=sid,
+            transaction_reference=getattr(s, "sale_number", None),
+            tax_rate=float(sale_rate),
+            base_amount=float(base),
+            tax_amount=float(tax),
+            total_amount=float(total),
+            currency=currency,
+            fiscal_year=year,
+            fiscal_month=month,
+            tax_period=period,
+            customer_id=getattr(s, "customer_id", None),
+            notes=f"تصحيح VAT لبيع: {getattr(s, 'sale_number', None) or sid}",
+        )
+        db.session.add(te)
+        created_count += 1
+
+    existing_service_entries = {
+        int(r.transaction_id): (
+            Decimal(str(r.base_amount or 0)),
+            Decimal(str(r.tax_amount or 0)),
+            Decimal(str(r.total_amount or 0)),
+        )
+        for r in db.session.query(TaxEntry).filter(
+            TaxEntry.tax_period == period,
+            TaxEntry.transaction_type == "SERVICE",
+            TaxEntry.entry_type == "OUTPUT_VAT",
+        ).all()
+        if getattr(r, "transaction_id", None) is not None
+    }
+
+    services = (
+        ServiceRequest.query.options(joinedload(ServiceRequest.parts), joinedload(ServiceRequest.tasks))
+        .filter(
+            ServiceRequest.status.in_([ServiceStatus.COMPLETED.value, getattr(ServiceStatus, "CLOSED", ServiceStatus.COMPLETED).value]),
+            ServiceRequest.received_at >= start_dt,
+            ServiceRequest.received_at <= end_dt,
+        )
+        .all()
+    )
+
+    for srv in services:
+        try:
+            sid = int(getattr(srv, "id", 0) or 0)
+        except Exception:
+            sid = 0
+        if not sid:
+            continue
+
+        base = Decimal(str(getattr(srv, "total_amount", 0) or 0)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        if base <= Decimal("0.00"):
+            continue
+
+        srv_rate = Decimal(str(getattr(srv, "tax_rate", 0) or 0))
+        if srv_rate <= Decimal("0"):
+            srv_rate = Decimal(str(vat_rate))
+
+        tax = (base * srv_rate / Decimal("100")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        if tax <= Decimal("0.00"):
+            continue
+
+        total = (base + tax).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+        existing = existing_service_entries.get(sid)
+        if existing:
+            eb, et, etot = existing
+            if abs(eb - base) <= Decimal("0.01") and abs(et - tax) <= Decimal("0.01") and abs(etot - total) <= Decimal("0.01"):
+                continue
+
+        currency = (getattr(srv, "currency", None) or "ILS").upper()
+        te_q = TaxEntry.query.filter_by(transaction_type="SERVICE", transaction_id=sid, entry_type="OUTPUT_VAT").all()
+        for old in te_q:
+            db.session.delete(old)
+
+        te = TaxEntry(
+            entry_type="OUTPUT_VAT",
+            transaction_type="SERVICE",
+            transaction_id=sid,
+            transaction_reference=getattr(srv, "service_number", None),
+            tax_rate=float(srv_rate),
+            base_amount=float(base),
+            tax_amount=float(tax),
+            total_amount=float(total),
+            currency=currency,
+            fiscal_year=year,
+            fiscal_month=month,
+            tax_period=period,
+            customer_id=getattr(srv, "customer_id", None),
+            notes=f"تصحيح VAT لصيانة: {getattr(srv, 'service_number', None) or sid}",
+        )
+        db.session.add(te)
+        if existing:
+            updated_service_count += 1
+        else:
+            created_service_count += 1
+
+    vat_total_ils = vat_total_ils.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    posted_batch = False
+    if vat_total_ils > Decimal("0.00"):
+        yyyymm = int(year * 100 + month)
+        existing_batch = GLBatch.query.filter_by(source_type="VAT_BACKFILL", source_id=yyyymm).first()
+        if not existing_batch:
+            conn = db.session.connection()
+            acc_sales = "4000_SALES"
+            acc_vat = "2100_VAT_PAYABLE"
+            _ensure_account_exists(conn, acc_sales)
+            _ensure_account_exists(conn, acc_vat)
+
+            batch = GLBatch(
+                source_type="VAT_BACKFILL",
+                source_id=yyyymm,
+                purpose="VAT_BACKFILL",
+                posted_at=end_dt,
+                currency="ILS",
+                memo=f"VAT Backfill {period}",
+                status="POSTED",
+                entity_type=None,
+                entity_id=None,
+            )
+            db.session.add(batch)
+            db.session.flush()
+
+            ref_number = f"VAT-BACKFILL-{period}"
+            db.session.add(
+                GLEntry(
+                    batch_id=batch.id,
+                    account=acc_sales,
+                    debit=float(vat_total_ils),
+                    credit=0,
+                    currency="ILS",
+                    ref=ref_number,
+                )
+            )
+            db.session.add(
+                GLEntry(
+                    batch_id=batch.id,
+                    account=acc_vat,
+                    debit=0,
+                    credit=float(vat_total_ils),
+                    currency="ILS",
+                    ref=ref_number,
+                )
+            )
+            posted_batch = True
+
+    db.session.commit()
+
+    msg = f"✅ تم إنشاء {created_count} سجل VAT للفترة {period}."
+    if missing_vat_count:
+        msg += f" (تم تجاوز {missing_vat_count} مبيعات يبدو أنها بدون VAT)"
+    if created_service_count or updated_service_count:
+        msg += f" وتم إنشاء {created_service_count} وتحديث {updated_service_count} للصيانة."
+    if posted_batch:
+        msg += f" وتم إنشاء قيد دفتر الأستاذ بمبلغ {float(vat_total_ils):.2f} ₪."
+
+    return {
+        "period": period,
+        "vat_enabled": True,
+        "created_count": created_count,
+        "missing_vat_count": missing_vat_count,
+        "created_service_count": created_service_count,
+        "updated_service_count": updated_service_count,
+        "posted_batch": posted_batch,
+        "vat_total_ils": float(vat_total_ils),
+        "message": msg,
+        "message_level": "success",
+    }
+
+
+@security_bp.route('/tax-reports/reconcile/<period>', methods=['POST'])
+@permission_required('manage_reports')
+def reconcile_tax_report(period):
+    from datetime import datetime
+    from flask import redirect, url_for
+
+    try:
+        result = _vat_backfill_sales_for_period(period)
+    except ValueError:
+        valid_period = datetime.now().strftime("%Y-%m")
+        flash("❌ فترة غير صالحة.", "danger")
+        return redirect(url_for("security.tax_reports", period=valid_period))
+    except Exception as e:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        flash(f"❌ فشل تصحيح VAT: {e}", "danger")
+        return redirect(url_for("security.tax_reports", period=period))
+
+    flash(result.get("message") or "تمت العملية.", result.get("message_level") or "success")
+    return redirect(url_for("security.tax_reports", period=period))
 
 
 @security_bp.route('/tax-reports/export/<period>')

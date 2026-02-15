@@ -677,7 +677,10 @@ def perform_backup_sql(app):
     """نسخ احتياطي SQL محسن"""
     try:
         uri = app.config.get("SQLALCHEMY_DATABASE_URI", "")
-        backup_dir = app.config.get("BACKUP_SQL_DIR")
+        backup_dir = (
+            app.config.get("BACKUP_SQL_DIR")
+            or os.path.join(app.config.get("BACKUP_DB_DIR") or os.path.join(app.instance_path, "backups"), "sql")
+        )
         os.makedirs(backup_dir, exist_ok=True)
         ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
 

@@ -218,7 +218,7 @@ def enum_choices(enum_cls, labels_map=None, include_blank=True, blank="— اخ�
 def currency_choices(include_blank=True, blank="— اختر —"):
     try:
         rows = CurrencyModel.query.filter(CurrencyModel.is_active.is_(True)).order_by(CurrencyModel.code).all()
-        data = [(r.code.upper(), r.code.upper()) for r in rows] or CURRENCY_CHOICES
+        data = [((r.code or "").strip().upper(), (r.code or "").strip().upper()) for r in rows] or CURRENCY_CHOICES
     except Exception:
         data = CURRENCY_CHOICES
     return ([("", blank)] + data) if include_blank else data
@@ -2986,6 +2986,7 @@ class ExpenseForm(PaymentDetailsMixin, FlaskForm):
         exp.amount = self.amount.data
         exp.currency = (self.currency.data or 'ILS').upper()
         exp.type_id = int(self.type_id.data) if self.type_id.data else None
+        exp.branch_id = int(self.branch_id.data) if getattr(self.branch_id, "data", None) and self.branch_id.data not in (None, '', 0, '0') else None
         exp.employee_id = int(self.employee_id.data) if getattr(self.employee_id, "data", None) else None
         exp.warehouse_id = int(self.warehouse_id.data) if getattr(self.warehouse_id, "data", None) else None
         exp.partner_id = int(self.partner_id.data) if getattr(self.partner_id, "data", None) else None
@@ -3567,8 +3568,9 @@ class SaleForm(FlaskForm):
         if subtotal_after_discount < D(0):
             subtotal_after_discount = D(0)
         sale_tax_rate = D(self.tax_rate.data or 0)
-        after_sale_tax = subtotal_after_discount * (D(1) + sale_tax_rate / D(100))
-        grand_total = after_sale_tax + D(self.shipping_cost.data or 0)
+        base_for_tax = subtotal_after_discount + D(self.shipping_cost.data or 0)
+        tax_amount = base_for_tax * (sale_tax_rate / D(100))
+        grand_total = base_for_tax + tax_amount
         if grand_total < D(0): grand_total = D(0)
         sale.total_amount = Q2(grand_total)
         return sale
@@ -3706,12 +3708,14 @@ class ProductCategoryForm(FlaskForm):
     def validate_name(self, field):
         s = (field.data or "").strip()
         try:
-            from models import Category
-            q = Category.query.filter(func.lower(Category.name)==s.lower())
+            q = ProductCategory.query.filter(func.lower(ProductCategory.name) == s.lower())
             cur_id = to_int(self.id.data) if self.id.data else None
-            if cur_id: q = q.filter(Category.id != cur_id)
+            if cur_id:
+                q = q.filter(ProductCategory.id != cur_id)
             if q.first():
                 raise ValidationError("❌ اسم الفئة موجود مسبقًا.")
+        except ValidationError:
+            raise
         except Exception:
             pass
 
@@ -3724,15 +3728,14 @@ class ProductCategoryForm(FlaskForm):
             return False
         if pid:
             try:
-                from models import Category
                 seen = set()
-                node = db.session.get(Category, pid)
+                node = db.session.get(ProductCategory, pid)
                 while node and node.parent_id and node.parent_id not in seen:
                     if node.parent_id == cur_id:
                         self.parent_id.errors.append("❌ هذا يسبب حلقة في شجرة الفئات.")
                         return False
                     seen.add(node.parent_id)
-                    node = db.session.get(Category, node.parent_id)
+                    node = db.session.get(ProductCategory, node.parent_id)
             except Exception:
                 pass
         self.image_url.data = _clean_image_path(self.image_url.data)
@@ -3883,8 +3886,7 @@ class ProductForm(FlaskForm):
             self.reorder_point.errors.append('نقطة إعادة الطلب يجب أن تكون ≥ الحد الأدنى للمخزون.'); return False
         if self.category_id.data and not (self.category_name.data or "").strip():
             try:
-                from models import Category
-                c = db.session.get(Category, to_int(self.category_id.data))
+                c = db.session.get(ProductCategory, to_int(self.category_id.data))
                 if c and getattr(c, "name", None):
                     self.category_name.data = c.name
             except Exception:
@@ -5058,4 +5060,3 @@ class ArchiveRestoreForm(FlaskForm):
         'استعادة السجل',
         render_kw={'class': 'btn btn-success fw-bold'}
     )
-

@@ -45,7 +45,7 @@ def main():
             _out("ERROR DB connectivity: " + str(e))
             return 1
         try:
-            existing = {c.name.strip().lower(): c for c in ProductCategory.query.all()}
+            existing = {(c.name or "").strip().lower(): c for c in ProductCategory.query.all()}
         except Exception as e:
             _out("ERROR query ProductCategory: " + str(e))
             return 1
