@@ -2,7 +2,7 @@
 import sys
 from app import create_app
 from extensions import db
-from models import Payment, PaymentSplit, GLBatch, PaymentStatus
+from models import Payment, PaymentSplit, GLBatch, PaymentStatus, _payment_split_gl_batch_upsert
 from sqlalchemy import func
 from flask import has_app_context, current_app
 
@@ -57,8 +57,7 @@ def fix_production_data(app=None, dry_run: bool = False):
         # --- Phase 2: Ensure GL Batches for All Splits ---
         print("--- Phase 2: Ensuring GL Batches for all Splits ---")
         
-        # Strategy: Find splits that don't have a corresponding GLBatch
-        # We can trigger the event listener by "touching" the split (updating it)
+        # Strategy: For missing GLBatch, run the upsert in an isolated transaction per split
         
         splits = (
             db.session.query(PaymentSplit)
@@ -80,26 +79,19 @@ def fix_production_data(app=None, dry_run: bool = False):
                     fixed_gl_count += 1
                     continue
                 try:
-                    with db.session.begin_nested():
-                        d = dict(split.details or {})
-                        d['force_gl_update'] = True
-                        split.details = d
-                        db.session.add(split)
-                    db.session.commit()
+                    with db.engine.begin() as conn:
+                        _payment_split_gl_batch_upsert(None, conn, split)
                     fixed_gl_count += 1
                 except Exception as e:
-                    db.session.rollback()
                     print(f"❌ Error updating split {split.id}: {e}")
         
         if fixed_gl_count > 0:
             try:
                 if dry_run:
-                    db.session.rollback()
                     print(f"✅ Dry-Run: Would trigger GL creation for {fixed_gl_count} splits.")
                 else:
                     print(f"✅ Triggered GL creation for {fixed_gl_count} splits.")
             except Exception as e:
-                db.session.rollback()
                 print(f"❌ Failed to commit updates: {e}")
         else:
             print("✅ All splits already have GL Batches.")
