@@ -12762,7 +12762,7 @@ class GLEntry(db.Model, TimestampMixin):
     debit = db.Column(db.Numeric(12, 2), default=0, nullable=False)
     credit = db.Column(db.Numeric(12, 2), default=0, nullable=False)
     currency = db.Column(db.String(10), default="ILS", nullable=False)
-    ref = db.Column(db.String(100))
+    ref = db.Column(db.String(50))
 
     __table_args__ = (
         db.CheckConstraint("debit >= 0", name="ck_gl_debit_ge_0"),
@@ -12928,9 +12928,6 @@ def _gl_upsert_batch_and_entries(
     )
     batch_id = cur.scalar_one()
 
-    ref_value = (ref or "").strip()
-    if len(ref_value) > 20:
-        ref_value = ref_value[:20]
     for acct, debit, credit in rows:
         connection.execute(
             sa_text("""
@@ -12939,7 +12936,7 @@ def _gl_upsert_batch_and_entries(
                 VALUES
                     (:bid, :acc, :d, :c, :cur, :ref, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             """),
-            {"bid": batch_id, "acc": acct, "d": debit, "c": credit, "cur": (currency or "ILS").upper(), "ref": ref_value}
+            {"bid": batch_id, "acc": acct, "d": debit, "c": credit, "cur": (currency or "ILS").upper(), "ref": (ref or "").strip()}
         )
 
     return int(batch_id)
