@@ -12928,6 +12928,9 @@ def _gl_upsert_batch_and_entries(
     )
     batch_id = cur.scalar_one()
 
+    ref_value = (ref or "").strip()
+    if len(ref_value) > 20:
+        ref_value = ref_value[:20]
     for acct, debit, credit in rows:
         connection.execute(
             sa_text("""
@@ -12936,7 +12939,7 @@ def _gl_upsert_batch_and_entries(
                 VALUES
                     (:bid, :acc, :d, :c, :cur, :ref, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             """),
-            {"bid": batch_id, "acc": acct, "d": debit, "c": credit, "cur": (currency or "ILS").upper(), "ref": ref or ""}
+            {"bid": batch_id, "acc": acct, "d": debit, "c": credit, "cur": (currency or "ILS").upper(), "ref": ref_value}
         )
 
     return int(batch_id)
