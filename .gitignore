@@ -114,3 +114,9 @@ run_system_backup.py
 init_db.py
 manage_backup.py
 backup_automation.py
+ACCOUNTING_DEMO_SEEDS.md
+DEPLOY_DATA.md
+PERFORMANCE_PLAN.md
+PRODUCTION_MIGRATION_RUNBOOK_*.md
+READ_DEPLOY.md
+UPDATE_PRODUCTION.md
