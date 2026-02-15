@@ -11965,9 +11965,9 @@ def _ensure_account_exists(connection, account_code: str) -> bool:
         connection.execute(
             sa_text("""
                 INSERT INTO accounts (code, name, type, is_active, created_at, updated_at)
-                VALUES (:code, :name, :type, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                VALUES (:code, :name, :type, :is_active, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             """),
-            {"code": account_code, "name": account_name, "type": account_type}
+            {"code": account_code, "name": account_name, "type": account_type, "is_active": True}
         )
         return True
     except Exception as e:
