@@ -88,7 +88,8 @@ test_*.py
 *_test.py
 non_production/
 
-!production_data.sql
+production_data.sql
+production_update_*.sql
 
 # Exports (Backups)
 exports/
@@ -105,3 +106,11 @@ wsgi.py
 start_server.bat
 debug_config.py
 run_backup.bat
+export_data_json.py
+import_data_json.py
+generate_export.py
+run_seed_categories.py
+run_system_backup.py
+init_db.py
+manage_backup.py
+backup_automation.py
