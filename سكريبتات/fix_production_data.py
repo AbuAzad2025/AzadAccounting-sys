@@ -85,8 +85,10 @@ def fix_production_data(app=None, dry_run: bool = False):
                         d['force_gl_update'] = True
                         split.details = d
                         db.session.add(split)
+                    db.session.commit()
                     fixed_gl_count += 1
                 except Exception as e:
+                    db.session.rollback()
                     print(f"❌ Error updating split {split.id}: {e}")
         
         if fixed_gl_count > 0:
@@ -95,7 +97,6 @@ def fix_production_data(app=None, dry_run: bool = False):
                     db.session.rollback()
                     print(f"✅ Dry-Run: Would trigger GL creation for {fixed_gl_count} splits.")
                 else:
-                    db.session.commit()
                     print(f"✅ Triggered GL creation for {fixed_gl_count} splits.")
             except Exception as e:
                 db.session.rollback()
