@@ -1,0 +1,598 @@
+⚠️ Telemetry Error: HTTP Error 403: Forbidden
+[2026-02-15 20:43:53] INFO - app: AI systems skipped: WSGI/uWSGI context (set ENABLE_AI_SYSTEMS=1 to enable).
+[2026-02-15 20:43:53] INFO - app: System integrity check passed: 881 routes, 117 models, 98 forms
+=== Starting Data Repair for Production ===
+--- Phase 1: Checking for Payments without Splits ---
+✅ All payments have splits. No action needed.
+--- Phase 2: Ensuring GL Batches for all Splits ---
+⚠️ Split 205 (Payment 274) missing GL Batch. Triggering update...
+[2026-02-15 20:43:53] WARNING - app: ⚠️ خطأ في إنشاء GLBatch للـ Split #205: (psycopg2.errors.StringDataRightTruncation) value too long for type character varying(20)
+
+[SQL: 
+                INSERT INTO gl_entries
+                    (batch_id, account, debit, credit, currency, ref, created_at, updated_at)
+                VALUES
+                    (%(bid)s, %(acc)s, %(d)s, %(c)s, %(cur)s, %(ref)s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            ]
+[parameters: {'bid': 750, 'acc': '2150_PAYROLL_CLEARING', 'd': 2375.0, 'c': 0.0, 'cur': 'ILS', 'ref': 'SPLIT-205-PMT-PMT202'}]
+(Background on this error at: https://sqlalche.me/e/20/9h9h)
+[2026-02-15 20:43:53] ERROR - app: Traceback (most recent call last):
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 951, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+psycopg2.errors.StringDataRightTruncation: value too long for type character varying(20)
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/NASERALLAH/ramallah/models.py", line 8242, in _payment_split_gl_batch_upsert
+    _gl_upsert_batch_and_entries(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        connection,
+        ^^^^^^^^^^^
+    ...<8 lines>...
+        entity_id=batch_entity_id
+        ^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/NASERALLAH/ramallah/models.py", line 12935, in _gl_upsert_batch_and_entries
+    connection.execute(
+    ~~~~~~~~~~~~~~~~~~^
+        sa_text("""
+        ^^^^^^^^^^^
+    ...<5 lines>...
+        {"bid": batch_id, "acc": acct, "d": debit, "c": credit, "cur": (currency or "ILS").upper(), "ref": ref_value}
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1419, in execute
+    return meth(
+        self,
+        distilled_parameters,
+        execution_options or NO_OPTIONS,
+    )
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/sql/elements.py", line 526, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self, distilled_params, execution_options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1641, in _execute_clauseelement
+    ret = self._execute_context(
+        dialect,
+    ...<8 lines>...
+        cache_hit=cache_hit,
+    )
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1846, in _execute_context
+    return self._exec_single_context(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^
+        dialect, context, statement, parameters
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1986, in _exec_single_context
+    self._handle_dbapi_exception(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        e, str_statement, effective_parameters, cursor, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 2355, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 951, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+sqlalchemy.exc.DataError: (psycopg2.errors.StringDataRightTruncation) value too long for type character varying(20)
+
+[SQL: 
+                INSERT INTO gl_entries
+                    (batch_id, account, debit, credit, currency, ref, created_at, updated_at)
+                VALUES
+                    (%(bid)s, %(acc)s, %(d)s, %(c)s, %(cur)s, %(ref)s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            ]
+[parameters: {'bid': 750, 'acc': '2150_PAYROLL_CLEARING', 'd': 2375.0, 'c': 0.0, 'cur': 'ILS', 'ref': 'SPLIT-205-PMT-PMT202'}]
+(Background on this error at: https://sqlalche.me/e/20/9h9h)
+
+[2026-02-15 20:43:53] ERROR - app: Traceback (most recent call last):
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 951, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+psycopg2.errors.StringDataRightTruncation: value too long for type character varying(20)
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/NASERALLAH/ramallah/models.py", line 8242, in _payment_split_gl_batch_upsert
+    _gl_upsert_batch_and_entries(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        connection,
+        ^^^^^^^^^^^
+    ...<8 lines>...
+        entity_id=batch_entity_id
+        ^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/NASERALLAH/ramallah/models.py", line 12935, in _gl_upsert_batch_and_entries
+    connection.execute(
+    ~~~~~~~~~~~~~~~~~~^
+        sa_text("""
+        ^^^^^^^^^^^
+    ...<5 lines>...
+        {"bid": batch_id, "acc": acct, "d": debit, "c": credit, "cur": (currency or "ILS").upper(), "ref": ref_value}
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1419, in execute
+    return meth(
+        self,
+        distilled_parameters,
+        execution_options or NO_OPTIONS,
+    )
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/sql/elements.py", line 526, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self, distilled_params, execution_options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1641, in _execute_clauseelement
+    ret = self._execute_context(
+        dialect,
+    ...<8 lines>...
+        cache_hit=cache_hit,
+    )
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1846, in _execute_context
+    return self._exec_single_context(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^
+        dialect, context, statement, parameters
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1986, in _exec_single_context
+    self._handle_dbapi_exception(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        e, str_statement, effective_parameters, cursor, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 2355, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 951, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+sqlalchemy.exc.DataError: (psycopg2.errors.StringDataRightTruncation) value too long for type character varying(20)
+
+[SQL: 
+                INSERT INTO gl_entries
+                    (batch_id, account, debit, credit, currency, ref, created_at, updated_at)
+                VALUES
+                    (%(bid)s, %(acc)s, %(d)s, %(c)s, %(cur)s, %(ref)s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            ]
+[parameters: {'bid': 750, 'acc': '2150_PAYROLL_CLEARING', 'd': 2375.0, 'c': 0.0, 'cur': 'ILS', 'ref': 'SPLIT-205-PMT-PMT202'}]
+(Background on this error at: https://sqlalche.me/e/20/9h9h)
+
+⚠️ Split 206 (Payment 275) missing GL Batch. Triggering update...
+[2026-02-15 20:43:53] WARNING - app: ⚠️ خطأ في إنشاء GLBatch للـ Split #206: (psycopg2.errors.StringDataRightTruncation) value too long for type character varying(20)
+
+[SQL: 
+                INSERT INTO gl_entries
+                    (batch_id, account, debit, credit, currency, ref, created_at, updated_at)
+                VALUES
+                    (%(bid)s, %(acc)s, %(d)s, %(c)s, %(cur)s, %(ref)s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            ]
+[parameters: {'bid': 751, 'acc': '2150_PAYROLL_CLEARING', 'd': 2850.0, 'c': 0.0, 'cur': 'ILS', 'ref': 'SPLIT-206-PMT-PMT202'}]
+(Background on this error at: https://sqlalche.me/e/20/9h9h)
+[2026-02-15 20:43:53] ERROR - app: Traceback (most recent call last):
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 951, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+psycopg2.errors.StringDataRightTruncation: value too long for type character varying(20)
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/NASERALLAH/ramallah/models.py", line 8242, in _payment_split_gl_batch_upsert
+    _gl_upsert_batch_and_entries(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        connection,
+        ^^^^^^^^^^^
+    ...<8 lines>...
+        entity_id=batch_entity_id
+        ^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/NASERALLAH/ramallah/models.py", line 12935, in _gl_upsert_batch_and_entries
+    connection.execute(
+    ~~~~~~~~~~~~~~~~~~^
+        sa_text("""
+        ^^^^^^^^^^^
+    ...<5 lines>...
+        {"bid": batch_id, "acc": acct, "d": debit, "c": credit, "cur": (currency or "ILS").upper(), "ref": ref_value}
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1419, in execute
+    return meth(
+        self,
+        distilled_parameters,
+        execution_options or NO_OPTIONS,
+    )
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/sql/elements.py", line 526, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self, distilled_params, execution_options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1641, in _execute_clauseelement
+    ret = self._execute_context(
+        dialect,
+    ...<8 lines>...
+        cache_hit=cache_hit,
+    )
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1846, in _execute_context
+    return self._exec_single_context(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^
+        dialect, context, statement, parameters
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1986, in _exec_single_context
+    self._handle_dbapi_exception(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        e, str_statement, effective_parameters, cursor, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 2355, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 951, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+sqlalchemy.exc.DataError: (psycopg2.errors.StringDataRightTruncation) value too long for type character varying(20)
+
+[SQL: 
+                INSERT INTO gl_entries
+                    (batch_id, account, debit, credit, currency, ref, created_at, updated_at)
+                VALUES
+                    (%(bid)s, %(acc)s, %(d)s, %(c)s, %(cur)s, %(ref)s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            ]
+[parameters: {'bid': 751, 'acc': '2150_PAYROLL_CLEARING', 'd': 2850.0, 'c': 0.0, 'cur': 'ILS', 'ref': 'SPLIT-206-PMT-PMT202'}]
+(Background on this error at: https://sqlalche.me/e/20/9h9h)
+
+[2026-02-15 20:43:53] ERROR - app: Traceback (most recent call last):
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 951, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+psycopg2.errors.StringDataRightTruncation: value too long for type character varying(20)
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/NASERALLAH/ramallah/models.py", line 8242, in _payment_split_gl_batch_upsert
+    _gl_upsert_batch_and_entries(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        connection,
+        ^^^^^^^^^^^
+    ...<8 lines>...
+        entity_id=batch_entity_id
+        ^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/NASERALLAH/ramallah/models.py", line 12935, in _gl_upsert_batch_and_entries
+    connection.execute(
+    ~~~~~~~~~~~~~~~~~~^
+        sa_text("""
+        ^^^^^^^^^^^
+    ...<5 lines>...
+        {"bid": batch_id, "acc": acct, "d": debit, "c": credit, "cur": (currency or "ILS").upper(), "ref": ref_value}
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1419, in execute
+    return meth(
+        self,
+        distilled_parameters,
+        execution_options or NO_OPTIONS,
+    )
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/sql/elements.py", line 526, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self, distilled_params, execution_options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1641, in _execute_clauseelement
+    ret = self._execute_context(
+        dialect,
+    ...<8 lines>...
+        cache_hit=cache_hit,
+    )
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1846, in _execute_context
+    return self._exec_single_context(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^
+        dialect, context, statement, parameters
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1986, in _exec_single_context
+    self._handle_dbapi_exception(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        e, str_statement, effective_parameters, cursor, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 2355, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 951, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+sqlalchemy.exc.DataError: (psycopg2.errors.StringDataRightTruncation) value too long for type character varying(20)
+
+[SQL: 
+                INSERT INTO gl_entries
+                    (batch_id, account, debit, credit, currency, ref, created_at, updated_at)
+                VALUES
+                    (%(bid)s, %(acc)s, %(d)s, %(c)s, %(cur)s, %(ref)s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            ]
+[parameters: {'bid': 751, 'acc': '2150_PAYROLL_CLEARING', 'd': 2850.0, 'c': 0.0, 'cur': 'ILS', 'ref': 'SPLIT-206-PMT-PMT202'}]
+(Background on this error at: https://sqlalche.me/e/20/9h9h)
+
+⚠️ Split 207 (Payment 276) missing GL Batch. Triggering update...
+[2026-02-15 20:43:53] WARNING - app: ⚠️ خطأ في إنشاء GLBatch للـ Split #207: (psycopg2.errors.StringDataRightTruncation) value too long for type character varying(20)
+
+[SQL: 
+                INSERT INTO gl_entries
+                    (batch_id, account, debit, credit, currency, ref, created_at, updated_at)
+                VALUES
+                    (%(bid)s, %(acc)s, %(d)s, %(c)s, %(cur)s, %(ref)s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            ]
+[parameters: {'bid': 752, 'acc': '2150_PAYROLL_CLEARING', 'd': 9312.5, 'c': 0.0, 'cur': 'ILS', 'ref': 'SPLIT-207-PMT-PMT202'}]
+(Background on this error at: https://sqlalche.me/e/20/9h9h)
+[2026-02-15 20:43:53] ERROR - app: Traceback (most recent call last):
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 951, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+psycopg2.errors.StringDataRightTruncation: value too long for type character varying(20)
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/NASERALLAH/ramallah/models.py", line 8242, in _payment_split_gl_batch_upsert
+    _gl_upsert_batch_and_entries(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        connection,
+        ^^^^^^^^^^^
+    ...<8 lines>...
+        entity_id=batch_entity_id
+        ^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/NASERALLAH/ramallah/models.py", line 12935, in _gl_upsert_batch_and_entries
+    connection.execute(
+    ~~~~~~~~~~~~~~~~~~^
+        sa_text("""
+        ^^^^^^^^^^^
+    ...<5 lines>...
+        {"bid": batch_id, "acc": acct, "d": debit, "c": credit, "cur": (currency or "ILS").upper(), "ref": ref_value}
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1419, in execute
+    return meth(
+        self,
+        distilled_parameters,
+        execution_options or NO_OPTIONS,
+    )
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/sql/elements.py", line 526, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self, distilled_params, execution_options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1641, in _execute_clauseelement
+    ret = self._execute_context(
+        dialect,
+    ...<8 lines>...
+        cache_hit=cache_hit,
+    )
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1846, in _execute_context
+    return self._exec_single_context(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^
+        dialect, context, statement, parameters
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1986, in _exec_single_context
+    self._handle_dbapi_exception(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        e, str_statement, effective_parameters, cursor, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 2355, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 951, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+sqlalchemy.exc.DataError: (psycopg2.errors.StringDataRightTruncation) value too long for type character varying(20)
+
+[SQL: 
+                INSERT INTO gl_entries
+                    (batch_id, account, debit, credit, currency, ref, created_at, updated_at)
+                VALUES
+                    (%(bid)s, %(acc)s, %(d)s, %(c)s, %(cur)s, %(ref)s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            ]
+[parameters: {'bid': 752, 'acc': '2150_PAYROLL_CLEARING', 'd': 9312.5, 'c': 0.0, 'cur': 'ILS', 'ref': 'SPLIT-207-PMT-PMT202'}]
+(Background on this error at: https://sqlalche.me/e/20/9h9h)
+
+[2026-02-15 20:43:53] ERROR - app: Traceback (most recent call last):
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 951, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+psycopg2.errors.StringDataRightTruncation: value too long for type character varying(20)
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/NASERALLAH/ramallah/models.py", line 8242, in _payment_split_gl_batch_upsert
+    _gl_upsert_batch_and_entries(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        connection,
+        ^^^^^^^^^^^
+    ...<8 lines>...
+        entity_id=batch_entity_id
+        ^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/NASERALLAH/ramallah/models.py", line 12935, in _gl_upsert_batch_and_entries
+    connection.execute(
+    ~~~~~~~~~~~~~~~~~~^
+        sa_text("""
+        ^^^^^^^^^^^
+    ...<5 lines>...
+        {"bid": batch_id, "acc": acct, "d": debit, "c": credit, "cur": (currency or "ILS").upper(), "ref": ref_value}
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1419, in execute
+    return meth(
+        self,
+        distilled_parameters,
+        execution_options or NO_OPTIONS,
+    )
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/sql/elements.py", line 526, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self, distilled_params, execution_options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1641, in _execute_clauseelement
+    ret = self._execute_context(
+        dialect,
+    ...<8 lines>...
+        cache_hit=cache_hit,
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    )
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1846, in _execute_context
+    return self._exec_single_context(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^
+        dialect, context, statement, parameters
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1986, in _exec_single_context
+    self._handle_dbapi_exception(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        e, str_statement, effective_parameters, cursor, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 2355, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/NASERALLAH/.local/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 951, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+sqlalchemy.exc.DataError: (psycopg2.errors.StringDataRightTruncation) value too long for type character varying(20)
+[SQL: 
+                INSERT INTO gl_entries
+                    (batch_id, account, debit, credit, currency, ref, created_at, updated_at)
+                VALUES
+                    (%(bid)s, %(acc)s, %(d)s, %(c)s, %(cur)s, %(ref)s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            ]
+[parameters: {'bid': 752, 'acc': '2150_PAYROLL_CLEARING', 'd': 9312.5, 'c': 0.0, 'cur': 'ILS', 'ref': 'SPLIT-207-PMT-PMT202'}]
+(Background on this error at: https://sqlalche.me/e/20/9h9h)
+✅ Triggered GL creation for 3 splits.

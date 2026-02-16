@@ -7361,6 +7361,19 @@ def _payment_gl_upsert_core(connection, target: "Payment") -> None:
         return
     if "[FROM_MANUAL_CHECK=true]" in (target.notes or ""):
         return
+    splits_count = connection.execute(
+        sa_text("SELECT COUNT(1) FROM payment_splits WHERE payment_id = :pid"),
+        {"pid": target.id},
+    ).scalar() or 0
+    if splits_count > 0:
+        if target.status in [PaymentStatus.REFUNDED.value, PaymentStatus.CANCELLED.value]:
+            split_ids = connection.execute(
+                sa_text("SELECT id FROM payment_splits WHERE payment_id = :pid"),
+                {"pid": target.id},
+            ).scalars().all()
+            for sid in split_ids:
+                _payment_split_gl_batch_upsert_by_id(connection, split_id=int(sid))
+        return
     if target.status in [PaymentStatus.FAILED.value, PaymentStatus.CANCELLED.value]:
         amount = float(target.total_amount or 0)
         if amount <= 0:
@@ -7404,12 +7417,6 @@ def _payment_gl_upsert_core(connection, target: "Payment") -> None:
             entity_type=entity_type,
             entity_id=target.customer_id or target.supplier_id or target.partner_id,
         )
-        return
-    splits_count = connection.execute(
-        sa_text("SELECT COUNT(1) FROM payment_splits WHERE payment_id = :pid"),
-        {"pid": target.id},
-    ).scalar() or 0
-    if splits_count > 0:
         return
     if target.status not in [PaymentStatus.COMPLETED.value, PaymentStatus.PENDING.value]:
         return
@@ -8084,61 +8091,159 @@ def _payment_split_create_check_auto(mapper, connection, target: "PaymentSplit")
 @event.listens_for(PaymentSplit, "after_insert")
 @event.listens_for(PaymentSplit, "after_update")
 def _payment_split_gl_batch_upsert(mapper, connection, target: "PaymentSplit"):
-    """✅ إنشاء/تحديث GLBatch لكل split منفصلاً - كل split يُعامل كدفعة مستقلة"""
+    try:
+        _payment_split_gl_batch_upsert_by_id(connection, split_id=int(getattr(target, "id", 0) or 0))
+    except Exception:
+        pass
+
+
+@event.listens_for(PaymentSplit, "after_insert")
+@event.listens_for(PaymentSplit, "after_update")
+@event.listens_for(PaymentSplit, "after_delete")
+def _payment_split_update_entity_balances(mapper, connection, target: "PaymentSplit"):
+    try:
+        session = _balance_get_session(target)
+        payment_id = getattr(target, "payment_id", None)
+        if not payment_id:
+            return
+        try:
+            payment_id = int(payment_id)
+        except Exception:
+            return
+
+        payment = None
+        try:
+            if session is not None:
+                payment = session.get(Payment, payment_id)
+        except Exception:
+            payment = None
+
+        if payment is not None:
+            customer_ids = _get_customer_ids_from_payment(payment, session)
+            for customer_id in customer_ids:
+                _queue_customer_balance(session, customer_id)
+            _queue_supplier_balance(session, getattr(payment, "supplier_id", None))
+            _queue_partner_balance(session, getattr(payment, "partner_id", None))
+            return
+
+        row = connection.execute(
+            sa_text(
+                """
+                SELECT id, customer_id, supplier_id, partner_id, sale_id, invoice_id, service_id, preorder_id
+                FROM payments
+                WHERE id = :pid
+                """
+            ),
+            {"pid": payment_id},
+        ).mappings().first()
+        if not row:
+            return
+
+        _queue_customer_balance(session, row.get("customer_id"))
+        _queue_supplier_balance(session, row.get("supplier_id"))
+        _queue_partner_balance(session, row.get("partner_id"))
+
+        if row.get("sale_id"):
+            cid = connection.execute(
+                sa_text("SELECT customer_id FROM sales WHERE id = :sid"),
+                {"sid": int(row["sale_id"])},
+            ).scalar()
+            _queue_customer_balance(session, cid)
+        if row.get("invoice_id"):
+            cid = connection.execute(
+                sa_text("SELECT customer_id FROM invoices WHERE id = :iid"),
+                {"iid": int(row["invoice_id"])},
+            ).scalar()
+            _queue_customer_balance(session, cid)
+        if row.get("service_id"):
+            cid = connection.execute(
+                sa_text("SELECT customer_id FROM service_requests WHERE id = :sid"),
+                {"sid": int(row["service_id"])},
+            ).scalar()
+            _queue_customer_balance(session, cid)
+        if row.get("preorder_id"):
+            cid = connection.execute(
+                sa_text("SELECT customer_id FROM preorders WHERE id = :pid"),
+                {"pid": int(row["preorder_id"])},
+            ).scalar()
+            _queue_customer_balance(session, cid)
+    except Exception:
+        pass
+
+
+def _payment_split_gl_batch_upsert_by_id(connection, *, split_id: int) -> None:
+    if not split_id:
+        return
     try:
         with connection.begin_nested():
+            split_row = connection.execute(
+                sa_text("""
+                    SELECT id, payment_id, method, amount, currency, converted_amount, converted_currency
+                    FROM payment_splits
+                    WHERE id = :sid
+                """),
+                {"sid": split_id},
+            ).mappings().first()
+            if not split_row:
+                return
+
             payment_row = connection.execute(
                 sa_text("""
                     SELECT id, payment_number, payment_date, currency, direction, status,
                            customer_id, supplier_id, partner_id, entity_type, expense_id, created_by,
                            sale_id, invoice_id, service_id, preorder_id, shipment_id
-                    FROM payments 
+                    FROM payments
                     WHERE id = :pid
                 """),
-                {"pid": target.payment_id}
+                {"pid": split_row["payment_id"]},
             ).mappings().first()
-            
             if not payment_row:
                 return
-            
+
             connection.execute(
                 sa_text("DELETE FROM gl_batches WHERE source_type = 'PAYMENT' AND source_id = :pid"),
-                {"pid": target.payment_id}
+                {"pid": int(split_row["payment_id"])},
             )
-            
-            payment_status = payment_row['status']
-            
-            if payment_status in [PaymentStatus.FAILED.value, PaymentStatus.CANCELLED.value]:
+
+            payment_status = str(payment_row["status"] or "").upper()
+            if payment_status == PaymentStatus.FAILED.value:
                 return
-            
-            if payment_status not in [PaymentStatus.COMPLETED.value, PaymentStatus.PENDING.value]:
+            if payment_status not in {
+                PaymentStatus.COMPLETED.value,
+                PaymentStatus.PENDING.value,
+                PaymentStatus.REFUNDED.value,
+                PaymentStatus.CANCELLED.value,
+            }:
                 return
-            
-            amount = float(target.converted_amount or target.amount or 0)
+
+            is_refunded = payment_status == PaymentStatus.REFUNDED.value
+            is_cancelled = payment_status == PaymentStatus.CANCELLED.value
+
+            amount = float(split_row["converted_amount"] or split_row["amount"] or 0)
             if amount <= 0:
                 return
-            
-            split_currency = target.converted_currency or target.currency or payment_row['currency'] or 'ILS'
+
+            split_currency = (split_row["converted_currency"] or split_row["currency"] or payment_row["currency"] or "ILS").upper()
             amount_ils = amount
-            
-            if split_currency != 'ILS' and not target.converted_amount:
+            if split_currency != "ILS" and not float(split_row["converted_amount"] or 0):
                 try:
-                    rate = _fx_rate_local_via_connection(connection, split_currency, 'ILS', payment_row['payment_date'] or datetime.now(timezone.utc))
-                    if rate and rate > 0:
+                    rate = _fx_rate_local_via_connection(
+                        connection,
+                        split_currency,
+                        "ILS",
+                        payment_row["payment_date"] or datetime.now(timezone.utc),
+                    )
+                    if rate and float(rate) > 0:
                         amount_ils = float(amount * float(rate))
                 except Exception:
                     pass
-            
-            method_val = getattr(target, 'method', None)
-            if hasattr(method_val, 'value'):
-                method_val = method_val.value
-            split_method = str(method_val or 'CASH').upper()
-            
-            is_pending_check = (payment_status == PaymentStatus.PENDING.value and 
-                               ('CHECK' in split_method or 'CHEQUE' in split_method))
-            
+
+            split_method = str(split_row["method"] or PaymentMethod.CASH.value).strip().lower()
+            is_check = ("check" in split_method) or ("cheque" in split_method)
+            is_pending_check = (payment_status == PaymentStatus.PENDING.value and is_check)
+
             if is_pending_check:
-                if payment_row['direction'] == PaymentDirection.IN.value:
+                if payment_row["direction"] == PaymentDirection.IN.value:
                     cash_account = "1150_CHQ_REC"
                 else:
                     cash_account = "2150_CHQ_PAY"
@@ -8148,16 +8253,16 @@ def _payment_split_gl_batch_upsert(mapper, connection, target: "PaymentSplit"):
                 cash_account = GL_ACCOUNTS.get("CARD", "1020_CARD_CLEARING")
             else:
                 cash_account = GL_ACCOUNTS.get("CASH", "1000_CASH")
-            
-            payment_entity_type = payment_row['entity_type'] or 'OTHER'
-            customer_id = payment_row['customer_id']
-            supplier_id = payment_row['supplier_id']
-            partner_id = payment_row['partner_id']
-            sale_id = payment_row.get('sale_id')
-            invoice_id = payment_row.get('invoice_id')
-            service_id = payment_row.get('service_id')
-            preorder_id = payment_row.get('preorder_id')
-            
+
+            payment_entity_type = payment_row["entity_type"] or "OTHER"
+            customer_id = payment_row["customer_id"]
+            supplier_id = payment_row["supplier_id"]
+            partner_id = payment_row["partner_id"]
+            sale_id = payment_row.get("sale_id")
+            invoice_id = payment_row.get("invoice_id")
+            service_id = payment_row.get("service_id")
+            preorder_id = payment_row.get("preorder_id")
+
             batch_entity_type = None
             batch_entity_id = None
             derived_customer_id = customer_id
@@ -8172,7 +8277,7 @@ def _payment_split_gl_batch_upsert(mapper, connection, target: "PaymentSplit"):
                     derived_customer_id = connection.execute(sa_text("SELECT customer_id FROM preorders WHERE id=:id"), {"id": int(preorder_id)}).scalar()
             except Exception:
                 pass
-            
+
             if derived_customer_id:
                 batch_entity_type = "CUSTOMER"
                 batch_entity_id = int(derived_customer_id)
@@ -8182,28 +8287,27 @@ def _payment_split_gl_batch_upsert(mapper, connection, target: "PaymentSplit"):
             elif partner_id:
                 batch_entity_type = "PARTNER"
                 batch_entity_id = int(partner_id)
-            
+
             entity_account = GL_ACCOUNTS.get("AR", "1100_AR")
             entity_name = "عميل"
-            
+
             if payment_entity_type == PaymentEntityType.SUPPLIER.value or supplier_id:
                 entity_account = GL_ACCOUNTS.get("AP", "2000_AP")
                 entity_name = "مورد"
             elif payment_entity_type == PaymentEntityType.PARTNER.value or partner_id:
                 entity_account = GL_ACCOUNTS.get("AP", "2000_AP")
                 entity_name = "شريك"
-            elif payment_entity_type == PaymentEntityType.EXPENSE.value or payment_row['expense_id']:
+            elif payment_entity_type == PaymentEntityType.EXPENSE.value or payment_row["expense_id"]:
                 entity_account = GL_ACCOUNTS.get("AP", "2000_AP")
                 entity_name = "مصروف"
-            
-            expense_id = payment_row['expense_id']
+
+            expense_id = payment_row["expense_id"]
             if expense_id:
                 try:
                     expense_type_id = connection.execute(
                         sa_text("SELECT type_id FROM expenses WHERE id = :eid"),
-                        {"eid": expense_id}
+                        {"eid": expense_id},
                     ).scalar()
-                    
                     if expense_type_id:
                         expense_ledger_ctx = _expense_type_ledger_settings(connection, expense_type_id)
                         if expense_ledger_ctx:
@@ -8215,50 +8319,107 @@ def _payment_split_gl_batch_upsert(mapper, connection, target: "PaymentSplit"):
                                 cash_account = expense_ledger_ctx["cash_account"]
                 except Exception:
                     pass
-            
-            if payment_row['direction'] == PaymentDirection.IN.value:
-                entries = [
-                    (cash_account, amount_ils, 0),
-                    (entity_account, 0, amount_ils),
-                ]
+
+            if payment_row["direction"] == PaymentDirection.IN.value:
+                entries = [(cash_account, amount_ils, 0), (entity_account, 0, amount_ils)]
                 if is_pending_check:
-                    method_display = "شيك" if 'CHECK' in split_method or 'CHEQUE' in split_method else "نقد"
-                    memo = f"شيك معلق من {entity_name} - Split #{target.id} - {payment_row['payment_number'] or payment_row['id']}"
+                    memo = f"شيك معلق من {entity_name} - Split #{split_id} - {payment_row['payment_number'] or payment_row['id']}"
                 else:
-                    method_display = "نقد" if 'CASH' in split_method else ("شيك" if 'CHECK' in split_method else "بنك")
-                    memo = f"قبض {method_display} من {entity_name} - Split #{target.id} - {payment_row['payment_number'] or payment_row['id']}"
+                    if split_method == PaymentMethod.CASH.value:
+                        method_display = "نقد"
+                    elif is_check:
+                        method_display = "شيك"
+                    else:
+                        method_display = "بنك"
+                    memo = f"قبض {method_display} من {entity_name} - Split #{split_id} - {payment_row['payment_number'] or payment_row['id']}"
             else:
-                entries = [
-                    (entity_account, amount_ils, 0),
-                    (cash_account, 0, amount_ils),
-                ]
+                entries = [(entity_account, amount_ils, 0), (cash_account, 0, amount_ils)]
                 if is_pending_check:
-                    method_display = "شيك" if 'CHECK' in split_method or 'CHEQUE' in split_method else "نقد"
-                    memo = f"شيك صادر لـ {entity_name} - Split #{target.id} - {payment_row['payment_number'] or payment_row['id']}"
+                    memo = f"شيك صادر لـ {entity_name} - Split #{split_id} - {payment_row['payment_number'] or payment_row['id']}"
                 else:
-                    method_display = "نقد" if 'CASH' in split_method else ("شيك" if 'CHECK' in split_method else "بنك")
-                    memo = f"سداد {method_display} لـ {entity_name} - Split #{target.id} - {payment_row['payment_number'] or payment_row['id']}"
-            
-            _gl_upsert_batch_and_entries(
-                connection,
-                source_type="PAYMENT_SPLIT",
-                source_id=target.id,
-                purpose="PAYMENT",
-                currency="ILS",
-                memo=memo,
-                entries=entries,
-                ref=f"SPLIT-{target.id}-PMT-{payment_row['payment_number'] or payment_row['id']}",
-                entity_type=batch_entity_type,
-                entity_id=batch_entity_id
-            )
-        
-        from flask import current_app
-        current_app.logger.info(f"✅ تم إنشاء GLBatch للـ Split #{target.id} - الدفعة {payment_row['payment_number'] or payment_row['id']}")
-    except Exception as e:
-        from flask import current_app
-        import traceback
-        current_app.logger.warning(f"⚠️ خطأ في إنشاء GLBatch للـ Split #{target.id}: {e}")
-        current_app.logger.error(traceback.format_exc())
+                    if split_method == PaymentMethod.CASH.value:
+                        method_display = "نقد"
+                    elif is_check:
+                        method_display = "شيك"
+                    else:
+                        method_display = "بنك"
+                    memo = f"سداد {method_display} لـ {entity_name} - Split #{split_id} - {payment_row['payment_number'] or payment_row['id']}"
+
+            original_batch_id = None
+            if not is_cancelled:
+                original_batch_id = _gl_upsert_batch_and_entries(
+                    connection,
+                    source_type="PAYMENT_SPLIT",
+                    source_id=split_id,
+                    purpose="PAYMENT",
+                    currency="ILS",
+                    memo=memo,
+                    entries=entries,
+                    ref=(f"SPLIT-{split_id}-PMT-{payment_row['payment_number'] or payment_row['id']}")[:50],
+                    entity_type=batch_entity_type,
+                    entity_id=batch_entity_id,
+                )
+            else:
+                dialect_name = getattr(getattr(connection, "dialect", None), "name", "")
+                batch_table = "public.gl_batches" if dialect_name == "postgresql" else "gl_batches"
+                original_batch_id = connection.execute(
+                    sa_text(f"""
+                        SELECT id FROM {batch_table}
+                         WHERE source_type='PAYMENT_SPLIT' AND source_id=:sid AND purpose='PAYMENT' AND status='POSTED'
+                         ORDER BY id DESC LIMIT 1
+                    """),
+                    {"sid": split_id},
+                ).scalar()
+                if original_batch_id:
+                    original_batch_id = int(original_batch_id)
+
+            if (is_refunded or is_cancelled) and original_batch_id:
+                dialect_name = getattr(getattr(connection, "dialect", None), "name", "")
+                batch_table = "public.gl_batches" if dialect_name == "postgresql" else "gl_batches"
+                entry_table = "public.gl_entries" if dialect_name == "postgresql" else "gl_entries"
+
+                existing_rev = connection.execute(
+                    sa_text(f"""
+                        SELECT id FROM {batch_table}
+                         WHERE source_type='PAYMENT_SPLIT' AND source_id=:sid AND purpose='PAYMENT_REVERSAL' AND status='POSTED'
+                         ORDER BY id DESC LIMIT 1
+                    """),
+                    {"sid": split_id},
+                ).scalar()
+                if not existing_rev:
+                    bmeta = connection.execute(
+                        sa_text(f"SELECT currency, entity_type, entity_id, memo FROM {batch_table} WHERE id=:bid"),
+                        {"bid": int(original_batch_id)},
+                    ).mappings().first()
+
+                    entry_rows = connection.execute(
+                        sa_text(f"SELECT account, debit, credit FROM {entry_table} WHERE batch_id=:bid ORDER BY id"),
+                        {"bid": int(original_batch_id)},
+                    ).mappings().all()
+                    rev_entries = []
+                    for r in entry_rows:
+                        acc = str(r["account"] or "").strip().upper()
+                        d = float(r["debit"] or 0)
+                        c = float(r["credit"] or 0)
+                        if d <= 0 and c <= 0:
+                            continue
+                        rev_entries.append((acc, c, d))
+                    if rev_entries:
+                        memo_rev = f"عكس: {(bmeta or {}).get('memo') or memo}".strip()
+                        _gl_upsert_batch_and_entries(
+                            connection,
+                            source_type="PAYMENT_SPLIT",
+                            source_id=split_id,
+                            purpose="PAYMENT_REVERSAL",
+                            currency=(bmeta or {}).get("currency") or "ILS",
+                            memo=memo_rev[:255],
+                            entries=rev_entries,
+                            ref=(f"REV-SPLIT-{split_id}-PMT-{payment_row['payment_number'] or payment_row['id']}")[:50],
+                            entity_type=(bmeta or {}).get("entity_type") or batch_entity_type,
+                            entity_id=(bmeta or {}).get("entity_id") or batch_entity_id,
+                        )
+    except Exception:
+        return
 
 
 # ===== تحديث total_paid و balance_due في Sales تلقائياً =====
@@ -9632,7 +9793,7 @@ def _service_create_tax_entry(mapper, connection, target: ServiceRequest):
         return
 
     try:
-        from sqlalchemy import delete as sa_delete
+        from sqlalchemy import delete as sa_delete, insert as sa_insert
 
         service_date = target.received_at or datetime.now(timezone.utc)
         base_amount = float(getattr(target, "total_amount", 0) or 0)
@@ -9641,33 +9802,12 @@ def _service_create_tax_entry(mapper, connection, target: ServiceRequest):
 
         tax_rate = float(getattr(target, "tax_rate", 0) or 0)
         if tax_rate <= 0:
-            try:
-                vat_enabled = connection.execute(
-                    sa_text("SELECT value FROM system_settings WHERE key = 'vat_enabled' LIMIT 1")
-                ).scalar()
-                vat_enabled = str(vat_enabled or "").strip().lower() in ("1", "true", "yes", "on")
-            except Exception:
-                vat_enabled = False
-
-            if vat_enabled:
-                try:
-                    default_rate = connection.execute(
-                        sa_text("SELECT value FROM system_settings WHERE key = 'default_vat_rate' LIMIT 1")
-                    ).scalar()
-                    tax_rate = float(str(default_rate or "0").strip() or 0)
-                except Exception:
-                    tax_rate = 0
-
-                if tax_rate > 0:
-                    try:
-                        connection.execute(
-                            sa_text("UPDATE service_requests SET tax_rate = :r WHERE id = :sid"),
-                            {"r": tax_rate, "sid": int(target.id)},
-                        )
-                    except Exception:
-                        pass
-
-        if tax_rate <= 0:
+            connection.execute(
+                sa_delete(TaxEntry).where(
+                    TaxEntry.transaction_type == 'SERVICE',
+                    TaxEntry.transaction_id == target.id
+                )
+            )
             return
 
         tax_amount = round(base_amount * (tax_rate / 100.0), 2)

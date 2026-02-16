@@ -1987,7 +1987,7 @@ def is_business_group_enabled(group: str, default: bool = None) -> bool:
 
 def get_vat_rate() -> float:
     """الحصول على نسبة VAT الافتراضية من إعدادات النظام"""
-    default = 16.0
+    default = 0.0
     if not is_business_group_enabled('tax'):
         return default
     return float(get_system_constant('default_vat_rate', default))
@@ -1997,7 +1997,7 @@ def is_vat_enabled() -> bool:
     """التحقق من تفعيل VAT في النظام"""
     if not is_business_group_enabled('tax'):
         return False
-    return bool(get_system_constant('vat_enabled', True))
+    return bool(get_system_constant('vat_enabled', False))
 
 
 def get_income_tax_rate() -> float:

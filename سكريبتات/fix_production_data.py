@@ -14,7 +14,7 @@ def fix_production_data(app=None, dry_run: bool = False):
         print("--- Phase 1: Checking for Payments without Splits ---")
         excluded_statuses = {
             PaymentStatus.CANCELLED.value,
-            PaymentStatus.REFUNDED.value,
+            PaymentStatus.FAILED.value,
         }
         payments_no_splits = (
             db.session.query(Payment)

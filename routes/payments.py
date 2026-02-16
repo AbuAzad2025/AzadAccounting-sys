@@ -2036,6 +2036,8 @@ def update_payment_status(payment_id: int):
     
     if not new_status:
         return jsonify(error="missing_status", message="يجب تحديد الحالة الجديدة"), 400
+
+    new_status = str(new_status).strip().upper()
     
     # التحقق من صحة الحالة الجديدة
     valid_statuses = ["COMPLETED", "PENDING", "FAILED", "REFUNDED"]
@@ -2043,6 +2045,8 @@ def update_payment_status(payment_id: int):
         return jsonify(error="invalid_status", message="حالة غير صحيحة"), 400
     
     try:
+        if new_status == "REFUNDED":
+            return refund_payment(payment_id)
         payment.status = new_status
         db.session.commit()
         try:
@@ -3560,25 +3564,6 @@ def refund_split(split_id: int):
         except Exception:
             pass
         try:
-            siblings = list(getattr(parent, "splits", []) or [])
-            all_refunded = True
-            for s in siblings:
-                sd = getattr(s, "details", {}) or {}
-                if isinstance(sd, str):
-                    import json as _json
-                    try:
-                        sd = _json.loads(sd)
-                    except Exception:
-                        sd = {}
-                if not sd.get("refunded"):
-                    all_refunded = False
-                    break
-            if all_refunded:
-                parent.status = PaymentStatus.REFUNDED.value
-                db.session.add(parent)
-        except Exception:
-            pass
-        try:
             split_method_val = getattr(split.method, 'value', split.method)
             if str(split_method_val).upper() == PaymentMethod.CHEQUE.value:
                 service = CheckActionService(current_user)
@@ -3623,6 +3608,14 @@ def refund_payment(payment_id: int):
     if not original:
         return jsonify(error="not_found", message="السند غير موجود"), 404
     try:
+        existing = (
+            db.session.query(Payment)
+            .filter(Payment.refund_of_id == original.id)
+            .order_by(Payment.id.desc())
+            .first()
+        )
+        if existing:
+            return jsonify(success=True, refund_id=existing.id, already_refunded=True)
         splits = list(getattr(original, "splits", []) or [])
         refund_direction = PaymentDirection.OUT.value if original.direction == PaymentDirection.IN.value else PaymentDirection.IN.value
         amount_total = _sum_splits_decimal(splits) if splits else q0(getattr(original, "total_amount", 0) or 0)

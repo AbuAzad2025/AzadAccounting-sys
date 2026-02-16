@@ -70,7 +70,6 @@
               {% set gross = (line.quantity|float) * (line.unit_price|float) %}
               {% set disc_amt = (gross|float) * ((line.discount_rate or 0)|float / 100.0) %}
               {% set net = gross - disc_amt %}
-              {% set tax_amt = net * 0.15 %}
               {% set ns.lines_sum = ns.lines_sum + ((line.line_total_value or 0)|float) %}
               {% set ns.lines_discount_sum = ns.lines_discount_sum + (disc_amt|float) %}
               <tr>

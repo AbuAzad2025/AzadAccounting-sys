@@ -17,7 +17,7 @@ from extensions import db
 from forms import ShipmentForm
 from models import (
     Shipment, ShipmentItem, ShipmentPartner,
-    Partner, Product, Warehouse
+    Partner, Product, Warehouse, _queue_partner_balance
 )
 import utils
 
@@ -621,8 +621,9 @@ def create_shipment():
         try:
             # تحديث رصيد الشركاء عند إنشاء الشحنة (إذا كان هناك شركاء)
             if sh.partners:
-                for shipment_partner in sh.partners:
-                    pass
+                partner_ids = {int(sp.partner_id) for sp in sh.partners if sp and sp.partner_id}
+                for pid in partner_ids:
+                    _queue_partner_balance(db.session, pid)
             
             db.session.commit()
             flash("✅ تم إنشاء الشحنة بنجاح", "success")
@@ -736,6 +737,7 @@ def edit_shipment(id: int):
         if hasattr(form, "delivery_instructions") and form.delivery_instructions.data:
             sh.delivery_instructions = form.delivery_instructions.data
 
+        old_partner_ids = {int(sp.partner_id) for sp in (sh.partners or []) if sp and sp.partner_id}
         sh.partners.clear()
         sh.items.clear()
         db.session.flush()
@@ -843,9 +845,11 @@ def edit_shipment(id: int):
                     _apply_arrival_items(new_items)
 
             # تحديث رصيد الشركاء عند تحديث الشحنة (إذا كان هناك شركاء)
-            if sh.partners:
-                for shipment_partner in sh.partners:
-                    pass
+            partner_ids = {int(sp.partner_id) for sp in (sh.partners or []) if sp and sp.partner_id}
+            if old_partner_ids:
+                partner_ids.update(old_partner_ids)
+            for pid in partner_ids:
+                _queue_partner_balance(db.session, pid)
             
             db.session.commit()
 
@@ -880,8 +884,9 @@ def delete_shipment(id: int):
 
         # تحديث رصيد الشركاء قبل حذف الشحنة (إذا كان هناك شركاء)
         if sh.partners:
-            for shipment_partner in sh.partners:
-                pass
+            partner_ids = {int(sp.partner_id) for sp in sh.partners if sp and sp.partner_id}
+            for pid in partner_ids:
+                _queue_partner_balance(db.session, pid)
         
         # تنظيف العلاقات قبل الحذف
         sh.partners.clear()

@@ -525,12 +525,6 @@ def create_request():
         status_val = getattr(ServiceStatus, _stat_code, ServiceStatus.PENDING)
 
         service=ServiceRequest(service_number=f"SRV-{datetime.now(timezone.utc):%Y%m%d%H%M%S}", customer_id=customer.id, vehicle_vrn=form.vehicle_vrn.data, vehicle_type_id=utils._get_id(form.vehicle_type_id.data) if form.vehicle_type_id.data else None, vehicle_model=form.vehicle_model.data, chassis_number=form.chassis_number.data, problem_description=form.problem_description.data, priority=priority_val, estimated_duration=form.estimated_duration.data, status=status_val, received_at=datetime.now(timezone.utc).replace(tzinfo=None), consume_stock=bool(form.consume_stock.data))
-        try:
-            from utils import get_vat_rate, is_vat_enabled
-            if is_vat_enabled():
-                service.tax_rate = get_vat_rate()
-        except Exception:
-            pass
         db.session.add(service)
         try:
             db.session.commit()
@@ -626,13 +620,6 @@ def update_discount_tax(rid):
     try:
         discount_total = Decimal(request.form.get('discount_total', 0) or 0)
         tax_rate = Decimal(request.form.get('tax_rate', 0) or 0)
-        if tax_rate == 0:
-            try:
-                from utils import get_vat_rate, is_vat_enabled
-                if is_vat_enabled():
-                    tax_rate = Decimal(str(get_vat_rate()))
-            except Exception:
-                pass
         # حساب إجمالي الفاتورة للتحقق
         parts_sum = sum((p.line_total or 0) for p in service.parts)
         tasks_sum = sum((t.line_total or 0) for t in service.tasks)
@@ -750,15 +737,6 @@ def add_part(rid):
         unit_price = Decimal(request.form.get('unit_price'))
         discount = Decimal(request.form.get('discount', 0) or 0)
         tax_rate = Decimal(request.form.get('tax_rate', 0) or 0)
-        if tax_rate == 0 and getattr(service, 'tax_rate', 0):
-            tax_rate = Decimal(str(service.tax_rate))
-        if tax_rate == 0:
-            try:
-                from utils import get_vat_rate, is_vat_enabled
-                if is_vat_enabled():
-                    tax_rate = Decimal(str(get_vat_rate()))
-            except Exception:
-                pass
         note = (request.form.get('note') or '').strip() or None
         
         # Validation
@@ -885,15 +863,6 @@ def add_task(rid):
         unit_price = Decimal(request.form.get('unit_price'))
         discount = Decimal(request.form.get('discount', 0) or 0)
         tax_rate = Decimal(request.form.get('tax_rate', 0) or 0)
-        if tax_rate == 0 and getattr(service, 'tax_rate', 0):
-            tax_rate = Decimal(str(service.tax_rate))
-        if tax_rate == 0:
-            try:
-                from utils import get_vat_rate, is_vat_enabled
-                if is_vat_enabled():
-                    tax_rate = Decimal(str(get_vat_rate()))
-            except Exception:
-                pass
         note = (request.form.get('note') or '').strip() or None
         
         # Validation
@@ -1200,5 +1169,4 @@ def generate_service_receipt_pdf(service_request):
         if y<40*mm: c.showPage(); y=height-20*mm; c.setFont("Helvetica",9)
     subtotal=parts_total+tasks_total; y-=10*mm; c.setFont("Helvetica-Bold",11); c.drawRightString(160*mm,y,"الإجمالي الكلي:"); c.drawRightString(195*mm,y,f"{subtotal:.2f}")
     c.showPage(); c.save(); buffer.seek(0); return buffer.getvalue()
-
 

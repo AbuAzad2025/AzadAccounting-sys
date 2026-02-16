@@ -76,6 +76,7 @@ def update_partner_balance_components(partner_id, session=None, emit: bool = Tru
             partner_rights = (
                 Decimal(str(components.get('inventory_balance', 0) or 0)) +  # نصيبه من المخزون
                 Decimal(str(components.get('sales_share_balance', 0) or 0)) +  # نصيبه من المبيعات
+                Decimal(str(components.get('shipments_share_balance', 0) or 0)) +
                 Decimal(str(components.get('payments_in_balance', 0) or 0)) +  # دفعات واردة (تشمل العربونات)
                 Decimal(str(components.get('service_expenses_balance', 0) or 0)) +  # مصروفات توريد خدمات
                 Decimal(str(components.get('returned_checks_out_balance', 0) or 0))  # شيكات مرتجعة صادرة
@@ -152,6 +153,7 @@ def update_partner_balance_components(partner_id, session=None, emit: bool = Tru
             partner_rights = (
                 Decimal(str(components.get('inventory_balance', 0) or 0)) +  # نصيبه من المخزون
                 Decimal(str(components.get('sales_share_balance', 0) or 0)) +  # نصيبه من المبيعات
+                Decimal(str(components.get('shipments_share_balance', 0) or 0)) +
                 Decimal(str(components.get('payments_in_balance', 0) or 0)) +  # دفعات واردة (دفع لنا)
                 Decimal(str(components.get('preorders_prepaid_balance', 0) or 0)) +  # عربونات مدفوعة
                 Decimal(str(components.get('service_expenses_balance', 0) or 0)) +  # مصروفات توريد خدمات
@@ -251,6 +253,7 @@ def build_partner_balance_view(partner_id, session=None):
     rights_rows = [
         {"key": "inventory_balance", "label": "نصيب المخزون", "amount": _component("inventory_balance"), "flow": "INVENTORY"},
         {"key": "sales_share_balance", "label": "نصيب المبيعات", "amount": _component("sales_share_balance"), "flow": "SALES_SHARE"},
+        {"key": "shipments_share_balance", "label": "نصيب الشحنات", "amount": _component("shipments_share_balance"), "flow": "SHIPMENT_SHARE"},
         {"key": "payments_in_balance", "label": "دفعات دفع لنا", "amount": _component("payments_in_balance"), "flow": "PAYMENT_IN"},
         {"key": "service_expenses_balance", "label": "توريد خدمات", "amount": _component("service_expenses_balance"), "flow": "SERVICE_EXPENSE"},
         {"key": "returned_checks_out_balance", "label": "شيكات مرتجعة صادرة", "amount": _component("returned_checks_out_balance"), "flow": "CHECK_OUT"},

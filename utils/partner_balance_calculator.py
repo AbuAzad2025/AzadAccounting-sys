@@ -78,6 +78,7 @@ def calculate_partner_balance_components(partner_id, session=None, _retried: boo
     result = {
         'inventory_balance': Decimal('0.00'),
         'sales_share_balance': Decimal('0.00'),
+        'shipments_share_balance': Decimal('0.00'),
         'sales_to_partner_balance': Decimal('0.00'),
         'service_fees_balance': Decimal('0.00'),
         'preorders_to_partner_balance': Decimal('0.00'),
@@ -98,6 +99,7 @@ def calculate_partner_balance_components(partner_id, session=None, _retried: boo
             _get_partner_sales_returns,
             _get_partner_payments_received,
             _get_partner_preorders_prepaid,
+            _get_partner_shipments_share,
             _get_payments_to_partner,
             _get_partner_sales_as_customer,
             _get_partner_service_fees,
@@ -137,7 +139,13 @@ def calculate_partner_balance_components(partner_id, session=None, _retried: boo
         preorders_prepaid_total = Decimal('0.00')
         if isinstance(preorders_prepaid, dict):
             preorders_prepaid_total = Decimal(str(preorders_prepaid.get("total_ils", 0) or 0))
-        
+
+        shipments_share = _get_partner_shipments_share(partner_id, date_from, date_to)
+        shipments_share_total = Decimal('0.00')
+        if isinstance(shipments_share, dict):
+            shipments_share_total = Decimal(str(shipments_share.get("total_ils", 0) or 0))
+
+        result['shipments_share_balance'] = shipments_share_total
         result['payments_in_balance'] = payments_in_total + preorders_prepaid_total
         result['preorders_prepaid_balance'] = preorders_prepaid_total
         

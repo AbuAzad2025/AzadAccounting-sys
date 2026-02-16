@@ -3486,8 +3486,8 @@ class SaleLineForm(FlaskForm):
     warehouse_id = AjaxSelectField('المخزن', endpoint='api.search_warehouses', get_label='name', coerce=int, validators=[Optional()])
     quantity     = IntegerField('الكمية', validators=[Optional(), NumberRange(min=1)])
     unit_price   = MoneyField('سعر الوحدة', validators=[Optional(), NumberRange(min=0)])
-    discount_rate= PercentField('خصم %', validators=[Optional()])
-    tax_rate     = PercentField('ضريبة %', validators=[Optional()])
+    discount_rate= PercentField('خصم %', validators=[Optional()], default=0)
+    tax_rate     = PercentField('ضريبة %', validators=[Optional()], default=0)
     line_receiver= StrippedStringField('المستلم', validators=[Optional(), Length(max=200)])
     note         = StrippedStringField('ملاحظات', validators=[Optional(), Length(max=200)])
 
@@ -3501,7 +3501,7 @@ class SaleForm(FlaskForm):
     seller_employee_id = AjaxSelectField('البائع', endpoint='api.search_employees', get_label='name', coerce=int, validators=[DataRequired()])
 
     currency     = CurrencySelectField('عملة', validators=[DataRequired()])
-    tax_rate     = PercentField('ضريبة %', validators=[Optional()])
+    tax_rate     = PercentField('ضريبة %', validators=[Optional()], default=0)
     discount_total = MoneyField('خصم إجمالي', validators=[Optional(), NumberRange(min=0)], default=0)
     shipping_address = TextAreaField('عنوان الشحن', validators=[Optional(), Length(max=500)])
     billing_address  = TextAreaField('عنوان الفواتير', validators=[Optional(), Length(max=500)])
@@ -3589,8 +3589,8 @@ class InvoiceLineForm(FlaskForm):
     description = StrippedStringField('الوصف', validators=[DataRequired(), Length(max=200)])
     quantity    = DecimalField('الكمية', places=2, validators=[DataRequired(), NumberRange(min=0.01)])
     unit_price  = MoneyField('سعر الوحدة', validators=[DataRequired(), NumberRange(min=0)])
-    tax_rate    = PercentField('ضريبة %', validators=[Optional()])
-    discount    = PercentField('خصم %', validators=[Optional()])
+    tax_rate    = PercentField('ضريبة %', validators=[Optional()], default=0)
+    discount    = PercentField('خصم %', validators=[Optional()], default=0)
 
 class InvoiceForm(FlaskForm):
     id = HiddenField()

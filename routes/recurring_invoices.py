@@ -8,6 +8,12 @@ from sqlalchemy import or_
 
 recurring_bp = Blueprint('recurring', __name__, url_prefix='/recurring')
 
+def _dec_from_form(field_name: str, default: str = "0") -> Decimal:
+    raw = (request.form.get(field_name, None) or "").strip()
+    if raw == "":
+        raw = default
+    return Decimal(raw)
+
 
 @recurring_bp.route('/')
 @login_required
@@ -57,16 +63,9 @@ def add_template():
             template_name = request.form.get('template_name', '').strip()
             customer_id = int(request.form.get('customer_id'))
             description = request.form.get('description', '').strip()
-            amount = Decimal(request.form.get('amount', 0))
+            amount = _dec_from_form('amount', default="0")
             currency = request.form.get('currency', 'ILS').strip()
-            tax_rate = Decimal(request.form.get('tax_rate', 0))
-            if tax_rate == 0:
-                try:
-                    from utils import get_vat_rate, is_vat_enabled
-                    if is_vat_enabled():
-                        tax_rate = Decimal(str(get_vat_rate()))
-                except Exception:
-                    pass
+            tax_rate = _dec_from_form('tax_rate', default="0")
             frequency = request.form.get('frequency', '').strip()
             start_date_str = request.form.get('start_date', '').strip()
             end_date_str = request.form.get('end_date', '').strip()
@@ -141,17 +140,9 @@ def edit_template(template_id):
             template.template_name = request.form.get('template_name', '').strip()
             template.customer_id = int(request.form.get('customer_id'))
             template.description = request.form.get('description', '').strip()
-            template.amount = Decimal(request.form.get('amount', 0))
+            template.amount = _dec_from_form('amount', default="0")
             template.currency = request.form.get('currency', 'ILS').strip()
-            tr = Decimal(request.form.get('tax_rate', 0))
-            if tr == 0:
-                try:
-                    from utils import get_vat_rate, is_vat_enabled
-                    if is_vat_enabled():
-                        tr = Decimal(str(get_vat_rate()))
-                except Exception:
-                    pass
-            template.tax_rate = tr
+            template.tax_rate = _dec_from_form('tax_rate', default="0")
             template.frequency = request.form.get('frequency', '').strip()
             
             start_date_str = request.form.get('start_date', '').strip()
@@ -272,13 +263,6 @@ def _generate_recurring_invoice(template, invoice_date=None):
     
     base_amount = Decimal(str(template.amount))
     tax_rate = Decimal(str(template.tax_rate or 0))
-    if tax_rate == 0:
-        try:
-            from utils import get_vat_rate, is_vat_enabled
-            if is_vat_enabled():
-                tax_rate = Decimal(str(get_vat_rate()))
-        except Exception:
-            pass
     tax_amount = base_amount * (tax_rate / 100)
     total_amount = base_amount + tax_amount
     
@@ -377,4 +361,3 @@ def generate_now(template_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 400
-

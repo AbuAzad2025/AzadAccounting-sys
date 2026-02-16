@@ -41,28 +41,33 @@ def _parse_ym(s: str | None) -> tuple[int, int] | None:
 def run() -> None:
     from app import create_app
     from extensions import db
-    from models import ServiceRequest, SystemSettings, TaxEntry, _recalc_service_request_totals
-    from sqlalchemy import delete as sa_delete, insert as sa_insert
+    from models import ServicePart, ServiceRequest, ServiceTask, SystemSettings, TaxEntry, _recalc_service_request_totals
+    from sqlalchemy import delete as sa_delete, insert as sa_insert, update as sa_update
     from sqlalchemy.orm import selectinload
     from datetime import datetime, timedelta, timezone
 
     dry_run = str(os.getenv("DRY_RUN", "") or "").strip().lower() in ("1", "true", "yes", "on")
+    strip_vat = str(os.getenv("STRIP_VAT", "") or "").strip().lower() in ("1", "true", "yes", "on")
+    force = str(os.getenv("FORCE", "") or "").strip().lower() in ("1", "true", "yes", "on")
     from_period = _parse_ym(os.getenv("FROM_PERIOD"))
     to_period = _parse_ym(os.getenv("TO_PERIOD"))
 
     app = create_app()
     with app.app_context():
         vat_enabled = bool(SystemSettings.get_setting("vat_enabled", False))
-        try:
-            vat_rate = float(SystemSettings.get_setting("default_vat_rate", 0.0) or 0.0)
-        except Exception:
-            vat_rate = 0.0
-        if vat_enabled and vat_rate <= 0:
-            vat_rate = 16.0
-
-        if not vat_enabled or vat_rate <= 0:
-            print("VAT is disabled or default rate is invalid. No changes applied.")
+        if strip_vat and vat_enabled and not force:
+            print("STRIP_VAT requested but VAT is enabled. Set FORCE=1 to override. No changes applied.")
             return
+        if not strip_vat:
+            try:
+                vat_rate = float(SystemSettings.get_setting("default_vat_rate", 0.0) or 0.0)
+            except Exception:
+                vat_rate = 0.0
+            if vat_enabled and vat_rate <= 0:
+                vat_rate = 16.0
+            if not vat_enabled or vat_rate <= 0:
+                print("VAT is disabled or default rate is invalid. No changes applied.")
+                return
 
         q = (
             ServiceRequest.query.options(selectinload(ServiceRequest.parts), selectinload(ServiceRequest.tasks))
@@ -81,12 +86,12 @@ def run() -> None:
             q = q.filter(ServiceRequest.received_at <= end_dt)
 
         conn = db.session.connection()
-        now = datetime.now(timezone.utc)
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
 
         scanned = 0
         skipped = 0
         totals_recalc = 0
-        tax_rate_defaulted = 0
+        stripped = 0
         tax_entries_written = 0
 
         for sr in q.yield_per(200):
@@ -114,10 +119,57 @@ def run() -> None:
                 continue
 
             tax_rate = _d(getattr(sr, "tax_rate", 0) or 0)
-            if tax_rate <= Decimal("0"):
-                tax_rate = _d(vat_rate)
-                sr.tax_rate = float(tax_rate)
-                tax_rate_defaulted += 1
+            if strip_vat:
+                has_line_tax = False
+                for p in (getattr(sr, "parts", None) or []):
+                    if _d(getattr(p, "tax_rate", 0) or 0) > Decimal("0"):
+                        has_line_tax = True
+                        break
+                if not has_line_tax:
+                    for t in (getattr(sr, "tasks", None) or []):
+                        if _d(getattr(t, "tax_rate", 0) or 0) > Decimal("0"):
+                            has_line_tax = True
+                            break
+                if tax_rate <= Decimal("0") and not has_line_tax:
+                    skipped += 1
+                    continue
+
+                conn.execute(
+                    sa_update(ServiceRequest)
+                    .where(ServiceRequest.id == int(sr.id))
+                    .values(tax_rate=0, updated_at=now)
+                )
+                conn.execute(sa_update(ServicePart).where(ServicePart.service_id == int(sr.id)).values(tax_rate=0))
+                conn.execute(sa_update(ServiceTask).where(ServiceTask.service_id == int(sr.id)).values(tax_rate=0))
+
+                conn.execute(
+                    sa_delete(TaxEntry).where(
+                        TaxEntry.transaction_type == "SERVICE",
+                        TaxEntry.transaction_id == int(sr.id),
+                    )
+                )
+                try:
+                    from models import GLBatch, GLEntry
+                    from sqlalchemy import delete as sa_delete2, select as sa_select
+                    bad_batch_ids = conn.execute(
+                        sa_select(GLBatch.id).where(
+                            GLBatch.source_type == "SERVICE",
+                            GLBatch.source_id == int(sr.id),
+                            GLBatch.purpose == "SERVICE_COMPLETE",
+                            GLBatch.status == "POSTED",
+                        )
+                    ).scalars().all()
+                    for bid in bad_batch_ids:
+                        conn.execute(sa_delete2(GLEntry).where(GLEntry.batch_id == int(bid)))
+                        conn.execute(sa_delete2(GLBatch).where(GLBatch.id == int(bid)))
+                except Exception:
+                    pass
+                stripped += 1
+                continue
+            else:
+                if tax_rate <= Decimal("0"):
+                    skipped += 1
+                    continue
 
             tax_amount = (base_amount * tax_rate / Decimal("100")).quantize(TWOPLACES, rounding=ROUND_HALF_UP)
             if tax_amount <= Decimal("0.00"):
@@ -171,7 +223,8 @@ def run() -> None:
         print("scanned", scanned)
         print("skipped", skipped)
         print("totals_recalculated", totals_recalc)
-        print("tax_rate_defaulted", tax_rate_defaulted)
+        if strip_vat:
+            print("stripped_services_tax_to_zero", stripped)
         print("tax_entries_written", tax_entries_written)
 
 

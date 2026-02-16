@@ -747,6 +747,7 @@ def _calculate_smart_partner_balance(partner_id: int, date_from: datetime, date_
         sales_share = _get_partner_sales_share(partner_id, date_from, date_to)
         payments_from_partner = _get_partner_payments_received(partner_id, partner, date_from, date_to)
         preorders_prepaid = _get_partner_preorders_prepaid(partner_id, partner, date_from, date_to)
+        shipments_share = _get_partner_shipments_share(partner_id, date_from, date_to)
         returned_checks_in = _get_returned_checks_from_partner(partner_id, partner, date_from, date_to)
         returned_checks_out = _get_returned_checks_to_partner(partner_id, partner, date_from, date_to)
         payments_to_partner = _get_payments_to_partner(partner_id, partner, date_from, date_to)
@@ -793,7 +794,8 @@ def _calculate_smart_partner_balance(partner_id: int, date_from: datetime, date_
             })
         
         partner_rights = Decimal(str(inventory.get("total_ils", 0) if isinstance(inventory, dict) else 0)) + \
-                        Decimal(str(sales_share.get("total_share_ils", 0)))
+                        Decimal(str(sales_share.get("total_share_ils", 0))) + \
+                        Decimal(str(shipments_share.get("total_ils", 0) if isinstance(shipments_share, dict) else 0))
         partner_obligations = Decimal(str(sales_to_partner.get("total_ils", 0))) + \
                              Decimal(str(service_fees.get("total_ils", 0))) + \
                              Decimal(str(preorders_to_partner.get("total_ils", 0) if isinstance(preorders_to_partner, dict) else 0)) + \
@@ -827,6 +829,7 @@ def _calculate_smart_partner_balance(partner_id: int, date_from: datetime, date_
                 "inventory": inventory,
                 "sales_share": sales_share,
                 "preorders_share": preorders_prepaid,
+                "shipments_share": shipments_share,
                 "total": float(partner_rights)
             },
             "obligations": {
@@ -840,6 +843,7 @@ def _calculate_smart_partner_balance(partner_id: int, date_from: datetime, date_
                 "paid_to_partner": payments_to_partner,
                 "received_from_partner": payments_from_partner,
                 "preorders_prepaid": preorders_prepaid,
+                "shipments_share": shipments_share,
                 "returned_checks_in": returned_checks_in,
                 "returned_checks_out": returned_checks_out,
                 "total_paid": float(paid_to_partner),

@@ -861,14 +861,12 @@ def checkout():
     cart = get_active_cart(g.online_customer.id)
     if not cart or not cart.items:
         return _resp("سلتك فارغة.", "warning", to="shop.catalog")
-    
-    from models import SystemSettings
-    vat_enabled = SystemSettings.get_setting('vat_enabled', False)
-    vat_rate = float(SystemSettings.get_setting('default_vat_rate', 0.0)) if vat_enabled else 0.0
-    
+
     subtotal_before_tax = sum(i.quantity * float(i.price or 0) for i in cart.items)
-    tax_amount = round(subtotal_before_tax * (vat_rate / 100.0), 2)
-    subtotal = subtotal_before_tax + tax_amount
+    vat_enabled = False
+    vat_rate = 0.0
+    tax_amount = 0.0
+    subtotal = subtotal_before_tax
     
     rate = _prepaid_rate()
     prepaid = round(subtotal * rate, 2)
@@ -895,12 +893,6 @@ def checkout():
                         abort(409, description="الكمية المطلوبة غير متوفرة.")
                 payment_status = "PAID" if prepaid >= subtotal else ("PARTIAL" if prepaid > 0 else "PENDING")
                 
-                notes_parts = []
-                if vat_enabled and vat_rate > 0:
-                    notes_parts.append(f"الإجمالي شامل ضريبة {vat_rate}%")
-                    notes_parts.append(f"المبلغ قبل الضريبة: {subtotal_before_tax:.2f}")
-                    notes_parts.append(f"الضريبة: {tax_amount:.2f}")
-                
                 preorder = OnlinePreOrder(
                     customer_id=g.online_customer.id,
                     cart_id=cart.id,
@@ -915,7 +907,7 @@ def checkout():
                     payment_method="card",
                     shipping_address=request.form.get("shipping_address") or getattr(g.online_customer, "address", None),
                     billing_address=request.form.get("billing_address") or getattr(g.online_customer, "address", None),
-                    notes=" | ".join(notes_parts) if notes_parts else None,
+                    notes=None,
                 )
                 db.session.add(preorder)
                 db.session.flush()
@@ -1056,9 +1048,9 @@ def checkout():
     return render_template("shop/pay_online.html", 
                           cart=cart, 
                           subtotal=subtotal, 
-                          subtotal_before_tax=subtotal_before_tax if vat_enabled else subtotal,
-                          tax_amount=tax_amount if vat_enabled else 0,
-                          vat_rate=vat_rate if vat_enabled else 0,
+                          subtotal_before_tax=subtotal_before_tax,
+                          tax_amount=0,
+                          vat_rate=0,
                           prepaid_amount=prepaid)
 
 @shop_bp.route("/preorders", endpoint="preorder_list")

@@ -986,15 +986,6 @@ def _resolve_unit_price(product_id: int, warehouse_id: Optional[int]) -> float:
 @login_required
 def create_sale():
     form = SaleForm()
-    if request.method == "GET":
-        try:
-            from utils import get_vat_rate, is_vat_enabled
-            if is_vat_enabled():
-                form.tax_rate.data = get_vat_rate()
-            else:
-                form.tax_rate.data = 0
-        except Exception:
-            pass
     if request.method == "POST" and not form.validate_on_submit():
         current_app.logger.warning("Sale form errors: %s", form.errors)
         current_app.logger.debug("POST data: %r", request.form.to_dict(flat=False))
@@ -1026,13 +1017,6 @@ def create_sale():
             else:
                 notes_clean = notes_raw or None
             sale_tax = form.tax_rate.data or 0
-            if sale_tax == 0:
-                try:
-                    from utils import get_vat_rate, is_vat_enabled
-                    if is_vat_enabled():
-                        sale_tax = get_vat_rate()
-                except Exception:
-                    pass
             sale = Sale(
                 sale_number=None,
                 customer_id=form.customer_id.data,
@@ -1252,13 +1236,6 @@ def edit_sale(id: int):
             sale.status = target_status or sale.status
             sale.currency = (form.currency.data or sale.currency or "ILS").upper()
             sale_tax = form.tax_rate.data or 0
-            if sale_tax == 0:
-                try:
-                    from utils import get_vat_rate, is_vat_enabled
-                    if is_vat_enabled():
-                        sale_tax = get_vat_rate()
-                except Exception:
-                    pass
             sale.tax_rate = sale_tax
             sale.discount_total = form.discount_total.data or 0
             sale.shipping_address = (form.shipping_address.data or '').strip() or None
@@ -1523,4 +1500,3 @@ def generate_invoice(id: int):
         grand_total=grand_total,
         money_fmt=money_fmt,
     )
-
