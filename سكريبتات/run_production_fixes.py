@@ -66,6 +66,7 @@ def main():
         confirm_sales_and_backfill_vat,
         backfill_service_vat_taxentries,
         fix_production_data,
+        fix_gl_integrity_standalone,
         mark_expenses_fully_paid,
         run_entity_balance_auto_fix,
         fix_sales_sequence,
@@ -82,34 +83,47 @@ def main():
     fill_legacy_data_standalone.run_fill(dry_run=dry_run)
 
     os.environ["DRY_RUN"] = "1" if dry_run else "0"
-    print("4) تأكيد المبيعات وملء ضريبة VAT")
-    confirm_sales_and_backfill_vat.run()
-
-    print("5) ملء ضريبة VAT للخدمات")
-    backfill_service_vat_taxentries.run()
+    run_vat_backfill = str(os.getenv("RUN_VAT_BACKFILL", "") or "").strip().lower() in ("1", "true", "yes", "on")
+    strip_vat = str(os.getenv("STRIP_VAT", "") or "").strip().lower() in ("1", "true", "yes", "on")
+    if strip_vat:
+        print("4) إزالة VAT من المبيعات (عند تعطيل VAT)")
+        confirm_sales_and_backfill_vat.run()
+        print("5) إزالة VAT من الصيانة (عند تعطيل VAT)")
+        backfill_service_vat_taxentries.run()
+    elif run_vat_backfill:
+        print("4) تأكيد المبيعات وملء ضريبة VAT")
+        confirm_sales_and_backfill_vat.run()
+        print("5) ملء ضريبة VAT للخدمات")
+        backfill_service_vat_taxentries.run()
+    else:
+        print("4) تخطي سكربتات VAT (RUN_VAT_BACKFILL=1 لتشغيلها)")
+        print("5) تخطي سكربتات VAT (STRIP_VAT=1 لإزالة VAT من البيانات القديمة)")
 
     print("6) إصلاح بيانات المدفوعات والسِبلِت")
     fix_production_data.fix_production_data(dry_run=dry_run)
 
+    print("7) فحص وتصحيح تكامل دفتر الأستاذ")
+    fix_gl_integrity_standalone.run_fix_standalone(dry_run=dry_run)
+
     if apply:
-        print("7) إكمال مدفوعات المصاريف")
+        print("8) إكمال مدفوعات المصاريف")
         mark_expenses_fully_paid.run()
 
-        print("8) تصحيح أرصدة العملاء/الموردين/الشركاء")
+        print("9) تصحيح أرصدة العملاء/الموردين/الشركاء")
         run_entity_balance_auto_fix.run()
 
-        print("9) مزامنة تسلسلات Postgres وتصحيح seller_id")
+        print("10) مزامنة تسلسلات Postgres وتصحيح seller_id")
         fix_sales_sequence.main()
         
-        print("10) حذف بيانات الاختبار (Purge)")
+        print("11) حذف بيانات الاختبار (Purge)")
         os.environ["CONFIRM_DELETE"] = "1"
         os.environ["CONFIRM_PHRASE"] = "DELETE_TEST_DATA"
         purge_test_data.run()
     else:
-        print("7) تخطي mark_expenses_fully_paid (يتطلب تنفيذ فعلي)")
-        print("8) تخطي run_entity_balance_auto_fix (يتطلب تنفيذ فعلي)")
-        print("9) تخطي fix_sales_sequence (يتطلب تنفيذ فعلي)")
-        print("10) تخطي purge_test_data (يتطلب تنفيذ فعلي)")
+        print("8) تخطي mark_expenses_fully_paid (يتطلب تنفيذ فعلي)")
+        print("9) تخطي run_entity_balance_auto_fix (يتطلب تنفيذ فعلي)")
+        print("10) تخطي fix_sales_sequence (يتطلب تنفيذ فعلي)")
+        print("11) تخطي purge_test_data (يتطلب تنفيذ فعلي)")
 
     print("=== انتهى التنفيذ ===")
 
