@@ -12844,12 +12844,13 @@ def _gl_upsert_batch_and_entries(
 ):
     if not entries:
         raise ValueError("entries required")
-    try:
-        dialect_name = getattr(getattr(connection, "dialect", None), "name", "")
-        if dialect_name == "postgresql":
-            connection.execute(sa_text("SET LOCAL search_path TO public"))
-    except Exception:
-        pass
+    dialect_name = getattr(getattr(connection, "dialect", None), "name", "")
+    if dialect_name == "postgresql":
+        batch_table = "public.gl_batches"
+        entry_table = "public.gl_entries"
+    else:
+        batch_table = "gl_batches"
+        entry_table = "gl_entries"
     rows = [(str(a or "").strip().upper(), float(d or 0), float(c or 0)) for a, d, c in entries]
     if any(d < 0 or c < 0 for _, d, c in rows):
         raise ValueError("negative amounts not allowed")
@@ -12889,8 +12890,8 @@ def _gl_upsert_batch_and_entries(
             raise ValueError(f"invalid or inactive account(s): {still_missing}")
 
     existing_posted_id = connection.execute(
-        sa_text("""
-            SELECT id FROM gl_batches
+        sa_text(f"""
+            SELECT id FROM {batch_table}
              WHERE source_type = :st AND source_id = :sid AND purpose = :p
                AND status = 'POSTED'
              ORDER BY id DESC LIMIT 1
@@ -12901,8 +12902,8 @@ def _gl_upsert_batch_and_entries(
         return int(existing_posted_id)
 
     connection.execute(
-        sa_text("""
-            DELETE FROM gl_batches
+        sa_text(f"""
+            DELETE FROM {batch_table}
              WHERE source_type = :st AND source_id = :sid AND purpose = :p
                AND status <> 'POSTED'
         """),
@@ -12913,8 +12914,8 @@ def _gl_upsert_batch_and_entries(
     posted_at = datetime.now(timezone.utc)
     
     cur = connection.execute(
-        sa_text("""
-            INSERT INTO gl_batches
+        sa_text(f"""
+            INSERT INTO {batch_table}
                 (code, source_type, source_id, purpose, memo, posted_at, currency, entity_type, entity_id, status, created_at, updated_at)
             VALUES
                 (:code, :st, :sid, :p, :memo, :posted_at, :cur, :etype, :eid, 'POSTED', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
@@ -12936,8 +12937,8 @@ def _gl_upsert_batch_and_entries(
 
     for acct, debit, credit in rows:
         connection.execute(
-            sa_text("""
-                INSERT INTO gl_entries
+            sa_text(f"""
+                INSERT INTO {entry_table}
                     (batch_id, account, debit, credit, currency, ref, created_at, updated_at)
                 VALUES
                     (:bid, :acc, :d, :c, :cur, :ref, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
