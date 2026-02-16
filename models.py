@@ -12844,6 +12844,12 @@ def _gl_upsert_batch_and_entries(
 ):
     if not entries:
         raise ValueError("entries required")
+    try:
+        dialect_name = getattr(getattr(connection, "dialect", None), "name", "")
+        if dialect_name == "postgresql":
+            connection.execute(sa_text("SET LOCAL search_path TO public"))
+    except Exception:
+        pass
     rows = [(str(a or "").strip().upper(), float(d or 0), float(c or 0)) for a, d, c in entries]
     if any(d < 0 or c < 0 for _, d, c in rows):
         raise ValueError("negative amounts not allowed")
