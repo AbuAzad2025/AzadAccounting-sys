@@ -2011,7 +2011,7 @@ def get_receivables_detailed_summary():
         cust_gl = (
             db.session.query(
                 GLBatch.entity_id,
-                func.coalesce(func.sum(GLEntry.debit - GLEntry.credit), 0).label("gl_balance"),
+                func.coalesce(func.sum(GLEntry.credit - GLEntry.debit), 0).label("gl_balance"),
             )
             .join(GLEntry, GLBatch.id == GLEntry.batch_id)
             .filter(GLBatch.status == "POSTED", GLBatch.entity_type == "CUSTOMER", GLEntry.account == ar_account, GLBatch.posted_at <= as_of)
@@ -2066,7 +2066,7 @@ def get_receivables_detailed_summary():
             last_payment = Payment.query.filter(Payment.customer_id == cid).order_by(Payment.payment_date.desc()).first()
             if last_payment and last_payment.payment_date:
                 last_payment_date = last_payment.payment_date
-            days_overdue = (today - oldest_date).days if balance > 0 and oldest_date else 0
+            days_overdue = (today - oldest_date).days if balance < 0 and oldest_date else 0
             last_transaction = last_payment_date or oldest_date
             last_transaction_str = last_transaction.strftime('%Y-%m-%d') if last_transaction else None
             receivables.append({
@@ -2074,8 +2074,8 @@ def get_receivables_detailed_summary():
                 "type": "customer",
                 "type_ar": "عميل",
                 "balance": balance,
-                "debit": balance if balance > 0 else 0.0,
-                "credit": abs(balance) if balance < 0 else 0.0,
+                "debit": abs(balance) if balance < 0 else 0.0,
+                "credit": balance if balance > 0 else 0.0,
                 "days_overdue": days_overdue,
                 "last_transaction": last_transaction_str
             })
