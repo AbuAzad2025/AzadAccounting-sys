@@ -1146,7 +1146,15 @@ html[data-ui-mode="mobile"] body.ledger-page .col-md-12 {
                                             <td class="text-end" id="pnl-services">0.00 ₪</td>
                                         </tr>
                                         <tr>
-                                            <td class="pr-5">&nbsp;&nbsp;&nbsp;&nbsp;إيرادات أخرى (خصم مبيعات، شحن، غيره)</td>
+                                            <td class="pr-5">&nbsp;&nbsp;&nbsp;&nbsp;خصومات المبيعات (حساب مقابل الإيراد)</td>
+                                            <td class="text-end text-danger" id="pnl-discounts">0.00 ₪</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="pr-5">&nbsp;&nbsp;&nbsp;&nbsp;إيراد الشحن</td>
+                                            <td class="text-end" id="pnl-shipping-income">0.00 ₪</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="pr-5">&nbsp;&nbsp;&nbsp;&nbsp;إيرادات أخرى</td>
                                             <td class="text-end" id="pnl-other-revenue">0.00 ₪</td>
                                         </tr>
                                         <tr class="table-info">
@@ -1182,8 +1190,16 @@ html[data-ui-mode="mobile"] body.ledger-page .col-md-12 {
                                             <td colspan="2"><strong><i class="fas fa-receipt"></i> النفقات التشغيلية (Operating Expenses)</strong></td>
                                         </tr>
                                         <tr>
-                                            <td class="pr-5">&nbsp;&nbsp;&nbsp;&nbsp;المصروفات</td>
+                                            <td class="pr-5">&nbsp;&nbsp;&nbsp;&nbsp;المصروفات التشغيلية (بدون ضرائب)</td>
                                             <td class="text-end text-danger" id="pnl-expenses">0.00 ₪</td>
+                                        </tr>
+                                        <tr class="table-success">
+                                            <td><strong>الربح التشغيلي</strong></td>
+                                            <td class="text-end"><strong id="pnl-operating-profit">0.00 ₪</strong></td>
+                                        </tr>
+                                        <tr>
+                                            <td class="pr-5">&nbsp;&nbsp;&nbsp;&nbsp;الضرائب</td>
+                                            <td class="text-end text-danger" id="pnl-taxes">0.00 ₪</td>
                                         </tr>
                                         
                                         <!-- صافي الربح -->
@@ -1289,24 +1305,27 @@ html[data-ui-mode="mobile"] body.ledger-page .col-md-12 {
                                     <thead class="table-light">
                                         <tr>
                                             <th>الحساب</th>
+                                            <th class="text-center">النوع</th>
                                             <th class="text-end">المدين</th>
                                             <th class="text-end">الدائن</th>
-                                            <th class="text-end">الرصيد</th>
+                                            <th class="text-end">الرصيد الصافي</th>
+                                            <th class="text-center">الجانب</th>
                                         </tr>
                                     </thead>
                                     <tbody id="accounts-summary">
                                         <tr>
-                                            <td colspan="4" class="text-center text-muted">
+                                            <td colspan="6" class="text-center text-muted">
                                                 <i class="fas fa-spinner fa-spin"></i> جاري التحميل...
                                             </td>
                                         </tr>
                                     </tbody>
                                     <tfoot class="bg-light">
                                         <tr>
-                                            <td><strong>الإجماليات:</strong></td>
+                                            <td colspan="2"><strong>الإجماليات:</strong></td>
                                             <td class="text-end debit-cell" id="accounts-total-debit">0.00</td>
                                             <td class="text-end credit-cell" id="accounts-total-credit">0.00</td>
                                             <td class="text-end balance-cell" id="accounts-net-balance">0.00</td>
+                                            <td class="text-center" id="accounts-balance-status">—</td>
                                         </tr>
                                     </tfoot>
                                 </table>
@@ -2019,7 +2038,7 @@ function updateStatistics(stats) {
     
     // التكاليف
     $('#total-cogs').text(formatCurrency(stats.total_cogs || 0) + ' ₪');
-    $('#total-expenses').text(formatCurrency(stats.total_expenses || 0) + ' ₪');
+    $('#total-expenses').text(formatCurrency(stats.operating_expenses || stats.total_expenses || 0) + ' ₪');
     
     // الأرباح
     const grossProfit = stats.total_gross_profit || 0;
@@ -2325,11 +2344,11 @@ function loadAccountsSummary() {
         data: formData,
         success: function(response) {
 
-            updateAccountsSummary(response.accounts, response.totals);
+            updateAccountsSummary(response.rows, response.totals, response.groups);
         },
         error: function(xhr, status, error) {
 
-            $('#accounts-summary').html('<tr><td colspan="4" class="text-center text-danger">خطأ في تحميل البيانات</td></tr>');
+            $('#accounts-summary').html('<tr><td colspan="6" class="text-center text-danger">خطأ في تحميل البيانات</td></tr>');
         }
     });
 }
@@ -2352,41 +2371,100 @@ function loadReceivablesSummary() {
     });
 }
 
-function updateAccountsSummary(data, totals) {
+function updateAccountsSummary(data, totals, groups) {
 
     const tbody = $('#accounts-summary');
     tbody.empty();
     
     if (!data || data.length === 0) {
-        tbody.append('<tr><td colspan="4" class="text-center text-muted">لا توجد بيانات</td></tr>');
+        tbody.append('<tr><td colspan="6" class="text-center text-muted">لا توجد بيانات</td></tr>');
         return;
     }
     
-    data.forEach(function(account) {
-        const debit = parseFloat(account.debit_balance || 0);
-        const credit = parseFloat(account.credit_balance || 0);
-        const balance = debit - credit;
-        
-        const row = `
-            <tr>
-                <td><strong>${account.name}</strong></td>
-                <td class="text-end ${debit > 0 ? 'debit-cell' : ''}">${debit > 0 ? formatCurrency(debit) : '—'}</td>
-                <td class="text-end ${credit > 0 ? 'credit-cell' : ''}">${credit > 0 ? formatCurrency(credit) : '—'}</td>
-                <td class="text-end balance-cell">${formatCurrency(balance)}</td>
+    const typeMeta = {
+        ASSET: { label: 'أصول', badge: 'bg-primary' },
+        LIABILITY: { label: 'خصوم', badge: 'bg-warning' },
+        EQUITY: { label: 'حقوق ملكية', badge: 'bg-info' },
+        REVENUE: { label: 'إيرادات', badge: 'bg-success' },
+        EXPENSE: { label: 'مصروفات', badge: 'bg-danger' },
+        OTHER: { label: 'أخرى', badge: 'bg-secondary' }
+    };
+    const orderedGroups = (groups && groups.length ? groups : []).slice();
+
+    if (orderedGroups.length === 0) {
+        orderedGroups.push({ type: 'OTHER', type_ar: 'أخرى', rows: data, totals: null });
+    }
+
+    orderedGroups.forEach(function(group) {
+        const meta = typeMeta[group.type] || typeMeta.OTHER;
+        const headerRow = `
+            <tr class="table-light">
+                <td colspan="6"><strong>${group.type_ar || meta.label}</strong></td>
             </tr>
         `;
-        tbody.append(row);
+        tbody.append(headerRow);
+
+        (group.rows || []).forEach(function(account) {
+            const debit = parseFloat(account.debit || 0);
+            const credit = parseFloat(account.credit || 0);
+            const net = parseFloat(account.net || 0);
+            const side = account.side === 'CR' ? 'CR' : 'DR';
+            const sideBadge = side === 'CR'
+                ? '<span class="badge bg-success">دائن</span>'
+                : '<span class="badge bg-danger">مدين</span>';
+            const name = account.name ? ` - ${account.name}` : '';
+            const row = `
+                <tr>
+                    <td><strong>${account.account}</strong>${name}</td>
+                    <td class="text-center"><span class="badge ${meta.badge}">${meta.label}</span></td>
+                    <td class="text-end ${debit > 0 ? 'debit-cell' : ''}">${debit > 0 ? formatCurrency(debit) : '—'}</td>
+                    <td class="text-end ${credit > 0 ? 'credit-cell' : ''}">${credit > 0 ? formatCurrency(credit) : '—'}</td>
+                    <td class="text-end balance-cell">${formatCurrency(Math.abs(net))}</td>
+                    <td class="text-center">${sideBadge}</td>
+                </tr>
+            `;
+            tbody.append(row);
+        });
+
+        if (group.totals) {
+            const gDebit = parseFloat(group.totals.total_debit || 0);
+            const gCredit = parseFloat(group.totals.total_credit || 0);
+            const gNet = parseFloat(group.totals.net || 0);
+            const gSide = group.totals.side === 'CR' ? 'CR' : 'DR';
+            const gSideBadge = gSide === 'CR'
+                ? '<span class="badge bg-success">دائن</span>'
+                : '<span class="badge bg-danger">مدين</span>';
+            const totalRow = `
+                <tr class="table-secondary fw-bold">
+                    <td colspan="2">إجمالي ${group.type_ar || meta.label}</td>
+                    <td class="text-end">${formatCurrency(gDebit)}</td>
+                    <td class="text-end">${formatCurrency(gCredit)}</td>
+                    <td class="text-end">${formatCurrency(Math.abs(gNet))}</td>
+                    <td class="text-center">${gSideBadge}</td>
+                </tr>
+            `;
+            tbody.append(totalRow);
+        }
     });
     
     if (totals) {
+        const netBalance = parseFloat(totals.net_balance || 0);
         $('#accounts-total-debit').text(formatCurrency(totals.total_debit));
         $('#accounts-total-credit').text(formatCurrency(totals.total_credit));
-        $('#accounts-net-balance').text(formatCurrency(totals.net_balance));
+        $('#accounts-net-balance').text(formatCurrency(Math.abs(netBalance)));
+        if (totals.balanced) {
+            $('#accounts-balance-status').html('<span class="badge bg-success">متوازن</span>');
+        } else {
+            const sideBadge = netBalance >= 0
+                ? '<span class="badge bg-danger">مدين</span>'
+                : '<span class="badge bg-success">دائن</span>';
+            $('#accounts-balance-status').html(sideBadge);
+        }
         const warn = document.getElementById('trial-balance-unbalanced-warning');
         if (warn) {
             warn.style.display = totals.balanced === false ? 'block' : 'none';
             if (totals.balanced === false && totals.net_balance !== undefined) {
-                warn.textContent = 'تنبيه: المدين لا يساوي الدائن (فرق: ' + formatCurrency(totals.net_balance) + '). راجع القيود.';
+                warn.textContent = 'تنبيه: المدين لا يساوي الدائن (فرق: ' + formatCurrency(Math.abs(totals.net_balance)) + '). راجع القيود.';
             }
         }
     }
@@ -2396,24 +2474,32 @@ function updateAccountsSummary(data, totals) {
 function updateProfitAndLoss(stats) {
     const sales = stats.total_sales || 0;
     const services = stats.total_services || 0;
+    const discounts = stats.total_discounts || 0;
+    const shippingIncome = stats.total_shipping_income || 0;
     const otherRevenue = stats.other_revenue || 0;
     const cogs = stats.total_cogs || 0;
     const serviceCosts = stats.total_service_costs || 0;
-    const expenses = stats.total_expenses || 0;
+    const expenses = stats.operating_expenses || stats.total_expenses || 0;
+    const taxes = stats.total_taxes || 0;
     const totalRevenue = stats.total_revenue || 0;
     const totalDirectCosts = cogs + serviceCosts;
     const grossProfit = stats.total_gross_profit || 0;
+    const operatingProfit = stats.operating_profit || (grossProfit - expenses);
     const netProfit = stats.net_profit || 0;
     const margin = stats.profit_margin || 0;
 
     $('#pnl-sales').text(formatCurrency(sales) + ' ₪');
     $('#pnl-services').text(formatCurrency(services) + ' ₪');
+    $('#pnl-discounts').text(formatNegative(discounts));
+    $('#pnl-shipping-income').text(formatCurrency(shippingIncome) + ' ₪');
     $('#pnl-other-revenue').text(formatCurrency(otherRevenue) + ' ₪');
     $('#pnl-total-revenue').text(formatCurrency(totalRevenue) + ' ₪');
-    $('#pnl-cogs').text(formatCurrency(cogs) + ' ₪');
-    $('#pnl-service-costs').text(formatCurrency(serviceCosts) + ' ₪');
-    $('#pnl-total-direct-costs').text(formatCurrency(totalDirectCosts) + ' ₪');
-    $('#pnl-expenses').text(formatCurrency(expenses) + ' ₪');
+    $('#pnl-cogs').text(formatNegative(cogs));
+    $('#pnl-service-costs').text(formatNegative(serviceCosts));
+    $('#pnl-total-direct-costs').text(formatNegative(totalDirectCosts));
+    $('#pnl-expenses').text(formatNegative(expenses));
+    $('#pnl-operating-profit').text(formatCurrency(operatingProfit) + ' ₪');
+    $('#pnl-taxes').text(formatNegative(taxes));
     
     // تلوين الربح
     const grossProfitCell = $('#pnl-gross-profit');
@@ -2423,6 +2509,13 @@ function updateProfitAndLoss(stats) {
         grossProfitCell.text(formatCurrency(Math.abs(grossProfit)) + ' ₪ (خسارة)').css('color', '#dc3545');
     } else {
         grossProfitCell.text(formatCurrency(grossProfit) + ' ₪').css('color', '#28a745');
+    }
+    
+    const operatingProfitCell = $('#pnl-operating-profit');
+    if (operatingProfit < 0) {
+        operatingProfitCell.text(formatCurrency(Math.abs(operatingProfit)) + ' ₪ (خسارة)').css('color', '#dc3545');
+    } else {
+        operatingProfitCell.text(formatCurrency(operatingProfit) + ' ₪').css('color', '#28a745');
     }
     
     if (netProfit < 0) {
@@ -2626,6 +2719,10 @@ function formatCurrency(amount) {
     });
 }
 
+function formatNegative(amount) {
+    return '-' + formatCurrency(Math.abs(amount || 0)) + ' ₪';
+}
+
 function resetFilters() {
     $('#filter-form')[0].reset();
     const today = new Date().toISOString().split('T')[0];
@@ -2826,27 +2923,29 @@ function updateWaterfallChart(stats) {
     const totalRevenue = stats.total_revenue || 0;
     const cogs = stats.total_cogs || 0;
     const serviceCosts = stats.total_service_costs || 0;
-    const expenses = stats.total_expenses || 0;
-    const grossProfit = stats.total_gross_profit || 0;
-    const netProfit = stats.net_profit || 0;
+    const operatingExpenses = stats.operating_expenses || stats.total_expenses || 0;
+    const taxes = stats.total_taxes || 0;
+    const totalDirectCosts = cogs + serviceCosts;
+    const grossProfit = stats.total_gross_profit || (totalRevenue - totalDirectCosts);
+    const operatingProfit = stats.operating_profit || (grossProfit - operatingExpenses);
+    const netProfit = stats.net_profit || (operatingProfit - taxes);
     
     if (waterfallChart) {
         waterfallChart.destroy();
     }
     
-    // حساب القيم المتراكمة
-    let cumulative = [0, totalRevenue, totalRevenue, grossProfit, grossProfit, netProfit];
-    
     waterfallChart = new Chart(ctx, {
         type: 'bar',
         data: {
-            labels: ['البداية', 'الإيرادات', 'التكاليف', 'ربح إجمالي', 'المصاريف', 'ربح صافي'],
+            labels: ['البداية', 'الإيرادات', 'التكاليف المباشرة', 'ربح إجمالي', 'المصاريف التشغيلية', 'ربح تشغيلي', 'الضرائب', 'ربح صافي'],
             datasets: [{
                 label: 'التدفق المالي',
-                data: [0, totalRevenue, -cogs, grossProfit, -expenses, netProfit],
+                data: [0, totalRevenue, -totalDirectCosts, grossProfit, -operatingExpenses, operatingProfit, -taxes, netProfit],
                 backgroundColor: [
                     'rgba(200, 200, 200, 0.5)',
                     'rgba(40, 167, 69, 0.7)',
+                    'rgba(220, 53, 69, 0.7)',
+                    'rgba(255, 193, 7, 0.7)',
                     'rgba(220, 53, 69, 0.7)',
                     'rgba(255, 193, 7, 0.7)',
                     'rgba(220, 53, 69, 0.7)',
@@ -2855,6 +2954,8 @@ function updateWaterfallChart(stats) {
                 borderColor: [
                     'rgba(200, 200, 200, 1)',
                     'rgba(40, 167, 69, 1)',
+                    'rgba(220, 53, 69, 1)',
+                    'rgba(255, 193, 7, 1)',
                     'rgba(220, 53, 69, 1)',
                     'rgba(255, 193, 7, 1)',
                     'rgba(220, 53, 69, 1)',
@@ -2895,7 +2996,7 @@ function updateCharts(stats) {
     const sales = stats.total_sales || 0;
     const services = stats.total_services || 0;
     const cogs = stats.total_cogs || 0;
-    const expenses = stats.total_expenses || 0;
+    const expenses = stats.operating_expenses || stats.total_expenses || 0;
     
     // 1. رسم الإيرادات vs المصاريف (Line Chart)
     const ctx1 = document.getElementById('revenueExpenseChart');
@@ -2907,7 +3008,7 @@ function updateCharts(stats) {
         revenueExpenseChart = new Chart(ctx1, {
             type: 'line',
             data: {
-                labels: ['المبيعات', 'الخدمات', 'التكلفة', 'المصاريف'],
+                labels: ['المبيعات', 'الخدمات', 'التكلفة', 'المصاريف التشغيلية'],
                 datasets: [{
                     label: 'الإيرادات',
                     data: [sales, services, 0, 0],

@@ -2,7 +2,7 @@ import json
 import os
 import sys
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Optional
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
@@ -24,10 +24,14 @@ from models import (
     Sale,
     ServiceRequest,
     Supplier,
+    _fx_rate_local_via_connection,
     _gl_upsert_batch_and_entries,
     _payment_split_gl_batch_upsert_by_id,
     run_expense_gl_sync_after_commit,
+    run_invoice_gl_sync_after_commit,
+    run_payment_gl_sync_after_commit,
     run_sale_gl_sync_after_commit,
+    run_service_gl_sync_after_commit,
 )
 from services.ledger_service import SmartEntityExtractor
 from sqlalchemy import func, or_, text
@@ -66,7 +70,234 @@ def _as_date(v: Any) -> datetime.date:
     return datetime.fromisoformat(str(v).replace("Z", "+00:00")).date()
 
 
-def _scalar(sql: str, params: dict | None = None):
+def _as_optional_date(v: Any) -> Optional[datetime.date]:
+    if not v:
+        return None
+    return datetime.fromisoformat(str(v).replace("Z", "+00:00")).date()
+
+
+def _parse_str_set(raw: Any) -> set[str]:
+    if not raw:
+        return set()
+    if isinstance(raw, (list, tuple, set)):
+        items = raw
+    else:
+        items = str(raw).split(",")
+    out = set()
+    for item in items:
+        val = str(item).strip().lower()
+        if val:
+            out.add(val)
+    return out
+
+
+def _apply_date_range(q, column, from_date: Optional[datetime.date], to_date: Optional[datetime.date]):
+    if from_date:
+        q = q.filter(column >= datetime.combine(from_date, datetime.min.time()))
+    if to_date:
+        q = q.filter(column <= datetime.combine(to_date, datetime.max.time()))
+    return q
+
+
+def _legacy_fx_candidate_ids(*, from_date, to_date, limit: int, types: set[str], force: bool) -> dict:
+    out = {"sales": [], "invoices": [], "services": [], "payments": [], "payment_splits": []}
+    limit = int(limit or 0)
+    if "sales" in types:
+        q = db.session.query(Sale.id).filter(
+            func.upper(func.coalesce(Sale.currency, "ILS")) != "ILS",
+            Sale.status == "CONFIRMED",
+        )
+        if not force:
+            q = q.filter(or_(Sale.fx_rate_used.is_(None), Sale.fx_rate_used <= 0))
+        q = _apply_date_range(q, Sale.sale_date, from_date, to_date)
+        if limit:
+            q = q.order_by(Sale.id.asc()).limit(limit)
+        out["sales"] = [int(r[0]) for r in q.all()]
+    if "invoices" in types:
+        q = db.session.query(Invoice.id).filter(
+            func.upper(func.coalesce(Invoice.currency, "ILS")) != "ILS",
+            Invoice.cancelled_at.is_(None),
+        )
+        if not force:
+            q = q.filter(or_(Invoice.fx_rate_used.is_(None), Invoice.fx_rate_used <= 0))
+        q = _apply_date_range(q, Invoice.invoice_date, from_date, to_date)
+        if limit:
+            q = q.order_by(Invoice.id.asc()).limit(limit)
+        out["invoices"] = [int(r[0]) for r in q.all()]
+    if "services" in types:
+        q = db.session.query(ServiceRequest.id).filter(
+            func.upper(func.coalesce(ServiceRequest.currency, "ILS")) != "ILS",
+            ServiceRequest.cancelled_at.is_(None),
+            func.coalesce(ServiceRequest.total_amount, 0) > 0,
+        )
+        if not force:
+            q = q.filter(or_(ServiceRequest.fx_rate_used.is_(None), ServiceRequest.fx_rate_used <= 0))
+        q = _apply_date_range(q, ServiceRequest.received_at, from_date, to_date)
+        if limit:
+            q = q.order_by(ServiceRequest.id.asc()).limit(limit)
+        out["services"] = [int(r[0]) for r in q.all()]
+    if "payments" in types:
+        q = db.session.query(Payment.id).filter(
+            func.upper(func.coalesce(Payment.currency, "ILS")) != "ILS",
+            Payment.status.in_(["COMPLETED", "PENDING"]),
+        )
+        if not force:
+            q = q.filter(or_(Payment.fx_rate_used.is_(None), Payment.fx_rate_used <= 0))
+        q = _apply_date_range(q, Payment.payment_date, from_date, to_date)
+        if limit:
+            q = q.order_by(Payment.id.asc()).limit(limit)
+        out["payments"] = [int(r[0]) for r in q.all()]
+    if "payment_splits" in types:
+        q = (
+            db.session.query(PaymentSplit.id)
+            .join(Payment, PaymentSplit.payment_id == Payment.id)
+            .filter(
+                func.upper(func.coalesce(PaymentSplit.currency, "ILS")) != "ILS",
+                Payment.status.in_(["COMPLETED", "PENDING", "REFUNDED", "CANCELLED"]),
+            )
+        )
+        if not force:
+            q = q.filter(or_(PaymentSplit.fx_rate_used.is_(None), PaymentSplit.fx_rate_used <= 0))
+        q = _apply_date_range(q, Payment.payment_date, from_date, to_date)
+        if limit:
+            q = q.order_by(PaymentSplit.id.asc()).limit(limit)
+        out["payment_splits"] = [int(r[0]) for r in q.all()]
+    return out
+
+
+def _apply_legacy_fx(*, plan: dict, force: bool, dry_run: bool) -> dict:
+    now_ts = datetime.now(timezone.utc)
+    conn = db.session.connection()
+    backfilled = {"sales": 0, "invoices": 0, "services": 0, "payments": 0, "payment_splits": 0}
+    missing_rate = {"sales": 0, "invoices": 0, "services": 0, "payments": 0, "payment_splits": 0}
+
+    def _update_row(table: str, row_id: int, rate, base):
+        db.session.execute(
+            text(
+                f"""
+                UPDATE {table}
+                   SET fx_rate_used = :rate,
+                       fx_rate_source = :src,
+                       fx_rate_timestamp = :ts,
+                       fx_base_currency = :base,
+                       fx_quote_currency = :quote
+                 WHERE id = :id
+                """
+            ),
+            {
+                "rate": rate,
+                "src": "manual",
+                "ts": now_ts,
+                "base": base,
+                "quote": "ILS",
+                "id": int(row_id),
+            },
+        )
+
+    if plan.get("sales"):
+        rows = (
+            db.session.query(Sale.id, Sale.currency, Sale.sale_date, Sale.fx_rate_used)
+            .filter(Sale.id.in_(plan["sales"]))
+            .all()
+        )
+        for rid, currency, sale_date, fx_rate_used in rows:
+            if (fx_rate_used or 0) > 0 and not force:
+                continue
+            cur = (str(currency or "ILS")).upper()
+            if cur == "ILS":
+                continue
+            rate = _fx_rate_local_via_connection(conn, cur, "ILS", sale_date or now_ts)
+            if not rate or rate <= 0:
+                missing_rate["sales"] += 1
+                continue
+            backfilled["sales"] += 1
+            if not dry_run:
+                _update_row("sales", int(rid), rate, cur)
+    if plan.get("invoices"):
+        rows = (
+            db.session.query(Invoice.id, Invoice.currency, Invoice.invoice_date, Invoice.fx_rate_used)
+            .filter(Invoice.id.in_(plan["invoices"]))
+            .all()
+        )
+        for rid, currency, invoice_date, fx_rate_used in rows:
+            if (fx_rate_used or 0) > 0 and not force:
+                continue
+            cur = (str(currency or "ILS")).upper()
+            if cur == "ILS":
+                continue
+            rate = _fx_rate_local_via_connection(conn, cur, "ILS", invoice_date or now_ts)
+            if not rate or rate <= 0:
+                missing_rate["invoices"] += 1
+                continue
+            backfilled["invoices"] += 1
+            if not dry_run:
+                _update_row("invoices", int(rid), rate, cur)
+    if plan.get("services"):
+        rows = (
+            db.session.query(ServiceRequest.id, ServiceRequest.currency, ServiceRequest.received_at, ServiceRequest.fx_rate_used)
+            .filter(ServiceRequest.id.in_(plan["services"]))
+            .all()
+        )
+        for rid, currency, received_at, fx_rate_used in rows:
+            if (fx_rate_used or 0) > 0 and not force:
+                continue
+            cur = (str(currency or "ILS")).upper()
+            if cur == "ILS":
+                continue
+            rate = _fx_rate_local_via_connection(conn, cur, "ILS", received_at or now_ts)
+            if not rate or rate <= 0:
+                missing_rate["services"] += 1
+                continue
+            backfilled["services"] += 1
+            if not dry_run:
+                _update_row("service_requests", int(rid), rate, cur)
+    if plan.get("payments"):
+        rows = (
+            db.session.query(Payment.id, Payment.currency, Payment.payment_date, Payment.fx_rate_used)
+            .filter(Payment.id.in_(plan["payments"]))
+            .all()
+        )
+        for rid, currency, payment_date, fx_rate_used in rows:
+            if (fx_rate_used or 0) > 0 and not force:
+                continue
+            cur = (str(currency or "ILS")).upper()
+            if cur == "ILS":
+                continue
+            rate = _fx_rate_local_via_connection(conn, cur, "ILS", payment_date or now_ts)
+            if not rate or rate <= 0:
+                missing_rate["payments"] += 1
+                continue
+            backfilled["payments"] += 1
+            if not dry_run:
+                _update_row("payments", int(rid), rate, cur)
+    if plan.get("payment_splits"):
+        rows = (
+            db.session.query(PaymentSplit.id, PaymentSplit.currency, PaymentSplit.fx_rate_used, Payment.payment_date)
+            .join(Payment, PaymentSplit.payment_id == Payment.id)
+            .filter(PaymentSplit.id.in_(plan["payment_splits"]))
+            .all()
+        )
+        for rid, currency, fx_rate_used, payment_date in rows:
+            if (fx_rate_used or 0) > 0 and not force:
+                continue
+            cur = (str(currency or "ILS")).upper()
+            if cur == "ILS":
+                continue
+            rate = _fx_rate_local_via_connection(conn, cur, "ILS", payment_date or now_ts)
+            if not rate or rate <= 0:
+                missing_rate["payment_splits"] += 1
+                continue
+            backfilled["payment_splits"] += 1
+            if not dry_run:
+                _update_row("payment_splits", int(rid), rate, cur)
+
+    if not dry_run:
+        db.session.commit()
+
+    return {"dry_run": bool(dry_run), "backfilled": backfilled, "missing_rate": missing_rate}
+
+
+def _scalar(sql: str, params: Optional[dict] = None):
     return db.session.execute(text(sql), params or {}).scalar()
 
 
@@ -942,6 +1173,15 @@ def run():
     integrity_audit = _as_bool(opts.get("integrity_audit"), True)
     refresh_opening_balances = _as_bool(opts.get("refresh_opening_balances"), False)
     purge_orphan_invoices = _as_bool(opts.get("purge_orphan_invoices"), False)
+    legacy_fx = _as_bool(opts.get("legacy_fx"), False)
+    legacy_fx_dry_run = _as_bool(opts.get("legacy_fx_dry_run"), False)
+    legacy_fx_force = _as_bool(opts.get("legacy_fx_force"), False)
+    legacy_fx_limit = _as_int(opts.get("legacy_fx_limit"), 500)
+    legacy_fx_from = _as_optional_date(opts.get("legacy_fx_from"))
+    legacy_fx_to = _as_optional_date(opts.get("legacy_fx_to"))
+    legacy_fx_types = _parse_str_set(opts.get("legacy_fx_types"))
+    if not legacy_fx_types:
+        legacy_fx_types = {"sales", "invoices", "services", "payments", "payment_splits"}
     rebuild_sales = _parse_id_list(opts.get("rebuild_sales"))
     rebuild_payment_splits = _parse_id_list(opts.get("rebuild_payment_splits"))
     rebuild_expenses = _parse_id_list(opts.get("rebuild_expenses"))
@@ -983,6 +1223,55 @@ def run():
         if purge_orphan_invoices:
             purged = _purge_orphan_invoice_gl()
             print(json.dumps({"phase": "purge_orphan_invoices", **purged}, ensure_ascii=False))
+
+        if legacy_fx:
+            plan = _legacy_fx_candidate_ids(
+                from_date=legacy_fx_from,
+                to_date=legacy_fx_to,
+                limit=legacy_fx_limit,
+                types=legacy_fx_types,
+                force=legacy_fx_force,
+            )
+            plan_counts = {k: len(v) for k, v in plan.items()}
+            print(
+                json.dumps(
+                    {
+                        "phase": "legacy_fx_plan",
+                        "dry_run": bool(legacy_fx_dry_run),
+                        "force": bool(legacy_fx_force),
+                        "from": legacy_fx_from.isoformat() if legacy_fx_from else None,
+                        "to": legacy_fx_to.isoformat() if legacy_fx_to else None,
+                        "limit": legacy_fx_limit,
+                        "types": sorted(legacy_fx_types),
+                        "counts": plan_counts,
+                    },
+                    ensure_ascii=False,
+                )
+            )
+            if not legacy_fx_dry_run:
+                fx_result = _apply_legacy_fx(plan=plan, force=legacy_fx_force, dry_run=False)
+                print(json.dumps({"phase": "legacy_fx_apply", **fx_result}, ensure_ascii=False))
+                rebuilt = {"sales": 0, "invoices": 0, "services": 0, "payments": 0, "payment_splits": 0}
+                for sid in plan.get("sales") or []:
+                    run_sale_gl_sync_after_commit(int(sid))
+                    rebuilt["sales"] += 1
+                for iid in plan.get("invoices") or []:
+                    run_invoice_gl_sync_after_commit(int(iid))
+                    rebuilt["invoices"] += 1
+                for sid in plan.get("services") or []:
+                    run_service_gl_sync_after_commit(int(sid))
+                    rebuilt["services"] += 1
+                for pid in plan.get("payments") or []:
+                    run_payment_gl_sync_after_commit(int(pid))
+                    rebuilt["payments"] += 1
+                for sid in plan.get("payment_splits") or []:
+                    with db.engine.connect() as conn:
+                        with conn.begin():
+                            _payment_split_gl_batch_upsert_by_id(conn, split_id=int(sid))
+                    rebuilt["payment_splits"] += 1
+                print(json.dumps({"phase": "legacy_fx_rebuild_gl", "rebuilt": rebuilt}, ensure_ascii=False))
+            else:
+                print(json.dumps({"phase": "legacy_fx_apply", "dry_run": True}, ensure_ascii=False))
 
         if rebuild_sales:
             for sid in rebuild_sales:

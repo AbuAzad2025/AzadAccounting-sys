@@ -36,6 +36,7 @@ from models import (
     ensure_currency,
     Branch,
     run_expense_gl_sync_after_commit,
+    run_payment_gl_sync_after_commit,
     run_expense_gl_reversal_after_delete,
     build_expense_reversal_snapshot,
 )
@@ -910,7 +911,7 @@ def generate_salary(emp_id):
         year = date.today().year
     
     base_salary = Decimal(request.form.get('base_salary', employee.salary))
-    payment_method = request.form.get('payment_method', 'BANK_TRANSFER')
+    payment_method_raw = request.form.get('payment_method', 'BANK_TRANSFER')
     payment_date = request.form.get('payment_date', date.today().isoformat())
     notes = request.form.get('notes', '')
     
@@ -923,6 +924,22 @@ def generate_salary(emp_id):
     account_number = request.form.get('account_number', '').strip()
     account_holder = request.form.get('account_holder', employee.name or '').strip()
     payment_details = request.form.get('payment_details', '').strip()
+    
+    method_key = str(payment_method_raw or "").strip().replace(" ", "_").replace("-", "_").upper()
+    method_key = {
+        "BANK_TRANSFER": "BANK",
+        "CHECK": "CHEQUE",
+        "CREDIT_CARD": "CARD",
+        "OTHER": "CASH",
+    }.get(method_key, method_key)
+    payment_method_enum = None
+    for m in PaymentMethod:
+        if m.name == method_key or str(m.value).upper() == method_key:
+            payment_method_enum = m
+            break
+    if not payment_method_enum:
+        payment_method_enum = PaymentMethod.CASH
+    payment_method = payment_method_enum.value
     
     monthly_deductions = Decimal(str(employee.total_deductions))
     social_insurance_emp = Decimal(str(employee.social_insurance_employee_amount))
@@ -1015,7 +1032,7 @@ def generate_salary(emp_id):
         site_id=employee.site_id,
         period_start=period_start,
         period_end=period_end,
-        payment_method=payment_method.upper(),
+        payment_method=payment_method,
         description=f"راتب شهر {month}/{year} - {employee.name}" + (f" (دفع جزئي {payment_percentage:.0f}%)" if remaining_balance > 0 else ""),
         notes=detailed_notes,
         paid_to=employee.name,
@@ -1041,23 +1058,32 @@ def generate_salary(emp_id):
         if actual_payment > 0:
             from models import Payment
             payment_notes = f"دفع {'جزئي' if remaining_balance > 0 else 'كامل'} للراتب"
-            if payment_method.upper() == 'CHECK' and check_number:
+            if payment_method_enum == PaymentMethod.CHEQUE and check_number:
                 payment_notes += f" - شيك رقم {check_number}"
-            elif payment_method.upper() == 'BANK_TRANSFER' and transfer_reference:
-                payment_notes += f" - معاملة رقم {transfer_reference}"
+            elif payment_method_enum == PaymentMethod.BANK and bank_transfer_ref:
+                payment_notes += f" - معاملة رقم {bank_transfer_ref}"
             
             payment = Payment(
                 payment_date=datetime.strptime(payment_date, '%Y-%m-%d'),
                 total_amount=actual_payment,
                 currency=employee.currency,
                 direction='OUT',
-                method=payment_method.upper(),
+                method=payment_method,
                 entity_type='EXPENSE',
                 expense_id=salary_expense.id,
                 reference=f"دفع راتب {month}/{year} - {employee.name}",
                 notes=payment_notes,
+                receiver_name=employee.name,
                 created_by=current_user.id if current_user.is_authenticated else None
             )
+            if payment_method_enum == PaymentMethod.CHEQUE:
+                payment.check_number = check_number or None
+                payment.check_bank = check_bank or None
+                if check_due_date:
+                    payment.check_due_date = datetime.strptime(check_due_date, '%Y-%m-%d')
+            elif payment_method_enum == PaymentMethod.BANK and bank_transfer_ref:
+                payment.bank_transfer_ref = bank_transfer_ref
+            _ensure_payment_number(payment)
             db.session.add(payment)
             salary_payment = payment
         
@@ -1072,7 +1098,7 @@ def generate_salary(emp_id):
         
         if (
             salary_payment
-            and payment_method.upper() == 'CHECK'
+            and payment_method_enum == PaymentMethod.CHEQUE
             and check_number
             and check_bank
         ):
@@ -1096,6 +1122,16 @@ def generate_salary(emp_id):
         
         db.session.commit()
         
+        try:
+            run_expense_gl_sync_after_commit(salary_expense.id)
+        except Exception:
+            pass
+        if salary_payment:
+            try:
+                run_payment_gl_sync_after_commit(salary_payment.id)
+            except Exception:
+                pass
+        
         success_msg = f"✅ <strong>تم توليد وحفظ راتب شهر {month}/{year} بنجاح</strong><br><br>"
         success_msg += f"👤 الموظف: <strong>{employee.name}</strong><br>"
         success_msg += f"💰 الراتب الصافي الكامل: <strong>{net_salary} {employee.currency}</strong><br>"
@@ -1107,9 +1143,9 @@ def generate_salary(emp_id):
         if remaining_balance > 0:
             success_msg += f"<br>⚠️ المبلغ المتبقي (دين على الشركة): <strong class='text-danger'>{remaining_balance} {employee.currency}</strong>"
         
-        if payment_method.upper() == 'CHECK' and check_number:
+        if payment_method_enum == PaymentMethod.CHEQUE and check_number:
             success_msg += f"<br>📝 تم إنشاء سجل شيك رقم: <strong>{check_number}</strong> - البنك: {check_bank}"
-        elif payment_method.upper() == 'BANK_TRANSFER' and bank_transfer_ref:
+        elif payment_method_enum == PaymentMethod.BANK and bank_transfer_ref:
             success_msg += f"<br>🏦 رقم معاملة التحويل: <strong>{bank_transfer_ref}</strong>"
         
         flash(success_msg, "success")
@@ -3053,15 +3089,25 @@ def generate_all_salaries():
     
     success_count = 0
     error_count = 0
+    created_expense_ids = []
+    
+    period_start = _date(year, month, 1)
+    last_day = monthrange(year, month)[1]
+    period_end = _date(year, month, last_day)
     
     for emp in employees:
         try:
-            from sqlalchemy import extract as sql_extract
+            from sqlalchemy import extract as sql_extract, or_
             existing = Expense.query.filter(
                 Expense.employee_id == emp.id,
                 Expense.type_id == salary_type.id,
-                sql_extract('month', Expense.date) == month,
-                sql_extract('year', Expense.date) == year
+                or_(
+                    Expense.period_start == period_start,
+                    and_(
+                        sql_extract('month', Expense.date) == month,
+                        sql_extract('year', Expense.date) == year
+                    )
+                )
             ).first()
             
             if existing:
@@ -3071,10 +3117,6 @@ def generate_all_salaries():
             deductions = Decimal(str(emp.total_deductions or 0))
             social_ins = Decimal(str(emp.social_insurance_employee_amount or 0))
             income_tax = Decimal(str(emp.income_tax_amount or 0))
-            
-            period_start = _date(year, month, 1)
-            last_day = monthrange(year, month)[1]
-            period_end = _date(year, month, last_day)
             
             installments = EmployeeAdvanceInstallment.query.filter(
                 EmployeeAdvanceInstallment.employee_id == emp.id,
@@ -3105,6 +3147,8 @@ def generate_all_salaries():
                 payment_method='bank',
                 branch_id=emp.branch_id,
                 site_id=emp.site_id,
+                period_start=period_start,
+                period_end=period_end,
                 payee_type='EMPLOYEE',
                 payee_entity_id=emp.id,
                 payee_name=emp.name,
@@ -3118,9 +3162,11 @@ def generate_all_salaries():
             
             for inst in installments:
                 inst.paid = True
-                inst.paid_at = datetime.now()
+                inst.paid_date = datetime.now().date()
+                inst.paid_in_salary_expense_id = new_expense.id
             
             success_count += 1
+            created_expense_ids.append(new_expense.id)
             
         except Exception as e:
             error_count += 1
@@ -3131,6 +3177,27 @@ def generate_all_salaries():
     try:
         if success_count > 0:
             db.session.commit()
+            for exp_id in created_expense_ids:
+                try:
+                    run_expense_gl_sync_after_commit(exp_id)
+                except Exception:
+                    pass
+            if created_expense_ids:
+                try:
+                    payment_ids = [
+                        r[0]
+                        for r in db.session.query(Payment.id)
+                        .filter(Payment.expense_id.in_(created_expense_ids))
+                        .filter(Payment.status == PaymentStatus.COMPLETED.value)
+                        .all()
+                    ]
+                    for pid in payment_ids:
+                        try:
+                            run_payment_gl_sync_after_commit(pid)
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
             flash(f'تم توليد {success_count} راتب بنجاح', 'success')
         
         if error_count > 0:

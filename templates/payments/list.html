@@ -152,10 +152,10 @@
             <td>{{ payment.reference or payment.notes or '-' }}</td>
             <td class="text-center">
               <div class="btn-group btn-group-sm">
-                <a href="{{ url_for('payments.get_payment', id=payment.id) }}" class="btn btn-info" title="عرض التفاصيل">
+                <a href="{{ url_for('payments.view_payment', payment_id=payment.id) }}" class="btn btn-info" title="عرض التفاصيل">
                   <i class="fas fa-eye"></i>
                 </a>
-                <a href="{{ url_for('payments.download_payment_receipt', payment_id=payment.id) }}" class="btn btn-secondary" title="طباعة الإيصال" target="_blank">
+                <a href="{{ url_for('payments.download_receipt', payment_id=payment.id) }}" class="btn btn-secondary" title="طباعة الإيصال" target="_blank">
                   <i class="fas fa-print"></i>
                 </a>
                 {% if payment.is_archived %}

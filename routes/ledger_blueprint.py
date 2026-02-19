@@ -1,5 +1,6 @@
 
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 import json
 from flask import Blueprint, request, jsonify, render_template, current_app, abort
 from flask_login import login_required, current_user
@@ -57,6 +58,8 @@ def _calculate_ledger_statistics(from_date: datetime | None, to_date: datetime |
     sales_accounts = {GL_ACCOUNTS.get("SALES", "4000_SALES"), GL_ACCOUNTS.get("REV", "4000_SALES")}
     sales_accounts = [acc for acc in sales_accounts if acc]
     service_rev_account = GL_ACCOUNTS.get("SERVICE_REV", "4100_SERVICE_REVENUE")
+    discount_account = GL_ACCOUNTS.get("DISCOUNT_ALLOWED", "4050_SALES_DISCOUNT")
+    shipping_income_account = GL_ACCOUNTS.get("SHIPPING_INCOME", "4200_SHIPPING_INCOME")
 
     total_sales = float(
         (base_gl.filter(GLEntry.account.in_(sales_accounts)).with_entities(func.sum(GLEntry.credit - GLEntry.debit)).scalar() or 0)
@@ -64,12 +67,18 @@ def _calculate_ledger_statistics(from_date: datetime | None, to_date: datetime |
     total_services = float(
         (base_gl.filter(GLEntry.account == service_rev_account).with_entities(func.sum(GLEntry.credit - GLEntry.debit)).scalar() or 0)
     )
+    total_discounts = float(
+        (base_gl.filter(GLEntry.account == discount_account).with_entities(func.sum(GLEntry.credit - GLEntry.debit)).scalar() or 0)
+    )
+    total_shipping_income = float(
+        (base_gl.filter(GLEntry.account == shipping_income_account).with_entities(func.sum(GLEntry.credit - GLEntry.debit)).scalar() or 0)
+    )
 
     revenue_base = base_gl.join(Account, Account.code == GLEntry.account).filter(Account.type == "REVENUE")
     total_revenue = float(
         (revenue_base.with_entities(func.sum(GLEntry.credit - GLEntry.debit)).scalar() or 0)
     )
-    other_revenue = total_revenue - total_sales - total_services
+    other_revenue = total_revenue - total_sales - total_services - total_discounts - total_shipping_income
 
     cogs_exchange_account = GL_ACCOUNTS.get("COGS_EXCHANGE", "5105_COGS_EXCHANGE")
 
@@ -82,9 +91,32 @@ def _calculate_ledger_statistics(from_date: datetime | None, to_date: datetime |
             or 0
         )
     )
-    total_expenses = float(
+    tax_expense_account = GL_ACCOUNTS.get("INCOME_TAX_EXP", "6200_INCOME_TAX_EXPENSE")
+    total_taxes = float(
         (
-            expense_base.filter(~GLEntry.account.like("51%"), GLEntry.account != cogs_exchange_account)
+            expense_base.filter(
+                or_(
+                    Account.name.ilike("%tax%"),
+                    Account.name.ilike("%ضريبة%"),
+                    GLEntry.account == tax_expense_account,
+                )
+            )
+            .with_entities(func.sum(GLEntry.debit - GLEntry.credit))
+            .scalar()
+            or 0
+        )
+    )
+    operating_expenses = float(
+        (
+            expense_base.filter(
+                ~GLEntry.account.like("51%"),
+                GLEntry.account != cogs_exchange_account,
+                ~or_(
+                    Account.name.ilike("%tax%"),
+                    Account.name.ilike("%ضريبة%"),
+                    GLEntry.account == tax_expense_account,
+                ),
+            )
             .with_entities(func.sum(GLEntry.debit - GLEntry.credit))
             .scalar()
             or 0
@@ -106,6 +138,8 @@ def _calculate_ledger_statistics(from_date: datetime | None, to_date: datetime |
     )
     cogs_details = [{"account": r.account, "name": r.name, "amount": float(r.amount or 0)} for r in cogs_details_rows]
 
+    fx_anchor_date = (to_date or from_date or datetime.now(timezone.utc).replace(tzinfo=None))
+
     total_service_costs = 0.0
     unit_cost_expr = case(
         (func.coalesce(Product.purchase_price, 0) > 0, Product.purchase_price),
@@ -115,7 +149,10 @@ def _calculate_ledger_statistics(from_date: datetime | None, to_date: datetime |
         else_=0,
     )
     service_parts_base = (
-        db.session.query(func.sum(ServicePart.quantity * unit_cost_expr))
+        db.session.query(
+            func.coalesce(Product.currency, "ILS").label("currency"),
+            func.sum(ServicePart.quantity * unit_cost_expr).label("value"),
+        )
         .join(Product, Product.id == ServicePart.part_id)
         .join(ServiceRequest, ServiceRequest.id == ServicePart.service_id)
     )
@@ -123,7 +160,15 @@ def _calculate_ledger_statistics(from_date: datetime | None, to_date: datetime |
         service_parts_base = service_parts_base.filter(ServiceRequest.created_at >= from_date)
     if to_date:
         service_parts_base = service_parts_base.filter(ServiceRequest.created_at <= to_date)
-    total_service_costs = float(service_parts_base.scalar() or 0)
+    service_parts_groups = service_parts_base.group_by(func.coalesce(Product.currency, "ILS")).all()
+    for row in service_parts_groups:
+        value = float(row.value or 0)
+        currency = (row.currency or "ILS").upper()
+        if currency == "ILS":
+            total_service_costs += value
+        else:
+            rate = LedgerCache.get_fx_rate(currency, "ILS", fx_anchor_date) or 1.0
+            total_service_costs += float(value * float(rate))
 
     total_preorders = 0.0
     preorder_group_q = db.session.query(
@@ -135,7 +180,6 @@ def _calculate_ledger_statistics(from_date: datetime | None, to_date: datetime |
     if to_date:
         preorder_group_q = preorder_group_q.filter(PreOrder.created_at <= to_date)
     preorder_groups = preorder_group_q.group_by(func.coalesce(PreOrder.currency, "ILS")).all()
-    fx_anchor_date = (to_date or from_date or datetime.now(timezone.utc).replace(tzinfo=None))
     for row in preorder_groups:
         amount = float(row.total_amount or 0)
         currency = (row.currency or "ILS").upper()
@@ -200,9 +244,10 @@ def _calculate_ledger_statistics(from_date: datetime | None, to_date: datetime |
             Product.id.label("id"),
             Product.name.label("name"),
             Product.price.label("selling_price"),
+            Product.currency.label("currency"),
             func.sum(SaleLine.quantity).label("qty_sold"),
         )
-        .group_by(Product.id, Product.name, Product.price)
+        .group_by(Product.id, Product.name, Product.price, Product.currency)
         .order_by(func.sum(SaleLine.quantity).desc())
         .limit(200)
         .all()
@@ -211,8 +256,16 @@ def _calculate_ledger_statistics(from_date: datetime | None, to_date: datetime |
         {
             "id": int(r.id),
             "name": r.name,
-            "selling_price": float(r.selling_price or 0),
-            "estimated_cost": float(float(r.selling_price or 0) * 0.70),
+            "selling_price": (
+                float(r.selling_price or 0)
+                if (r.currency or "ILS").upper() == "ILS"
+                else float(float(r.selling_price or 0) * float(LedgerCache.get_fx_rate((r.currency or "ILS").upper(), "ILS", fx_anchor_date) or 1.0))
+            ),
+            "estimated_cost": (
+                float(float(r.selling_price or 0) * 0.70)
+                if (r.currency or "ILS").upper() == "ILS"
+                else float(float(r.selling_price or 0) * 0.70 * float(LedgerCache.get_fx_rate((r.currency or "ILS").upper(), "ILS", fx_anchor_date) or 1.0))
+            ),
             "qty_sold": float(r.qty_sold or 0),
         }
         for r in estimated_products_rows
@@ -237,7 +290,8 @@ def _calculate_ledger_statistics(from_date: datetime | None, to_date: datetime |
     gross_profit_sales = total_sales - total_cogs
     gross_profit_services = total_services - total_service_costs
     total_gross_profit = total_revenue - total_cogs - total_service_costs
-    net_profit = total_gross_profit - total_expenses
+    operating_profit = total_gross_profit - operating_expenses
+    net_profit = operating_profit - total_taxes
     profit_margin = (net_profit / total_revenue * 100) if total_revenue > 0 else 0
 
     statistics = {
@@ -250,7 +304,12 @@ def _calculate_ledger_statistics(from_date: datetime | None, to_date: datetime |
         "total_gross_profit": total_gross_profit,
         "total_revenue": total_revenue,
         "other_revenue": other_revenue,
-        "total_expenses": total_expenses,
+        "total_discounts": total_discounts,
+        "total_shipping_income": total_shipping_income,
+        "operating_expenses": operating_expenses,
+        "total_taxes": total_taxes,
+        "operating_profit": operating_profit,
+        "total_expenses": operating_expenses,
         "net_profit": net_profit,
         "profit_margin": profit_margin,
         "total_preorders": total_preorders,
@@ -735,7 +794,7 @@ def get_ledger_statistics():
 def cogs_audit_report():
     """تقرير شامل لفحص تكلفة البضاعة المباعة (COGS) بدقة"""
     try:
-        from models import SaleLine, fx_rate
+        from models import SaleLine, fx_rate, convert_amount
         
         from_date_str = request.args.get('from_date')
         to_date_str = request.args.get('to_date')
@@ -763,6 +822,24 @@ def cogs_audit_report():
         missing_count = 0
         actual_count = 0
         
+        def _to_ils(value, currency, ref_date):
+            val = Decimal(str(value or 0))
+            if not val:
+                return 0.0
+            code = (currency or "ILS").upper()
+            if code == "ILS":
+                return float(val)
+            try:
+                return float(convert_amount(val, code, "ILS", ref_date))
+            except Exception:
+                try:
+                    rate = fx_rate(code, "ILS", ref_date, raise_on_missing=False)
+                except Exception:
+                    rate = None
+                if rate and rate > 0:
+                    return float(val * Decimal(str(rate)))
+            return float(val)
+
         for line in sale_lines_query.limit(100000).all():
             if not line.product:
                 continue
@@ -772,14 +849,18 @@ def cogs_audit_report():
             unit_price = float(line.unit_price or 0)
             line_total = qty_sold * unit_price
             
-            sale_currency = line.sale.currency or 'ILS'
-            if sale_currency != 'ILS':
-                try:
-                    rate = fx_rate(sale_currency, 'ILS', line.sale.sale_date, raise_on_missing=False)
-                    if rate > 0:
-                        line_total = float(line_total * float(rate))
-                except Exception:
-                    pass
+            sale_currency = (line.sale.currency or "ILS").upper()
+            if sale_currency != "ILS":
+                used_rate = getattr(line.sale, "fx_rate_used", None)
+                if used_rate and float(used_rate) > 0:
+                    line_total = float(Decimal(str(line_total)) * Decimal(str(used_rate)))
+                else:
+                    try:
+                        rate = fx_rate(sale_currency, "ILS", line.sale.sale_date, raise_on_missing=False)
+                        if rate and rate > 0:
+                            line_total = float(Decimal(str(line_total)) * Decimal(str(rate)))
+                    except Exception:
+                        pass
             
             total_sales_value += line_total
             
@@ -787,23 +868,24 @@ def cogs_audit_report():
             cost_source = None
             cost_status = None
             
+            product_currency = getattr(product, "currency", None) or "ILS"
             if product.purchase_price and product.purchase_price > 0:
-                unit_cost = float(product.purchase_price)
+                unit_cost = _to_ils(product.purchase_price, product_currency, line.sale.sale_date)
                 cost_source = "purchase_price"
                 cost_status = "actual"
                 actual_count += 1
             elif product.cost_after_shipping and product.cost_after_shipping > 0:
-                unit_cost = float(product.cost_after_shipping)
+                unit_cost = _to_ils(product.cost_after_shipping, product_currency, line.sale.sale_date)
                 cost_source = "cost_after_shipping"
                 cost_status = "actual"
                 actual_count += 1
             elif product.cost_before_shipping and product.cost_before_shipping > 0:
-                unit_cost = float(product.cost_before_shipping)
+                unit_cost = _to_ils(product.cost_before_shipping, product_currency, line.sale.sale_date)
                 cost_source = "cost_before_shipping"
                 cost_status = "actual"
                 actual_count += 1
             elif product.price and product.price > 0:
-                unit_cost = float(product.price) * 0.70
+                unit_cost = _to_ils(product.price, product_currency, line.sale.sale_date) * 0.70
                 cost_source = "estimated_70%"
                 cost_status = "estimated"
                 estimated_count += 1
@@ -1971,93 +2053,65 @@ def get_accounts_summary():
 
         rows = base_q.group_by(GLEntry.account, Account.name, Account.type).all()
 
-        groups = {
-            "المبيعات": {"debit": 0.0, "credit": 0.0},
-            "الخدمات (الصيانة)": {"debit": 0.0, "credit": 0.0},
-            "تكلفة البضاعة المباعة (COGS)": {"debit": 0.0, "credit": 0.0},
-            "المشتريات والنفقات": {"debit": 0.0, "credit": 0.0},
-            "الخزينة": {"debit": 0.0, "credit": 0.0},
-            "المخزون": {"debit": 0.0, "credit": 0.0},
-            "ذمم العملاء": {"debit": 0.0, "credit": 0.0},
-            "ذمم الموردين والخصوم الأخرى": {"debit": 0.0, "credit": 0.0},
-            "الضرائب المستحقة": {"debit": 0.0, "credit": 0.0},
-            "حقوق الملكية": {"debit": 0.0, "credit": 0.0},
-            "أصول أخرى": {"debit": 0.0, "credit": 0.0},
-            "متفرقات": {"debit": 0.0, "credit": 0.0},
+        type_labels = {
+            "ASSET": "أصول",
+            "LIABILITY": "خصوم",
+            "EQUITY": "حقوق ملكية",
+            "REVENUE": "إيرادات",
+            "EXPENSE": "مصروفات",
+            "OTHER": "أخرى",
+        }
+        type_order = ["ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE", "OTHER"]
+        group_rows = {t: [] for t in type_order}
+        group_totals = {
+            t: {"type": t, "type_ar": type_labels[t], "total_debit": 0.0, "total_credit": 0.0}
+            for t in type_order
         }
 
-        for r in rows:
-            code = (r.account or "").upper()
-            acc_type = (str(r.type or "").strip()).upper()
-            debit = round(float(r.td or 0), 2)
-            credit = round(float(r.tc or 0), 2)
-
-            if acc_type == "REVENUE":
-                if code.startswith("4000"):
-                    g = groups["المبيعات"]
-                elif code.startswith("4100"):
-                    g = groups["الخدمات (الصيانة)"]
-                else:
-                    g = groups["المبيعات"]
-            elif acc_type == "EXPENSE":
-                if code.startswith("51"):
-                    g = groups["تكلفة البضاعة المباعة (COGS)"]
-                else:
-                    g = groups["المشتريات والنفقات"]
-            elif acc_type == "ASSET":
-                if code in {"1000_CASH", "1010_BANK", "1020_CARD_CLEARING"} or code.startswith("10"):
-                    g = groups["الخزينة"]
-                elif code.startswith("11"):
-                    g = groups["ذمم العملاء"]
-                elif code.startswith("12") or code.startswith("13"):
-                    g = groups["المخزون"]
-                else:
-                    g = groups["أصول أخرى"]
-            elif acc_type == "LIABILITY":
-                if code.startswith("2100") or code.startswith("2200"):
-                    g = groups["الضرائب المستحقة"]
-                else:
-                    g = groups["ذمم الموردين والخصوم الأخرى"]
-            elif acc_type == "EQUITY":
-                g = groups["حقوق الملكية"]
-            else:
-                g = groups["متفرقات"]
-
-            g["debit"] += debit
-            g["credit"] += credit
-
-        order = [
-            "المبيعات",
-            "الخدمات (الصيانة)",
-            "تكلفة البضاعة المباعة (COGS)",
-            "المشتريات والنفقات",
-            "الخزينة",
-            "المخزون",
-            "ذمم العملاء",
-            "ذمم الموردين والخصوم الأخرى",
-            "الضرائب المستحقة",
-            "حقوق الملكية",
-            "أصول أخرى",
-            "متفرقات",
-        ]
         accounts = []
         total_debit = 0.0
         total_credit = 0.0
-        for name in order:
-            g = groups.get(name)
-            if not g:
+        for r in rows:
+            acc_type = (str(r.type or "").strip()).upper() or "OTHER"
+            if acc_type not in group_rows:
+                acc_type = "OTHER"
+            debit = round(float(r.td or 0), 2)
+            credit = round(float(r.tc or 0), 2)
+            net = round(debit - credit, 2)
+            side = "DR" if net >= 0 else "CR"
+            row = {
+                "account": (r.account or "").upper(),
+                "name": r.name or "",
+                "type": acc_type,
+                "type_ar": type_labels.get(acc_type, "أخرى"),
+                "debit": debit,
+                "credit": credit,
+                "net": abs(net),
+                "side": side,
+            }
+            accounts.append(row)
+            group_rows[acc_type].append(row)
+            group_totals[acc_type]["total_debit"] += debit
+            group_totals[acc_type]["total_credit"] += credit
+            total_debit += debit
+            total_credit += credit
+
+        def _type_rank(t):
+            return type_order.index(t) if t in type_order else len(type_order)
+
+        accounts.sort(key=lambda r: (_type_rank(r["type"]), r["account"]))
+        grouped = []
+        for t in type_order:
+            rows_for_type = group_rows.get(t) or []
+            if not rows_for_type:
                 continue
-            if abs(g["debit"]) < 0.01 and abs(g["credit"]) < 0.01:
-                continue
-            accounts.append(
-                {
-                    "name": name,
-                    "debit_balance": round(g["debit"], 2),
-                    "credit_balance": round(g["credit"], 2),
-                }
-            )
-            total_debit += g["debit"]
-            total_credit += g["credit"]
+            gt = group_totals[t]
+            gt["total_debit"] = round(gt["total_debit"], 2)
+            gt["total_credit"] = round(gt["total_credit"], 2)
+            gt_net = round(gt["total_debit"] - gt["total_credit"], 2)
+            gt["net"] = abs(gt_net)
+            gt["side"] = "DR" if gt_net >= 0 else "CR"
+            grouped.append({"type": t, "type_ar": gt["type_ar"], "rows": rows_for_type, "totals": gt})
 
         total_debit = round(total_debit, 2)
         total_credit = round(total_credit, 2)
@@ -2073,7 +2127,7 @@ def get_accounts_summary():
             "balanced": balanced,
         }
 
-        return jsonify({"accounts": accounts, "totals": accounts_totals})
+        return jsonify({"rows": accounts, "groups": grouped, "totals": accounts_totals})
 
     except Exception as e:
         error_msg = f"Error in get_accounts_summary: {str(e)}"

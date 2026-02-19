@@ -6793,7 +6793,11 @@ def _invoice_gl_upsert_core(connection, target: "Invoice") -> None:
         entity_id = target.customer_id or target.supplier_id or target.partner_id
         if entity_type == "CUSTOMER":
             ar_account = GL_ACCOUNTS.get("AR", "1100_AR")
-            revenue_account = GL_ACCOUNTS.get("SALES", "4000_SALES")
+            revenue_account = (
+                GL_ACCOUNTS.get("SERVICE_REV", "4100_SERVICE_REVENUE")
+                if target.service_id
+                else GL_ACCOUNTS.get("SALES", "4000_SALES")
+            )
             entries = [(revenue_account, amount_ils, 0), (ar_account, 0, amount_ils)]
         else:
             ap_account = GL_ACCOUNTS.get("AP", "2000_AP")
@@ -6835,7 +6839,12 @@ def _invoice_gl_upsert_core(connection, target: "Invoice") -> None:
         entity_id = target.partner_id
         ar_account = GL_ACCOUNTS.get("AP", "2000_AP")
     if entity_type == "CUSTOMER":
-        entries = [(ar_account, amount_ils, 0), (GL_ACCOUNTS.get("REV", "4000_SALES"), 0, amount_ils)]
+        revenue_account = (
+            GL_ACCOUNTS.get("SERVICE_REV", "4100_SERVICE_REVENUE")
+            if target.service_id
+            else GL_ACCOUNTS.get("REV", "4000_SALES")
+        )
+        entries = [(ar_account, amount_ils, 0), (revenue_account, 0, amount_ils)]
         memo = f"Invoice sale - {target.invoice_number}"
     else:
         entries = [(GL_ACCOUNTS.get("PURCHASES", "5100_PURCHASES"), amount_ils, 0), (ar_account, 0, amount_ils)]
@@ -10112,7 +10121,7 @@ def run_service_gl_reversal_after_delete(snapshot: dict) -> None:
             return
         currency = (str(snapshot.get("currency") or "ILS").strip().upper() or "ILS")
         ar_account = GL_ACCOUNTS.get("AR", "1100_AR")
-        revenue_account = GL_ACCOUNTS.get("SALES", "4000_SALES")
+        revenue_account = GL_ACCOUNTS.get("SERVICE_REV", "4100_SERVICE_REVENUE")
         entity_type = snapshot.get("entity_type")
         entity_id = snapshot.get("entity_id")
         try:
