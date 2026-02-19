@@ -1500,17 +1500,17 @@ def account_statement(customer_id):
             Check.reference_number.like('PMT-SPLIT-%')
         ).all()
         
-        for c in potential_split_checks:
-            if c.reference_number:
+        for chk in potential_split_checks:
+            if chk.reference_number:
                 # تخزين الشيك تحت الرقم المرجعي الكامل
-                split_checks_map[c.reference_number].append(c)
+                split_checks_map[chk.reference_number].append(chk)
                 # وأيضاً تخزينه تحت الجزء الأساسي إذا كان هناك لاحقة
                 # مثلاً PMT-SPLIT-123-ABC نخزنه أيضاً تحت PMT-SPLIT-123
-                parts = c.reference_number.split('-')
+                parts = chk.reference_number.split('-')
                 if len(parts) >= 3 and parts[0] == 'PMT' and parts[1] == 'SPLIT':
                     base_ref = f"{parts[0]}-{parts[1]}-{parts[2]}"
-                    if base_ref != c.reference_number:
-                        split_checks_map[base_ref].append(c)
+                    if base_ref != chk.reference_number:
+                        split_checks_map[base_ref].append(chk)
 
     # تتبع الشيكات المعروضة لتجنب التكرار بين الدفعات المختلفة
     # نستخدم dictionary لتخزين أفضل دفعة لكل شيك (الأولوية للشيكات CASHED)
