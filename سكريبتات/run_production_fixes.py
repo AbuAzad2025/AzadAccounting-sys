@@ -118,11 +118,8 @@ def main():
         run_entity_balance_auto_fix.run()
 
         print("10.1) تدقيق وتصحيح أرصدة الموردين عبر audit-integrity")
-        from app import create_app
         from cli import audit_integrity
-        app = create_app()
-        with app.app_context():
-            audit_integrity.callback(scope="suppliers", limit=0, fix=True, include_archived=False)
+        audit_integrity.main(["--scope", "suppliers", "--fix", "--limit", "0"], standalone_mode=False)
 
         print("11) مزامنة تسلسلات Postgres وتصحيح seller_id")
         fix_sales_sequence.main()
