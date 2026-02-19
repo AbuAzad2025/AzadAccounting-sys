@@ -3787,7 +3787,7 @@ def sync_balances(entity, limit, dry_run, include_archived, batch_size):
 @click.command("audit-integrity")
 @click.option(
     "--scope",
-    type=click.Choice(["balances", "statements", "payments", "checks", "all"], case_sensitive=False),
+    type=click.Choice(["balances", "statements", "payments", "checks", "all", "customers", "suppliers", "partners"], case_sensitive=False),
     default="all",
 )
 @click.option("--limit", type=int, default=200, show_default=True)
@@ -3798,6 +3798,7 @@ def audit_integrity(scope, limit, fix, include_archived):
     scope = (scope or "all").lower()
     limit = int(limit or 0)
     tolerance = Decimal("0.01")
+    balance_scope = scope if scope in {"customers", "suppliers", "partners"} else None
 
     def _want(key: str) -> bool:
         return scope in ("all", key)
@@ -3813,12 +3814,18 @@ def audit_integrity(scope, limit, fix, include_archived):
         "checks": {"checked": 0, "issues": 0, "fixed": 0, "samples": []},
     }
 
-    if _want("balances"):
+    if _want("balances") or balance_scope:
         groups = [
             ("customer", Customer, build_customer_balance_view, update_customer_balance_components),
             ("supplier", Supplier, build_supplier_balance_view, update_supplier_balance_components),
             ("partner", Partner, build_partner_balance_view, update_partner_balance_components),
         ]
+        if balance_scope == "customers":
+            groups = [groups[0]]
+        elif balance_scope == "suppliers":
+            groups = [groups[1]]
+        elif balance_scope == "partners":
+            groups = [groups[2]]
         for label, model_cls, breakdown_fn, updater_fn in groups:
             q = model_cls.query.order_by(model_cls.id.asc())
             if hasattr(model_cls, "is_archived") and not include_archived:

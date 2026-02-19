@@ -117,6 +117,13 @@ def main():
         print("10) تصحيح أرصدة العملاء/الموردين/الشركاء")
         run_entity_balance_auto_fix.run()
 
+        print("10.1) تدقيق وتصحيح أرصدة الموردين عبر audit-integrity")
+        from app import create_app
+        from cli import audit_integrity
+        app = create_app()
+        with app.app_context():
+            audit_integrity.callback(scope="suppliers", limit=0, fix=True, include_archived=False)
+
         print("11) مزامنة تسلسلات Postgres وتصحيح seller_id")
         fix_sales_sequence.main()
         
@@ -127,6 +134,7 @@ def main():
     else:
         print("9) تخطي mark_expenses_fully_paid (يتطلب تنفيذ فعلي)")
         print("10) تخطي run_entity_balance_auto_fix (يتطلب تنفيذ فعلي)")
+        print("10.1) تخطي audit-integrity للموردين (يتطلب تنفيذ فعلي)")
         print("11) تخطي fix_sales_sequence (يتطلب تنفيذ فعلي)")
         print("12) تخطي purge_test_data (يتطلب تنفيذ فعلي)")
 
