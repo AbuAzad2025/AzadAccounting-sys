@@ -930,7 +930,7 @@ def entity_balance_audit():
             .subquery()
         )
 
-        partner_gl_sq = (
+        partner_ap_sq = (
             db.session.query(
                 GLBatch.entity_id.label("entity_id"),
                 func.coalesce(func.sum(GLEntry.credit - GLEntry.debit), 0).label("gl_balance"),
@@ -943,6 +943,35 @@ def entity_balance_audit():
                 GLEntry.account == ap_account,
             )
             .group_by(GLBatch.entity_id)
+            .subquery()
+        )
+        partner_ar_sq = (
+            db.session.query(
+                Partner.id.label("entity_id"),
+                func.coalesce(func.sum(GLEntry.debit - GLEntry.credit), 0).label("gl_balance"),
+            )
+            .join(GLBatch, GLBatch.entity_id == Partner.customer_id)
+            .join(GLEntry, GLEntry.batch_id == GLBatch.id)
+            .filter(
+                GLBatch.status == "POSTED",
+                GLBatch.posted_at <= as_of_dt,
+                GLBatch.entity_type == "CUSTOMER",
+                GLEntry.account == ar_account,
+                Partner.customer_id.isnot(None),
+            )
+            .group_by(Partner.id)
+            .subquery()
+        )
+        partner_gl_sq = (
+            db.session.query(
+                Partner.id.label("entity_id"),
+                (
+                    func.coalesce(partner_ap_sq.c.gl_balance, 0)
+                    - func.coalesce(partner_ar_sq.c.gl_balance, 0)
+                ).label("gl_balance"),
+            )
+            .outerjoin(partner_ap_sq, partner_ap_sq.c.entity_id == Partner.id)
+            .outerjoin(partner_ar_sq, partner_ar_sq.c.entity_id == Partner.id)
             .subquery()
         )
 
@@ -1444,7 +1473,7 @@ def recalculate_entities_for_entity_audit():
             .group_by(GLBatch.entity_id)
             .subquery()
         )
-        partner_gl_sq = (
+        partner_ap_sq = (
             db.session.query(
                 GLBatch.entity_id.label("entity_id"),
                 func.coalesce(func.sum(GLEntry.credit - GLEntry.debit), 0).label("gl_balance"),
@@ -1457,6 +1486,35 @@ def recalculate_entities_for_entity_audit():
                 GLEntry.account == ap_account,
             )
             .group_by(GLBatch.entity_id)
+            .subquery()
+        )
+        partner_ar_sq = (
+            db.session.query(
+                Partner.id.label("entity_id"),
+                func.coalesce(func.sum(GLEntry.debit - GLEntry.credit), 0).label("gl_balance"),
+            )
+            .join(GLBatch, GLBatch.entity_id == Partner.customer_id)
+            .join(GLEntry, GLEntry.batch_id == GLBatch.id)
+            .filter(
+                GLBatch.status == "POSTED",
+                GLBatch.posted_at <= as_of_dt,
+                GLBatch.entity_type == "CUSTOMER",
+                GLEntry.account == ar_account,
+                Partner.customer_id.isnot(None),
+            )
+            .group_by(Partner.id)
+            .subquery()
+        )
+        partner_gl_sq = (
+            db.session.query(
+                Partner.id.label("entity_id"),
+                (
+                    func.coalesce(partner_ap_sq.c.gl_balance, 0)
+                    - func.coalesce(partner_ar_sq.c.gl_balance, 0)
+                ).label("gl_balance"),
+            )
+            .outerjoin(partner_ap_sq, partner_ap_sq.c.entity_id == Partner.id)
+            .outerjoin(partner_ar_sq, partner_ar_sq.c.entity_id == Partner.id)
             .subquery()
         )
 
@@ -1717,7 +1775,7 @@ def auto_fix_entity_balance_audit():
             .group_by(GLBatch.entity_id)
             .subquery()
         )
-        partner_gl_sq = (
+        partner_ap_sq = (
             db.session.query(
                 GLBatch.entity_id.label("entity_id"),
                 func.coalesce(func.sum(GLEntry.credit - GLEntry.debit), 0).label("gl_balance"),
@@ -1730,6 +1788,35 @@ def auto_fix_entity_balance_audit():
                 GLEntry.account == ap_account,
             )
             .group_by(GLBatch.entity_id)
+            .subquery()
+        )
+        partner_ar_sq = (
+            db.session.query(
+                Partner.id.label("entity_id"),
+                func.coalesce(func.sum(GLEntry.debit - GLEntry.credit), 0).label("gl_balance"),
+            )
+            .join(GLBatch, GLBatch.entity_id == Partner.customer_id)
+            .join(GLEntry, GLEntry.batch_id == GLBatch.id)
+            .filter(
+                GLBatch.status == "POSTED",
+                GLBatch.posted_at <= as_of_dt,
+                GLBatch.entity_type == "CUSTOMER",
+                GLEntry.account == ar_account,
+                Partner.customer_id.isnot(None),
+            )
+            .group_by(Partner.id)
+            .subquery()
+        )
+        partner_gl_sq = (
+            db.session.query(
+                Partner.id.label("entity_id"),
+                (
+                    func.coalesce(partner_ap_sq.c.gl_balance, 0)
+                    - func.coalesce(partner_ar_sq.c.gl_balance, 0)
+                ).label("gl_balance"),
+            )
+            .outerjoin(partner_ap_sq, partner_ap_sq.c.entity_id == Partner.id)
+            .outerjoin(partner_ar_sq, partner_ar_sq.c.entity_id == Partner.id)
             .subquery()
         )
 
@@ -2002,44 +2089,26 @@ def get_receivables_detailed_summary():
         to_date_str = request.args.get('to_date')
         from_date = datetime.strptime(from_date_str, '%Y-%m-%d') if from_date_str else None
         to_date = datetime.strptime(to_date_str, '%Y-%m-%d').replace(hour=23, minute=59, second=59) if to_date_str else datetime.now(timezone.utc).replace(tzinfo=None)
-        as_of = to_date
         receivables = []
         today = datetime.now(timezone.utc).replace(tzinfo=None)
-        ar_account = (GL_ACCOUNTS.get("AR") or "1100_AR").upper()
-        ap_account = (GL_ACCOUNTS.get("AP") or "2000_AP").upper()
 
-        cust_gl = (
-            db.session.query(
-                GLBatch.entity_id,
-                func.coalesce(func.sum(GLEntry.credit - GLEntry.debit), 0).label("gl_balance"),
-            )
-            .join(GLEntry, GLBatch.id == GLEntry.batch_id)
-            .filter(GLBatch.status == "POSTED", GLBatch.entity_type == "CUSTOMER", GLEntry.account == ar_account, GLBatch.posted_at <= as_of)
-            .group_by(GLBatch.entity_id)
-        )
-        cust_balances = {r.entity_id: float(r.gl_balance or 0) for r in cust_gl.all()}
+        cust_rows = db.session.query(Customer.id, Customer.current_balance).filter(
+            Customer.current_balance.isnot(None),
+            func.abs(Customer.current_balance) >= 0.01,
+        ).all()
+        cust_balances = {int(r.id): float(r.current_balance or 0) for r in cust_rows}
 
-        supp_gl = (
-            db.session.query(
-                GLBatch.entity_id,
-                func.coalesce(func.sum(GLEntry.credit - GLEntry.debit), 0).label("gl_balance"),
-            )
-            .join(GLEntry, GLBatch.id == GLEntry.batch_id)
-            .filter(GLBatch.status == "POSTED", GLBatch.entity_type == "SUPPLIER", GLEntry.account == ap_account, GLBatch.posted_at <= as_of)
-            .group_by(GLBatch.entity_id)
-        )
-        supp_balances = {r.entity_id: float(r.gl_balance or 0) for r in supp_gl.all()}
+        supp_rows = db.session.query(Supplier.id, Supplier.current_balance).filter(
+            Supplier.current_balance.isnot(None),
+            func.abs(Supplier.current_balance) >= 0.01,
+        ).all()
+        supp_balances = {int(r.id): float(r.current_balance or 0) for r in supp_rows}
 
-        part_gl = (
-            db.session.query(
-                GLBatch.entity_id,
-                func.coalesce(func.sum(GLEntry.credit - GLEntry.debit), 0).label("gl_balance"),
-            )
-            .join(GLEntry, GLBatch.id == GLEntry.batch_id)
-            .filter(GLBatch.status == "POSTED", GLBatch.entity_type == "PARTNER", GLEntry.account == ap_account, GLBatch.posted_at <= as_of)
-            .group_by(GLBatch.entity_id)
-        )
-        part_balances = {r.entity_id: float(r.gl_balance or 0) for r in part_gl.all()}
+        part_rows = db.session.query(Partner.id, Partner.current_balance).filter(
+            Partner.current_balance.isnot(None),
+            func.abs(Partner.current_balance) >= 0.01,
+        ).all()
+        part_balances = {int(r.id): float(r.current_balance or 0) for r in part_rows}
 
         for cid, balance in cust_balances.items():
             if not cid:

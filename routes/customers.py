@@ -1208,16 +1208,58 @@ def account_statement(customer_id):
     
     for s in sales:
         sale_lines = getattr(s, 'lines', []) or []
+        sale_discount_total = D(getattr(s, "discount_total", 0) or 0)
+        sale_shipping = D(getattr(s, "shipping_cost", 0) or 0)
+        sale_tax_rate = D(getattr(s, "tax_rate", 0) or 0)
         items = []
+        subtotal = D(0)
         for line in sale_lines:
+            qty = D(getattr(line, "quantity", 0) or 0)
+            unit = D(getattr(line, "unit_price", 0) or 0)
+            disc = D(getattr(line, "discount_rate", 0) or 0)
+            line_net = qty * unit * (Decimal("1") - (disc / Decimal("100")))
+            if line_net < 0:
+                line_net = D(0)
+            subtotal += line_net
             product = getattr(line, 'product', None)
             items.append({
                 'name': getattr(product, 'name', 'منتج') if product else 'منتج',
                 'quantity': getattr(line, 'quantity', 0),
                 'unit_price': D(getattr(line, 'unit_price', 0) or 0),
-                'total': D(getattr(line, 'line_total', 0) or 0),
+                'total': utils.q2(line_net),
                 'receiver': getattr(line, 'line_receiver', None) or '',
                 'note': getattr(line, 'note', None) or ''
+            })
+        if sale_discount_total != 0:
+            items.append({
+                'name': 'خصم الفاتورة',
+                'quantity': 1,
+                'unit_price': utils.q2(-sale_discount_total),
+                'total': utils.q2(-sale_discount_total),
+                'receiver': '',
+                'note': ''
+            })
+        if sale_shipping != 0:
+            items.append({
+                'name': 'الشحن',
+                'quantity': 1,
+                'unit_price': utils.q2(sale_shipping),
+                'total': utils.q2(sale_shipping),
+                'receiver': '',
+                'note': ''
+            })
+        base_for_tax = subtotal - sale_discount_total + sale_shipping
+        if base_for_tax < 0:
+            base_for_tax = D(0)
+        tax_amount = base_for_tax * sale_tax_rate / Decimal("100")
+        if tax_amount != 0:
+            items.append({
+                'name': 'ضريبة البيع',
+                'quantity': 1,
+                'unit_price': utils.q2(tax_amount),
+                'total': utils.q2(tax_amount),
+                'receiver': '',
+                'note': ''
             })
         
         entries.append({

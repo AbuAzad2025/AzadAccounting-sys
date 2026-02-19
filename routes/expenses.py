@@ -372,6 +372,24 @@ def _default_expense_branch_id():
     return branch.id if branch else None
 
 
+def _ensure_expense_type_supplier(type_name: str):
+    name = f"حساب مصروف - {type_name}".strip()
+    if not name:
+        return None
+    q = Supplier.query.filter(Supplier.name == name)
+    if hasattr(Supplier, "is_archived"):
+        active = q.filter(Supplier.is_archived.is_(False)).first()
+        if active:
+            return active
+    existing = q.first()
+    if existing:
+        return existing
+    s = Supplier(name=name)
+    db.session.add(s)
+    db.session.flush()
+    return s
+
+
 def _expense_related_entity_pairs(expense):
     pairs = set()
     if not expense:
@@ -2039,6 +2057,29 @@ def add():
             except (TypeError, ValueError):
                 pass
 
+        if (
+            not exp.customer_id
+            and not exp.supplier_id
+            and not exp.partner_id
+            and not exp.employee_id
+            and not exp.utility_account_id
+        ):
+            ptype = (exp.payee_type or "").strip().upper()
+            if not (ptype in {"CUSTOMER", "SUPPLIER", "PARTNER", "EMPLOYEE"} and exp.payee_entity_id):
+                etype = db.session.get(ExpenseType, exp.type_id) if exp.type_id else None
+                type_name = (etype.name if etype else "") or ""
+                if type_name:
+                    sup = _ensure_expense_type_supplier(type_name)
+                    if sup:
+                        exp.supplier_id = sup.id
+                        exp.payee_type = "SUPPLIER"
+                        exp.payee_entity_id = sup.id
+                        exp.payee_name = sup.name
+                        if not exp.paid_to:
+                            exp.paid_to = sup.name
+                        if not exp.beneficiary_name:
+                            exp.beneficiary_name = sup.name
+
         partial_payload_raw = request.form.get("partial_payments_payload")
         partial_entries = _parse_partial_payments_payload(
             partial_payload_raw,
@@ -2211,7 +2252,9 @@ def add():
             db.session.rollback()
             error_msg = str(err).lower()
             
-            if "foreign key mismatch" in error_msg:
+            if "expense.entity_required" in error_msg:
+                flash("❌ يجب اختيار جهة للمصروف (مورد/عميل/شريك/موظف) قبل الحفظ.", "danger")
+            elif "foreign key mismatch" in error_msg:
                 flash("⚠️ يوجد خطأ في إعدادات قاعدة البيانات - يرجى التواصل مع الدعم الفني", "warning")
                 current_app.logger.error(f"Foreign key mismatch في المصروفات: {err}")
             elif "foreign key" in error_msg:
@@ -2627,7 +2670,11 @@ def edit(exp_id):
             return redirect(url_for("expenses_bp.list_expenses"))
         except ValueError as perr:
             db.session.rollback()
-            flash(str(perr), "danger")
+            perr_msg = str(perr)
+            if "expense.entity_required" in perr_msg:
+                flash("❌ يجب اختيار جهة للمصروف (مورد/عميل/شريك/موظف) قبل الحفظ.", "danger")
+            else:
+                flash(perr_msg, "danger")
         except SQLAlchemyError as err:
             db.session.rollback()
             flash(f"❌ خطأ في تعديل المصروف: {err}", "danger")

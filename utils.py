@@ -240,6 +240,7 @@ def init_app(app):
     app.context_processor(_acl_ctx)
 
     _install_acl_cache_listeners()
+    _install_accounting_listeners()
 
 def send_email_notification(subject: str, recipients: List[str], body: str, html: Optional[str] = None):
     mail.send(Message(subject=subject, recipients=recipients, body=body, html=html))

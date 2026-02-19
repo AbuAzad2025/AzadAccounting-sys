@@ -633,16 +633,12 @@ def update_supplier_balance_components(supplier_id, session=None, emit: bool = T
                     pass
             
             supplier_rights = (
-                Decimal(str(components.get('exchange_items_balance', 0) or 0)) +
                 Decimal(str(components.get('expenses_service_supply', 0) or 0)) +
+                Decimal(str(components.get('expenses_normal', 0) or 0)) +
                 Decimal(str(components.get('sale_returns_from_supplier', 0) or 0)) +
-                Decimal(str(components.get('returned_checks_out_balance', 0) or 0)) +
-                Decimal(str(components.get('payments_in_balance', 0) or 0))
+                Decimal(str(components.get('returned_checks_out_balance', 0) or 0))
             )
             supplier_obligations = (
-                Decimal(str(components.get('sales_balance', 0) or 0)) +
-                Decimal(str(components.get('services_balance', 0) or 0)) +
-                Decimal(str(components.get('expenses_normal', 0) or 0)) +
                 Decimal(str(components.get('returned_checks_in_balance', 0) or 0)) +
                 Decimal(str(components.get('payments_out_balance', 0) or 0)) +
                 Decimal(str(components.get('returns_balance', 0) or 0))
@@ -695,16 +691,12 @@ def update_supplier_balance_components(supplier_id, session=None, emit: bool = T
                     pass
             
             supplier_rights = (
-                Decimal(str(components.get('exchange_items_balance', 0) or 0)) +
                 Decimal(str(components.get('expenses_service_supply', 0) or 0)) +
+                Decimal(str(components.get('expenses_normal', 0) or 0)) +
                 Decimal(str(components.get('sale_returns_from_supplier', 0) or 0)) +
-                Decimal(str(components.get('returned_checks_out_balance', 0) or 0)) +
-                Decimal(str(components.get('payments_in_balance', 0) or 0))
+                Decimal(str(components.get('returned_checks_out_balance', 0) or 0))
             )
             supplier_obligations = (
-                Decimal(str(components.get('sales_balance', 0) or 0)) +
-                Decimal(str(components.get('services_balance', 0) or 0)) +
-                Decimal(str(components.get('expenses_normal', 0) or 0)) +
                 Decimal(str(components.get('returned_checks_in_balance', 0) or 0)) +
                 Decimal(str(components.get('payments_out_balance', 0) or 0)) +
                 Decimal(str(components.get('returns_balance', 0) or 0))
@@ -787,17 +779,13 @@ def build_supplier_balance_view(supplier_id, session=None):
             pass
 
     rights_rows = [
-        {"key": "exchange_items_balance", "label": "توريدات قطع", "amount": _component("exchange_items_balance"), "flow": "SUPPLY"},
         {"key": "expenses_service_supply", "label": "توريد خدمة", "amount": _component("expenses_service_supply"), "flow": "SERVICE_SUPPLY"},
+        {"key": "expenses_normal", "label": "مصروفات عادية", "amount": _component("expenses_normal"), "flow": "EXPENSE"},
         {"key": "sale_returns_from_supplier", "label": "مرتجع مبيعات (من المورد)", "amount": _component("sale_returns_from_supplier"), "flow": "SALE_RETURN_SUPPLIER"},
         {"key": "returned_checks_out_balance", "label": "شيكات صادرة له ومرتجعة", "amount": _component("returned_checks_out_balance"), "flow": "RETURNED_OUT"},
-        {"key": "payments_in_balance", "label": "دفعات دفعها لنا", "amount": _component("payments_in_balance"), "flow": "PAYMENT_IN"},
     ]
 
     obligations_rows = [
-        {"key": "sales_balance", "label": "مبيعات له", "amount": _component("sales_balance"), "flow": "SALE"},
-        {"key": "services_balance", "label": "صيانة له", "amount": _component("services_balance"), "flow": "SERVICE"},
-        {"key": "expenses_normal", "label": "مصروفات عادية", "amount": _component("expenses_normal"), "flow": "EXPENSE"},
         {"key": "returned_checks_in_balance", "label": "شيكات واردة منه ومرتجعة", "amount": _component("returned_checks_in_balance"), "flow": "RETURNED_IN"},
         {"key": "payments_out_balance", "label": "دفعات دفعنا له", "amount": _component("payments_out_balance"), "flow": "PAYMENT_OUT"},
         {"key": "returns_balance", "label": "مرتجعات توريد", "amount": _component("returns_balance"), "flow": "RETURN_SUPPLY"},

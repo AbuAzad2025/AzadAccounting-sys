@@ -1389,6 +1389,18 @@ def receivables_payables():
                             GLBatch.entity_id == partner.id,
                             Account.code == '2000_AP'
                         ).scalar() or 0
+                        ar_balance = 0
+                        if partner.customer_id:
+                            ar_balance = db.session.query(
+                                func.coalesce(func.sum(GLEntry.debit - GLEntry.credit), 0)
+                            ).join(GLBatch).join(Account).filter(
+                                GLBatch.status == 'POSTED',
+                                GLBatch.posted_at <= as_of_dt,
+                                GLBatch.entity_type == 'CUSTOMER',
+                                GLBatch.entity_id == partner.customer_id,
+                                Account.code == '1100_AR'
+                            ).scalar() or 0
+                        gl_balance = float(gl_balance) - float(ar_balance)
                         
                         is_owed_by_us = balance > 0
                         

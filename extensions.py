@@ -1068,7 +1068,7 @@ def init_extensions(app):
                         .subquery()
                     )
 
-                    partner_gl_sq = (
+                    partner_ap_sq = (
                         db.session.query(
                             GLBatch.entity_id.label("entity_id"),
                             func.coalesce(func.sum(GLEntry.credit - GLEntry.debit), 0).label("gl_balance"),
@@ -1081,6 +1081,35 @@ def init_extensions(app):
                             GLEntry.account == ap_account,
                         )
                         .group_by(GLBatch.entity_id)
+                        .subquery()
+                    )
+                    partner_ar_sq = (
+                        db.session.query(
+                            Partner.id.label("entity_id"),
+                            func.coalesce(func.sum(GLEntry.debit - GLEntry.credit), 0).label("gl_balance"),
+                        )
+                        .join(GLBatch, GLBatch.entity_id == Partner.customer_id)
+                        .join(GLEntry, GLEntry.batch_id == GLBatch.id)
+                        .filter(
+                            GLBatch.status == "POSTED",
+                            GLBatch.posted_at <= as_of_dt,
+                            GLBatch.entity_type == "CUSTOMER",
+                            GLEntry.account == ar_account,
+                            Partner.customer_id.isnot(None),
+                        )
+                        .group_by(Partner.id)
+                        .subquery()
+                    )
+                    partner_gl_sq = (
+                        db.session.query(
+                            Partner.id.label("entity_id"),
+                            (
+                                func.coalesce(partner_ap_sq.c.gl_balance, 0)
+                                - func.coalesce(partner_ar_sq.c.gl_balance, 0)
+                            ).label("gl_balance"),
+                        )
+                        .outerjoin(partner_ap_sq, partner_ap_sq.c.entity_id == Partner.id)
+                        .outerjoin(partner_ar_sq, partner_ar_sq.c.entity_id == Partner.id)
                         .subquery()
                     )
 
@@ -1210,7 +1239,7 @@ def init_extensions(app):
                         .group_by(GLBatch.entity_id)
                         .subquery()
                     )
-                    partner_gl_sq = (
+                    partner_ap_sq = (
                         db.session.query(
                             GLBatch.entity_id.label("entity_id"),
                             func.coalesce(func.sum(GLEntry.credit - GLEntry.debit), 0).label("gl_balance"),
@@ -1223,6 +1252,35 @@ def init_extensions(app):
                             GLEntry.account == ap_account,
                         )
                         .group_by(GLBatch.entity_id)
+                        .subquery()
+                    )
+                    partner_ar_sq = (
+                        db.session.query(
+                            Partner.id.label("entity_id"),
+                            func.coalesce(func.sum(GLEntry.debit - GLEntry.credit), 0).label("gl_balance"),
+                        )
+                        .join(GLBatch, GLBatch.entity_id == Partner.customer_id)
+                        .join(GLEntry, GLEntry.batch_id == GLBatch.id)
+                        .filter(
+                            GLBatch.status == "POSTED",
+                            GLBatch.posted_at <= as_of_dt,
+                            GLBatch.entity_type == "CUSTOMER",
+                            GLEntry.account == ar_account,
+                            Partner.customer_id.isnot(None),
+                        )
+                        .group_by(Partner.id)
+                        .subquery()
+                    )
+                    partner_gl_sq = (
+                        db.session.query(
+                            Partner.id.label("entity_id"),
+                            (
+                                func.coalesce(partner_ap_sq.c.gl_balance, 0)
+                                - func.coalesce(partner_ar_sq.c.gl_balance, 0)
+                            ).label("gl_balance"),
+                        )
+                        .outerjoin(partner_ap_sq, partner_ap_sq.c.entity_id == Partner.id)
+                        .outerjoin(partner_ar_sq, partner_ar_sq.c.entity_id == Partner.id)
                         .subquery()
                     )
 

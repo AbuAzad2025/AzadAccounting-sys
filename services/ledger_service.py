@@ -119,6 +119,94 @@ class LedgerCache:
 
 class SmartEntityExtractor:
     @staticmethod
+    def _extract_entity_from_expense(expense: Expense) -> Optional[Tuple[str, str, Optional[int], Optional[str]]]:
+        if not expense:
+            return None
+        if expense.customer_id:
+            entity_info = LedgerCache.get_entity("CUSTOMER", expense.customer_id)
+            if entity_info:
+                return (entity_info["name"], entity_info["type_ar"], entity_info["id"], entity_info["type"])
+        if expense.supplier_id:
+            entity_info = LedgerCache.get_entity("SUPPLIER", expense.supplier_id)
+            if entity_info:
+                return (entity_info["name"], entity_info["type_ar"], entity_info["id"], entity_info["type"])
+        if expense.partner_id:
+            entity_info = LedgerCache.get_entity("PARTNER", expense.partner_id)
+            if entity_info:
+                return (entity_info["name"], entity_info["type_ar"], entity_info["id"], entity_info["type"])
+        if expense.employee_id:
+            entity_info = LedgerCache.get_entity("EMPLOYEE", expense.employee_id)
+            if entity_info:
+                return (entity_info["name"], entity_info["type_ar"], entity_info["id"], entity_info["type"])
+        payee_type = (getattr(expense, "payee_type", "") or "").strip().upper()
+        payee_entity_id = getattr(expense, "payee_entity_id", None)
+        if payee_type in {"CUSTOMER", "SUPPLIER", "PARTNER", "EMPLOYEE"} and payee_entity_id:
+            entity_info = LedgerCache.get_entity(payee_type, payee_entity_id)
+            if entity_info:
+                return (entity_info["name"], entity_info["type_ar"], entity_info["id"], entity_info["type"])
+        return None
+
+    @staticmethod
+    def _extract_entity_from_payment(payment: Payment) -> Optional[Tuple[str, str, Optional[int], Optional[str]]]:
+        if not payment:
+            return None
+        if payment.customer_id:
+            entity_info = LedgerCache.get_entity("CUSTOMER", payment.customer_id)
+            if entity_info:
+                return (entity_info["name"], entity_info["type_ar"], entity_info["id"], entity_info["type"])
+        if payment.supplier_id:
+            entity_info = LedgerCache.get_entity("SUPPLIER", payment.supplier_id)
+            if entity_info:
+                return (entity_info["name"], entity_info["type_ar"], entity_info["id"], entity_info["type"])
+        if payment.partner_id:
+            entity_info = LedgerCache.get_entity("PARTNER", payment.partner_id)
+            if entity_info:
+                return (entity_info["name"], entity_info["type_ar"], entity_info["id"], entity_info["type"])
+        if payment.expense_id:
+            exp_entity = SmartEntityExtractor._extract_entity_from_expense(payment.expense)
+            if exp_entity:
+                return exp_entity
+        if payment.sale_id:
+            sale = payment.sale or db.session.get(Sale, payment.sale_id)
+            if sale and sale.customer_id:
+                entity_info = LedgerCache.get_entity("CUSTOMER", sale.customer_id)
+                if entity_info:
+                    return (entity_info["name"], entity_info["type_ar"], entity_info["id"], entity_info["type"])
+        if payment.invoice_id:
+            invoice = payment.invoice or db.session.get(Invoice, payment.invoice_id)
+            if invoice:
+                if invoice.customer_id:
+                    entity_info = LedgerCache.get_entity("CUSTOMER", invoice.customer_id)
+                    if entity_info:
+                        return (entity_info["name"], entity_info["type_ar"], entity_info["id"], entity_info["type"])
+                if invoice.supplier_id:
+                    entity_info = LedgerCache.get_entity("SUPPLIER", invoice.supplier_id)
+                    if entity_info:
+                        return (entity_info["name"], entity_info["type_ar"], entity_info["id"], entity_info["type"])
+        if payment.service_id:
+            service = payment.service or db.session.get(ServiceRequest, payment.service_id)
+            if service and service.customer_id:
+                entity_info = LedgerCache.get_entity("CUSTOMER", service.customer_id)
+                if entity_info:
+                    return (entity_info["name"], entity_info["type_ar"], entity_info["id"], entity_info["type"])
+        if payment.preorder_id:
+            preorder = payment.preorder or db.session.get(PreOrder, payment.preorder_id)
+            if preorder:
+                if preorder.customer_id:
+                    entity_info = LedgerCache.get_entity("CUSTOMER", preorder.customer_id)
+                    if entity_info:
+                        return (entity_info["name"], entity_info["type_ar"], entity_info["id"], entity_info["type"])
+                if preorder.supplier_id:
+                    entity_info = LedgerCache.get_entity("SUPPLIER", preorder.supplier_id)
+                    if entity_info:
+                        return (entity_info["name"], entity_info["type_ar"], entity_info["id"], entity_info["type"])
+                if preorder.partner_id:
+                    entity_info = LedgerCache.get_entity("PARTNER", preorder.partner_id)
+                    if entity_info:
+                        return (entity_info["name"], entity_info["type_ar"], entity_info["id"], entity_info["type"])
+        return None
+
+    @staticmethod
     def extract_from_batch(batch: GLBatch) -> Tuple[str, str, Optional[int], Optional[str]]:
         if batch.entity_type and batch.entity_id:
             entity_info = LedgerCache.get_entity(batch.entity_type, batch.entity_id)
@@ -138,36 +226,18 @@ class SmartEntityExtractor:
                 if source_type == 'PAYMENT':
                     payment = db.session.get(Payment, source_id)
                     if payment:
-                        if payment.customer_id:
-                            entity_info = LedgerCache.get_entity('CUSTOMER', payment.customer_id)
-                            if entity_info:
-                                return (entity_info['name'], entity_info['type_ar'], entity_info['id'], entity_info['type'])
-                        elif payment.supplier_id:
-                            entity_info = LedgerCache.get_entity('SUPPLIER', payment.supplier_id)
-                            if entity_info:
-                                return (entity_info['name'], entity_info['type_ar'], entity_info['id'], entity_info['type'])
-                        elif payment.partner_id:
-                            entity_info = LedgerCache.get_entity('PARTNER', payment.partner_id)
-                            if entity_info:
-                                return (entity_info['name'], entity_info['type_ar'], entity_info['id'], entity_info['type'])
+                        pay_entity = SmartEntityExtractor._extract_entity_from_payment(payment)
+                        if pay_entity:
+                            return pay_entity
                 
                 elif source_type == 'PAYMENT_SPLIT':
                     # ✅ دعم PAYMENT_SPLIT - جلب Payment من PaymentSplit
                     split = db.session.get(PaymentSplit, source_id)
                     if split and split.payment:
                         payment = split.payment
-                        if payment.customer_id:
-                            entity_info = LedgerCache.get_entity('CUSTOMER', payment.customer_id)
-                            if entity_info:
-                                return (entity_info['name'], entity_info['type_ar'], entity_info['id'], entity_info['type'])
-                        elif payment.supplier_id:
-                            entity_info = LedgerCache.get_entity('SUPPLIER', payment.supplier_id)
-                            if entity_info:
-                                return (entity_info['name'], entity_info['type_ar'], entity_info['id'], entity_info['type'])
-                        elif payment.partner_id:
-                            entity_info = LedgerCache.get_entity('PARTNER', payment.partner_id)
-                            if entity_info:
-                                return (entity_info['name'], entity_info['type_ar'], entity_info['id'], entity_info['type'])
+                        pay_entity = SmartEntityExtractor._extract_entity_from_payment(payment)
+                        if pay_entity:
+                            return pay_entity
                 
                 elif source_type == 'SALE':
                     sale = db.session.get(Sale, source_id)
@@ -254,35 +324,17 @@ class SmartEntityExtractor:
             if source_type == 'PAYMENT':
                 payment = db.session.get(Payment, source_id)
                 if payment:
-                    if payment.customer_id:
-                        entity_info = LedgerCache.get_entity('CUSTOMER', payment.customer_id)
-                        if entity_info:
-                            return (entity_info['name'], entity_info['type_ar'], entity_info['id'], entity_info['type'])
-                    elif payment.supplier_id:
-                        entity_info = LedgerCache.get_entity('SUPPLIER', payment.supplier_id)
-                        if entity_info:
-                            return (entity_info['name'], entity_info['type_ar'], entity_info['id'], entity_info['type'])
-                    elif payment.partner_id:
-                        entity_info = LedgerCache.get_entity('PARTNER', payment.partner_id)
-                        if entity_info:
-                            return (entity_info['name'], entity_info['type_ar'], entity_info['id'], entity_info['type'])
+                    pay_entity = SmartEntityExtractor._extract_entity_from_payment(payment)
+                    if pay_entity:
+                        return pay_entity
 
             if source_type == 'PAYMENT_SPLIT':
                 split = db.session.get(PaymentSplit, source_id)
                 if split and split.payment:
                     payment = split.payment
-                    if payment.customer_id:
-                        entity_info = LedgerCache.get_entity('CUSTOMER', payment.customer_id)
-                        if entity_info:
-                            return (entity_info['name'], entity_info['type_ar'], entity_info['id'], entity_info['type'])
-                    elif payment.supplier_id:
-                        entity_info = LedgerCache.get_entity('SUPPLIER', payment.supplier_id)
-                        if entity_info:
-                            return (entity_info['name'], entity_info['type_ar'], entity_info['id'], entity_info['type'])
-                    elif payment.partner_id:
-                        entity_info = LedgerCache.get_entity('PARTNER', payment.partner_id)
-                        if entity_info:
-                            return (entity_info['name'], entity_info['type_ar'], entity_info['id'], entity_info['type'])
+                    pay_entity = SmartEntityExtractor._extract_entity_from_payment(payment)
+                    if pay_entity:
+                        return pay_entity
 
             if source_type == 'SALE':
                 sale = db.session.get(Sale, source_id)

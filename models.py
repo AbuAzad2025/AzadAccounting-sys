@@ -2261,38 +2261,89 @@ def _customer_normalize(_m, _c, t: Customer):
     t.currency = (t.currency or "ILS").upper()
 
 
+def _opening_balance_expected_net(opening_balance: float) -> float:
+    if opening_balance > 0:
+        return -abs(opening_balance)
+    return abs(opening_balance)
+
+
+def _opening_balance_posted_batch(connection, *, source_type: str, source_id: int, account_code: str):
+    dialect_name = getattr(getattr(connection, "dialect", None), "name", "")
+    batch_table = "public.gl_batches" if dialect_name == "postgresql" else "gl_batches"
+    entry_table = "public.gl_entries" if dialect_name == "postgresql" else "gl_entries"
+    return connection.execute(
+        sa_text(
+            f"""
+            SELECT b.id AS id, COALESCE(SUM(e.debit - e.credit), 0) AS net
+            FROM {batch_table} b
+            JOIN {entry_table} e ON e.batch_id = b.id
+            WHERE b.source_type = :st AND b.source_id = :sid AND b.purpose = 'OPENING_BALANCE'
+              AND b.status = 'POSTED' AND e.account = :acc
+            GROUP BY b.id
+            ORDER BY b.id DESC
+            LIMIT 1
+            """
+        ),
+        {"st": source_type, "sid": int(source_id), "acc": str(account_code or "").strip().upper()},
+    ).mappings().first()
+
+
+def _delete_opening_balance_batches(connection, *, source_type: str, source_id: int):
+    dialect_name = getattr(getattr(connection, "dialect", None), "name", "")
+    batch_table = "public.gl_batches" if dialect_name == "postgresql" else "gl_batches"
+    entry_table = "public.gl_entries" if dialect_name == "postgresql" else "gl_entries"
+    connection.execute(
+        sa_text(
+            f"""
+            DELETE FROM {entry_table}
+            WHERE batch_id IN (
+                SELECT id FROM {batch_table}
+                WHERE source_type = :st AND source_id = :sid AND purpose = 'OPENING_BALANCE'
+            )
+            """
+        ),
+        {"st": source_type, "sid": int(source_id)},
+    )
+    connection.execute(
+        sa_text(
+            f"""
+            DELETE FROM {batch_table}
+            WHERE source_type = :st AND source_id = :sid AND purpose = 'OPENING_BALANCE'
+            """
+        ),
+        {"st": source_type, "sid": int(source_id)},
+    )
+
+
 @event.listens_for(Customer, "after_insert")
 @event.listens_for(Customer, "after_update")
 def _customer_opening_balance_gl(mapper, connection, target: "Customer"):
     try:
         opening_balance = float(getattr(target, 'opening_balance', 0) or 0)
         if opening_balance == 0:
-            existing_batch = connection.execute(
-                sa_text("""
-                    SELECT COUNT(1) FROM gl_batches
-                     WHERE source_type = 'CUSTOMER' AND source_id = :sid AND purpose = 'OPENING_BALANCE'
-                """),
-                {"sid": target.id}
-            ).scalar() or 0
-            if int(existing_batch) > 0:
-                connection.execute(
-                    sa_text("""
-                        DELETE FROM gl_batches
-                         WHERE source_type = 'CUSTOMER' AND source_id = :sid AND purpose = 'OPENING_BALANCE'
-                           AND status <> 'POSTED'
-                    """),
-                    {"sid": target.id}
-                )
+            _delete_opening_balance_batches(connection, source_type="CUSTOMER", source_id=target.id)
             return
+        expected_net = _opening_balance_expected_net(opening_balance)
+        account_code = GL_ACCOUNTS.get("AR", "1100_AR")
+        existing = _opening_balance_posted_batch(
+            connection,
+            source_type="CUSTOMER",
+            source_id=target.id,
+            account_code=account_code,
+        )
+        if existing and abs(float(existing["net"] or 0) - float(expected_net)) <= 0.01:
+            return
+        if existing:
+            _delete_opening_balance_batches(connection, source_type="CUSTOMER", source_id=target.id)
         
         if opening_balance > 0:
             entries = [
                 ("3000_EQUITY", abs(opening_balance), 0),
-                (GL_ACCOUNTS.get("AR", "1100_AR"), 0, abs(opening_balance)),
+                (account_code, 0, abs(opening_balance)),
             ]
         else:
             entries = [
-                (GL_ACCOUNTS.get("AR", "1100_AR"), abs(opening_balance), 0),
+                (account_code, abs(opening_balance), 0),
                 ("3000_EQUITY", 0, abs(opening_balance)),
             ]
         
@@ -2623,32 +2674,29 @@ def _supplier_opening_balance_gl(mapper, connection, target: "Supplier"):
     try:
         opening_balance = float(getattr(target, 'opening_balance', 0) or 0)
         if opening_balance == 0:
-            existing_batch = connection.execute(
-                sa_text("""
-                    SELECT COUNT(1) FROM gl_batches
-                     WHERE source_type = 'SUPPLIER' AND source_id = :sid AND purpose = 'OPENING_BALANCE'
-                """),
-                {"sid": target.id}
-            ).scalar() or 0
-            if int(existing_batch) > 0:
-                connection.execute(
-                    sa_text("""
-                        DELETE FROM gl_batches
-                         WHERE source_type = 'SUPPLIER' AND source_id = :sid AND purpose = 'OPENING_BALANCE'
-                           AND status <> 'POSTED'
-                    """),
-                    {"sid": target.id}
-                )
+            _delete_opening_balance_batches(connection, source_type="SUPPLIER", source_id=target.id)
             return
+        expected_net = _opening_balance_expected_net(opening_balance)
+        account_code = GL_ACCOUNTS.get("AP", "2000_AP")
+        existing = _opening_balance_posted_batch(
+            connection,
+            source_type="SUPPLIER",
+            source_id=target.id,
+            account_code=account_code,
+        )
+        if existing and abs(float(existing["net"] or 0) - float(expected_net)) <= 0.01:
+            return
+        if existing:
+            _delete_opening_balance_batches(connection, source_type="SUPPLIER", source_id=target.id)
         
         if opening_balance > 0:
             entries = [
                 ("3000_EQUITY", abs(opening_balance), 0),
-                (GL_ACCOUNTS.get("AP", "2000_AP"), 0, abs(opening_balance)),
+                (account_code, 0, abs(opening_balance)),
             ]
         else:
             entries = [
-                (GL_ACCOUNTS.get("AP", "2000_AP"), abs(opening_balance), 0),
+                (account_code, abs(opening_balance), 0),
                 ("3000_EQUITY", 0, abs(opening_balance)),
             ]
         
@@ -3264,32 +3312,29 @@ def _partner_opening_balance_gl(mapper, connection, target: "Partner"):
     try:
         opening_balance = float(getattr(target, 'opening_balance', 0) or 0)
         if opening_balance == 0:
-            existing_batch = connection.execute(
-                sa_text("""
-                    SELECT COUNT(1) FROM gl_batches
-                     WHERE source_type = 'PARTNER' AND source_id = :sid AND purpose = 'OPENING_BALANCE'
-                """),
-                {"sid": target.id}
-            ).scalar() or 0
-            if int(existing_batch) > 0:
-                connection.execute(
-                    sa_text("""
-                        DELETE FROM gl_batches
-                         WHERE source_type = 'PARTNER' AND source_id = :sid AND purpose = 'OPENING_BALANCE'
-                           AND status <> 'POSTED'
-                    """),
-                    {"sid": target.id}
-                )
+            _delete_opening_balance_batches(connection, source_type="PARTNER", source_id=target.id)
             return
+        expected_net = _opening_balance_expected_net(opening_balance)
+        account_code = GL_ACCOUNTS.get("AP", "2000_AP")
+        existing = _opening_balance_posted_batch(
+            connection,
+            source_type="PARTNER",
+            source_id=target.id,
+            account_code=account_code,
+        )
+        if existing and abs(float(existing["net"] or 0) - float(expected_net)) <= 0.01:
+            return
+        if existing:
+            _delete_opening_balance_batches(connection, source_type="PARTNER", source_id=target.id)
         
         if opening_balance > 0:
             entries = [
                 ("3000_EQUITY", abs(opening_balance), 0),
-                (GL_ACCOUNTS.get("AP", "2000_AP"), 0, abs(opening_balance)),
+                (account_code, 0, abs(opening_balance)),
             ]
         else:
             entries = [
-                (GL_ACCOUNTS.get("AP", "2000_AP"), abs(opening_balance), 0),
+                (account_code, abs(opening_balance), 0),
                 ("3000_EQUITY", 0, abs(opening_balance)),
             ]
         
@@ -3529,9 +3574,25 @@ def _find_partner_share_percentage(partner_id: int, product_id: int | None, ware
         )
         if row2:
             return float(row2[0] or 0)
+        if warehouse_id:
+            row = (
+                db.session.query(WarehousePartnerShare.share_percentage)
+                .filter(
+                    WarehousePartnerShare.partner_id == partner_id,
+                    WarehousePartnerShare.product_id == product_id,
+                    WarehousePartnerShare.warehouse_id == warehouse_id,
+                )
+                .first()
+            )
+            if row:
+                return float(row[0] or 0)
         row = (
             db.session.query(WarehousePartnerShare.share_percentage)
-            .filter(WarehousePartnerShare.partner_id == partner_id, WarehousePartnerShare.product_id == product_id)
+            .filter(
+                WarehousePartnerShare.partner_id == partner_id,
+                WarehousePartnerShare.product_id == product_id,
+                WarehousePartnerShare.warehouse_id.is_(None),
+            )
             .first()
         )
         if row:
@@ -5532,11 +5593,15 @@ def _sale_gl_upsert_core(connection, target: "Sale") -> None:
     if not sale_lines:
         return
     entries = []
-    total_revenue_company = Decimal(0)
-    total_revenue_company_base = Decimal(0)
-    total_revenue_company_tax = Decimal(0)
+    def _q2(v: Decimal) -> Decimal:
+        return (v or Decimal(0)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    global_discount = _q2(Decimal(str(target.discount_total or 0)) * exchange_rate)
+    shipping_income = _q2(Decimal(str(target.shipping_cost or 0)) * exchange_rate)
     total_revenue_partners = {}
     total_cogs_suppliers = {}
+    line_details = []
+    subtotal_base_ils = Decimal(0)
+    total_tax_ils = Decimal(0)
     for line in sale_lines:
         line_id, product_id, warehouse_id, qty, unit_price, disc_rate, tax_rate = line
         gross = Decimal(str(qty or 0)) * Decimal(str(unit_price or 0))
@@ -5546,39 +5611,48 @@ def _sale_gl_upsert_core(connection, target: "Sale") -> None:
         line_base_ils = taxable * exchange_rate
         line_tax_ils = tax * exchange_rate
         line_total = line_base_ils + line_tax_ils
+        subtotal_base_ils += line_base_ils
+        total_tax_ils += line_tax_ils
+        line_details.append(
+            (product_id, warehouse_id, qty, line_base_ils, line_total)
+        )
+    for product_id, warehouse_id, qty, line_base_ils, line_total in line_details:
         wh_result = connection.execute(
             sa_text("SELECT warehouse_type, partner_id, supplier_id, share_percent FROM warehouses WHERE id = :wid"),
             {"wid": warehouse_id},
         ).fetchone()
-        if not wh_result:
-            total_revenue_company += line_total
-            total_revenue_company_base += line_base_ils
-            total_revenue_company_tax += line_tax_ils
-            continue
-        wh_type, wh_partner_id, wh_supplier_id, wh_share_pct = wh_result
+        if wh_result:
+            wh_type, wh_partner_id, wh_supplier_id, wh_share_pct = wh_result
+        else:
+            wh_type = None
         if wh_type == 'PARTNER':
             partners_result = connection.execute(
-                sa_text("""
-                    SELECT partner_id, share_percent FROM product_partners WHERE product_id = :pid
-                    UNION
-                    SELECT partner_id, share_percentage FROM warehouse_partner_shares WHERE product_id = :pid AND warehouse_id = :wid
-                """),
-                {"pid": product_id, "wid": warehouse_id},
+                sa_text("SELECT partner_id, share_percent FROM product_partners WHERE product_id = :pid"),
+                {"pid": product_id},
             ).fetchall()
+            if not partners_result:
+                partners_result = connection.execute(
+                    sa_text("SELECT partner_id, share_percentage FROM warehouse_partner_shares WHERE product_id = :pid"),
+                    {"pid": product_id},
+                ).fetchall()
+            if not partners_result and warehouse_id:
+                partners_result = connection.execute(
+                    sa_text(
+                        "SELECT partner_id, share_percentage FROM warehouse_partner_shares WHERE warehouse_id = :wid AND product_id IS NULL"
+                    ),
+                    {"wid": warehouse_id},
+                ).fetchall()
             if partners_result:
-                total_partner_share = sum(Decimal(str(p[1] or 0)) for p in partners_result)
-                company_share_pct = Decimal(100) - total_partner_share
-                if company_share_pct > 0:
-                    total_revenue_company += line_total * (company_share_pct / Decimal(100))
-                    total_revenue_company_base += line_base_ils * (company_share_pct / Decimal(100))
-                    total_revenue_company_tax += line_tax_ils * (company_share_pct / Decimal(100))
+                if subtotal_base_ils > 0:
+                    allocated_discount = (line_base_ils / subtotal_base_ils) * global_discount
+                else:
+                    allocated_discount = Decimal(0)
+                line_base_after_discount = line_base_ils - allocated_discount
+                if line_base_after_discount < 0:
+                    line_base_after_discount = Decimal(0)
                 for partner_id, share_pct in partners_result:
-                    partner_amount = line_total * (Decimal(str(share_pct or 0)) / Decimal(100))
+                    partner_amount = line_base_after_discount * (Decimal(str(share_pct or 0)) / Decimal(100))
                     total_revenue_partners[partner_id] = total_revenue_partners.get(partner_id, Decimal(0)) + partner_amount
-            else:
-                total_revenue_company += line_total
-                total_revenue_company_base += line_base_ils
-                total_revenue_company_tax += line_tax_ils
         elif wh_type == 'EXCHANGE':
             exchange_result = connection.execute(
                 sa_text("""
@@ -5591,28 +5665,10 @@ def _sale_gl_upsert_core(connection, target: "Sale") -> None:
             if exchange_result:
                 supplier_id, unit_cost = exchange_result
                 cogs_amount = Decimal(str(qty or 0)) * Decimal(str(unit_cost or 0))
-                total_revenue_company += line_total
-                total_revenue_company_base += line_base_ils
-                total_revenue_company_tax += line_tax_ils
                 total_cogs_suppliers[supplier_id] = total_cogs_suppliers.get(supplier_id, Decimal(0)) + cogs_amount
-            else:
-                total_revenue_company += line_total
-                total_revenue_company_base += line_base_ils
-                total_revenue_company_tax += line_tax_ils
-        else:
-            total_revenue_company += line_total
-            total_revenue_company_base += line_base_ils
-            total_revenue_company_tax += line_tax_ils
-    def _q2(v: Decimal) -> Decimal:
-        return (v or Decimal(0)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-    global_discount = _q2(Decimal(str(target.discount_total or 0)) * exchange_rate)
-    shipping_income = _q2(Decimal(str(target.shipping_cost or 0)) * exchange_rate)
-    partners_sum = _q2(sum(total_revenue_partners.values()))
-    total_revenue_company_base = _q2(total_revenue_company_base)
-    total_revenue_company_tax = _q2(total_revenue_company_tax)
-    total_revenue_company = _q2(total_revenue_company_base + total_revenue_company_tax)
-    gross_revenue_total = _q2(total_revenue_company + partners_sum)
-    total_credits = _q2(gross_revenue_total + shipping_income)
+    total_revenue_company_base = _q2(subtotal_base_ils)
+    total_revenue_company_tax = _q2(total_tax_ils)
+    total_credits = _q2(total_revenue_company_base + total_revenue_company_tax + shipping_income)
     ar_amount = _q2(total_credits - global_discount)
     if ar_amount <= 0:
         return
@@ -5621,10 +5677,6 @@ def _sale_gl_upsert_core(connection, target: "Sale") -> None:
         entries.append((GL_ACCOUNTS.get("DISCOUNT_ALLOWED", "4050_SALES_DISCOUNT"), global_discount, Decimal(0)))
     if shipping_income > 0:
         entries.append((GL_ACCOUNTS.get("SHIPPING_INCOME", "4200_SHIPPING_INCOME"), Decimal(0), shipping_income))
-    diff = _q2((ar_amount + global_discount) - total_credits)
-    if abs(diff) <= Decimal("0.01"):
-        total_revenue_company = _q2(total_revenue_company + diff)
-        total_revenue_company_base = _q2(total_revenue_company - total_revenue_company_tax)
     if total_revenue_company_base > 0:
         entries.append((GL_ACCOUNTS.get("REV", "4000_SALES"), Decimal(0), total_revenue_company_base))
     if total_revenue_company_tax > 0:
@@ -5636,6 +5688,13 @@ def _sale_gl_upsert_core(connection, target: "Sale") -> None:
             entries.append((GL_ACCOUNTS.get("AP", "2000_AP"), Decimal(0), cogs_amt))
     customer_name = getattr(getattr(target, "customer", None), "name", None) or "Customer"
     memo = f"Sale #{target.sale_number or target.id} - {customer_name}"
+    batch_ids = connection.execute(
+        sa_text("SELECT id FROM gl_batches WHERE source_type = 'SALE' AND source_id = :sid AND purpose = 'REVENUE'"),
+        {"sid": target.id},
+    ).fetchall()
+    for (bid,) in batch_ids:
+        connection.execute(sa_text("DELETE FROM gl_entries WHERE batch_id = :bid"), {"bid": int(bid)})
+        connection.execute(sa_text("DELETE FROM gl_batches WHERE id = :bid"), {"bid": int(bid)})
     _gl_upsert_batch_and_entries(
         connection,
         source_type="SALE",
@@ -5666,7 +5725,10 @@ def _sale_gl_upsert_core(connection, target: "Sale") -> None:
                 purpose=f"PARTNER_{partner_id}",
                 currency="ILS",
                 memo=f"حصة شريك من بيع #{target.sale_number or target.id}",
-                entries=[(GL_ACCOUNTS.get("AP", "2000_AP"), Decimal(0), amt)],
+                entries=[
+                    (GL_ACCOUNTS.get("REV", "4000_SALES"), amt, Decimal(0)),
+                    (GL_ACCOUNTS.get("AP", "2000_AP"), Decimal(0), amt),
+                ],
                 ref=f"SALE-{target.id}-P{partner_id}",
                 entity_type="PARTNER",
                 entity_id=partner_id,
@@ -7479,6 +7541,44 @@ def _payment_gl_upsert_core(connection, target: "Payment") -> None:
     else:
         entries = [(entity_account, amount_ils, 0), (cash_account, 0, amount_ils)]
         memo = f"Payment OUT to {entity_name} - {target.payment_number or target.id}"
+    entity_type_for_gl = target.entity_type
+    entity_id_for_gl = _payment_entity_id_for(target)
+    if target.expense_id:
+        exp_entity_type = None
+        exp_entity_id = None
+        expense_obj = getattr(target, "expense", None)
+        if expense_obj is not None:
+            exp_entity_type, exp_entity_id = _expense_entity_pair(expense_obj)
+        else:
+            try:
+                exp_row = connection.execute(
+                    sa_text("""
+                        SELECT customer_id, supplier_id, partner_id, employee_id, payee_type, payee_entity_id
+                        FROM expenses
+                        WHERE id = :eid
+                    """),
+                    {"eid": int(target.expense_id)},
+                ).mappings().first()
+                if exp_row:
+                    if exp_row.get("customer_id"):
+                        exp_entity_type, exp_entity_id = "CUSTOMER", int(exp_row["customer_id"])
+                    elif exp_row.get("supplier_id"):
+                        exp_entity_type, exp_entity_id = "SUPPLIER", int(exp_row["supplier_id"])
+                    elif exp_row.get("partner_id"):
+                        exp_entity_type, exp_entity_id = "PARTNER", int(exp_row["partner_id"])
+                    elif exp_row.get("employee_id"):
+                        exp_entity_type, exp_entity_id = "EMPLOYEE", int(exp_row["employee_id"])
+                    else:
+                        payee_type = (str(exp_row.get("payee_type") or "")).strip().upper()
+                        payee_entity_id = exp_row.get("payee_entity_id")
+                        if payee_type in {"CUSTOMER", "SUPPLIER", "PARTNER", "EMPLOYEE"} and payee_entity_id:
+                            exp_entity_type, exp_entity_id = payee_type, int(payee_entity_id)
+            except Exception:
+                pass
+        if exp_entity_type and exp_entity_id:
+            entity_type_for_gl = exp_entity_type
+            entity_id_for_gl = exp_entity_id
+
     _gl_upsert_batch_and_entries(
         connection,
         source_type="PAYMENT",
@@ -7488,8 +7588,8 @@ def _payment_gl_upsert_core(connection, target: "Payment") -> None:
         memo=memo,
         entries=entries,
         ref=target.payment_number or f"PMT-{target.id}",
-        entity_type=target.entity_type,
-        entity_id=_payment_entity_id_for(target),
+        entity_type=entity_type_for_gl,
+        entity_id=entity_id_for_gl,
     )
 
 
@@ -7517,6 +7617,11 @@ def run_payment_gl_sync_after_commit(payment_id: int) -> None:
 def build_payment_reversal_snapshot(payment: "Payment") -> dict:
     """لقطة بيانات الدفعة لاستخدامها في قيد العكس بعد الحذف."""
     try:
+        expense_entity_type = None
+        expense_entity_id = None
+        expense_obj = getattr(payment, "expense", None)
+        if getattr(payment, "expense_id", None) and expense_obj is not None:
+            expense_entity_type, expense_entity_id = _expense_entity_pair(expense_obj)
         return {
             "payment_id": payment.id,
             "amount": float(payment.total_amount or 0),
@@ -7527,6 +7632,9 @@ def build_payment_reversal_snapshot(payment: "Payment") -> dict:
             "customer_id": getattr(payment, "customer_id", None),
             "supplier_id": getattr(payment, "supplier_id", None),
             "partner_id": getattr(payment, "partner_id", None),
+            "expense_id": getattr(payment, "expense_id", None),
+            "expense_entity_type": expense_entity_type,
+            "expense_entity_id": expense_entity_id,
             "method": getattr(payment, "method", "CASH"),
         }
     except Exception:
@@ -7560,7 +7668,7 @@ def run_payment_gl_reversal_after_delete(snapshot: dict) -> None:
         cash_account = GL_ACCOUNTS.get(PAYMENT_GL_MAP.get(payment_method, "CASH"), "1000_CASH")
         direction_raw = snapshot.get("direction")
         direction = str(getattr(direction_raw, "value", direction_raw) or "OUT").upper()
-        entity_type = snapshot.get("entity_type") or "OTHER"
+        entity_type = str(snapshot.get("entity_type") or "").strip().upper()
         ar_account = GL_ACCOUNTS.get("AR", "1100_AR")
         ap_account = GL_ACCOUNTS.get("AP", "2000_AP")
         if direction == "IN":
@@ -7574,6 +7682,14 @@ def run_payment_gl_reversal_after_delete(snapshot: dict) -> None:
             else:
                 entries = [(cash_account, 0, amount_ils), (ar_account, amount_ils, 0)]
         entity_id = snapshot.get("customer_id") or snapshot.get("supplier_id") or snapshot.get("partner_id")
+        expense_entity_type = snapshot.get("expense_entity_type")
+        expense_entity_id = snapshot.get("expense_entity_id")
+        if (not entity_type or entity_type == "OTHER") and expense_entity_type:
+            entity_type = str(expense_entity_type).strip().upper()
+        if not entity_id and expense_entity_id:
+            entity_id = expense_entity_id
+        if not entity_type:
+            entity_type = "OTHER"
         try:
             entity_id = int(entity_id) if entity_id is not None else None
         except (TypeError, ValueError):
@@ -8218,6 +8334,31 @@ def _payment_split_gl_batch_upsert_by_id(connection, *, split_id: int) -> None:
 
             is_refunded = payment_status == PaymentStatus.REFUNDED.value
             is_cancelled = payment_status == PaymentStatus.CANCELLED.value
+            if not (is_refunded or is_cancelled):
+                dialect_name = getattr(getattr(connection, "dialect", None), "name", "")
+                batch_table = "public.gl_batches" if dialect_name == "postgresql" else "gl_batches"
+                entry_table = "public.gl_entries" if dialect_name == "postgresql" else "gl_entries"
+                connection.execute(
+                    sa_text(
+                        f"""
+                        DELETE FROM {entry_table}
+                        WHERE batch_id IN (
+                            SELECT id FROM {batch_table}
+                            WHERE source_type = 'PAYMENT_SPLIT' AND source_id = :sid
+                        )
+                        """
+                    ),
+                    {"sid": int(split_id)},
+                )
+                connection.execute(
+                    sa_text(
+                        f"""
+                        DELETE FROM {batch_table}
+                        WHERE source_type = 'PAYMENT_SPLIT' AND source_id = :sid
+                        """
+                    ),
+                    {"sid": int(split_id)},
+                )
 
             amount = float(split_row["converted_amount"] or split_row["amount"] or 0)
             if amount <= 0:
@@ -8287,6 +8428,32 @@ def _payment_split_gl_batch_upsert_by_id(connection, *, split_id: int) -> None:
             elif partner_id:
                 batch_entity_type = "PARTNER"
                 batch_entity_id = int(partner_id)
+            elif payment_row.get("expense_id"):
+                try:
+                    exp_row = connection.execute(
+                        sa_text("""
+                            SELECT customer_id, supplier_id, partner_id, employee_id, payee_type, payee_entity_id
+                            FROM expenses
+                            WHERE id = :eid
+                        """),
+                        {"eid": int(payment_row["expense_id"])},
+                    ).mappings().first()
+                    if exp_row:
+                        if exp_row.get("customer_id"):
+                            batch_entity_type, batch_entity_id = "CUSTOMER", int(exp_row["customer_id"])
+                        elif exp_row.get("supplier_id"):
+                            batch_entity_type, batch_entity_id = "SUPPLIER", int(exp_row["supplier_id"])
+                        elif exp_row.get("partner_id"):
+                            batch_entity_type, batch_entity_id = "PARTNER", int(exp_row["partner_id"])
+                        elif exp_row.get("employee_id"):
+                            batch_entity_type, batch_entity_id = "EMPLOYEE", int(exp_row["employee_id"])
+                        else:
+                            payee_type = (str(exp_row.get("payee_type") or "")).strip().upper()
+                            payee_entity_id = exp_row.get("payee_entity_id")
+                            if payee_type in {"CUSTOMER", "SUPPLIER", "PARTNER", "EMPLOYEE"} and payee_entity_id:
+                                batch_entity_type, batch_entity_id = payee_type, int(payee_entity_id)
+                except Exception:
+                    pass
 
             entity_account = GL_ACCOUNTS.get("AR", "1100_AR")
             entity_name = "عميل"
@@ -8311,10 +8478,12 @@ def _payment_split_gl_batch_upsert_by_id(connection, *, split_id: int) -> None:
                     if expense_type_id:
                         expense_ledger_ctx = _expense_type_ledger_settings(connection, expense_type_id)
                         if expense_ledger_ctx:
-                            if expense_ledger_ctx.get("counterparty_account"):
-                                entity_account = expense_ledger_ctx["counterparty_account"]
-                            elif expense_ledger_ctx.get("behavior") == "IMMEDIATE" and expense_ledger_ctx.get("cash_account"):
-                                entity_account = expense_ledger_ctx["cash_account"]
+                            lock_entity_account = batch_entity_type in {"CUSTOMER", "SUPPLIER", "PARTNER"}
+                            if not lock_entity_account:
+                                if expense_ledger_ctx.get("counterparty_account"):
+                                    entity_account = expense_ledger_ctx["counterparty_account"]
+                                elif expense_ledger_ctx.get("behavior") == "IMMEDIATE" and expense_ledger_ctx.get("cash_account"):
+                                    entity_account = expense_ledger_ctx["cash_account"]
                             if not is_pending_check and expense_ledger_ctx.get("cash_account"):
                                 cash_account = expense_ledger_ctx["cash_account"]
                 except Exception:
@@ -10053,39 +10222,26 @@ def _service_gl_batch_upsert_sql(connection, service_id: int) -> None:
             else:
                 part_id = prow.part_id
                 wh_id = prow.warehouse_id
-                pp_rows = connection.execute(
+                partners_rows = connection.execute(
                     sa_text("SELECT partner_id, share_percent FROM product_partners WHERE product_id = :pid"),
                     {"pid": part_id},
                 ).fetchall()
-                for (partner_id, pct) in pp_rows:
-                    pct = float(pct or 0)
-                    if pct > 0:
-                        partner_totals[partner_id] = partner_totals.get(partner_id, 0.0) + line_total * (pct / 100.0)
-                wps_rows = connection.execute(
-                    sa_text(
-                        "SELECT partner_id, share_percentage FROM warehouse_partner_shares WHERE product_id = :pid AND warehouse_id = :wid"
-                    ),
-                    {"pid": part_id, "wid": wh_id},
-                ).fetchall()
-                for (pid2, pct2) in wps_rows:
-                    if pid2 in partner_totals:
-                        continue
-                    pct2 = float(pct2 or 0)
-                    if pct2 > 0:
-                        partner_totals[pid2] = partner_totals.get(pid2, 0.0) + line_total * (pct2 / 100.0)
-                if wh_id:
-                    wps2 = connection.execute(
+                if not partners_rows:
+                    partners_rows = connection.execute(
+                        sa_text("SELECT partner_id, share_percentage FROM warehouse_partner_shares WHERE product_id = :pid"),
+                        {"pid": part_id},
+                    ).fetchall()
+                if not partners_rows and wh_id:
+                    partners_rows = connection.execute(
                         sa_text(
                             "SELECT partner_id, share_percentage FROM warehouse_partner_shares WHERE warehouse_id = :wid AND product_id IS NULL"
                         ),
                         {"wid": wh_id},
                     ).fetchall()
-                    for (pid3, pct3) in wps2:
-                        if pid3 in partner_totals:
-                            continue
-                        pct3 = float(pct3 or 0)
-                        if pct3 > 0:
-                            partner_totals[pid3] = partner_totals.get(pid3, 0.0) + line_total * (pct3 / 100.0)
+                for (pid2, pct2) in partners_rows:
+                    pct2 = float(pct2 or 0)
+                    if pct2 > 0:
+                        partner_totals[pid2] = partner_totals.get(pid2, 0.0) + line_total * (pct2 / 100.0)
 
         total_partner_local = sum(partner_totals.values())
         company_share_local = max(0.0, total_local - total_partner_local)
@@ -10122,7 +10278,7 @@ def _service_gl_batch_upsert_sql(connection, service_id: int) -> None:
 
         entries = [
             (GL_ACCOUNTS.get("AR", "1100_AR"), amount_ils, 0),
-            (GL_ACCOUNTS.get("SERVICE_REV", "4100_SERVICE_REVENUE"), 0, company_share_ils),
+            (GL_ACCOUNTS.get("SERVICE_REV", "4100_SERVICE_REVENUE"), 0, amount_ils),
         ]
         memo = f"صيانة - {service_number or sid}"
         _gl_upsert_batch_and_entries(
@@ -10138,6 +10294,7 @@ def _service_gl_batch_upsert_sql(connection, service_id: int) -> None:
             entity_id=customer_id,
         )
         ap_code = (GL_ACCOUNTS.get("AP", "2000_AP") or "2000_AP").upper()
+        service_rev_code = (GL_ACCOUNTS.get("SERVICE_REV", "4100_SERVICE_REVENUE") or "4100_SERVICE_REVENUE").upper()
         for partner_id, amt in partner_shares_ils.items():
             if amt > 0:
                 _gl_upsert_batch_and_entries(
@@ -10147,7 +10304,10 @@ def _service_gl_batch_upsert_sql(connection, service_id: int) -> None:
                     purpose=f"PARTNER_{partner_id}",
                     currency=cur,
                     memo=f"حصة شريك من صيانة #{service_number or sid}",
-                    entries=[(ap_code, 0, amt)],
+                    entries=[
+                        (service_rev_code, amt, 0),
+                        (ap_code, 0, amt),
+                    ],
                     ref=f"SRV-{sid}-P{partner_id}",
                     entity_type="PARTNER",
                     entity_id=partner_id,
@@ -12027,6 +12187,7 @@ def _expense_normalize_insert(mapper, connection, target: "Expense"):
     target.payee_type = (target.payee_type or "OTHER").upper()
     if not target.paid_to:
         target.paid_to = (target.payee_name or None)
+    _expense_require_entity(target)
 
 
 @event.listens_for(Expense, "before_update")
@@ -12037,6 +12198,30 @@ def _expense_normalize_update(mapper, connection, target: "Expense"):
     target.payee_type = (target.payee_type or "OTHER").upper()
     if not target.paid_to:
         target.paid_to = (target.payee_name or None)
+
+
+def _expense_require_entity(target: "Expense") -> None:
+    if getattr(target, "customer_id", None):
+        target.payee_type = "CUSTOMER"
+        target.payee_entity_id = int(target.customer_id)
+        return
+    if getattr(target, "supplier_id", None):
+        target.payee_type = "SUPPLIER"
+        target.payee_entity_id = int(target.supplier_id)
+        return
+    if getattr(target, "partner_id", None):
+        target.payee_type = "PARTNER"
+        target.payee_entity_id = int(target.partner_id)
+        return
+    if getattr(target, "employee_id", None):
+        target.payee_type = "EMPLOYEE"
+        target.payee_entity_id = int(target.employee_id)
+        return
+    payee_type = (getattr(target, "payee_type", "") or "").strip().upper()
+    payee_entity_id = getattr(target, "payee_entity_id", None)
+    if payee_type in {"CUSTOMER", "SUPPLIER", "PARTNER", "EMPLOYEE"} and payee_entity_id:
+        return
+    raise ValueError("expense.entity_required")
 
 
 def _ensure_account_exists(connection, account_code: str) -> bool:
@@ -12202,10 +12387,17 @@ def run_expense_gl_sync_after_commit(expense_id: int) -> bool:
             expense_account = (ledger.get("expense_account") or "5000_EXPENSES").strip().upper()
             counterparty_account = (ledger.get("counterparty_account") or "2000_AP").strip().upper()
             entity_type, entity_id = _expense_entity_pair_from_row(row)
-            entries = [
-                (expense_account, amount, 0),
-                (counterparty_account, 0, amount),
-            ]
+            if entity_type == "CUSTOMER":
+                ar_account = (GL_ACCOUNTS.get("AR") or "1100_AR").strip().upper()
+                entries = [
+                    (ar_account, amount, 0),
+                    (expense_account, 0, amount),
+                ]
+            else:
+                entries = [
+                    (expense_account, amount, 0),
+                    (counterparty_account, 0, amount),
+                ]
             memo = f"Expense #{expense_id}"
             ref = f"EXP-{expense_id}"
             with conn.begin():
