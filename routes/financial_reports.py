@@ -191,13 +191,19 @@ def income_statement():
         
         total_revenue = float(revenue_query)
         total_cogs = float(cogs_query)
+        if total_cogs < 0:
+            total_cogs = abs(total_cogs)
         gross_profit = total_revenue - total_cogs
         
         # المصاريف التشغيلية يجب أن تستثني الضرائب المحسوبة منفصلاً لتجنب الازدواجية
         operating_expenses = float(expenses_query) - float(taxes_query)
+        if operating_expenses < 0:
+            operating_expenses = abs(operating_expenses)
         operating_profit = gross_profit - operating_expenses
         
         total_taxes = float(taxes_query)
+        if total_taxes < 0:
+            total_taxes = abs(total_taxes)
         net_profit = operating_profit - total_taxes
         
         revenue_details = db.session.query(

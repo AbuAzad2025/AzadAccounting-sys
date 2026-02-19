@@ -91,6 +91,8 @@ def _calculate_ledger_statistics(from_date: datetime | None, to_date: datetime |
             or 0
         )
     )
+    if total_cogs < 0:
+        total_cogs = abs(total_cogs)
     tax_expense_account = GL_ACCOUNTS.get("INCOME_TAX_EXP", "6200_INCOME_TAX_EXPENSE")
     total_taxes = float(
         (
@@ -106,6 +108,8 @@ def _calculate_ledger_statistics(from_date: datetime | None, to_date: datetime |
             or 0
         )
     )
+    if total_taxes < 0:
+        total_taxes = abs(total_taxes)
     operating_expenses = float(
         (
             expense_base.filter(
@@ -122,6 +126,8 @@ def _calculate_ledger_statistics(from_date: datetime | None, to_date: datetime |
             or 0
         )
     )
+    if operating_expenses < 0:
+        operating_expenses = abs(operating_expenses)
 
     cogs_details_rows = (
         expense_base.filter(or_(GLEntry.account.like("51%"), GLEntry.account == cogs_exchange_account))
