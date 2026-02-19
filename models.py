@@ -9831,7 +9831,7 @@ def _service_consumes_stock(sr: "ServiceRequest") -> bool:
     if not bool(current_app.config.get("SERVICE_CONSUMES_STOCK", True)):
         return False
     status = str(getattr(sr, "status", "")).upper()
-    return bool(getattr(sr, "consume_stock", True)) and status in ("IN_PROGRESS", "COMPLETED")
+    return bool(getattr(sr, "consume_stock", True)) and status in ("PENDING", "DIAGNOSIS", "IN_PROGRESS", "ON_HOLD", "COMPLETED")
 
 def _recalc_service_request_totals(sr: "ServiceRequest"):
     if sr is None:

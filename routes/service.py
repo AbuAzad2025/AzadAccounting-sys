@@ -783,6 +783,8 @@ def add_part(rid):
         db.session.flush()
         service.updated_at=datetime.now(timezone.utc).replace(tzinfo=None)
         
+        if not service.consume_stock:
+            service.consume_stock = True
         if _service_consumes_stock(service):
             _ensure_partner_warehouse(warehouse_id)
             new_qty=utils._apply_stock_delta(product_id, warehouse_id, -quantity)
@@ -1169,4 +1171,3 @@ def generate_service_receipt_pdf(service_request):
         if y<40*mm: c.showPage(); y=height-20*mm; c.setFont("Helvetica",9)
     subtotal=parts_total+tasks_total; y-=10*mm; c.setFont("Helvetica-Bold",11); c.drawRightString(160*mm,y,"الإجمالي الكلي:"); c.drawRightString(195*mm,y,f"{subtotal:.2f}")
     c.showPage(); c.save(); buffer.seek(0); return buffer.getvalue()
-

@@ -12,6 +12,7 @@ os.chdir(ROOT)
 from app import create_app
 from extensions import db, perform_backup_db
 from models import (
+    AuditLog,
     Customer,
     Expense,
     GLBatch,
@@ -22,8 +23,11 @@ from models import (
     Payment,
     PaymentSplit,
     Sale,
+    ServicePart,
     ServiceRequest,
     Supplier,
+    Warehouse,
+    WarehouseType,
     _fx_rate_local_via_connection,
     _gl_upsert_batch_and_entries,
     _payment_split_gl_batch_upsert_by_id,
@@ -119,6 +123,7 @@ def run_service_pl_backfill(*, dry_run: bool = False) -> dict:
         scanned = 0
         totals_updated = 0
         completed_at_backfilled = 0
+        consume_stock_backfilled = 0
         gl_rebuilt = 0
         pending_ids = []
         now = datetime.now(timezone.utc).replace(tzinfo=None)
@@ -128,6 +133,11 @@ def run_service_pl_backfill(*, dry_run: bool = False) -> dict:
             if backfill_completed_at and not getattr(sr, "completed_at", None):
                 sr.completed_at = sr.received_at or sr.updated_at or sr.created_at or now
                 completed_at_backfilled += 1
+            if not bool(getattr(sr, "consume_stock", True)):
+                has_parts = db.session.query(ServicePart.id).filter(ServicePart.service_id == sr.id).limit(1).first()
+                if has_parts:
+                    sr.consume_stock = True
+                    consume_stock_backfilled += 1
             _recalc_service_request_totals(sr)
             totals_updated += 1
             if not dry_run:
@@ -154,12 +164,162 @@ def run_service_pl_backfill(*, dry_run: bool = False) -> dict:
             "scanned": int(scanned),
             "totals_updated": int(totals_updated),
             "completed_at_backfilled": int(completed_at_backfilled),
+            "consume_stock_backfilled": int(consume_stock_backfilled),
             "gl_rebuilt": int(gl_rebuilt),
             "from_date": from_date.isoformat() if from_date else None,
             "to_date": to_date.isoformat() if to_date else None,
             "limit": int(limit or 0),
         }
         print(json.dumps({"phase": "service_pl_backfill", **result}, ensure_ascii=False))
+        return result
+
+    if has_app_context():
+        return _run()
+    app = create_app()
+    with app.app_context():
+        return _run()
+
+
+def run_service_stock_backfill(*, dry_run: bool = False) -> dict:
+    def _run():
+        from_date = _as_optional_date(os.getenv("SERVICE_STOCK_BACKFILL_FROM"))
+        to_date = _as_optional_date(os.getenv("SERVICE_STOCK_BACKFILL_TO"))
+        limit = _as_int(os.getenv("SERVICE_STOCK_BACKFILL_LIMIT"), 0)
+        batch_size = max(1, _as_int(os.getenv("SERVICE_STOCK_BACKFILL_BATCH"), 1))
+        statuses_raw = os.getenv("SERVICE_STOCK_BACKFILL_STATUSES")
+        if statuses_raw:
+            statuses = {s.strip().upper() for s in str(statuses_raw).split(",") if s.strip()}
+        else:
+            statuses = {"PENDING", "DIAGNOSIS", "IN_PROGRESS", "ON_HOLD", "COMPLETED"}
+        from utils import _apply_stock_delta
+        class _InvalidWarehouse(Exception):
+            pass
+        class _InsufficientStock(Exception):
+            pass
+
+        q = ServiceRequest.query.filter(ServiceRequest.cancelled_at.is_(None))
+        if statuses:
+            q = q.filter(ServiceRequest.status.in_(list(statuses)))
+        date_col = func.coalesce(ServiceRequest.completed_at, ServiceRequest.received_at, ServiceRequest.created_at)
+        q = _apply_date_range(q, date_col, from_date, to_date)
+        if limit:
+            q = q.order_by(ServiceRequest.id.asc()).limit(limit)
+        service_ids = [int(r[0]) for r in q.with_entities(ServiceRequest.id).all()]
+
+        def _service_stock_targets(service_id: int) -> dict[tuple[int, int], int]:
+            totals: dict[tuple[int, int], int] = {}
+            rows = db.session.query(ServicePart.part_id, ServicePart.warehouse_id, ServicePart.quantity).filter(ServicePart.service_id == service_id).all()
+            for part_id, warehouse_id, qty in rows:
+                try:
+                    pid = int(part_id or 0)
+                    wid = int(warehouse_id or 0)
+                    qv = int(qty or 0)
+                except Exception:
+                    continue
+                if not pid or not wid:
+                    continue
+                totals[(pid, wid)] = totals.get((pid, wid), 0) + qv
+            return totals
+
+        scanned = 0
+        consume_stock_backfilled = 0
+        services_with_parts = 0
+        stock_applied = 0
+        stock_skipped_existing = 0
+        stock_skipped_no_parts = 0
+        stock_failed_insufficient = 0
+        stock_failed_invalid_warehouse = 0
+        pending = 0
+
+        for sid in service_ids:
+            sr = db.session.get(ServiceRequest, sid)
+            if not sr:
+                continue
+            scanned += 1
+            targets = _service_stock_targets(sr.id)
+            if not targets:
+                stock_skipped_no_parts += 1
+                continue
+            services_with_parts += 1
+
+            if not bool(getattr(sr, "consume_stock", True)):
+                sr.consume_stock = True
+                consume_stock_backfilled += 1
+
+            existing = db.session.query(AuditLog.id).filter(
+                AuditLog.model_name == "ServiceRequest",
+                AuditLog.record_id == sr.id,
+                AuditLog.action.in_(["STOCK_CONSUME", "STOCK_CONSUME_PART"]),
+            ).first()
+            if existing:
+                stock_skipped_existing += 1
+                continue
+
+            try:
+                with db.session.begin_nested():
+                    items = []
+                    for (part_id, warehouse_id), qty in targets.items():
+                        if not qty:
+                            continue
+                        wh = db.session.get(Warehouse, warehouse_id)
+                        if not wh or (wh.warehouse_type == WarehouseType.PARTNER.value and not wh.partner_id):
+                            raise _InvalidWarehouse()
+                        try:
+                            new_qty = _apply_stock_delta(part_id, warehouse_id, -qty)
+                        except Exception:
+                            raise _InsufficientStock()
+                        items.append({"part_id": part_id, "warehouse_id": warehouse_id, "qty": -qty, "stock_after": int(new_qty)})
+
+                    payload = {"items": items or []}
+                    entry = AuditLog(
+                        created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+                        model_name="ServiceRequest",
+                        record_id=sr.id,
+                        customer_id=getattr(sr, "customer_id", None),
+                        user_id=None,
+                        action="STOCK_CONSUME",
+                        old_data=None,
+                        new_data=json.dumps(payload, ensure_ascii=False, default=str),
+                        ip_address=None,
+                        user_agent=None,
+                    )
+                    db.session.add(entry)
+            except _InvalidWarehouse:
+                stock_failed_invalid_warehouse += 1
+                continue
+            except _InsufficientStock:
+                stock_failed_insufficient += 1
+                continue
+
+            pending += 1
+            if not dry_run and pending >= batch_size:
+                db.session.commit()
+                pending = 0
+            if dry_run:
+                db.session.rollback()
+            stock_applied += 1
+
+        if dry_run:
+            db.session.rollback()
+        else:
+            if pending:
+                db.session.commit()
+
+        result = {
+            "dry_run": bool(dry_run),
+            "scanned": int(scanned),
+            "consume_stock_backfilled": int(consume_stock_backfilled),
+            "services_with_parts": int(services_with_parts),
+            "stock_applied": int(stock_applied),
+            "stock_skipped_existing": int(stock_skipped_existing),
+            "stock_skipped_no_parts": int(stock_skipped_no_parts),
+            "stock_failed_insufficient": int(stock_failed_insufficient),
+            "stock_failed_invalid_warehouse": int(stock_failed_invalid_warehouse),
+            "from_date": from_date.isoformat() if from_date else None,
+            "to_date": to_date.isoformat() if to_date else None,
+            "limit": int(limit or 0),
+        }
+        print(json.dumps({"phase": "service_stock_backfill", **result}, ensure_ascii=False))
         return result
 
     if has_app_context():

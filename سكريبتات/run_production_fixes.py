@@ -101,6 +101,8 @@ def main():
 
     print("6) تحديث بيانات الصيانة القديمة (Totals + GL)")
     run_entity_balance_auto_fix.run_service_pl_backfill(dry_run=dry_run)
+    print("6.1) خصم مخزون الصيانة القديمة عند عدم وجود حركة")
+    run_entity_balance_auto_fix.run_service_stock_backfill(dry_run=dry_run)
 
     print("7) إصلاح بيانات المدفوعات والسِبلِت")
     fix_production_data.fix_production_data(dry_run=dry_run)
