@@ -32,9 +32,11 @@ from models import (
     run_payment_gl_sync_after_commit,
     run_sale_gl_sync_after_commit,
     run_service_gl_sync_after_commit,
+    _recalc_service_request_totals,
 )
 from services.ledger_service import SmartEntityExtractor
 from sqlalchemy import func, or_, text
+from flask import has_app_context
 
 
 def _as_bool(v: Any, default: bool = False) -> bool:
@@ -97,6 +99,74 @@ def _apply_date_range(q, column, from_date: Optional[datetime.date], to_date: Op
     if to_date:
         q = q.filter(column <= datetime.combine(to_date, datetime.max.time()))
     return q
+
+
+def run_service_pl_backfill(*, dry_run: bool = False) -> dict:
+    def _run():
+        from_date = _as_optional_date(os.getenv("SERVICE_BACKFILL_FROM"))
+        to_date = _as_optional_date(os.getenv("SERVICE_BACKFILL_TO"))
+        limit = _as_int(os.getenv("SERVICE_BACKFILL_LIMIT"), 0)
+        rebuild_gl = _as_bool(os.getenv("SERVICE_BACKFILL_REBUILD_GL"), True)
+        backfill_completed_at = _as_bool(os.getenv("SERVICE_BACKFILL_COMPLETED_AT"), True)
+        batch_size = max(50, _as_int(os.getenv("SERVICE_BACKFILL_BATCH"), 200))
+
+        q = ServiceRequest.query.filter(ServiceRequest.status == "COMPLETED", ServiceRequest.cancelled_at.is_(None))
+        date_col = func.coalesce(ServiceRequest.completed_at, ServiceRequest.received_at, ServiceRequest.created_at)
+        q = _apply_date_range(q, date_col, from_date, to_date)
+        if limit:
+            q = q.order_by(ServiceRequest.id.asc()).limit(limit)
+
+        scanned = 0
+        totals_updated = 0
+        completed_at_backfilled = 0
+        gl_rebuilt = 0
+        pending_ids = []
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+
+        for sr in q.yield_per(200):
+            scanned += 1
+            if backfill_completed_at and not getattr(sr, "completed_at", None):
+                sr.completed_at = sr.received_at or sr.updated_at or sr.created_at or now
+                completed_at_backfilled += 1
+            _recalc_service_request_totals(sr)
+            totals_updated += 1
+            if not dry_run:
+                pending_ids.append(int(sr.id))
+                if len(pending_ids) >= batch_size:
+                    db.session.commit()
+                    if rebuild_gl:
+                        for sid in pending_ids:
+                            run_service_gl_sync_after_commit(sid)
+                            gl_rebuilt += 1
+                    pending_ids = []
+
+        if dry_run:
+            db.session.rollback()
+        else:
+            db.session.commit()
+            if rebuild_gl and pending_ids:
+                for sid in pending_ids:
+                    run_service_gl_sync_after_commit(sid)
+                    gl_rebuilt += 1
+
+        result = {
+            "dry_run": bool(dry_run),
+            "scanned": int(scanned),
+            "totals_updated": int(totals_updated),
+            "completed_at_backfilled": int(completed_at_backfilled),
+            "gl_rebuilt": int(gl_rebuilt),
+            "from_date": from_date.isoformat() if from_date else None,
+            "to_date": to_date.isoformat() if to_date else None,
+            "limit": int(limit or 0),
+        }
+        print(json.dumps({"phase": "service_pl_backfill", **result}, ensure_ascii=False))
+        return result
+
+    if has_app_context():
+        return _run()
+    app = create_app()
+    with app.app_context():
+        return _run()
 
 
 def _legacy_fx_candidate_ids(*, from_date, to_date, limit: int, types: set[str], force: bool) -> dict:
@@ -1055,7 +1125,7 @@ def _audit_integrity_summary(*, as_of_date: datetime.date) -> dict:
                 JOIN gl_batches b ON b.id = e.batch_id
                 WHERE b.status='POSTED' AND b.posted_at <= :as_of_dt
                   AND e.account = :ap
-                  AND (b.entity_type IS NULL OR b.entity_id IS NULL OR b.entity_type NOT IN ('SUPPLIER','PARTNER'))
+                  AND (b.entity_type IS NULL OR b.entity_id IS NULL)
                 """,
                 {"as_of_dt": as_of_dt, "ap": ap_account},
             )

@@ -99,31 +99,34 @@ def main():
         print("4) تخطي سكربتات VAT (RUN_VAT_BACKFILL=1 لتشغيلها)")
         print("5) تخطي سكربتات VAT (STRIP_VAT=1 لإزالة VAT من البيانات القديمة)")
 
-    print("6) إصلاح بيانات المدفوعات والسِبلِت")
+    print("6) تحديث بيانات الصيانة القديمة (Totals + GL)")
+    run_entity_balance_auto_fix.run_service_pl_backfill(dry_run=dry_run)
+
+    print("7) إصلاح بيانات المدفوعات والسِبلِت")
     fix_production_data.fix_production_data(dry_run=dry_run)
 
-    print("7) فحص وتصحيح تكامل دفتر الأستاذ")
+    print("8) فحص وتصحيح تكامل دفتر الأستاذ")
     fix_gl_integrity_standalone.run_fix_standalone(dry_run=dry_run)
 
     if apply:
-        print("8) إكمال مدفوعات المصاريف")
+        print("9) إكمال مدفوعات المصاريف")
         mark_expenses_fully_paid.run()
 
-        print("9) تصحيح أرصدة العملاء/الموردين/الشركاء")
+        print("10) تصحيح أرصدة العملاء/الموردين/الشركاء")
         run_entity_balance_auto_fix.run()
 
-        print("10) مزامنة تسلسلات Postgres وتصحيح seller_id")
+        print("11) مزامنة تسلسلات Postgres وتصحيح seller_id")
         fix_sales_sequence.main()
         
-        print("11) حذف بيانات الاختبار (Purge)")
+        print("12) حذف بيانات الاختبار (Purge)")
         os.environ["CONFIRM_DELETE"] = "1"
         os.environ["CONFIRM_PHRASE"] = "DELETE_TEST_DATA"
         purge_test_data.run()
     else:
-        print("8) تخطي mark_expenses_fully_paid (يتطلب تنفيذ فعلي)")
-        print("9) تخطي run_entity_balance_auto_fix (يتطلب تنفيذ فعلي)")
-        print("10) تخطي fix_sales_sequence (يتطلب تنفيذ فعلي)")
-        print("11) تخطي purge_test_data (يتطلب تنفيذ فعلي)")
+        print("9) تخطي mark_expenses_fully_paid (يتطلب تنفيذ فعلي)")
+        print("10) تخطي run_entity_balance_auto_fix (يتطلب تنفيذ فعلي)")
+        print("11) تخطي fix_sales_sequence (يتطلب تنفيذ فعلي)")
+        print("12) تخطي purge_test_data (يتطلب تنفيذ فعلي)")
 
     print("=== انتهى التنفيذ ===")
 

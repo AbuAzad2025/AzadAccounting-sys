@@ -1188,7 +1188,6 @@ def init_extensions(app):
                             or_(
                                 GLBatch.entity_type.is_(None),
                                 GLBatch.entity_id.is_(None),
-                                ~GLBatch.entity_type.in_(["SUPPLIER", "PARTNER"]),
                             ),
                         )
                         .scalar()

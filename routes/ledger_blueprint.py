@@ -156,10 +156,12 @@ def _calculate_ledger_statistics(from_date: datetime | None, to_date: datetime |
         .join(Product, Product.id == ServicePart.part_id)
         .join(ServiceRequest, ServiceRequest.id == ServicePart.service_id)
     )
+    service_date_expr = func.coalesce(ServiceRequest.completed_at, ServiceRequest.created_at)
+    service_parts_base = service_parts_base.filter(ServiceRequest.status == "COMPLETED")
     if from_date:
-        service_parts_base = service_parts_base.filter(ServiceRequest.created_at >= from_date)
+        service_parts_base = service_parts_base.filter(service_date_expr >= from_date)
     if to_date:
-        service_parts_base = service_parts_base.filter(ServiceRequest.created_at <= to_date)
+        service_parts_base = service_parts_base.filter(service_date_expr <= to_date)
     service_parts_groups = service_parts_base.group_by(func.coalesce(Product.currency, "ILS")).all()
     for row in service_parts_groups:
         value = float(row.value or 0)
@@ -1257,7 +1259,6 @@ def entity_balance_audit():
                 or_(
                     GLBatch.entity_type.is_(None),
                     GLBatch.entity_id.is_(None),
-                    ~GLBatch.entity_type.in_(["SUPPLIER", "PARTNER"]),
                 ),
             )
             .scalar()
