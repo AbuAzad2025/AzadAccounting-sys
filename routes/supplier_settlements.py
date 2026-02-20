@@ -779,7 +779,7 @@ def _calculate_smart_supplier_balance(supplier_id: int, date_from: datetime, dat
         returns_to_supplier = _get_returns_to_supplier(supplier_id, date_from, date_to)
         
         from models import ExpenseType, SaleReturn, SaleReturnLine
-        expenses_service = Expense.query.join(ExpenseType).filter(
+        expenses_service = Expense.query.outerjoin(ExpenseType).filter(
             or_(
                 Expense.supplier_id == supplier_id,
                 and_(Expense.payee_type == "SUPPLIER", Expense.payee_entity_id == supplier_id)
@@ -792,14 +792,18 @@ def _calculate_smart_supplier_balance(supplier_id: int, date_from: datetime, dat
             )
         ).all()
         
-        expenses_normal = Expense.query.join(ExpenseType).filter(
+        expenses_normal = Expense.query.outerjoin(ExpenseType).filter(
             or_(
                 Expense.supplier_id == supplier_id,
                 and_(Expense.payee_type == "SUPPLIER", Expense.payee_entity_id == supplier_id)
             ),
             Expense.date >= date_from,
             Expense.date <= date_to,
-            ~func.upper(ExpenseType.code).in_(["PARTNER_EXPENSE", "SUPPLIER_EXPENSE"])
+            or_(
+                ExpenseType.id.is_(None),
+                ExpenseType.code.is_(None),
+                ~func.upper(ExpenseType.code).in_(["PARTNER_EXPENSE", "SUPPLIER_EXPENSE"])
+            )
         ).all()
         
         expenses_service_total = Decimal('0.00')

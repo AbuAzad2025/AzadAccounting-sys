@@ -632,21 +632,29 @@ def update_supplier_balance_components(supplier_id, session=None, emit: bool = T
                 except Exception:
                     pass
             
-            supplier_rights = (
-                Decimal(str(components.get('expenses_service_supply', 0) or 0)) +
-                Decimal(str(components.get('expenses_normal', 0) or 0)) +
+            sale_returns_total = (
                 Decimal(str(components.get('sale_returns_from_supplier', 0) or 0)) +
+                Decimal(str(components.get('sale_returns_from_customer', 0) or 0))
+            )
+            supplier_credits = (
+                Decimal(str(components.get('exchange_items_balance', 0) or 0)) +
+                Decimal(str(components.get('expenses_service_supply', 0) or 0)) +
+                Decimal(str(sale_returns_total or 0)) +
+                Decimal(str(components.get('payments_in_balance', 0) or 0)) +
                 Decimal(str(components.get('returned_checks_out_balance', 0) or 0))
             )
-            supplier_obligations = (
-                Decimal(str(components.get('returned_checks_in_balance', 0) or 0)) +
+            supplier_debits = (
+                Decimal(str(components.get('returns_balance', 0) or 0)) +
+                Decimal(str(components.get('sales_balance', 0) or 0)) +
+                Decimal(str(components.get('services_balance', 0) or 0)) +
+                Decimal(str(components.get('preorders_balance', 0) or 0)) +
                 Decimal(str(components.get('payments_out_balance', 0) or 0)) +
-                Decimal(str(components.get('returns_balance', 0) or 0))
+                Decimal(str(components.get('expenses_normal', 0) or 0)) +
+                Decimal(str(components.get('returned_checks_in_balance', 0) or 0))
             )
-            current_balance = opening_balance + supplier_rights - supplier_obligations
+            current_balance = opening_balance + supplier_credits - supplier_debits
             
             supplier.exchange_items_balance = Decimal(str(components.get('exchange_items_balance', 0)))
-            sale_returns_total = Decimal(str(components.get('sale_returns_from_supplier', 0) or 0))
             supplier.sale_returns_balance = sale_returns_total
             supplier.sales_balance = Decimal(str(components.get('sales_balance', 0)))
             supplier.services_balance = Decimal(str(components.get('services_balance', 0)))
@@ -690,20 +698,27 @@ def update_supplier_balance_components(supplier_id, session=None, emit: bool = T
                 except Exception:
                     pass
             
-            supplier_rights = (
-                Decimal(str(components.get('expenses_service_supply', 0) or 0)) +
-                Decimal(str(components.get('expenses_normal', 0) or 0)) +
+            sale_returns_total = (
                 Decimal(str(components.get('sale_returns_from_supplier', 0) or 0)) +
+                Decimal(str(components.get('sale_returns_from_customer', 0) or 0))
+            )
+            supplier_credits = (
+                Decimal(str(components.get('exchange_items_balance', 0) or 0)) +
+                Decimal(str(components.get('expenses_service_supply', 0) or 0)) +
+                Decimal(str(sale_returns_total or 0)) +
+                Decimal(str(components.get('payments_in_balance', 0) or 0)) +
                 Decimal(str(components.get('returned_checks_out_balance', 0) or 0))
             )
-            supplier_obligations = (
-                Decimal(str(components.get('returned_checks_in_balance', 0) or 0)) +
+            supplier_debits = (
+                Decimal(str(components.get('returns_balance', 0) or 0)) +
+                Decimal(str(components.get('sales_balance', 0) or 0)) +
+                Decimal(str(components.get('services_balance', 0) or 0)) +
+                Decimal(str(components.get('preorders_balance', 0) or 0)) +
                 Decimal(str(components.get('payments_out_balance', 0) or 0)) +
-                Decimal(str(components.get('returns_balance', 0) or 0))
+                Decimal(str(components.get('expenses_normal', 0) or 0)) +
+                Decimal(str(components.get('returned_checks_in_balance', 0) or 0))
             )
-            current_balance = opening_balance + supplier_rights - supplier_obligations
-            
-            sale_returns_total = Decimal(str(components.get('sale_returns_from_supplier', 0) or 0))
+            current_balance = opening_balance + supplier_credits - supplier_debits
             
             session.execute(
                 sa_text("""

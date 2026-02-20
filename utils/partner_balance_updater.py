@@ -78,6 +78,7 @@ def update_partner_balance_components(partner_id, session=None, emit: bool = Tru
                 Decimal(str(components.get('sales_share_balance', 0) or 0)) +  # نصيبه من المبيعات
                 Decimal(str(components.get('shipments_share_balance', 0) or 0)) +
                 Decimal(str(components.get('payments_in_balance', 0) or 0)) +  # دفعات واردة (تشمل العربونات)
+                Decimal(str(components.get('preorders_prepaid_balance', 0) or 0)) +  # عربونات مدفوعة
                 Decimal(str(components.get('service_expenses_balance', 0) or 0)) +  # مصروفات توريد خدمات
                 Decimal(str(components.get('returned_checks_out_balance', 0) or 0))  # شيكات مرتجعة صادرة
             )
