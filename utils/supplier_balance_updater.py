@@ -640,6 +640,7 @@ def update_supplier_balance_components(supplier_id, session=None, emit: bool = T
             supplier_credits = (
                 Decimal(str(components.get('exchange_items_balance', 0) or 0)) +
                 Decimal(str(components.get('expenses_service_supply', 0) or 0)) +
+                Decimal(str(components.get('expenses_normal', 0) or 0)) +
                 Decimal(str(sale_returns_total or 0)) +
                 Decimal(str(components.get('payments_in_balance', 0) or 0)) +
                 Decimal(str(components.get('returned_checks_out_balance', 0) or 0))
@@ -650,7 +651,6 @@ def update_supplier_balance_components(supplier_id, session=None, emit: bool = T
                 Decimal(str(components.get('services_balance', 0) or 0)) +
                 Decimal(str(components.get('preorders_balance', 0) or 0)) +
                 Decimal(str(components.get('payments_out_balance', 0) or 0)) +
-                Decimal(str(components.get('expenses_normal', 0) or 0)) +
                 Decimal(str(components.get('returned_checks_in_balance', 0) or 0))
             )
             current_balance = opening_balance + supplier_credits - supplier_debits
@@ -706,6 +706,7 @@ def update_supplier_balance_components(supplier_id, session=None, emit: bool = T
             supplier_credits = (
                 Decimal(str(components.get('exchange_items_balance', 0) or 0)) +
                 Decimal(str(components.get('expenses_service_supply', 0) or 0)) +
+                Decimal(str(components.get('expenses_normal', 0) or 0)) +
                 Decimal(str(sale_returns_total or 0)) +
                 Decimal(str(components.get('payments_in_balance', 0) or 0)) +
                 Decimal(str(components.get('returned_checks_out_balance', 0) or 0))
@@ -716,7 +717,6 @@ def update_supplier_balance_components(supplier_id, session=None, emit: bool = T
                 Decimal(str(components.get('services_balance', 0) or 0)) +
                 Decimal(str(components.get('preorders_balance', 0) or 0)) +
                 Decimal(str(components.get('payments_out_balance', 0) or 0)) +
-                Decimal(str(components.get('expenses_normal', 0) or 0)) +
                 Decimal(str(components.get('returned_checks_in_balance', 0) or 0))
             )
             current_balance = opening_balance + supplier_credits - supplier_debits
