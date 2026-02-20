@@ -256,11 +256,21 @@
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'Accept': 'application/json',
                 'X-CSRFToken': csrfToken || ''
             },
+            credentials: 'same-origin',
             body: JSON.stringify({ ids: ids })
         })
-        .then(function(r) { return r.json(); })
+        .then(function(r) {
+            const ct = (r.headers.get('content-type') || '').toLowerCase();
+            if (!ct.includes('application/json')) {
+                return r.text().then(function() {
+                    throw new Error('الاستجابة ليست JSON. أعد تسجيل الدخول ثم جرّب مرة أخرى.');
+                });
+            }
+            return r.json();
+        })
         .then(function(data) {
             if (data.success) {
                 alert('✅ تم تحديث أرصدة ' + data.updated + ' مورد.');
