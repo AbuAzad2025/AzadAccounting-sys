@@ -39,6 +39,21 @@ def _has_arg(args, name):
     return any(a.strip().lower() == name for a in args)
 
 
+def _cleanup_db():
+    try:
+        from extensions import db
+    except Exception:
+        return
+    try:
+        db.session.remove()
+    except Exception:
+        pass
+    try:
+        db.engine.dispose()
+    except Exception:
+        pass
+
+
 def main():
     args = sys.argv[1:]
     env_dry = _as_bool(os.environ.get("DRY_RUN"), False)
@@ -79,12 +94,15 @@ def main():
 
     print("1) تصحيح أنواع الحسابات")
     fix_account_types_standalone.run_fix_standalone(dry_run=dry_run)
+    _cleanup_db()
 
     print("2) ضمان حسابات دفتر الأستاذ")
     ensure_gl_accounts_standalone.run_ensure(dry_run=dry_run)
+    _cleanup_db()
 
     print("3) ملء البيانات القديمة الناقصة")
     fill_legacy_data_standalone.run_fill(dry_run=dry_run)
+    _cleanup_db()
 
     os.environ["DRY_RUN"] = "1" if dry_run else "0"
     run_vat_backfill = str(os.getenv("RUN_VAT_BACKFILL", "") or "").strip().lower() in ("1", "true", "yes", "on")
@@ -92,59 +110,76 @@ def main():
     if strip_vat:
         print("4) إزالة VAT من المبيعات (عند تعطيل VAT)")
         confirm_sales_and_backfill_vat.run()
+        _cleanup_db()
         print("5) إزالة VAT من الصيانة (عند تعطيل VAT)")
         backfill_service_vat_taxentries.run()
+        _cleanup_db()
     elif run_vat_backfill:
         print("4) تأكيد المبيعات وملء ضريبة VAT")
         confirm_sales_and_backfill_vat.run()
+        _cleanup_db()
         print("5) ملء ضريبة VAT للخدمات")
         backfill_service_vat_taxentries.run()
+        _cleanup_db()
     else:
         print("4) تخطي سكربتات VAT (RUN_VAT_BACKFILL=1 لتشغيلها)")
         print("5) تخطي سكربتات VAT (STRIP_VAT=1 لإزالة VAT من البيانات القديمة)")
 
     print("6) تحديث بيانات الصيانة القديمة (Totals + GL)")
     run_entity_balance_auto_fix.run_service_pl_backfill(dry_run=dry_run)
+    _cleanup_db()
     print("6.1) خصم مخزون الصيانة القديمة عند عدم وجود حركة")
     run_entity_balance_auto_fix.run_service_stock_backfill(dry_run=dry_run)
+    _cleanup_db()
 
     print("7) إصلاح بيانات المدفوعات والسِبلِت")
     fix_production_data.fix_production_data(dry_run=dry_run)
+    _cleanup_db()
 
     print("8) فحص وتصحيح تكامل دفتر الأستاذ")
     fix_gl_integrity_standalone.run_fix_standalone(dry_run=dry_run)
+    _cleanup_db()
 
     print("8.1) ربط المصاريف بالموردين حسب قواعد المصروفات")
     fix_expense_utility_accounts.run(dry_run=dry_run)
+    _cleanup_db()
 
     print("8.2) تسوية بيانات الرواتب المعلقة")
     run_pending_salaries.run(dry_run=dry_run)
+    _cleanup_db()
 
     print("8.3) حذف بيانات الحركات اليتيمة (Payments/Expenses)")
     purge_deleted_payments_expenses.run(dry_run=dry_run)
+    _cleanup_db()
 
     print("8.4) تصحيح كيان دفعات الإلغاء والسِبلِت")
     os.environ["APPLY_CHANGES"] = "1" if apply else "0"
     fix_payment_reversal_split_entities.run()
+    _cleanup_db()
 
     if apply:
         print("9) إكمال مدفوعات المصاريف")
         mark_expenses_fully_paid.run()
+        _cleanup_db()
 
         print("10) تصحيح أرصدة العملاء/الموردين/الشركاء")
         run_entity_balance_auto_fix.run()
+        _cleanup_db()
 
         print("10.1) تدقيق وتصحيح أرصدة الموردين عبر audit-integrity")
         from cli import audit_integrity
         audit_integrity.main(["--scope", "suppliers", "--fix", "--limit", "0"], standalone_mode=False)
+        _cleanup_db()
 
         print("11) مزامنة تسلسلات Postgres وتصحيح seller_id")
         fix_sales_sequence.main()
+        _cleanup_db()
         
         print("12) حذف بيانات الاختبار (Purge)")
         os.environ["CONFIRM_DELETE"] = "1"
         os.environ["CONFIRM_PHRASE"] = "DELETE_TEST_DATA"
         purge_test_data.run()
+        _cleanup_db()
     else:
         print("9) تخطي mark_expenses_fully_paid (يتطلب تنفيذ فعلي)")
         print("10) تخطي run_entity_balance_auto_fix (يتطلب تنفيذ فعلي)")

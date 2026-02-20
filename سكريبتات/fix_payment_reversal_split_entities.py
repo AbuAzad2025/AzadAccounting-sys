@@ -144,11 +144,21 @@ def run():
     include_details = _has_arg(args, "--details") or _as_bool(os.getenv("DETAILS"))
 
     app = create_app()
-    with app.app_context():
-        if with_backup:
-            perform_backup_db()
-        result = _fix_missing_entities(apply_changes=apply_changes, include_details=include_details)
-        print(json.dumps(result, ensure_ascii=False))
+    try:
+        with app.app_context():
+            if with_backup:
+                perform_backup_db()
+            result = _fix_missing_entities(apply_changes=apply_changes, include_details=include_details)
+            print(json.dumps(result, ensure_ascii=False))
+    finally:
+        try:
+            db.session.remove()
+        except Exception:
+            pass
+        try:
+            db.engine.dispose()
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":
