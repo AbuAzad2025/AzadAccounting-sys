@@ -2257,6 +2257,7 @@ def _get_partner_expenses(partner_id: int, date_from: datetime, date_to: datetim
         ),
         Expense.date >= date_from,
         Expense.date <= date_to,
+        Expense.is_paid.is_(True),
         func.upper(ExpenseType.code) != "PARTNER_EXPENSE"  # ✅ استثناء توريد الخدمة
     ).all()
     

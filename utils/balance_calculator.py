@@ -897,7 +897,8 @@ def calculate_customer_balance_components(customer_id, session=None):
             func.date(Expense.date).label('date_val'),
             is_service_expense_expr.label('is_service'),
         ).outerjoin(_ExpenseType, _ExpenseType.id == Expense.type_id).filter(
-            Expense.customer_id == customer_id
+            Expense.customer_id == customer_id,
+            Expense.is_paid.is_(True)
         ).group_by(
             Expense.currency,
             func.date(Expense.date),
@@ -1197,7 +1198,8 @@ def calculate_balance_before_date(customer_id, before_date, session=None):
     service_expenses = Decimal('0.00')
     exp_all = session.query(Expense).filter(
         Expense.customer_id == customer_id,
-        Expense.date < before_date
+        Expense.date < before_date,
+        Expense.is_paid.is_(True)
     ).all()
     
     for exp in exp_all:

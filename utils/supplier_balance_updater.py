@@ -567,7 +567,8 @@ def calculate_supplier_balance_components(supplier_id, session=None):
             or_(
                 Expense.supplier_id == supplier_id,
                 and_(Expense.payee_type == "SUPPLIER", Expense.payee_entity_id == supplier_id)
-            )
+            ),
+            Expense.is_paid.is_(True)
         ).all()
         
         for exp in expenses:

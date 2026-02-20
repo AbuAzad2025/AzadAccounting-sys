@@ -579,7 +579,8 @@ class ActionExecutor:
             - payment_method: طريقة الدفع
         """
         try:
-            from models import Expense
+            from models import Expense, Payment, PaymentStatus, PaymentDirection, PaymentEntityType
+            from routes.payments import _ensure_payment_number
             
             if not params.get('amount'):
                 return {'success': False, 'message': '❌ المبلغ مطلوب'}
@@ -597,6 +598,35 @@ class ActionExecutor:
             )
             
             db.session.add(expense)
+            db.session.flush()
+            
+            expense_ref = f"مصروف #{expense.id}"
+            if expense.description:
+                expense_ref += f" - {expense.description}"
+            
+            pay_date = expense.date
+            if hasattr(pay_date, "date"):
+                pay_date = pay_date.date() if pay_date else datetime.now(timezone.utc).replace(tzinfo=None)
+            elif not pay_date:
+                pay_date = datetime.now(timezone.utc).replace(tzinfo=None)
+            
+            payment = Payment(
+                payment_date=pay_date,
+                total_amount=expense.amount,
+                currency=(expense.currency or "ILS").upper(),
+                method=(expense.payment_method or "cash").lower(),
+                status=PaymentStatus.COMPLETED.value,
+                direction=PaymentDirection.OUT.value,
+                entity_type=PaymentEntityType.EXPENSE.value,
+                expense_id=expense.id,
+                reference=expense_ref,
+                notes=expense.description or None,
+                receiver_name=expense.payee_name or expense.paid_to or expense.beneficiary_name,
+                created_by=self.user_id,
+            )
+            _ensure_payment_number(payment)
+            db.session.add(payment)
+            
             db.session.commit()
             
             return {
