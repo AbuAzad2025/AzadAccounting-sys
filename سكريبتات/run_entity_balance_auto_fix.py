@@ -1,6 +1,7 @@
 import json
 import os
 import sys
+import time
 from datetime import datetime, timezone
 from typing import Any, Optional
 
@@ -40,6 +41,7 @@ from models import (
 )
 from services.ledger_service import SmartEntityExtractor
 from sqlalchemy import func, or_, text
+from sqlalchemy.exc import OperationalError
 from flask import has_app_context
 
 
@@ -80,6 +82,24 @@ def _as_optional_date(v: Any) -> Optional[datetime.date]:
     if not v:
         return None
     return datetime.fromisoformat(str(v).replace("Z", "+00:00")).date()
+
+
+def _set_pool_limits():
+    os.environ.setdefault("SQLALCHEMY_POOL_SIZE", "1")
+    os.environ.setdefault("SQLALCHEMY_MAX_OVERFLOW", "0")
+    os.environ.setdefault("SQLALCHEMY_POOL_TIMEOUT", "10")
+    os.environ.setdefault("DB_CONNECT_TIMEOUT", "10")
+
+
+def _cleanup_db():
+    try:
+        db.session.remove()
+    except Exception:
+        pass
+    try:
+        db.engine.dispose()
+    except Exception:
+        pass
 
 
 def _parse_str_set(raw: Any) -> set[str]:
@@ -1416,147 +1436,167 @@ def run():
     rebuild_payment_splits = _parse_id_list(opts.get("rebuild_payment_splits"))
     rebuild_expenses = _parse_id_list(opts.get("rebuild_expenses"))
 
+    _set_pool_limits()
     app = create_app()
-    with app.app_context():
-        if not skip_backup and app.config.get("ENABLE_AUTOMATED_BACKUPS", True):
-            ok, msg, path = perform_backup_db(app)
-            print(f"backup: {ok} | {msg} | {path}")
+    attempts = max(1, _as_int(os.getenv("DB_CONNECT_RETRIES"), 3))
+    delay = _as_int(os.getenv("DB_CONNECT_RETRY_DELAY"), 5)
+    try:
+        for attempt in range(attempts):
+            try:
+                with app.app_context():
+                    if not skip_backup and app.config.get("ENABLE_AUTOMATED_BACKUPS", True):
+                        try:
+                            ok, msg, path = perform_backup_db(app)
+                            print(f"backup: {ok} | {msg} | {path}")
+                        except Exception as e:
+                            print(f"backup: False | {str(e)} | None")
 
-        before = _find_mismatch_entity_ids(
-            as_of_date=as_of_date,
-            tolerance=tolerance,
-            include_archived=include_archived,
-            max_customers=max_customers,
-            max_suppliers=max_suppliers,
-            max_partners=max_partners,
-        )
-        print(json.dumps({"phase": "before", **before}, ensure_ascii=False))
+                    before = _find_mismatch_entity_ids(
+                        as_of_date=as_of_date,
+                        tolerance=tolerance,
+                        include_archived=include_archived,
+                        max_customers=max_customers,
+                        max_suppliers=max_suppliers,
+                        max_partners=max_partners,
+                    )
+                    print(json.dumps({"phase": "before", **before}, ensure_ascii=False))
 
-        if integrity_audit:
-            integrity_summary = _audit_integrity_summary(as_of_date=as_of_date)
-            print(json.dumps({"phase": "integrity_summary", **integrity_summary}, ensure_ascii=False))
+                    if integrity_audit:
+                        integrity_summary = _audit_integrity_summary(as_of_date=as_of_date)
+                        print(json.dumps({"phase": "integrity_summary", **integrity_summary}, ensure_ascii=False))
 
-        if audit_only:
-            if detailed:
-                details = _audit_entity_details(
-                    target_ids=before.get("target_ids", {}),
-                    as_of_date=as_of_date,
-                    include_components=include_components,
-                    max_details=max_details,
-                )
-                print(json.dumps({"phase": "details", "entities": details}, ensure_ascii=False))
-            return
+                    if audit_only:
+                        if detailed:
+                            details = _audit_entity_details(
+                                target_ids=before.get("target_ids", {}),
+                                as_of_date=as_of_date,
+                                include_components=include_components,
+                                max_details=max_details,
+                            )
+                            print(json.dumps({"phase": "details", "entities": details}, ensure_ascii=False))
+                        return
 
-        fixed = _fix_gl_entities(as_of_date=as_of_date, override=override, max_batches=max_batches)
-        print(json.dumps({"phase": "fix_gl_entities", **fixed}, ensure_ascii=False))
+                    fixed = _fix_gl_entities(as_of_date=as_of_date, override=override, max_batches=max_batches)
+                    print(json.dumps({"phase": "fix_gl_entities", **fixed}, ensure_ascii=False))
 
-        if purge_orphan_invoices:
-            purged = _purge_orphan_invoice_gl()
-            print(json.dumps({"phase": "purge_orphan_invoices", **purged}, ensure_ascii=False))
+                    if purge_orphan_invoices:
+                        purged = _purge_orphan_invoice_gl()
+                        print(json.dumps({"phase": "purge_orphan_invoices", **purged}, ensure_ascii=False))
 
-        if legacy_fx:
-            plan = _legacy_fx_candidate_ids(
-                from_date=legacy_fx_from,
-                to_date=legacy_fx_to,
-                limit=legacy_fx_limit,
-                types=legacy_fx_types,
-                force=legacy_fx_force,
-            )
-            plan_counts = {k: len(v) for k, v in plan.items()}
-            print(
-                json.dumps(
-                    {
-                        "phase": "legacy_fx_plan",
-                        "dry_run": bool(legacy_fx_dry_run),
-                        "force": bool(legacy_fx_force),
-                        "from": legacy_fx_from.isoformat() if legacy_fx_from else None,
-                        "to": legacy_fx_to.isoformat() if legacy_fx_to else None,
-                        "limit": legacy_fx_limit,
-                        "types": sorted(legacy_fx_types),
-                        "counts": plan_counts,
-                    },
-                    ensure_ascii=False,
-                )
-            )
-            if not legacy_fx_dry_run:
-                fx_result = _apply_legacy_fx(plan=plan, force=legacy_fx_force, dry_run=False)
-                print(json.dumps({"phase": "legacy_fx_apply", **fx_result}, ensure_ascii=False))
-                rebuilt = {"sales": 0, "invoices": 0, "services": 0, "payments": 0, "payment_splits": 0}
-                for sid in plan.get("sales") or []:
-                    run_sale_gl_sync_after_commit(int(sid))
-                    rebuilt["sales"] += 1
-                for iid in plan.get("invoices") or []:
-                    run_invoice_gl_sync_after_commit(int(iid))
-                    rebuilt["invoices"] += 1
-                for sid in plan.get("services") or []:
-                    run_service_gl_sync_after_commit(int(sid))
-                    rebuilt["services"] += 1
-                for pid in plan.get("payments") or []:
-                    run_payment_gl_sync_after_commit(int(pid))
-                    rebuilt["payments"] += 1
-                for sid in plan.get("payment_splits") or []:
-                    with db.engine.connect() as conn:
-                        with conn.begin():
-                            _payment_split_gl_batch_upsert_by_id(conn, split_id=int(sid))
-                    rebuilt["payment_splits"] += 1
-                print(json.dumps({"phase": "legacy_fx_rebuild_gl", "rebuilt": rebuilt}, ensure_ascii=False))
-            else:
-                print(json.dumps({"phase": "legacy_fx_apply", "dry_run": True}, ensure_ascii=False))
+                    if legacy_fx:
+                        plan = _legacy_fx_candidate_ids(
+                            from_date=legacy_fx_from,
+                            to_date=legacy_fx_to,
+                            limit=legacy_fx_limit,
+                            types=legacy_fx_types,
+                            force=legacy_fx_force,
+                        )
+                        plan_counts = {k: len(v) for k, v in plan.items()}
+                        print(
+                            json.dumps(
+                                {
+                                    "phase": "legacy_fx_plan",
+                                    "dry_run": bool(legacy_fx_dry_run),
+                                    "force": bool(legacy_fx_force),
+                                    "from": legacy_fx_from.isoformat() if legacy_fx_from else None,
+                                    "to": legacy_fx_to.isoformat() if legacy_fx_to else None,
+                                    "limit": legacy_fx_limit,
+                                    "types": sorted(legacy_fx_types),
+                                    "counts": plan_counts,
+                                },
+                                ensure_ascii=False,
+                            )
+                        )
+                        if not legacy_fx_dry_run:
+                            fx_result = _apply_legacy_fx(plan=plan, force=legacy_fx_force, dry_run=False)
+                            print(json.dumps({"phase": "legacy_fx_apply", **fx_result}, ensure_ascii=False))
+                            rebuilt = {"sales": 0, "invoices": 0, "services": 0, "payments": 0, "payment_splits": 0}
+                            for sid in plan.get("sales") or []:
+                                run_sale_gl_sync_after_commit(int(sid))
+                                rebuilt["sales"] += 1
+                            for iid in plan.get("invoices") or []:
+                                run_invoice_gl_sync_after_commit(int(iid))
+                                rebuilt["invoices"] += 1
+                            for sid in plan.get("services") or []:
+                                run_service_gl_sync_after_commit(int(sid))
+                                rebuilt["services"] += 1
+                            for pid in plan.get("payments") or []:
+                                run_payment_gl_sync_after_commit(int(pid))
+                                rebuilt["payments"] += 1
+                            for sid in plan.get("payment_splits") or []:
+                                with db.engine.connect() as conn:
+                                    with conn.begin():
+                                        _payment_split_gl_batch_upsert_by_id(conn, split_id=int(sid))
+                                rebuilt["payment_splits"] += 1
+                            print(json.dumps({"phase": "legacy_fx_rebuild_gl", "rebuilt": rebuilt}, ensure_ascii=False))
+                        else:
+                            print(json.dumps({"phase": "legacy_fx_apply", "dry_run": True}, ensure_ascii=False))
 
-        if rebuild_sales:
-            for sid in rebuild_sales:
-                run_sale_gl_sync_after_commit(int(sid))
-            print(json.dumps({"phase": "rebuild_sales", "count": len(rebuild_sales)}, ensure_ascii=False))
+                    if rebuild_sales:
+                        for sid in rebuild_sales:
+                            run_sale_gl_sync_after_commit(int(sid))
+                        print(json.dumps({"phase": "rebuild_sales", "count": len(rebuild_sales)}, ensure_ascii=False))
 
-        if rebuild_expenses:
-            updated = 0
-            for eid in rebuild_expenses:
-                if run_expense_gl_sync_after_commit(int(eid)):
-                    updated += 1
-            print(json.dumps({"phase": "rebuild_expenses", "count": updated}, ensure_ascii=False))
+                    if rebuild_expenses:
+                        updated = 0
+                        for eid in rebuild_expenses:
+                            if run_expense_gl_sync_after_commit(int(eid)):
+                                updated += 1
+                        print(json.dumps({"phase": "rebuild_expenses", "count": updated}, ensure_ascii=False))
 
-        if rebuild_payment_splits:
-            rebuilt = 0
-            for sid in rebuild_payment_splits:
-                with db.engine.connect() as conn:
-                    with conn.begin():
-                        _payment_split_gl_batch_upsert_by_id(conn, split_id=int(sid))
-                rebuilt += 1
-            print(json.dumps({"phase": "rebuild_payment_splits", "count": rebuilt}, ensure_ascii=False))
+                    if rebuild_payment_splits:
+                        rebuilt = 0
+                        for sid in rebuild_payment_splits:
+                            with db.engine.connect() as conn:
+                                with conn.begin():
+                                    _payment_split_gl_batch_upsert_by_id(conn, split_id=int(sid))
+                            rebuilt += 1
+                        print(json.dumps({"phase": "rebuild_payment_splits", "count": rebuilt}, ensure_ascii=False))
 
-        if refresh_opening_balances:
-            refreshed = _refresh_opening_balance_batches(target_ids=before.get("target_ids", {}))
-            print(json.dumps({"phase": "refresh_opening_balances", **refreshed}, ensure_ascii=False))
+                    if refresh_opening_balances:
+                        refreshed = _refresh_opening_balance_batches(target_ids=before.get("target_ids", {}))
+                        print(json.dumps({"phase": "refresh_opening_balances", **refreshed}, ensure_ascii=False))
 
-        targets = _find_mismatch_entity_ids(
-            as_of_date=as_of_date,
-            tolerance=tolerance,
-            include_archived=include_archived,
-            max_customers=max_customers,
-            max_suppliers=max_suppliers,
-            max_partners=max_partners,
-        )
-        recalculated = _recalculate_entities(target_ids=targets.get("target_ids", {}))
-        print(json.dumps({"phase": "recalculate", "recalculated": recalculated}, ensure_ascii=False))
+                    targets = _find_mismatch_entity_ids(
+                        as_of_date=as_of_date,
+                        tolerance=tolerance,
+                        include_archived=include_archived,
+                        max_customers=max_customers,
+                        max_suppliers=max_suppliers,
+                        max_partners=max_partners,
+                    )
+                    recalculated = _recalculate_entities(target_ids=targets.get("target_ids", {}))
+                    print(json.dumps({"phase": "recalculate", "recalculated": recalculated}, ensure_ascii=False))
 
-        after = _find_mismatch_entity_ids(
-            as_of_date=as_of_date,
-            tolerance=tolerance,
-            include_archived=include_archived,
-            max_customers=max_customers,
-            max_suppliers=max_suppliers,
-            max_partners=max_partners,
-        )
-        print(json.dumps({"phase": "after", **after}, ensure_ascii=False))
+                    after = _find_mismatch_entity_ids(
+                        as_of_date=as_of_date,
+                        tolerance=tolerance,
+                        include_archived=include_archived,
+                        max_customers=max_customers,
+                        max_suppliers=max_suppliers,
+                        max_partners=max_partners,
+                    )
+                    print(json.dumps({"phase": "after", **after}, ensure_ascii=False))
 
-        if detailed:
-            details = _audit_entity_details(
-                target_ids=after.get("target_ids", {}),
-                as_of_date=as_of_date,
-                include_components=include_components,
-                max_details=max_details,
-            )
-            print(json.dumps({"phase": "details_after", "entities": details}, ensure_ascii=False))
+                    if detailed:
+                        details = _audit_entity_details(
+                            target_ids=after.get("target_ids", {}),
+                            as_of_date=as_of_date,
+                            include_components=include_components,
+                            max_details=max_details,
+                        )
+                        print(json.dumps({"phase": "details_after", "entities": details}, ensure_ascii=False))
+                break
+            except Exception as e:
+                msg = str(e).lower()
+                if isinstance(e, OperationalError) or "too many clients" in msg:
+                    _cleanup_db()
+                    if attempt < attempts - 1:
+                        time.sleep(delay)
+                        continue
+                raise
+    finally:
+        _cleanup_db()
 
 
 if __name__ == "__main__":

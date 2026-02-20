@@ -39,6 +39,13 @@ def _has_arg(args, name):
     return any(a.strip().lower() == name for a in args)
 
 
+def _set_pool_limits():
+    os.environ.setdefault("SQLALCHEMY_POOL_SIZE", "1")
+    os.environ.setdefault("SQLALCHEMY_MAX_OVERFLOW", "0")
+    os.environ.setdefault("SQLALCHEMY_POOL_TIMEOUT", "10")
+    os.environ.setdefault("DB_CONNECT_TIMEOUT", "10")
+
+
 def _cleanup_db():
     try:
         from extensions import db
@@ -70,6 +77,8 @@ def main():
     else:
         apply = env_apply and not env_dry
         dry_run = not apply
+
+    _set_pool_limits()
 
     print("=== تشغيل إصلاحات الإنتاج ===")
     print("الوضع:", "تنفيذ فعلي" if apply else "معاينة (DRY RUN)")
