@@ -114,25 +114,12 @@ def main():
     _cleanup_db()
 
     os.environ["DRY_RUN"] = "1" if dry_run else "0"
-    run_vat_backfill = str(os.getenv("RUN_VAT_BACKFILL", "") or "").strip().lower() in ("1", "true", "yes", "on")
-    strip_vat = str(os.getenv("STRIP_VAT", "") or "").strip().lower() in ("1", "true", "yes", "on")
-    if strip_vat:
-        print("4) إزالة VAT من المبيعات (عند تعطيل VAT)")
-        confirm_sales_and_backfill_vat.run()
-        _cleanup_db()
-        print("5) إزالة VAT من الصيانة (عند تعطيل VAT)")
-        backfill_service_vat_taxentries.run()
-        _cleanup_db()
-    elif run_vat_backfill:
-        print("4) تأكيد المبيعات وملء ضريبة VAT")
-        confirm_sales_and_backfill_vat.run()
-        _cleanup_db()
-        print("5) ملء ضريبة VAT للخدمات")
-        backfill_service_vat_taxentries.run()
-        _cleanup_db()
-    else:
-        print("4) تخطي سكربتات VAT (RUN_VAT_BACKFILL=1 لتشغيلها)")
-        print("5) تخطي سكربتات VAT (STRIP_VAT=1 لإزالة VAT من البيانات القديمة)")
+    print("4) تأكيد المبيعات وملء ضريبة VAT")
+    confirm_sales_and_backfill_vat.run()
+    _cleanup_db()
+    print("5) ملء ضريبة VAT للخدمات")
+    backfill_service_vat_taxentries.run()
+    _cleanup_db()
 
     print("6) تحديث بيانات الصيانة القديمة (Totals + GL)")
     run_entity_balance_auto_fix.run_service_pl_backfill(dry_run=dry_run)

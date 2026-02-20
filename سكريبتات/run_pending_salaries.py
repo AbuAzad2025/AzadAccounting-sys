@@ -159,6 +159,9 @@ def run(dry_run=True, start_ym=None, end_ym=None, employee_id=None, payment_meth
                         pay_date = None
                 if not pay_date:
                     pay_date = period_end
+                if pay_date > date.today():
+                    skipped += 1
+                    continue
 
                 description = f"راتب شهر {month}/{year} - {emp.name}"
                 notes = "تم توليد الراتب تلقائياً بواسطة سكريبت الرواتب المعلقة"
@@ -258,6 +261,120 @@ def run(dry_run=True, start_ym=None, end_ym=None, employee_id=None, payment_meth
         return {"created": created, "skipped": skipped, "errors": errors}
 
 
+def cleanup_future_salary_payments(dry_run=True, cutoff_date=None):
+    from app import create_app
+    from extensions import db
+    from models import (
+        Expense,
+        ExpenseType,
+        Payment,
+        PaymentSplit,
+        PaymentStatus,
+        EmployeeAdvanceInstallment,
+        GLBatch,
+        GLEntry,
+    )
+    from sqlalchemy import delete as sa_delete, or_
+
+    app = create_app()
+    with app.app_context():
+        salary_type = ExpenseType.query.filter_by(code="SALARY").first()
+        if not salary_type:
+            print("ERROR: SALARY type not found")
+            return {"payments": 0, "expenses": 0, "installments": 0}
+
+        cutoff = cutoff_date or date.today()
+        salary_expense_ids = [
+            r[0]
+            for r in db.session.query(Expense.id)
+            .filter(Expense.type_id == salary_type.id)
+            .filter(Expense.date.isnot(None))
+            .filter(Expense.date > cutoff)
+            .all()
+        ]
+
+        payment_rows = (
+            db.session.query(Payment.id, Payment.expense_id)
+            .join(Expense, Payment.expense_id == Expense.id)
+            .filter(Expense.type_id == salary_type.id)
+            .filter(
+                or_(
+                    Payment.payment_date > cutoff,
+                    Expense.date > cutoff,
+                )
+            )
+            .filter(Payment.status.in_([PaymentStatus.COMPLETED.value, PaymentStatus.PENDING.value]))
+            .all()
+        )
+        payment_ids = [r[0] for r in payment_rows]
+        payment_expense_ids = [r[1] for r in payment_rows if r[1]]
+        target_expense_ids = sorted(set(salary_expense_ids) | set(payment_expense_ids))
+
+        inst_q = db.session.query(EmployeeAdvanceInstallment.id).filter(
+            EmployeeAdvanceInstallment.paid_in_salary_expense_id.in_(target_expense_ids)
+        )
+        installment_ids = [r[0] for r in inst_q.all()]
+
+        result = {
+            "payments": len(payment_ids),
+            "expenses": len(target_expense_ids),
+            "installments": len(installment_ids),
+        }
+
+        if dry_run:
+            print("DRY-RUN cleanup:", result)
+            return result
+
+        if installment_ids:
+            db.session.query(EmployeeAdvanceInstallment).filter(
+                EmployeeAdvanceInstallment.id.in_(installment_ids)
+            ).update(
+                {
+                    EmployeeAdvanceInstallment.paid: False,
+                    EmployeeAdvanceInstallment.paid_date: None,
+                    EmployeeAdvanceInstallment.paid_in_salary_expense_id: None,
+                },
+                synchronize_session=False,
+            )
+
+        split_ids = [
+            r[0]
+            for r in db.session.query(PaymentSplit.id)
+            .filter(PaymentSplit.payment_id.in_(payment_ids))
+            .all()
+        ]
+
+        if split_ids:
+            batch_ids = [
+                r[0]
+                for r in db.session.query(GLBatch.id)
+                .filter(GLBatch.source_type == "PAYMENT_SPLIT")
+                .filter(GLBatch.source_id.in_(split_ids))
+                .all()
+            ]
+            if batch_ids:
+                db.session.execute(sa_delete(GLEntry).where(GLEntry.batch_id.in_(batch_ids)))
+                db.session.execute(sa_delete(GLBatch).where(GLBatch.id.in_(batch_ids)))
+            db.session.execute(sa_delete(PaymentSplit).where(PaymentSplit.id.in_(split_ids)))
+
+        if payment_ids:
+            batch_ids = [
+                r[0]
+                for r in db.session.query(GLBatch.id)
+                .filter(GLBatch.source_type == "PAYMENT")
+                .filter(GLBatch.source_id.in_(payment_ids))
+                .all()
+            ]
+            if batch_ids:
+                db.session.execute(sa_delete(GLEntry).where(GLEntry.batch_id.in_(batch_ids)))
+                db.session.execute(sa_delete(GLBatch).where(GLBatch.id.in_(batch_ids)))
+            db.session.execute(sa_delete(Payment).where(Payment.id.in_(payment_ids)))
+
+        db.session.commit()
+        print("CLEANUP DONE:", result)
+        return result
+
+
 if __name__ == "__main__":
     import argparse
 
@@ -268,15 +385,27 @@ if __name__ == "__main__":
     parser.add_argument("--payment-method", dest="payment_method", default="bank")
     parser.add_argument("--payment-date", dest="payment_date", help="YYYY-MM-DD")
     parser.add_argument("--dry-run", dest="dry_run", action="store_true")
+    parser.add_argument("--apply", dest="apply", action="store_true")
+    parser.add_argument("--cleanup-future-payments", dest="cleanup_future_payments", action="store_true")
+    parser.add_argument("--cutoff-date", dest="cutoff_date", help="YYYY-MM-DD")
     args = parser.parse_args()
 
     start_ym = _parse_ym(args.start) if args.start else None
     end_ym = _parse_ym(args.end) if args.end else None
-    run(
-        dry_run=args.dry_run,
-        start_ym=start_ym,
-        end_ym=end_ym,
-        employee_id=args.employee_id,
-        payment_method=args.payment_method,
-        payment_date=args.payment_date,
-    )
+    if args.cleanup_future_payments:
+        cut_date = None
+        if args.cutoff_date:
+            try:
+                cut_date = datetime.strptime(args.cutoff_date, "%Y-%m-%d").date()
+            except Exception:
+                cut_date = None
+        cleanup_future_salary_payments(dry_run=not args.apply, cutoff_date=cut_date)
+    else:
+        run(
+            dry_run=args.dry_run,
+            start_ym=start_ym,
+            end_ym=end_ym,
+            employee_id=args.employee_id,
+            payment_method=args.payment_method,
+            payment_date=args.payment_date,
+        )

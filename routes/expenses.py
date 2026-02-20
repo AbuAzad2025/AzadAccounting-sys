@@ -3079,6 +3079,8 @@ def generate_all_salaries():
     month = int(request.form.get('month', today.month))
     year = int(request.form.get('year', today.year))
     payment_date = request.form.get('payment_date', today.date().isoformat())
+    pay_date = datetime.strptime(payment_date, '%Y-%m-%d').date() if payment_date else datetime.now().date()
+    allow_auto_pay = pay_date <= today.date()
     
     employees = Employee.query.order_by(Employee.name).limit(1000).all()
     
@@ -3142,7 +3144,7 @@ def generate_all_salaries():
                 type_id=salary_type.id,
                 employee_id=emp.id,
                 amount=float(net_salary),
-                date=datetime.strptime(payment_date, '%Y-%m-%d').date() if payment_date else datetime.now().date(),
+                date=pay_date,
                 description=f'راتب {month}/{year} - {emp.name}',
                 payment_method='bank',
                 branch_id=emp.branch_id,
@@ -3158,12 +3160,14 @@ def generate_all_salaries():
             
             db.session.add(new_expense)
             db.session.flush()
-            _ensure_expense_paid_on_create(new_expense, [])
+            if allow_auto_pay:
+                _ensure_expense_paid_on_create(new_expense, [])
             
-            for inst in installments:
-                inst.paid = True
-                inst.paid_date = datetime.now().date()
-                inst.paid_in_salary_expense_id = new_expense.id
+            if allow_auto_pay:
+                for inst in installments:
+                    inst.paid = True
+                    inst.paid_date = pay_date
+                    inst.paid_in_salary_expense_id = new_expense.id
             
             success_count += 1
             created_expense_ids.append(new_expense.id)
