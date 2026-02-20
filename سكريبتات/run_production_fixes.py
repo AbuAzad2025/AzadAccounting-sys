@@ -71,6 +71,10 @@ def main():
         run_entity_balance_auto_fix,
         fix_sales_sequence,
         purge_test_data,
+        fix_expense_utility_accounts,
+        run_pending_salaries,
+        purge_deleted_payments_expenses,
+        fix_payment_reversal_split_entities,
     )
 
     print("1) تصحيح أنواع الحسابات")
@@ -109,6 +113,19 @@ def main():
 
     print("8) فحص وتصحيح تكامل دفتر الأستاذ")
     fix_gl_integrity_standalone.run_fix_standalone(dry_run=dry_run)
+
+    print("8.1) ربط المصاريف بالموردين حسب قواعد المصروفات")
+    fix_expense_utility_accounts.run(dry_run=dry_run)
+
+    print("8.2) تسوية بيانات الرواتب المعلقة")
+    run_pending_salaries.run(dry_run=dry_run)
+
+    print("8.3) حذف بيانات الحركات اليتيمة (Payments/Expenses)")
+    purge_deleted_payments_expenses.run(dry_run=dry_run)
+
+    print("8.4) تصحيح كيان دفعات الإلغاء والسِبلِت")
+    os.environ["APPLY_CHANGES"] = "1" if apply else "0"
+    fix_payment_reversal_split_entities.run()
 
     if apply:
         print("9) إكمال مدفوعات المصاريف")

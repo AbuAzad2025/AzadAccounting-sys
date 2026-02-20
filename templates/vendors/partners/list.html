@@ -252,6 +252,11 @@
         <a href="{{ url_for('main.dashboard') }}" class="btn btn-outline-secondary font-weight-bold shadow-sm rounded-pill">
           <i class="fas fa-home ml-1"></i> الرئيسية
         </a>
+        {% if current_user.has_permission('manage_vendors') %}
+          <button class="btn btn-outline-info font-weight-bold" onclick="recalculatePartnerBalances()" title="إعادة حساب الأرصدة">
+            <i class="fas fa-calculator ml-1"></i> إعادة حساب الأرصدة
+          </button>
+        {% endif %}
         <a href="{{ url_for('partner_settlements_bp.list') }}" class="btn btn-warning text-white font-weight-bold">
           <i class="fas fa-file-invoice-dollar ml-1"></i> قائمة التسويات
         </a>
@@ -285,7 +290,7 @@
             <td class="partner-name">{{ p.name }}</td>
             <td class="partner-phone">{{ p.phone_number or '—' }}</td>
             <td data-sort-value="{{ balance }}">
-              <span class="badge {% if balance > 0 %}bg-danger{% elif balance == 0 %}bg-secondary{% else %}bg-success{% endif %}"
+              <span class="badge {% if balance > 0 %}bg-success{% elif balance == 0 %}bg-secondary{% else %}bg-danger{% endif %}"
                     data-balance-partner="{{ p.id }}">
                 {{ '%.2f'|format(balance) }} ₪
               </span>
@@ -562,6 +567,35 @@
     }
   });
   
+  function recalculatePartnerBalances() {
+    const ids = Array.from(document.querySelectorAll('[data-balance-partner]'))
+      .map(el => el.getAttribute('data-balance-partner'))
+      .filter(Boolean);
+    if (ids.length === 0) {
+      alert('لا يوجد شركاء لتحديث أرصدتهم.');
+      return;
+    }
+    if (!confirm('إعادة حساب أرصدة الشركاء المعروضة؟\nهذه العملية قد تستغرق وقتاً...')) return;
+    fetch('/vendors/partners/balances/recalculate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': '{{ csrf_token() }}'
+      },
+      body: JSON.stringify({ ids: ids })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.success) {
+        alert('✅ تم تحديث أرصدة ' + data.updated + ' شريك.');
+        window.location.reload();
+      } else {
+        alert('❌ فشل: ' + (data.error || data.message || 'تعذر التحديث'));
+      }
+    })
+    .catch(function(e) { alert('خطأ: ' + e.message); });
+  }
+
   // التحقق من القطع غير المسعّرة
   fetch('/partners/unpriced-items')
     .then(res => res.json())

@@ -62,6 +62,11 @@
                 <a href="{{ url_for('main.dashboard') }}" class="btn btn-light btn-sm rounded-pill px-3 shadow-sm fw-bold me-2">
                     <i class="fas fa-home me-1"></i> الرئيسية
                 </a>
+                {% if current_user.has_permission('manage_vendors') %}
+                <button type="button" class="btn btn-light btn-sm rounded-pill px-3 shadow-sm fw-bold me-2" onclick="recalculateSupplierBalances()" title="إعادة حساب الأرصدة">
+                    <i class="fas fa-calculator me-1"></i> إعادة حساب الأرصدة
+                </button>
+                {% endif %}
                 <a href="{{ url_for('vendors_bp.suppliers_create') }}" class="btn btn-light btn-sm rounded-pill px-3 shadow-sm fw-bold">
                     <i class="fas fa-plus me-1"></i> مورد جديد
                 </a>
@@ -236,6 +241,37 @@
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/vendors.js') }}"></script>
 <script>
+    function recalculateSupplierBalances() {
+        const ids = Array.from(document.querySelectorAll('[data-balance-supplier]'))
+            .map(el => el.getAttribute('data-balance-supplier'))
+            .filter(Boolean);
+        if (ids.length === 0) {
+            alert('لا يوجد موردون لتحديث أرصدتهم.');
+            return;
+        }
+        if (!confirm('إعادة حساب أرصدة الموردين المعروضة؟\nهذه العملية قد تستغرق وقتاً...')) return;
+        const configEl = document.getElementById('vendors-config');
+        const csrfToken = configEl ? configEl.dataset.csrfToken : '';
+        fetch('/vendors/suppliers/balances/recalculate', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken || ''
+            },
+            body: JSON.stringify({ ids: ids })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                alert('✅ تم تحديث أرصدة ' + data.updated + ' مورد.');
+                window.location.reload();
+            } else {
+                alert('❌ فشل: ' + (data.error || data.message || 'تعذر التحديث'));
+            }
+        })
+        .catch(function(e) { alert('خطأ: ' + e.message); });
+    }
+
     // Simple search functionality if not handled by vendors.js
     function searchSuppliers() {
         const query = document.getElementById('supplierSearch').value;
