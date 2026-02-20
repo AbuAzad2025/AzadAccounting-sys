@@ -69,7 +69,17 @@ class ActionExecutor:
                 'create_service': self.create_service,
                 'add_warehouse': self.add_warehouse,
                 'transfer_stock': self.transfer_stock,
-                'adjust_stock': self.adjust_stock
+                'adjust_stock': self.adjust_stock,
+                'delete_payment': self.delete_payment,
+                'delete_split': self.delete_split,
+                'delete_split_ref': self.delete_split_ref,
+                'delete_check': self.delete_check,
+                'delete_expense': self.delete_expense,
+                'archive_sale': self.archive_sale,
+                'archive_check': self.archive_check,
+                'archive_expense': self.archive_expense,
+                'reverse_gl_batch': self.reverse_gl_batch,
+                'fix_unbalanced_batches': self.fix_unbalanced_batches
             }
             
             action_func = action_map.get(action_type)
@@ -79,6 +89,13 @@ class ActionExecutor:
                     'success': False,
                     'message': f'❌ العملية "{action_type}" غير معروفة',
                     'available_actions': list(action_map.keys())
+                }
+            
+            from AI.engine.ai_permissions import can_ai_execute_action
+            if not can_ai_execute_action(action_type, ''):
+                return {
+                    'success': False,
+                    'message': '❌ ليس لديك صلاحية لتنفيذ هذا الإجراء'
                 }
             
             # تنفيذ العملية
@@ -394,6 +411,362 @@ class ActionExecutor:
         except Exception as e:
             db.session.rollback()
             return {'success': False, 'message': f'❌ خطأ: {str(e)}'}
+    
+    def delete_split_ref(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        try:
+            raw_refs = (params.get('raw_refs') or '').strip()
+            if not raw_refs:
+                return {'success': False, 'message': '❌ مرجع السبليت مطلوب'}
+            from سكريبتات.purge_deleted_payments_expenses import cleanup_specific_splits
+            result = cleanup_specific_splits(raw_refs=raw_refs, dry_run=False)
+            deleted = result.get('deleted', {}) or {}
+            found = result.get('found_splits', []) or []
+            missing = result.get('missing_splits', []) or []
+            deleted_splits = int(deleted.get('splits', 0) or 0)
+            deleted_payments = int(deleted.get('payments', 0) or 0)
+            deleted_checks = int(deleted.get('checks', 0) or 0)
+            deleted_gl = int(deleted.get('gl_batches', 0) or 0)
+            msg = f'✅ تم حذف {deleted_splits} سبليت'
+            if deleted_payments:
+                msg += f'، وحذف {deleted_payments} دفعة فارغة'
+            if deleted_checks:
+                msg += f'، وحذف {deleted_checks} شيك مرتبط'
+            if deleted_gl:
+                msg += f'، وحذف {deleted_gl} قيد محاسبي'
+            if missing:
+                msg += f'، غير موجود: {len(missing)}'
+            success = deleted_splits > 0 or len(found) > 0
+            return {
+                'success': success,
+                'message': msg,
+                'data': result
+            }
+        except Exception as e:
+            return {'success': False, 'message': f'❌ خطأ في حذف السبليت: {str(e)}'}
+    
+    def delete_split(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        try:
+            split_id = params.get('split_id')
+            if not split_id:
+                return {'success': False, 'message': '❌ رقم السبليت مطلوب'}
+            from models import PaymentSplit
+            split = db.session.get(PaymentSplit, int(split_id))
+            if not split:
+                return {'success': False, 'message': '❌ السبليت غير موجود'}
+            if not getattr(split, 'payment_id', None):
+                return {'success': False, 'message': '❌ السبليت بدون دفعة مرتبطة'}
+            raw_ref = f"SPLIT-{int(split.id)}-PMT-{int(split.payment_id)}"
+            return self.delete_split_ref({'raw_refs': raw_ref})
+        except Exception as e:
+            return {'success': False, 'message': f'❌ خطأ في حذف السبليت: {str(e)}'}
+    
+    def delete_payment(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        try:
+            payment_id = params.get('payment_id') or params.get('id')
+            if not payment_id:
+                return {'success': False, 'message': '❌ رقم الدفعة مطلوب'}
+            from models import Payment, Check
+            from sqlalchemy import or_
+            from سكريبتات.purge_deleted_payments_expenses import _delete_split_gl_batches, _delete_payment_gl_batches, _collect_split_checks
+            from utils import update_entity_balance
+            payment = db.session.get(Payment, int(payment_id))
+            if not payment:
+                return {'success': False, 'message': '❌ الدفعة غير موجودة'}
+            customer_id = getattr(payment, 'customer_id', None)
+            supplier_id = getattr(payment, 'supplier_id', None)
+            partner_id = getattr(payment, 'partner_id', None)
+            split_ids = [int(s.id) for s in (payment.splits or []) if getattr(s, 'id', None)]
+            checks = []
+            if split_ids:
+                checks.extend(_collect_split_checks(split_ids))
+            payment_ref = f"PMT-{int(payment.id)}"
+            payment_checks = Check.query.filter(
+                or_(
+                    Check.reference_number == payment_ref,
+                    Check.reference_number.like(f"{payment_ref}-%")
+                )
+            ).all()
+            checks.extend(payment_checks)
+            unique_checks = {int(c.id): c for c in checks if getattr(c, 'id', None)}
+            for chk in unique_checks.values():
+                try:
+                    chk._skip_gl_reversal = True
+                except Exception:
+                    pass
+                db.session.delete(chk)
+            if split_ids:
+                _delete_split_gl_batches(split_ids)
+                for s in list(payment.splits or []):
+                    db.session.delete(s)
+            db.session.delete(payment)
+            _delete_payment_gl_batches([int(payment.id)])
+            db.session.commit()
+            try:
+                if customer_id:
+                    update_entity_balance('CUSTOMER', int(customer_id))
+                if supplier_id:
+                    update_entity_balance('SUPPLIER', int(supplier_id))
+                if partner_id:
+                    update_entity_balance('PARTNER', int(partner_id))
+            except Exception:
+                pass
+            return {
+                'success': True,
+                'message': f'✅ تم حذف الدفعة #{payment_id} بنجاح',
+                'payment_id': int(payment_id)
+            }
+        except Exception as e:
+            db.session.rollback()
+            return {'success': False, 'message': f'❌ خطأ في حذف الدفعة: {str(e)}'}
+    
+    def delete_check(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        try:
+            check_id = params.get('check_id')
+            if not check_id:
+                return {'success': False, 'message': '❌ رقم الشيك مطلوب'}
+            from models import Check
+            check = db.session.get(Check, int(check_id))
+            if not check:
+                return {'success': False, 'message': '❌ الشيك غير موجود'}
+            check_number = getattr(check, 'check_number', None)
+            db.session.delete(check)
+            db.session.commit()
+            return {
+                'success': True,
+                'message': f'✅ تم حذف الشيك رقم {check_number or check_id}',
+                'check_id': int(check_id)
+            }
+        except Exception as e:
+            db.session.rollback()
+            return {'success': False, 'message': f'❌ خطأ في حذف الشيك: {str(e)}'}
+    
+    def delete_expense(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        try:
+            expense_id = params.get('expense_id')
+            if not expense_id:
+                return {'success': False, 'message': '❌ رقم المصروف مطلوب'}
+            from models import Expense
+            from routes.expenses import build_expense_reversal_snapshot, run_expense_gl_reversal_after_delete, _expense_related_entity_pairs, _refresh_entity_balances
+            exp = db.session.get(Expense, int(expense_id))
+            if not exp:
+                return {'success': False, 'message': '❌ المصروف غير موجود'}
+            before_pairs = _expense_related_entity_pairs(exp)
+            reversal_snapshot = build_expense_reversal_snapshot(exp)
+            db.session.delete(exp)
+            db.session.commit()
+            try:
+                run_expense_gl_reversal_after_delete(reversal_snapshot)
+            except Exception:
+                pass
+            try:
+                _refresh_entity_balances(before_pairs)
+            except Exception:
+                pass
+            return {
+                'success': True,
+                'message': f'✅ تم حذف المصروف #{expense_id} بنجاح',
+                'expense_id': int(expense_id)
+            }
+        except Exception as e:
+            db.session.rollback()
+            return {'success': False, 'message': f'❌ خطأ في حذف المصروف: {str(e)}'}
+
+    def archive_sale(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        try:
+            sale_id = params.get('sale_id') or params.get('id')
+            if not sale_id:
+                return {'success': False, 'message': '❌ رقم المبيعة مطلوب'}
+            from models import Sale
+            from utils import archive_record
+            sale = db.session.get(Sale, int(sale_id))
+            if not sale:
+                return {'success': False, 'message': '❌ المبيعة غير موجودة'}
+            if getattr(sale, 'is_archived', False):
+                return {'success': False, 'message': '❌ المبيعة مؤرشفة مسبقاً'}
+            reason = params.get('reason')
+            archive_record(sale, reason=reason, user_id=self.user_id)
+            return {
+                'success': True,
+                'message': f'✅ تم أرشفة المبيعة #{sale_id} بنجاح',
+                'sale_id': int(sale_id)
+            }
+        except Exception as e:
+            db.session.rollback()
+            return {'success': False, 'message': f'❌ خطأ في أرشفة المبيعة: {str(e)}'}
+
+    def archive_check(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        try:
+            check_id = params.get('check_id')
+            if not check_id:
+                return {'success': False, 'message': '❌ رقم الشيك مطلوب'}
+            from models import Check, CheckStatus
+            from utils import archive_record
+            check = db.session.get(Check, int(check_id))
+            if not check:
+                return {'success': False, 'message': '❌ الشيك غير موجود'}
+            if getattr(check, 'is_archived', False):
+                return {'success': False, 'message': '❌ الشيك مؤرشف مسبقاً'}
+            reason = params.get('reason')
+            archive_record(check, reason=reason, user_id=self.user_id)
+            try:
+                check.status = CheckStatus.ARCHIVED
+            except Exception:
+                check.status = CheckStatus.ARCHIVED.value
+            db.session.commit()
+            return {
+                'success': True,
+                'message': f'✅ تم أرشفة الشيك #{check_id} بنجاح',
+                'check_id': int(check_id)
+            }
+        except Exception as e:
+            db.session.rollback()
+            return {'success': False, 'message': f'❌ خطأ في أرشفة الشيك: {str(e)}'}
+
+    def archive_expense(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        try:
+            expense_id = params.get('expense_id')
+            if not expense_id:
+                return {'success': False, 'message': '❌ رقم المصروف مطلوب'}
+            from models import Expense
+            from utils import archive_record
+            expense = db.session.get(Expense, int(expense_id))
+            if not expense:
+                return {'success': False, 'message': '❌ المصروف غير موجود'}
+            if getattr(expense, 'is_archived', False):
+                return {'success': False, 'message': '❌ المصروف مؤرشف مسبقاً'}
+            reason = params.get('reason')
+            archive_record(expense, reason=reason, user_id=self.user_id)
+            return {
+                'success': True,
+                'message': f'✅ تم أرشفة المصروف #{expense_id} بنجاح',
+                'expense_id': int(expense_id)
+            }
+        except Exception as e:
+            db.session.rollback()
+            return {'success': False, 'message': f'❌ خطأ في أرشفة المصروف: {str(e)}'}
+
+    def reverse_gl_batch(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        try:
+            batch_id = params.get('batch_id')
+            if not batch_id:
+                return {'success': False, 'message': '❌ رقم القيد مطلوب'}
+            from models import GLBatch, GLEntry
+            original_batch = db.session.get(GLBatch, int(batch_id))
+            if not original_batch:
+                return {'success': False, 'message': '❌ القيد غير موجود'}
+            existing_reversal = GLBatch.query.filter_by(
+                source_type='REVERSAL',
+                source_id=original_batch.id
+            ).first()
+            if existing_reversal:
+                return {
+                    'success': False,
+                    'message': '❌ يوجد قيد عكسي لهذا القيد بالفعل',
+                    'reversal_batch_id': existing_reversal.id
+                }
+            reversal_batch = GLBatch(
+                code=f"REV-{original_batch.code}",
+                source_type='REVERSAL',
+                source_id=original_batch.id,
+                purpose=f"عكس: {original_batch.purpose}",
+                memo=f"قيد عكسي للقيد #{batch_id} - {original_batch.memo}",
+                currency=original_batch.currency,
+                status='POSTED',
+                posted_at=datetime.now()
+            )
+            db.session.add(reversal_batch)
+            db.session.flush()
+            for original_entry in original_batch.entries:
+                reversal_entry = GLEntry(
+                    batch_id=reversal_batch.id,
+                    account=original_entry.account,
+                    debit=original_entry.credit,
+                    credit=original_entry.debit,
+                    ref=f"REV-{original_entry.ref}",
+                    currency=original_entry.currency
+                )
+                db.session.add(reversal_entry)
+            db.session.commit()
+            return {
+                'success': True,
+                'message': '✅ تم إنشاء القيد العكسي بنجاح',
+                'original_batch_id': int(batch_id),
+                'reversal_batch_id': reversal_batch.id
+            }
+        except Exception as e:
+            db.session.rollback()
+            return {'success': False, 'message': f'❌ خطأ في إنشاء القيد العكسي: {str(e)}'}
+
+    def fix_unbalanced_batches(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        try:
+            from models import GLBatch, GLEntry, Account
+            batches = db.session.query(GLBatch).filter(
+                GLBatch.status == 'POSTED'
+            ).all()
+            fixed_batches = []
+            unfixable_batches = []
+            for batch in batches:
+                total_debit = sum(float(entry.debit) for entry in batch.entries)
+                total_credit = sum(float(entry.credit) for entry in batch.entries)
+                difference = total_debit - total_credit
+                if abs(difference) > 0.01:
+                    if len(batch.entries) >= 2:
+                        correction_account = '9999_CORRECTION'
+                        correction_acc = Account.query.filter_by(code=correction_account).first()
+                        if not correction_acc:
+                            correction_acc = Account(
+                                code=correction_account,
+                                name='حساب التصحيح',
+                                type='EXPENSE',
+                                is_active=True
+                            )
+                            db.session.add(correction_acc)
+                        if difference > 0:
+                            correction_entry = GLEntry(
+                                batch_id=batch.id,
+                                account=correction_account,
+                                debit=0,
+                                credit=abs(difference),
+                                currency='ILS',
+                                ref=f'تصحيح توازن {batch.code}'
+                            )
+                        else:
+                            correction_entry = GLEntry(
+                                batch_id=batch.id,
+                                account=correction_account,
+                                debit=abs(difference),
+                                credit=0,
+                                currency='ILS',
+                                ref=f'تصحيح توازن {batch.code}'
+                            )
+                        db.session.add(correction_entry)
+                        fixed_batches.append({
+                            'batch_id': batch.id,
+                            'batch_code': batch.code,
+                            'difference': difference,
+                            'correction_amount': abs(difference)
+                        })
+                    else:
+                        unfixable_batches.append({
+                            'batch_id': batch.id,
+                            'batch_code': batch.code,
+                            'difference': difference,
+                            'reason': 'عدد القيود أقل من 2'
+                        })
+            db.session.commit()
+            return {
+                'success': True,
+                'message': '✅ تم إصلاح القيود غير المتوازنة',
+                'summary': {
+                    'fixed_batches': len(fixed_batches),
+                    'unfixable_batches': len(unfixable_batches)
+                },
+                'fixed_batches': fixed_batches,
+                'unfixable_batches': unfixable_batches
+            }
+        except Exception as e:
+            db.session.rollback()
+            return {'success': False, 'message': f'❌ خطأ في إصلاح القيود غير المتوازنة: {str(e)}'}
     
     # ═══════════════════════════════════════════════════════════════════════
     # 🧾 INVOICE & SALE ACTIONS - عمليات الفواتير والمبيعات
@@ -831,11 +1204,16 @@ class ActionExecutor:
     def _log_action(self, action_type: str, params: Dict, result: Dict):
         """تسجيل العملية في Audit Log"""
         try:
+            entity_id = (
+                result.get('customer_id') or result.get('product_id') or result.get('sale_id') or
+                result.get('payment_id') or result.get('expense_id') or result.get('check_id') or
+                result.get('split_id') or result.get('id')
+            )
             log = AuditLog(
                 user_id=self.user_id,
                 action=f'ai_action_{action_type}',
                 entity_type=action_type.replace('add_', '').replace('create_', ''),
-                entity_id=result.get('customer_id') or result.get('product_id') or result.get('sale_id'),
+                entity_id=entity_id,
                 details=f"AI executed: {action_type}",
                 ip_address='AI_SYSTEM',
                 user_agent='AI Assistant v5.0'

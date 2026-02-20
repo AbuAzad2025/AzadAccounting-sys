@@ -246,7 +246,9 @@
              href="#tab-assistant"
              role="tab">
             <i class="fas fa-comments"></i> مساعد ذكي
-            <span class="notification-badge">3</span>
+            {% if recent_queries and recent_queries|length > 0 %}
+            <span class="notification-badge">{{ recent_queries|length }}</span>
+            {% endif %}
           </a>
         </li>
         <li class="nav-item">
@@ -366,22 +368,107 @@
             <div class="col-md-4">
               <div class="quick-action-btn text-center" onclick="window.location='{{ url_for('ai.assistant') }}'">
                 <i class="fas fa-comments fa-3x text-primary mb-2"></i>
-                <h6 class="mb-0">فتح المحادثة</h6>
-                <small class="text-muted">تحدث مع المساعد الذكي</small>
+                <h6 class="mb-0">بدء محادثة</h6>
+                <small class="text-muted">اسأل أي سؤال فوري</small>
               </div>
             </div>
             <div class="col-md-4">
               <div class="quick-action-btn text-center" onclick="window.location='{{ url_for('ai.system_map') }}'">
                 <i class="fas fa-map fa-3x text-success mb-2"></i>
                 <h6 class="mb-0">خريطة النظام</h6>
-                <small class="text-muted">استكشاف كامل</small>
+                <small class="text-muted">اعرف أين توجد كل المزايا</small>
               </div>
             </div>
             <div class="col-md-4">
               <div class="quick-action-btn text-center" onclick="startQuickTraining()">
                 <i class="fas fa-bolt fa-3x text-warning mb-2"></i>
-                <h6 class="mb-0">تدريب سريع</h6>
-                <small class="text-muted">تحديث المعرفة</small>
+                <h6 class="mb-0">تحديث معرفة</h6>
+                <small class="text-muted">تعزيز أداء المساعد</small>
+              </div>
+            </div>
+          </div>
+
+          <div class="row g-3 mb-4">
+            <div class="col-lg-6">
+              <div class="card ai-card h-100">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                  <span><i class="fas fa-plug"></i> جاهزية المساعد</span>
+                  <a class="btn btn-sm btn-outline-primary" href="{{ url_for('ai.hub', tab='config') }}">إعدادات المفاتيح</a>
+                </div>
+                <div class="card-body">
+                  {% set total_models = model_statuses|length if model_statuses else 0 %}
+                  {% set counts = namespace(trained=0, training=0, pending=0) %}
+                  {% for mname, minfo in (model_statuses or {}).items() %}
+                    {% if minfo is mapping %}
+                      {% set st = minfo.get('status', 'pending') %}
+                    {% else %}
+                      {% set st = minfo %}
+                    {% endif %}
+                    {% if st == 'trained' %}
+                      {% set counts.trained = counts.trained + 1 %}
+                    {% elif st == 'training' %}
+                      {% set counts.training = counts.training + 1 %}
+                    {% else %}
+                      {% set counts.pending = counts.pending + 1 %}
+                    {% endif %}
+                  {% endfor %}
+                  <div class="d-flex flex-wrap gap-2 mb-3">
+                    <span class="badge bg-{{ 'success' if api_keys_configured else 'warning' }}">
+                      {{ 'مفاتيح API مفعّلة' if api_keys_configured else 'مفاتيح API غير مفعّلة' }}
+                    </span>
+                    <span class="badge bg-info">إجمالي النماذج: {{ total_models }}</span>
+                    <span class="badge bg-success">مدرّبة: {{ counts.trained }}</span>
+                    <span class="badge bg-warning text-dark">قيد التدريب: {{ counts.training }}</span>
+                    <span class="badge bg-secondary">بانتظار: {{ counts.pending }}</span>
+                  </div>
+                  <div class="text-muted small">
+                    {{ 'المساعد جاهز للاستخدام الآن.' if api_keys_configured else 'فعّل مفاتيح API لتجربة كاملة.' }}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col-lg-6">
+              <div class="card ai-card h-100">
+                <div class="card-header bg-light">
+                  <i class="fas fa-lightbulb"></i> أسئلة سريعة تقترحها المنصة
+                </div>
+                <div class="card-body">
+                  <div class="row g-2">
+                    <div class="col-md-6">
+                      <div class="border rounded p-2 h-100">
+                        <div class="fw-bold mb-1">الموردون</div>
+                        <div class="text-muted small">ما هو رصيد المورد X؟</div>
+                        <div class="text-muted small">أعطني كشف حساب آخر 30 يوم</div>
+                      </div>
+                    </div>
+                    <div class="col-md-6">
+                      <div class="border rounded p-2 h-100">
+                        <div class="fw-bold mb-1">المخزون</div>
+                        <div class="text-muted small">ما المنتجات منخفضة المخزون؟</div>
+                        <div class="text-muted small">اقترح طلب شراء هذا الأسبوع</div>
+                      </div>
+                    </div>
+                    <div class="col-md-6">
+                      <div class="border rounded p-2 h-100">
+                        <div class="fw-bold mb-1">المبيعات</div>
+                        <div class="text-muted small">أفضل العملاء هذا الشهر؟</div>
+                        <div class="text-muted small">ملخص مبيعات اليوم</div>
+                      </div>
+                    </div>
+                    <div class="col-md-6">
+                      <div class="border rounded p-2 h-100">
+                        <div class="fw-bold mb-1">الخدمات</div>
+                        <div class="text-muted small">طلبات الخدمة المتأخرة</div>
+                        <div class="text-muted small">تحليل أرباح الصيانة</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="mt-3">
+                    <a class="btn btn-gradient w-100" href="{{ url_for('ai.assistant') }}">
+                      <i class="fas fa-comments"></i> افتح المحادثة الآن
+                    </a>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -398,10 +485,10 @@
                   <i class="fas fa-user-circle fa-2x text-muted ml-3"></i>
                   <div class="flex-grow-1">
                     <div class="d-flex justify-content-between">
-                      <strong>{{ q.question[:50] }}...</strong>
+                      <strong>{{ (q.question or '')[:50] }}...</strong>
                       <small class="text-muted">{{ q.timestamp }}</small>
                     </div>
-                    <small class="text-muted">{{ q.answer[:80] }}...</small>
+                    <small class="text-muted">{{ (q.answer or '')[:80] }}...</small>
                     <div class="mt-1">
                       <span class="badge bg-{{ 'success' if q.confidence > 80 else 'warning' }}">
                         ثقة: {{ q.confidence }}%
@@ -411,7 +498,10 @@
                 </div>
                 {% endfor %}
               {% else %}
-                <p class="text-center text-muted">لا توجد تفاعلات سابقة</p>
+                <div class="text-center text-muted">
+                  <div class="mb-2">لا توجد تفاعلات سابقة</div>
+                  <a class="btn btn-sm btn-outline-primary" href="{{ url_for('ai.assistant') }}">ابدأ أول سؤال</a>
+                </div>
               {% endif %}
             </div>
           </div>

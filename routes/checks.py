@@ -4911,6 +4911,7 @@ def check_detail(check_id):
 
 @checks_bp.route("/delete/<int:check_id>", methods=["POST"])
 @login_required
+@utils.permission_required("manage_payments")
 def delete_check(check_id):
     """حذف شيك"""
     try:

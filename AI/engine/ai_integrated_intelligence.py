@@ -74,7 +74,7 @@ class IntegratedIntelligence:
         confidence = 0.5
         sources = []
         
-        is_action_request = any(w in q_lower for w in ['أضف', 'add', 'create', 'سجل', 'register'])
+        is_action_request = any(w in q_lower for w in ['أضف', 'add', 'create', 'سجل', 'register', 'حذف', 'احذف', 'delete', 'remove', 'أزل', 'أرشف', 'أرشفة', 'ارشفة', 'ارشف', 'archive', 'عكس', 'reverse', 'تصحيح', 'اصلاح', 'fix'])
         
         if is_action_request:
             action_result = self._handle_action_request(query, context)
@@ -260,26 +260,48 @@ class IntegratedIntelligence:
     def _handle_action_request(self, query: str, context: Dict) -> Optional[Dict]:
         try:
             from AI.engine.ai_action_executor import ActionExecutor
+            from AI.engine.ai_permissions import can_ai_execute_action
+            from models import SystemSettings
             
             user_id = context.get('user_id')
             if not user_id:
                 return None
             
-            executor = ActionExecutor(user_id)
+            if not bool(SystemSettings.get_setting('ai_can_execute_actions', True)):
+                return {
+                    'answer': 'تنفيذ العمليات عبر المساعد معطّل حالياً',
+                    'confidence': 0.4,
+                    'sources': ['AI Settings'],
+                    'tips': [],
+                    'action_executed': False,
+                    'action_result': {'success': False, 'message': 'تنفيذ العمليات معطّل'}
+                }
             
             action_type, params = self._parse_action_from_query(query, context)
+            if not action_type or not params:
+                return None
             
-            if action_type and params:
-                result = executor.execute_action(action_type, params)
-                
+            if not can_ai_execute_action(action_type, context.get('user_role', '') or ''):
                 return {
-                    'answer': result.get('message', 'تم التنفيذ'),
-                    'confidence': 0.9 if result.get('success') else 0.5,
-                    'sources': ['Action Executor'],
+                    'answer': 'ليس لديك صلاحية لتنفيذ هذا الإجراء',
+                    'confidence': 0.5,
+                    'sources': ['Permissions'],
                     'tips': [],
-                    'action_executed': True,
-                    'action_result': result
+                    'action_executed': False,
+                    'action_result': {'success': False, 'message': 'صلاحيات غير كافية'}
                 }
+            
+            executor = ActionExecutor(user_id)
+            result = executor.execute_action(action_type, params)
+            
+            return {
+                'answer': result.get('message', 'تم التنفيذ'),
+                'confidence': 0.9 if result.get('success') else 0.5,
+                'sources': ['Action Executor'],
+                'tips': [],
+                'action_executed': True,
+                'action_result': result
+            }
         
         except Exception as e:
             print(f"Action execution error: {e}")
@@ -301,6 +323,45 @@ class IntegratedIntelligence:
                 'cost_price': self._extract_price(query, 'cost'),
                 'selling_price': self._extract_price(query, 'sell')
             })
+
+        split_refs = re.findall(r"SPLIT-\d+-PMT-\d+", query, re.IGNORECASE)
+        if split_refs and any(w in q_lower for w in ['حذف', 'احذف', 'delete', 'remove', 'أزل']):
+            raw_refs = " ".join([r.upper() for r in split_refs])
+            return ('delete_split_ref', {'raw_refs': raw_refs})
+        
+        split_match = re.search(r"(?:split|سبليت)\s*(?:رقم)?\s*#?\s*(\d+)", q_lower)
+        if split_match and any(w in q_lower for w in ['حذف', 'احذف', 'delete', 'remove', 'أزل']):
+            return ('delete_split', {'split_id': int(split_match.group(1))})
+        
+        payment_match = re.search(r"(?:دفعة|payment|pmt)\s*(?:رقم)?\s*#?\s*(\d+)", q_lower)
+        if payment_match and any(w in q_lower for w in ['حذف', 'احذف', 'delete', 'remove', 'أزل']):
+            return ('delete_payment', {'payment_id': int(payment_match.group(1))})
+        
+        check_match = re.search(r"(?:شيك|check)\s*(?:رقم)?\s*#?\s*(\d+)", q_lower)
+        if check_match and any(w in q_lower for w in ['حذف', 'احذف', 'delete', 'remove', 'أزل']):
+            return ('delete_check', {'check_id': int(check_match.group(1))})
+        
+        expense_match = re.search(r"(?:مصروف|expense)\s*(?:رقم)?\s*#?\s*(\d+)", q_lower)
+        if expense_match and any(w in q_lower for w in ['حذف', 'احذف', 'delete', 'remove', 'أزل']):
+            return ('delete_expense', {'expense_id': int(expense_match.group(1))})
+
+        archive_words = ['أرشف', 'أرشفة', 'ارشفة', 'ارشف', 'archive']
+        sale_match = re.search(r"(?:مبيعة|مبيعات|بيع|sale|invoice)\s*(?:رقم)?\s*#?\s*(\d+)", q_lower)
+        if sale_match and any(w in q_lower for w in archive_words):
+            return ('archive_sale', {'sale_id': int(sale_match.group(1))})
+
+        if check_match and any(w in q_lower for w in archive_words):
+            return ('archive_check', {'check_id': int(check_match.group(1))})
+
+        if expense_match and any(w in q_lower for w in archive_words):
+            return ('archive_expense', {'expense_id': int(expense_match.group(1))})
+
+        entry_match = re.search(r"(?:قيد|batch|entry)\s*(?:رقم)?\s*#?\s*(\d+)", q_lower)
+        if entry_match and any(w in q_lower for w in ['عكس', 'reverse', 'reversal']):
+            return ('reverse_gl_batch', {'batch_id': int(entry_match.group(1))})
+
+        if any(w in q_lower for w in ['غير متوازنة', 'unbalanced', 'تصحيح القيود', 'إصلاح القيود', 'fix unbalanced']):
+            return ('fix_unbalanced_batches', {'scope': 'all'})
         
         return (None, None)
     

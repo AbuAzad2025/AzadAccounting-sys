@@ -580,11 +580,16 @@
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-CSRFToken': '{{ csrf_token() }}'
+        'X-CSRFToken': '{{ csrf_token() }}',
+        'X-Requested-With': 'XMLHttpRequest',
+        'Accept': 'application/json'
       },
       body: JSON.stringify({ ids: ids })
     })
-    .then(function(r) { return r.json(); })
+    .then(function(r) {
+      if (!r.ok) throw r;
+      return r.json();
+    })
     .then(function(data) {
       if (data.success) {
         alert('✅ تم تحديث أرصدة ' + data.updated + ' شريك.');

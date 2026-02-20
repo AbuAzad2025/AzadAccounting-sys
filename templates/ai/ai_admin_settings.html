@@ -115,16 +115,15 @@
                          {% if settings.ai_can_execute_actions %}checked{% endif %}>
                   <label class="form-check-label" for="ai_can_execute_actions">
                     <strong>السماح للمساعد بتنفيذ العمليات</strong>
-                    <br><small class="text-muted">إذا مفعّل: المساعد يستطيع إضافة عملاء، منتجات، دفعات، إلخ عبر المحادثة</small>
+                    <br><small class="text-muted">إذا مفعّل: المساعد يستطيع إضافة وحذف كيانات محددة عبر المحادثة حسب الصلاحيات</small>
                   </label>
                 </div>
                 
                 <div class="alert alert-info">
                   <i class="fas fa-info-circle"></i> <strong>ملاحظة:</strong>
                   <ul class="mb-0 mt-2">
-                    <li>المساعد <strong>لا يستطيع</strong> الحذف أبداً</li>
-                    <li>المساعد <strong>لا يستطيع</strong> تعديل القيود المحاسبية</li>
-                    <li>المساعد <strong>لا يستطيع</strong> تعديل الدفعات</li>
+                    <li>الحذف والأرشفة مقيّدان بالصلاحيات وتفعيل التنفيذ</li>
+                    <li>عكس القيود وتصحيح غير المتوازن يتطلب صلاحيات محاسبية متقدمة</li>
                     <li>كل عملية تُسجّل في Audit Log</li>
                   </ul>
                 </div>

@@ -195,6 +195,16 @@ def can_ai_execute_action(action_type: str, user_role: str) -> bool:
         'read_payments': 'manage_payments',
         'create_expense': 'manage_expenses',
         'read_expenses': 'manage_expenses',
+        'delete_payment': 'manage_payments',
+        'delete_split': 'manage_payments',
+        'delete_split_ref': 'manage_payments',
+        'delete_check': 'manage_payments',
+        'delete_expense': 'manage_expenses',
+        'archive_sale': 'archive_sale',
+        'archive_check': 'manage_payments',
+        'archive_expense': 'manage_expenses',
+        'reverse_gl_batch': 'manage_ledger',
+        'fix_unbalanced_batches': 'validate_accounting',
         
         # Reports
         'read_reports': 'view_reports',
@@ -264,4 +274,3 @@ __all__ = [
     'can_ai_execute_action',
     'get_ai_access_level'
 ]
-
