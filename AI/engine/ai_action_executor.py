@@ -75,9 +75,11 @@ class ActionExecutor:
                 'delete_split_ref': self.delete_split_ref,
                 'delete_check': self.delete_check,
                 'delete_expense': self.delete_expense,
+                'delete_sale': self.delete_sale,
                 'archive_sale': self.archive_sale,
                 'archive_check': self.archive_check,
                 'archive_expense': self.archive_expense,
+                'void_gl_batch': self.void_gl_batch,
                 'reverse_gl_batch': self.reverse_gl_batch,
                 'fix_unbalanced_batches': self.fix_unbalanced_batches
             }
@@ -571,6 +573,66 @@ class ActionExecutor:
             db.session.rollback()
             return {'success': False, 'message': f'❌ خطأ في حذف المصروف: {str(e)}'}
 
+    def delete_sale(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        try:
+            sale_id = params.get('sale_id') or params.get('id')
+            if not sale_id:
+                return {'success': False, 'message': '❌ رقم المبيعة مطلوب'}
+            from models import Sale, GLBatch, GLEntry, TaxEntry
+            from sqlalchemy import delete as sa_delete
+            from utils import _apply_stock_delta
+            sale = db.session.get(Sale, int(sale_id))
+            if not sale:
+                return {'success': False, 'message': '❌ المبيعة غير موجودة'}
+            payment_ids = [int(p.id) for p in (sale.payments or []) if getattr(p, 'id', None)]
+            if payment_ids:
+                for pid in payment_ids:
+                    res = self.delete_payment({'payment_id': int(pid)})
+                    if not res.get('success'):
+                        return {'success': False, 'message': f'❌ تعذر حذف الدفعة المرتبطة #{pid}: {res.get("message")}'}
+            sale = db.session.get(Sale, int(sale_id))
+            if not sale:
+                return {'success': False, 'message': '❌ المبيعة غير موجودة'}
+            status = (getattr(sale, 'status', '') or '').upper()
+            if status == 'CONFIRMED':
+                for ln in (sale.lines or []):
+                    pid = int(getattr(ln, 'product_id', 0) or 0)
+                    wid = int(getattr(ln, 'warehouse_id', 0) or 0)
+                    qty = int(getattr(ln, 'quantity', 0) or 0)
+                    if pid and wid and qty > 0:
+                        _apply_stock_delta(pid, wid, qty)
+            batch_ids = [int(b.id) for b in (sale.gl_batches or []) if getattr(b, 'id', None)]
+            if not batch_ids:
+                rows = db.session.query(GLBatch.id).filter(
+                    GLBatch.source_type == 'SALE',
+                    GLBatch.source_id == int(sale_id)
+                ).all()
+                batch_ids = [int(r[0]) for r in rows]
+            if batch_ids:
+                db.session.execute(sa_delete(GLEntry).where(GLEntry.batch_id.in_(batch_ids)))
+                db.session.execute(sa_delete(GLBatch).where(GLBatch.id.in_(batch_ids)))
+            db.session.execute(sa_delete(TaxEntry).where(
+                TaxEntry.transaction_type == 'SALE',
+                TaxEntry.transaction_id == int(sale_id)
+            ))
+            customer_id = getattr(sale, 'customer_id', None)
+            db.session.delete(sale)
+            db.session.commit()
+            try:
+                from utils.customer_balance_updater import update_customer_balance_components
+                if customer_id:
+                    update_customer_balance_components(int(customer_id))
+            except Exception:
+                pass
+            return {
+                'success': True,
+                'message': f'✅ تم حذف المبيعة #{sale_id} بنجاح',
+                'sale_id': int(sale_id)
+            }
+        except Exception as e:
+            db.session.rollback()
+            return {'success': False, 'message': f'❌ خطأ في حذف المبيعة: {str(e)}'}
+
     def archive_sale(self, params: Dict[str, Any]) -> Dict[str, Any]:
         try:
             sale_id = params.get('sale_id') or params.get('id')
@@ -644,6 +706,28 @@ class ActionExecutor:
         except Exception as e:
             db.session.rollback()
             return {'success': False, 'message': f'❌ خطأ في أرشفة المصروف: {str(e)}'}
+
+    def void_gl_batch(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        try:
+            batch_id = params.get('batch_id')
+            if not batch_id:
+                return {'success': False, 'message': '❌ رقم القيد مطلوب'}
+            from models import GLBatch
+            batch = db.session.get(GLBatch, int(batch_id))
+            if not batch:
+                return {'success': False, 'message': '❌ القيد غير موجود'}
+            if (getattr(batch, 'status', '') or '').upper() == 'VOID':
+                return {'success': False, 'message': '❌ القيد ملغي مسبقاً'}
+            batch.status = 'VOID'
+            db.session.commit()
+            return {
+                'success': True,
+                'message': f'✅ تم إلغاء القيد #{batch_id} بنجاح',
+                'batch_id': int(batch_id)
+            }
+        except Exception as e:
+            db.session.rollback()
+            return {'success': False, 'message': f'❌ خطأ في إلغاء القيد: {str(e)}'}
 
     def reverse_gl_batch(self, params: Dict[str, Any]) -> Dict[str, Any]:
         try:

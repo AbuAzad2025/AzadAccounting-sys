@@ -200,9 +200,11 @@ def can_ai_execute_action(action_type: str, user_role: str) -> bool:
         'delete_split_ref': 'manage_payments',
         'delete_check': 'manage_payments',
         'delete_expense': 'manage_expenses',
+        'delete_sale': 'manage_sales',
         'archive_sale': 'archive_sale',
         'archive_check': 'manage_payments',
         'archive_expense': 'manage_expenses',
+        'void_gl_batch': 'manage_ledger',
         'reverse_gl_batch': 'manage_ledger',
         'fix_unbalanced_batches': 'validate_accounting',
         

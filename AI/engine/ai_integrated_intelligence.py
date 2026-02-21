@@ -345,8 +345,11 @@ class IntegratedIntelligence:
         if expense_match and any(w in q_lower for w in ['حذف', 'احذف', 'delete', 'remove', 'أزل']):
             return ('delete_expense', {'expense_id': int(expense_match.group(1))})
 
+        delete_words = ['حذف', 'احذف', 'delete', 'remove', 'أزل']
         archive_words = ['أرشف', 'أرشفة', 'ارشفة', 'ارشف', 'archive']
         sale_match = re.search(r"(?:مبيعة|مبيعات|بيع|sale|invoice)\s*(?:رقم)?\s*#?\s*(\d+)", q_lower)
+        if sale_match and any(w in q_lower for w in delete_words):
+            return ('delete_sale', {'sale_id': int(sale_match.group(1))})
         if sale_match and any(w in q_lower for w in archive_words):
             return ('archive_sale', {'sale_id': int(sale_match.group(1))})
 
@@ -357,6 +360,8 @@ class IntegratedIntelligence:
             return ('archive_expense', {'expense_id': int(expense_match.group(1))})
 
         entry_match = re.search(r"(?:قيد|batch|entry)\s*(?:رقم)?\s*#?\s*(\d+)", q_lower)
+        if entry_match and any(w in q_lower for w in delete_words + archive_words):
+            return ('void_gl_batch', {'batch_id': int(entry_match.group(1))})
         if entry_match and any(w in q_lower for w in ['عكس', 'reverse', 'reversal']):
             return ('reverse_gl_batch', {'batch_id': int(entry_match.group(1))})
 
