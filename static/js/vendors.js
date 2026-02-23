@@ -716,6 +716,13 @@ var partnersRequestSeq = 0;
           return;
         }
         if (window.jQuery) window.jQuery(partnerServiceModalEl).modal("hide");
+        if (data.auto_paid) {
+          notify("تم إنشاء فاتورة خدمة الشريك وتم تسجيل الدفع تلقائياً.", "success");
+          setTimeout(function () {
+            window.location.reload();
+          }, 600);
+          return;
+        }
         notify("تم إنشاء فاتورة خدمة الشريك بنجاح.", "success");
         openPartnerPayModal(data);
       })
@@ -911,6 +918,13 @@ var partnersRequestSeq = 0;
         }
         lastCreatedExpense = data;
         if (serviceModalEl && window.jQuery) window.jQuery(serviceModalEl).modal("hide");
+        if (data.auto_paid) {
+          notify("تم إنشاء فاتورة الخدمة وتم تسجيل الدفع تلقائياً.", "success");
+          setTimeout(function () {
+            window.location.reload();
+          }, 600);
+          return;
+        }
         notify("تم إنشاء فاتورة الخدمة بنجاح.", "success");
         openPayModal(data);
       })

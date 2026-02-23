@@ -687,6 +687,9 @@ def _base_query_with_filters(include_relations=True):
         q.outerjoin(ExpenseType, Expense.type_id == ExpenseType.id)
         .outerjoin(Branch, Expense.branch_id == Branch.id)
         .outerjoin(Employee, Expense.employee_id == Employee.id)
+        .outerjoin(Customer, Expense.customer_id == Customer.id)
+        .outerjoin(Partner, Expense.partner_id == Partner.id)
+        .outerjoin(Supplier, Expense.supplier_id == Supplier.id)
         .outerjoin(Shipment, Expense.shipment_id == Shipment.id)
         .outerjoin(UtilityAccount, Expense.utility_account_id == UtilityAccount.id)
     )
@@ -700,8 +703,11 @@ def _base_query_with_filters(include_relations=True):
                 Expense.paid_to.ilike(like),
                 Expense.payee_name.ilike(like),
                 Expense.tax_invoice_number.ilike(like),
+                Customer.name.ilike(like),
                 Employee.name.ilike(like),
+                Partner.name.ilike(like),
                 Shipment.number.ilike(like),
+                Supplier.name.ilike(like),
                 UtilityAccount.alias.ilike(like),
                 UtilityAccount.provider.ilike(like),
             )
@@ -2369,6 +2375,7 @@ def quick_supplier_service():
     db.session.flush()
     _ensure_expense_paid_on_create(exp, [])
     db.session.commit()
+    flash("تم دفع المصروف تلقائياً عند الإنشاء.", "success")
 
     try:
         run_expense_gl_sync_after_commit(exp.id)
@@ -2387,6 +2394,7 @@ def quick_supplier_service():
             "amount": float(amount),
             "currency": currency,
             "supplier_name": supplier.name,
+            "auto_paid": True,
         }
     )
 
@@ -2507,6 +2515,7 @@ def quick_partner_service():
     db.session.flush()
     _ensure_expense_paid_on_create(exp, [])
     db.session.commit()
+    flash("تم دفع المصروف تلقائياً عند الإنشاء.", "success")
 
     try:
         run_expense_gl_sync_after_commit(exp.id)
@@ -2525,6 +2534,7 @@ def quick_partner_service():
             "amount": float(amount),
             "currency": currency,
             "partner_name": partner.name,
+            "auto_paid": True,
         }
     )
 

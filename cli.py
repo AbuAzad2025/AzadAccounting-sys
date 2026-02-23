@@ -2760,46 +2760,61 @@ def stock_adjustment_add_item(adjustment_id, product_id, quantity, unit_cost):
 @click.option("--expense-type-id", type=int, required=True)
 @with_appcontext
 def stock_adjustment_finalize(adjustment_id, expense_type_id):
-    adj=db.session.get(StockAdjustment, adjustment_id)
-    if not adj: raise click.ClickException("Adjustment not found")
-    if float(adj.total_cost or 0) <= 0: raise click.ClickException("No total_cost to finalize")
-    ex=Expense(amount=_Q2(adj.total_cost or 0), type_id=expense_type_id, currency="ILS", stock_adjustment_id=adj.id, description=f"Stock Adjustment {adj.reason} #{adj.id}", date=datetime.now(timezone.utc).replace(tzinfo=None), payment_method="other")
+    adj = db.session.get(StockAdjustment, adjustment_id)
+    if not adj:
+        raise click.ClickException("Adjustment not found")
+    if float(adj.total_cost or 0) <= 0:
+        raise click.ClickException("No total_cost to finalize")
+    ex = Expense(
+        amount=_Q2(adj.total_cost or 0),
+        type_id=expense_type_id,
+        currency="ILS",
+        stock_adjustment_id=adj.id,
+        description=f"Stock Adjustment {adj.reason} #{adj.id}",
+        date=datetime.now(timezone.utc).replace(tzinfo=None),
+        payment_method="other",
+    )
     try:
-        with _begin(): db.session.add(ex)
+        with _begin():
+            db.session.add(ex)
         click.echo(f"OK: expense {ex.id} created for adjustment.")
     except SQLAlchemyError as e:
-        db.session.rollback(); raise click.ClickException(str(e)) from e
+        db.session.rollback()
+        raise click.ClickException(str(e)) from e
+
 
 @click.command("gl-seed-accounts")
 @with_appcontext
 def gl_seed_accounts():
     created, updated = [], []
-    mapping=[
-        ("1100_AR","Accounts Receivable"),
-        ("4000_SALES","Sales Revenue"),
-        ("2100_VAT_PAYABLE","VAT Payable"),
-        ("1000_CASH","Cash on Hand"),
-        ("1010_BANK","Bank"),
-        ("1020_CARD_CLEARING","Card Clearing"),
-        ("1150_CHQ_REC","Cheques Receivable"),
-        ("2000_AP","Accounts Payable"),
-        ("2150_CHQ_PAY","Cheques Payable"),
-        ("5000_EXPENSES","Expenses"),
-        ("5200_PART_EXP","Partner Expenses"),
-        ("1205_INV_EXCHANGE","Inventory Exchange"),
-        ("5105_COGS_EXCHANGE","COGS Exchange"),
-        ("2300_ADV_PAY","Advance Payments"),
-        ("2150_EMP_ADV","Employee Advances"),
-        ("2150_PAY_CLR","Payroll Clearing"),
-        ("2200_PAR_CLR","Partner Clearing"),
-        ("3100_OWNER_CURRENT","Owner Current Account"),
+    mapping = [
+        ("1100_AR", "Accounts Receivable"),
+        ("4000_SALES", "Sales Revenue"),
+        ("2100_VAT_PAYABLE", "VAT Payable"),
+        ("1000_CASH", "Cash on Hand"),
+        ("1010_BANK", "Bank"),
+        ("1020_CARD_CLEARING", "Card Clearing"),
+        ("1150_CHQ_REC", "Cheques Receivable"),
+        ("2000_AP", "Accounts Payable"),
+        ("2150_CHQ_PAY", "Cheques Payable"),
+        ("5000_EXPENSES", "Expenses"),
+        ("5200_PART_EXP", "Partner Expenses"),
+        ("1205_INV_EXCHANGE", "Inventory Exchange"),
+        ("5105_COGS_EXCHANGE", "COGS Exchange"),
+        ("2300_ADV_PAY", "Advance Payments"),
+        ("2150_EMP_ADV", "Employee Advances"),
+        ("2150_PAY_CLR", "Payroll Clearing"),
+        ("2200_PAR_CLR", "Partner Clearing"),
+        ("3100_OWNER_CURRENT", "Owner Current Account"),
     ]
     with _begin():
-        for code,name in mapping:
-            acc=db.session.query(Account).filter_by(code=code).one_or_none()
+        for code, name in mapping:
+            acc = db.session.query(Account).filter_by(code=code).one_or_none()
             if acc:
-                if (acc.is_active!=True) or (acc.name!=name):
-                    acc.name=name; acc.is_active=True; updated.append(code)
+                if (acc.is_active is not True) or (acc.name != name):
+                    acc.name = name
+                    acc.is_active = True
+                    updated.append(code)
             else:
                 inferred_type = "ASSET"
                 if code.startswith("2"):
@@ -2810,57 +2825,118 @@ def gl_seed_accounts():
                     inferred_type = "REVENUE"
                 elif not code.startswith(("1","2","3","4")):
                     inferred_type = "EXPENSE"
-                acc=Account(code=code, name=name, type=inferred_type, is_active=True)
-                db.session.add(acc); created.append(code)
-    click.echo(json.dumps({"created":created,"updated":updated}, ensure_ascii=False))
+                acc = Account(code=code, name=name, type=inferred_type, is_active=True)
+                db.session.add(acc)
+                created.append(code)
+    click.echo(json.dumps({"created": created, "updated": updated}, ensure_ascii=False))
+
 
 @click.command("gl-batches")
 @click.option("--limit", type=int, default=20)
 @with_appcontext
 def gl_list_batches(limit):
-    rows=(db.session.query(GLBatch).order_by(GLBatch.created_at.desc()).limit(limit).all())
-    out=[{"id":r.id,"code":r.code,"status":getattr(r.status,"value",r.status),"source":f"{r.source_type}:{r.source_id}","purpose":r.purpose,"currency":r.currency,"posted_at":r.posted_at} for r in rows]
+    rows = db.session.query(GLBatch).order_by(GLBatch.created_at.desc()).limit(limit).all()
+    out = [
+        {
+            "id": r.id,
+            "code": r.code,
+            "status": getattr(r.status, "value", r.status),
+            "source": f"{r.source_type}:{r.source_id}",
+            "purpose": r.purpose,
+            "currency": r.currency,
+            "posted_at": r.posted_at,
+        }
+        for r in rows
+    ]
     click.echo(json.dumps(out, default=str, ensure_ascii=False))
+
 
 @click.command("gl-entries")
 @click.option("--batch-id", type=int, required=True)
 @with_appcontext
 def gl_list_entries(batch_id):
-    rows=(db.session.query(GLEntry).filter(GLEntry.batch_id==batch_id).order_by(GLEntry.id.asc()).all())
-    out=[{"id":e.id,"account":e.account,"debit":float(e.debit or 0),"credit":float(e.credit or 0),"currency":e.currency,"ref":e.ref} for e in rows]
+    rows = (
+        db.session.query(GLEntry)
+        .filter(GLEntry.batch_id == batch_id)
+        .order_by(GLEntry.id.asc())
+        .all()
+    )
+    out = [
+        {
+            "id": e.id,
+            "account": e.account,
+            "debit": float(e.debit or 0),
+            "credit": float(e.credit or 0),
+            "currency": e.currency,
+            "ref": e.ref,
+        }
+        for e in rows
+    ]
     click.echo(json.dumps(out, ensure_ascii=False))
+
 
 @click.command("note-add")
 @click.option("--entity-type", type=str, required=True)
 @click.option("--entity-id", type=str, required=True)
 @click.option("--content", type=str, required=True)
-@click.option("--priority", type=click.Choice(["LOW","MEDIUM","HIGH","URGENT"]), default="MEDIUM")
+@click.option("--priority", type=click.Choice(["LOW", "MEDIUM", "HIGH", "URGENT"]), default="MEDIUM")
 @click.option("--pin/--no-pin", default=False)
 @with_appcontext
 def note_add(entity_type, entity_id, content, priority, pin):
-    n=Note(entity_type=entity_type.strip().upper(), entity_id=str(entity_id), content=content.strip(), priority=priority, is_pinned=bool(pin))
+    n = Note(
+        entity_type=entity_type.strip().upper(),
+        entity_id=str(entity_id),
+        content=content.strip(),
+        priority=priority,
+        is_pinned=bool(pin),
+    )
     try:
-        with _begin(): db.session.add(n)
+        with _begin():
+            db.session.add(n)
         click.echo(f"OK: note {n.id} added.")
     except SQLAlchemyError as e:
-        db.session.rollback(); raise click.ClickException(str(e)) from e
+        db.session.rollback()
+        raise click.ClickException(str(e)) from e
+
 
 @click.command("note-list")
 @click.option("--entity-type", type=str, required=True)
 @click.option("--entity-id", type=str, required=True)
 @with_appcontext
 def note_list(entity_type, entity_id):
-    rows=(db.session.query(Note).filter(Note.entity_type==entity_type.strip().upper(), Note.entity_id==str(entity_id)).order_by(Note.is_pinned.desc(), Note.created_at.desc()).all())
-    out=[r.to_dict() for r in rows]
+    rows = (
+        db.session.query(Note)
+        .filter(
+            Note.entity_type == entity_type.strip().upper(),
+            Note.entity_id == str(entity_id),
+        )
+        .order_by(Note.is_pinned.desc(), Note.created_at.desc())
+        .all()
+    )
+    out = [r.to_dict() for r in rows]
     click.echo(json.dumps(out, ensure_ascii=False, default=str))
+
 
 @click.command("audit-tail")
 @click.option("--limit", type=int, default=50)
 @with_appcontext
 def audit_tail(limit):
-    rows=(db.session.query(AuditLog).order_by(AuditLog.created_at.desc()).limit(limit).all())
-    out=[{"id":r.id,"time":r.created_at.isoformat() if r.created_at else None,"model":r.model_name,"record_id":r.record_id,"action":r.action,"user_id":r.user_id,"customer_id":r.customer_id,"ip":r.ip_address} for r in rows]
+    rows = db.session.query(AuditLog).order_by(AuditLog.created_at.desc()).limit(limit).all()
+    out = [
+        {
+            "id": r.id,
+            "time": r.created_at.isoformat() if r.created_at else None,
+            "model": r.model_name,
+            "record_id": r.record_id,
+            "action": r.action,
+            "user_id": r.user_id,
+            "customer_id": r.customer_id,
+            "ip": r.ip_address,
+        }
+        for r in rows
+    ]
     click.echo(json.dumps(out, ensure_ascii=False))
+
 
 @click.command("currency-balance")
 @click.option("--entity-type", type=str, required=True, help="نوع الكيان (CUSTOMER, SUPPLIER, PARTNER)")
@@ -2882,7 +2958,7 @@ def currency_validate(entity_type, entity_id):
     """التحقق من اتساق العملات"""
     try:
         result = validate_currency_consistency(entity_type.upper(), entity_id)
-        if result['is_consistent']:
+        if result["is_consistent"]:
             click.echo("✅ الحسابات متسقة")
         else:
             click.echo("❌ الحسابات غير متسقة")
@@ -2891,6 +2967,7 @@ def currency_validate(entity_type, entity_id):
             click.echo(f"الفرق: {result['difference']:,.2f}")
     except Exception as e:
         click.echo(f"خطأ: {e}")
+
 
 @click.command("currency-report")
 @click.option("--entity-type", type=str, required=True, help="نوع الكيان (CUSTOMER, SUPPLIER, PARTNER)")
@@ -2910,25 +2987,25 @@ def currency_report(entity_type):
             click.echo("نوع الكيان غير مدعوم")
             return
 
-        if 'error' in report:
+        if "error" in report:
             click.echo(f"خطأ: {report['error']}")
             return
 
         click.echo(f"إجمالي الأرصدة: {report['formatted_total']}")
 
         # تحديد نوع الكيان والبيانات المناسبة
-        if entity_type.upper() == 'CUSTOMER':
-            count_key = 'total_customers'
-            entities_key = 'customers'
-            name_key = 'customer_name'
-        elif entity_type.upper() == 'SUPPLIER':
-            count_key = 'total_suppliers'
-            entities_key = 'suppliers'
-            name_key = 'supplier_name'
+        if entity_type.upper() == "CUSTOMER":
+            count_key = "total_customers"
+            entities_key = "customers"
+            name_key = "customer_name"
+        elif entity_type.upper() == "SUPPLIER":
+            count_key = "total_suppliers"
+            entities_key = "suppliers"
+            name_key = "supplier_name"
         else:  # PARTNER
-            count_key = 'total_partners'
-            entities_key = 'partners'
-            name_key = 'partner_name'
+            count_key = "total_partners"
+            entities_key = "partners"
+            name_key = "partner_name"
 
         click.echo(f"عدد الكيانات: {report[count_key]}")
 
@@ -2950,8 +3027,7 @@ def currency_report(entity_type):
 def currency_health():
     """فحص صحة نظام العملات مع السيرفرات العالمية"""
     try:
-        from models import Currency, ExchangeRate, fx_rate, convert_amount, get_fx_rate_with_fallback
-        from datetime import datetime
+        from models import Currency, ExchangeRate, convert_amount, get_fx_rate_with_fallback
 
         click.echo("=== فحص صحة نظام العملات ===")
         click.echo()
@@ -2967,8 +3043,8 @@ def currency_health():
         # فحص سعر صرف تجريبي مع معلومات المصدر
         try:
             rate_info = get_fx_rate_with_fallback("USD", "ILS")
-            if rate_info['success']:
-                source_text = "محلي" if rate_info['source'] == "local" else "عالمي"
+            if rate_info["success"]:
+                source_text = "محلي" if rate_info["source"] == "local" else "عالمي"
                 click.echo(f"✅ سعر USD/ILS: {rate_info['rate']} (مصدر: {source_text})")
             else:
                 click.echo(f"❌ خطأ في سعر USD/ILS: {rate_info.get('error', 'غير معروف')}")
@@ -2988,6 +3064,7 @@ def currency_health():
     except Exception as e:
         click.echo(f"خطأ: {e}")
 
+
 @click.command("currency-update")
 @with_appcontext
 def currency_update():
@@ -3000,16 +3077,17 @@ def currency_update():
 
         result = auto_update_missing_rates()
 
-        if result['success']:
+        if result["success"]:
             click.echo(f"✅ {result['message']}")
             click.echo(f"📊 تم تحديث {result['updated_rates']} سعر صرف")
         else:
             click.echo(f"❌ {result['message']}")
-            if 'error' in result:
+            if "error" in result:
                 click.echo(f"🔍 تفاصيل الخطأ: {result['error']}")
 
     except Exception as e:
         click.echo(f"خطأ: {e}")
+
 
 @click.command("currency-test")
 @click.option("--base", type=str, default="USD", help="العملة الأساسية")
@@ -3026,8 +3104,8 @@ def currency_test(base, quote):
         # اختبار الحصول على السعر
         rate_info = get_fx_rate_with_fallback(base, quote)
 
-        if rate_info['success']:
-            source_text = "محلي (مدخل من الادمن)" if rate_info['source'] == "local" else "عالمي (من السيرفرات)"
+        if rate_info["success"]:
+            source_text = "محلي (مدخل من الادمن)" if rate_info["source"] == "local" else "عالمي (من السيرفرات)"
             click.echo(f"✅ السعر: {rate_info['rate']}")
             click.echo(f"📡 المصدر: {source_text}")
             click.echo(f"⏰ الوقت: {rate_info['timestamp']}")
@@ -3044,14 +3122,6 @@ def currency_test(base, quote):
     except Exception as e:
         click.echo(f"خطأ: {e}")
 
-        # التحقق من الموردين
-        suppliers = db.session.query(Supplier).all()
-        click.echo(f"عدد الموردين: {len(suppliers)}")
-
-        click.echo("✅ نظام العملات يعمل بشكل طبيعي")
-
-    except Exception as e:
-        click.echo(f"❌ خطأ في النظام: {e}")
 
 @click.command('create-system-admin-interactive', help="إنشاء مستخدم مدير نظام")
 @with_appcontext
@@ -3102,6 +3172,7 @@ def create_system_admin_interactive():
         db.session.rollback()
         click.echo(click.style(f"❌ خطأ: {str(e)}", fg="red"))
 
+
 @click.command('optimize-db', help="تحسين أداء قاعدة البيانات")
 @click.option("--dry-run", is_flag=True, help="عرض أوامر إنشاء الفهارس بدون تنفيذ")
 @with_appcontext
@@ -3122,12 +3193,32 @@ def optimize_db(dry_run: bool):
             "CREATE INDEX IF NOT EXISTS idx_sales_customer ON sales(customer_id)",
             "CREATE INDEX IF NOT EXISTS idx_sales_status_date ON sales(status, sale_date)",
             "CREATE INDEX IF NOT EXISTS idx_payments_date ON payments(payment_date)",
-            "CREATE INDEX IF NOT EXISTS idx_payments_entity ON payments(entity_type, entity_id)",
+            "CREATE INDEX IF NOT EXISTS idx_payments_entity_type ON payments(entity_type)",
+            "CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(status)",
+            "CREATE INDEX IF NOT EXISTS idx_payments_direction ON payments(direction)",
+            "CREATE INDEX IF NOT EXISTS idx_payments_currency ON payments(currency)",
             "CREATE INDEX IF NOT EXISTS idx_payments_status_date ON payments(status, payment_date)",
             "CREATE INDEX IF NOT EXISTS idx_payments_dir_status_date ON payments(direction, status, payment_date)",
+            "CREATE INDEX IF NOT EXISTS idx_payments_dir_status_entity_type ON payments(direction, status, entity_type)",
+            "CREATE INDEX IF NOT EXISTS idx_payments_method_date ON payments(method, payment_date)",
+            "CREATE INDEX IF NOT EXISTS idx_payments_created_by ON payments(created_by)",
+            "CREATE INDEX IF NOT EXISTS idx_payments_total_amount ON payments(total_amount)",
             "CREATE INDEX IF NOT EXISTS idx_payments_customer_date ON payments(customer_id, payment_date)",
             "CREATE INDEX IF NOT EXISTS idx_payments_supplier_date ON payments(supplier_id, payment_date)",
             "CREATE INDEX IF NOT EXISTS idx_payments_partner_date ON payments(partner_id, payment_date)",
+            "CREATE INDEX IF NOT EXISTS idx_payments_customer_status_dir ON payments(customer_id, status, direction)",
+            "CREATE INDEX IF NOT EXISTS idx_payments_supplier_status_dir ON payments(supplier_id, status, direction)",
+            "CREATE INDEX IF NOT EXISTS idx_payments_partner_status_dir ON payments(partner_id, status, direction)",
+            "CREATE INDEX IF NOT EXISTS idx_payments_sale_status_dir ON payments(sale_id, status, direction)",
+            "CREATE INDEX IF NOT EXISTS idx_payments_invoice_status_dir ON payments(invoice_id, status, direction)",
+            "CREATE INDEX IF NOT EXISTS idx_payments_service_status_dir ON payments(service_id, status, direction)",
+            "CREATE INDEX IF NOT EXISTS idx_payments_shipment_status_dir ON payments(shipment_id, status, direction)",
+            "CREATE INDEX IF NOT EXISTS idx_payments_expense_status_dir ON payments(expense_id, status, direction)",
+            "CREATE INDEX IF NOT EXISTS idx_payments_preorder_status_dir ON payments(preorder_id, status, direction)",
+            "CREATE INDEX IF NOT EXISTS idx_payments_refund_of ON payments(refund_of_id)",
+            "CREATE INDEX IF NOT EXISTS idx_payments_customer_dir_status_date ON payments(customer_id, direction, status, payment_date)",
+            "CREATE INDEX IF NOT EXISTS idx_payments_supplier_dir_status_date ON payments(supplier_id, direction, status, payment_date)",
+            "CREATE INDEX IF NOT EXISTS idx_payments_partner_dir_status_date ON payments(partner_id, direction, status, payment_date)",
             "CREATE INDEX IF NOT EXISTS idx_service_customer ON service_requests(customer_id)",
             "CREATE INDEX IF NOT EXISTS idx_service_status ON service_requests(status)",
             "CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone)",
@@ -3148,8 +3239,22 @@ def optimize_db(dry_run: bool):
             "CREATE INDEX IF NOT EXISTS idx_transfers_source_date ON transfers(source_id, transfer_date)",
             "CREATE INDEX IF NOT EXISTS idx_transfers_destination_date ON transfers(destination_id, transfer_date)",
             "CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date)",
-            "CREATE INDEX IF NOT EXISTS idx_expenses_paid_date ON expenses(is_paid, date)",
             "CREATE INDEX IF NOT EXISTS idx_expenses_type_date ON expenses(type_id, date)",
+            "CREATE INDEX IF NOT EXISTS idx_expenses_partner_date ON expenses(partner_id, date)",
+            "CREATE INDEX IF NOT EXISTS idx_expenses_supplier_date ON expenses(supplier_id, date)",
+            "CREATE INDEX IF NOT EXISTS idx_expenses_shipment_date ON expenses(shipment_id, date)",
+            "CREATE INDEX IF NOT EXISTS idx_expenses_customer_date ON expenses(customer_id, date)",
+            "CREATE INDEX IF NOT EXISTS idx_expenses_payee_entity_date ON expenses(payee_type, payee_entity_id, date)",
+            "CREATE INDEX IF NOT EXISTS idx_expenses_branch_date ON expenses(branch_id, date)",
+            "CREATE INDEX IF NOT EXISTS idx_expenses_site_date ON expenses(site_id, date)",
+            "CREATE INDEX IF NOT EXISTS idx_expenses_employee_date ON expenses(employee_id, date)",
+            "CREATE INDEX IF NOT EXISTS idx_expenses_utility_date ON expenses(utility_account_id, date)",
+            "CREATE INDEX IF NOT EXISTS idx_expenses_stock_adjustment_date ON expenses(stock_adjustment_id, date)",
+            "CREATE INDEX IF NOT EXISTS idx_expenses_payee_type_date ON expenses(payee_type, date)",
+            "CREATE INDEX IF NOT EXISTS idx_expenses_archived_date ON expenses(is_archived, date)",
+            "CREATE INDEX IF NOT EXISTS idx_expenses_period_start ON expenses(period_start)",
+            "CREATE INDEX IF NOT EXISTS idx_expenses_period_end ON expenses(period_end)",
+            "CREATE INDEX IF NOT EXISTS idx_expenses_amount ON expenses(amount)",
             "CREATE INDEX IF NOT EXISTS idx_stocklevels_product_wh ON stock_levels(product_id, warehouse_id)",
             "CREATE INDEX IF NOT EXISTS idx_online_preorders_customer_created ON online_preorders(customer_id, created_at)",
             "CREATE INDEX IF NOT EXISTS idx_online_preorders_status_created ON online_preorders(status, created_at)",
@@ -3307,7 +3412,8 @@ def recompute_sale_returns(limit: int, return_id: int, dry_run: bool):
 @click.option("--out", "out_path", default="")
 @with_appcontext
 def perf_snapshot(path: str | None, window: int, by: str, out_path: str):
-    import os, json
+    import json
+    import os
     from flask import current_app
 
     by = (by or "endpoint").lower()
@@ -3476,14 +3582,24 @@ def workflow_check_timeouts():
 def gl_recreate_payments(dry_run, payment_id, from_date, to_date, force, list_only, show_details):
     """إعادة إنشاء قيود دفتر الأستاذ للدفعات المفقودة"""
     from models import (
-        Payment, PaymentStatus, PaymentDirection, PaymentMethod, PaymentEntityType,
-        GLBatch, GL_ACCOUNTS, PAYMENT_GL_MAP, fx_rate, _payment_expense_ledger, _payment_entity_id_for
+        GLBatch,
+        GL_ACCOUNTS,
+        Payment,
+        PaymentDirection,
+        PaymentEntityType,
+        PaymentMethod,
+        PaymentStatus,
+        fx_rate,
+        _payment_entity_id_for,
+        _payment_expense_ledger,
     )
     from datetime import datetime
     
     try:
         query = Payment.query.filter(
-            Payment.status.in_([PaymentStatus.COMPLETED.value, PaymentStatus.PENDING.value, PaymentStatus.FAILED.value])
+            Payment.status.in_(
+                [PaymentStatus.COMPLETED.value, PaymentStatus.PENDING.value, PaymentStatus.FAILED.value]
+            )
         )
         
         if payment_id:
@@ -3499,7 +3615,7 @@ def gl_recreate_payments(dry_run, payment_id, from_date, to_date, force, list_on
         
         if to_date:
             try:
-                td = datetime.strptime(to_date, '%Y-%m-%d').replace(hour=23, minute=59, second=59)
+                td = datetime.strptime(to_date, "%Y-%m-%d").replace(hour=23, minute=59, second=59)
                 query = query.filter(Payment.payment_date <= td)
             except ValueError:
                 click.echo(f"❌ تاريخ غير صحيح: {to_date}")
@@ -3527,7 +3643,7 @@ def gl_recreate_payments(dry_run, payment_id, from_date, to_date, force, list_on
                             click.echo(f"\n✅ الدفعة #{payment.id} - القيد: {existing.code}")
                             click.echo(f"   التاريخ: {existing.posted_at}")
                             click.echo(f"   المذكرة: {existing.memo}")
-                            click.echo(f"   الحسابات:")
+                            click.echo("   الحسابات:")
                             for entry in entries:
                                 click.echo(f"     - {entry.account}: مدين {entry.debit:.2f} | دائن {entry.credit:.2f}")
                         elif list_only:
@@ -3544,19 +3660,18 @@ def gl_recreate_payments(dry_run, payment_id, from_date, to_date, force, list_on
                         click.echo(f"❌ الدفعة #{payment.id} - {payment.payment_date} - {payment.total_amount} {payment.currency} - بدون قيد")
                     continue
                 
-                if '[SETTLED=true]' in (payment.notes or ''):
+                if "[SETTLED=true]" in (payment.notes or ""):
                     if not dry_run:
                         click.echo(f"⏭️  تخطي الدفعة #{payment.id} - مستوطنة")
                     skipped += 1
                     continue
                 
-                if '[FROM_MANUAL_CHECK=true]' in (payment.notes or ''):
+                if "[FROM_MANUAL_CHECK=true]" in (payment.notes or ""):
                     if not dry_run:
                         click.echo(f"⏭️  تخطي الدفعة #{payment.id} - من شيك يدوي")
                     skipped += 1
                     continue
-                
-                
+
                 amount = float(payment.total_amount or 0)
                 if amount <= 0:
                     if not dry_run:
@@ -3565,16 +3680,23 @@ def gl_recreate_payments(dry_run, payment_id, from_date, to_date, force, list_on
                     continue
                 
                 amount_ils = amount
-                if payment.currency and payment.currency != 'ILS':
+                if payment.currency and payment.currency != "ILS":
                     try:
-                        rate = fx_rate(payment.currency, 'ILS', payment.payment_date or datetime.now(timezone.utc).replace(tzinfo=None), raise_on_missing=False)
+                        rate = fx_rate(
+                            payment.currency,
+                            "ILS",
+                            payment.payment_date or datetime.now(timezone.utc).replace(tzinfo=None),
+                            raise_on_missing=False,
+                        )
                         if rate and rate > 0:
                             amount_ils = float(amount * float(rate))
                     except Exception:
                         pass
                 
-                is_pending_check = (payment.status == PaymentStatus.PENDING.value and 
-                                   payment.method == PaymentMethod.CHEQUE.value)
+                is_pending_check = (
+                    payment.status == PaymentStatus.PENDING.value
+                    and payment.method == PaymentMethod.CHEQUE.value
+                )
                 
                 if is_pending_check:
                     if payment.direction == PaymentDirection.IN.value:
@@ -3582,10 +3704,10 @@ def gl_recreate_payments(dry_run, payment_id, from_date, to_date, force, list_on
                     else:
                         cash_account = "2150_CHQ_PAY"
                 else:
-                    method_val = getattr(payment, 'method', 'CASH')
-                    if hasattr(method_val, 'value'):
+                    method_val = getattr(payment, "method", "CASH")
+                    if hasattr(method_val, "value"):
                         method_val = method_val.value
-                    payment_method = str(method_val or 'CASH').upper()
+                    payment_method = str(method_val or "CASH").upper()
                     
                     if payment_method == PaymentMethod.BANK.value:
                         cash_account = GL_ACCOUNTS.get("BANK", "1010_BANK")
@@ -3593,7 +3715,6 @@ def gl_recreate_payments(dry_run, payment_id, from_date, to_date, force, list_on
                         cash_account = GL_ACCOUNTS.get("CARD", "1020_CARD_CLEARING")
                     else:
                         cash_account = GL_ACCOUNTS.get("CASH", "1000_CASH")
-                
                 expense_ledger_ctx = _payment_expense_ledger(db.session, payment) if payment.expense_id else None
                 
                 entity_account = GL_ACCOUNTS.get("AR", "1100_AR")
@@ -3649,7 +3770,7 @@ def gl_recreate_payments(dry_run, payment_id, from_date, to_date, force, list_on
                         entries=entries,
                         ref=payment.payment_number or f"PMT-{payment.id}",
                         entity_type=payment.entity_type,
-                        entity_id=_payment_entity_id_for(payment)
+                        entity_id=_payment_entity_id_for(payment),
                     )
                     db.session.commit()
                     click.echo(f"✅ تم إنشاء قيد للدفعة #{payment.id}: {memo}")
@@ -3661,7 +3782,7 @@ def gl_recreate_payments(dry_run, payment_id, from_date, to_date, force, list_on
                 if not dry_run:
                     db.session.rollback()
         
-        click.echo(f"\n📊 النتيجة:")
+        click.echo("\n📊 النتيجة:")
         click.echo(f"  ✅ تم إنشاء: {created}")
         click.echo(f"  ⏭️  تم التخطي: {skipped}")
         click.echo(f"  ❌ أخطاء: {errors}")
@@ -4214,6 +4335,7 @@ def checks_sync_due(target_date, direction, limit, dry_run, note):
         db.session.commit()
         click.echo("\n📝 تم تسجيل العملية في سجل التدقيق.")
 
+
 # قائمة فئات المنتجات الافتراضية (الاسم الخاطئ "lkj[hj 2" مُصحّح إلى "قطع غيار")
 PRODUCT_CATEGORIES_DEFAULT = [
     "محركات", "قطع غيار", "GEARBOX", "HYD PUMP", "HYD PARTS", "كوبلنات", "فلاتر", "بخاخات",
@@ -4333,6 +4455,7 @@ def restore_upgrade_production(backup_path: str, force: bool, confirm_restore: b
         fix_production_data(app=current_app._get_current_object(), dry_run=dry_run_fix)
         click.echo("✅ تم تشغيل إصلاح البيانات.")
 
+
 @click.command("upgrade-production")
 @click.option("--force", is_flag=True, default=False)
 @click.option("--skip-fix", is_flag=True, default=False)
@@ -4355,11 +4478,13 @@ def upgrade_production(force: bool, skip_fix: bool, revision: str, dry_run_fix: 
         fix_production_data(app=current_app._get_current_object(), dry_run=dry_run_fix)
         click.echo("✅ تم تشغيل إصلاح البيانات.")
 
+
 def _guard_production_dangerous_cli(cmd):
     if not getattr(cmd, "callback", None):
         return cmd
     name = str(getattr(cmd, "name", "") or "")
     original_callback = cmd.callback
+
     def wrapped_callback(*args, **kwargs):
         if _is_production():
             allow = os.getenv("ALLOW_PRODUCTION_DANGEROUS_CLI", "").strip() == "1"
@@ -4369,8 +4494,9 @@ def _guard_production_dangerous_cli(cmd):
     cmd.callback = wrapped_callback
     return cmd
 
+
 def register_cli(app) -> None:
-    commands=[
+    commands = [
         import_sqlite_appdb,
         compare_sqlite_appdb,
         compare_sqlite_full,

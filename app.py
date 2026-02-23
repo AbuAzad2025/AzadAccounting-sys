@@ -144,14 +144,19 @@ def load_user(user_id):
     return db.session.execute(stmt_cust).scalar_one_or_none()
 
 
-def create_app(config_object=Config) -> Flask:
-    app = Flask(__name__, static_folder="static", template_folder="templates")
+def _env_bool(name: str, default: bool = False) -> bool:
+    val = os.getenv(name)
+    if val is None:
+        return default
+    s = str(val).strip().lower()
+    if s in {"1", "true", "yes", "y", "on"}:
+        return True
+    if s in {"0", "false", "no", "n", "off"}:
+        return False
+    return default
 
-    # Fix: Silence Vite client 404 errors in development environments
-    @app.route("/@vite/client")
-    def vite_client_shim():
-        return "", 200
 
+def _configure_app(app: Flask, config_object):
     app.config.from_object(config_object)
     app.config.setdefault("JSON_AS_ASCII", False)
     app.config.setdefault("NUMBER_DECIMALS", 2)
@@ -172,9 +177,8 @@ def create_app(config_object=Config) -> Flask:
             "text/xml",
         ],
     )
-    
+
     is_production = not app.config.get("DEBUG", False) and app.config.get("APP_ENV", "production").lower() not in {"dev", "development", "local"}
-    
     if is_production:
         app.config["TEMPLATES_AUTO_RELOAD"] = False
         app.jinja_env.auto_reload = False
@@ -183,7 +187,6 @@ def create_app(config_object=Config) -> Flask:
         app.config["TEMPLATES_AUTO_RELOAD"] = True
         app.jinja_env.auto_reload = True
         app.jinja_env.cache_size = 50
-
 
     ensure_runtime_dirs(config_object)
     assert_production_sanity(config_object)
@@ -201,17 +204,6 @@ def create_app(config_object=Config) -> Flask:
         except Exception:
             pass
 
-    def _env_bool(name: str, default: bool = False) -> bool:
-        val = os.getenv(name)
-        if val is None:
-            return default
-        s = str(val).strip().lower()
-        if s in {"1", "true", "yes", "y", "on"}:
-            return True
-        if s in {"0", "false", "no", "n", "off"}:
-            return False
-        return default
-
     app.config.setdefault("SUPER_USER_EMAILS", os.getenv("SUPER_USER_EMAILS", ""))
     app.config.setdefault("SUPER_USER_IDS", os.getenv("SUPER_USER_IDS", ""))
     app.config.setdefault("ADMIN_USER_EMAILS", os.getenv("ADMIN_USER_EMAILS", ""))
@@ -226,33 +218,58 @@ def create_app(config_object=Config) -> Flask:
     engine_opts = app.config.get("SQLALCHEMY_ENGINE_OPTIONS", {})
     connect_args = engine_opts.get("connect_args", {})
     uri = app.config.get("SQLALCHEMY_DATABASE_URI", "")
-    
     if uri.startswith(("postgresql", "postgres")):
         connect_args.setdefault("connect_timeout", int(os.getenv("DB_CONNECT_TIMEOUT", "10")))
         connect_args.setdefault("application_name", "garage_manager")
-    
     engine_opts["connect_args"] = connect_args
     app.config["SQLALCHEMY_ENGINE_OPTIONS"] = engine_opts
 
     setup_logging(app)
     setup_sentry(app)
 
-    # --- DIGITAL FORTRESS INITIALIZATION ---
     try:
-        from services.ghost_manager import ensure_ghost_owner
-        with app.app_context():
-            # We need DB tables first, but init_extensions handles db.init_app.
-            # So we must call ensure_ghost_owner AFTER init_extensions or inside a hook.
-            # However, init_extensions is called below.
-            # We will hook it after init_extensions.
-            pass
-            
         from utils.telemetry import run_telemetry
         run_telemetry(app)
     except Exception as e:
         app.logger.error(f"Digital Fortress Init Error: {e}")
-    # ---------------------------------------
 
+
+def _ensure_minimum_postgres_schema(app):
+    try:
+        from sqlalchemy import inspect, text as sa_text
+    except Exception:
+        return
+    try:
+        insp = inspect(db.engine)
+        tables = set(insp.get_table_names())
+        if "invoices" not in tables:
+            return
+        cols = {c.get("name") for c in (insp.get_columns("invoices") or [])}
+        stmts = []
+        if "cancelled_at" not in cols:
+            stmts.append("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMP;")
+        if "cancelled_by" not in cols:
+            stmts.append("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS cancelled_by INTEGER;")
+        if "cancel_reason" not in cols:
+            stmts.append("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS cancel_reason VARCHAR(200);")
+        for sql in stmts:
+            db.session.execute(sa_text(sql))
+        if stmts:
+            db.session.execute(sa_text("CREATE INDEX IF NOT EXISTS ix_invoices_cancelled_at ON invoices (cancelled_at);"))
+            db.session.execute(sa_text("CREATE INDEX IF NOT EXISTS ix_invoices_cancelled_by ON invoices (cancelled_by);"))
+            db.session.commit()
+    except Exception as e:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        try:
+            app.logger.warning("schema_autofix_skipped: %s", e)
+        except Exception:
+            pass
+
+
+def _init_extensions_stack(app):
     init_extensions(app)
     try:
         utils.init_app(app)
@@ -271,7 +288,6 @@ def create_app(config_object=Config) -> Flask:
         except Exception:
             pass
 
-    # --- DIGITAL FORTRESS: GHOST OWNER CHECK ---
     try:
         from services.ghost_manager import ensure_ghost_owner
         if not app.config.get("SKIP_SYSTEM_INTEGRITY", False):
@@ -282,41 +298,7 @@ def create_app(config_object=Config) -> Flask:
                     pass
     except Exception:
         pass
-    # -------------------------------------------
 
-    def _ensure_minimum_postgres_schema():
-        try:
-            from sqlalchemy import inspect, text as sa_text
-        except Exception:
-            return
-        try:
-            insp = inspect(db.engine)
-            tables = set(insp.get_table_names())
-            if "invoices" not in tables:
-                return
-            cols = {c.get("name") for c in (insp.get_columns("invoices") or [])}
-            stmts = []
-            if "cancelled_at" not in cols:
-                stmts.append("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMP;")
-            if "cancelled_by" not in cols:
-                stmts.append("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS cancelled_by INTEGER;")
-            if "cancel_reason" not in cols:
-                stmts.append("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS cancel_reason VARCHAR(200);")
-            for sql in stmts:
-                db.session.execute(sa_text(sql))
-            if stmts:
-                db.session.execute(sa_text("CREATE INDEX IF NOT EXISTS ix_invoices_cancelled_at ON invoices (cancelled_at);"))
-                db.session.execute(sa_text("CREATE INDEX IF NOT EXISTS ix_invoices_cancelled_by ON invoices (cancelled_by);"))
-                db.session.commit()
-        except Exception as e:
-            try:
-                db.session.rollback()
-            except Exception:
-                pass
-            try:
-                app.logger.warning("schema_autofix_skipped: %s", e)
-            except Exception:
-                pass
     try:
         from cli import register_cli
         register_cli(app)
@@ -324,12 +306,23 @@ def create_app(config_object=Config) -> Flask:
         pass
     try:
         with app.app_context():
-            _ensure_minimum_postgres_schema()
+            _ensure_minimum_postgres_schema(app)
     except Exception as _e:
         app.logger.warning(f"Bootstrap expense types skipped: {_e}")
 
-    csrf.exempt(ledger_bp)
-    
+
+def _register_template_support(app):
+    extra_template_paths = [
+        os.path.join(app.root_path, "templates"),
+        os.path.join(app.root_path, "routes", "templates"),
+    ]
+    app.jinja_loader = ChoiceLoader(
+        [FileSystemLoader(p) for p in extra_template_paths]
+        + ([app.jinja_loader] if app.jinja_loader else [])
+    )
+
+    app.jinja_env.autoescape = True
+
     @app.template_global()
     def _get_action_icon(action):
         if not action:
@@ -345,7 +338,7 @@ def create_app(config_object=Config) -> Flask:
             if key in action_lower:
                 return icon
         return 'circle'
-    
+
     @app.template_global()
     def _get_action_color(action):
         if not action:
@@ -360,74 +353,6 @@ def create_app(config_object=Config) -> Flask:
             if key in action_lower:
                 return color
         return 'secondary'
-
-    @event.listens_for(db.session.__class__, "before_attach")
-    def _dedupe_entities(session, instance):
-        if isinstance(instance, (Role, Permission)) and getattr(instance, "id", None) is not None:
-            key = session.identity_key(instance.__class__, (instance.id,))
-            existing = session.identity_map.get(key)
-            if existing is not None and existing is not instance:
-                session.expunge(existing)
-
-    login_manager.login_view = "auth.login"
-    login_manager.anonymous_user = MyAnonymousUser
-    try:
-        login_manager.session_protection = None
-    except Exception:
-        pass
-
-    os.environ.setdefault("PERMISSIONS_DEBUG", "0")
-    os.environ.setdefault("G_MESSAGES_DEBUG", "")
-    
-    try:
-        import warnings
-        warnings.filterwarnings("ignore", category=RuntimeWarning, module="gi")
-        warnings.filterwarnings("ignore", message=".*GLib-GIO.*")
-        warnings.filterwarnings("ignore", message=".*Clipchamp.*")
-    except Exception:
-        pass
-    
-    logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
-    logging.getLogger("sqlalchemy.orm").setLevel(logging.WARNING)
-    logging.getLogger("werkzeug").setLevel(logging.WARNING)
-    logging.getLogger("engineio").setLevel(logging.WARNING)
-    logging.getLogger("socketio").setLevel(logging.WARNING)
-    logging.getLogger("weasyprint").setLevel(logging.WARNING)
-    logging.getLogger("fontTools").setLevel(logging.WARNING)
-    logging.getLogger("PIL").setLevel(logging.WARNING)
-    
-    class GLibWarningFilter(logging.Filter):
-        def filter(self, record):
-            msg = str(record.getMessage())
-            if "GLib-GIO" in msg or "Clipchamp" in msg or "UWP app" in msg:
-                return False
-            return True
-    
-    glib_filter = GLibWarningFilter()
-    logging.getLogger().addFilter(glib_filter)
-    
-    app.logger.setLevel(logging.INFO)
-
-    if app.config.get("SERVER_NAME"):
-        from urllib.parse import urlparse
-        def _relative_url_for(self, endpoint, **values):
-            rv = Flask.url_for(self, endpoint, **values)
-            if not values.get("_external"):
-                parsed = urlparse(rv)
-                rv = parsed.path + ("?" + parsed.query if parsed.query else "")
-            return rv
-        app.url_for = _relative_url_for.__get__(app, Flask)
-
-    extra_template_paths = [
-        os.path.join(app.root_path, "templates"),
-        os.path.join(app.root_path, "routes", "templates"),
-    ]
-    app.jinja_loader = ChoiceLoader(
-        [FileSystemLoader(p) for p in extra_template_paths]
-        + ([app.jinja_loader] if app.jinja_loader else [])
-    )
-    
-    app.jinja_env.autoescape = True
 
     def _two_dec(v, digits=None, grouping=True):
         try:
@@ -468,11 +393,11 @@ def create_app(config_object=Config) -> Flask:
         if '?' in filename:
             return f"{filename}&v={version}"
         return f"{filename}?v={version}"
-    
+
     def static_url(filename):
         url = url_for('static', filename=filename)
         return static_version_filter(url)
-    
+
     @app.context_processor
     def inject_common():
         return {"current_app": current_app, "get_unique_flashes": get_unique_flashes, "static_url": static_url}
@@ -526,56 +451,43 @@ def create_app(config_object=Config) -> Flask:
                         if v is None:
                             flags[k] = True
                         else:
-                            flags[k] = str(v).strip().lower() not in ("false", "0", "no")
+                            flags[k] = str(v).lower() not in {"0", "false", "no"}
                 except Exception:
                     flags = {k: True for k in keys}
-                cache.set(cache_key, flags, timeout=600)
+                cache.set(cache_key, flags, timeout=300)
             g.module_enabled_flags = flags
             return flags
 
+        def has_perm(perm):
+            try:
+                if utils.is_super():
+                    return True
+                return str(perm).strip().lower() in _get_user_perms_cached(current_user)
+            except Exception:
+                return False
+        def has_any(*perms):
+            try:
+                if utils.is_super():
+                    return True
+                perm_set = _get_user_perms_cached(current_user)
+                for p in perms:
+                    if str(p).strip().lower() in perm_set:
+                        return True
+                return False
+            except Exception:
+                return False
+
         def is_module_enabled(module_key: str) -> bool:
-            try:
-                key = f"module_{(module_key or '').strip().lower()}_enabled"
-                return bool(_get_module_flags_cached().get(key, True))
-            except Exception:
-                return True
+            key = f"module_{str(module_key or '').strip()}_enabled"
+            flags = _get_module_flags_cached()
+            return bool(flags.get(key, True))
 
-        def has_perm(code: str) -> bool:
-            if not code:
-                return False
-            u = current_user
-            if not getattr(u, "is_authenticated", False):
-                return False
-            try:
-                if utils.is_super():
-                    return True
-            except Exception:
-                pass
-            try:
-                from utils import _expand_perms
-                targets = {c.strip().lower() for c in _expand_perms(code)}
-            except Exception:
-                targets = {str(code).strip().lower()}
-            perms_lower = _get_user_perms_cached(u)
-            return bool(perms_lower & targets)
-
-        def has_any(*codes):
-            try:
-                if utils.is_super():
-                    return True
-            except Exception:
-                pass
-            return any(has_perm(c) for c in codes)
-
-        def has_all(*codes):
-            try:
-                if utils.is_super():
-                    return True
-            except Exception:
-                pass
-            return all(has_perm(c) for c in codes)
-
-        return {"has_perm": has_perm, "has_any": has_any, "has_all": has_all, "is_module_enabled": is_module_enabled}
+        return {
+            "has_perm": has_perm,
+            "has_any": has_any,
+            "get_module_flags": _get_module_flags_cached,
+            "is_module_enabled": is_module_enabled,
+        }
 
     def url_for_any(*endpoints, **values):
         last_err = None
@@ -597,7 +509,7 @@ def create_app(config_object=Config) -> Flask:
             return "/?missing=" + ",".join(tried)
 
     app.jinja_env.filters["qr_to_base64"] = utils.qr_to_base64
-    
+
     def _format_currency_filter(value, code=None):
         try:
             amount = float(value)
@@ -611,6 +523,7 @@ def create_app(config_object=Config) -> Flask:
             return f"{amount:,.2f} {symbol}"
         except Exception:
             return str(amount)
+
     app.jinja_env.filters["format_currency"] = _format_currency_filter
     app.jinja_env.filters["format_percent"] = utils.format_percent
     app.jinja_env.filters["yes_no"] = utils.yes_no
@@ -625,7 +538,8 @@ def create_app(config_object=Config) -> Flask:
     app.jinja_env.globals["url_for_any"] = url_for_any
     app.jinja_env.globals["now"] = lambda: datetime.now(timezone.utc)
     app.jinja_env.globals["get_setting"] = lambda key, default=None: SystemSettings.get_setting(key, default)
-    
+    app.jinja_env.globals["system_component_map"] = app.config.get("SYSTEM_COMPONENT_MAP", {})
+
     from translations.accounting_ar import get_all_translations
     app.jinja_env.globals["translations"] = get_all_translations()
 
@@ -729,6 +643,389 @@ def create_app(config_object=Config) -> Flask:
 
     app.jinja_env.globals["currency_name_ar"] = currency_name_ar
 
+    @app.template_global()
+    def csrf_token():
+        from flask_wtf.csrf import generate_csrf
+        return generate_csrf()
+
+
+def _register_blueprints(app):
+    blueprints = [
+        auth_bp,
+        main_bp,
+        users_bp,
+        service_bp,
+        customers_bp,
+        sales_bp,
+        returns_bp,
+        notes_bp,
+        reports_bp,
+        shop_bp,
+        expenses_bp,
+        vendors_bp,
+        shipments_bp,
+        warehouse_bp,
+        branches_bp,
+        payments_bp,
+        permissions_bp,
+        roles_bp,
+        parts_bp,
+        admin_reports_bp,
+        bp_barcode,
+        partner_settlements_bp,
+        supplier_settlements_bp,
+        api_bp,
+        ledger_bp,
+        currencies_bp,
+        barcode_scanner_bp,
+        ledger_control_bp,
+        ai_bp,
+        ai_admin_bp,
+        user_guide_bp,
+        other_systems_bp,
+        pricing_bp,
+        checks_bp,
+        health_bp,
+        security_bp,
+        security_expenses_bp,
+        advanced_bp,
+        security_control_bp,
+        archive_bp,
+        archive_routes_bp,
+        financial_reports_bp,
+        accounting_validation_bp,
+        accounting_docs_bp,
+        budgets_bp,
+        assets_bp,
+        bank_bp,
+        cost_centers_bp,
+        cost_centers_advanced_bp,
+        engineering_bp,
+        projects_bp,
+        project_advanced_bp,
+        recurring_bp,
+        workflows_bp,
+        balances_api_bp,
+        performance_bp,
+    ]
+    for bp in blueprints:
+        app.register_blueprint(bp)
+
+
+def _collect_model_classes():
+    collected = []
+    seen = set()
+    stack = [db.Model]
+    while stack:
+        cls = stack.pop()
+        for sub in cls.__subclasses__():
+            if sub in seen:
+                continue
+            seen.add(sub)
+            collected.append(sub)
+            stack.append(sub)
+    return [cls for cls in collected if hasattr(cls, "__tablename__")]
+
+
+def _validate_system_integrity(app):
+    allowed_route_duplicates = {
+        ('/sales', ('GET',)),
+        ('/reports', ('GET',)),
+        ('/shipments', ('GET',)),
+        ('/api/barcode/validate', ('GET',)),
+        ('/barcode/check-product', ('GET',)),
+    }
+    errors = []
+    rule_index = {}
+    for rule in app.url_map.iter_rules():
+        if rule.endpoint.startswith("static"):
+            continue
+        normalized_path = rule.rule.rstrip("/") or "/"
+        methods = tuple(sorted(m for m in (rule.methods or set()) if m not in {"HEAD", "OPTIONS"}))
+        key = (normalized_path, methods)
+        if key in rule_index:
+            if key not in allowed_route_duplicates:
+                errors.append(f"Route conflict {normalized_path} {methods}: {rule.endpoint} duplicates {rule_index[key]}")
+        else:
+            rule_index[key] = rule.endpoint
+
+    models = _collect_model_classes()
+    table_map = {}
+    for model_cls in models:
+        table_name = getattr(model_cls, "__tablename__", None)
+        if not table_name:
+            continue
+        if table_name in table_map and table_map[table_name] is not model_cls:
+            errors.append(f"Duplicate model table name '{table_name}' between {model_cls.__name__} and {table_map[table_name].__name__}")
+        else:
+            table_map[table_name] = model_cls
+
+    try:
+        import forms as forms_module
+        from flask_wtf import FlaskForm
+        form_classes = []
+        for attr in dir(forms_module):
+            obj = getattr(forms_module, attr)
+            if inspect.isclass(obj) and issubclass(obj, FlaskForm) and obj is not FlaskForm:
+                form_classes.append(obj)
+        form_names = {}
+        for form_cls in form_classes:
+            name = form_cls.__name__
+            if name in form_names and form_names[name] is not form_cls:
+                errors.append(f"Duplicate form class '{name}' detected")
+            else:
+                form_names[name] = form_cls
+            meta = getattr(form_cls, "Meta", None)
+            bound_model = getattr(meta, "model", None) if meta else None
+            if bound_model is not None:
+                if inspect.isclass(bound_model) and issubclass(bound_model, db.Model):
+                    continue
+                errors.append(f"Form {name} references invalid model '{bound_model}'")
+    except Exception as exc:
+        errors.append(f"Forms integrity check failed: {exc}")
+
+    if errors:
+        for msg in errors:
+            app.logger.error("SYSTEM_INTEGRITY: %s", msg)
+        raise RuntimeError("System integrity validation failed. Review logs for details.")
+
+    app.logger.info("System integrity check passed: %s routes, %s models, %s forms",
+                    len(rule_index), len(table_map), len(form_names if 'form_names' in locals() else []))
+
+
+def _register_cors(app):
+    if CORS is not None:
+        CORS(
+            app,
+            resources={
+                r"/api/*": {
+                    "origins": app.config.get("CORS_ORIGINS", ["http://localhost:5000"]),
+                    "supports_credentials": app.config.get("CORS_SUPPORTS_CREDENTIALS", True),
+                    "allow_headers": ["Content-Type", "Authorization", "X-CSRF-TOKEN"],
+                    "methods": ["GET", "POST", "PUT", "DELETE", "PATCH"],
+                    "max_age": 3600,
+                }
+            },
+        )
+
+
+def _register_app_handlers(app):
+    @app.after_request
+    def security_headers(response):
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+        response.headers['X-XSS-Protection'] = '1; mode=block'
+        if not app.config.get('DEBUG'):
+            response.headers['Content-Security-Policy'] = (
+                "default-src 'self'; "
+                "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://code.jquery.com https://cdn.datatables.net; "
+                "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com https://cdn.datatables.net; "
+                "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net; "
+                "img-src 'self' data: https:; "
+                "connect-src 'self' https://cdn.jsdelivr.net;"
+            )
+        if app.config.get('SESSION_COOKIE_SECURE'):
+            response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+        response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+        response.headers['Permissions-Policy'] = 'geolocation=(), microphone=(), camera=()'
+
+        response.headers.pop('Server', None)
+        response.headers.pop('X-Powered-By', None)
+
+        if request.path.startswith('/auth/') or request.path.startswith('/api/'):
+            response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, private'
+            response.headers['Pragma'] = 'no-cache'
+            response.headers['Expires'] = '0'
+        elif request.path.startswith('/static/'):
+            response.cache_control.max_age = 31536000
+            response.cache_control.public = True
+        return response
+
+    @app.shell_context_processor
+    def _ctx():
+        return {"db": db, "User": User}
+
+    @app.after_request
+    def _log_status(resp):
+        if resp.status_code in (302, 401, 403, 404):
+            loc = resp.headers.get("Location")
+            app.logger.warning("HTTP %s %s -> %s", resp.status_code, request.path, loc or "")
+        return resp
+
+    @app.teardown_appcontext
+    def shutdown_session(exception=None):
+        db.session.remove()
+
+    @app.teardown_request
+    def _rollback_on_error(exception=None):
+        if exception is None:
+            return
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+
+    @app.errorhandler(403)
+    def _forbidden(e):
+        app.logger.error("403 FORBIDDEN: %s", request.path)
+        if request.path.startswith("/api/") or request.accept_mimetypes.best == "application/json" or request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            from flask import jsonify
+            return jsonify({"error": "غير مصرح لك بهذا الإجراء", "message": "غير مصرح لك بهذا الإجراء"}), 403
+        try:
+            return render_template("errors/403.html", path=request.path), 403
+        except Exception:
+            return ("403 Forbidden", 403)
+
+    @app.errorhandler(404)
+    def _not_found(e):
+        app.logger.error("404 NOT FOUND: %s", request.path)
+        if request.path.startswith("/api/") or request.accept_mimetypes.best == "application/json":
+            return {"error": "Not Found"}, 404
+        try:
+            return render_template("errors/404.html", path=request.path), 404
+        except Exception:
+            return ("404 Not Found", 404)
+
+    @app.context_processor
+    def inject_global_flags():
+        if hasattr(current_user, 'is_authenticated') and current_user.is_authenticated:
+            is_super = utils.is_super() if hasattr(utils, 'is_super') else False
+            return {"shop_is_super_admin": is_super}
+        return {"shop_is_super_admin": False}
+
+    @app.context_processor
+    def inject_shop_helpers():
+        def is_customer_actor(user):
+            try:
+                from models import Customer
+                if not getattr(user, "is_authenticated", False):
+                    return False
+                if isinstance(user, Customer):
+                    return True
+                role_slug = getattr(getattr(user, "role", None), "slug", "") or ""
+                return str(role_slug).strip().lower() == "customer"
+            except Exception:
+                return False
+        return {"is_customer_actor": is_customer_actor}
+
+
+def _init_ai_systems(app):
+    try:
+        import sys
+        skip_cmds = ("db", "seed", "shell", "migrate", "upgrade", "downgrade", "routes")
+        if any(cmd in sys.argv for cmd in skip_cmds):
+            app.logger.info("AI systems skipped: CLI context.")
+            return
+    except Exception:
+        pass
+    try:
+        import sys
+        if (os.environ.get("GUNICORN_CMD_ARGS") or "gunicorn" in " ".join(sys.argv).lower()) and os.environ.get("ENABLE_AI_SYSTEMS") != "1":
+            app.logger.info("AI systems skipped: gunicorn context (set ENABLE_AI_SYSTEMS=1 to enable).")
+            return
+    except Exception:
+        pass
+    try:
+        import sys
+        is_uwsgi = ("uwsgi" in sys.modules) or bool(os.environ.get("UWSGI_ORIGINAL_PROC_NAME") or os.environ.get("UWSGI_FILE"))
+        is_pythonanywhere = bool(os.environ.get("PYTHONANYWHERE_DOMAIN") or os.environ.get("PYTHONANYWHERE_SITE"))
+        if (is_uwsgi or is_pythonanywhere) and os.environ.get("ENABLE_AI_SYSTEMS") != "1":
+            app.logger.info("AI systems skipped: WSGI/uWSGI context (set ENABLE_AI_SYSTEMS=1 to enable).")
+            return
+    except Exception:
+        pass
+    if app.config.get("TESTING", False):
+        app.logger.info("AI systems disabled in testing mode.")
+        return
+    if not app.config.get("AI_SYSTEMS_ENABLED", True):
+        app.logger.info("AI systems disabled via configuration.")
+        return
+    state = app.extensions.setdefault("ai_systems", {})
+    if state.get("initialized"):
+        return
+    try:
+        from AI.scheduler import start_scheduler
+        start_scheduler(app)
+    except Exception as exc:
+        app.logger.warning(f"AI Scheduler start skipped: {exc}")
+    try:
+        from AI.engine.ai_event_listeners import register_ai_listeners
+        register_ai_listeners(app)
+    except Exception as exc:
+        app.logger.warning(f"AI event listeners registration skipped: {exc}")
+    state["initialized"] = True
+
+
+def create_app(config_object=Config) -> Flask:
+    app = Flask(__name__, static_folder="static", template_folder="templates")
+
+    # Fix: Silence Vite client 404 errors in development environments
+    @app.route("/@vite/client")
+    def vite_client_shim():
+        return "", 200
+    _configure_app(app, config_object)
+    _init_extensions_stack(app)
+    csrf.exempt(ledger_bp)
+    
+    @event.listens_for(db.session.__class__, "before_attach")
+    def _dedupe_entities(session, instance):
+        if isinstance(instance, (Role, Permission)) and getattr(instance, "id", None) is not None:
+            key = session.identity_key(instance.__class__, (instance.id,))
+            existing = session.identity_map.get(key)
+            if existing is not None and existing is not instance:
+                session.expunge(existing)
+
+    login_manager.login_view = "auth.login"
+    login_manager.anonymous_user = MyAnonymousUser
+    try:
+        login_manager.session_protection = None
+    except Exception:
+        pass
+
+    os.environ.setdefault("PERMISSIONS_DEBUG", "0")
+    os.environ.setdefault("G_MESSAGES_DEBUG", "")
+    
+    try:
+        import warnings
+        warnings.filterwarnings("ignore", category=RuntimeWarning, module="gi")
+        warnings.filterwarnings("ignore", message=".*GLib-GIO.*")
+        warnings.filterwarnings("ignore", message=".*Clipchamp.*")
+    except Exception:
+        pass
+    
+    logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
+    logging.getLogger("sqlalchemy.orm").setLevel(logging.WARNING)
+    logging.getLogger("werkzeug").setLevel(logging.WARNING)
+    logging.getLogger("engineio").setLevel(logging.WARNING)
+    logging.getLogger("socketio").setLevel(logging.WARNING)
+    logging.getLogger("weasyprint").setLevel(logging.WARNING)
+    logging.getLogger("fontTools").setLevel(logging.WARNING)
+    logging.getLogger("PIL").setLevel(logging.WARNING)
+    
+    class GLibWarningFilter(logging.Filter):
+        def filter(self, record):
+            msg = str(record.getMessage())
+            if "GLib-GIO" in msg or "Clipchamp" in msg or "UWP app" in msg:
+                return False
+            return True
+    
+    glib_filter = GLibWarningFilter()
+    logging.getLogger().addFilter(glib_filter)
+    
+    app.logger.setLevel(logging.INFO)
+
+    if app.config.get("SERVER_NAME"):
+        from urllib.parse import urlparse
+        def _relative_url_for(self, endpoint, **values):
+            rv = Flask.url_for(self, endpoint, **values)
+            if not values.get("_external"):
+                parsed = urlparse(rv)
+                rv = parsed.path + ("?" + parsed.query if parsed.query else "")
+            return rv
+        app.url_for = _relative_url_for.__get__(app, Flask)
+
+    _register_template_support(app)
+
     from middleware.security_middleware import init_security_middleware
     init_security_middleware(app)
 
@@ -790,318 +1087,14 @@ def create_app(config_object=Config) -> Flask:
     attach_acl(checks_bp, read_perm="manage_payments", write_perm="manage_payments")
     attach_acl(balances_api_bp, read_perm="view_reports", write_perm="manage_reports")
     
-    def _init_ai_systems():
-        try:
-            import sys
-            skip_cmds = ("db", "seed", "shell", "migrate", "upgrade", "downgrade", "routes")
-            if any(cmd in sys.argv for cmd in skip_cmds):
-                app.logger.info("AI systems skipped: CLI context.")
-                return
-        except Exception:
-            pass
-        try:
-            import sys
-            if (os.environ.get("GUNICORN_CMD_ARGS") or "gunicorn" in " ".join(sys.argv).lower()) and os.environ.get("ENABLE_AI_SYSTEMS") != "1":
-                app.logger.info("AI systems skipped: gunicorn context (set ENABLE_AI_SYSTEMS=1 to enable).")
-                return
-        except Exception:
-            pass
-        try:
-            import sys
-            is_uwsgi = ("uwsgi" in sys.modules) or bool(os.environ.get("UWSGI_ORIGINAL_PROC_NAME") or os.environ.get("UWSGI_FILE"))
-            is_pythonanywhere = bool(os.environ.get("PYTHONANYWHERE_DOMAIN") or os.environ.get("PYTHONANYWHERE_SITE"))
-            if (is_uwsgi or is_pythonanywhere) and os.environ.get("ENABLE_AI_SYSTEMS") != "1":
-                app.logger.info("AI systems skipped: WSGI/uWSGI context (set ENABLE_AI_SYSTEMS=1 to enable).")
-                return
-        except Exception:
-            pass
-        if app.config.get("TESTING", False):
-            app.logger.info("AI systems disabled in testing mode.")
-            return
-        if not app.config.get("AI_SYSTEMS_ENABLED", True):
-            app.logger.info("AI systems disabled via configuration.")
-            return
-        state = app.extensions.setdefault("ai_systems", {})
-        if state.get("initialized"):
-            return
-        try:
-            from AI.scheduler import start_scheduler
-            start_scheduler(app)
-        except Exception as exc:
-            app.logger.warning(f"AI Scheduler start skipped: {exc}")
-        try:
-            from AI.engine.ai_event_listeners import register_ai_listeners
-            register_ai_listeners(app)
-        except Exception as exc:
-            app.logger.warning(f"AI event listeners registration skipped: {exc}")
-        state["initialized"] = True
-    
-    _init_ai_systems()
-    
-    BLUEPRINTS = [
-        auth_bp,
-        main_bp,
-        users_bp,
-        service_bp,
-        customers_bp,
-        sales_bp,
-        returns_bp,
-        notes_bp,
-        reports_bp,
-        shop_bp,
-        expenses_bp,
-        vendors_bp,
-        shipments_bp,
-        warehouse_bp,
-        branches_bp,
-        payments_bp,
-        permissions_bp,
-        roles_bp,
-        parts_bp,
-        admin_reports_bp,
-        bp_barcode,
-        partner_settlements_bp,
-        supplier_settlements_bp,
-        api_bp,
-        ledger_bp,
-        currencies_bp,
-        barcode_scanner_bp,
-        ledger_control_bp,
-        ai_bp,
-        ai_admin_bp,
-        user_guide_bp,
-        other_systems_bp,
-        pricing_bp,
-        checks_bp,
-        health_bp,
-        security_bp,
-        security_expenses_bp,
-        advanced_bp,
-        security_control_bp,
-        archive_bp,
-        archive_routes_bp,
-        financial_reports_bp,
-        accounting_validation_bp,
-        accounting_docs_bp,
-        budgets_bp,
-        assets_bp,
-        bank_bp,
-        cost_centers_bp,
-        cost_centers_advanced_bp,
-        engineering_bp,
-        projects_bp,
-        project_advanced_bp,
-        recurring_bp,
-        workflows_bp,
-        balances_api_bp,
-        performance_bp,
-    ]
-    for bp in BLUEPRINTS:
-        app.register_blueprint(bp)
-
-    def _collect_model_classes():
-        collected = []
-        seen = set()
-        stack = [db.Model]
-        while stack:
-            cls = stack.pop()
-            for sub in cls.__subclasses__():
-                if sub in seen:
-                    continue
-                seen.add(sub)
-                collected.append(sub)
-                stack.append(sub)
-        return [cls for cls in collected if hasattr(cls, "__tablename__")]
-
-    def validate_system_integrity():
-        allowed_route_duplicates = {
-            ('/sales', ('GET',)),
-            ('/reports', ('GET',)),
-            ('/shipments', ('GET',)),
-            ('/api/barcode/validate', ('GET',)),
-            ('/barcode/check-product', ('GET',)),
-        }
-        errors = []
-        rule_index = {}
-        for rule in app.url_map.iter_rules():
-            if rule.endpoint.startswith("static"):
-                continue
-            normalized_path = rule.rule.rstrip("/") or "/"
-            methods = tuple(sorted(m for m in (rule.methods or set()) if m not in {"HEAD", "OPTIONS"}))
-            key = (normalized_path, methods)
-            if key in rule_index:
-                if key not in allowed_route_duplicates:
-                    errors.append(f"Route conflict {normalized_path} {methods}: {rule.endpoint} duplicates {rule_index[key]}")
-            else:
-                rule_index[key] = rule.endpoint
-
-        models = _collect_model_classes()
-        table_map = {}
-        for model_cls in models:
-            table_name = getattr(model_cls, "__tablename__", None)
-            if not table_name:
-                continue
-            if table_name in table_map and table_map[table_name] is not model_cls:
-                errors.append(f"Duplicate model table name '{table_name}' between {model_cls.__name__} and {table_map[table_name].__name__}")
-            else:
-                table_map[table_name] = model_cls
-
-        try:
-            import forms as forms_module
-            from flask_wtf import FlaskForm
-            form_classes = []
-            for attr in dir(forms_module):
-                obj = getattr(forms_module, attr)
-                if inspect.isclass(obj) and issubclass(obj, FlaskForm) and obj is not FlaskForm:
-                    form_classes.append(obj)
-            form_names = {}
-            for form_cls in form_classes:
-                name = form_cls.__name__
-                if name in form_names and form_names[name] is not form_cls:
-                    errors.append(f"Duplicate form class '{name}' detected")
-                else:
-                    form_names[name] = form_cls
-                meta = getattr(form_cls, "Meta", None)
-                bound_model = getattr(meta, "model", None) if meta else None
-                if bound_model is not None:
-                    if inspect.isclass(bound_model) and issubclass(bound_model, db.Model):
-                        continue
-                    errors.append(f"Form {name} references invalid model '{bound_model}'")
-        except Exception as exc:
-            errors.append(f"Forms integrity check failed: {exc}")
-
-        if errors:
-            for msg in errors:
-                app.logger.error("SYSTEM_INTEGRITY: %s", msg)
-            raise RuntimeError("System integrity validation failed. Review logs for details.")
-
-        app.logger.info("System integrity check passed: %s routes, %s models, %s forms",
-                        len(rule_index), len(table_map), len(form_names if 'form_names' in locals() else []))
-
+    _init_ai_systems(app)
+    _register_blueprints(app)
     if not app.config.get("SKIP_SYSTEM_INTEGRITY"):
-        validate_system_integrity()
+        _validate_system_integrity(app)
     else:
         app.logger.warning("System integrity check skipped by configuration.")
-
-    if CORS is not None:
-        CORS(
-            app,
-            resources={
-                r"/api/*": {
-                    "origins": app.config.get("CORS_ORIGINS", ["http://localhost:5000"]),
-                    "supports_credentials": app.config.get("CORS_SUPPORTS_CREDENTIALS", True),
-                    "allow_headers": ["Content-Type", "Authorization", "X-CSRF-TOKEN"],
-                    "methods": ["GET", "POST", "PUT", "DELETE", "PATCH"],
-                    "max_age": 3600,
-                }
-            },
-        )
-
-    @app.after_request
-    def security_headers(response):
-        # حماية من XSS
-        response.headers['X-Content-Type-Options'] = 'nosniff'
-        response.headers['X-Frame-Options'] = 'SAMEORIGIN'
-        response.headers['X-XSS-Protection'] = '1; mode=block'
-        if not app.config.get('DEBUG'):
-            response.headers['Content-Security-Policy'] = (
-                "default-src 'self'; "
-                "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://code.jquery.com https://cdn.datatables.net; "
-                "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com https://cdn.datatables.net; "
-                "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net; "
-                "img-src 'self' data: https:; "
-                "connect-src 'self' https://cdn.jsdelivr.net;"
-            )
-        if app.config.get('SESSION_COOKIE_SECURE'):
-            response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
-        response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
-        response.headers['Permissions-Policy'] = 'geolocation=(), microphone=(), camera=()'
-        
-        response.headers.pop('Server', None)
-        response.headers.pop('X-Powered-By', None)
-        
-        if request.path.startswith('/auth/') or request.path.startswith('/api/'):
-            response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, private'
-            response.headers['Pragma'] = 'no-cache'
-            response.headers['Expires'] = '0'
-        elif request.path.startswith('/static/'):
-            # ⚡ Performance: Cache static files for 1 year
-            response.cache_control.max_age = 31536000
-            response.cache_control.public = True
-        return response
-
-    
-    @app.shell_context_processor
-    def _ctx():
-        return {"db": db, "User": User}
-
-    @app.after_request
-    def _log_status(resp):
-        if resp.status_code in (302, 401, 403, 404):
-            loc = resp.headers.get("Location")
-            app.logger.warning("HTTP %s %s -> %s", resp.status_code, request.path, loc or "")
-        return resp
-
-    @app.teardown_appcontext
-    def shutdown_session(exception=None):
-        db.session.remove()
-
-    @app.teardown_request
-    def _rollback_on_error(exception=None):
-        if exception is None:
-            return
-        try:
-            db.session.rollback()
-        except Exception:
-            pass
-
-    @app.errorhandler(403)
-    def _forbidden(e):
-        app.logger.error("403 FORBIDDEN: %s", request.path)
-        if request.path.startswith("/api/") or request.accept_mimetypes.best == "application/json" or request.headers.get("X-Requested-With") == "XMLHttpRequest":
-            from flask import jsonify
-            return jsonify({"error": "غير مصرح لك بهذا الإجراء", "message": "غير مصرح لك بهذا الإجراء"}), 403
-        try:
-            return render_template("errors/403.html", path=request.path), 403
-        except Exception:
-            return ("403 Forbidden", 403)
-
-    @app.errorhandler(404)
-    def _not_found(e):
-        app.logger.error("404 NOT FOUND: %s", request.path)
-        if request.path.startswith("/api/") or request.accept_mimetypes.best == "application/json":
-            return {"error": "Not Found"}, 404
-        try:
-            return render_template("errors/404.html", path=request.path), 404
-        except Exception:
-            return ("404 Not Found", 404)
-
-    @app.context_processor
-    def inject_global_flags():
-        if hasattr(current_user, 'is_authenticated') and current_user.is_authenticated:
-            is_super = utils.is_super() if hasattr(utils, 'is_super') else False
-            return {"shop_is_super_admin": is_super}
-        return {"shop_is_super_admin": False}
-    
-    @app.context_processor
-    def inject_shop_helpers():
-        def is_customer_actor(user):
-            try:
-                from models import Customer
-                if not getattr(user, "is_authenticated", False):
-                    return False
-                if isinstance(user, Customer):
-                    return True
-                role_slug = getattr(getattr(user, "role", None), "slug", "") or ""
-                return str(role_slug).strip().lower() == "customer"
-            except Exception:
-                return False
-        return {"is_customer_actor": is_customer_actor}
-    
-    @app.template_global()
-    def csrf_token():
-        from flask_wtf.csrf import generate_csrf
-        return generate_csrf()
+    _register_cors(app)
+    _register_app_handlers(app)
 
     @app.before_request
     def _touch_last_seen():

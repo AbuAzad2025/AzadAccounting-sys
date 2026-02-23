@@ -2,7 +2,7 @@ import os
 import glob
 from datetime import datetime
 import pathlib
-from extensions import perform_backup_db
+from extensions import perform_backup_db, register_scheduler_job
 
 class AutomatedBackupManager:
     def __init__(self, app):
@@ -58,14 +58,14 @@ def schedule_automated_backups(app, scheduler):
     The job id is 'automated_daily_backup' to integrate with control panel toggles.
     """
     try:
-        scheduler.add_job(
+        register_scheduler_job(
+            app,
+            "automated_daily_backup",
             lambda: perform_backup_db(app),
             "cron",
             hour=3,
             minute=0,
-            id="automated_daily_backup",
             name="النسخ الاحتياطي اليومي التلقائي",
-            replace_existing=True,
         )
     except Exception as e:
         try:

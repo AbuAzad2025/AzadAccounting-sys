@@ -85,6 +85,48 @@ class Config:
     DEBUG = _bool(os.environ.get("DEBUG"), False)
     AI_SYSTEMS_ENABLED = _bool(os.environ.get("AI_SYSTEMS_ENABLED"), True)
     ENABLE_AUTOMATED_BACKUPS = _bool(os.environ.get("ENABLE_AUTOMATED_BACKUPS"), True)
+    SYSTEM_COMPONENT_MAP = {
+        "accounting": [
+            "sales",
+            "payments",
+            "checks",
+            "expenses",
+            "ledger",
+            "reports",
+            "currencies",
+            "budgets",
+            "assets",
+            "bank",
+            "cost_centers",
+            "cost_centers_advanced",
+        ],
+        "inventory": [
+            "warehouses",
+            "shipments",
+            "vendors",
+            "partners",
+            "parts",
+            "shop",
+            "barcode",
+            "barcode_scanner",
+        ],
+        "security": [
+            "auth",
+            "users",
+            "roles",
+            "permissions",
+            "security",
+            "security_control",
+            "security_expenses",
+        ],
+        "ai": [
+            "ai",
+            "ai_admin",
+            "ai_scheduler",
+            "ai_event_listeners",
+            "ai_systems",
+        ],
+    }
     AUTO_CREATE_PERFORMANCE_INDEXES = _bool(os.environ.get("AUTO_CREATE_PERFORMANCE_INDEXES"), True)
     _APP_ENV_LOWER = str(APP_ENV).lower()
     _IS_DEV = DEBUG or (_APP_ENV_LOWER in {"dev", "development", "local"})

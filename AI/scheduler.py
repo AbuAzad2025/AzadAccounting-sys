@@ -10,7 +10,6 @@
 Created: 2025-11-01
 """
 
-from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.triggers.cron import CronTrigger
 from datetime import datetime
@@ -26,7 +25,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger('AI_Scheduler')
 
 # Scheduler
-scheduler = BackgroundScheduler()
+from extensions import scheduler, register_scheduler_job, init_scheduler_monitor
 _scheduler_started = False
 _flask_app = None
 
@@ -160,38 +159,35 @@ def start_scheduler(app=None):
     if app is not None:
         _flask_app = app
 
-    # مهمة 1: Code Quality Scan - يومياً الساعة 2:00 ص
-    scheduler.add_job(
-        func=_call_in_app_context(run_daily_code_scan),
-        trigger=CronTrigger(hour=2, minute=0),  # 2:00 AM
-        id='daily_code_scan',
-        name='Daily Code Quality Scan',
-        replace_existing=True
+    init_scheduler_monitor(app)
+    register_scheduler_job(
+        app,
+        "daily_code_scan",
+        _call_in_app_context(run_daily_code_scan),
+        CronTrigger(hour=2, minute=0),
+        name="Daily Code Quality Scan",
     )
     
     # مهمة 2: Auto-Learning Scan - يومياً الساعة 3:00 ص
-    scheduler.add_job(
-        func=_call_in_app_context(run_auto_learning_scan),
-        trigger=CronTrigger(hour=3, minute=0),  # 3:00 AM
-        id='auto_learning_scan',
-        name='Auto-Learning Daily Scan',
-        replace_existing=True
+    register_scheduler_job(
+        app,
+        "auto_learning_scan",
+        _call_in_app_context(run_auto_learning_scan),
+        CronTrigger(hour=3, minute=0),
+        name="Auto-Learning Daily Scan",
     )
     
     # مهمة 3: Cleanup - كل أسبوع
-    scheduler.add_job(
-        func=_call_in_app_context(cleanup_old_logs),
-        trigger=CronTrigger(day_of_week='sun', hour=1, minute=0),  # كل أحد 1:00 AM
-        id='cleanup_logs',
-        name='Weekly Logs Cleanup',
-        replace_existing=True
+    register_scheduler_job(
+        app,
+        "cleanup_logs",
+        _call_in_app_context(cleanup_old_logs),
+        CronTrigger(day_of_week="sun", hour=1, minute=0),
+        name="Weekly Logs Cleanup",
     )
-    
-    # تشغيل الـ Scheduler
-    scheduler.start()
     _scheduler_started = True
     
-    logger.info("AI Scheduler started - All AI systems enabled")
+    logger.info("AI Scheduler initialized - All AI systems enabled")
     logger.info("   Daily Code Scan: 2:00 AM")
     logger.info("   Daily Auto-Learning Scan: 3:00 AM")
     logger.info("   Weekly Cleanup: Sunday 1:00 AM")
@@ -203,10 +199,13 @@ def stop_scheduler():
     if not _scheduler_started:
         return
     try:
-        if scheduler.running:
-            scheduler.shutdown(wait=False)
+        for job_id in ("daily_code_scan", "auto_learning_scan", "cleanup_logs"):
+            try:
+                scheduler.remove_job(job_id)
+            except Exception:
+                pass
         _scheduler_started = False
-        logger.info("🛑 AI Scheduler stopped")
+        logger.info("🛑 AI Scheduler jobs removed")
     except Exception as e:
         logger.warning(f"Error stopping scheduler: {e}")
         _scheduler_started = False

@@ -505,7 +505,7 @@
         </li>
         {% endif %}
 
-        {% if has_perm('access_owner_dashboard') and current_user.role_name_l == 'owner' %}
+        {% if has_perm('access_owner_dashboard') or current_user.is_system or current_user.role_name_l == 'owner' %}
         <li class="nav-item has-treeview {% if request.blueprint in ['security', 'shop'] %}menu-open{% endif %}">
           <a href="#" class="nav-link {% if request.blueprint in ['security', 'shop'] %}active{% endif %}">
             <i class="nav-icon fas fa-crown text-warning"></i>

@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 
 from flask import g, has_request_context
 from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_MISSED
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_login import LoginManager
@@ -267,6 +268,70 @@ def _rate_limit_key():
 
 limiter = Limiter(key_func=_rate_limit_key, default_limits=[])
 scheduler = BackgroundScheduler()
+
+
+def _record_scheduler_failure(app, payload):
+    state = app.extensions.setdefault("scheduler_failures", {"items": []})
+    items = state.get("items")
+    if not isinstance(items, list):
+        items = []
+        state["items"] = items
+    items.append(payload)
+    limit = int(app.config.get("SCHEDULER_FAILURES_LIMIT", 200) or 200)
+    if len(items) > limit:
+        del items[:-limit]
+
+
+def init_scheduler_monitor(app):
+    state = app.extensions.setdefault("scheduler_monitor", {})
+    if state.get("initialized"):
+        return
+
+    def _listener(event):
+        try:
+            payload = {
+                "job_id": getattr(event, "job_id", None),
+                "event_code": getattr(event, "code", None),
+                "scheduled_run_time": getattr(event, "scheduled_run_time", None),
+                "exception": str(getattr(event, "exception", "") or ""),
+                "traceback": str(getattr(event, "traceback", "") or ""),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+            _record_scheduler_failure(app, payload)
+            if getattr(event, "exception", None):
+                app.logger.warning("Scheduler job failed: %s", payload["job_id"])
+            else:
+                app.logger.warning("Scheduler job missed: %s", payload["job_id"])
+        except Exception:
+            pass
+
+    try:
+        scheduler.add_listener(_listener, EVENT_JOB_ERROR | EVENT_JOB_MISSED)
+        state["initialized"] = True
+    except Exception:
+        pass
+
+
+def register_scheduler_job(app, job_id, func, trigger, **kwargs):
+    try:
+        scheduler.add_job(func, trigger, id=job_id, replace_existing=True, **kwargs)
+    except Exception as e:
+        try:
+            app.logger.warning("Scheduler job registration failed: %s", e)
+        except Exception:
+            pass
+        try:
+            payload = {
+                "job_id": job_id,
+                "event_code": None,
+                "scheduled_run_time": None,
+                "exception": str(e),
+                "traceback": "",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+            _record_scheduler_failure(app, payload)
+        except Exception:
+            pass
 
 def _get_pg_bin(bin_name: str) -> str:
     import shutil
@@ -1459,88 +1524,89 @@ def init_extensions(app):
                 pass
 
     try:
+        init_scheduler_monitor(app)
         backup_db_interval = app.config.get("BACKUP_DB_INTERVAL")
         if backup_db_interval and hasattr(backup_db_interval, 'total_seconds'):
-            scheduler.add_job(
+            register_scheduler_job(
+                app,
+                "db_backup",
                 lambda: perform_backup_db(app),
                 "interval",
                 seconds=backup_db_interval.total_seconds(),
-                id="db_backup",
-                replace_existing=True,
             )
         
         # Check if perform_backup_sql exists before adding job
         if 'perform_backup_sql' in globals():
-             backup_sql_interval = app.config.get("BACKUP_SQL_INTERVAL")
-             if backup_sql_interval and hasattr(backup_sql_interval, 'total_seconds'):
-                scheduler.add_job(
+            backup_sql_interval = app.config.get("BACKUP_SQL_INTERVAL")
+            if backup_sql_interval and hasattr(backup_sql_interval, 'total_seconds'):
+                register_scheduler_job(
+                    app,
+                    "sql_backup",
                     lambda: perform_backup_sql(app),
                     "interval",
                     seconds=backup_sql_interval.total_seconds(),
-                    id="sql_backup",
-                    replace_existing=True,
                 )
         
-        scheduler.add_job(
+        register_scheduler_job(
+            app,
+            "update_fx_rates",
             lambda: update_exchange_rates_job(app),
             "interval",
             hours=1,
-            id="update_fx_rates",
-            replace_existing=True,
         )
         
-        scheduler.add_job(
+        register_scheduler_job(
+            app,
+            "asset_depreciation",
             lambda: process_asset_depreciation(app),
             "cron",
             day=1,
             hour=2,
             minute=0,
-            id="asset_depreciation",
-            replace_existing=True,
         )
         
-        scheduler.add_job(
+        register_scheduler_job(
+            app,
+            "recurring_invoices",
             lambda: process_recurring_invoices(app),
             "cron",
             hour=0,
             minute=5,
-            id="recurring_invoices",
-            replace_existing=True,
         )
         
-        scheduler.add_job(
+        register_scheduler_job(
+            app,
+            "payment_reminders",
             lambda: process_payment_reminders(app),
             "cron",
             hour=9,
             minute=0,
-            id="payment_reminders",
-            replace_existing=True,
         )
         
-        scheduler.add_job(
+        register_scheduler_job(
+            app,
+            "low_stock_alerts",
             lambda: process_low_stock_alerts(app),
             "cron",
             hour=8,
             minute=0,
-            id="low_stock_alerts",
-            replace_existing=True,
         )
         
-        scheduler.add_job(
+        register_scheduler_job(
+            app,
+            "check_reminders",
             lambda: process_check_reminders(app),
             "cron",
             hour=7,
             minute=30,
-            id="check_reminders",
-            replace_existing=True,
         )
         
-        scheduler.add_job(
+        register_scheduler_job(
+            app,
+            "db_vacuum",
             lambda: perform_vacuum_optimize(app),
             "interval",
             hours=1,
-            id="db_vacuum",
-            replace_existing=True,
         )
         
         if app.config.get("ENABLE_AUTOMATED_BACKUPS", True):
@@ -1554,13 +1620,13 @@ def init_extensions(app):
                 app.logger.warning(f"Automated backup scheduling failed: {e}")
 
         if app.config.get("ENABLE_ENTITY_BALANCE_AUDIT_JOB", True):
-            scheduler.add_job(
+            register_scheduler_job(
+                app,
+                "entity_balance_audit",
                 _entity_balance_audit_job,
                 "cron",
                 hour=int(app.config.get("ENTITY_BALANCE_AUDIT_HOUR", 4) or 4),
                 minute=int(app.config.get("ENTITY_BALANCE_AUDIT_MINUTE", 10) or 10),
-                id="entity_balance_audit",
-                replace_existing=True,
             )
     except Exception as e:
         app.logger.warning(f"Scheduler job registration failed: {e}")
