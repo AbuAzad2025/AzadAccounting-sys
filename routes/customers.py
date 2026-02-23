@@ -2540,17 +2540,16 @@ def account_statement(customer_id):
         if e.get("type") == "OPENING_BALANCE":
             e["balance"] = running
             continue
-        if e.get("type") != "PREORDER":
-            running = running + e["credit"] - e["debit"]
+        running = running + e["credit"] - e["debit"]
         e["balance"] = running
 
-    total_debit = sum(e["debit"] for e in entries if e.get("type") != "PREORDER")
-    total_credit = sum(e["credit"] for e in entries if e.get("type") != "PREORDER")
+    total_debit = sum(e["debit"] for e in entries)
+    total_credit = sum(e["credit"] for e in entries)
     
     balance = total_credit - total_debit
     
-    total_debit_period = sum(e["debit"] for e in entries if e.get("type") not in ("OPENING_BALANCE", "PREORDER"))
-    total_credit_period = sum(e["credit"] for e in entries if e.get("type") not in ("OPENING_BALANCE", "PREORDER"))
+    total_debit_period = sum(e["debit"] for e in entries if e.get("type") != "OPENING_BALANCE")
+    total_credit_period = sum(e["credit"] for e in entries if e.get("type") != "OPENING_BALANCE")
     balance_period = total_credit_period - total_debit_period
     
     if abs(float(balance - running)) > 0.01:

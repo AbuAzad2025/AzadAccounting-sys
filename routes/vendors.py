@@ -131,7 +131,7 @@ def suppliers_list():
       <td class="supplier-name">{{ s.name }}</td>
       <td class="supplier-phone">{{ s.phone or '—' }}</td>
       <td data-sort-value="{{ s.current_balance or 0 }}">
-        <span class="badge {% if (s.current_balance or 0) > 0 %}bg-success{% elif (s.current_balance or 0) == 0 %}bg-secondary{% else %}bg-danger{% endif %}">
+        <span class="badge {% if (s.current_balance or 0) > 0 %}bg-success{% elif (s.current_balance or 0) == 0 %}bg-secondary{% else %}bg-danger{% endif %}" data-balance-supplier="{{ s.id }}">
           {{ '%.2f'|format(s.current_balance or 0) }} ₪
         </span>
       </td>
@@ -2115,7 +2115,7 @@ def partners_list():
       <td class="partner-name">{{ p.name }}</td>
       <td class="partner-phone">{{ p.phone_number or '—' }}</td>
       <td data-sort-value="{{ balance }}">
-        <span class="badge {% if balance < 0 %}bg-danger{% elif balance == 0 %}bg-secondary{% else %}bg-success{% endif %}">
+        <span class="badge {% if balance < 0 %}bg-danger{% elif balance == 0 %}bg-secondary{% else %}bg-success{% endif %}" data-balance-partner="{{ p.id }}">
           {{ '%.2f'|format(balance) }} ₪
         </span>
         {% if p.current_balance_source is defined and p.current_balance_source == 'smart' %}
@@ -3166,6 +3166,38 @@ def partners_statement(partner_id: int):
     )
     
     balance_unified = balance_data.get('balance', {}).get('amount', 0) if balance_data.get('success') else partner.balance_in_ils
+    
+    db.session.refresh(partner)
+    current_balance = float(partner.current_balance or 0)
+    diff_val = abs(float(balance_unified) - current_balance)
+    if diff_val > 0.01:
+        try:
+            from utils.partner_balance_updater import update_partner_balance_components
+            from sqlalchemy.orm import sessionmaker
+            SessionFactory = sessionmaker(bind=db.engine)
+            session = SessionFactory()
+            try:
+                update_partner_balance_components(partner_id, session)
+                session.commit()
+            except Exception:
+                session.rollback()
+            finally:
+                session.close()
+        except Exception:
+            pass
+        
+        db.session.refresh(partner)
+        current_balance = float(partner.current_balance or 0)
+        diff_val2 = abs(float(balance_unified) - current_balance)
+        if diff_val2 > 0.01:
+            from flask import current_app
+            current_app.logger.warning(
+                f"⚠️ عدم تطابق الرصيد في كشف حساب الشريك {partner_id}: "
+                f"current_balance={current_balance}, calculated_balance={float(balance_unified)}, "
+                f"difference={diff_val2}"
+            )
+        else:
+            balance_unified = current_balance
     
     balance_breakdown = None
     if balance_data and balance_data.get("success"):
