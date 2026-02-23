@@ -101,7 +101,7 @@
                 <td>{{ r.name }}</td>
                 <td class="text-end">
                   {% set balance = r.balance or 0 %}
-                  <span class="fw-bold {% if balance > 0 %}text-success{% elif balance < 0 %}text-danger{% else %}text-secondary{% endif %}">
+                  <span class="fw-bold {% if balance > 0 %}text-success{% elif balance < 0 %}text-danger{% else %}text-secondary{% endif %}" data-balance-supplier="{{ r.id }}">
                     {{ "{:,.2f}".format(balance) }} ₪
                   </span>
                   <br>

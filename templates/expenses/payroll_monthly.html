@@ -126,7 +126,7 @@
               <th>الراتب الأساسي</th>
               <th>الخصومات</th>
               <th>التأمينات</th>
-              <th>الضرائب</th>
+              <th>ضريبة الدخل (على الشركة)</th>
               <th>السلف</th>
               <th>الصافي</th>
               <th>الحالة</th>
@@ -141,7 +141,7 @@
               <td>{{ data.base_salary|number_format }} ₪</td>
               <td class="text-danger">-{{ data.deductions|number_format }} ₪</td>
               <td class="text-warning">-{{ data.social_insurance|number_format }} ₪</td>
-              <td class="text-warning">-{{ data.income_tax|number_format }} ₪</td>
+              <td class="text-muted">{{ data.income_tax|number_format }} ₪</td>
               <td class="text-info">-{{ data.advances|number_format }} ₪</td>
               <td><strong class="text-success">{{ data.net_salary|number_format }} ₪</strong></td>
               <td>

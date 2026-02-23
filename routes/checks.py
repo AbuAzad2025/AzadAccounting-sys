@@ -439,7 +439,7 @@ def create_check_record(
     return check, True
 
 # أنواع قيود الشيكات في gl_batches (يجب حذفها أو عكسها عند حذف الشيك)
-CHECK_GL_SOURCE_TYPES = ('CHECK', 'check_manual', 'check_payment', 'check_payment_split')
+CHECK_GL_SOURCE_TYPES = ('CHECK', 'check_manual', 'check_payment', 'check_payment_split', 'check_expense')
 
 
 def _delete_check_gl_batches(connection, check_id):
@@ -1482,6 +1482,10 @@ def create_gl_entry_for_check(check_id, check_type, amount, currency, direction,
                 entries_data = _create_gl_entries_for_pending(
                     amount_decimal, currency, batch_id, check_type_label, entity_name, is_incoming
                 )
+            elif old_status == 'CANCELLED' and new_status in ['RETURNED', 'PENDING', 'RESUBMITTED']:
+                entries_data = _create_gl_entries_for_reverse_cancelled(
+                    amount_decimal, currency, batch_id, check_type_label, entity_name, is_incoming, new_status
+                )
             elif new_status == 'CASHED':
                 entries_data = _create_gl_entries_for_cashed(
                     amount_decimal, currency, batch_id, check_type_label, entity_name, is_incoming
@@ -1497,10 +1501,6 @@ def create_gl_entry_for_check(check_id, check_type, amount, currency, direction,
             elif new_status == 'CANCELLED':
                 entries_data = _create_gl_entries_for_cancelled(
                     amount_decimal, currency, batch_id, check_type_label, entity_name, is_incoming, old_status
-                )
-            elif old_status == 'CANCELLED' and new_status in ['RETURNED', 'PENDING', 'RESUBMITTED']:
-                entries_data = _create_gl_entries_for_reverse_cancelled(
-                    amount_decimal, currency, batch_id, check_type_label, entity_name, is_incoming, new_status
                 )
         except Exception as e:
             current_app.logger.error(f"خطأ في إنشاء GL entries: {e}")
@@ -1624,7 +1624,7 @@ class CheckActionContext:
 
 class CheckActionService:
     STATUS_SET = {'PENDING', 'CASHED', 'RETURNED', 'BOUNCED', 'RESUBMITTED', 'CANCELLED', 'ARCHIVED'}
-    LEDGER_STATUSES = {'CASHED', 'RETURNED', 'BOUNCED', 'CANCELLED'}
+    LEDGER_STATUSES = {'CASHED', 'RETURNED', 'BOUNCED', 'CANCELLED', 'RESUBMITTED'}
     PAYMENT_STATUS_MAP = {
         'PENDING': PaymentStatus.PENDING.value,
         'RESUBMITTED': PaymentStatus.PENDING.value,
@@ -1920,30 +1920,6 @@ class CheckActionService:
                         pass
                     check.status = 'PENDING'
                     ctx.payment.notes = (ctx.payment.notes or '') + self._compose_note('PENDING', None, None)
-                else:
-                    previous_check_status = self._guess_status_from_notes(ctx.payment.notes) or 'PENDING'
-                    if status in ['RETURNED', 'BOUNCED', 'CASHED', 'CANCELLED']:
-                        connection = db.engine.connect()
-                        try:
-                            create_gl_entry_for_check(
-                                check_id=check.id,
-                                check_type='payment',
-                                amount=float(Decimal(str(check.amount or ctx.amount or 0))),
-                                currency=check.currency or ctx.currency or 'ILS',
-                                direction=ctx.direction,
-                                new_status=status,
-                                old_status=str(previous_check_status).upper(),
-                                entity_name=ctx.entity_name or '',
-                                notes=note_text or '',
-                                entity_type=ctx.entity_type,
-                                entity_id=ctx.entity_id,
-                                connection=connection
-                            )
-                        finally:
-                            try:
-                                connection.close()
-                            except Exception:
-                                pass
             except Exception:
                 pass
 
@@ -2011,24 +1987,6 @@ class CheckActionService:
             try:
                 notes_upper = ((note_text or '') + (ctx.payment.notes or '')).upper()
                 is_bank_reason = '[RETURN_REASON=BANK]' in notes_upper
-                if status in ['RETURNED', 'BOUNCED', 'CASHED', 'CANCELLED'] and not is_bank_reason:
-                    check_amount = Decimal(str(check.amount or split.amount or 0))
-                    check_currency = check.currency or split.currency or ctx.currency or 'ILS'
-                    
-                    create_gl_entry_for_check(
-                        check_id=check.id,
-                        check_type='payment_split',
-                        amount=float(check_amount),
-                        currency=check_currency,
-                        direction=ctx.direction,
-                        new_status=status,
-                        old_status=previous_check_status,
-                        entity_name=ctx.entity_name or '',
-                        notes=f"{note_text or ''} - Split #{split.id}",
-                        entity_type=ctx.entity_type,
-                        entity_id=ctx.entity_id,
-                        connection=connection
-                    )
                 if status == 'RETURNED' and is_bank_reason:
                     try:
                         self._auto_refund_split(ctx.payment, split)
@@ -2518,8 +2476,34 @@ class CheckActionService:
             pass
 
     # تم إزالة منطق إنشاء دفعات عكس تلقائية؛ سيتم إنشاء قيود دفتر الأستاذ مباشرة عند تغيير حالة الشيك
+    
+    def _resolve_check_for_ctx(self, ctx):
+        if ctx.manual:
+            return ctx.manual
+        if ctx.split:
+            from sqlalchemy import or_
+            ref_exact = f"PMT-SPLIT-{ctx.split.id}"
+            ref_like = f"PMT-SPLIT-{ctx.split.id}-%"
+            return Check.query.filter(
+                or_(Check.reference_number == ref_exact, Check.reference_number.like(ref_like))
+            ).first()
+        if ctx.payment:
+            return Check.query.filter(Check.payment_id == ctx.payment.id).first()
+        if ctx.expense:
+            if getattr(ctx.expense, 'payments', None):
+                for payment in ctx.expense.payments:
+                    check = Check.query.filter(Check.payment_id == payment.id).first()
+                    if check:
+                        return check
+            return Check.query.filter(
+                Check.reference_number.in_([f"EXP-{ctx.expense.id}", f"EXPENSE-{ctx.expense.id}"])
+            ).first()
+        return None
 
     def _ledger_source_id(self, ctx):
+        check = self._resolve_check_for_ctx(ctx)
+        if check:
+            return check.id
         if ctx.manual:
             return ctx.manual.id
         if ctx.split:
@@ -5102,6 +5086,72 @@ def _assign_manual_entity(check, entity_type, entity_id):
         check.partner_id = entity_id
 
 
+def _resolve_entity_from_check(check):
+    if check.customer_id:
+        return "CUSTOMER", check.customer_id
+    if check.supplier_id:
+        return "SUPPLIER", check.supplier_id
+    if check.partner_id:
+        return "PARTNER", check.partner_id
+    return None, None
+
+
+def _resolve_entity_name(entity_type, entity_id):
+    if not entity_type or not entity_id:
+        return ""
+    if entity_type == "CUSTOMER":
+        customer = db.session.get(Customer, entity_id)
+        return customer.name if customer else ""
+    if entity_type == "SUPPLIER":
+        supplier = db.session.get(Supplier, entity_id)
+        return supplier.name if supplier else ""
+    if entity_type == "PARTNER":
+        partner = db.session.get(Partner, entity_id)
+        return partner.name if partner else ""
+    return ""
+
+
+def _sync_check_gl_after_edit(check, ctx, service):
+    if not check:
+        return None
+    status = str(getattr(check, "status", "") or "").upper()
+    if status not in {"PENDING", "CASHED", "RETURNED", "BOUNCED", "CANCELLED", "RESUBMITTED"}:
+        return None
+    amount_decimal = Decimal(str(getattr(check, "amount", 0) or 0))
+    if amount_decimal <= 0:
+        return None
+    direction_raw = getattr(check, "direction", None) or ctx.direction or PaymentDirection.IN.value
+    direction_val = getattr(direction_raw, "value", direction_raw)
+    direction = "IN" if str(direction_val).upper() == str(PaymentDirection.IN.value).upper() else "OUT"
+    currency = (getattr(check, "currency", None) or ctx.currency or "ILS").upper()
+    entity_type = ctx.entity_type
+    entity_id = ctx.entity_id
+    if not entity_type or not entity_id:
+        entity_type, entity_id = _resolve_entity_from_check(check)
+    entity_name = ctx.entity_name or _resolve_entity_name(entity_type, entity_id)
+    old_status = None
+    if status == "CANCELLED":
+        guessed = service._guess_status_from_notes(check.notes or "")
+        if guessed in {"RETURNED", "BOUNCED"}:
+            old_status = guessed
+    with db.engine.begin() as connection:
+        _delete_check_gl_batches(connection, check.id)
+        return create_gl_entry_for_check(
+            check_id=check.id,
+            check_type=ctx.kind,
+            amount=float(amount_decimal),
+            currency=currency,
+            direction=direction,
+            new_status=status,
+            old_status=old_status,
+            entity_name=entity_name or "",
+            notes="تعديل بيانات الشيك",
+            entity_type=entity_type,
+            entity_id=entity_id,
+            connection=connection
+        )
+
+
 def _update_check_details(ctx: CheckActionContext, payload: dict, service: CheckActionService):
     if not payload:
         raise ValueError("بيانات ناقصة")
@@ -5122,6 +5172,7 @@ def _update_check_details(ctx: CheckActionContext, payload: dict, service: Check
     due_date_val = payload.get("due_date")
     due_dt = _parse_due_date_value(due_date_val) if due_date_val else None
 
+    check = service._resolve_check_for_ctx(ctx)
     if ctx.kind == 'payment':
         if not ctx.payment:
             raise ValueError("تعذر العثور على الدفعة المرتبطة")
@@ -5133,6 +5184,14 @@ def _update_check_details(ctx: CheckActionContext, payload: dict, service: Check
             payment.check_due_date = due_dt
         if bank_val or bank_val == "":
             payment.check_bank = bank_val or None
+        if check:
+            _assign_manual_entity(check, entity_type, entity_id)
+            check.amount = amount_decimal
+            check.currency = currency_val
+            if due_dt:
+                check.check_due_date = due_dt
+            if bank_val or bank_val == "":
+                check.check_bank = bank_val or None
         ctx.amount = amount_decimal
         ctx.currency = currency_val
     elif ctx.kind == 'payment_split':
@@ -5149,6 +5208,14 @@ def _update_check_details(ctx: CheckActionContext, payload: dict, service: Check
         split.details = details
         if entity_type:
             _assign_payment_entity(ctx.payment, entity_type, entity_id)
+        if check:
+            _assign_manual_entity(check, entity_type, entity_id)
+            check.amount = amount_decimal
+            check.currency = currency_val
+            if due_dt:
+                check.check_due_date = due_dt
+            if bank_val or bank_val == "":
+                check.check_bank = bank_val or None
         ctx.amount = amount_decimal
         ctx.currency = currency_val
     elif ctx.kind == 'expense':
@@ -5162,6 +5229,14 @@ def _update_check_details(ctx: CheckActionContext, payload: dict, service: Check
             expense.check_due_date = due_dt.date()
         if bank_val or bank_val == "":
             expense.check_bank = bank_val or None
+        if check:
+            _assign_manual_entity(check, entity_type, entity_id)
+            check.amount = amount_decimal
+            check.currency = currency_val
+            if due_dt:
+                check.check_due_date = due_dt
+            if bank_val or bank_val == "":
+                check.check_bank = bank_val or None
         ctx.amount = amount_decimal
         ctx.currency = currency_val
     elif ctx.kind == 'manual':
@@ -5198,3 +5273,4 @@ def _update_check_details(ctx: CheckActionContext, payload: dict, service: Check
         ctx.currency = currency_val
     else:
         raise CheckValidationError("نوع الشيك غير مدعوم للتعديل", code='UNSUPPORTED_EDIT_TYPE')
+    _sync_check_gl_after_edit(check or ctx.manual, ctx, service)

@@ -320,48 +320,7 @@ def _create_partial_payments(expense: Expense, entries):
 
 
 def _ensure_expense_paid_on_create(expense: Expense, partial_entries: list) -> None:
-    base_currency = (expense.currency or "ILS").upper()
-    total_amount = D(str(expense.amount or 0))
-    total_from_partial = D("0")
-    for entry in partial_entries:
-        amt = D(str(entry.get("amount") or 0))
-        cur = (str(entry.get("currency") or base_currency)).strip().upper()
-        if cur == base_currency:
-            total_from_partial += amt
-        else:
-            try:
-                total_from_partial += D(str(ensure_currency(amt, cur, base_currency, entry.get("payment_date"))))
-            except Exception:
-                pass
-    remaining = total_amount - total_from_partial
-    if remaining <= D("0.005"):
-        return
-    pay_date = expense.date
-    if hasattr(pay_date, "date"):
-        pay_date = pay_date.date() if pay_date else datetime.now(timezone.utc).replace(tzinfo=None)
-    elif not pay_date:
-        pay_date = datetime.now(timezone.utc).replace(tzinfo=None)
-    expense_ref = f"مصروف #{expense.id}"
-    if expense.description:
-        expense_ref += f" - {expense.description}"
-    elif expense.type and expense.type.name:
-        expense_ref += f" - {expense.type.name}"
-    payment = Payment(
-        payment_date=pay_date,
-        total_amount=remaining,
-        currency=base_currency,
-        method=(expense.payment_method or "cash").lower(),
-        status=PaymentStatus.COMPLETED.value,
-        direction=PaymentDirection.OUT.value,
-        entity_type=PaymentEntityType.EXPENSE.value,
-        expense_id=expense.id,
-        reference=expense_ref,
-        notes=expense.description or None,
-        receiver_name=expense.payee_name or expense.paid_to or expense.beneficiary_name,
-        created_by=current_user.id if current_user.is_authenticated else None,
-    )
-    _ensure_payment_number(payment)
-    db.session.add(payment)
+    return
 
 
 def _default_expense_branch_id():
@@ -949,9 +908,7 @@ def generate_salary(emp_id):
     
     monthly_deductions = Decimal(str(employee.total_deductions))
     social_insurance_emp = Decimal(str(employee.social_insurance_employee_amount))
-    income_tax = Decimal(str(employee.income_tax_amount))
-    
-    net_salary_before_advances = base_salary - monthly_deductions - social_insurance_emp - income_tax
+    net_salary_before_advances = base_salary - monthly_deductions - social_insurance_emp
     
     period_start = _date(year, month, 1)
     if month == 12:
@@ -1004,7 +961,6 @@ def generate_salary(emp_id):
     detailed_notes = f"""الراتب الأساسي: {base_salary} {employee.currency}
 الخصومات الشهرية: -{monthly_deductions} {employee.currency}
 التأمينات (حصة الموظف): -{social_insurance_emp} {employee.currency}
-ضريبة الدخل: -{income_tax} {employee.currency}
 ─────────────────
 الراتب بعد الاستقطاعات: {net_salary_before_advances} {employee.currency}"""
     
@@ -1075,6 +1031,7 @@ def generate_salary(emp_id):
                 currency=employee.currency,
                 direction='OUT',
                 method=payment_method,
+                status=PaymentStatus.COMPLETED.value,
                 entity_type='EXPENSE',
                 expense_id=salary_expense.id,
                 reference=f"دفع راتب {month}/{year} - {employee.name}",
@@ -2184,7 +2141,6 @@ def add():
         db.session.flush()
         try:
             _create_partial_payments(exp, partial_entries)
-            _ensure_expense_paid_on_create(exp, partial_entries)
         except ValueError as perr:
             db.session.rollback()
             flash(str(perr), "danger")
@@ -2373,9 +2329,8 @@ def quick_supplier_service():
     exp.payment_details = None
     db.session.add(exp)
     db.session.flush()
-    _ensure_expense_paid_on_create(exp, [])
     db.session.commit()
-    flash("تم دفع المصروف تلقائياً عند الإنشاء.", "success")
+    flash("تم إنشاء المصروف بنجاح.", "success")
 
     try:
         run_expense_gl_sync_after_commit(exp.id)
@@ -2394,7 +2349,7 @@ def quick_supplier_service():
             "amount": float(amount),
             "currency": currency,
             "supplier_name": supplier.name,
-            "auto_paid": True,
+            "auto_paid": False,
         }
     )
 
@@ -2439,7 +2394,6 @@ def quick_supplier_service_pay():
     ]
     try:
         _create_partial_payments(expense, entries)
-        _ensure_expense_paid_on_create(expense, entries)
         db.session.commit()
     except ValueError as err:
         db.session.rollback()
@@ -2447,6 +2401,10 @@ def quick_supplier_service_pay():
     except Exception:
         db.session.rollback()
         return jsonify({"success": False, "message": "payment_error"}), 400
+    try:
+        _refresh_entity_balances(_expense_related_entity_pairs(expense))
+    except Exception as e:
+        current_app.logger.error(f"❌ فشل تحديث أرصدة الجهات بعد دفع مصروف الخدمة: {e}")
     return jsonify(
         {
             "success": True,
@@ -2513,9 +2471,8 @@ def quick_partner_service():
     exp.payment_details = None
     db.session.add(exp)
     db.session.flush()
-    _ensure_expense_paid_on_create(exp, [])
     db.session.commit()
-    flash("تم دفع المصروف تلقائياً عند الإنشاء.", "success")
+    flash("تم إنشاء المصروف بنجاح.", "success")
 
     try:
         run_expense_gl_sync_after_commit(exp.id)
@@ -2534,7 +2491,7 @@ def quick_partner_service():
             "amount": float(amount),
             "currency": currency,
             "partner_name": partner.name,
-            "auto_paid": True,
+            "auto_paid": False,
         }
     )
 
@@ -2579,7 +2536,6 @@ def quick_partner_service_pay():
     ]
     try:
         _create_partial_payments(expense, entries)
-        _ensure_expense_paid_on_create(expense, entries)
         db.session.commit()
     except ValueError as err:
         db.session.rollback()
@@ -2587,6 +2543,10 @@ def quick_partner_service_pay():
     except Exception:
         db.session.rollback()
         return jsonify({"success": False, "message": "payment_error"}), 400
+    try:
+        _refresh_entity_balances(_expense_related_entity_pairs(expense))
+    except Exception as e:
+        current_app.logger.error(f"❌ فشل تحديث أرصدة الجهات بعد دفع مصروف الخدمة: {e}")
     return jsonify(
         {
             "success": True,
@@ -2696,7 +2656,6 @@ def edit(exp_id):
         try:
             db.session.flush()
             _create_partial_payments(exp, partial_entries)
-            _ensure_expense_paid_on_create(exp, partial_entries)
             db.session.commit()
 
             try:
@@ -3010,6 +2969,8 @@ def payroll_monthly():
     
     payroll_data = []
     
+    if year < 2026:
+        employees = []
     for emp in employees:
         base_salary = Decimal(str(emp.salary or 0))
         deductions = Decimal(str(emp.total_deductions or 0))
@@ -3029,11 +2990,13 @@ def payroll_monthly():
         
         advances_total = sum(Decimal(str(inst.amount or 0)) for inst in installments)
         
-        net_salary = base_salary - deductions - social_ins - income_tax - advances_total
+        net_salary = base_salary - deductions - social_ins - advances_total
         
         salary_type = ExpenseType.query.filter_by(code='SALARY').first()
         already_paid = False
-        if salary_type:
+        if year < today.year:
+            already_paid = True
+        elif salary_type:
             from sqlalchemy import extract as sql_extract
             existing = Expense.query.filter(
                 Expense.employee_id == emp.id,
@@ -3128,8 +3091,6 @@ def generate_all_salaries():
             base_salary = Decimal(str(emp.salary or 0))
             deductions = Decimal(str(emp.total_deductions or 0))
             social_ins = Decimal(str(emp.social_insurance_employee_amount or 0))
-            income_tax = Decimal(str(emp.income_tax_amount or 0))
-            
             installments = EmployeeAdvanceInstallment.query.filter(
                 EmployeeAdvanceInstallment.employee_id == emp.id,
                 EmployeeAdvanceInstallment.paid == False,
@@ -3138,7 +3099,7 @@ def generate_all_salaries():
             ).all()
             
             advances_total = sum(Decimal(str(inst.amount or 0)) for inst in installments)
-            net_salary = base_salary - deductions - social_ins - income_tax - advances_total
+            net_salary = base_salary - deductions - social_ins - advances_total
             
             if net_salary <= 0:
                 error_count += 1
@@ -3170,14 +3131,6 @@ def generate_all_salaries():
             
             db.session.add(new_expense)
             db.session.flush()
-            if allow_auto_pay:
-                _ensure_expense_paid_on_create(new_expense, [])
-            
-            if allow_auto_pay:
-                for inst in installments:
-                    inst.paid = True
-                    inst.paid_date = pay_date
-                    inst.paid_in_salary_expense_id = new_expense.id
             
             success_count += 1
             created_expense_ids.append(new_expense.id)

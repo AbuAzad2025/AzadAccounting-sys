@@ -4559,23 +4559,14 @@ def _ensure_stock_row(connection, product_id: int, warehouse_id: int):
     if row: return row
     dialect = getattr(connection, "dialect", None); dname = getattr(dialect, "name", "") if dialect else ""
     try:
-        if dname.startswith("postgre"):
-            connection.execute(
-                sa_text(
-                    "INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity) "
-                    "VALUES (:p, :w, 0, 0) ON CONFLICT (product_id, warehouse_id) DO NOTHING"
-                ),
-                {"p": product_id, "w": warehouse_id}
-            )
-        else:
-            connection.execute(
-                sa_text(
-                    "INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity) "
-                    "SELECT :p, :w, 0, 0 WHERE NOT EXISTS "
-                    "(SELECT 1 FROM stock_levels WHERE product_id = :p AND warehouse_id = :w)"
-                ),
-                {"p": product_id, "w": warehouse_id}
-            )
+        connection.execute(
+            sa_text(
+                "INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity) "
+                "SELECT :p, :w, 0, 0 WHERE NOT EXISTS "
+                "(SELECT 1 FROM stock_levels WHERE product_id = :p AND warehouse_id = :w)"
+            ),
+            {"p": product_id, "w": warehouse_id}
+        )
     except Exception:
         pass
     return connection.execute(sa_text("SELECT id FROM stock_levels WHERE product_id = :p AND warehouse_id = :w"), {"p": product_id, "w": warehouse_id}).first()

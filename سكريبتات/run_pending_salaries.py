@@ -132,8 +132,7 @@ def run(dry_run=True, start_ym=None, end_ym=None, employee_id=None, payment_meth
                 base_salary = Decimal(str(emp.salary or 0))
                 deductions = Decimal(str(emp.total_deductions or 0))
                 social_ins = Decimal(str(emp.social_insurance_employee_amount or 0))
-                income_tax = Decimal(str(emp.income_tax_amount or 0))
-                net_before = base_salary - deductions - social_ins - income_tax
+                net_before = base_salary - deductions - social_ins
 
                 installments = EmployeeAdvanceInstallment.query.filter(
                     EmployeeAdvanceInstallment.employee_id == emp.id,
@@ -375,6 +374,188 @@ def cleanup_future_salary_payments(dry_run=True, cutoff_date=None):
         return result
 
 
+def fix_legacy_salary_tax(dry_run=True, start_ym=None, end_ym=None, employee_id=None, update_payments=False):
+    from app import create_app
+    from extensions import db
+    from models import (
+        Employee,
+        Expense,
+        ExpenseType,
+        Payment,
+        PaymentStatus,
+        PaymentDirection,
+        EmployeeAdvanceInstallment,
+    )
+    from routes.expenses import run_expense_gl_sync_after_commit, run_payment_gl_sync_after_commit
+    from sqlalchemy import or_
+
+    app = create_app()
+    with app.app_context():
+        salary_type = ExpenseType.query.filter_by(code="SALARY").first()
+        if not salary_type:
+            print("ERROR: SALARY type not found")
+            return {"updated": 0, "skipped": 0, "ambiguous": 0, "errors": 1, "payments_updated": 0}
+
+        today = date.today()
+        start = start_ym or (2000, 1)
+        end = end_ym or (today.year, today.month)
+        if (start[0], start[1]) > (end[0], end[1]):
+            start, end = end, start
+
+        start_date = date(start[0], start[1], 1)
+        end_last = monthrange(end[0], end[1])[1]
+        end_date = date(end[0], end[1], end_last)
+
+        q = Expense.query.filter(Expense.type_id == salary_type.id)
+        q = q.filter(
+            or_(
+                Expense.date.between(start_date, end_date),
+                Expense.period_start.between(start_date, end_date),
+            )
+        )
+        if employee_id:
+            q = q.filter(Expense.employee_id == int(employee_id))
+
+        updated = 0
+        skipped = 0
+        ambiguous = 0
+        errors = 0
+        payments_updated = 0
+        updated_expense_ids = []
+        updated_payment_ids = []
+
+        for exp in q.order_by(Expense.id).yield_per(200):
+            try:
+                if not exp.employee_id:
+                    skipped += 1
+                    continue
+                emp = db.session.get(Employee, exp.employee_id)
+                if not emp:
+                    skipped += 1
+                    continue
+
+                base_salary = Decimal(str(emp.salary or 0))
+                deductions = Decimal(str(emp.total_deductions or 0))
+                social_ins = Decimal(str(emp.social_insurance_employee_amount or 0))
+                income_tax = Decimal(str(emp.income_tax_amount or 0))
+
+                advances_total = Decimal("0")
+                inst_rows = EmployeeAdvanceInstallment.query.filter(
+                    EmployeeAdvanceInstallment.paid_in_salary_expense_id == exp.id
+                ).all()
+                if inst_rows:
+                    advances_total = sum(Decimal(str(inst.amount or 0)) for inst in inst_rows)
+
+                old_expected = base_salary - deductions - social_ins - income_tax - advances_total
+                new_expected = base_salary - deductions - social_ins - advances_total
+                current_amount = Decimal(str(exp.amount or 0))
+
+                if new_expected <= 0:
+                    skipped += 1
+                    continue
+
+                if abs(current_amount - new_expected) <= Decimal("0.01"):
+                    skipped += 1
+                    continue
+
+                if abs(current_amount - old_expected) > Decimal("0.01"):
+                    ambiguous += 1
+                    continue
+
+                if dry_run:
+                    updated += 1
+                    continue
+
+                exp.amount = float(new_expected)
+                updated += 1
+                updated_expense_ids.append(exp.id)
+
+                if update_payments:
+                    pay_q = Payment.query.filter(
+                        Payment.expense_id == exp.id,
+                        Payment.status == PaymentStatus.COMPLETED.value,
+                        Payment.direction == PaymentDirection.OUT.value,
+                    )
+                    pay_rows = pay_q.order_by(Payment.id).all()
+                    if len(pay_rows) == 1:
+                        p = pay_rows[0]
+                        pay_amount = Decimal(str(p.total_amount or 0))
+                        if abs(pay_amount - current_amount) <= Decimal("0.01"):
+                            p.total_amount = float(new_expected)
+                            updated_payment_ids.append(p.id)
+                            payments_updated += 1
+            except Exception:
+                errors += 1
+                db.session.rollback()
+
+        if dry_run:
+            print(
+                "DRY-RUN updated:",
+                updated,
+                "skipped:",
+                skipped,
+                "ambiguous:",
+                ambiguous,
+                "errors:",
+                errors,
+                "payments_updated:",
+                payments_updated,
+            )
+            return {
+                "updated": updated,
+                "skipped": skipped,
+                "ambiguous": ambiguous,
+                "errors": errors,
+                "payments_updated": payments_updated,
+            }
+
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            errors += 1
+            print("ERROR commit failed")
+            return {
+                "updated": updated,
+                "skipped": skipped,
+                "ambiguous": ambiguous,
+                "errors": errors,
+                "payments_updated": payments_updated,
+            }
+
+        for exp_id in updated_expense_ids:
+            try:
+                run_expense_gl_sync_after_commit(exp_id)
+            except Exception:
+                pass
+
+        for pid in updated_payment_ids:
+            try:
+                run_payment_gl_sync_after_commit(pid)
+            except Exception:
+                pass
+
+        print(
+            "updated:",
+            updated,
+            "skipped:",
+            skipped,
+            "ambiguous:",
+            ambiguous,
+            "errors:",
+            errors,
+            "payments_updated:",
+            payments_updated,
+        )
+        return {
+            "updated": updated,
+            "skipped": skipped,
+            "ambiguous": ambiguous,
+            "errors": errors,
+            "payments_updated": payments_updated,
+        }
+
+
 if __name__ == "__main__":
     import argparse
 
@@ -387,6 +568,8 @@ if __name__ == "__main__":
     parser.add_argument("--dry-run", dest="dry_run", action="store_true")
     parser.add_argument("--apply", dest="apply", action="store_true")
     parser.add_argument("--cleanup-future-payments", dest="cleanup_future_payments", action="store_true")
+    parser.add_argument("--fix-legacy-salary-tax", dest="fix_legacy_salary_tax", action="store_true")
+    parser.add_argument("--update-payments", dest="update_payments", action="store_true")
     parser.add_argument("--cutoff-date", dest="cutoff_date", help="YYYY-MM-DD")
     args = parser.parse_args()
 
@@ -400,6 +583,17 @@ if __name__ == "__main__":
             except Exception:
                 cut_date = None
         cleanup_future_salary_payments(dry_run=not args.apply, cutoff_date=cut_date)
+    elif args.fix_legacy_salary_tax:
+        dry_run = True
+        if args.apply and not args.dry_run:
+            dry_run = False
+        fix_legacy_salary_tax(
+            dry_run=dry_run,
+            start_ym=start_ym,
+            end_ym=end_ym,
+            employee_id=args.employee_id,
+            update_payments=args.update_payments,
+        )
     else:
         run(
             dry_run=args.dry_run,

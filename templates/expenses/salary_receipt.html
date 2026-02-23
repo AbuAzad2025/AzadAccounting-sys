@@ -355,16 +355,6 @@
       </tr>
       {% set row_num = row_num + 1 %}
       {% endif %}
-      {% if employee.income_tax_amount > 0 %}
-      <tr>
-        <td>{{ row_num }}</td>
-        <td>ضريبة الدخل
-          <br><small style="color: #666; font-size: 8pt;">محسوبة حسب الراتب السنوي</small>
-        </td>
-        <td style="color: #dc3545;">({{ "%.2f"|format(employee.income_tax_amount) }})</td>
-      </tr>
-      {% set row_num = row_num + 1 %}
-      {% endif %}
       {% if installments_due %}
       {% for inst in installments_due %}
       <tr>
@@ -377,7 +367,7 @@
       {% set row_num = row_num + 1 %}
       {% endfor %}
       {% endif %}
-      {% set all_deductions = (deductions|map(attribute='amount')|sum if deductions else 0) + employee.social_insurance_employee_amount + employee.income_tax_amount + (installments_due|map(attribute='amount')|sum if installments_due else 0) %}
+      {% set all_deductions = (deductions|map(attribute='amount')|sum if deductions else 0) + employee.social_insurance_employee_amount + (installments_due|map(attribute='amount')|sum if installments_due else 0) %}
       {% if all_deductions > 0 %}
       <tr class="total-row">
         <td colspan="2">إجمالي الاستقطاعات والخصومات</td>
@@ -390,13 +380,17 @@
         <td colspan="2">صافي الراتب المستحق</td>
         <td>{{ "%.2f"|format(salary_expense.amount) }}</td>
       </tr>
+      <tr>
+        <td colspan="2">المبلغ بالحروف</td>
+        <td>{{ salary_expense.amount|amount_in_words(salary_expense.currency) }}</td>
+      </tr>
     </tfoot>
   </table>
 
-  <!-- ملاحظات -->
   {% if salary_expense.notes %}
+  {% set notes_text = salary_expense.notes|replace("تم توليد الراتب تلقائياً بواسطة سكريبت الرواتب المعلقة", "تم إعداد الإيصال آلياً لأغراض التوثيق") %}
   <div class="notes-box">
-    <strong>ملاحظات:</strong> {{ salary_expense.notes }}
+    <strong>ملاحظات:</strong> {{ notes_text }}
   </div>
   {% endif %}
 

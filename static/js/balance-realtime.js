@@ -1,10 +1,32 @@
 (function() {
     if (window.__BALANCE_REALTIME_INIT__) return;
 
+    function ensureSocketIoScript() {
+        if (window.io) return;
+        if (window.__SOCKET_IO_SCRIPT_LOADING__) return;
+        const existing = document.querySelector('script[data-socket-io-loader="1"]');
+        if (existing) return;
+        window.__SOCKET_IO_SCRIPT_LOADING__ = true;
+        const script = document.createElement('script');
+        script.src = 'https://cdn.socket.io/4.5.4/socket.io.min.js';
+        script.integrity = 'sha384-/KNQL8Nu5gCHLqwqfQjA689Hhoqgi2S84SNUxC3roTe4EhJ9AfLkp8QiQcU8AMzI';
+        script.crossOrigin = 'anonymous';
+        script.defer = true;
+        script.setAttribute('data-socket-io-loader', '1');
+        script.onload = function() {
+            window.__SOCKET_IO_SCRIPT_LOADING__ = false;
+        };
+        script.onerror = function() {
+            window.__SOCKET_IO_SCRIPT_LOADING__ = false;
+        };
+        document.head.appendChild(script);
+    }
+
     let attempts = 0;
     function init() {
         if (window.__BALANCE_REALTIME_INIT__) return;
         if (typeof io === 'undefined') {
+            ensureSocketIoScript();
             attempts += 1;
             if (attempts <= 100) {
                 setTimeout(init, 100);
@@ -18,11 +40,18 @@
 
         const statementReloadState = { timer: null };
 
-        function maybeReloadCustomerStatement(entityId) {
-            const table = document.querySelector('#statementTable[data-realtime-statement-customer]');
+        function maybeReloadStatement(entityType, entityId) {
+            const selectors = {
+                customer: ['#statementTable[data-realtime-statement-customer]', 'data-realtime-statement-customer'],
+                supplier: ['#supplierStatementTable[data-realtime-statement-supplier]', 'data-realtime-statement-supplier'],
+                partner: ['#partnerStatementTable[data-realtime-statement-partner]', 'data-realtime-statement-partner']
+            };
+            const config = selectors[entityType];
+            if (!config) return;
+            const table = document.querySelector(config[0]);
             if (!table) return;
-            const currentCustomerId = Number(table.getAttribute('data-realtime-statement-customer')) || 0;
-            if (currentCustomerId !== (Number(entityId) || 0)) return;
+            const currentEntityId = Number(table.getAttribute(config[1])) || 0;
+            if (currentEntityId !== (Number(entityId) || 0)) return;
             if (statementReloadState.timer) return;
             statementReloadState.timer = setTimeout(() => {
                 statementReloadState.timer = null;
@@ -74,9 +103,7 @@
                 }
             });
 
-            if (entityType === 'customer') {
-                maybeReloadCustomerStatement(entityId);
-            }
+            maybeReloadStatement(entityType, entityId);
         });
         
         socket.on('balances_summary_updated', function(data) {

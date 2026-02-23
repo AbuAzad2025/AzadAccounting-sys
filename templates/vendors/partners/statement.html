@@ -281,7 +281,7 @@
           <div class="d-flex justify-content-between align-items-center">
             <div>
               <div class="text-muted small">🎯 الرصيد النهائي</div>
-              <div class="fs-4 fw-bold {% if balance_data and balance_data.success %}{{ balance_data.balance.amount > 0 and 'text-danger' or balance_data.balance.amount < 0 and 'text-success' or 'text-secondary' }}{% else %}{{ balance > 0 and 'text-danger' or balance < 0 and 'text-success' or '' }}{% endif %}">
+              <div class="fs-4 fw-bold {% if balance_data and balance_data.success %}{{ balance_data.balance.amount > 0 and 'text-danger' or balance_data.balance.amount < 0 and 'text-success' or 'text-secondary' }}{% else %}{{ balance > 0 and 'text-danger' or balance < 0 and 'text-success' or '' }}{% endif %}" data-balance-partner="{{ partner.id }}">
                 {% if balance_data and balance_data.success %}
                   {{ "%.2f"|format(balance_data.balance.amount|abs) }} ₪
                 {% else %}
@@ -356,7 +356,7 @@
         </button>
       </div>
       <div class="table-responsive">
-        <table class="table table-bordered table-sm table-striped align-middle" id="partnerStatementTable">
+        <table class="table table-bordered table-sm table-striped align-middle" id="partnerStatementTable" data-realtime-statement-partner="{{ partner.id }}">
           <thead class="table-light">
             <tr>
               <th style="width: 110px">التاريخ</th>
