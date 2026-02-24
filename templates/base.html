@@ -905,8 +905,6 @@
     .content-wrapper {
         min-height: calc(100vh - 57px);
         transition: margin 0.3s ease-in-out;
-        width: 100% !important;
-        max-width: 100% !important;
         overflow-x: hidden;
     }
     
@@ -943,6 +941,30 @@
     textarea.form-control {
         height: auto !important;
         min-height: 100px !important;
+    }
+
+    /* RTL Sidebar Fixes - Hardcoded for Stability */
+    html[dir="rtl"] body:not(.sidebar-collapse) .content-wrapper,
+    html[dir="rtl"] body:not(.sidebar-collapse) .main-footer,
+    html[dir="rtl"] body:not(.sidebar-collapse) .main-header {
+        margin-right: 280px !important;
+        margin-left: 0 !important;
+    }
+
+    html[dir="rtl"] body.sidebar-collapse .content-wrapper,
+    html[dir="rtl"] body.sidebar-collapse .main-footer,
+    html[dir="rtl"] body.sidebar-collapse .main-header {
+        margin-right: 4.6rem !important;
+        margin-left: 0 !important;
+    }
+
+    @media (max-width: 991.98px) {
+        html[dir="rtl"] body .content-wrapper,
+        html[dir="rtl"] body .main-footer,
+        html[dir="rtl"] body .main-header {
+            margin-right: 0 !important;
+            margin-left: 0 !important;
+        }
     }
   </style>
   {% block extra_css %}{% endblock %}
