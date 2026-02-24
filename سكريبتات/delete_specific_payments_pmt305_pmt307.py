@@ -13,7 +13,7 @@ os.chdir(ROOT)
 from app import create_app
 from extensions import db
 from models import Payment, PaymentSplit, GLBatch, GLEntry
-from utils.supplier_balance_updater import update_supplier_balance
+from utils.supplier_balance_updater import update_supplier_balance_components as update_supplier_balance
 
 def run():
     app = create_app()
