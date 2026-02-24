@@ -56,20 +56,24 @@ def run_fix():
             print(f"   -> Found {count} payments missing GL entries. Rebuilding...")
             
             fixed_count = 0
-            for row in payments_no_gl:
+            error_count = 0
+            for i, row in enumerate(payments_no_gl):
                 pid = row[0]
                 pnum = row[1]
                 # print(f"      - Fixing Payment {pnum} (ID: {pid})...")
                 try:
-                    # This function will create/update the GL batch for the payment
+                    # Run sync in a nested transaction/try-catch to isolate failures
+                    # We need to ensure commit happens per payment to save progress
                     run_payment_gl_sync_after_commit(pid)
                     fixed_count += 1
-                    if fixed_count % 50 == 0:
-                        print(f"        ... fixed {fixed_count}/{count}")
+                    if fixed_count % 10 == 0:
+                        print(f"        ... fixed {fixed_count}/{count} (Errors: {error_count})")
                 except Exception as e:
-                    print(f"      ! Error fixing Payment {pid}: {e}")
+                    error_count += 1
+                    print(f"      ! Error fixing Payment {pnum} (ID: {pid}): {str(e)}")
+                    # Continue to next payment
             
-            print(f"   -> Successfully rebuilt GL for {fixed_count} payments.")
+            print(f"   -> Summary: Fixed {fixed_count}, Failed {error_count} out of {count} payments.")
 
         # 3. Fix Orphan Entries
         print("\n--- 3. Fixing Orphan GL Entries ---")
