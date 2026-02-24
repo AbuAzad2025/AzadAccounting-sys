@@ -904,7 +904,7 @@
     
     .content-wrapper {
         min-height: calc(100vh - 57px);
-        transition: margin 0.3s ease-in-out;
+        transition: margin 0.3s ease-in-out, width 0.3s ease-in-out;
         overflow-x: auto !important; /* Allow horizontal scrolling to prevent content hiding */
         padding-top: 65px !important; /* Force space for fixed navbar */
     }
@@ -912,11 +912,18 @@
     /* Ensure no content is hidden behind fixed elements */
     .main-header {
         z-index: 1030;
+        transition: margin 0.3s ease-in-out, width 0.3s ease-in-out;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
     }
     
     .main-sidebar {
         z-index: 1040;
-        box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        box-shadow: 0 0 15px rgba(0,0,0,0.1) !important;
+        border-left: 1px solid rgba(0,0,0,0.05);
+    }
+    
+    .main-footer {
+        transition: margin 0.3s ease-in-out, width 0.3s ease-in-out;
     }
     
     /* Fix for Select2 and Inputs Height globally */
@@ -952,7 +959,7 @@
         html[dir="rtl"] body:not(.sidebar-collapse) .main-header {
             margin-right: 280px !important;
             margin-left: 0 !important;
-            width: auto !important;
+            width: calc(100% - 280px) !important;
         }
 
         html[dir="rtl"] body.sidebar-collapse .content-wrapper,
@@ -960,7 +967,7 @@
         html[dir="rtl"] body.sidebar-collapse .main-header {
             margin-right: 4.6rem !important;
             margin-left: 0 !important;
-            width: auto !important;
+            width: calc(100% - 4.6rem) !important;
         }
     }
 
