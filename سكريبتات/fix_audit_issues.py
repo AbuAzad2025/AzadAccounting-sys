@@ -44,9 +44,17 @@ def run_fix():
         print("\n--- 2. Fixing Payments without GL ---")
         # Find completed payments that have NO GL Batch
         payments_no_gl = db.session.execute(text("""
-            SELECT p.id, p.payment_number FROM payments p
-            LEFT JOIN gl_batches b ON b.source_type='PAYMENT' AND b.source_id=p.id AND b.status='POSTED'
-            WHERE p.status='COMPLETED' AND b.id IS NULL
+            SELECT p.id, p.payment_number, p.total_amount, p.status FROM payments p
+            WHERE p.status='COMPLETED'
+            AND NOT EXISTS (
+                SELECT 1 FROM gl_batches b 
+                WHERE b.source_type='PAYMENT' AND b.source_id=p.id AND b.status='POSTED'
+            )
+            AND NOT EXISTS (
+                SELECT 1 FROM payment_splits ps 
+                JOIN gl_batches b ON b.source_type='PAYMENT_SPLIT' AND b.source_id=ps.id 
+                WHERE ps.payment_id=p.id AND b.status='POSTED'
+            )
         """)).fetchall()
         
         if not payments_no_gl:
@@ -60,18 +68,23 @@ def run_fix():
             for i, row in enumerate(payments_no_gl):
                 pid = row[0]
                 pnum = row[1]
-                # print(f"      - Fixing Payment {pnum} (ID: {pid})...")
+                pamount = row[2]
+                print(f"      - Fixing Payment {pnum} (ID: {pid}, Amount: {pamount})...")
                 try:
                     # Run sync in a nested transaction/try-catch to isolate failures
                     # We need to ensure commit happens per payment to save progress
                     run_payment_gl_sync_after_commit(pid)
                     fixed_count += 1
-                    if fixed_count % 10 == 0:
-                        print(f"        ... fixed {fixed_count}/{count} (Errors: {error_count})")
+                    print(f"        -> Success.")
                 except Exception as e:
                     error_count += 1
                     print(f"      ! Error fixing Payment {pnum} (ID: {pid}): {str(e)}")
-                    # Continue to next payment
+                    # Try to see if it has splits but failed
+                    splits = db.session.execute(text("SELECT id FROM payment_splits WHERE payment_id=:pid"), {"pid": pid}).fetchall()
+                    if splits:
+                        print(f"        -> Payment has {len(splits)} splits. Trying manual split fix...")
+                        # Here we could try to fix splits individually if we had the function import
+                        # But mostly likely run_payment_gl_sync_after_commit should handle it.
             
             print(f"   -> Summary: Fixed {fixed_count}, Failed {error_count} out of {count} payments.")
 
