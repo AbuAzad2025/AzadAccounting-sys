@@ -961,6 +961,31 @@
             margin-left: 0 !important;
             width: calc(100% - 280px) !important;
         }
+        
+        /* Strict positioning for Sidebar and Header to prevent overlap */
+        html[dir="rtl"] body:not(.sidebar-collapse) .main-header {
+            right: auto !important;
+            left: 0 !important;
+        }
+        
+        html[dir="rtl"] body:not(.sidebar-collapse) .main-sidebar {
+            right: 0 !important;
+            left: auto !important;
+            top: 0 !important;
+            bottom: 0 !important;
+            height: 100vh !important;
+            z-index: 1040 !important; /* Ensure sidebar is on top */
+        }
+        
+        /* Ensure Brand Area matches Navbar Height */
+        .garage-brand-area {
+            height: 57px; /* Standard AdminLTE Navbar height */
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 1rem;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
 
         html[dir="rtl"] body.sidebar-collapse .content-wrapper,
         html[dir="rtl"] body.sidebar-collapse .main-footer,
