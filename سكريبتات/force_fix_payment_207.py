@@ -44,6 +44,17 @@ def force_fix():
             db.session.commit()
             print("   -> Deleted existing batches.")
         
+        # Determine entity ID safely
+        ent_id = None
+        if payment.entity_type == 'SUPPLIER':
+            ent_id = payment.supplier_id
+        elif payment.entity_type == 'CUSTOMER':
+            ent_id = payment.customer_id
+        elif payment.entity_type == 'PARTNER':
+            ent_id = payment.partner_id
+            
+        print(f"   -> Determined Entity: Type={payment.entity_type}, ID={ent_id}")
+
         # 3. Create GL Batch MANUALLY
         print("   -> Creating NEW GL Batch manually...")
         batch = GLBatch(
@@ -52,7 +63,7 @@ def force_fix():
             status='POSTED',
             posting_date=payment.payment_date or datetime.now(),
             entity_type=payment.entity_type,
-            entity_id=payment.entity_id,
+            entity_id=ent_id,
             description=f"Manual Fix for Payment {pnum}",
             created_by_id=1,  # System
             currency=payment.currency or 'ILS',
@@ -78,7 +89,7 @@ def force_fix():
             credit=Decimal('0.00'),
             description=f"Payment {pnum} - Manual Fix",
             entity_type=payment.entity_type,
-            entity_id=payment.entity_id
+            entity_id=ent_id
         )
         
         # Credit Cash (Asset decreases)
@@ -89,16 +100,15 @@ def force_fix():
             credit=amount,
             description=f"Payment {pnum} - Manual Fix",
             entity_type=payment.entity_type,
-            entity_id=payment.entity_id
+            entity_id=ent_id
         )
+        db.session.add(debit_entry)
+        db.session.add(credit_entry)
+        db.session.commit()
+        print(f"   ✅ SUCCESS! Batch created manually with ID: {batch.id}")
 
-        # However, to be safer and correct, we should use the standard function first,
-        # but force commit. If that failed before, maybe it's because of missing accounts.
-        # Let's try the standard function one more time with verbose error catching.
-        
-        db.session.rollback() # Undo manual creation for a moment
-        
-        print("   -> Retrying standard sync with forced commit...")
+        # Try standard sync as bonus, but manual is already committed
+        # print("   -> Retrying standard sync with forced commit...")
         from models import run_payment_gl_sync_after_commit
         try:
             run_payment_gl_sync_after_commit(pid)
