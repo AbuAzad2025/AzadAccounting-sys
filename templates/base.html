@@ -905,7 +905,8 @@
     .content-wrapper {
         min-height: calc(100vh - 57px);
         transition: margin 0.3s ease-in-out;
-        overflow-x: hidden;
+        overflow-x: auto !important; /* Allow horizontal scrolling to prevent content hiding */
+        padding-top: 65px !important; /* Force space for fixed navbar */
     }
     
     /* Ensure no content is hidden behind fixed elements */
@@ -944,26 +945,34 @@
     }
 
     /* RTL Sidebar Fixes - Hardcoded for Stability */
-    html[dir="rtl"] body:not(.sidebar-collapse) .content-wrapper,
-    html[dir="rtl"] body:not(.sidebar-collapse) .main-footer,
-    html[dir="rtl"] body:not(.sidebar-collapse) .main-header {
-        margin-right: 280px !important;
-        margin-left: 0 !important;
+    /* Desktop (> 992px) */
+    @media (min-width: 992px) {
+        html[dir="rtl"] body:not(.sidebar-collapse) .content-wrapper,
+        html[dir="rtl"] body:not(.sidebar-collapse) .main-footer,
+        html[dir="rtl"] body:not(.sidebar-collapse) .main-header {
+            margin-right: 280px !important;
+            margin-left: 0 !important;
+            width: auto !important;
+        }
+
+        html[dir="rtl"] body.sidebar-collapse .content-wrapper,
+        html[dir="rtl"] body.sidebar-collapse .main-footer,
+        html[dir="rtl"] body.sidebar-collapse .main-header {
+            margin-right: 4.6rem !important;
+            margin-left: 0 !important;
+            width: auto !important;
+        }
     }
 
-    html[dir="rtl"] body.sidebar-collapse .content-wrapper,
-    html[dir="rtl"] body.sidebar-collapse .main-footer,
-    html[dir="rtl"] body.sidebar-collapse .main-header {
-        margin-right: 4.6rem !important;
-        margin-left: 0 !important;
-    }
-
+    /* Mobile (< 992px) */
     @media (max-width: 991.98px) {
         html[dir="rtl"] body .content-wrapper,
         html[dir="rtl"] body .main-footer,
         html[dir="rtl"] body .main-header {
             margin-right: 0 !important;
             margin-left: 0 !important;
+            width: 100% !important;
+            padding-top: 60px !important;
         }
     }
   </style>
@@ -985,7 +994,7 @@
   })();
   </script>
 </head>
-<body class="hold-transition sidebar-mini layout-fixed text-sm layout-navbar-fixed sidebar-collapse-left ui-v2 {% block body_class %}{% endblock %}">
+<body class="hold-transition sidebar-mini layout-fixed text-sm layout-navbar-fixed ui-v2 {% block body_class %}{% endblock %}">
 <div class="wrapper">
   {% include 'partials/navbar.html' %}
   <div id="gm-open-in-app-banner" class="gm-open-in-app-banner d-none" role="banner" aria-label="فتح كتطبيق">
