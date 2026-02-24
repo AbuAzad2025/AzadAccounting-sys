@@ -22,30 +22,36 @@ def run():
         # 1. Check all payments on that date
         date_str = "2026-02-23"
         print(f"\n1. Searching Payments on {date_str}...")
-        payments = db.session.execute(
-            text("SELECT id, payment_number, amount, payee_type, payee_entity_id, status FROM payments WHERE date(payment_date) = :d"),
-            {"d": date_str}
-        ).fetchall()
-        
-        if not payments:
-            print("   -> No payments found on this date.")
-        else:
-            for p in payments:
-                print(f"   -> Found: ID={p.id}, Num='{p.payment_number}', Amount={p.amount}, Payee={p.payee_type}/{p.payee_entity_id}, Status={p.status}")
+        try:
+            payments = db.session.execute(
+                text("SELECT id, payment_number, total_amount, entity_type, supplier_id, status FROM payments WHERE date(payment_date) = :d"),
+                {"d": date_str}
+            ).fetchall()
+            
+            if not payments:
+                print("   -> No payments found on this date.")
+            else:
+                for p in payments:
+                    print(f"   -> Found: ID={p.id}, Num='{p.payment_number}', Amount={p.total_amount}, SupplierID={p.supplier_id}, Status={p.status}")
+        except Exception as e:
+            print(f"   -> Error searching by date: {e}")
 
         # 2. Check by amount
         amounts = [10000, 18000, 8000]
         print(f"\n2. Searching Payments by Amounts {amounts}...")
         for amt in amounts:
-            payments_amt = db.session.execute(
-                text("SELECT id, payment_number, amount, payment_date FROM payments WHERE amount = :a"),
-                {"a": amt}
-            ).fetchall()
-            if payments_amt:
-                for p in payments_amt:
-                     print(f"   -> Found Amount {amt}: ID={p.id}, Num='{p.payment_number}', Date={p.payment_date}")
-            else:
-                print(f"   -> No payments found with amount {amt}")
+            try:
+                payments_amt = db.session.execute(
+                    text("SELECT id, payment_number, total_amount, payment_date FROM payments WHERE total_amount = :a"),
+                    {"a": amt}
+                ).fetchall()
+                if payments_amt:
+                    for p in payments_amt:
+                        print(f"   -> Found Amount {amt}: ID={p.id}, Num='{p.payment_number}', Date={p.payment_date}")
+                else:
+                    print(f"   -> No payments found with amount {amt}")
+            except Exception as e:
+                print(f"   -> Error searching by amount {amt}: {e}")
 
         # 3. Check Payment Splits directly
         print(f"\n3. Searching Payment Splits directly...")
@@ -67,12 +73,12 @@ def run():
             print(f"   -> Found Supplier: ID={s.id}, Name='{s.name}'")
             # List last 5 payments for this supplier
             last_payments = Payment.query.filter(
-                Payment.payee_type == 'SUPPLIER', 
-                Payment.payee_entity_id == s.id
+                Payment.entity_type == 'SUPPLIER', 
+                Payment.supplier_id == s.id
             ).order_by(Payment.id.desc()).limit(5).all()
             print("      Last 5 payments:")
             for lp in last_payments:
-                print(f"      - {lp.payment_number} | {lp.amount} | {lp.payment_date}")
+                print(f"      - {lp.payment_number} | {lp.total_amount} | {lp.payment_date}")
 
         print("\n=== END DEBUG ===")
 
