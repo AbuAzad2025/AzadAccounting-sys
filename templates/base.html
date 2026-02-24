@@ -1284,53 +1284,26 @@ function applySidebarPosition(position) {
       footer.style.setProperty('margin-right', '0', 'important');
     }
   } else {
-    const calcWidth = `calc(100% - ${sidebarWidth})`;
-    const isRTL = document.dir === 'rtl' || document.documentElement.getAttribute('dir') === 'rtl';
+    // DESKTOP: Rely on CSS Hardcoded Rules for RTL/LTR
+    // DO NOT SET INLINE STYLES FOR MARGINS ON DESKTOP
+    // This allows CSS classes like .sidebar-collapse to work properly
     
-    // In RTL: 'left' means sidebar is physically on Right. 'right' means physically on Left.
-    // In LTR: 'left' means sidebar is physically on Left. 'right' means physically on Right.
-    let physicalPosition = position;
-    if (isRTL) {
-        // RTL Mode: If user says 'left', it means start (which is Right in RTL).
-        // If user says 'right', it means end (which is Left in RTL).
-        physicalPosition = (position === 'left') ? 'right' : 'left';
+    // Clear inline styles so CSS takes over
+    if (contentWrapper) {
+      contentWrapper.style.removeProperty('margin-left');
+      contentWrapper.style.removeProperty('margin-right');
+      contentWrapper.style.removeProperty('width');
+      contentWrapper.style.removeProperty('max-width');
     }
-
-    if (physicalPosition === 'left') {
-      if (contentWrapper) {
-        contentWrapper.style.setProperty('margin-left', sidebarWidth, 'important');
-        contentWrapper.style.setProperty('margin-right', '0', 'important');
-        contentWrapper.style.setProperty('width', calcWidth, 'important');
-        contentWrapper.style.setProperty('max-width', calcWidth, 'important');
-      }
-      if (navbar) {
-        navbar.style.setProperty('margin-left', sidebarWidth, 'important');
-        navbar.style.setProperty('margin-right', '0', 'important');
-        navbar.style.setProperty('width', calcWidth, 'important');
-      }
-      if (footer) {
-        footer.style.setProperty('margin-left', sidebarWidth, 'important');
-        footer.style.setProperty('margin-right', '0', 'important');
-        footer.style.setProperty('width', calcWidth, 'important');
-      }
-    } else {
-      // physicalPosition is 'right' (Default for RTL sidebar)
-      if (contentWrapper) {
-        contentWrapper.style.setProperty('margin-right', sidebarWidth, 'important');
-        contentWrapper.style.setProperty('margin-left', '0', 'important');
-        contentWrapper.style.setProperty('width', calcWidth, 'important');
-        contentWrapper.style.setProperty('max-width', calcWidth, 'important');
-      }
-      if (navbar) {
-        navbar.style.setProperty('margin-right', sidebarWidth, 'important');
-        navbar.style.setProperty('margin-left', '0', 'important');
-        navbar.style.setProperty('width', calcWidth, 'important');
-      }
-      if (footer) {
-        footer.style.setProperty('margin-right', sidebarWidth, 'important');
-        footer.style.setProperty('margin-left', '0', 'important');
-        footer.style.setProperty('width', calcWidth, 'important');
-      }
+    if (navbar) {
+      navbar.style.removeProperty('margin-left');
+      navbar.style.removeProperty('margin-right');
+      navbar.style.removeProperty('width');
+    }
+    if (footer) {
+      footer.style.removeProperty('margin-left');
+      footer.style.removeProperty('margin-right');
+      footer.style.removeProperty('width');
     }
   }
   
