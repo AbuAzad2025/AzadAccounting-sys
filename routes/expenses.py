@@ -2960,6 +2960,8 @@ def payroll_monthly():
     from models import ExpenseType, EmployeeDeduction, EmployeeAdvanceInstallment
     from calendar import monthrange
     from decimal import Decimal
+    from sqlalchemy import extract as sql_extract
+
     
     today = datetime.now()
     month = int(request.args.get('month', today.month))
@@ -2997,7 +2999,6 @@ def payroll_monthly():
         if year < today.year:
             already_paid = True
         elif salary_type:
-            from sqlalchemy import extract as sql_extract
             existing = Expense.query.filter(
                 Expense.employee_id == emp.id,
                 Expense.type_id == salary_type.id,
@@ -3047,6 +3048,7 @@ def generate_all_salaries():
     from models import ExpenseType, EmployeeAdvanceInstallment
     from calendar import monthrange
     from decimal import Decimal
+    from sqlalchemy import extract as sql_extract, or_
     
     today = datetime.now()
     month = int(request.form.get('month', today.month))
@@ -3072,7 +3074,6 @@ def generate_all_salaries():
     
     for emp in employees:
         try:
-            from sqlalchemy import extract as sql_extract, or_
             existing = Expense.query.filter(
                 Expense.employee_id == emp.id,
                 Expense.type_id == salary_type.id,

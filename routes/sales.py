@@ -341,6 +341,9 @@ def restore_sale(id):
             return jsonify({"status": "success", "message": "تم استعادة عملية البيع بنجاح (يدوي)"})
         return jsonify({"status": "error", "message": str(e)}), 500
 
+@sales_bp.route("/dashboard", methods=["GET"], endpoint="dashboard")
+@login_required
+def dashboard():
     from decimal import Decimal
     from models import convert_amount
     

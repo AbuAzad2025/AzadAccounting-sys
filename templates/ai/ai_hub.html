@@ -275,6 +275,7 @@
             <i class="fas fa-graduation-cap"></i> تدريب
           </a>
         </li>
+        {% if has_perm('manage_ai') %}
         <li class="nav-item">
           <a class="nav-link ai-tab-link {% if active_tab == 'maps' %}active{% endif %}" 
              data-tab="maps"
@@ -294,6 +295,7 @@
             {% endif %}
           </a>
         </li>
+        {% endif %}
       </ul>
 
       <!-- Tab Content -->
@@ -372,6 +374,7 @@
                 <small class="text-muted">اسأل أي سؤال فوري</small>
               </div>
             </div>
+            {% if has_perm('manage_ai') %}
             <div class="col-md-4">
               <div class="quick-action-btn text-center" onclick="window.location='{{ url_for('ai.system_map') }}'">
                 <i class="fas fa-map fa-3x text-success mb-2"></i>
@@ -379,6 +382,7 @@
                 <small class="text-muted">اعرف أين توجد كل المزايا</small>
               </div>
             </div>
+            {% endif %}
             <div class="col-md-4">
               <div class="quick-action-btn text-center" onclick="startQuickTraining()">
                 <i class="fas fa-bolt fa-3x text-warning mb-2"></i>

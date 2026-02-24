@@ -22,4 +22,3 @@ if os.path.exists(_utils_file):
             setattr(sys.modules[__name__], attr_name, attr_value)
         except Exception:
             pass
-

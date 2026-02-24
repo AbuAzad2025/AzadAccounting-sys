@@ -1123,7 +1123,6 @@ def analytics():
                          avg_completion_time=avg_completion_time,
                          common_problems=common_problems,
                          weekly_stats=weekly_stats)
-    return jsonify([{'id':r.id,'text':f"{r.service_number} - {r.customer.name if r.customer else getattr(r,'name','')} - {r.vehicle_vrn}",'url':url_for('service.view_request', rid=r.id)} for r in results])
 
 
 # دوال مساعدة للأرشفة - تم نقلها إلى utils/archive_utils.py

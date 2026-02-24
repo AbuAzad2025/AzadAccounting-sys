@@ -2293,7 +2293,7 @@ def enhanced_context_understanding(message):
     
     return context
 
-def local_intelligent_response(message):
+def local_intelligent_response(message, session_id=None):
     """رد محلي ذكي كامل - فهم شامل للنظام بدون API + حماية أمنية + دليل المستخدم
     
     🧠 **محسّن بالكامل:**
@@ -2416,6 +2416,15 @@ def local_intelligent_response(message):
     
     from models import Customer, ServiceRequest, Expense, Product, Supplier, Invoice, Payment, User, Role, Permission
     
+    # ⚡ دمج المحرك المحلي الجديد (Rich HTML Cards)
+    try:
+        from AI.engine.ai_conversation import match_local_response
+        rich_response = match_local_response(message, session_id=session_id)
+        if rich_response:
+            return rich_response
+    except ImportError:
+        pass
+
     message_lower = message.lower()
     
     # 🧠 فهم سياقي متقدم - تحليل النية والكيانات (NLP الذكي!)
@@ -3349,7 +3358,7 @@ def _ai_chat_original(message, session_id='default'):
             return contextual_response
     
     # محاولة رد محلي ذكي أولاً
-    local_response = local_intelligent_response(message)
+    local_response = local_intelligent_response(message, session_id=session_id)
     if local_response:
         add_to_memory(session_id, 'assistant', local_response)
         return local_response
