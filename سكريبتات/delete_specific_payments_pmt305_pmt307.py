@@ -18,59 +18,57 @@ from utils.supplier_balance_updater import update_supplier_balance_components as
 def run():
     app = create_app()
     with app.app_context():
-        # Payments to be deleted (using simpler identifiers)
-        target_payment_parts = ["PMT-305", "PMT-307"]
+        # Payments to be deleted (using exact IDs found in debug)
+        # ID 305 -> PMT20260223-0005 (Split 229)
+        # ID 307 -> PMT20260223-0007 (Split 231)
+        target_payment_ids = [305, 307]
         
-        print(f"--- STARTING DELETION SEARCH FOR: {target_payment_parts} ---")
+        print(f"--- STARTING DELETION FOR PAYMENT IDs: {target_payment_ids} ---")
         
         deleted_count = 0
         supplier_ids_to_update = set()
 
-        for p_part in target_payment_parts:
-            # Try to find payment by partial match
-            print(f"Searching for payment containing: {p_part} ...")
+        for pid in target_payment_ids:
+            # Find payment by ID
+            payment = db.session.get(Payment, pid)
             
-            # Using ILIKE for case-insensitive partial match
-            payments = Payment.query.filter(Payment.payment_number.ilike(f"%{p_part}%")).all()
-            
-            if not payments:
-                print(f"❌ No payment found matching '{p_part}'. Skipping.")
+            if not payment:
+                print(f"❌ Payment ID {pid} NOT FOUND. Skipping.")
                 continue
 
-            for payment in payments:
-                print(f"✅ Found Payment: {payment.payment_number} (ID: {payment.id}, Amount: {payment.amount}, Date: {payment.payment_date})")
-                
-                # Track supplier for balance update
-                if payment.payee_type == "SUPPLIER" and payment.payee_entity_id:
-                    supplier_ids_to_update.add(payment.payee_entity_id)
+            print(f"✅ Found Payment: {payment.payment_number} (ID: {payment.id}, Amount: {payment.total_amount}, Date: {payment.payment_date})")
+            
+            # Track supplier for balance update
+            if payment.entity_type == "SUPPLIER" and payment.supplier_id:
+                supplier_ids_to_update.add(payment.supplier_id)
 
-                # 1. Delete associated GL Batches & Entries for the Payment itself
-                gl_batches = GLBatch.query.filter(
-                    GLBatch.source_type == "PAYMENT", 
-                    GLBatch.source_id == payment.id
+            # 1. Delete associated GL Batches & Entries for the Payment itself
+            gl_batches = GLBatch.query.filter(
+                GLBatch.source_type == "PAYMENT", 
+                GLBatch.source_id == payment.id
+            ).all()
+            
+            for batch in gl_batches:
+                GLEntry.query.filter(GLEntry.batch_id == batch.id).delete()
+                db.session.delete(batch)
+            
+            # 2. Delete Payment Splits and their GL Batches
+            splits = PaymentSplit.query.filter(PaymentSplit.payment_id == payment.id).all()
+            for split in splits:
+                split_batches = GLBatch.query.filter(
+                    GLBatch.source_type == "PAYMENT_SPLIT", 
+                    GLBatch.source_id == split.id
                 ).all()
-                
-                for batch in gl_batches:
+                for batch in split_batches:
                     GLEntry.query.filter(GLEntry.batch_id == batch.id).delete()
                     db.session.delete(batch)
                 
-                # 2. Delete Payment Splits and their GL Batches
-                splits = PaymentSplit.query.filter(PaymentSplit.payment_id == payment.id).all()
-                for split in splits:
-                    split_batches = GLBatch.query.filter(
-                        GLBatch.source_type == "PAYMENT_SPLIT", 
-                        GLBatch.source_id == split.id
-                    ).all()
-                    for batch in split_batches:
-                        GLEntry.query.filter(GLEntry.batch_id == batch.id).delete()
-                        db.session.delete(batch)
-                    
-                    db.session.delete(split)
+                db.session.delete(split)
 
-                # 3. Delete the Payment record
-                db.session.delete(payment)
-                deleted_count += 1
-                print(f"🗑️  Deleted Payment {payment.payment_number}")
+            # 3. Delete the Payment record
+            db.session.delete(payment)
+            deleted_count += 1
+            print(f"🗑️  Deleted Payment {payment.payment_number} (ID: {pid})")
 
         # Commit changes
         if deleted_count > 0:
