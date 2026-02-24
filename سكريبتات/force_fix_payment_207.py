@@ -64,10 +64,10 @@ def force_fix():
             posted_at=payment.payment_date or datetime.now(),
             entity_type=payment.entity_type,
             entity_id=ent_id,
-            description=f"Manual Fix for Payment {pnum}",
-            created_by_id=1,  # System
+            memo=f"Manual Fix for Payment {pnum}",
+            # created_by_id=1,  # Removed as it caused error
             currency=payment.currency or 'ILS',
-            rate=Decimal('1.0')
+            # rate=Decimal('1.0') # Removed as it caused error
         )
         db.session.add(batch)
         db.session.flush()
@@ -82,25 +82,21 @@ def force_fix():
         # Debit AP (Liability decreases)
         debit_entry = GLEntry(
             batch_id=batch.id,
-            account_id=2100, # Approximate AP account, or we can fetch dynamically. 
-                             # Ideally we should use the exact accounts from settings.
-                             # But for now, let's try to use the logic from run_payment_gl_sync_after_commit if possible.
+            account="2100_AP", # Use string account code
             debit=amount,
             credit=Decimal('0.00'),
-            description=f"Payment {pnum} - Manual Fix",
-            entity_type=payment.entity_type,
-            entity_id=ent_id
+            ref=f"Fix-{pnum}", # Use ref instead of description
+            # entity_type/id removed from Entry as they are on Batch
         )
         
         # Credit Cash (Asset decreases)
         credit_entry = GLEntry(
             batch_id=batch.id,
-            account_id=1100, # Approximate Cash account
+            account="1100_CASH", # Use string account code
             debit=Decimal('0.00'),
             credit=amount,
-            description=f"Payment {pnum} - Manual Fix",
-            entity_type=payment.entity_type,
-            entity_id=ent_id
+            ref=f"Fix-{pnum}", # Use ref instead of description
+            # entity_type/id removed from Entry as they are on Batch
         )
         db.session.add(debit_entry)
         db.session.add(credit_entry)
