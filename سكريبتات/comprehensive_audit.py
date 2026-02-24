@@ -96,10 +96,18 @@ def run_audit():
         
         payments_no_gl = _scalar("""
             SELECT COUNT(*) FROM payments p
-            LEFT JOIN gl_batches b ON b.source_type='PAYMENT' AND b.source_id=p.id AND b.status='POSTED'
-            WHERE p.status='COMPLETED' AND b.id IS NULL
+            WHERE p.status='COMPLETED'
+            AND NOT EXISTS (
+                SELECT 1 FROM gl_batches b 
+                WHERE b.source_type='PAYMENT' AND b.source_id=p.id AND b.status='POSTED'
+            )
+            AND NOT EXISTS (
+                SELECT 1 FROM payment_splits ps 
+                JOIN gl_batches b ON b.source_type='PAYMENT_SPLIT' AND b.source_id=ps.id 
+                WHERE ps.payment_id=p.id AND b.status='POSTED'
+            )
         """)
-        print(f"   - Completed Payments without GL: {payments_no_gl}")
+        print(f"   - Completed Payments without GL (Main or Split): {payments_no_gl}")
 
         # 4. Stock & Warehouse Integrity
         print("\n--- 4. Stock & Warehouse Integrity ---")
