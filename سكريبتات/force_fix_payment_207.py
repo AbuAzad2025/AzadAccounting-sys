@@ -61,7 +61,7 @@ def force_fix():
             source_type='PAYMENT',
             source_id=pid,
             status='POSTED',
-            posting_date=payment.payment_date or datetime.now(),
+            posted_at=payment.payment_date or datetime.now(),
             entity_type=payment.entity_type,
             entity_id=ent_id,
             description=f"Manual Fix for Payment {pnum}",
