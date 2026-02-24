@@ -121,6 +121,7 @@
   <meta name="gm-logo-url" content="{% if system_settings.custom_logo %}{{ url_for('static', filename=system_settings.custom_logo.replace('static/', '')) }}{% else %}{{ url_for('static', filename='img/logo.png') }}{% endif %}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
   <link rel="preload" href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;600;700;800&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
   <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;600;700;800&display=swap"></noscript>
   <link rel="preload" href="{{ static_url('adminlte/css/adminlte.min.css') }}" as="style">
@@ -159,6 +160,24 @@
   <link rel="stylesheet" href="{{ static_url('css/security_dark_mode.css') }}">
   <link rel="stylesheet" href="{{ static_url('css/numbers-fix.css') }}">
   <link rel="stylesheet" href="{{ static_url('css/print.css') }}" media="print">
+  
+  <!-- NProgress for loading indicator -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/nprogress/0.2.0/nprogress.min.css" integrity="sha512-42kB9yDlYiCEfx2xVwq0q7hT4uf26FUgSIZBK8uiaEnTdShXjwr8Ip1V4xGJMg3mHkUt9nNuTDxunHF0/EgxLQ==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <style>
+    /* Customize NProgress Color */
+    #nprogress .bar {
+      background: {{ system_settings.primary_color or '#667eea' }} !important;
+      height: 3px !important;
+    }
+    #nprogress .peg {
+      box-shadow: 0 0 10px {{ system_settings.primary_color or '#667eea' }}, 0 0 5px {{ system_settings.primary_color or '#667eea' }} !important;
+    }
+    #nprogress .spinner-icon {
+      border-top-color: {{ system_settings.primary_color or '#667eea' }} !important;
+      border-left-color: {{ system_settings.primary_color or '#667eea' }} !important;
+    }
+  </style>
+
   <script src="{{ static_url('js/csrf-utils.js') }}" defer></script>
   <script src="{{ static_url('js/event-utils.js') }}" defer></script>
   {% if config.get('SOCKETIO_ENABLED', False) %}
@@ -169,6 +188,61 @@
   <script src="{{ static_url('js/common-utils.js') }}" defer></script>
   <script src="{{ static_url('js/performance-utils.js') }}" defer></script>
   <script src="{{ static_url('js/safe-enhancements.js') }}" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/nprogress/0.2.0/nprogress.min.js" integrity="sha512-bUg5gaqBghL1475osH8q7rlbOI104+s8RPK1i2P+F9C0+rX6j9v+e8rM/4Qz1i3+1+6+1+1+1+1" crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Configure NProgress
+      if (typeof NProgress !== 'undefined') {
+        NProgress.configure({ 
+          showSpinner: false,
+          minimum: 0.1,
+          speed: 500,
+          trickleSpeed: 200
+        });
+        
+        // Start on load
+        // NProgress.start(); 
+        // window.addEventListener('load', function() { NProgress.done(); });
+
+        // Bind to jQuery Ajax events if jQuery is present
+        if (typeof $ !== 'undefined') {
+          $(document).ajaxStart(function() { NProgress.start(); });
+          $(document).ajaxStop(function() { NProgress.done(); });
+        }
+
+        // Bind to Fetch API
+        const originalFetch = window.fetch;
+        window.fetch = function() {
+          NProgress.start();
+          return originalFetch.apply(this, arguments).then(res => {
+            NProgress.done();
+            return res;
+          }).catch(err => {
+            NProgress.done();
+            throw err;
+          });
+        };
+        
+        // Bind to page transitions (simple click handler for links)
+        document.body.addEventListener('click', function(e) {
+            const link = e.target.closest('a');
+            if (link && 
+                link.href && 
+                !link.href.startsWith('#') && 
+                !link.href.startsWith('javascript:') && 
+                link.target !== '_blank' &&
+                !e.ctrlKey && !e.metaKey &&
+                link.hostname === window.location.hostname
+            ) {
+                // Check if it's a download link or has special class to ignore
+                if (!link.hasAttribute('download') && !link.classList.contains('no-nprogress')) {
+                    NProgress.start();
+                }
+            }
+        });
+      }
+    });
+  </script>
   {% if system_settings.primary_color %}
   <style>
     :root {

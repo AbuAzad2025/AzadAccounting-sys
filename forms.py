@@ -105,7 +105,7 @@ from models import (
 
 import utils
 from utils import D  # Import D from utils package
-from validators import Unique
+from custom_validators import Unique
 from barcodes import validate_barcode
 
 CURRENCY_CHOICES = [

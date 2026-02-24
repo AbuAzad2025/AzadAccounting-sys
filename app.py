@@ -1474,6 +1474,16 @@ def create_app(config_object=Config) -> Flask:
     except Exception:
         pass
 
+    @app.after_request
+    def _add_static_cache_headers(response):
+        """Add cache headers for static files (1 year cache)"""
+        if request.path.startswith('/static/'):
+            # Cache for 1 year (31536000 seconds)
+            response.headers['Cache-Control'] = 'public, max-age=31536000'
+            if 'Pragma' in response.headers:
+                del response.headers['Pragma']
+        return response
+
     return app
 
 
