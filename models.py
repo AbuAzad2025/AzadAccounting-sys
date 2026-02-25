@@ -13717,10 +13717,10 @@ class Check(db.Model, TimestampMixin, AuditMixin):
         if not self.customer_id and not self.supplier_id and not self.partner_id:
             try:
                 from models import SystemSettings
-                company_name = SystemSettings.get_setting('COMPANY_NAME', 'المهندس الفلسطيني لقطع المعدات')
-                return company_name or 'المهندس الفلسطيني لقطع المعدات'
+                company_name = SystemSettings.get_setting('COMPANY_NAME', 'الشركة')
+                return company_name or 'الشركة'
             except Exception:
-                return 'المهندس الفلسطيني لقطع المعدات'
+                return 'الشركة'
         
         return "غير محدد"
     
