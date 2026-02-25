@@ -1,204 +1,261 @@
-{% extends 'base.html' %}
-{% block title %}صحة النظام{% endblock %}
-{% block page_title %}💚 صحة النظام - System Health{% endblock %}
+{% extends 'security/base_security.html' %}
 
-{% block content %}
-<div class="container-fluid">
-  
-  {% include 'advanced/_navigation.html' %}
-  
-  <div class="d-flex justify-content-end mb-3" style="gap: .5rem;">
-      <div class="btn-group shadow-sm rounded-pill overflow-hidden bg-white">
-          <button onclick="window.history.back()" class="btn btn-sm text-primary font-weight-bold border-right" title="رجوع">
-              <i class="fas fa-arrow-right"></i>
-          </button>
-          <button onclick="window.history.forward()" class="btn btn-sm text-primary font-weight-bold" title="تقدم">
-              <i class="fas fa-arrow-left"></i>
-          </button>
-      </div>
-      <a href="{{ url_for('advanced.owner_hub') }}" class="btn btn-primary shadow-sm btn-modern">
-          <i class="fas fa-home fa-sm text-white-50 ml-1"></i> لوحة المالك
-      </a>
-  </div>
+{% block tour_name %}system_health{% endblock %}
 
-  <!-- بطاقات إحصائية سريعة -->
-  <div class="row mb-4">
-    <div class="col-lg-3 col-md-6 mb-3">
-      <div class="card border-0 shadow-sm text-white h-100 card-hover" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <h6 class="text-white-50 mb-1">الصحة العامة</h6>
-              <h3 class="mb-0 font-weight-bold">{{ '%.0f'|format(overall) }}%</h3>
-              <small class="opacity-75">حالة النظام</small>
-            </div>
-            <i class="fas fa-heart fa-2x opacity-50"></i>
-          </div>
-        </div>
-      </div>
-    </div>
-    
-    <div class="col-lg-3 col-md-6">
-      <div class="card border-0 shadow-sm bg-success text-white h-100 card-hover" style="background: linear-gradient(135deg, #1cc88a 0%, #13855c 100%);">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <h6 class="text-white-50 mb-1">فحوصات سليمة</h6>
-              <h3 class="mb-0 font-weight-bold">{{ checks|selectattr('status', 'equalto', 'ok')|list|length }}</h3>
-              <small class="opacity-75">من {{ checks|length }} فحص</small>
-            </div>
-            <i class="fas fa-check-circle fa-2x opacity-50"></i>
-          </div>
-        </div>
-      </div>
-    </div>
-    
-    <div class="col-lg-3 col-md-6">
-      <div class="card border-0 shadow-sm bg-warning text-white h-100 card-hover" style="background: linear-gradient(135deg, #f6c23e 0%, #dda20a 100%);">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <h6 class="text-white-50 mb-1">تحذيرات</h6>
-              <h3 class="mb-0 font-weight-bold">{{ checks|selectattr('status', 'equalto', 'warning')|list|length }}</h3>
-              <small class="opacity-75">تحتاج انتباه</small>
-            </div>
-            <i class="fas fa-exclamation-triangle fa-2x opacity-50"></i>
-          </div>
-        </div>
-      </div>
-    </div>
-    
-    <div class="col-lg-3 col-md-6">
-      <div class="card border-0 shadow-sm bg-danger text-white h-100 card-hover" style="background: linear-gradient(135deg, #e74a3b 0%, #be2617 100%);">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <h6 class="text-white-50 mb-1">أخطاء</h6>
-              <h3 class="mb-0 font-weight-bold">{{ checks|selectattr('status', 'equalto', 'error')|list|length }}</h3>
-              <small class="opacity-75">تحتاج إصلاح</small>
-            </div>
-            <i class="fas fa-times-circle fa-2x opacity-50"></i>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-  
+{% block security_title %}System Health Monitor{% endblock %}
+{% block security_icon %}<i class="fas fa-heartbeat"></i>{% endblock %}
+{% block security_description %}مراقبة الأداء • التشخيص • الصيانة الدورية{% endblock %}
+
+{% block security_breadcrumb %}
+<li class="breadcrumb-item active">System Health</li>
+{% endblock %}
+
+{% block security_actions %}
+<div class="d-flex gap-2">
+  <form method="POST" class="d-inline">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="auto_run">
+    <button type="submit" class="btn btn-primary btn-sm">
+        <i class="fas fa-sync-alt"></i> تحديث الفحص
+    </button>
+  </form>
   {% if last_run.time %}
-  <div class="alert alert-info border-0 shadow-sm mb-4">
-    <i class="fas fa-history"></i> آخر تشغيل تلقائي: {{ last_run.time[:16] }} – النتيجة {{ last_run.score }}%
-  </div>
+  <span class="badge bg-light text-dark border d-flex align-items-center">
+    <i class="far fa-clock me-1"></i> {{ last_run.time[:16] }}
+  </span>
   {% endif %}
+</div>
+{% endblock %}
 
-  <div class="row">
-    {% for check in checks %}
-    <div class="col-md-6 mb-3">
-      <div class="card border-0 shadow-sm h-100">
+{% block security_content %}
+<div class="container-fluid">
+
+  <!-- Status Cards -->
+  <div class="row g-4 mb-4">
+    <!-- Overall Health -->
+    <div class="col-xl-3 col-md-6">
+      <div class="card border-0 shadow-sm h-100 overflow-hidden">
+        <div class="card-body position-relative">
+          <div class="d-flex align-items-center mb-2">
+            <div class="icon-square bg-primary bg-opacity-10 text-primary rounded-3 p-2 me-3">
+              <i class="fas fa-heartbeat fa-2x"></i>
+            </div>
+            <div>
+              <h6 class="card-subtitle text-muted text-uppercase small fw-bold">الصحة العامة</h6>
+              <h2 class="card-title mb-0 fw-bold">{{ '%.0f'|format(overall) }}%</h2>
+            </div>
+          </div>
+          <div class="progress mt-3" style="height: 6px;">
+            <div class="progress-bar bg-primary" role="progressbar" style="width: {{ overall }}%"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Checks OK -->
+    <div class="col-xl-3 col-md-6">
+      <div class="card border-0 shadow-sm h-100 border-start border-success border-4">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="text-muted text-uppercase small fw-bold mb-1">فحوصات سليمة</h6>
+              <h2 class="mb-0 fw-bold text-success">{{ checks|selectattr('status', 'equalto', 'ok')|list|length }}</h2>
+            </div>
+            <div class="icon-circle bg-success bg-opacity-10 text-success rounded-circle p-3">
+              <i class="fas fa-check fa-lg"></i>
+            </div>
+          </div>
+          <small class="text-muted mt-2 d-block">من إجمالي {{ checks|length }} فحص</small>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Warnings -->
+    <div class="col-xl-3 col-md-6">
+      <div class="card border-0 shadow-sm h-100 border-start border-warning border-4">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="text-muted text-uppercase small fw-bold mb-1">تحذيرات</h6>
+              <h2 class="mb-0 fw-bold text-warning">{{ checks|selectattr('status', 'equalto', 'warning')|list|length }}</h2>
+            </div>
+            <div class="icon-circle bg-warning bg-opacity-10 text-warning rounded-circle p-3">
+              <i class="fas fa-exclamation fa-lg"></i>
+            </div>
+          </div>
+          <small class="text-muted mt-2 d-block">تحتاج للمراجعة</small>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Errors -->
+    <div class="col-xl-3 col-md-6">
+      <div class="card border-0 shadow-sm h-100 border-start border-danger border-4">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="text-muted text-uppercase small fw-bold mb-1">أخطاء حرجة</h6>
+              <h2 class="mb-0 fw-bold text-danger">{{ checks|selectattr('status', 'equalto', 'error')|list|length }}</h2>
+            </div>
+            <div class="icon-circle bg-danger bg-opacity-10 text-danger rounded-circle p-3">
+              <i class="fas fa-times fa-lg"></i>
+            </div>
+          </div>
+          <small class="text-muted mt-2 d-block">تتطلب تدخلاً فورياً</small>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Detailed Checks Grid -->
+  <div class="row g-4">
+    <div class="col-lg-8">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white py-3 border-0">
+          <h5 class="mb-0 fw-bold"><i class="fas fa-stethoscope text-primary me-2"></i> تفاصيل الفحص</h5>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead class="bg-light">
+                <tr>
+                  <th class="ps-4">الفحص</th>
+                  <th>الحالة</th>
+                  <th>التفاصيل</th>
+                  <th class="text-end pe-4">الإجراء</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for check in checks %}
+                <tr>
+                  <td class="ps-4 fw-bold">
+                    <i class="fas fa-circle me-2 small 
+                      {% if check.status == 'ok' %}text-success
+                      {% elif check.status == 'warning' %}text-warning
+                      {% elif check.status == 'error' %}text-danger
+                      {% else %}text-secondary{% endif %}"></i>
+                    {{ check.name }}
+                  </td>
+                  <td>
+                    {% if check.status == 'ok' %}
+                      <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-3">Stable</span>
+                    {% elif check.status == 'warning' %}
+                      <span class="badge bg-warning-subtle text-warning border border-warning-subtle rounded-pill px-3">Warning</span>
+                    {% elif check.status == 'error' %}
+                      <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill px-3">Critical</span>
+                    {% else %}
+                      <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle rounded-pill px-3">Unknown</span>
+                    {% endif %}
+                  </td>
+                  <td class="text-muted small">{{ check.message }}</td>
+                  <td class="text-end pe-4">
+                    {% if check.action_url %}
+                      <a href="{{ check.action_url }}" class="btn btn-sm btn-outline-primary rounded-pill">
+                        <i class="fas fa-wrench small"></i> إصلاح
+                      </a>
+                    {% else %}
+                      <span class="text-muted small">-</span>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Actions Sidebar -->
+    <div class="col-lg-4">
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-gradient-dark text-white py-3">
+          <h5 class="mb-0 fw-bold"><i class="fas fa-tools me-2"></i> أدوات الصيانة السريعة</h5>
+        </div>
+        <div class="card-body">
+          <div class="d-grid gap-3">
+            
+            <div class="p-3 border rounded hover-bg-light transition-base">
+              <div class="d-flex align-items-center mb-2">
+                <div class="icon-square bg-primary bg-opacity-10 text-primary rounded p-2 me-3">
+                  <i class="fas fa-key"></i>
+                </div>
+                <div>
+                  <h6 class="mb-0 fw-bold">إصلاح الصلاحيات</h6>
+                  <small class="text-muted">للملفات والمجلدات</small>
+                </div>
+              </div>
+              <form method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="fix_permissions">
+                <button type="submit" class="btn btn-outline-primary btn-sm w-100 rounded-pill">
+                  تشغيل الإصلاح
+                </button>
+              </form>
+            </div>
+
+            <div class="p-3 border rounded hover-bg-light transition-base">
+              <div class="d-flex align-items-center mb-2">
+                <div class="icon-square bg-warning bg-opacity-10 text-warning rounded p-2 me-3">
+                  <i class="fas fa-broom"></i>
+                </div>
+                <div>
+                  <h6 class="mb-0 fw-bold">تنظيف الكاش</h6>
+                  <small class="text-muted">حذف الملفات المؤقتة</small>
+                </div>
+              </div>
+              <form method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="clear_cache">
+                <button type="submit" class="btn btn-outline-warning btn-sm w-100 rounded-pill">
+                  تنظيف الآن
+                </button>
+              </form>
+            </div>
+
+            <div class="p-3 border rounded hover-bg-light transition-base">
+              <div class="d-flex align-items-center mb-2">
+                <div class="icon-square bg-success bg-opacity-10 text-success rounded p-2 me-3">
+                  <i class="fas fa-database"></i>
+                </div>
+                <div>
+                  <h6 class="mb-0 fw-bold">تحسين قاعدة البيانات</h6>
+                  <small class="text-muted">VACUUM & ANALYZE</small>
+                </div>
+              </div>
+              <form method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="optimize_db">
+                <button type="submit" class="btn btn-outline-success btn-sm w-100 rounded-pill">
+                  تحسين الأداء
+                </button>
+              </form>
+            </div>
+
+          </div>
+        </div>
+      </div>
+      
+      <div class="card border-0 shadow-sm bg-info text-white">
         <div class="card-body">
           <div class="d-flex align-items-center">
-            <div class="p-3 rounded ml-3"
-                 style="background: {% if check.status == 'ok' %}rgba(40, 167, 69, 0.1){% elif check.status == 'warning' %}rgba(255, 193, 7, 0.1){% elif check.status == 'error' %}rgba(220, 53, 69, 0.1){% else %}rgba(108, 117, 125, 0.1){% endif %};">
-              <i class="fas 
-                        {% if check.status == 'ok' %}fa-check-circle text-success
-                        {% elif check.status == 'warning' %}fa-exclamation-triangle text-warning
-                        {% elif check.status == 'error' %}fa-times-circle text-danger
-                        {% else %}fa-question-circle text-secondary{% endif %} 
-                        fa-2x"></i>
-            </div>
-            <div class="flex-grow-1">
-              <h6 class="mb-1">{{ check.name }}</h6>
-              <p class="mb-0 text-muted small">{{ check.message }}</p>
-            </div>
+            <i class="fas fa-info-circle fa-2x me-3 opacity-50"></i>
             <div>
-              {% if check.status == 'ok' %}
-                <span class="badge bg-success rounded-pill">OK</span>
-              {% elif check.status == 'warning' %}
-                <span class="badge bg-warning rounded-pill">تحذير</span>
-              {% elif check.status == 'error' %}
-                <span class="badge bg-danger rounded-pill">خطأ</span>
-              {% else %}
-                <span class="badge bg-secondary rounded-pill">غير معروف</span>
-              {% endif %}
+              <h6 class="fw-bold mb-1">جدولة الفحص التلقائي</h6>
+              <p class="small mb-0 opacity-75">يتم إجراء الفحص تلقائياً كل 24 ساعة لضمان استقرار النظام.</p>
             </div>
           </div>
-        </div>
-      </div>
-    </div>
-    {% endfor %}
-  </div>
-
-  <div class="row mt-4">
-    <div class="col-md-3 mb-3">
-      <div class="card border-0 shadow-sm h-100 card-hover">
-        <div class="card-body text-center">
-          <i class="fas fa-shield-alt fa-3x text-primary mb-3"></i>
-          <h6>إصلاح الصلاحيات</h6>
-          <p class="small text-muted">إنشاء المجلدات المطلوبة وإصلاح الصلاحيات</p>
-          <form method="POST">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="action" value="fix_permissions">
-            <button type="submit" class="btn btn-primary w-100">
-              <i class="fas fa-wrench"></i> إصلاح
-            </button>
-          </form>
-        </div>
-      </div>
-    </div>
-
-    <div class="col-md-3 mb-3">
-      <div class="card border-0 shadow-sm h-100 card-hover">
-        <div class="card-body text-center">
-          <i class="fas fa-broom fa-3x text-warning mb-3"></i>
-          <h6>تنظيف الكاش</h6>
-          <p class="small text-muted">حذف ملفات الكاش المؤقتة</p>
-          <form method="POST">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="action" value="clear_cache">
-            <button type="submit" class="btn btn-warning w-100">
-              <i class="fas fa-trash-alt"></i> تنظيف
-            </button>
-          </form>
-        </div>
-      </div>
-    </div>
-
-    <div class="col-md-3 mb-3">
-      <div class="card border-0 shadow-sm h-100 card-hover">
-        <div class="card-body text-center">
-          <i class="fas fa-database fa-3x text-success mb-3"></i>
-          <h6>تحسين قاعدة البيانات</h6>
-          <p class="small text-muted">تحسين وضغط قاعدة البيانات (VACUUM)</p>
-          <form method="POST">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="action" value="optimize_db">
-            <button type="submit" class="btn btn-success w-100">
-              <i class="fas fa-cogs"></i> تحسين
-            </button>
-          </form>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-3">
-      <div class="card border-0 shadow-sm h-100 card-hover">
-        <div class="card-body text-center">
-          <i class="fas fa-sync-alt fa-3x text-info mb-3"></i>
-          <h6>تشغيل تلقائي</h6>
-          <p class="small text-muted">تشغيل كل الفحوصات وتحديث السجل</p>
-          <form method="POST">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="action" value="auto_run">
-            <button type="submit" class="btn btn-info w-100 text-white">
-              <i class="fas fa-play-circle"></i> تشغيل الآن
-            </button>
-          </form>
-          {% if last_run.time %}
-          <small class="d-block mt-2 text-muted">آخر تشغيل: {{ last_run.time[:16] }}</small>
-          {% endif %}
         </div>
       </div>
     </div>
   </div>
 
 </div>
+
+<style>
+.icon-square { width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; }
+.hover-bg-light:hover { background-color: #f8f9fa; }
+.transition-base { transition: all 0.2s ease; }
+</style>
 {% endblock %}
 
