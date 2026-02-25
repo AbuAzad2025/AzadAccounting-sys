@@ -80,7 +80,7 @@
     <div class="brand">
       <img class="logo" src="{{ url_for('static', filename='img/logo.png') }}" alt="Logo">
       <div>
-        <div class="brand-name">المهندس الفلسطيني للمعدات الثقيلة</div>
+        <div class="brand-name">{{ get_system_setting('company_name', 'الشركة') }}</div>
         <div class="brand-sub">فاتورة مبيعات</div>
       </div>
     </div>

@@ -92,11 +92,7 @@ html,body{font-family:"DejaVu Sans","Amiri","Tahoma","Arial",sans-serif;directio
         <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Logo" onerror="this.closest('.hero-logo').style.display='none'">
       </div>
       <div class="hero-text">
-        {% set brand_name = system_settings.company_name %}
-        {% if not brand_name or ('azad' in brand_name|lower) or ('ازاد' in brand_name) or ('أزاد' in brand_name) %}
-        {% set brand_name = 'المهندس الفلسطيني للمعدات الثقيلة' %}
-        {% endif %}
-        <div class="hero-name">{{ brand_name }}</div>
+        <div class="hero-name">{{ system_settings.company_name or 'الشركة' }}</div>
         <div class="hero-sub">Service Receipt</div>
       </div>
     </div>
