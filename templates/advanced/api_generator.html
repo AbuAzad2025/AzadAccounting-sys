@@ -1,94 +1,152 @@
-{% extends 'base.html' %}
-{% block title %}مولد API{% endblock %}
-{% block page_title %}⚡ مولد API التلقائي - API Generator{% endblock %}
+{% extends 'security/base_security.html' %}
 
-{% block content %}
+{% block tour_name %}api_generator{% endblock %}
+
+{% block security_title %}API Generator{% endblock %}
+{% block security_icon %}<i class="fas fa-magic"></i>{% endblock %}
+{% block security_description %}توليد نقاط اتصال (Endpoints) برمجية تلقائياً{% endblock %}
+
+{% block security_breadcrumb %}
+<li class="breadcrumb-item active">API Generator</li>
+{% endblock %}
+
+{% block security_content %}
 <div class="container-fluid">
   
-  {% include 'advanced/_navigation.html' %}
-  
-  <div class="d-flex justify-content-between mb-3">
-    <div class="btn-group" role="group">
-      <button type="button" class="btn btn-outline-primary rounded-pill mr-2" onclick="window.history.back()">
-        <i class="fas fa-arrow-right mr-1"></i> رجوع
-      </button>
-      <button type="button" class="btn btn-outline-primary rounded-pill" onclick="window.history.forward()">
-        تقدم <i class="fas fa-arrow-left ml-1"></i>
-      </button>
+  <div class="alert alert-info border-0 shadow-sm mb-4">
+    <div class="d-flex">
+      <div class="me-3">
+        <i class="fas fa-network-wired fa-2x"></i>
+      </div>
+      <div>
+        <h5 class="alert-heading">مولد الـ API التلقائي</h5>
+        <p class="mb-0">قم بإنشاء واجهات برمجية (RESTful APIs) كاملة لأي جدول في قاعدة البيانات بضغطة زر. يدعم النظام عمليات CRUD الأساسية (Create, Read, Update, Delete) مع التوثيق.</p>
+      </div>
     </div>
-    <a href="{{ url_for('advanced.owner_hub') }}" class="btn btn-primary shadow-sm rounded-pill">
-        <i class="fas fa-home fa-sm text-white-50"></i> عودة للوحة المالك
-    </a>
-  </div>
-  
-  <div class="alert alert-info border-0 shadow-sm" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%); color: white;">
-    <i class="fas fa-magic"></i> <strong>مولد API:</strong> إنشاء REST API تلقائياً لأي جدول
   </div>
 
-  <div class="row">
-    <div class="col-md-8 mx-auto">
-      <div class="card border-0 shadow-lg">
-        <div class="card-header" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%); color: white;">
-          <h5 class="mb-0"><i class="fas fa-code"></i> إنشاء API</h5>
+  <div class="row g-4">
+    
+    <!-- Generator Form -->
+    <div class="col-lg-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header bg-primary text-white py-3">
+          <h5 class="mb-0 fw-bold"><i class="fas fa-cogs me-2"></i> إعدادات التوليد</h5>
         </div>
-        <div class="card-body">
+        <div class="card-body p-4">
           <form method="POST">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             
             <div class="mb-4">
-              <label class="form-label font-weight-bold">اختر الجدول</label>
-              <select name="table_name" class="custom-select form-control-modern" required>
+              <label class="form-label fw-bold">اختر الجدول المستهدف</label>
+              <select name="table_name" class="form-select form-select-lg" required>
                 <option value="">-- اختر جدول --</option>
                 {% for table in tables %}
                   <option value="{{ table }}">{{ table }}</option>
                 {% endfor %}
               </select>
+              <div class="form-text">سيتم تحليل هيكل الجدول وإنشاء الروابط المناسبة.</div>
             </div>
             
             <div class="mb-4">
-              <label class="form-label font-weight-bold">Endpoints المطلوبة</label>
-              <div class="row">
-                <div class="col-md-6">
-                  <div class="form-check mb-2">
-                    <input type="checkbox" name="endpoints" value="list" class="form-check-input" id="list" checked>
-                    <label class="form-check-label" for="list">
-                      <code>GET /api/{table}</code> - قائمة
-                    </label>
+              <label class="form-label fw-bold mb-3">العمليات المطلوبة (Endpoints)</label>
+              <div class="bg-light p-3 rounded">
+                <div class="row g-3">
+                  <div class="col-md-6">
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" name="endpoints" value="list" id="checkList" checked>
+                      <label class="form-check-label" for="checkList">
+                        <span class="badge bg-success me-1">GET</span> قائمة السجلات
+                      </label>
+                    </div>
                   </div>
-                  <div class="form-check mb-2">
-                    <input type="checkbox" name="endpoints" value="get" class="form-check-input" id="get" checked>
-                    <label class="form-check-label" for="get">
-                      <code>GET /api/{table}/{id}</code> - عرض
-                    </label>
+                  <div class="col-md-6">
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" name="endpoints" value="get" id="checkGet" checked>
+                      <label class="form-check-label" for="checkGet">
+                        <span class="badge bg-primary me-1">GET</span> سجل واحد
+                      </label>
+                    </div>
                   </div>
-                </div>
-                <div class="col-md-6">
-                  <div class="form-check mb-2">
-                    <input type="checkbox" name="endpoints" value="create" class="form-check-input" id="create">
-                    <label class="form-check-label" for="create">
-                      <code>POST /api/{table}</code> - إنشاء
-                    </label>
+                  <div class="col-md-6">
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" name="endpoints" value="create" id="checkCreate">
+                      <label class="form-check-label" for="checkCreate">
+                        <span class="badge bg-warning text-dark me-1">POST</span> إنشاء جديد
+                      </label>
+                    </div>
                   </div>
-                  <div class="form-check mb-2">
-                    <input type="checkbox" name="endpoints" value="update" class="form-check-input" id="update">
-                    <label class="form-check-label" for="update">
-                      <code>PUT /api/{table}/{id}</code> - تحديث
-                    </label>
+                  <div class="col-md-6">
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" name="endpoints" value="update" id="checkUpdate">
+                      <label class="form-check-label" for="checkUpdate">
+                        <span class="badge bg-info text-dark me-1">PUT</span> تحديث سجل
+                      </label>
+                    </div>
                   </div>
-                  <div class="form-check mb-2">
-                    <input type="checkbox" name="endpoints" value="delete" class="form-check-input" id="delete">
-                    <label class="form-check-label" for="delete">
-                      <code>DELETE /api/{table}/{id}</code> - حذف
-                    </label>
+                  <div class="col-md-6">
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" name="endpoints" value="delete" id="checkDelete">
+                      <label class="form-check-label" for="checkDelete">
+                        <span class="badge bg-danger me-1">DEL</span> حذف سجل
+                      </label>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
             
-            <button type="submit" class="btn btn-lg w-100" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%); color: white;">
-              <i class="fas fa-magic"></i> إنشاء API تلقائياً
-            </button>
+            <div class="d-grid">
+              <button type="submit" class="btn btn-primary btn-lg shadow-sm">
+                <i class="fas fa-magic me-2"></i> توليد الـ API الآن
+              </button>
+            </div>
           </form>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Documentation / Info -->
+    <div class="col-lg-6">
+      <div class="card border-0 shadow-sm h-100 bg-dark text-white">
+        <div class="card-header bg-transparent border-white border-opacity-10 py-3">
+          <h5 class="mb-0 fw-bold"><i class="fas fa-book me-2"></i> مثال على الاستخدام</h5>
+        </div>
+        <div class="card-body font-monospace">
+          <p class="text-white-50 mb-2">// طلب قائمة العملاء (مثال)</p>
+          <div class="bg-black bg-opacity-50 p-3 rounded mb-4 border border-secondary border-opacity-25">
+            <div class="text-success">GET /api/v1/customers</div>
+            <div class="text-white-50 small mt-2">Authorization: Bearer YOUR_API_KEY</div>
+          </div>
+          
+          <p class="text-white-50 mb-2">// الاستجابة المتوقعة</p>
+          <div class="bg-black bg-opacity-50 p-3 rounded border border-secondary border-opacity-25" style="max-height: 250px; overflow-y: auto;">
+<pre class="mb-0 text-info small">
+{
+  "status": "success",
+  "data": [
+    {
+      "id": 1,
+      "name": "العميل الأول",
+      "email": "client@example.com",
+      "created_at": "2023-10-27T10:00:00Z"
+    },
+    ...
+  ],
+  "meta": {
+    "page": 1,
+    "per_page": 20,
+    "total": 150
+  }
+}
+</pre>
+          </div>
+          
+          <div class="mt-4 text-center">
+            <a href="#" class="btn btn-outline-light btn-sm rounded-pill px-4">
+              <i class="fas fa-external-link-alt me-1"></i> عرض وثائق الـ API الكاملة
+            </a>
+          </div>
         </div>
       </div>
     </div>

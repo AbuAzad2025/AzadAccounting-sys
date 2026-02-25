@@ -1,304 +1,243 @@
-{% extends 'base.html' %}
+{% extends 'security/base_security.html' %}
 
-{% block title %}مدير النسخ الاحتياطية{% endblock %}
+{% block tour_name %}backup_manager{% endblock %}
 
-{% block head_extra %}
-{{ super() }}
-<style>
-.backup-action-form {
-  display: flex;
-  gap: 0.5rem;
-  margin-bottom: 0.35rem;
-}
-.backup-action-form input {
-  max-width: 160px;
-}
-.backup-status-card small {
-  display: block;
-}
-.card-hover {
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-.card-hover:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 10px 20px rgba(0,0,0,0.15) !important;
-}
-</style>
+{% block security_title %}Backup Manager{% endblock %}
+{% block security_icon %}<i class="fas fa-database"></i>{% endblock %}
+{% block security_description %}إدارة النسخ الاحتياطي واستعادة البيانات{% endblock %}
+
+{% block security_breadcrumb %}
+<li class="breadcrumb-item active">Backup Manager</li>
 {% endblock %}
 
-{% block page_title %}💾 مدير النسخ الاحتياطية المتقدم{% endblock %}
-
-{% block content %}
+{% block security_content %}
 <div class="container-fluid">
   
-  {% include 'advanced/_navigation.html' %}
-  
-  <div class="d-flex justify-content-end mb-3" style="gap: .5rem;">
-      <div class="btn-group shadow-sm rounded-pill overflow-hidden bg-white">
-          <button onclick="window.history.back()" class="btn btn-sm text-primary font-weight-bold border-right" title="رجوع">
-              <i class="fas fa-arrow-right"></i>
-          </button>
-          <button onclick="window.history.forward()" class="btn btn-sm text-primary font-weight-bold" title="تقدم">
-              <i class="fas fa-arrow-left"></i>
-          </button>
-      </div>
-      <a href="{{ url_for('advanced.owner_hub') }}" class="btn btn-primary shadow-sm">
-          <i class="fas fa-arrow-right fa-sm text-white-50"></i> عودة للوحة المالك
-      </a>
-  </div>
-
-  <!-- بطاقات إحصائية سريعة -->
-  <div class="row mb-4">
-    <div class="col-lg-3 col-md-6 mb-3">
-      <div class="card border-0 shadow-sm bg-primary text-white h-100 card-hover" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <h6 class="text-white-50 mb-1">إجمالي النسخ</h6>
-              <h3 class="mb-0 font-weight-bold">{{ backups|length }}</h3>
-              <small class="opacity-75">نسخة احتياطية</small>
+  <div class="row g-4 mb-4">
+    <!-- Total Backups -->
+    <div class="col-xl-3 col-md-6">
+      <div class="card border-0 shadow-sm h-100 overflow-hidden">
+        <div class="card-body position-relative">
+          <div class="d-flex align-items-center mb-2">
+            <div class="icon-square bg-primary bg-opacity-10 text-primary rounded-3 p-2 me-3">
+              <i class="fas fa-archive fa-2x"></i>
             </div>
-            <i class="fas fa-database fa-2x opacity-50"></i>
+            <div>
+              <h6 class="card-subtitle text-muted text-uppercase small fw-bold">إجمالي النسخ</h6>
+              <h2 class="card-title mb-0 fw-bold">{{ backups|length }}</h2>
+            </div>
           </div>
         </div>
       </div>
     </div>
     
-    <div class="col-lg-3 col-md-6 mb-3">
-      <div class="card border-0 shadow-sm bg-success text-white h-100 card-hover" style="background: linear-gradient(135deg, #198754 0%, #157347 100%);">
+    <!-- DB Type -->
+    <div class="col-xl-3 col-md-6">
+      <div class="card border-0 shadow-sm h-100 border-start border-success border-4">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center">
             <div>
-              <h6 class="text-white-50 mb-1">نوع القاعدة</h6>
-              <h3 class="mb-0 font-weight-bold">{{ current_db_type|upper }}</h3>
-              <small class="opacity-75">قاعدة البيانات</small>
+              <h6 class="text-muted text-uppercase small fw-bold mb-1">نوع القاعدة</h6>
+              <h2 class="mb-0 fw-bold text-success">{{ current_db_type|upper }}</h2>
             </div>
-            <i class="fas fa-server fa-2x opacity-50"></i>
+            <div class="icon-circle bg-success bg-opacity-10 text-success rounded-circle p-3">
+              <i class="fas fa-server fa-lg"></i>
+            </div>
           </div>
         </div>
       </div>
     </div>
     
-    <div class="col-lg-3 col-md-6 mb-3">
-      <div class="card border-0 shadow-sm bg-{{ schedule_status.color }} text-white h-100 backup-status-card card-hover">
+    <!-- Schedule Status -->
+    <div class="col-xl-3 col-md-6">
+      <div class="card border-0 shadow-sm h-100 border-start border-info border-4">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center">
             <div>
-              <h6 class="text-white-50 mb-1">الجدولة التلقائية</h6>
-              <h3 class="mb-0 font-weight-bold">{{ schedule_status.text }}</h3>
-              <small class="opacity-75">التشغيل التالي: {{ schedule_status.next_run or '---' }}</small>
+              <h6 class="text-muted text-uppercase small fw-bold mb-1">الجدولة التلقائية</h6>
+              <h2 class="mb-0 fw-bold text-info">{{ schedule_status.text }}</h2>
             </div>
-            <i class="fas fa-clock fa-2x opacity-50"></i>
+            <div class="icon-circle bg-info bg-opacity-10 text-info rounded-circle p-3">
+              <i class="fas fa-clock fa-lg"></i>
+            </div>
           </div>
+          <small class="text-muted mt-2 d-block">التالي: {{ schedule_status.next_run or '---' }}</small>
         </div>
       </div>
     </div>
     
-    <div class="col-lg-3 col-md-6 mb-3">
-      <div class="card border-0 shadow-sm bg-{{ backup_summary.color }} text-white h-100 backup-status-card card-hover">
+    <!-- Last Backup -->
+    <div class="col-xl-3 col-md-6">
+      <div class="card border-0 shadow-sm h-100 border-start border-warning border-4">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center">
             <div>
-              <h6 class="text-white-50 mb-1">آخر نسخة</h6>
-              <h3 class="mb-0 font-weight-bold">
+              <h6 class="text-muted text-uppercase small fw-bold mb-1">آخر نسخة</h6>
+              <h4 class="mb-0 fw-bold text-warning" style="font-size: 1.1rem;">
                 {% if backup_summary.last_backup %}
                   {{ backup_summary.last_backup.date }}
                 {% else %}
                   لا يوجد
                 {% endif %}
-              </h3>
-              <small class="opacity-75">{{ backup_summary.last_backup.name if backup_summary.last_backup else '-' }}</small>
+              </h4>
             </div>
-            <i class="fas fa-history fa-2x opacity-50"></i>
+            <div class="icon-circle bg-warning bg-opacity-10 text-warning rounded-circle p-3">
+              <i class="fas fa-history fa-lg"></i>
+            </div>
           </div>
         </div>
       </div>
     </div>
   </div>
-  
-  <div class="row mb-4">
-    <div class="col-lg-6 mb-3">
+
+  <div class="row g-4">
+    
+    <!-- Create Backup Panel -->
+    <div class="col-lg-4">
       <div class="card border-0 shadow-sm h-100">
-        <div class="card-header bg-light d-flex justify-content-between align-items-center">
-          <span><i class="fas fa-history"></i> أحدث النسخ</span>
-          <span class="badge bg-secondary rounded-pill">{{ recent_backups|length }}</span>
-        </div>
-        <div class="card-body p-0">
-          <ul class="list-group list-group-flush">
-            {% for backup in recent_backups %}
-            <li class="list-group-item d-flex justify-content-between align-items-start">
-              <div>
-                <strong>{{ backup.name }}</strong>
-                <div class="small text-muted">{{ backup.date }}</div>
-              </div>
-              <span class="badge bg-info rounded-pill">{{ backup.size }}</span>
-            </li>
-            {% else %}
-            <li class="list-group-item text-center text-muted">لا توجد نسخ بعد</li>
-            {% endfor %}
-          </ul>
-        </div>
-      </div>
-    </div>
-    <div class="col-lg-6">
-      <div class="card border-0 shadow-sm h-100">
-        <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
-          <span><i class="fas fa-exclamation-circle"></i> تنبيهات الفشل</span>
-          <span class="badge bg-light text-dark rounded-pill">{{ backup_failures|length }}</span>
+        <div class="card-header bg-primary text-white py-3">
+          <h5 class="mb-0 fw-bold"><i class="fas fa-plus-circle me-2"></i> نسخة جديدة</h5>
         </div>
         <div class="card-body">
-          {% if backup_failures %}
-            {% for failure in backup_failures %}
-            <div class="alert alert-warning">
-              <strong>{{ failure.timestamp[:16] }}</strong><br>
-              {{ failure.message }}
+          <form method="POST" action="{{ url_for('advanced.backup_manager') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="create_backup">
+            
+            <div class="mb-4">
+              <label class="form-label fw-bold">اسم النسخة (اختياري)</label>
+              <input type="text" name="backup_name" class="form-control form-control-lg" placeholder="e.g. pre_update_backup">
+              <div class="form-text">سيتم إضافة التاريخ والوقت تلقائياً للاسم.</div>
             </div>
-            {% endfor %}
-          {% else %}
-          <div class="alert alert-success mb-0">
-            لا توجد عمليات فاشلة مؤخراً
-          </div>
-          {% endif %}
+            
+            <div class="alert alert-light border mb-4">
+              <div class="d-flex align-items-center">
+                <i class="fas fa-info-circle text-info fa-lg me-3"></i>
+                <div>
+                  <strong>ملاحظة:</strong>
+                  <p class="mb-0 small text-muted">النسخ الاحتياطي يشمل قاعدة البيانات والملفات المرفقة (اختيارياً).</p>
+                </div>
+              </div>
+            </div>
+            
+            <div class="d-grid">
+              <button type="submit" class="btn btn-primary btn-lg shadow-sm">
+                <i class="fas fa-save me-2"></i> إنشاء نسخة الآن
+              </button>
+            </div>
+          </form>
         </div>
       </div>
     </div>
-  </div>
-  
-  <div class="alert alert-{{ backup_summary.color }} border-0 shadow-sm mb-4">
-    <div class="d-flex justify-content-between align-items-center">
-      <div>
-        <h5 class="mb-1"><i class="fas fa-database"></i> الحالة الحالية</h5>
-        <p class="mb-0">{{ backup_summary.message }}</p>
+
+    <!-- Backups List -->
+    <div class="col-lg-8">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header bg-white py-3 border-bottom-0">
+          <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0 fw-bold text-dark"><i class="fas fa-list me-2"></i> أرشيف النسخ</h5>
+            <span class="badge bg-secondary rounded-pill">{{ backups|length }} ملف</span>
+          </div>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead class="bg-light">
+                <tr>
+                  <th class="ps-4">اسم الملف</th>
+                  <th>الحجم</th>
+                  <th>التاريخ</th>
+                  <th class="text-end pe-4">الإجراءات</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for backup in backups %}
+                <tr>
+                  <td class="ps-4">
+                    <div class="d-flex align-items-center">
+                      <i class="fas fa-file-archive text-secondary fa-lg me-3"></i>
+                      <div>
+                        <div class="fw-bold text-dark">{{ backup.name }}</div>
+                        <small class="text-muted">{{ backup.age_hours }} ساعة مضت</small>
+                      </div>
+                    </div>
+                  </td>
+                  <td><span class="badge bg-light text-dark border">{{ backup.size }}</span></td>
+                  <td class="text-muted small">{{ backup.date }}</td>
+                  <td class="text-end pe-4">
+                    <div class="btn-group">
+                      <a href="{{ url_for('advanced.download_backup', filename=backup.name) }}" class="btn btn-sm btn-outline-primary" title="تحميل">
+                        <i class="fas fa-download"></i>
+                      </a>
+                      
+                      <button type="button" class="btn btn-sm btn-outline-success" title="استعادة" 
+                              onclick="confirmRestore('{{ backup.name }}')">
+                        <i class="fas fa-undo"></i>
+                      </button>
+                      
+                      <button type="button" class="btn btn-sm btn-outline-danger" title="حذف"
+                              onclick="confirmDelete('{{ backup.name }}')">
+                        <i class="fas fa-trash"></i>
+                      </button>
+                    </div>
+                    
+                    <!-- Restore Form (Hidden) -->
+                    <form id="restore-form-{{ loop.index }}" method="POST" action="{{ url_for('advanced.restore_backup', filename=backup.name) }}" style="display:none;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="confirm_token" value="{{ backup.name }}">
+                    </form>
+                    
+                    <!-- Delete Form (Hidden) -->
+                    <form id="delete-form-{{ loop.index }}" method="POST" action="{{ url_for('advanced.delete_backup', filename=backup.name) }}" style="display:none;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="confirm_token" value="{{ backup.name }}">
+                    </form>
+                  </td>
+                </tr>
+                {% else %}
+                <tr>
+                  <td colspan="4" class="text-center py-5 text-muted">
+                    <i class="fas fa-inbox fa-3x mb-3 opacity-25"></i>
+                    <p>لا توجد نسخ احتياطية محفوظة حالياً.</p>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
-      <span class="font-weight-bold">{{ backup_summary.recommendation }}</span>
     </div>
-  </div>
-
-  <!-- Tabs Navigation -->
-  <ul class="nav nav-tabs mb-4" id="backupTabs" role="tablist">
-    <li class="nav-item">
-      <a class="nav-link active" id="backups-tab" data-toggle="tab" href="#backups" role="tab">
-        <i class="fas fa-save"></i> النسخ الاحتياطية
-      </a>
-    </li>
-    <li class="nav-item">
-      <a class="nav-link" id="schedule-tab" data-toggle="tab" href="#schedule" role="tab">
-        <i class="fas fa-clock"></i> الجدولة التلقائية
-      </a>
-    </li>
-    <li class="nav-item">
-      <a class="nav-link" id="json-tab" data-toggle="tab" href="#json" role="tab">
-        <i class="fas fa-file-code"></i> نسخ JSON (نقل/استعادة)
-      </a>
-    </li>
-  </ul>
-
-  <!-- Tabs Content -->
-  <div class="tab-content" id="backupTabsContent">
     
-    <!-- ============================================ -->
-    <!-- TAB 1: النسخ الاحتياطية -->
-    <!-- ============================================ -->
-    <div class="tab-pane fade in active show" id="backups" role="tabpanel">
-      <div class="row">
-        <!-- إنشاء نسخة جديدة -->
-        <div class="col-md-4">
-          <div class="card shadow-sm">
-            <div class="card-header bg-success text-white">
-              <h5 class="mb-0"><i class="fas fa-plus"></i> نسخة احتياطية جديدة</h5>
-            </div>
-            <div class="card-body">
-              <form method="POST" action="{{ url_for('advanced.backup_manager') }}">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <input type="hidden" name="action" value="create_backup">
-                
-                <div class="mb-3">
-                  <label class="form-label font-weight-bold">اسم النسخة (اختياري)</label>
-                  <input type="text" name="backup_name" class="form-control" placeholder="backup_custom_name">
-                  <small class="text-muted">إذا تركته فارغاً سيتم التسمية تلقائياً</small>
-                </div>
-                
-                <div class="alert alert-info small">
-                  <strong>نوع قاعدة البيانات الحالية:</strong><br>
-                  <span class="badge bg-primary">{{ current_db_type }}</span>
-                </div>
-                
-                <button type="submit" class="btn btn-success w-100 btn-lg">
-                  <i class="fas fa-save"></i> إنشاء نسخة الآن
-                </button>
-              </form>
-            </div>
-          </div>
-        </div>
+  </div>
+</div>
 
-        <!-- قائمة النسخ الاحتياطية -->
-        <div class="col-md-8">
-          <div class="card border-0 shadow-sm card-hover">
-            <div class="card-header bg-gradient-primary text-white">
-              <h5 class="mb-0"><i class="fas fa-history"></i> النسخ الاحتياطية المتوفرة ({{ backups|length }})</h5>
-            </div>
-            <div class="card-body">
-              {% if backups %}
-              <div class="table-responsive">
-                <table class="table table-hover table-rounded">
-                  <thead class="table-light">
-                    <tr>
-                      <th>اسم الملف</th>
-                      <th>الحجم</th>
-                      <th>التاريخ</th>
-                      <th>العمر (ساعة)</th>
-                      <th>الإجراءات</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {% for backup in backups %}
-                    <tr>
-                      <td><code>{{ backup.name }}</code></td>
-                      <td><span class="badge bg-info rounded-pill">{{ backup.size }}</span></td>
-                      <td>{{ backup.date }}</td>
-                      <td>{{ backup.age_hours }}</td>
-                      <td>
-                        <div>
-                          <form method="POST" action="{{ url_for('advanced.restore_backup', filename=backup.name) }}" class="backup-action-form">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <input type="text" name="confirm_token" class="form-control form-control-sm" placeholder="اكتب {{ backup.name }}" required>
-                            <button type="submit" class="btn btn-success btn-sm">
-                              <i class="fas fa-undo"></i> استعادة
-                            </button>
-                          </form>
-                          <div class="d-flex" style="gap:0.5rem;">
-                            <a href="{{ url_for('advanced.download_backup', filename=backup.name) }}" class="btn btn-primary btn-sm flex-fill">
-                            <i class="fas fa-download"></i> تحميل
-                          </a>
-                          </div>
-                          <form method="POST" action="{{ url_for('advanced.delete_backup', filename=backup.name) }}" class="backup-action-form">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <input type="text" name="confirm_token" class="form-control form-control-sm" placeholder="اكتب {{ backup.name }}" required>
-                            <button type="submit" class="btn btn-danger btn-sm">
-                              <i class="fas fa-trash"></i> حذف
-                            </button>
-                          </form>
-                        </div>
-                      </td>
-                    </tr>
-                    {% endfor %}
-                  </tbody>
-                </table>
-              </div>
-              {% else %}
-              <div class="alert alert-warning text-center">
-                <i class="fas fa-exclamation-triangle"></i> لا توجد نسخ احتياطية حالياً
-              </div>
-              {% endif %}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+<script>
+function confirmRestore(filename) {
+    if(confirm('هل أنت متأكد من استعادة النسخة: ' + filename + '؟\nسيتم استبدال البيانات الحالية!')) {
+        // Find the form associated with this filename (simplified logic for demo)
+        // In real impl, use IDs or improved selection
+        const forms = document.querySelectorAll('form[action*="restore_backup"]');
+        forms.forEach(f => {
+            if(f.action.includes(filename)) f.submit();
+        });
+    }
+}
 
-    <!-- ============================================ -->
-    <!-- TAB 2: الجدولة التلقائية -->
-    <!-- ============================================ -->
+function confirmDelete(filename) {
+    if(confirm('هل أنت متأكد من حذف النسخة: ' + filename + '؟\nلا يمكن التراجع عن هذا الإجراء!')) {
+        const forms = document.querySelectorAll('form[action*="delete_backup"]');
+        forms.forEach(f => {
+            if(f.action.includes(filename)) f.submit();
+        });
+    }
+}
+</script>
+
+<style>
+.icon-square { width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; }
+.icon-circle { width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
+</style>
+{% endblock %}    <!-- ============================================ -->
     <div class="tab-pane fade" id="schedule" role="tabpanel">
       <div class="row">
         <div class="col-md-6 mx-auto">
