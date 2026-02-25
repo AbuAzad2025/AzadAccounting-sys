@@ -2,13 +2,13 @@
 {% block tour_name %}system_branding{% endblock %}
 {% block security_title %}System Branding{% endblock %}
 {% block security_icon %}<i class="fas fa-paint-brush"></i>{% endblock %}
-{% block security_description %}تخصيص الاسم والشعارات والألوان{% endblock %}
+{% block security_description %}تخصيص هوية النظام والألوان{% endblock %}
 {% block security_breadcrumb %}<li class="breadcrumb-item active">System Branding</li>{% endblock %}
 {% block security_content %}
   
   <div class="alert alert-info border-0 shadow-sm">
     <i class="fas fa-palette"></i>
-    <strong>تخصيص شامل:</strong> اسم النظام، الشعارات، الألوان، والأيقونات - كل شيء في مكان واحد
+    <strong>هوية النظام:</strong> قم بتخصيص اسم النظام وألوانه ليتناسب مع علامتك التجارية. لتغيير الشعارات، يرجى استخدام <a href="{{ url_for('security.logo_manager') }}" class="alert-link">مدير الشعارات</a>.
   </div>
 
   <form method="POST" enctype="multipart/form-data">
@@ -16,143 +16,109 @@
     
     <div class="row g-4">
       
+      <!-- System Info -->
       <div class="col-lg-6">
         <div class="card border-0 shadow-sm h-100">
           <div class="card-header bg-gradient-primary text-white">
-            <h5 class="mb-0"><i class="fas fa-tag"></i> بيانات النظام</h5>
+            <h5 class="mb-0"><i class="fas fa-tag"></i> بيانات النظام الأساسية</h5>
           </div>
           <div class="card-body">
             
             <div class="mb-3">
-              <label class="form-label fw-bold">اسم النظام</label>
+              <label class="form-label fw-bold">اسم النظام (Brand Name)</label>
               <input type="text" 
                      name="system_name" 
-                     class="form-control" 
+                     class="form-control form-control-lg" 
                      value="{{ branding.system_name }}" 
-                     placeholder="Garage Manager"
+                     placeholder="My Garage System"
                      minlength="3"
                      required>
-              <small class="text-muted">يظهر في الشريط العلوي والصفحات</small>
+              <small class="text-muted">يظهر في شريط العنوان وشاشات التحميل</small>
             </div>
             
             <div class="mb-3">
               <label class="form-label fw-bold">وصف النظام</label>
               <textarea name="system_description" 
                         class="form-control" 
-                        rows="3" 
-                        placeholder="نظام احترافي لإدارة الكراجات">{{ branding.system_description }}</textarea>
-              <small class="text-muted">يظهر في صفحة تسجيل الدخول وصفحات التعريف</small>
+                        rows="4" 
+                        placeholder="نظام متكامل لإدارة مراكز الصيانة...">{{ branding.system_description }}</textarea>
+              <small class="text-muted">يظهر في صفحة تسجيل الدخول وصفحات محركات البحث (SEO)</small>
             </div>
             
-            <div class="mb-3">
+          </div>
+        </div>
+      </div>
+      
+      <!-- Colors & Theme -->
+      <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-header bg-gradient-success text-white">
+            <h5 class="mb-0"><i class="fas fa-swatchbook"></i> الألوان والثيم</h5>
+          </div>
+          <div class="card-body">
+            
+            <div class="mb-4">
               <label class="form-label fw-bold">اللون الأساسي (Primary Color)</label>
-              <div class="input-group">
+              <div class="input-group input-group-lg">
                 <input type="color" 
                        name="primary_color" 
                        class="form-control form-control-color" 
                        value="{{ branding.primary_color }}" 
-                       title="اختر اللون الأساسي">
+                       title="اختر اللون الأساسي"
+                       style="max-width: 80px;">
                 <input type="text" 
                        class="form-control" 
                        value="{{ branding.primary_color }}" 
                        id="colorHex" 
                        readonly>
               </div>
-              <small class="text-muted">اللون الرئيسي للأزرار والعناوين</small>
+              <small class="text-muted">يستخدم للأزرار الرئيسية، الروابط النشطة، وعناوين الكروت</small>
+            </div>
+            
+            <div class="d-grid gap-2">
+                <a href="{{ url_for('security.logo_manager') }}" class="btn btn-outline-dark">
+                    <i class="fas fa-images"></i> الانتقال إلى إدارة الشعارات والأيقونات
+                </a>
             </div>
             
           </div>
         </div>
       </div>
       
-      <div class="col-lg-6">
-        <div class="card border-0 shadow-sm h-100">
-          <div class="card-header bg-gradient-success text-white">
-            <h5 class="mb-0"><i class="fas fa-images"></i> الشعارات والأيقونات</h5>
-          </div>
-          <div class="card-body">
-            
-            <div class="mb-4">
-              <label class="form-label fw-bold">الشعار الرئيسي</label>
-              <div class="mb-2 p-3 bg-light rounded text-center">
-                {% if branding.custom_logo %}
-                <img src="/{{ branding.custom_logo }}?v={{ range(1000, 9999)|random }}" 
-                     alt="Current Logo" 
-                     style="max-height: 100px; max-width: 100%;">
-                {% else %}
-                <img src="{{ url_for('static', filename='img/logo.png') }}" 
-                     alt="Default Logo" 
-                     style="max-height: 100px; max-width: 100%;">
-                {% endif %}
-              </div>
-              <input type="file" 
-                     name="logo" 
-                     class="form-control" 
-                     accept="image/png,image/jpeg,image/gif,image/webp">
-              <small class="text-muted">PNG, JPG, GIF, WEBP - يفضل خلفية شفافة</small>
-            </div>
-            
-            <div class="mb-3">
-              <label class="form-label fw-bold">الأيقونة (Favicon)</label>
-              <div class="mb-2 p-3 bg-light rounded text-center">
-                {% if branding.custom_favicon %}
-                <img src="/{{ branding.custom_favicon }}?v={{ range(1000, 9999)|random }}" 
-                     alt="Current Favicon" 
-                     style="height: 48px;">
-                {% else %}
-                <img src="{{ url_for('static', filename='img/azad_favicon.png') }}" 
-                     alt="Default Favicon" 
-                     style="height: 48px;">
-                {% endif %}
-              </div>
-              <input type="file" 
-                     name="favicon" 
-                     class="form-control" 
-                     accept="image/png,image/x-icon">
-              <small class="text-muted">PNG أو ICO - مقاس 32x32 أو 48x48</small>
-            </div>
-            
-          </div>
-        </div>
-      </div>
-      
+      <!-- Live Preview -->
       <div class="col-lg-12">
         <div class="card border-0 shadow-sm">
           <div class="card-header bg-gradient-info text-white">
-            <h5 class="mb-0"><i class="fas fa-eye"></i> معاينة التغييرات</h5>
+            <h5 class="mb-0"><i class="fas fa-eye"></i> معاينة الألوان</h5>
           </div>
           <div class="card-body">
-            <div class="row">
-              <div class="col-md-6">
-                <h6>عينة القوائم:</h6>
-                <button type="button" class="btn btn-primary mb-2 w-100" id="preview-btn-primary" onclick="alert('✅ الأزرار تعمل بشكل صحيح!')">
-                  زر باللون الأساسي
+            <div class="row align-items-center">
+              <div class="col-md-4 text-center mb-3 mb-md-0">
+                <button type="button" class="btn btn-primary btn-lg w-100 shadow-sm" id="preview-btn-primary">
+                  <i class="fas fa-check"></i> زر رئيسي
                 </button>
-                <button type="button" class="btn btn-outline-primary mb-2 w-100" onclick="alert('✅ زر منقط يعمل!')">زر منقط</button>
               </div>
-              <div class="col-md-6">
-                <h6>عينة الشارات:</h6>
-                <div>
-                  <span class="badge bg-primary ml-1">Badge</span>
-                  <span class="badge bg-success ml-1">نجاح</span>
-                  <span class="badge bg-danger ml-1">خطر</span>
-                  <span class="badge bg-warning text-dark ml-1">تحذير</span>
+              <div class="col-md-4 text-center mb-3 mb-md-0">
+                <div class="progress" style="height: 25px;">
+                    <div class="progress-bar bg-primary" id="preview-progress" role="progressbar" style="width: 75%">تقدم 75%</div>
                 </div>
+              </div>
+              <div class="col-md-4 text-center">
+                <span class="badge bg-primary fs-6 p-2" id="preview-badge">شارة (Badge)</span>
+                <span class="text-primary fw-bold ms-2" id="preview-text">نص ملون</span>
               </div>
             </div>
           </div>
         </div>
       </div>
       
+      <!-- Actions -->
       <div class="col-lg-12">
-        <div class="card border-0 shadow-sm">
-          <div class="card-body text-center">
-            <button type="submit" class="btn btn-lg btn-success px-5">
-              <i class="fas fa-save"></i> حفظ التغييرات
+        <div class="card border-0 shadow-sm bg-light">
+          <div class="card-body text-center p-4">
+            <button type="submit" class="btn btn-lg btn-success px-5 shadow">
+              <i class="fas fa-save"></i> حفظ إعدادات الهوية
             </button>
-            <a href="{{ url_for('security.index') }}" class="btn btn-lg btn-outline-secondary px-5 ms-2">
-              <i class="fas fa-times"></i> إلغاء
-            </a>
           </div>
         </div>
       </div>
@@ -164,15 +130,16 @@
 
 <script>
 document.querySelector('input[name="primary_color"]').addEventListener('input', function() {
-  document.getElementById('colorHex').value = this.value;
-  document.getElementById('preview-btn-primary').style.backgroundColor = this.value;
-  document.getElementById('preview-btn-primary').style.borderColor = this.value;
+  const color = this.value;
+  document.getElementById('colorHex').value = color;
   
-  document.querySelectorAll('.bg-primary').forEach(el => {
-    el.style.backgroundColor = this.value;
-  });
+  // Update Preview Elements
+  document.getElementById('preview-btn-primary').style.backgroundColor = color;
+  document.getElementById('preview-btn-primary').style.borderColor = color;
+  document.getElementById('preview-progress').style.backgroundColor = color;
+  document.getElementById('preview-badge').style.backgroundColor = color;
+  document.getElementById('preview-text').style.color = color;
 });
 </script>
 
 {% endblock %}
-

@@ -2065,26 +2065,55 @@ def logo_manager():
                 upload_path = os.path.join(current_app.root_path, 'static', 'img')
                 
                 logo_mapping = {
-                    'main': 'logo.png',
-                    'emblem': 'logo.png',
-                    'white': 'logo.png',
-                    'favicon': 'logo.png'
+                    'main': 'logo_main.png',
+                    'emblem': 'logo_emblem.png',
+                    'white': 'logo_white.png',
+                    'favicon': 'favicon.png'
                 }
                 
-                target_name = logo_mapping.get(logo_type, 'logo.png')
+                target_name = logo_mapping.get(logo_type, 'logo_main.png')
                 filepath = os.path.join(upload_path, target_name)
                 
+                # تحديث SystemSettings للمسار الجديد
+                key_map = {
+                    'main': 'custom_logo',
+                    'emblem': 'custom_logo_emblem',
+                    'white': 'custom_logo_white',
+                    'favicon': 'custom_favicon'
+                }
+                
+                # حفظ الملف
                 try:
                     file.save(filepath)
+                    
+                    # تحديث الإعداد
+                    setting_key = key_map.get(logo_type)
+                    if setting_key:
+                        db_setting = SystemSettings.query.filter_by(key=setting_key).first()
+                        rel_path = f"static/img/{target_name}"
+                        if db_setting:
+                            db_setting.value = rel_path
+                        else:
+                            db.session.add(SystemSettings(key=setting_key, value=rel_path))
+                        db.session.commit()
+                        
+                        # تحديث الكاش
+                        try:
+                            from extensions import cache
+                            cache.delete(f"system_setting_{setting_key}")
+                        except:
+                            pass
+
                     flash(f'✅ تم رفع {target_name} بنجاح!', 'success')
                 except Exception as e:
                     flash(f'❌ خطأ: {str(e)}', 'danger')
     
+    # استرجاع القيم الحالية من الإعدادات أو القيم الافتراضية
     logos = {
-        'main': 'logo.png',
-        'emblem': 'logo.png',
-        'white': 'logo.png',
-        'favicon': 'logo.png'
+        'main': SystemSettings.get_setting('custom_logo', 'static/img/logo.png').split('/')[-1],
+        'emblem': SystemSettings.get_setting('custom_logo_emblem', 'static/img/logo_emblem.png').split('/')[-1],
+        'white': SystemSettings.get_setting('custom_logo_white', 'static/img/logo_white.png').split('/')[-1],
+        'favicon': SystemSettings.get_setting('custom_favicon', 'static/img/favicon.png').split('/')[-1]
     }
     
     return render_template('security/logo_manager.html', logos=logos)
@@ -2236,29 +2265,60 @@ def invoice_designer():
     """محرر الفواتير - تخصيص تصميم الفواتير"""
     from models import SystemSettings
     
+    # قائمة الإعدادات المدعومة
+    supported_settings = [
+        'invoice_header_color',
+        'invoice_footer_text',
+        'invoice_header_title',
+        'invoice_terms_text',
+        'invoice_paper_size',
+        'invoice_show_logo',
+        'invoice_show_tax',
+        'invoice_show_qr',
+        'invoice_show_tax_number',
+        'invoice_show_contact'
+    ]
+
     if request.method == 'POST':
-        invoice_settings = {
-            'invoice_header_color': request.form.get('header_color'),
-            'invoice_footer_text': request.form.get('footer_text'),
-            'invoice_show_logo': request.form.get('show_logo') == 'on',
-            'invoice_show_tax': request.form.get('show_tax') == 'on',
-        }
-        
-        for key, value in invoice_settings.items():
-            setting = SystemSettings.query.filter_by(key=key).first()
-            if setting:
-                setting.value = str(value)
-            else:
-                db.session.add(SystemSettings(key=key, value=str(value)))
+        for key in supported_settings:
+            value = request.form.get(key)
+            
+            # معالجة الـ Checkboxes
+            if key.startswith('invoice_show_'):
+                value = 'True' if value == 'on' else 'False'
+            
+            # حفظ القيمة
+            if value is not None:
+                setting = SystemSettings.query.filter_by(key=key).first()
+                if setting:
+                    setting.value = str(value)
+                else:
+                    db.session.add(SystemSettings(key=key, value=str(value)))
         
         db.session.commit()
-        flash('✅ تم حفظ تصميم الفواتير', 'success')
+        
+        # مسح الكاش إذا وجد
+        try:
+            from extensions import cache
+            for key in supported_settings:
+                cache.delete(f"system_setting_{key}")
+        except:
+            pass
+            
+        flash('✅ تم حفظ تصميم الفواتير بنجاح', 'success')
         return redirect(url_for('security.invoice_designer'))
     
     settings = {}
-    for key in ['invoice_header_color', 'invoice_footer_text', 'invoice_show_logo', 'invoice_show_tax']:
+    for key in supported_settings:
         s = SystemSettings.query.filter_by(key=key).first()
-        settings[key] = s.value if s else ''
+        # تعيين قيم افتراضية ذكية
+        default_val = ''
+        if key == 'invoice_header_title': default_val = 'فاتورة ضريبية'
+        if key == 'invoice_paper_size': default_val = 'A4'
+        if key == 'invoice_header_color': default_val = '#3c8dbc'
+        if key.startswith('invoice_show_'): default_val = 'True'
+        
+        settings[key] = s.value if s else default_val
     
     return render_template('security/invoice_designer.html', settings=settings)
 

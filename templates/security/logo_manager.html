@@ -1,48 +1,135 @@
 {% extends 'security/base_security.html' %}
 {% block tour_name %}logo_manager{% endblock %}
 {% block security_title %}Logo Manager{% endblock %}
-{% block security_icon %}<i class="fas fa-image"></i>{% endblock %}
-{% block security_description %}إدارة وتحميل شعارات النظام{% endblock %}
+{% block security_icon %}<i class="fas fa-images"></i>{% endblock %}
+{% block security_description %}إدارة وتحميل شعارات النظام والأيقونات{% endblock %}
 {% block security_breadcrumb %}<li class="breadcrumb-item active">Logo Manager</li>{% endblock %}
 {% block security_content %}
 
+<div class="container-fluid">
+  
+  <div class="alert alert-info border-0 shadow-sm mb-4">
+    <div class="d-flex">
+      <div class="me-3">
+        <i class="fas fa-info-circle fa-2x"></i>
+      </div>
+      <div>
+        <h5 class="alert-heading">تعليمات الشعارات</h5>
+        <p class="mb-0">للحصول على أفضل مظهر للنظام، يرجى رفع الشعارات بالمقاسات والصيغ الموصى بها (PNG بخلفية شفافة).</p>
+      </div>
+    </div>
+  </div>
+
   <div class="row g-4">
-    {% for type, filename in logos.items() %}
-    <div class="col-md-6">
+    
+    <!-- Main Logo -->
+    <div class="col-md-6 col-lg-3">
       <div class="card border-0 shadow-sm h-100">
-        <div class="card-header bg-gradient-info text-white">
-          <h5 class="mb-0">
-            <i class="fas fa-image"></i> 
-            {% if type == 'main' %}الشعار الرئيسي
-            {% elif type == 'emblem' %}الشعار المصغر
-            {% elif type == 'white' %}الشعار الأبيض
-            {% elif type == 'favicon' %}الأيقونة
-            {% endif %}
-          </h5>
+        <div class="card-header bg-white border-bottom-0 pt-4 pb-0 text-center">
+          <h6 class="fw-bold text-uppercase text-muted">الشعار الرئيسي (Main)</h6>
         </div>
-        <div class="card-body text-center">
-          <div class="mb-3 p-4" style="background: {% if type == 'white' %}#212529{% else %}#f8f9fa{% endif %}; border-radius: 10px;">
-            <img src="{{ url_for('static', filename='img/' ~ filename) }}?v={{ range(1000, 9999)|random }}" 
-                 alt="{{ filename }}"
-                 style="max-height: 150px; max-width: 100%;">
+        <div class="card-body text-center d-flex flex-col flex-column">
+          <div class="logo-preview-box mb-3 p-4 bg-light rounded flex-grow-1 d-flex align-items-center justify-content-center" style="min-height: 150px;">
+            <img src="{{ url_for('static', filename='img/' ~ logos.main) }}?v={{ range(1000, 9999)|random }}" 
+                 alt="Main Logo" class="img-fluid" style="max-height: 80px;">
           </div>
+          <p class="small text-muted mb-3">يظهر في شريط التنقل العلوي، الفواتير، وصفحة تسجيل الدخول.</p>
           
           <form method="POST" enctype="multipart/form-data">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="logo_type" value="{{ type }}">
-            <div class="mb-3">
-              <input type="file" name="logo_file" class="form-control" accept="image/*" required>
+            <input type="hidden" name="logo_type" value="main">
+            <div class="d-grid">
+              <label class="btn btn-outline-primary btn-sm">
+                <i class="fas fa-upload"></i> تغيير الشعار
+                <input type="file" name="logo_file" hidden onchange="this.form.submit()" accept="image/*">
+              </label>
             </div>
-            <button type="submit" class="btn btn-info">
-              <i class="fas fa-upload"></i> رفع شعار جديد
-            </button>
           </form>
         </div>
       </div>
     </div>
-    {% endfor %}
-  </div>
 
+    <!-- Emblem (Collapsed) -->
+    <div class="col-md-6 col-lg-3">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header bg-white border-bottom-0 pt-4 pb-0 text-center">
+          <h6 class="fw-bold text-uppercase text-muted">الشعار المصغر (Emblem)</h6>
+        </div>
+        <div class="card-body text-center d-flex flex-col flex-column">
+          <div class="logo-preview-box mb-3 p-4 bg-light rounded flex-grow-1 d-flex align-items-center justify-content-center" style="min-height: 150px;">
+            <img src="{{ url_for('static', filename='img/' ~ logos.emblem) }}?v={{ range(1000, 9999)|random }}" 
+                 alt="Emblem" class="img-fluid" style="max-height: 60px;">
+          </div>
+          <p class="small text-muted mb-3">يظهر عندما تكون القائمة الجانبية مغلقة (Collapsed Sidebar).</p>
+          
+          <form method="POST" enctype="multipart/form-data">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="logo_type" value="emblem">
+            <div class="d-grid">
+              <label class="btn btn-outline-primary btn-sm">
+                <i class="fas fa-upload"></i> تغيير الشعار
+                <input type="file" name="logo_file" hidden onchange="this.form.submit()" accept="image/*">
+              </label>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- White Logo (Dark Mode) -->
+    <div class="col-md-6 col-lg-3">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header bg-white border-bottom-0 pt-4 pb-0 text-center">
+          <h6 class="fw-bold text-uppercase text-muted">الشعار الأبيض (White)</h6>
+        </div>
+        <div class="card-body text-center d-flex flex-col flex-column">
+          <div class="logo-preview-box mb-3 p-4 bg-dark rounded flex-grow-1 d-flex align-items-center justify-content-center" style="min-height: 150px;">
+            <img src="{{ url_for('static', filename='img/' ~ logos.white) }}?v={{ range(1000, 9999)|random }}" 
+                 alt="White Logo" class="img-fluid" style="max-height: 80px;">
+          </div>
+          <p class="small text-muted mb-3">يظهر في الوضع الليلي (Dark Mode) أو على الخلفيات الداكنة.</p>
+          
+          <form method="POST" enctype="multipart/form-data">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="logo_type" value="white">
+            <div class="d-grid">
+              <label class="btn btn-outline-light text-dark border-dark btn-sm">
+                <i class="fas fa-upload"></i> تغيير الشعار
+                <input type="file" name="logo_file" hidden onchange="this.form.submit()" accept="image/*">
+              </label>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Favicon -->
+    <div class="col-md-6 col-lg-3">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header bg-white border-bottom-0 pt-4 pb-0 text-center">
+          <h6 class="fw-bold text-uppercase text-muted">الأيقونة (Favicon)</h6>
+        </div>
+        <div class="card-body text-center d-flex flex-col flex-column">
+          <div class="logo-preview-box mb-3 p-4 bg-light rounded flex-grow-1 d-flex align-items-center justify-content-center" style="min-height: 150px;">
+            <img src="{{ url_for('static', filename='img/' ~ logos.favicon) }}?v={{ range(1000, 9999)|random }}" 
+                 alt="Favicon" class="img-fluid" style="max-height: 32px; width: 32px;">
+          </div>
+          <p class="small text-muted mb-3">أيقونة المتصفح (Browser Tab Icon). يفضل مقاس 32x32 بكسل.</p>
+          
+          <form method="POST" enctype="multipart/form-data">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="logo_type" value="favicon">
+            <div class="d-grid">
+              <label class="btn btn-outline-primary btn-sm">
+                <i class="fas fa-upload"></i> تغيير الأيقونة
+                <input type="file" name="logo_file" hidden onchange="this.form.submit()" accept="image/*">
+              </label>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+  </div>
 </div>
 {% endblock %}
-
