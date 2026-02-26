@@ -1,0 +1,239 @@
+{% extends 'security/base_security.html' %}
+
+{% block title %}إدارة ثوابت النظام{% endblock %}
+
+{% block security_content %}
+<div class="container-fluid p-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="h3 mb-0 text-gray-800"><i class="fas fa-cube me-2 text-primary"></i>إدارة ثوابت النظام</h2>
+            <p class="text-muted small mt-1">التحكم في القيم والثوابت الأساسية التي تحكم عمل النظام</p>
+        </div>
+        <div>
+            <a href="{{ url_for('security.settings_center') }}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-right me-1"></i> عودة للإعدادات
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- القائمة الجانبية للأقسام -->
+        <div class="col-md-3 mb-4">
+            <div class="card shadow-sm border-0 rounded-lg">
+                <div class="list-group list-group-flush" id="constantsTabs" role="tablist">
+                    <a class="list-group-item list-group-item-action active d-flex align-items-center p-3" 
+                       id="financial-tab" data-bs-toggle="pill" href="#financial" role="tab">
+                        <div class="icon-square bg-light text-primary rounded-3 me-3 p-2">
+                            <i class="fas fa-coins fa-lg"></i>
+                        </div>
+                        <div>
+                            <h6 class="mb-0 fw-bold">المالية والعملات</h6>
+                            <small class="text-muted">الضريبة، العملات، الكسور</small>
+                        </div>
+                    </a>
+                    <a class="list-group-item list-group-item-action d-flex align-items-center p-3" 
+                       id="system-tab" data-bs-toggle="pill" href="#system" role="tab">
+                        <div class="icon-square bg-light text-info rounded-3 me-3 p-2">
+                            <i class="fas fa-server fa-lg"></i>
+                        </div>
+                        <div>
+                            <h6 class="mb-0 fw-bold">النظام والحدود</h6>
+                            <small class="text-muted">الصفحات، الملفات، الجلسات</small>
+                        </div>
+                    </a>
+                    <a class="list-group-item list-group-item-action d-flex align-items-center p-3" 
+                       id="business-tab" data-bs-toggle="pill" href="#business" role="tab">
+                        <div class="icon-square bg-light text-success rounded-3 me-3 p-2">
+                            <i class="fas fa-briefcase fa-lg"></i>
+                        </div>
+                        <div>
+                            <h6 class="mb-0 fw-bold">قواعد العمل</h6>
+                            <small class="text-muted">المخزون، التنبيهات، العملاء</small>
+                        </div>
+                    </a>
+                </div>
+            </div>
+            
+            <div class="card shadow-sm border-0 rounded-lg mt-3 bg-gradient-primary text-white">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="fas fa-info-circle me-2"></i>ملاحظة هامة</h5>
+                    <p class="card-text small opacity-75">
+                        تغيير هذه الثوابت يؤثر فوراً على جميع عمليات النظام. يرجى توخي الحذر عند التعديل.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- محتوى الأقسام -->
+        <div class="col-md-9">
+            <form action="{{ url_for('security.update_constants') }}" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                
+                <div class="tab-content" id="constantsContent">
+                    
+                    <!-- القسم المالي -->
+                    <div class="tab-pane fade show active" id="financial" role="tabpanel">
+                        <div class="card shadow border-0 rounded-lg">
+                            <div class="card-header bg-white py-3 border-bottom">
+                                <h5 class="m-0 font-weight-bold text-primary">الثوابت المالية</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row g-4">
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold">نسبة ضريبة القيمة المضافة (%)</label>
+                                        <div class="input-group">
+                                            <input type="number" step="0.01" class="form-control" name="default_vat_rate" value="{{ constants.default_vat_rate }}">
+                                            <span class="input-group-text">%</span>
+                                        </div>
+                                        <div class="form-text">القيمة الافتراضية للضريبة على المبيعات والمشتريات.</div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold">العملة الافتراضية</label>
+                                        <select class="form-select" name="default_currency">
+                                            <option value="ILS" {% if constants.default_currency == 'ILS' %}selected{% endif %}>شيكل (ILS)</option>
+                                            <option value="USD" {% if constants.default_currency == 'USD' %}selected{% endif %}>دولار (USD)</option>
+                                            <option value="JOD" {% if constants.default_currency == 'JOD' %}selected{% endif %}>دينار (JOD)</option>
+                                            <option value="EUR" {% if constants.default_currency == 'EUR' %}selected{% endif %}>يورو (EUR)</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold">عدد الخانات العشرية للأسعار</label>
+                                        <input type="number" min="0" max="4" class="form-control" name="price_decimal_places" value="{{ constants.price_decimal_places }}">
+                                        <div class="form-text">عدد الأرقام بعد الفاصلة في عرض الأسعار (0-4).</div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold">تمكين ضريبة القيمة المضافة</label>
+                                        <div class="form-check form-switch mt-2">
+                                            <input class="form-check-input" type="checkbox" name="vat_enabled" value="true" {% if constants.vat_enabled %}checked{% endif %}>
+                                            <label class="form-check-label">تفعيل حساب الضريبة في النظام</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- قسم النظام -->
+                    <div class="tab-pane fade" id="system" role="tabpanel">
+                        <div class="card shadow border-0 rounded-lg">
+                            <div class="card-header bg-white py-3 border-bottom">
+                                <h5 class="m-0 font-weight-bold text-info">حدود وإعدادات النظام</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row g-4">
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold">عدد العناصر في الصفحة (Pagination)</label>
+                                        <input type="number" min="5" max="100" class="form-control" name="items_per_page" value="{{ constants.items_per_page }}">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold">الحد الأقصى لرفع الملفات (MB)</label>
+                                        <input type="number" min="1" max="50" class="form-control" name="max_upload_size_mb" value="{{ constants.max_upload_size_mb }}">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold">مهلة الجلسة (دقيقة)</label>
+                                        <input type="number" min="5" max="1440" class="form-control" name="session_timeout_minutes" value="{{ constants.session_timeout_minutes }}">
+                                        <div class="form-text">مدة بقاء المستخدم مسجلاً للدخول بدون نشاط.</div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold">أقصى محاولات دخول فاشلة</label>
+                                        <input type="number" min="3" max="10" class="form-control" name="max_login_attempts" value="{{ constants.max_login_attempts }}">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- قسم قواعد العمل -->
+                    <div class="tab-pane fade" id="business" role="tabpanel">
+                        <div class="card shadow border-0 rounded-lg">
+                            <div class="card-header bg-white py-3 border-bottom">
+                                <h5 class="m-0 font-weight-bold text-success">قواعد العمل والمخزون</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row g-4">
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold">الحد الأدنى للتنبيه بالمخزون</label>
+                                        <input type="number" min="0" class="form-control" name="stock_warning_threshold" value="{{ constants.stock_warning_threshold }}">
+                                        <div class="form-text">إظهار تنبيه عند وصول الكمية لهذا الرقم.</div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold">السماح بالبيع بالسالب</label>
+                                        <div class="form-check form-switch mt-2">
+                                            <input class="form-check-input" type="checkbox" name="allow_negative_stock" value="true" {% if constants.allow_negative_stock %}checked{% endif %}>
+                                            <label class="form-check-label">السماح بإتمام البيع حتى لو الكمية 0</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold">تفعيل نظام النقاط/الولاء</label>
+                                        <div class="form-check form-switch mt-2">
+                                            <input class="form-check-input" type="checkbox" name="enable_loyalty_points" value="true" {% if constants.enable_loyalty_points %}checked{% endif %}>
+                                            <label class="form-check-label">تفعيل</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold">تنسيق التاريخ</label>
+                                        <select class="form-select" name="date_format">
+                                            <option value="YYYY-MM-DD" {% if constants.date_format == 'YYYY-MM-DD' %}selected{% endif %}>YYYY-MM-DD (2025-12-31)</option>
+                                            <option value="DD/MM/YYYY" {% if constants.date_format == 'DD/MM/YYYY' %}selected{% endif %}>DD/MM/YYYY (31/12/2025)</option>
+                                            <option value="MM/DD/YYYY" {% if constants.date_format == 'MM/DD/YYYY' %}selected{% endif %}>MM/DD/YYYY (12/31/2025)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <div class="d-flex justify-content-end mt-4 pt-3 border-top">
+                    <button type="submit" class="btn btn-primary px-5 py-2 shadow">
+                        <i class="fas fa-save me-2"></i> حفظ التغييرات
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+    .icon-square {
+        width: 48px;
+        height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .list-group-item.active {
+        background-color: #f8f9fa;
+        color: #212529;
+        border-color: #dee2e6;
+        border-left: 4px solid var(--bs-primary);
+    }
+    .list-group-item.active .icon-square {
+        background-color: var(--bs-primary) !important;
+        color: white !important;
+    }
+</style>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    // Function to activate tab based on hash
+    function activateTabFromHash() {
+        var hash = window.location.hash;
+        if (hash) {
+            var triggerEl = document.querySelector('a[href="' + hash + '"]');
+            if (triggerEl) {
+                var tab = new bootstrap.Tab(triggerEl);
+                tab.show();
+            }
+        }
+    }
+
+    // Activate on load
+    activateTabFromHash();
+
+    // Activate on hash change (if user clicks back/forward or modifies URL manually)
+    window.addEventListener('hashchange', activateTabFromHash);
+});
+</script>
+{% endblock %}

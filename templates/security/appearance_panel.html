@@ -1,0 +1,138 @@
+{% extends 'security/base_security.html' %}
+
+{% block security_title %}مظهر النظام (Appearance){% endblock %}
+{% block security_icon %}<i class="fas fa-palette"></i>{% endblock %}
+{% block security_description %}التحكم الكامل في الألوان، الخطوط، واللغة للنظام{% endblock %}
+
+{% block security_breadcrumb %}
+<li class="breadcrumb-item active">Appearance</li>
+{% endblock %}
+
+{% block security_content %}
+<div class="row">
+    <!-- Main Colors & Theme -->
+    <div class="col-md-8 mb-4">
+        <div class="sec-card h-100">
+            <div class="sec-card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-bold"><i class="fas fa-swatchbook text-primary me-2"></i> ألوان النظام (Theme Colors)</h5>
+                <span class="badge badge-soft-primary">Live Preview</span>
+            </div>
+            <div class="sec-card-body">
+                <form method="POST" action="{{ url_for('security.update_appearance') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="section" value="colors">
+                    
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold small text-muted">Primary Color (اللون الأساسي)</label>
+                            <div class="input-group">
+                                <input type="color" class="form-control form-control-color" id="primaryColorInput" name="primary_color" value="{{ appearance.primary_color }}" title="Choose your color">
+                                <input type="text" class="form-control" id="primaryColorText" value="{{ appearance.primary_color }}" readonly>
+                            </div>
+                            <div class="form-text small">يستخدم للأزرار الرئيسية، الروابط، والعناوين النشطة.</div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold small text-muted">Sidebar Background (القائمة الجانبية)</label>
+                            <div class="input-group">
+                                <input type="color" class="form-control form-control-color" name="sidebar_bg" value="{{ appearance.sidebar_bg }}" title="Choose color">
+                                <input type="text" class="form-control" value="{{ appearance.sidebar_bg }}" readonly>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold small text-muted">Success Color (النجاح)</label>
+                            <div class="input-group">
+                                <input type="color" class="form-control form-control-color" name="success_color" value="{{ appearance.success_color }}" title="Choose color">
+                                <input type="text" class="form-control" value="{{ appearance.success_color }}" readonly>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold small text-muted">Danger Color (الخطر)</label>
+                            <div class="input-group">
+                                <input type="color" class="form-control form-control-color" name="danger_color" value="{{ appearance.danger_color }}" title="Choose color">
+                                <input type="text" class="form-control" value="{{ appearance.danger_color }}" readonly>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr class="my-4">
+
+                    <h6 class="fw-bold mb-3"><i class="fas fa-font text-secondary me-2"></i> الخطوط واللغة (Fonts & Language)</h6>
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold small text-muted">نوع الخط (Font Family)</label>
+                            <select class="form-select" name="font_family">
+                                <option value="'Inter', sans-serif" {% if appearance.font_family == "'Inter', sans-serif" %}selected{% endif %}>Inter (Modern)</option>
+                                <option value="'Tajawal', sans-serif" {% if appearance.font_family == "'Tajawal', sans-serif" %}selected{% endif %}>Tajawal (Arabic Standard)</option>
+                                <option value="'Cairo', sans-serif" {% if appearance.font_family == "'Cairo', sans-serif" %}selected{% endif %}>Cairo (Geometric)</option>
+                                <option value="'Almarai', sans-serif" {% if appearance.font_family == "'Almarai', sans-serif" %}selected{% endif %}>Almarai (Clean)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold small text-muted">لغة النظام الافتراضية</label>
+                            <select class="form-select" name="default_language">
+                                <option value="ar" {% if appearance.default_language == 'ar' %}selected{% endif %}>العربية (Arabic)</option>
+                                <option value="en" {% if appearance.default_language == 'en' %}selected{% endif %}>English</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 text-end">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-2"></i> حفظ التغييرات
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Preview Card -->
+    <div class="col-md-4 mb-4">
+        <div class="sec-card h-100">
+            <div class="sec-card-header bg-white py-3 border-bottom">
+                <h5 class="mb-0 fw-bold"><i class="fas fa-eye text-info me-2"></i> معاينة حية (Preview)</h5>
+            </div>
+            <div class="sec-card-body">
+                <div class="p-3 border rounded mb-3" style="background-color: #f8f9fa;">
+                    <div class="mb-2">
+                        <button class="btn btn-primary w-100 mb-2" id="previewBtnPrimary">Primary Button</button>
+                        <button class="btn btn-success w-100 mb-2" id="previewBtnSuccess">Success Button</button>
+                        <button class="btn btn-danger w-100" id="previewBtnDanger">Danger Button</button>
+                    </div>
+                    <div class="alert alert-info mt-3">
+                        <i class="fas fa-info-circle"></i> This is how alerts will look.
+                    </div>
+                    <div class="card mt-3">
+                        <div class="card-body">
+                            <h5 class="card-title text-primary" id="previewTitle">Card Title</h5>
+                            <p class="card-text">Sample text to demonstrate font rendering.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="alert alert-warning border-0 shadow-sm">
+                    <small><i class="fas fa-lightbulb me-1"></i> التغييرات تنعكس فوراً على المتغيرات (CSS Variables) للنظام بأكمله.</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Live Preview Logic
+    const primaryInput = document.getElementById('primaryColorInput');
+    const primaryText = document.getElementById('primaryColorText');
+    const previewBtnPrimary = document.getElementById('previewBtnPrimary');
+    const previewTitle = document.getElementById('previewTitle');
+
+    primaryInput.addEventListener('input', (e) => {
+        const color = e.target.value;
+        primaryText.value = color;
+        previewBtnPrimary.style.backgroundColor = color;
+        previewBtnPrimary.style.borderColor = color;
+        previewTitle.style.color = color;
+    });
+</script>
+{% endblock %}

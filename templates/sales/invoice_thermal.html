@@ -1,0 +1,125 @@
+{% extends "base_print.html" %}
+{% block title %}إيصال مبيعات{% endblock %}
+
+{% block head_extra %}
+<style>
+    @page { 
+        size: {{ settings.thermal_paper_size if settings else '80mm' }} auto; 
+        margin: 0;
+    }
+    body {
+        font-family: 'Cairo', 'Tajawal', sans-serif;
+        width: {{ '72mm' if settings.thermal_paper_size == '80mm' else '48mm' }};
+        margin: 0 auto;
+        padding: 5px;
+        font-size: {{ '12px' if settings.thermal_font_size == 'normal' else ('14px' if settings.thermal_font_size == 'large' else '10px') }};
+        line-height: 1.2;
+    }
+    .header { text-align: center; margin-bottom: 10px; border-bottom: 1px dashed #000; padding-bottom: 5px; }
+    .logo { max-width: 60%; height: auto; margin-bottom: 5px; }
+    .meta { display: flex; justify-content: space-between; font-size: 0.9em; margin-bottom: 5px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+    th { text-align: right; border-bottom: 1px solid #000; padding: 2px 0; }
+    td { padding: 2px 0; vertical-align: top; }
+    .qty { width: 15%; text-align: center; }
+    .price { width: 25%; text-align: left; }
+    .item { width: 60%; }
+    .totals { border-top: 1px dashed #000; padding-top: 5px; margin-top: 5px; }
+    .row { display: flex; justify-content: space-between; margin-bottom: 2px; }
+    .total-row { font-weight: bold; font-size: 1.1em; border-top: 1px solid #000; padding-top: 2px; margin-top: 2px; }
+    .footer { text-align: center; margin-top: 10px; border-top: 1px dashed #000; padding-top: 5px; font-size: 0.9em; }
+    .qr-code { margin: 10px auto; display: block; max-width: 120px; }
+    .barcode { margin: 5px auto; display: block; max-width: 90%; height: 30px; }
+    
+    @media print {
+        .no-print { display: none; }
+        body { margin: 0; padding: 0; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="header">
+    {% if settings.invoice_logo_visibility == 'show' %}
+    <img src="{{ get_setting('custom_logo') or url_for('static', filename='img/logo.png') }}" class="logo">
+    {% endif %}
+    <div style="font-weight: bold; font-size: 1.2em;">{{ get_setting('company_name', 'الشركة') }}</div>
+    <div>{{ get_setting('company_phone', '') }}</div>
+    <div>{{ get_setting('company_address', '') }}</div>
+</div>
+
+<div class="meta">
+    <span>#{{ sale.sale_number or sale.id }}</span>
+    <span>{{ sale.sale_date.strftime('%Y-%m-%d %H:%M') }}</span>
+</div>
+<div class="meta">
+    <span>العميل: {{ sale.customer.name if sale.customer else 'نقدي' }}</span>
+</div>
+
+<table>
+    <thead>
+        <tr>
+            <th class="item">الصنف</th>
+            <th class="qty">العدد</th>
+            <th class="price">السعر</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for line in lines %}
+        <tr>
+            <td class="item">
+                {{ line.obj.product.name }}
+                {% if settings.thermal_show_sku and line.obj.product.sku %}
+                <br><small>{{ line.obj.product.sku }}</small>
+                {% endif %}
+            </td>
+            <td class="qty">{{ line.obj.quantity|int }}</td>
+            <td class="price">{{ "{:,.2f}".format(line.gross_total) }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<div class="totals">
+    <div class="row">
+        <span>المجموع الفرعي</span>
+        <span>{{ "{:,.2f}".format(subtotal) }}</span>
+    </div>
+    {% if sale_discount_total > 0 %}
+    <div class="row">
+        <span>الخصم</span>
+        <span>-{{ "{:,.2f}".format(sale_discount_total) }}</span>
+    </div>
+    {% endif %}
+    {% if invoice_tax_amount > 0 %}
+    <div class="row">
+        <span>الضريبة ({{ sale_tax_rate }}%)</span>
+        <span>{{ "{:,.2f}".format(invoice_tax_amount) }}</span>
+    </div>
+    {% endif %}
+    <div class="row total-row">
+        <span>الإجمالي النهائي</span>
+        <span>{{ "{:,.2f}".format(grand_total) }} {{ sale.currency }}</span>
+    </div>
+</div>
+
+{% if qr_code_base64 %}
+<img src="{{ qr_code_base64 }}" class="qr-code">
+{% endif %}
+
+<div class="footer">
+    {% if barcode_base64 %}
+    <img src="{{ barcode_base64 }}" class="barcode">
+    {% endif %}
+    <div style="margin-top: 5px;">{{ settings.invoice_footer_text }}</div>
+    <div style="margin-top: 5px;">شكراً لزيارتكم</div>
+</div>
+
+{% if settings.thermal_auto_print %}
+<script>
+    window.onload = function() {
+        window.print();
+    }
+</script>
+{% endif %}
+{% endblock %}

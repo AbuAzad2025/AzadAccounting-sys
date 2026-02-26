@@ -971,13 +971,62 @@ def system_cleanup():
                 flash('❌ اختر جدول واحد على الأقل', 'danger')
             else:
                 try:
-                    # Assuming _cleanup_tables is defined in this scope or imported
-                    # It seems to be a helper function in this file, but I don't see it imported or defined in the snippet.
-                    # It might be defined later in the file or imported from elsewhere.
-                    # Based on previous read, it was called directly: result = _cleanup_tables(tables)
-                    # So it must be available.
                     result = _cleanup_tables(tables)
-                    flash(f'✅ تم تنظيف {result["cleaned"]} جدول', 'success')
+                    
+                    # إذا تم تحديد جميع الجداول (تصفير شامل)، نقوم بتشغيل سكريبتات التهيئة
+                    is_full_reset = len(tables) >= 50 or 'users' in tables or 'users_except_first_super' in tables
+                    
+                    if is_full_reset:
+                        try:
+                            # استدعاء دالة التهيئة وإعادة البذر (Seed)
+                            from post_reset_scripts.clean_and_seed import clean_and_seed
+                            # ملاحظة: clean_and_seed تقوم بحذف الجداول وإنشائها من جديد، 
+                            # ولكن بما أننا قمنا للتو بتنظيف الجداول يدوياً عبر _cleanup_tables،
+                            # قد نحتاج فقط لتشغيل الـ seeds.
+                            # ومع ذلك، لضمان نظافة كاملة، يمكننا الاعتماد على clean_and_seed إذا كان الهدف هو تصفير شامل.
+                            
+                            # ولكن clean_and_seed مصممة للعمل كسكربت مستقل يقوم بـ drop_all.
+                            # هنا نحن داخل تطبيق Flask قيد التشغيل، لذا drop_all قد تسبب مشاكل.
+                            # الأفضل هو تشغيل الـ seeding logic فقط.
+                            
+                            from app import bootstrap_database
+                            bootstrap_database()
+                            
+                            # تشغيل السكريبتات الموجودة في post_reset_scripts
+                            import glob
+                            import importlib.util
+                            
+                            post_reset_dir = os.path.join(current_app.root_path, 'post_reset_scripts')
+                            if os.path.exists(post_reset_dir):
+                                script_files = glob.glob(os.path.join(post_reset_dir, '*.py'))
+                                for script_file in sorted(script_files):
+                                    script_name = os.path.basename(script_file)
+                                    if script_name.startswith('__') or script_name == 'clean_and_seed.py': 
+                                        continue
+                                        
+                                    try:
+                                        spec = importlib.util.spec_from_file_location(f"post_reset_{script_name[:-3]}", script_file)
+                                        module = importlib.util.module_from_spec(spec)
+                                        spec.loader.exec_module(module)
+                                        
+                                        if hasattr(module, 'seed_permissions'):
+                                            module.seed_permissions(current_app)
+                                        elif hasattr(module, 'seed_accounts'):
+                                            module.seed_accounts(current_app)
+                                        elif hasattr(module, 'seed'):
+                                            module.seed(current_app)
+                                        elif hasattr(module, 'run'):
+                                            module.run(current_app)
+                                    except Exception as seed_err:
+                                        current_app.logger.error(f"Seed error {script_name}: {seed_err}")
+                                        
+                            flash(f'✅ تم تنظيف {result["cleaned"]} جدول وإعادة تهيئة النظام بنجاح', 'success')
+                        except Exception as e:
+                            current_app.logger.error(f"Reset Error: {e}")
+                            flash(f'✅ تم التنظيف ولكن حدث خطأ في التهيئة: {e}', 'warning')
+                    else:
+                        flash(f'✅ تم تنظيف {result["cleaned"]} جدول', 'success')
+                        
                 except Exception as e:
                     flash(f'❌ حدث خطأ أثناء التنظيف: {e}', 'danger')
             return redirect(url_for('security.system_cleanup', tab='reset'))

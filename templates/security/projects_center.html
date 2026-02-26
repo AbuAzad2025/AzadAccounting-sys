@@ -1,0 +1,194 @@
+{% extends 'security/base_security.html' %}
+
+{% block security_title %}Projects Command Center{% endblock %}
+{% block security_description %}Comprehensive Project Management & Tracking{% endblock %}
+
+{% block security_breadcrumb %}
+<li class="breadcrumb-item active">Projects Center</li>
+{% endblock %}
+
+{% block security_content %}
+<!-- Stats Grid -->
+<div class="row g-4 mb-4">
+    <div class="col-md-6 col-xl-3">
+        <div class="sec-card animate-fade-in" style="animation-delay: 0.1s;">
+            <div class="sec-card-body d-flex align-items-center">
+                <div class="rounded-circle bg-primary bg-opacity-10 p-3 text-primary me-3">
+                    <i class="fas fa-folder fa-lg"></i>
+                </div>
+                <div>
+                    <h6 class="text-muted text-uppercase small fw-bold mb-1">Total Projects</h6>
+                    <h3 class="mb-0 fw-bold">{{ stats.total }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <div class="sec-card animate-fade-in" style="animation-delay: 0.2s;">
+            <div class="sec-card-body d-flex align-items-center">
+                <div class="rounded-circle bg-success bg-opacity-10 p-3 text-success me-3">
+                    <i class="fas fa-play fa-lg"></i>
+                </div>
+                <div>
+                    <h6 class="text-muted text-uppercase small fw-bold mb-1">Active</h6>
+                    <h3 class="mb-0 fw-bold">{{ stats.active }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <div class="sec-card animate-fade-in" style="animation-delay: 0.3s;">
+            <div class="sec-card-body d-flex align-items-center">
+                <div class="rounded-circle bg-warning bg-opacity-10 p-3 text-warning me-3">
+                    <i class="fas fa-clock fa-lg"></i>
+                </div>
+                <div>
+                    <h6 class="text-muted text-uppercase small fw-bold mb-1">Delayed</h6>
+                    <h3 class="mb-0 fw-bold">{{ stats.delayed }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <div class="sec-card animate-fade-in" style="animation-delay: 0.4s;">
+            <div class="sec-card-body d-flex align-items-center">
+                <div class="rounded-circle bg-info bg-opacity-10 p-3 text-info me-3">
+                    <i class="fas fa-check-circle fa-lg"></i>
+                </div>
+                <div>
+                    <h6 class="text-muted text-uppercase small fw-bold mb-1">Completed</h6>
+                    <h3 class="mb-0 fw-bold">{{ stats.completed }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="sec-card">
+    <div class="sec-card-header bg-white py-3 d-flex justify-content-between align-items-center">
+        <h5 class="mb-0 fw-bold"><i class="fas fa-list text-primary me-2"></i> Master Project List</h5>
+        <div class="btn-group">
+            <button class="btn btn-outline-secondary btn-sm" onclick="location.reload()">
+                <i class="fas fa-sync"></i> Refresh
+            </button>
+        </div>
+    </div>
+    <div class="sec-card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" id="projectsTable">
+                <thead class="bg-light">
+                    <tr>
+                        <th class="ps-4">#</th>
+                        <th>Project Name</th>
+                        <th>Customer</th>
+                        <th>Status</th>
+                        <th>Progress</th>
+                        <th>Start Date</th>
+                        <th>Deadline</th>
+                        <th>Budget</th>
+                        <th class="text-end pe-4">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for project in projects %}
+                    <tr>
+                        <td class="ps-4 text-muted">{{ project.id }}</td>
+                        <td class="fw-bold text-dark">{{ project.name }}</td>
+                        <td>
+                            {% if project.customer %}
+                                <a href="{{ url_for('customers_bp.customer_detail', customer_id=project.customer_id) }}" class="text-decoration-none" target="_blank">
+                                    {{ project.customer.name }}
+                                </a>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge badge-soft-{{ project.status_color }}">{{ project.status|title }}</span>
+                        </td>
+                        <td style="width: 15%;">
+                            <div class="d-flex align-items-center">
+                                <span class="me-2 small text-muted">{{ project.progress }}%</span>
+                                <div class="progress flex-grow-1" style="height: 6px;">
+                                    <div class="progress-bar bg-{{ project.status_color }}" role="progressbar" 
+                                         style="width: {{ project.progress }}%;" 
+                                         aria-valuenow="{{ project.progress }}" aria-valuemin="0" aria-valuemax="100">
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="small text-muted">{{ project.start_date|format_date }}</td>
+                        <td class="small">
+                            {% if project.end_date %}
+                                <span class="{{ 'text-danger fw-bold' if project.is_delayed else 'text-muted' }}">
+                                    {{ project.end_date|format_date }}
+                                </span>
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td class="font-monospace small">{{ project.budget|format_currency }}</td>
+                        <td class="text-end pe-4">
+                            <div class="btn-group btn-group-sm">
+                                <a href="{{ url_for('projects.view_project', project_id=project.id) }}" class="btn btn-light text-primary" target="_blank" title="View">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                <button class="btn btn-light text-warning" onclick="forceStatus('{{ project.id }}', 'completed')" title="Force Complete">
+                                    <i class="fas fa-check"></i>
+                                </button>
+                                <button class="btn btn-light text-danger" onclick="deleteProject('{{ project.id }}')" title="Delete">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="9" class="text-center py-5 text-muted">
+                            <i class="fas fa-folder-open fa-3x mb-3 text-light"></i>
+                            <p class="mb-0">No projects found in the system.</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    function forceStatus(id, status) {
+        if(!confirm('Are you sure you want to forcibly change the project status?')) return;
+        
+        fetch(`/security/api/projects/${id}/status`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token() }}'
+            },
+            body: JSON.stringify({ status: status })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if(data.success) location.reload();
+            else alert('Error: ' + data.error);
+        });
+    }
+
+    function deleteProject(id) {
+        if(!confirm('WARNING: This will permanently delete the project and all related data. Continue?')) return;
+        
+        fetch(`/security/api/projects/${id}`, {
+            method: 'DELETE',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token() }}'
+            }
+        })
+        .then(r => r.json())
+        .then(data => {
+            if(data.success) location.reload();
+            else alert('Error: ' + data.error);
+        });
+    }
+</script>
+{% endblock %}

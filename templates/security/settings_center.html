@@ -2,12 +2,12 @@
 
 {% block tour_name %}settings_center{% endblock %}
 
-{% block security_title %}Settings & Customization Center{% endblock %}
+{% block security_title %}مركز الإعدادات والتخصيص{% endblock %}
 {% block security_icon %}<i class="fas fa-cogs"></i>{% endblock %}
 {% block security_description %}إعدادات شاملة • ثيمات • مظهر • علامة تجارية • فروع{% endblock %}
 
 {% block security_breadcrumb %}
-<li class="breadcrumb-item active">Settings Center</li>
+<li class="breadcrumb-item active">مركز الإعدادات</li>
 {% if active_tab %}
 <li class="breadcrumb-item active">{{ active_tab|title }}</li>
 {% endif %}
@@ -347,7 +347,7 @@
                   <div class="card border-primary">
                     <div class="card-body text-center">
                       <i class="fab fa-css3-alt fa-3x text-primary mb-3"></i>
-                      <h6>CSS Themes</h6>
+                      <h6>أنماط CSS</h6>
                       <p class="small text-muted">تعديل الأنماط</p>
                     </div>
                   </div>
@@ -356,7 +356,7 @@
                   <div class="card border-warning">
                     <div class="card-body text-center">
                       <i class="fab fa-html5 fa-3x text-warning mb-3"></i>
-                      <h6>HTML Templates</h6>
+                      <h6>قوالب HTML</h6>
                       <p class="small text-muted">تعديل القوالب</p>
                     </div>
                   </div>
@@ -365,7 +365,7 @@
                   <div class="card border-success">
                     <div class="card-body text-center">
                       <i class="fab fa-js fa-3x text-success mb-3"></i>
-                      <h6>JavaScript</h6>
+                      <h6>جافا سكريبت</h6>
                       <p class="small text-muted">تعديل السكريبتات</p>
                     </div>
                   </div>
@@ -410,14 +410,14 @@
                 <div class="col-md-6">
                   <div class="card border-info">
                     <div class="card-header bg-info text-white">
-                      <h6 class="mb-0"><i class="fas fa-star"></i> Favicon</h6>
+                      <h6 class="mb-0"><i class="fas fa-star"></i> أيقونة الموقع (Favicon)</h6>
                     </div>
                     <div class="card-body text-center">
                       {% if branding_settings and branding_settings.custom_favicon %}
-                        <img src="{{ branding_settings.custom_favicon }}" alt="Favicon" class="img-thumbnail mb-2" style="max-height: 64px;">
+                        <img src="{{ branding_settings.custom_favicon }}" alt="أيقونة الموقع" class="img-thumbnail mb-2" style="max-height: 64px;">
                       {% else %}
                         <i class="fas fa-star fa-4x text-muted mb-3"></i>
-                        <p class="text-muted">لم يتم رفع Favicon</p>
+                        <p class="text-muted">لم يتم رفع أيقونة الموقع</p>
                       {% endif %}
                     </div>
                   </div>

@@ -1383,9 +1383,9 @@ def create_app(config_object=Config) -> Flask:
             }
 
             cache.set(cache_key, settings, timeout=1800)
-            return dict(system_settings=settings)
+            return dict(system_settings=settings, system_appearance=system_appearance)
         except Exception:
-            return dict(system_settings={})
+            return dict(system_settings={}, system_appearance={})
     
     @app.before_request
     def check_maintenance_mode():

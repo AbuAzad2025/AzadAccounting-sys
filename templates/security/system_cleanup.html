@@ -248,12 +248,17 @@
         <!-- Reset Tab (Functional) -->
         <div class="tab-pane fade {{ 'show active' if request.args.get('tab') == 'reset' else '' }}" id="reset" role="tabpanel">
             <div class="alert alert-danger mb-4 shadow-sm">
-                <div class="d-flex">
-                    <div class="mr-3"><i class="fas fa-exclamation-triangle fa-2x"></i></div>
-                    <div>
-                        <h5 class="alert-heading font-weight-bold">منطقة الخطر - حذف البيانات</h5>
-                        <p class="mb-0">هذه الأدوات تقوم بحذف البيانات بشكل نهائي. لا يمكن التراجع عن هذه العملية. يرجى أخذ نسخة احتياطية قبل المتابعة.</p>
+                <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex">
+                        <div class="mr-3"><i class="fas fa-exclamation-triangle fa-2x"></i></div>
+                        <div>
+                            <h5 class="alert-heading font-weight-bold">منطقة الخطر - تصفير النظام (Factory Reset)</h5>
+                            <p class="mb-0">هذه الأدوات تقوم بحذف البيانات بشكل نهائي. لا يمكن التراجع عن هذه العملية.</p>
+                        </div>
                     </div>
+                    <button type="button" class="btn btn-outline-danger font-weight-bold pulse-button" onclick="selectAllTables()">
+                        <i class="fas fa-radiation-alt ml-1"></i> تصفير شامل (تحديد الكل)
+                    </button>
                 </div>
             </div>
 
@@ -335,15 +340,53 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Select all handler
+    // Select all handler for categories
     document.querySelectorAll('.select-all-cat').forEach(cb => {
         cb.addEventListener('change', function() {
             const catId = this.dataset.cat;
-            document.querySelectorAll('.cat-check-' + catId).forEach(item => {
-                item.checked = this.checked;
-            });
+            // Find the parent card body to limit scope (optional but safer)
+            const card = this.closest('.card');
+            if (card) {
+                card.querySelectorAll('input[type="checkbox"][name="tables"]').forEach(item => {
+                    item.checked = this.checked;
+                });
+            }
         });
     });
 });
+
+function selectAllTables() {
+    // Open all accordions
+    $('.collapse').collapse('show');
+    
+    // Check all checkboxes
+    document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+        cb.checked = true;
+    });
+    
+    // Focus on confirmation input
+    document.querySelector('input[name="confirm"]').focus();
+    document.querySelector('input[name="confirm"]').scrollIntoView({behavior: 'smooth', block: 'center'});
+    
+    // Alert user
+    alert('⚠️ تم تحديد جميع الجداول!\n\nسيتم حذف جميع البيانات وإعادة النظام لحالة المصنع.\n(سيتم الاحتفاظ بأول مدير نظام فقط)');
+}
 </script>
+
+<style>
+.pulse-button {
+    animation: pulse 2s infinite;
+}
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 10px rgba(220, 53, 69, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(220, 53, 69, 0);
+    }
+}
+</style>
 {% endblock %}

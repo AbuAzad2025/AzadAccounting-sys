@@ -1,0 +1,190 @@
+{% extends 'base.html' %}
+{% block title %}تحسين قاعدة البيانات{% endblock %}
+{% block page_title %}🗄️ تحسين وصيانة قاعدة البيانات{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  
+  {% include 'advanced/_navigation.html' %}
+  
+  <div class="d-flex justify-content-end mb-3" style="gap: .5rem;">
+      <div class="btn-group shadow-sm rounded-pill overflow-hidden bg-white">
+          <button onclick="window.history.back()" class="btn btn-sm text-primary font-weight-bold border-right" title="رجوع">
+              <i class="fas fa-arrow-right"></i>
+          </button>
+          <button onclick="window.history.forward()" class="btn btn-sm text-primary font-weight-bold" title="تقدم">
+              <i class="fas fa-arrow-left"></i>
+          </button>
+      </div>
+      <a href="{{ url_for('advanced.owner_hub') }}" class="btn btn-primary shadow-sm">
+          <i class="fas fa-arrow-right fa-sm text-white-50"></i> عودة للوحة المالك
+      </a>
+  </div>
+
+  <div class="row mb-4">
+      <div class="col-xl-3 col-md-6 mb-4">
+          <div class="card border-left-primary shadow h-100 py-2">
+              <div class="card-body">
+                  <div class="row no-gutters align-items-center">
+                      <div class="col mr-2">
+                          <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">حجم القاعدة</div>
+                          <div class="h5 mb-0 font-weight-bold text-gray-800">{{ db_stats.size }}</div>
+                      </div>
+                      <div class="col-auto">
+                          <i class="fas fa-database fa-2x text-gray-300"></i>
+                      </div>
+                  </div>
+              </div>
+          </div>
+      </div>
+      
+      <div class="col-xl-3 col-md-6 mb-4">
+          <div class="card border-left-success shadow h-100 py-2">
+              <div class="card-body">
+                  <div class="row no-gutters align-items-center">
+                      <div class="col mr-2">
+                          <div class="text-xs font-weight-bold text-success text-uppercase mb-1">عدد الجداول</div>
+                          <div class="h5 mb-0 font-weight-bold text-gray-800">{{ db_stats.table_count }}</div>
+                      </div>
+                      <div class="col-auto">
+                          <i class="fas fa-table fa-2x text-gray-300"></i>
+                      </div>
+                  </div>
+              </div>
+          </div>
+      </div>
+
+      <div class="col-xl-3 col-md-6 mb-4">
+          <div class="card border-left-info shadow h-100 py-2">
+              <div class="card-body">
+                  <div class="row no-gutters align-items-center">
+                      <div class="col mr-2">
+                          <div class="text-xs font-weight-bold text-info text-uppercase mb-1">مساحة الفهارس</div>
+                          <div class="h5 mb-0 font-weight-bold text-gray-800">{{ db_stats.index_size|default('N/A') }}</div>
+                      </div>
+                      <div class="col-auto">
+                          <i class="fas fa-list-ol fa-2x text-gray-300"></i>
+                      </div>
+                  </div>
+              </div>
+          </div>
+      </div>
+
+      <div class="col-xl-3 col-md-6 mb-4">
+          <div class="card border-left-warning shadow h-100 py-2">
+              <div class="card-body">
+                  <div class="row no-gutters align-items-center">
+                      <div class="col mr-2">
+                          <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">حالة الانتفاخ (Bloat)</div>
+                          <div class="h5 mb-0 font-weight-bold text-gray-800">{{ db_stats.bloat_ratio|default('0') }}%</div>
+                      </div>
+                      <div class="col-auto">
+                          <i class="fas fa-compress-arrows-alt fa-2x text-gray-300"></i>
+                      </div>
+                  </div>
+              </div>
+          </div>
+      </div>
+  </div>
+
+  <div class="row">
+      <div class="col-lg-8">
+          <div class="card shadow mb-4">
+              <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                  <h6 class="m-0 font-weight-bold text-primary">أكبر الجداول حجماً</h6>
+              </div>
+              <div class="card-body">
+                  <div class="table-responsive">
+                      <table class="table table-bordered table-hover">
+                          <thead class="thead-light">
+                              <tr>
+                                  <th>الجدول</th>
+                                  <th>عدد السجلات (تقريبي)</th>
+                                  <th>الحجم الكلي</th>
+                                  <th>إجراءات</th>
+                              </tr>
+                          </thead>
+                          <tbody>
+                              {% for table in top_tables %}
+                              <tr>
+                                  <td>{{ table.name }}</td>
+                                  <td>{{ table.rows }}</td>
+                                  <td dir="ltr">{{ table.total_size }}</td>
+                                  <td>
+                                      <form method="POST" action="{{ url_for('advanced.database_optimizer') }}" class="d-inline">
+                                          <input type="hidden" name="table_name" value="{{ table.name }}">
+                                          <input type="hidden" name="action" value="vacuum_table">
+                                          <button type="submit" class="btn btn-sm btn-info" title="تنظيف سريع">
+                                              <i class="fas fa-broom"></i>
+                                          </button>
+                                      </form>
+                                      <form method="POST" action="{{ url_for('advanced.database_optimizer') }}" class="d-inline">
+                                          <input type="hidden" name="table_name" value="{{ table.name }}">
+                                          <input type="hidden" name="action" value="analyze_table">
+                                          <button type="submit" class="btn btn-sm btn-secondary" title="تحديث الإحصائيات">
+                                              <i class="fas fa-chart-bar"></i>
+                                          </button>
+                                      </form>
+                                  </td>
+                              </tr>
+                              {% else %}
+                              <tr>
+                                  <td colspan="4" class="text-center">لا توجد بيانات متاحة</td>
+                              </tr>
+                              {% endfor %}
+                          </tbody>
+                      </table>
+                  </div>
+              </div>
+          </div>
+      </div>
+
+      <div class="col-lg-4">
+          <div class="card shadow mb-4">
+              <div class="card-header py-3">
+                  <h6 class="m-0 font-weight-bold text-primary">أدوات الصيانة</h6>
+              </div>
+              <div class="card-body">
+                  <form method="POST" action="{{ url_for('advanced.database_optimizer') }}" class="mb-3">
+                      <input type="hidden" name="action" value="vacuum_analyze_all">
+                      <button type="submit" class="btn btn-primary btn-block p-3">
+                          <i class="fas fa-magic fa-lg mb-2"></i><br>
+                          تحسين شامل (Vacuum & Analyze)
+                      </button>
+                      <small class="form-text text-muted text-center mt-2">
+                          يقوم بتنظيف المساحة الميتة وتحديث الإحصائيات لجميع الجداول. آمن ولا يغلق القاعدة.
+                      </small>
+                  </form>
+                  
+                  <hr>
+
+                  <form method="POST" action="{{ url_for('advanced.database_optimizer') }}" class="mb-3">
+                      <input type="hidden" name="action" value="reindex_all">
+                      <button type="submit" class="btn btn-warning btn-block p-3" onclick="return confirm('هل أنت متأكد؟ قد يستغرق هذا وقتاً طويلاً ويؤثر على الأداء مؤقتاً.')">
+                          <i class="fas fa-sync fa-lg mb-2"></i><br>
+                          إعادة بناء الفهارس (Reindex)
+                      </button>
+                      <small class="form-text text-muted text-center mt-2">
+                          إصلاح الفهارس التالفة وتقليل حجمها.
+                      </small>
+                  </form>
+                  
+                  <hr>
+                  
+                  <div class="alert alert-danger">
+                      <h6 class="alert-heading"><i class="fas fa-exclamation-triangle"></i> منطقة الخطر</h6>
+                      <p class="mb-0 small">استخدام VACUUM FULL يغلق الجداول (Lock) حتى الانتهاء. استخدمه فقط عند الضرورة القصوى وفي أوقات الخمول.</p>
+                  </div>
+                  
+                  <form method="POST" action="{{ url_for('advanced.database_optimizer') }}">
+                      <input type="hidden" name="action" value="vacuum_full_all">
+                      <button type="submit" class="btn btn-danger btn-block" onclick="return confirm('تحذير: سيتم إغلاق النظام مؤقتاً أثناء العملية. هل أنت متأكد تماماً؟')">
+                          <i class="fas fa-skull-crossbones"></i> تنظيف عميق (Vacuum Full)
+                      </button>
+                  </form>
+              </div>
+          </div>
+      </div>
+  </div>
+</div>
+{% endblock %}

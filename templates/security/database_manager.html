@@ -2,14 +2,14 @@
 
 {% block tour_name %}database_manager{% endblock %}
 
-{% block security_title %}Database Control Center{% endblock %}
+{% block security_title %}مركز التحكم بقواعد البيانات{% endblock %}
 {% block security_icon %}<i class="fas fa-database"></i>{% endblock %}
-{% block security_description %}مركز التحكم الشامل بقاعدة البيانات - 11 أداة في مكان واحد{% endblock %}
+{% block security_description %}أدوات شاملة لإدارة وصيانة قاعدة البيانات - 11 أداة احترافية{% endblock %}
 
 {% block security_breadcrumb %}
-<li class="breadcrumb-item active">Database Manager</li>
+<li class="breadcrumb-item active">إدارة قواعد البيانات</li>
 {% if active_tab %}
-<li class="breadcrumb-item active">{{ active_tab|title }}</li>
+<li class="breadcrumb-item active">{{ active_tab_label|default(active_tab)|title }}</li>
 {% endif %}
 {% endblock %}
 
@@ -48,6 +48,7 @@
     line-height: 1.6;
     font-size: 14px;
     resize: vertical;
+    direction: ltr; /* Code is always LTR */
     box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
   }
   .code-editor:focus {
@@ -79,7 +80,7 @@
              aria-controls="browse"
              aria-selected="{% if active_tab == 'browse' %}true{% else %}false{% endif %}"
              title="تصفح جميع الجداول والبيانات">
-            <i class="fas fa-table me-2"></i> تصفح
+            <i class="fas fa-table me-2"></i> تصفح البيانات
           </a>
         </li>
         <li class="nav-item">
@@ -92,7 +93,20 @@
              aria-controls="edit"
              aria-selected="{% if active_tab == 'edit' %}true{% else %}false{% endif %}"
              title="تحرير البيانات مباشرة">
-            <i class="fas fa-edit me-2"></i> تحرير
+            <i class="fas fa-edit me-2"></i> التحرير المباشر
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if active_tab == 'sql' %}active{% endif %}" 
+             id="tab-trigger-sql"
+             data-tab="sql"
+             data-toggle="pill"
+             href="#sql"
+             role="tab"
+             aria-controls="sql"
+             aria-selected="{% if active_tab == 'sql' %}true{% else %}false{% endif %}"
+             title="محرر SQL احترافي">
+            <i class="fas fa-database me-2"></i> محرر SQL
           </a>
         </li>
         <li class="nav-item">
@@ -105,7 +119,7 @@
              aria-controls="schema"
              aria-selected="{% if active_tab == 'schema' %}true{% else %}false{% endif %}"
              title="عرض هيكل قاعدة البيانات والعلاقات">
-            <i class="fas fa-project-diagram me-2"></i> هيكل
+            <i class="fas fa-project-diagram me-2"></i> المخطط الهيكلي
           </a>
         </li>
         <li class="nav-item">
@@ -118,49 +132,10 @@
              aria-controls="indexes"
              aria-selected="{% if active_tab == 'indexes' %}true{% else %}false{% endif %}"
              title="إدارة الفهارس لتسريع الأداء">
-            <i class="fas fa-key me-2"></i> فهارس
+            <i class="fas fa-key me-2"></i> فهارس الأداء
             {% if indexes_stats and indexes_stats.total_indexes %}
             <span class="badge bg-light text-dark ms-1" data-tab-count="indexes" data-count="{{ indexes_stats.total_indexes }}"></span>
             {% endif %}
-          </a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link {% if active_tab == 'logs' %}active{% endif %}" 
-             id="tab-trigger-logs"
-             data-tab="logs"
-             data-toggle="pill"
-             href="#logs"
-             role="tab"
-             aria-controls="logs"
-             aria-selected="{% if active_tab == 'logs' %}true{% else %}false{% endif %}"
-             title="عرض سجلات النظام والأخطاء">
-            <i class="fas fa-history me-2"></i> سجلات
-          </a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link {% if active_tab == 'sql' %}active{% endif %}" 
-             id="tab-trigger-sql"
-             data-tab="sql"
-             data-toggle="pill"
-             href="#sql"
-             role="tab"
-             aria-controls="sql"
-             aria-selected="{% if active_tab == 'sql' %}true{% else %}false{% endif %}"
-             title="محرر SQL احترافي مع Autocomplete">
-            <i class="fas fa-database me-2"></i> SQL
-          </a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link {% if active_tab == 'python' %}active{% endif %}" 
-             id="tab-trigger-python"
-             data-tab="python"
-             data-toggle="pill"
-             href="#python"
-             role="tab"
-             aria-controls="python"
-             aria-selected="{% if active_tab == 'python' %}true{% else %}false{% endif %}"
-             title="تنفيذ أكواد Python مباشرة">
-            <i class="fab fa-python me-2"></i> Python
           </a>
         </li>
         <li class="nav-item">
@@ -173,7 +148,20 @@
              aria-controls="maintenance"
              aria-selected="{% if active_tab == 'maintenance' %}true{% else %}false{% endif %}"
              title="صيانة وتحسين قاعدة البيانات">
-            <i class="fas fa-tools me-2"></i> صيانة
+            <i class="fas fa-tools me-2"></i> الصيانة والتحسين
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if active_tab == 'logs' %}active{% endif %}" 
+             id="tab-trigger-logs"
+             data-tab="logs"
+             data-toggle="pill"
+             href="#logs"
+             role="tab"
+             aria-controls="logs"
+             aria-selected="{% if active_tab == 'logs' %}true{% else %}false{% endif %}"
+             title="عرض سجلات النظام والأخطاء">
+            <i class="fas fa-history me-2"></i> سجلات النظام
           </a>
         </li>
         <li class="nav-item">
@@ -186,7 +174,20 @@
              aria-controls="restore"
              aria-selected="{% if active_tab == 'restore' %}true{% else %}false{% endif %}"
              title="استعادة النسخ الاحتياطية">
-            <i class="fas fa-undo me-2"></i> استعادة
+            <i class="fas fa-undo me-2"></i> الاستعادة
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if active_tab == 'python' %}active{% endif %}" 
+             id="tab-trigger-python"
+             data-tab="python"
+             data-toggle="pill"
+             href="#python"
+             role="tab"
+             aria-controls="python"
+             aria-selected="{% if active_tab == 'python' %}true{% else %}false{% endif %}"
+             title="تنفيذ أكواد Python مباشرة">
+            <i class="fab fa-python me-2"></i> محرر Python
           </a>
         </li>
         <li class="nav-item">
@@ -199,7 +200,7 @@
              aria-controls="tools"
              aria-selected="{% if active_tab == 'tools' %}true{% else %}false{% endif %}"
              title="أدوات إضافية متقدمة">
-            <i class="fas fa-cogs me-2"></i> أدوات
+            <i class="fas fa-cogs me-2"></i> أدوات متقدمة
           </a>
         </li>
         <li class="nav-item">
@@ -212,7 +213,7 @@
              aria-controls="archive"
              aria-selected="{% if active_tab == 'archive' %}true{% else %}false{% endif %}"
              title="الجداول المؤرشفة المحذوفة">
-            <i class="fas fa-archive me-2"></i> أرشيفات
+            <i class="fas fa-archive me-2"></i> الأرشيف
           </a>
         </li>
       </ul>
@@ -512,6 +513,17 @@
              id="indexes" 
              role="tabpanel" aria-labelledby="tab-trigger-indexes">
         <div class="container-fluid p-4">
+          <div class="d-flex justify-content-between align-items-center mb-4">
+             <h5 class="mb-0"><i class="fas fa-key text-primary"></i> إدارة الفهارس</h5>
+             <div>
+               <button class="btn btn-primary btn-sm" onclick="showCreateIndexModal()">
+                 <i class="fas fa-plus"></i> إنشاء فهرس
+               </button>
+               <button class="btn btn-outline-info btn-sm" onclick="autoOptimizeIndexes()">
+                 <i class="fas fa-magic"></i> تحسين تلقائي
+               </button>
+             </div>
+          </div>
           {% if indexes_stats %}
           <div class="row mb-4">
             <div class="col-md-3">
@@ -600,14 +612,23 @@
                             {% endif %}
                           </td>
                           <td>
-                            {% if idx.unique %}
-                            <span class="badge bg-success">UNIQUE</span>
-                            {% else %}
-                            <span class="badge bg-secondary">INDEX</span>
-                            {% endif %}
-                            {% if idx.name == 'PRIMARY KEY' %}
-                            <span class="badge bg-danger ms-1">PK</span>
-                            {% endif %}
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    {% if idx.unique %}
+                                    <span class="badge bg-success">UNIQUE</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">INDEX</span>
+                                    {% endif %}
+                                    {% if idx.name == 'PRIMARY KEY' %}
+                                    <span class="badge bg-danger ms-1">PK</span>
+                                    {% endif %}
+                                </div>
+                                {% if idx.name != 'PRIMARY KEY' %}
+                                <button class="btn btn-xs btn-outline-danger" onclick="dropIndex('{{ table.name }}', '{{ idx.name }}')" title="حذف الفهرس">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                                {% endif %}
+                            </div>
                           </td>
                         </tr>
                         {% endfor %}
@@ -705,7 +726,7 @@
                       <td><span class="badge bg-info">{{ log.action or '-' }}</span></td>
                       <td><small>{{ log.details or log.note or '-' }}</small></td>
                       <td><code>{{ log.ip_address or '-' }}</code></td>
-                      <td>{{ log.created_at.strftime('%Y-%m-%d %H:%M:%S') if log.created_at else '-' }}</td>
+                      <td>{{ log.created_at.strftime('%Y-%m-%d %H:%M:%S') if log.created_at and log.created_at.strftime else (log.created_at or '-') }}</td>
                     </tr>
                     {% endfor %}
                   </tbody>
@@ -1188,6 +1209,148 @@
   </div>
 
 </div>
+
+<!-- Create Index Modal -->
+<div class="modal fade" id="createIndexModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title"><i class="fas fa-plus-circle"></i> إنشاء فهرس جديد</h5>
+        <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="createIndexForm">
+          <div class="mb-3">
+            <label class="form-label">الجدول</label>
+            <select class="form-control" name="table" required>
+              {% for table in tables %}
+              <option value="{{ table }}">{{ table }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">اسم الفهرس</label>
+            <input type="text" class="form-control" name="index_name" placeholder="idx_table_column" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">الأعمدة (مفصولة بفاصلة)</label>
+            <input type="text" class="form-control" name="columns" placeholder="column1, column2" required>
+            <small class="text-muted">مثال: name, created_at</small>
+          </div>
+          <div class="mb-3">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="unique" id="indexUnique">
+              <label class="form-check-label" for="indexUnique">
+                فهرس فريد (UNIQUE)
+              </label>
+            </div>
+          </div>
+          <div class="mb-3">
+             <label class="form-label">طريقة الفهرسة (اختياري)</label>
+             <select class="form-control" name="method">
+               <option value="">Default (B-TREE)</option>
+               <option value="BTREE">B-TREE</option>
+               <option value="HASH">HASH</option>
+               <option value="GIN">GIN</option>
+               <option value="GIST">GiST</option>
+             </select>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">إلغاء</button>
+        <button type="button" class="btn btn-primary" onclick="submitCreateIndex()">إنشاء</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function showCreateIndexModal() {
+  $('#createIndexModal').modal('show');
+}
+
+function submitCreateIndex() {
+  const form = document.getElementById('createIndexForm');
+  const formData = new FormData(form);
+  const data = Object.fromEntries(formData.entries());
+  
+  // Convert columns string to list
+  data.columns = data.columns.split(',').map(s => s.trim()).filter(s => s);
+  data.unique = document.getElementById('indexUnique').checked;
+  
+  fetch('/security/api/indexes/create', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': getCsrfToken()
+    },
+    body: JSON.stringify(data)
+  })
+  .then(r => r.json())
+  .then(response => {
+    if (response.success) {
+      alert(response.message);
+      $('#createIndexModal').modal('hide');
+      location.reload();
+    } else {
+      alert('خطأ: ' + response.message);
+    }
+  })
+  .catch(err => alert('خطأ في الاتصال: ' + err));
+}
+
+function dropIndex(table, indexName) {
+  if (!confirm('هل أنت متأكد من حذف الفهرس ' + indexName + '؟')) return;
+  
+  fetch('/security/api/indexes/drop', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': getCsrfToken()
+    },
+    body: JSON.stringify({ table: table, index_name: indexName })
+  })
+  .then(r => r.json())
+  .then(response => {
+    if (response.success) {
+      alert(response.message);
+      location.reload();
+    } else {
+      alert('خطأ: ' + response.message);
+    }
+  })
+  .catch(err => alert('خطأ في الاتصال: ' + err));
+}
+
+function autoOptimizeIndexes() {
+  if (!confirm('هل تريد تشغيل التحسين التلقائي للفهارس؟ قد يستغرق هذا وقتاً.')) return;
+  
+  fetch('/security/api/indexes/auto-optimize', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': getCsrfToken()
+    }
+  })
+  .then(r => r.json())
+  .then(response => {
+    if (response.success) {
+      let msg = response.message + '\n\n';
+      if (response.created && response.created.length) {
+        msg += 'تم إنشاء:\n' + response.created.join('\n') + '\n';
+      }
+      alert(msg);
+      location.reload();
+    } else {
+      alert('خطأ: ' + response.message);
+    }
+  })
+  .catch(err => alert('خطأ في الاتصال: ' + err));
+}
+</script>
 
 <script>
 function getCsrfToken() {

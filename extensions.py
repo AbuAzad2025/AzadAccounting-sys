@@ -1032,7 +1032,7 @@ def init_extensions(app):
         socketio.init_app(
             app,
             async_mode='threading',  # استخدام threading بدل eventlet/gevent
-            cors_allowed_origins=app.config.get("SOCKETIO_CORS_ORIGINS", "*"),
+            cors_allowed_origins=app.config.get("SOCKETIO_CORS_ORIGINS", []),
             logger=False,
             engineio_logger=False,
             ping_timeout=20,
@@ -1045,7 +1045,7 @@ def init_extensions(app):
             app,
             async_mode=app.config.get("SOCKETIO_ASYNC_MODE"),
             message_queue=app.config.get("SOCKETIO_MESSAGE_QUEUE"),
-            cors_allowed_origins=app.config.get("SOCKETIO_CORS_ORIGINS", "*"),
+            cors_allowed_origins=app.config.get("SOCKETIO_CORS_ORIGINS", []),
             logger=app.config.get("SOCKETIO_LOGGER", False),
             engineio_logger=app.config.get("SOCKETIO_ENGINEIO_LOGGER", False),
             ping_timeout=app.config.get("SOCKETIO_PING_TIMEOUT", 20),

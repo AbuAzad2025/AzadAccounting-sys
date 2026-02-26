@@ -1,0 +1,226 @@
+{% extends 'security/base_security.html' %}
+
+{% block security_title %}Mobile App Center{% endblock %}
+{% block security_description %}App Configuration, Versioning & Push Notifications{% endblock %}
+
+{% block security_breadcrumb %}
+<li class="breadcrumb-item active">Mobile App Center</li>
+{% endblock %}
+
+{% block security_content %}
+<div class="row g-4">
+    <!-- App Version Control -->
+    <div class="col-lg-6">
+        <div class="sec-card h-100">
+            <div class="sec-card-header bg-white py-3 border-bottom">
+                <h5 class="mb-0 fw-bold"><i class="fas fa-code-branch text-primary me-2"></i> App Version Control</h5>
+            </div>
+            <div class="sec-card-body">
+                <form method="POST" action="{{ url_for('security.mobile_update_version') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    
+                    <div class="mb-4">
+                        <label class="form-label fw-bold small text-muted text-uppercase">Latest Version</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light border-end-0"><i class="fas fa-tag text-muted"></i></span>
+                            <input type="text" class="form-control border-start-0 ps-0" name="latest_version" value="{{ settings.latest_version }}" placeholder="e.g. 2.5.0">
+                        </div>
+                        <div class="form-text small">Version shown to users as available update.</div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label class="form-label fw-bold small text-muted text-uppercase">Min Supported Version</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light border-end-0"><i class="fas fa-ban text-danger"></i></span>
+                            <input type="text" class="form-control border-start-0 ps-0" name="min_version" value="{{ settings.min_version }}" placeholder="e.g. 2.0.0">
+                        </div>
+                        <div class="form-text small text-danger">Users below this version will be forced to update.</div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label class="form-label fw-bold small text-muted text-uppercase">Store URL</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light border-end-0"><i class="fas fa-link text-muted"></i></span>
+                            <input type="url" class="form-control border-start-0 ps-0" name="store_url" value="{{ settings.store_url }}" placeholder="https://play.google.com/...">
+                        </div>
+                    </div>
+
+                    <div class="form-check form-switch mb-4 p-3 bg-light rounded border">
+                        <input class="form-check-input ms-0 me-3" type="checkbox" name="maintenance_mode" id="appMaintenance" {% if settings.maintenance_mode %}checked{% endif %}>
+                        <label class="form-check-label fw-bold" for="appMaintenance">Enable Maintenance Mode (App Only)</label>
+                        <div class="small text-muted mt-1">Blocks app access with maintenance screen.</div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-save me-2"></i> Save Configuration
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Push Notifications Tester -->
+    <div class="col-lg-6">
+        <div class="sec-card h-100">
+            <div class="sec-card-header bg-white py-3 border-bottom">
+                <h5 class="mb-0 fw-bold"><i class="fas fa-broadcast-tower text-success me-2"></i> Push Notification Console</h5>
+            </div>
+            <div class="sec-card-body">
+                <form id="pushForm" onsubmit="sendPush(event)">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted text-uppercase">Notification Title</label>
+                        <input type="text" class="form-control" id="pushTitle" required placeholder="e.g. System Alert">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted text-uppercase">Message Body</label>
+                        <textarea class="form-control" id="pushBody" rows="4" required placeholder="Type your message here..."></textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted text-uppercase">Target Audience</label>
+                        <select class="form-select" id="pushTarget">
+                            <option value="all">Broadcast (All Users)</option>
+                            <option value="android">Android Devices Only</option>
+                            <option value="ios">iOS Devices Only</option>
+                            <option value="specific">Specific User ID</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-4" id="userIdField" style="display:none;">
+                        <input type="text" class="form-control" id="pushUserId" placeholder="Enter User ID">
+                    </div>
+
+                    <button type="submit" class="btn btn-success w-100">
+                        <i class="fas fa-paper-plane me-2"></i> Send Notification
+                    </button>
+                </form>
+                <div id="pushResult" class="mt-3"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- API Tokens & Sessions -->
+<div class="sec-card mt-4">
+    <div class="sec-card-header bg-white py-3">
+        <h5 class="mb-0 fw-bold"><i class="fas fa-key text-warning me-2"></i> Active Sessions & API Tokens</h5>
+    </div>
+    <div class="sec-card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="bg-light">
+                    <tr>
+                        <th class="ps-4">User</th>
+                        <th>Device / Platform</th>
+                        <th>Last Active</th>
+                        <th>IP Address</th>
+                        <th>Token ID</th>
+                        <th class="text-end pe-4">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for token in active_tokens %}
+                    <tr>
+                        <td class="ps-4">
+                            <div class="d-flex align-items-center">
+                                <div class="avatar avatar-sm bg-primary text-white rounded-circle me-2 d-flex justify-content-center align-items-center" style="width:32px;height:32px;">
+                                    {{ token.user.username[0]|upper }}
+                                </div>
+                                <div>
+                                    <div class="fw-bold text-dark">{{ token.user.username }}</div>
+                                    <small class="text-muted">{{ token.user.email }}</small>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            {% if 'android' in token.user_agent|lower %}
+                                <span class="badge badge-soft-success"><i class="fab fa-android me-1"></i> Android</span>
+                            {% elif 'iphone' in token.user_agent|lower or 'ipad' in token.user_agent|lower %}
+                                <span class="badge badge-soft-dark"><i class="fab fa-apple me-1"></i> iOS</span>
+                            {% else %}
+                                <span class="badge badge-soft-secondary"><i class="fas fa-laptop me-1"></i> Web/Other</span>
+                            {% endif %}
+                            <div class="small text-muted text-truncate mt-1" style="max-width: 150px;">{{ token.user_agent }}</div>
+                        </td>
+                        <td class="small text-muted">{{ token.last_used_at|format_datetime }}</td>
+                        <td class="font-monospace small">{{ token.ip_address }}</td>
+                        <td><code class="bg-light px-2 py-1 rounded">{{ token.token_id[:8] }}...</code></td>
+                        <td class="text-end pe-4">
+                            <button class="btn btn-sm btn-outline-danger" onclick="revokeToken('{{ token.token_id }}')" title="Revoke Session">
+                                <i class="fas fa-ban"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-5">
+                            <i class="fas fa-shield-alt fa-2x mb-2 text-light"></i>
+                            <p class="mb-0">No active sessions found.</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.getElementById('pushTarget').addEventListener('change', function() {
+        document.getElementById('userIdField').style.display = this.value === 'specific' ? 'block' : 'none';
+    });
+
+    function sendPush(e) {
+        e.preventDefault();
+        const btn = e.target.querySelector('button[type="submit"]');
+        const originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Sending...';
+        
+        const data = {
+            title: document.getElementById('pushTitle').value,
+            body: document.getElementById('pushBody').value,
+            target: document.getElementById('pushTarget').value,
+            user_id: document.getElementById('pushUserId').value
+        };
+        
+        fetch('/security/api/mobile/push', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token() }}'
+            },
+            body: JSON.stringify(data)
+        })
+        .then(r => r.json())
+        .then(data => {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+            const resDiv = document.getElementById('pushResult');
+            if(data.success) {
+                resDiv.innerHTML = '<div class="alert alert-success border-0 shadow-sm"><i class="fas fa-check-circle me-2"></i> Notification sent successfully!</div>';
+                document.getElementById('pushForm').reset();
+            } else {
+                resDiv.innerHTML = `<div class="alert alert-danger border-0 shadow-sm"><i class="fas fa-exclamation-circle me-2"></i> Error: ${data.error}</div>`;
+            }
+        });
+    }
+
+    function revokeToken(tokenId) {
+        if(!confirm('Are you sure you want to revoke this session? The user will be logged out immediately.')) return;
+        
+        fetch(`/security/api/mobile/tokens/${tokenId}/revoke`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token() }}'
+            }
+        })
+        .then(r => r.json())
+        .then(data => {
+            if(data.success) location.reload();
+            else alert('Error: ' + data.error);
+        });
+    }
+</script>
+{% endblock %}

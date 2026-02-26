@@ -1,6 +1,6 @@
 {% extends 'security/base_security.html' %}
 
-{% block security_title %}لوحة التحكم - Dashboard{% endblock %}
+{% block security_title %}لوحة التحكم{% endblock %}
 {% block security_icon %}<i class="fas fa-tachometer-alt"></i>{% endblock %}
 {% block security_description %}مركز التحكم الشامل للوحدة السرية - {{ stats.total_modules }} وحدة • {{ stats.total_apis }} API{% endblock %}
 
@@ -374,10 +374,10 @@
           <div class="icon-wrapper">
             <i class="fas fa-broom"></i>
           </div>
-          <h5 class="mb-2">System Cleanup</h5>
-          <p class="small mb-4">تنظيف وتحسين النظام</p>
+          <h5 class="mb-2">تنظيف وتصفير النظام</h5>
+          <p class="small mb-4">تنظيف الكاش • تصفير البيانات (Factory Reset)</p>
           <a href="{{ url_for('security.system_cleanup') }}" class="btn btn-primary btn-sm btn-block">
-            <i class="fas fa-broom"></i> فتح الأدوات
+            <i class="fas fa-recycle"></i> فتح الأدوات
           </a>
         </div>
       </div>
@@ -515,7 +515,7 @@
           <div class="icon-wrapper">
             <i class="fas fa-history"></i>
           </div>
-          <h5 class="mb-2">Audit Log</h5>
+          <h5 class="mb-2">سجل التدقيق</h5>
           <p class="small mb-4">سجل العمليات والأنشطة</p>
           <a href="{{ url_for('security.audit_log_viewer') }}" class="btn btn-primary btn-sm btn-block">
             <i class="fas fa-eye"></i> عرض
@@ -845,14 +845,14 @@
 (function() {
   // إضافة tooltips للبطاقات
   const tooltips = {
-    'Database Control Center': 'إدارة شاملة لقاعدة البيانات: تصفح، تحرير، SQL، Python، فهارس، صيانة، وأكثر',
-    'AI Control Center': 'مساعد ذكي، تحليل البيانات، كشف الأنماط، تنبؤات، وتدريب النماذج',
-    'Security & Monitoring Center': 'مراقبة فورية، جدار حماية، تنبيهات أمنية، وسجل النشاطات',
-    'Users & Permissions Center': 'إدارة المستخدمين، الصلاحيات، الأدوار، والتحكم الكامل',
-    'Settings & Customization Center': 'إعدادات النظام، الثيمات، الشعارات، العلامة التجارية، والتخصيص',
-    'Reports & Performance Center': 'تقارير إدارية، مراقبة الأداء، Grafana، ولوحات التحكم',
-    'Tools & Integration Center': 'التكاملات، البريد، الفواتير، الكروت، وأدوات متنوعة',
-    'Ledger Control': 'دفتر الأستاذ المحاسبي: الحسابات، القيود، الأرصدة، والتقارير المالية'
+    'مركز قواعد البيانات': 'إدارة شاملة لقاعدة البيانات: تصفح، تحرير، SQL، Python، فهارس، صيانة، وأكثر',
+    'مركز الذكاء الاصطناعي': 'مساعد ذكي، تحليل البيانات، كشف الأنماط، تنبؤات، وتدريب النماذج',
+    'مركز الأمان': 'مراقبة فورية، جدار حماية، تنبيهات أمنية، وسجل النشاطات',
+    'مركز المستخدمين': 'إدارة المستخدمين، الصلاحيات، الأدوار، والتحكم الكامل',
+    'مركز الإعدادات': 'إعدادات النظام، الثيمات، الشعارات، العلامة التجارية، والتخصيص',
+    'مركز التقارير': 'تقارير إدارية، مراقبة الأداء، Grafana، ولوحات التحكم',
+    'مركز الأدوات': 'التكاملات، البريد، الفواتير، الكروت، وأدوات متنوعة',
+    'دفتر الأستاذ': 'دفتر الأستاذ المحاسبي: الحسابات، القيود، الأرصدة، والتقارير المالية'
   };
   
   document.querySelectorAll('.card h5').forEach(h5 => {
