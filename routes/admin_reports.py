@@ -424,3 +424,15 @@ def api_stats():
             'success': False,
             'error': str(e)
         }), 500
+
+@admin_reports_bp.route("/download-backup", methods=["GET"])
+@login_required
+def download_backup():
+    # ... rest of implementation if exists
+    return jsonify({"error": "Not implemented"}), 501
+
+@admin_reports_bp.route("/logs/view", methods=["GET"])
+@login_required
+def view_logs():
+    # ... log viewing logic
+    return render_template("admin/logs.html")

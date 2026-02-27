@@ -12,6 +12,7 @@ import utils
 
 users_bp = Blueprint("users_bp", __name__, url_prefix="/users", template_folder="templates/users")
 
+
 def _actor_role_name() -> str:
     try:
         return str(getattr(getattr(current_user, "role", None), "name", "") or "").strip().lower()

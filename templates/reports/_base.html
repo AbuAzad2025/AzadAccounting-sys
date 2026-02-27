@@ -1,6 +1,16 @@
 {% extends 'base.html' %}
 
-{% block title %}{% block page_title %}التقارير{% endblock %}{% endblock %}
+{% block title %}{% block page_title %}التقارير{% block scripts %}
+<script>
+  // Print Date Script
+  document.addEventListener("DOMContentLoaded", function() {
+    const d = new Date();
+    const dateStr = d.toLocaleDateString('ar-EG') + ' ' + d.toLocaleTimeString('ar-EG');
+    const el = document.getElementById('print-date');
+    if(el) el.innerText = dateStr;
+  });
+</script>
+{% endblock %}{% endblock %}
 
 {% block breadcrumb %}
 <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">الرئيسية</a></li>
@@ -14,7 +24,27 @@
 
 {% block content %}
 <div class="container-fluid" dir="rtl" data-report-title="{{ self.page_title() }}">
-  <div class="card mb-3 shadow-sm card-hover">
+  
+  <!-- Print Header -->
+  <div class="print-header d-none d-print-flex">
+    <div class="d-flex align-items-center">
+      {% if system_settings and system_settings.custom_logo %}
+      <img src="{{ url_for('static', filename=system_settings.custom_logo.replace('static/', '')) }}" class="print-logo ms-3" alt="Logo">
+      {% else %}
+      <img src="{{ url_for('static', filename='img/azad_logo.png') }}" class="print-logo ms-3" alt="Logo">
+      {% endif %}
+      <div>
+        <h4 class="fw-bold m-0">{{ system_settings.company_name or system_settings.system_name or 'النظام' }}</h4>
+        <small class="text-muted d-block">{{ self.page_title() }}</small>
+      </div>
+    </div>
+    <div class="text-end">
+      <small class="d-block">تاريخ الطباعة: <span id="print-date"></span></small>
+      <small class="d-block">طبع بواسطة: {{ current_user.username }}</small>
+    </div>
+  </div>
+
+  <div class="card mb-3 shadow-sm card-hover no-print">
     <div class="card-body p-2">
       <ul class="nav nav-pills flex-wrap gap-1">
         <li class="nav-item">

@@ -397,6 +397,10 @@ def _register_template_support(app):
     def static_url(filename):
         url = url_for('static', filename=filename)
         return static_version_filter(url)
+        
+    @app.context_processor
+    def inject_config():
+        return dict(config=app.config)
 
     @app.context_processor
     def inject_common():
@@ -965,6 +969,7 @@ def create_app(config_object=Config) -> Flask:
         return "", 200
     _configure_app(app, config_object)
     _init_extensions_stack(app)
+
     csrf.exempt(ledger_bp)
     
     @event.listens_for(db.session.__class__, "before_attach")

@@ -83,6 +83,7 @@ class Config:
 
     APP_ENV = os.environ.get("APP_ENV", os.environ.get("FLASK_ENV", "production"))
     DEBUG = _bool(os.environ.get("DEBUG"), False)
+    
     AI_SYSTEMS_ENABLED = _bool(os.environ.get("AI_SYSTEMS_ENABLED"), True)
     ENABLE_AUTOMATED_BACKUPS = _bool(os.environ.get("ENABLE_AUTOMATED_BACKUPS"), True)
     SYSTEM_COMPONENT_MAP = {
@@ -161,7 +162,7 @@ class Config:
     PORT = _int("PORT", 5000)
 
     _db_uri = os.environ.get("DATABASE_URL") or _build_pg_uri_from_env()
-    
+
     # Fallback to SQLite if no DB configured (Useful for simple deployments/testing)
     if not _db_uri:
         # Default to SQLite in instance folder

@@ -10,7 +10,7 @@
   <meta name="apple-mobile-web-app-title" content="{{ system_settings.system_name or 'شركة ازاد' }}">
   <meta name="format-detection" content="telephone=yes">
   <meta name="theme-color" content="{{ system_settings.primary_color or '#667eea' }}">
-  
+
   <meta name="description" content="{{ system_settings.system_name or 'نظام إدارة الكراج المتكامل' }} - {{ system_settings.company_name or 'شركة ازاد للأنظمة الذكية' }}">
   <meta name="keywords" content="نظام إدارة الكراج، إدارة المركبات، صيانة السيارات، {{ system_settings.company_name or 'شركة ازاد' }}">
   <meta name="author" content="{{ system_settings.company_name or 'شركة ازاد للأنظمة الذكية' }}">
@@ -130,10 +130,10 @@
   <link rel="stylesheet" href="{{ static_url('adminlte/plugins/overlayScrollbars/css/OverlayScrollbars.min.css') }}">
   <link rel="stylesheet" href="{{ static_url('adminlte/css/adminlte.min.css') }}">
   <link rel="stylesheet" href="{{ static_url('adminlte/plugins/select2/css/select2.min.css') }}">
-  <link rel="preload" href="{{ static_url('css/style.css') }}" as="style">
-  <link rel="stylesheet" href="{{ static_url('css/style.css') }}">
   <link rel="preload" href="{{ static_url('css/ui.css') }}" as="style">
   <link rel="stylesheet" href="{{ static_url('css/ui.css') }}">
+  <link rel="preload" href="{{ static_url('css/style.css') }}" as="style">
+  <link rel="stylesheet" href="{{ static_url('css/style.css') }}">
   <link rel="stylesheet" href="{{ static_url('css/mobile.css') }}" id="mobile-css" data-default-media="(max-width: 575.98px)" media="(max-width: 575.98px)">
   <script>
     (function() {
@@ -630,17 +630,19 @@
     }
     
     /* Enhanced Content Header - Harmonized with AdminLTE */
-    body:not(.ui-v2) .content-header {
-      background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+    .content-header {
+      background: linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.9) 100%);
       color: #ffffff;
       border-radius: 0 0 0.5rem 0.5rem;
       margin-bottom: 1.5rem;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     }
-    body:not(.ui-v2) .content-header h1 {
+    .content-header h1 {
       color: #ffffff;
-      text-shadow: 0 1px 2px rgba(0,0,0,0.3);
-      font-weight: 600;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+      font-weight: 700;
     }
     
     /* Enhanced Breadcrumb - Harmonized with AdminLTE */
@@ -1026,7 +1028,7 @@
   })();
   </script>
 </head>
-<body class="hold-transition sidebar-mini layout-fixed text-sm layout-navbar-fixed ui-v2 {% block body_class %}{% endblock %}">
+<body class="hold-transition sidebar-mini layout-fixed text-sm layout-navbar-fixed ui-v2 electric-theme {% block body_class %}{% endblock %}">
 <div class="wrapper">
   {% include 'partials/navbar.html' %}
   <div id="gm-open-in-app-banner" class="gm-open-in-app-banner d-none" role="banner" aria-label="فتح كتطبيق">
