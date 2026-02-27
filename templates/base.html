@@ -279,26 +279,6 @@
   {% block extra_head %}{% endblock %}
   
   <style>
-    /* Sidebar على اليمين */
-    body[data-sidebar-position="right"] .main-sidebar {
-      left: auto !important;
-      right: 0 !important;
-    }
-    
-    body[data-sidebar-position="right"] .content-wrapper {
-      margin-left: 0 !important;
-      margin-right: 280px !important;
-      width: calc(100% - 280px) !important;
-      max-width: calc(100% - 280px) !important;
-    }
-    
-    body[data-sidebar-position="right"] .main-footer,
-    body[data-sidebar-position="right"] .main-header.navbar {
-      margin-left: 0 !important;
-      margin-right: 280px !important;
-      width: calc(100% - 280px) !important;
-    }
-    
     /* إصلاح Sidebar في RTL */
     .sidebar {
       direction: rtl;

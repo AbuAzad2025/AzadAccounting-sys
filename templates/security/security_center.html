@@ -154,9 +154,17 @@
               <i class="fas fa-ban"></i> IPs المحظورة ({{ security_stats.blocked_ips }})
             </div>
             <div class="card-body text-center">
-              <a href="{{ url_for('security.block_ip') }}" class="btn btn-danger btn-lg" target="_blank">
-                <i class="fas fa-external-link-alt"></i> إدارة الحظر
-              </a>
+              <div class="d-flex justify-content-center gap-3">
+                <a href="{{ url_for('security.block_ip') }}" class="btn btn-danger btn-lg mx-2">
+                  <i class="fas fa-ban"></i> حظر IP جديد
+                </a>
+                <a href="{{ url_for('security.blocked_ips') }}" class="btn btn-outline-danger btn-lg mx-2">
+                  <i class="fas fa-list"></i> القائمة المحظورة
+                </a>
+                <a href="{{ url_for('security_control.security_control') }}" class="btn btn-dark btn-lg mx-2">
+                  <i class="fas fa-shield-alt"></i> إعدادات متقدمة (Whitelist/Country)
+                </a>
+              </div>
             </div>
           </div>
         </div>
@@ -235,9 +243,12 @@
                 </div>
               </div>
               
-              <div class="mt-3">
+              <div class="mt-3 d-flex gap-2">
                 <a href="{{ url_for('security.notifications_log') }}" class="btn btn-warning">
                   <i class="fas fa-cog"></i> إعدادات الإشعارات
+                </a>
+                <a href="{{ url_for('security.tools_center', tab='integrations') }}" class="btn btn-primary">
+                  <i class="fas fa-plug"></i> إعداد التكاملات (Email/SMS)
                 </a>
               </div>
             </div>

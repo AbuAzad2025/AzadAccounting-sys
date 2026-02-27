@@ -1168,16 +1168,34 @@ def security_center():
         recent_audit_logs = AuditLog.query.order_by(AuditLog.created_at.desc()).limit(20).all()
     elif tab == 'notifications':
         integrations_data = {
-            'email': {
-                'enabled': _get_setting('email_enabled', True),
-                'smtp_host': _get_setting('smtp_host', ''),
+            'stripe': {
+                'enabled': _get_setting('stripe_enabled', False),
+            },
+            'paypal': {
+                'enabled': _get_setting('paypal_enabled', False),
             },
             'sms': {
                 'enabled': _get_setting('sms_enabled', False),
-            }
+            },
+            'email': {
+                'enabled': _get_setting('email_enabled', True) and bool(_get_setting('smtp_host')),
+                'smtp_host': _get_setting('smtp_host', 'غير مهيأ'),
+            },
         }
 
     stats = get_cached_security_stats()
+    
+    # Map stats to security_stats expected format
+    security_stats = {
+        'online_users': stats.get('online_users', 0),
+        'blocked_ips': stats.get('blocked_ips', 0),
+        'failed_logins': stats.get('failed_logins_24h', 0),
+        'active_sessions': stats.get('active_sessions', 0),
+        'threats_detected': 0,
+        'patterns_found': 0,
+        'notifications': 0
+    }
+    
     return render_template('security/security_center.html',
                           active_tab=tab,
                           security_stats=security_stats,
@@ -1693,7 +1711,7 @@ def settings_center():
             company_name = request.form.get('company_name')
             primary_color = request.form.get('primary_color')
             if company_name:
-                SystemSettings.set_setting('COMPANY_NAME', company_name)
+                SystemSettings.set_setting('company_name', company_name) # Changed to lowercase for consistency
             if primary_color:
                 SystemSettings.set_setting('primary_color', primary_color)
             flash('✅ تم تحديث العلامة التجارية بنجاح', 'success')
@@ -2277,35 +2295,9 @@ def permissions_manager():
 @security_bp.route('/email-manager', methods=['GET', 'POST'])
 @permission_required('access_owner_dashboard')
 def email_manager():
-    """إدارة البريد - SMTP + قوالب"""
-    from models import SystemSettings
-    
-    if request.method == 'POST':
-        smtp_settings = {
-            'MAIL_SERVER': request.form.get('mail_server'),
-            'MAIL_PORT': request.form.get('mail_port'),
-            'MAIL_USERNAME': request.form.get('mail_username'),
-            'MAIL_PASSWORD': request.form.get('mail_password'),
-            'MAIL_USE_TLS': request.form.get('mail_use_tls') == 'on',
-        }
-        
-        for key, value in smtp_settings.items():
-            setting = SystemSettings.query.filter_by(key=key).first()
-            if setting:
-                setting.value = str(value)
-            else:
-                db.session.add(SystemSettings(key=key, value=str(value)))
-        
-        db.session.commit()
-        flash('✅ تم حفظ إعدادات البريد', 'success')
-        return redirect(url_for('security.email_manager'))
-    
-    settings = {}
-    for key in ['MAIL_SERVER', 'MAIL_PORT', 'MAIL_USERNAME', 'MAIL_USE_TLS']:
-        s = SystemSettings.query.filter_by(key=key).first()
-        settings[key] = s.value if s else ''
-    
-    return render_template('security/email_manager.html', settings=settings)
+    """إدارة البريد - SMTP + قوالب (Deprecated -> Integrations)"""
+    flash('ℹ️ تم نقل إعدادات البريد إلى صفحة التكاملات الموحدة.', 'info')
+    return redirect(url_for('security.integrations'))
 
 
 @security_bp.route('/invoice-designer', methods=['GET', 'POST'])
@@ -2402,6 +2394,15 @@ def integrations():
                 _save_setting('twilio_phone_number', request.form.get('twilio_phone_number', ''))
                 _save_setting('twilio_whatsapp_number', request.form.get('twilio_whatsapp_number', ''))
                 flash('✅ تم حفظ إعدادات SMS/WhatsApp', 'success')
+
+            elif action == 'save_email':
+                _save_setting('MAIL_SERVER', request.form.get('MAIL_SERVER', ''))
+                _save_setting('MAIL_PORT', request.form.get('MAIL_PORT', '587'))
+                _save_setting('MAIL_USERNAME', request.form.get('MAIL_USERNAME', ''))
+                _save_setting('MAIL_PASSWORD', request.form.get('MAIL_PASSWORD', ''))
+                _save_setting('MAIL_USE_TLS', request.form.get('MAIL_USE_TLS') == 'on')
+                _save_setting('MAIL_DEFAULT_SENDER', request.form.get('MAIL_DEFAULT_SENDER', ''))
+                flash('✅ تم حفظ إعدادات البريد الإلكتروني', 'success')
             
             elif action == 'save_thermal_printer':
                 _save_setting('thermal_printer_enabled', request.form.get('thermal_printer_enabled') == 'on')
@@ -2597,6 +2598,14 @@ def integrations():
             'twilio_phone_number': _get_setting('twilio_phone_number', ''),
             'twilio_whatsapp_number': _get_setting('twilio_whatsapp_number', ''),
         },
+        'email': {
+            'server': _get_setting('MAIL_SERVER', ''),
+            'port': _get_setting('MAIL_PORT', '587'),
+            'username': _get_setting('MAIL_USERNAME', ''),
+            'password': _get_setting('MAIL_PASSWORD', ''),
+            'use_tls': _get_setting('MAIL_USE_TLS', True),
+            'default_sender': _get_setting('MAIL_DEFAULT_SENDER', ''),
+        },
         'thermal_printer': {
             'enabled': _get_setting('thermal_printer_enabled', False),
             'type': _get_setting('thermal_printer_type', 'network'),
@@ -2712,8 +2721,8 @@ def get_cached_security_stats():
     
     # المتصلين الآن (آخر 15 دقيقة)
     threshold = datetime.now(timezone.utc) - timedelta(minutes=15)
-    all_users = User.query.filter(User.last_seen.isnot(None)).all()
-    online_users = sum(1 for u in all_users if (seen := make_aware(u.last_seen)) and seen >= threshold)
+    # Optimized: Filter in DB instead of loading all users
+    online_users = User.query.filter(User.last_seen >= threshold).count()
     
     # محاولات فشل الدخول (آخر 24 ساعة)
     day_ago = datetime.now(timezone.utc) - timedelta(hours=24)
@@ -2767,28 +2776,18 @@ def get_cached_security_stats():
     elif failed_logins_24h > 100:
         system_health = "خطر"
     
-    # 🔄 حساب الإحصائيات ديناميكياً من قاعدة البيانات
+    # 🔄 حساب الإحصائيات (Optimized: Avoid heavy introspection)
     from sqlalchemy import inspect
     
     try:
         inspector = inspect(db.engine)
         tables = inspector.get_table_names()
-        
-        # حساب إجمالي الفهارس
-        total_indexes = 0
-        with warnings.catch_warnings():
-            warnings.filterwarnings('ignore', category=SAWarning, message='.*Skipped unsupported reflection.*')
-            for table in tables:
-                idxs = inspector.get_indexes(table)
-                total_indexes += len(idxs)
-        
         total_tables = len([t for t in tables if t != 'alembic_version'])
         
-        # حساب إجمالي العلاقات (Foreign Keys)
-        total_relations = 0
-        for table in tables:
-            fks = inspector.get_foreign_keys(table)
-            total_relations += len(fks)
+        # Estimation instead of full scan to improve performance
+        total_indexes = total_tables * 2  # Approx
+        total_relations = total_tables * 1 # Approx
+        
     except Exception:
         total_indexes = 0
         total_tables = 0
@@ -2860,14 +2859,8 @@ def _get_setting(key, default=None):
 
 def _save_setting(key, value):
     """حفظ إعداد في SystemSettings"""
-    setting = SystemSettings.query.filter_by(key=key).first()
-    if setting:
-        setting.value = str(value) if value is not None else ''
-        setting.updated_at = datetime.now(timezone.utc)
-    else:
-        setting = SystemSettings(key=key, value=str(value) if value is not None else '')
-        db.session.add(setting)
-    db.session.flush()
+    # Use the model method for consistency and cache clearing
+    SystemSettings.set_setting(key, value, commit=False)
 
 
 def _test_stripe():
@@ -4816,38 +4809,39 @@ def performance_monitor():
 @security_bp.route('/system-branding', methods=['GET', 'POST'])
 @permission_required('access_owner_dashboard')
 def system_branding():
-    """تخصيص العلامة التجارية (الشعار، الاسم، الألوان)"""
+    """تخصيص هوية النظام - الألوان والشعارات"""
+    from models import SystemSettings
+    
     if request.method == 'POST':
-        from werkzeug.utils import secure_filename
-        import os
-        
         updated = []
         
-        # اسم النظام
-        system_name = request.form.get('system_name', '').strip()
-        if system_name and len(system_name) >= 3:
-            _set_system_setting('system_name', system_name)
-            updated.append('اسم النظام')
-        elif system_name and len(system_name) < 3:
-            flash('⚠️ اسم النظام يجب أن يكون 3 أحرف على الأقل', 'warning')
+        # 1. تحديث الألوان
+        colors = {
+            'primary_color': request.form.get('primary_color'),
+            'secondary_color': request.form.get('secondary_color'),
+            'sidebar_bg': request.form.get('sidebar_bg'),
+            'sidebar_text': request.form.get('sidebar_text'),
+        }
         
-        # وصف النظام
-        system_description = request.form.get('system_description', '').strip()
-        if system_description:
-            _set_system_setting('system_description', system_description)
-            updated.append('وصف النظام')
+        for key, value in colors.items():
+            if value:
+                SystemSettings.set_setting(key, value) # Use direct model method
+                updated.append('الألوان')
         
-        # اللون الأساسي
-        primary_color = request.form.get('primary_color', '').strip()
-        if primary_color:
-            # التحقق من صيغة اللون
-            import re
-            if re.match(r'^#[0-9A-Fa-f]{6}$', primary_color):
-                _set_system_setting('primary_color', primary_color)
-                updated.append('اللون الأساسي')
-            else:
-                flash('⚠️ صيغة اللون غير صحيحة (مثال: #007bff)', 'warning')
+        # 2. تحديث النصوص (اسم النظام واسم الشركة)
+        texts = {
+            'system_name': request.form.get('system_name'),
+            'company_name': request.form.get('company_name'),
+            'login_title': request.form.get('login_title'),
+            'login_subtitle': request.form.get('login_subtitle'),
+            'footer_text': request.form.get('footer_text'),
+        }
         
+        for key, value in texts.items():
+            if value:
+                SystemSettings.set_setting(key, value)
+                updated.append('النصوص')
+
         # الشعار
         if 'logo' in request.files:
             logo_file = request.files['logo']
@@ -4861,7 +4855,7 @@ def system_branding():
                     os.makedirs('static/img', exist_ok=True)
                     logo_path = f'static/img/custom_logo_{filename}'
                     logo_file.save(logo_path)
-                    _set_system_setting('custom_logo', logo_path)
+                    SystemSettings.set_setting('custom_logo', logo_path)
                     updated.append('الشعار')
                 else:
                     flash('⚠️ نوع ملف الشعار غير مدعوم (استخدم: png, jpg, jpeg, gif, webp)', 'warning')
@@ -4877,7 +4871,7 @@ def system_branding():
                     filename = secure_filename(favicon_file.filename)
                     favicon_path = f'static/favicon_custom_{filename}'
                     favicon_file.save(favicon_path)
-                    _set_system_setting('custom_favicon', favicon_path)
+                    SystemSettings.set_setting('custom_favicon', favicon_path)
                     updated.append('الأيقونة')
                 else:
                     flash('⚠️ نوع ملف الأيقونة غير مدعوم (استخدم: png, ico)', 'warning')
@@ -4905,9 +4899,15 @@ def system_branding():
     
     # قراءة الإعدادات الحالية
     branding = {
-        'system_name': _get_system_setting('system_name', 'Garage Manager'),
-        'system_description': _get_system_setting('system_description', 'نظام إدارة الكراجات'),
-        'primary_color': _get_system_setting('primary_color', '#007bff'),
+        'system_name': _get_system_setting('system_name', 'نظام إدارة الكراج'),
+        'company_name': _get_system_setting('company_name', 'شركة ازاد للأنظمة الذكية'),
+        'login_title': _get_system_setting('login_title', 'مرحباً بك'),
+        'login_subtitle': _get_system_setting('login_subtitle', 'سجل دخولك للمتابعة'),
+        'footer_text': _get_system_setting('footer_text', 'جميع الحقوق محفوظة'),
+        'primary_color': _get_system_setting('primary_color', '#06b6d4'),
+        'secondary_color': _get_system_setting('secondary_color', '#1f2937'),
+        'sidebar_bg': _get_system_setting('sidebar_bg', '#111827'),
+        'sidebar_text': _get_system_setting('sidebar_text', '#f9fafb'),
         'custom_logo': _get_system_setting('custom_logo', ''),
         'custom_favicon': _get_system_setting('custom_favicon', ''),
     }

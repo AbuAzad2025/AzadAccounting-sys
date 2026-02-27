@@ -19,7 +19,11 @@
       </button>
 
       <a class="navbar-brand font-weight-bold mx-auto mx-lg-0" href="{{ url_for('auth.login') }}">
-        <img src="{{ static_url('img/azad_logo.png') }}" alt="ازاد" height="40" class="brand-logo d-inline-block align-top mr-2" loading="lazy" decoding="async">
+        {% if system_settings and system_settings.custom_logo %}
+          <img src="{{ url_for('static', filename=system_settings.custom_logo.replace('static/', '')) }}" alt="Logo" height="40" class="brand-logo d-inline-block align-top mr-2" loading="lazy" decoding="async">
+        {% else %}
+          <img src="{{ static_url('img/azad_logo.png') }}" alt="ازاد" height="40" class="brand-logo d-inline-block align-top mr-2" loading="lazy" decoding="async">
+        {% endif %}
         <span class="brand-text">{{ system_settings.company_name or system_settings.system_name or 'ازاد' }}</span>
       </a>
       

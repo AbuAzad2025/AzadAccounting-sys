@@ -329,6 +329,91 @@
         </div>
     </div>
 
+    <!-- Email / SMTP Integration -->
+    <div class="row">
+        <div class="col-md-12">
+            <div class="integration-card card">
+                <div class="card-header bg-dark text-white d-flex align-items-center">
+                    <div class="mr-3"><i class="fas fa-envelope fa-2x"></i></div>
+                    <div>
+                        <h4 class="mb-0">البريد الإلكتروني (SMTP)</h4>
+                        <small class="text-muted-light">إعدادات خادم البريد للإشعارات والفواتير</small>
+                    </div>
+                    {% if integrations.email.server %}
+                    <span class="badge badge-success ml-auto">مفعّل ✅</span>
+                    {% else %}
+                    <span class="badge badge-warning ml-auto">غير مهيأ ⚠️</span>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        <input type="hidden" name="action" value="save_email">
+                        
+                        <div class="form-section">
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <div class="form-group">
+                                        <label class="font-weight-bold"><i class="fas fa-server"></i> خادم البريد (SMTP Server)</label>
+                                        <input type="text" class="form-control" name="MAIL_SERVER" 
+                                            value="{{ integrations.email.server }}" 
+                                            placeholder="مثال: smtp.gmail.com">
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-group">
+                                        <label class="font-weight-bold"><i class="fas fa-plug"></i> المنفذ (Port)</label>
+                                        <input type="number" class="form-control" name="MAIL_PORT" 
+                                            value="{{ integrations.email.port }}" 
+                                            placeholder="587">
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="font-weight-bold"><i class="fas fa-user"></i> اسم المستخدم (Email)</label>
+                                        <input type="email" class="form-control" name="MAIL_USERNAME" 
+                                            value="{{ integrations.email.username }}" 
+                                            placeholder="example@gmail.com">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="font-weight-bold"><i class="fas fa-key"></i> كلمة المرور (App Password)</label>
+                                        <input type="password" class="form-control" name="MAIL_PASSWORD" 
+                                            value="{{ integrations.email.password }}" 
+                                            placeholder="••••••••">
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="font-weight-bold"><i class="fas fa-paper-plane"></i> المرسل الافتراضي</label>
+                                        <input type="text" class="form-control" name="MAIL_DEFAULT_SENDER" 
+                                            value="{{ integrations.email.default_sender }}" 
+                                            placeholder="Garage System <noreply@garage.com>">
+                                    </div>
+                                </div>
+                                <div class="col-md-6 d-flex align-items-center">
+                                    <div class="custom-control custom-switch mt-4">
+                                        <input type="checkbox" class="custom-control-input" id="MAIL_USE_TLS" name="MAIL_USE_TLS" 
+                                            {% if integrations.email.use_tls %}checked{% endif %}>
+                                        <label class="custom-control-label" for="MAIL_USE_TLS">
+                                            <strong>استخدام تشفير TLS</strong>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary btn-block mt-3">
+                            <i class="fas fa-save"></i> حفظ إعدادات البريد
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Thermal Printer Integration -->
     <div class="row">
         <div class="col-md-12">
@@ -739,6 +824,426 @@
                         <button type="submit" class="btn btn-primary btn-block">
                             <i class="fas fa-save"></i> حفظ إعدادات بوابات الدفع
                         </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- POS Terminal Integration -->
+    <div class="row">
+        <div class="col-md-6">
+            <div class="integration-card card">
+                <div class="integration-header" style="background: linear-gradient(135deg, #FF416C 0%, #FF4B2B 100%);">
+                    <div class="integration-icon"><i class="fas fa-credit-card"></i></div>
+                    <h4 class="mb-0">جهاز نقاط البيع (POS)</h4>
+                    <small>Verifone / Ingenico / PAX</small>
+                    {% if integrations.pos_terminal.enabled %}
+                    <span class="status-badge status-enabled float-left">مفعّل ✅</span>
+                    {% else %}
+                    <span class="status-badge status-disabled float-left">معطّل ❌</span>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        <input type="hidden" name="action" value="save_pos_terminal">
+                        <div class="form-group">
+                            <div class="custom-control custom-switch">
+                                <input type="checkbox" class="custom-control-input" id="pos_terminal_enabled" name="pos_terminal_enabled" {% if integrations.pos_terminal.enabled %}checked{% endif %}>
+                                <label class="custom-control-label" for="pos_terminal_enabled"><strong>تفعيل جهاز POS</strong></label>
+                            </div>
+                        </div>
+                        <div class="form-section">
+                            <div class="form-group">
+                                <label>النوع</label>
+                                <select class="form-control" name="pos_terminal_type">
+                                    <option value="verifone" {% if integrations.pos_terminal.type == 'verifone' %}selected{% endif %}>Verifone</option>
+                                    <option value="ingenico" {% if integrations.pos_terminal.type == 'ingenico' %}selected{% endif %}>Ingenico</option>
+                                    <option value="pax" {% if integrations.pos_terminal.type == 'pax' %}selected{% endif %}>PAX</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>IP Address</label>
+                                <input type="text" class="form-control" name="pos_terminal_ip" value="{{ integrations.pos_terminal.ip }}" placeholder="192.168.1.50">
+                            </div>
+                            <div class="form-group">
+                                <label>Port</label>
+                                <input type="number" class="form-control" name="pos_terminal_port" value="{{ integrations.pos_terminal.port }}" placeholder="5000">
+                            </div>
+                            <div class="form-group">
+                                <label>Merchant ID</label>
+                                <input type="text" class="form-control" name="pos_merchant_id" value="{{ integrations.pos_terminal.merchant_id }}" placeholder="123456789">
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-block"><i class="fas fa-save"></i> حفظ إعدادات POS</button>
+                    </form>
+                    <form method="POST" class="test-btn">
+                        <input type="hidden" name="action" value="test_pos_terminal">
+                        <button type="submit" class="btn btn-outline-info btn-block"><i class="fas fa-vial"></i> اختبار الاتصال</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- OBD2 Reader Integration -->
+        <div class="col-md-6">
+            <div class="integration-card card">
+                <div class="integration-header" style="background: linear-gradient(135deg, #12c2e9 0%, #c471ed 50%, #f64f59 100%);">
+                    <div class="integration-icon"><i class="fas fa-car"></i></div>
+                    <h4 class="mb-0">كمبيوتر السيارة (OBD-II)</h4>
+                    <small>ELM327 Bluetooth / USB / WiFi</small>
+                    {% if integrations.obd2_reader.enabled %}
+                    <span class="status-badge status-enabled float-left">مفعّل ✅</span>
+                    {% else %}
+                    <span class="status-badge status-disabled float-left">معطّل ❌</span>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        <input type="hidden" name="action" value="save_obd2_reader">
+                        <div class="form-group">
+                            <div class="custom-control custom-switch">
+                                <input type="checkbox" class="custom-control-input" id="obd2_reader_enabled" name="obd2_reader_enabled" {% if integrations.obd2_reader.enabled %}checked{% endif %}>
+                                <label class="custom-control-label" for="obd2_reader_enabled"><strong>تفعيل قارئ OBD-II</strong></label>
+                            </div>
+                        </div>
+                        <div class="form-section">
+                            <div class="form-group">
+                                <label>نوع الاتصال</label>
+                                <select class="form-control" name="obd2_reader_type">
+                                    <option value="bluetooth" {% if integrations.obd2_reader.type == 'bluetooth' %}selected{% endif %}>Bluetooth (ELM327)</option>
+                                    <option value="usb" {% if integrations.obd2_reader.type == 'usb' %}selected{% endif %}>USB Serial</option>
+                                    <option value="wifi" {% if integrations.obd2_reader.type == 'wifi' %}selected{% endif %}>WiFi</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>منفذ (Serial Port)</label>
+                                <input type="text" class="form-control" name="obd2_port" value="{{ integrations.obd2_reader.port }}" placeholder="COM3 أو /dev/ttyUSB0">
+                            </div>
+                            <div class="form-group">
+                                <label>عنوان Bluetooth (Mac Address)</label>
+                                <input type="text" class="form-control" name="obd2_bluetooth_address" value="{{ integrations.obd2_reader.bluetooth_address }}" placeholder="00:11:22:33:44:55">
+                            </div>
+                            <div class="custom-control custom-switch">
+                                <input type="checkbox" class="custom-control-input" id="obd2_auto_scan" name="obd2_auto_scan" {% if integrations.obd2_reader.auto_scan %}checked{% endif %}>
+                                <label class="custom-control-label" for="obd2_auto_scan">فحص تلقائي عند وصل السيارة</label>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-block"><i class="fas fa-save"></i> حفظ إعدادات OBD-II</button>
+                    </form>
+                    <form method="POST" class="test-btn">
+                        <input type="hidden" name="action" value="test_obd2_reader">
+                        <button type="submit" class="btn btn-outline-info btn-block"><i class="fas fa-vial"></i> اختبار الاتصال</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Digital Scale & Label Printer -->
+    <div class="row">
+        <!-- Digital Scale -->
+        <div class="col-md-6">
+            <div class="integration-card card">
+                <div class="integration-header" style="background: linear-gradient(135deg, #a8ff78 0%, #78ffd6 100%); color: #333;">
+                    <div class="integration-icon"><i class="fas fa-balance-scale"></i></div>
+                    <h4 class="mb-0">الميزان الإلكتروني</h4>
+                    <small>Serial / USB Scale</small>
+                    {% if integrations.digital_scale.enabled %}
+                    <span class="status-badge status-enabled float-left">مفعّل ✅</span>
+                    {% else %}
+                    <span class="status-badge status-disabled float-left">معطّل ❌</span>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        <input type="hidden" name="action" value="save_digital_scale">
+                        <div class="form-group">
+                            <div class="custom-control custom-switch">
+                                <input type="checkbox" class="custom-control-input" id="digital_scale_enabled" name="digital_scale_enabled" {% if integrations.digital_scale.enabled %}checked{% endif %}>
+                                <label class="custom-control-label" for="digital_scale_enabled"><strong>تفعيل الميزان</strong></label>
+                            </div>
+                        </div>
+                        <div class="form-section">
+                            <div class="form-group">
+                                <label>نوع الاتصال</label>
+                                <select class="form-control" name="digital_scale_type">
+                                    <option value="serial" {% if integrations.digital_scale.type == 'serial' %}selected{% endif %}>Serial (COM/RS232)</option>
+                                    <option value="usb" {% if integrations.digital_scale.type == 'usb' %}selected{% endif %}>USB HID</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>المنفذ (Port)</label>
+                                <input type="text" class="form-control" name="digital_scale_port" value="{{ integrations.digital_scale.port }}" placeholder="COM4">
+                            </div>
+                            <div class="form-group">
+                                <label>Baud Rate</label>
+                                <select class="form-control" name="digital_scale_baudrate">
+                                    <option value="9600" {% if integrations.digital_scale.baudrate == '9600' %}selected{% endif %}>9600</option>
+                                    <option value="4800" {% if integrations.digital_scale.baudrate == '4800' %}selected{% endif %}>4800</option>
+                                    <option value="19200" {% if integrations.digital_scale.baudrate == '19200' %}selected{% endif %}>19200</option>
+                                </select>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-block"><i class="fas fa-save"></i> حفظ إعدادات الميزان</button>
+                    </form>
+                    <form method="POST" class="test-btn">
+                        <input type="hidden" name="action" value="test_digital_scale">
+                        <button type="submit" class="btn btn-outline-info btn-block"><i class="fas fa-vial"></i> اختبار الاتصال</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Label Printer -->
+        <div class="col-md-6">
+            <div class="integration-card card">
+                <div class="integration-header" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                    <div class="integration-icon"><i class="fas fa-tags"></i></div>
+                    <h4 class="mb-0">طابعة اللصاقات (Labels)</h4>
+                    <small>Zebra / Brother / TSC</small>
+                    {% if integrations.label_printer.enabled %}
+                    <span class="status-badge status-enabled float-left">مفعّل ✅</span>
+                    {% else %}
+                    <span class="status-badge status-disabled float-left">معطّل ❌</span>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        <input type="hidden" name="action" value="save_label_printer">
+                        <div class="form-group">
+                            <div class="custom-control custom-switch">
+                                <input type="checkbox" class="custom-control-input" id="label_printer_enabled" name="label_printer_enabled" {% if integrations.label_printer.enabled %}checked{% endif %}>
+                                <label class="custom-control-label" for="label_printer_enabled"><strong>تفعيل طابعة الباركود</strong></label>
+                            </div>
+                        </div>
+                        <div class="form-section">
+                            <div class="form-group">
+                                <label>النوع</label>
+                                <select class="form-control" name="label_printer_type">
+                                    <option value="zebra" {% if integrations.label_printer.type == 'zebra' %}selected{% endif %}>Zebra (ZPL)</option>
+                                    <option value="brother" {% if integrations.label_printer.type == 'brother' %}selected{% endif %}>Brother</option>
+                                    <option value="tsc" {% if integrations.label_printer.type == 'tsc' %}selected{% endif %}>TSC (TSPL)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>الاتصال</label>
+                                <select class="form-control" name="label_printer_connection">
+                                    <option value="usb" {% if integrations.label_printer.connection == 'usb' %}selected{% endif %}>USB</option>
+                                    <option value="network" {% if integrations.label_printer.connection == 'network' %}selected{% endif %}>Network (IP)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>IP Address (للشبكة)</label>
+                                <input type="text" class="form-control" name="label_printer_ip" value="{{ integrations.label_printer.ip }}" placeholder="192.168.1.200">
+                            </div>
+                            <div class="form-group">
+                                <label>عرض اللصاقة (بوصة)</label>
+                                <input type="number" class="form-control" name="label_printer_width" value="{{ integrations.label_printer.width }}" placeholder="4">
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-block"><i class="fas fa-save"></i> حفظ إعدادات اللصاقات</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cash Drawer & Customer Display -->
+    <div class="row">
+        <!-- Cash Drawer -->
+        <div class="col-md-6">
+            <div class="integration-card card">
+                <div class="integration-header" style="background: linear-gradient(135deg, #1fa2ff 0%, #12d8fa 50%, #a6ffcb 100%);">
+                    <div class="integration-icon"><i class="fas fa-cash-register"></i></div>
+                    <h4 class="mb-0">درج النقدية (Cash Drawer)</h4>
+                    <small>تلقائي عند الطباعة</small>
+                    {% if integrations.cash_drawer.enabled %}
+                    <span class="status-badge status-enabled float-left">مفعّل ✅</span>
+                    {% else %}
+                    <span class="status-badge status-disabled float-left">معطّل ❌</span>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        <input type="hidden" name="action" value="save_cash_drawer">
+                        <div class="form-group">
+                            <div class="custom-control custom-switch">
+                                <input type="checkbox" class="custom-control-input" id="cash_drawer_enabled" name="cash_drawer_enabled" {% if integrations.cash_drawer.enabled %}checked{% endif %}>
+                                <label class="custom-control-label" for="cash_drawer_enabled"><strong>تفعيل فتح الدرج</strong></label>
+                            </div>
+                        </div>
+                        <div class="form-section">
+                            <div class="form-group">
+                                <label>طريقة الفتح</label>
+                                <select class="form-control" name="cash_drawer_connection">
+                                    <option value="printer" {% if integrations.cash_drawer.connection == 'printer' %}selected{% endif %}>عبر الطابعة (RJ11)</option>
+                                    <option value="serial" {% if integrations.cash_drawer.connection == 'serial' %}selected{% endif %}>مباشر (Serial/USB)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>كود الفتح (Decimal)</label>
+                                <input type="text" class="form-control" name="cash_drawer_open_code" value="{{ integrations.cash_drawer.open_code }}" placeholder="27,112,0,25,250">
+                                <small class="text-muted">أكواد ESC/POS للفتح (مثال: 27,112,0,25,250)</small>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-block"><i class="fas fa-save"></i> حفظ إعدادات الدرج</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Customer Display -->
+        <div class="col-md-6">
+            <div class="integration-card card">
+                <div class="integration-header" style="background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);">
+                    <div class="integration-icon"><i class="fas fa-tv"></i></div>
+                    <h4 class="mb-0">شاشة العميل (Customer Display)</h4>
+                    <small>VFD / LCD 2x20</small>
+                    {% if integrations.customer_display.enabled %}
+                    <span class="status-badge status-enabled float-left">مفعّل ✅</span>
+                    {% else %}
+                    <span class="status-badge status-disabled float-left">معطّل ❌</span>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        <input type="hidden" name="action" value="save_customer_display">
+                        <div class="form-group">
+                            <div class="custom-control custom-switch">
+                                <input type="checkbox" class="custom-control-input" id="customer_display_enabled" name="customer_display_enabled" {% if integrations.customer_display.enabled %}checked{% endif %}>
+                                <label class="custom-control-label" for="customer_display_enabled"><strong>تفعيل شاشة العميل</strong></label>
+                            </div>
+                        </div>
+                        <div class="form-section">
+                            <div class="form-group">
+                                <label>النوع</label>
+                                <select class="form-control" name="customer_display_type">
+                                    <option value="lcd" {% if integrations.customer_display.type == 'lcd' %}selected{% endif %}>LCD/VFD 2x20</option>
+                                    <option value="monitor" {% if integrations.customer_display.type == 'monitor' %}selected{% endif %}>شاشة ثانوية (HDMI/VGA)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>المنفذ (Port)</label>
+                                <input type="text" class="form-control" name="customer_display_port" value="{{ integrations.customer_display.port }}" placeholder="COM2">
+                            </div>
+                            <div class="row">
+                                <div class="col-6">
+                                    <div class="form-group">
+                                        <label>عدد الأسطر</label>
+                                        <input type="number" class="form-control" name="customer_display_lines" value="{{ integrations.customer_display.lines }}" placeholder="2">
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="form-group">
+                                        <label>حروف/سطر</label>
+                                        <input type="number" class="form-control" name="customer_display_chars" value="{{ integrations.customer_display.chars_per_line }}" placeholder="20">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-block"><i class="fas fa-save"></i> حفظ إعدادات الشاشة</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Fingerprint & CCTV -->
+    <div class="row">
+        <!-- Fingerprint -->
+        <div class="col-md-6">
+            <div class="integration-card card">
+                <div class="integration-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                    <div class="integration-icon"><i class="fas fa-fingerprint"></i></div>
+                    <h4 class="mb-0">قارئ البصمة (Fingerprint)</h4>
+                    <small>للحضور والانصراف وتسجيل الدخول</small>
+                    {% if integrations.fingerprint_scanner.enabled %}
+                    <span class="status-badge status-enabled float-left">مفعّل ✅</span>
+                    {% else %}
+                    <span class="status-badge status-disabled float-left">معطّل ❌</span>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        <input type="hidden" name="action" value="save_fingerprint_scanner">
+                        <div class="form-group">
+                            <div class="custom-control custom-switch">
+                                <input type="checkbox" class="custom-control-input" id="fingerprint_scanner_enabled" name="fingerprint_scanner_enabled" {% if integrations.fingerprint_scanner.enabled %}checked{% endif %}>
+                                <label class="custom-control-label" for="fingerprint_scanner_enabled"><strong>تفعيل قارئ البصمة</strong></label>
+                            </div>
+                        </div>
+                        <div class="form-section">
+                            <div class="form-group">
+                                <label>Vendor ID</label>
+                                <input type="text" class="form-control" name="fingerprint_vendor_id" value="{{ integrations.fingerprint_scanner.vendor_id }}" placeholder="0x1234">
+                            </div>
+                            <div class="form-group">
+                                <label>Product ID</label>
+                                <input type="text" class="form-control" name="fingerprint_product_id" value="{{ integrations.fingerprint_scanner.product_id }}" placeholder="0x5678">
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-block"><i class="fas fa-save"></i> حفظ إعدادات البصمة</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- CCTV -->
+        <div class="col-md-6">
+            <div class="integration-card card">
+                <div class="integration-header" style="background: linear-gradient(135deg, #232526 0%, #414345 100%);">
+                    <div class="integration-icon"><i class="fas fa-video"></i></div>
+                    <h4 class="mb-0">نظام المراقبة (CCTV)</h4>
+                    <small>Hikvision / Dahua / ONVIF</small>
+                    {% if integrations.cctv_system.enabled %}
+                    <span class="status-badge status-enabled float-left">مفعّل ✅</span>
+                    {% else %}
+                    <span class="status-badge status-disabled float-left">معطّل ❌</span>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        <input type="hidden" name="action" value="save_cctv_system">
+                        <div class="form-group">
+                            <div class="custom-control custom-switch">
+                                <input type="checkbox" class="custom-control-input" id="cctv_enabled" name="cctv_enabled" {% if integrations.cctv_system.enabled %}checked{% endif %}>
+                                <label class="custom-control-label" for="cctv_enabled"><strong>تفعيل المراقبة</strong></label>
+                            </div>
+                        </div>
+                        <div class="form-section">
+                            <div class="form-group">
+                                <label>النوع</label>
+                                <select class="form-control" name="cctv_type">
+                                    <option value="hikvision" {% if integrations.cctv_system.type == 'hikvision' %}selected{% endif %}>Hikvision</option>
+                                    <option value="dahua" {% if integrations.cctv_system.type == 'dahua' %}selected{% endif %}>Dahua</option>
+                                    <option value="onvif" {% if integrations.cctv_system.type == 'onvif' %}selected{% endif %}>Generic ONVIF</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>NVR IP / DVR IP</label>
+                                <input type="text" class="form-control" name="cctv_nvr_ip" value="{{ integrations.cctv_system.nvr_ip }}" placeholder="192.168.1.20">
+                            </div>
+                            <div class="row">
+                                <div class="col-6">
+                                    <div class="form-group">
+                                        <label>Username</label>
+                                        <input type="text" class="form-control" name="cctv_username" value="{{ integrations.cctv_system.username }}" placeholder="admin">
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="form-group">
+                                        <label>Password</label>
+                                        <input type="password" class="form-control" name="cctv_password" value="{{ integrations.cctv_system.password }}" placeholder="••••••">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-block"><i class="fas fa-save"></i> حفظ إعدادات الكاميرات</button>
+                    </form>
+                    <form method="POST" class="test-btn">
+                        <input type="hidden" name="action" value="test_cctv">
+                        <button type="submit" class="btn btn-outline-info btn-block"><i class="fas fa-vial"></i> اختبار الاتصال</button>
                     </form>
                 </div>
             </div>

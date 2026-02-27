@@ -25,24 +25,28 @@
           <div class="card-body">
             
             <div class="mb-3">
-              <label class="form-label fw-bold">اسم النظام (Brand Name)</label>
-              <input type="text" 
-                     name="system_name" 
-                     class="form-control form-control-lg" 
-                     value="{{ branding.system_name }}" 
-                     placeholder="My Garage System"
-                     minlength="3"
-                     required>
-              <small class="text-muted">يظهر في شريط العنوان وشاشات التحميل</small>
+              <label class="form-label fw-bold">اسم النظام (System Name)</label>
+              <input type="text" name="system_name" class="form-control" value="{{ branding.system_name }}" placeholder="مثال: نظام الكراج الذكي">
             </div>
-            
+
             <div class="mb-3">
-              <label class="form-label fw-bold">وصف النظام</label>
-              <textarea name="system_description" 
-                        class="form-control" 
-                        rows="4" 
-                        placeholder="نظام متكامل لإدارة مراكز الصيانة...">{{ branding.system_description }}</textarea>
-              <small class="text-muted">يظهر في صفحة تسجيل الدخول وصفحات محركات البحث (SEO)</small>
+              <label class="form-label fw-bold">اسم الشركة (Company Name)</label>
+              <input type="text" name="company_name" class="form-control" value="{{ branding.company_name }}" placeholder="مثال: شركة النور للصيانة">
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label fw-bold">عنوان الترحيب (Login Title)</label>
+              <input type="text" name="login_title" class="form-control" value="{{ branding.login_title }}" placeholder="مرحباً بك في النظام">
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label fw-bold">نص فرعي (Login Subtitle)</label>
+              <input type="text" name="login_subtitle" class="form-control" value="{{ branding.login_subtitle }}" placeholder="سجل دخولك للمتابعة">
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label fw-bold">نص التذييل (Footer Text)</label>
+              <input type="text" name="footer_text" class="form-control" value="{{ branding.footer_text }}" placeholder="جميع الحقوق محفوظة">
             </div>
             
           </div>
@@ -57,27 +61,29 @@
           </div>
           <div class="card-body">
             
-            <div class="mb-4">
-              <label class="form-label fw-bold">اللون الأساسي (Primary Color)</label>
-              <div class="input-group input-group-lg">
-                <input type="color" 
-                       name="primary_color" 
-                       class="form-control form-control-color" 
-                       value="{{ branding.primary_color }}" 
-                       title="اختر اللون الأساسي"
-                       style="max-width: 80px;">
-                <input type="text" 
-                       class="form-control" 
-                       value="{{ branding.primary_color }}" 
-                       id="colorHex" 
-                       readonly>
-              </div>
-              <small class="text-muted">يستخدم للأزرار الرئيسية، الروابط النشطة، وعناوين الكروت</small>
+            <div class="mb-3">
+              <label class="form-label fw-bold">اللون الأساسي (Primary)</label>
+              <input type="color" name="primary_color" class="form-control form-control-color w-100" value="{{ branding.primary_color }}">
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label fw-bold">اللون الثانوي (Secondary)</label>
+              <input type="color" name="secondary_color" class="form-control form-control-color w-100" value="{{ branding.secondary_color }}">
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label fw-bold">خلفية القائمة الجانبية (Sidebar BG)</label>
+              <input type="color" name="sidebar_bg" class="form-control form-control-color w-100" value="{{ branding.sidebar_bg }}">
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label fw-bold">نص القائمة الجانبية (Sidebar Text)</label>
+              <input type="color" name="sidebar_text" class="form-control form-control-color w-100" value="{{ branding.sidebar_text }}">
             </div>
             
-            <div class="d-grid gap-2">
+            <div class="d-grid gap-2 mt-4">
                 <a href="{{ url_for('security.logo_manager') }}" class="btn btn-outline-dark">
-                    <i class="fas fa-images"></i> الانتقال إلى إدارة الشعارات والأيقونات
+                    <i class="fas fa-images"></i> إدارة الشعارات (Logos)
                 </a>
             </div>
             

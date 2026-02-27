@@ -81,7 +81,11 @@
   
   <div class="navbar-brand ml-auto d-flex align-items-center" style="margin-left: 10px !important;">
     <a href="{{ url_for('main.dashboard') }}" class="company-logo-link">
-      <img src="{{ url_for('static', filename='img/azad_logo.png') }}" alt="ازاد" loading="lazy" decoding="async" style="height:32px;width:auto;max-width:140px;object-fit:contain;">
+      {% if system_settings and system_settings.custom_logo %}
+        <img src="{{ url_for('static', filename=system_settings.custom_logo.replace('static/', '')) }}" alt="Logo" loading="lazy" decoding="async" style="height:32px;width:auto;max-width:140px;object-fit:contain;">
+      {% else %}
+        <img src="{{ url_for('static', filename='img/azad_logo.png') }}" alt="ازاد" loading="lazy" decoding="async" style="height:32px;width:auto;max-width:140px;object-fit:contain;">
+      {% endif %}
       <span class="company-logo-text">{{ system_settings.company_name or system_settings.system_name or 'النظام' }}</span>
     </a>
   </div>

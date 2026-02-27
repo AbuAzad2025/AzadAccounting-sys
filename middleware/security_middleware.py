@@ -14,9 +14,22 @@ def get_client_ip():
 
 
 def check_ip_allowed(ip):
-    enable_whitelist = SystemSettings.get_setting('enable_ip_whitelist', False)
-    enable_blacklist = SystemSettings.get_setting('enable_ip_blacklist', False)
-    enable_country_block = SystemSettings.get_setting('enable_country_blocking', False)
+    try:
+        from extensions import db
+        # Ensure we are not in a failed transaction state
+        if db.session.is_active:
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+
+        enable_whitelist = SystemSettings.get_setting('enable_ip_whitelist', False)
+        enable_blacklist = SystemSettings.get_setting('enable_ip_blacklist', False)
+        enable_country_block = SystemSettings.get_setting('enable_country_blocking', False)
+    except Exception as e:
+        # Fallback if DB access fails
+        print(f"Middleware Security Check Failed: {e}")
+        return {'allowed': True, 'reason': 'Security check bypassed due to DB error'}
     
     if not any([enable_whitelist, enable_blacklist, enable_country_block]):
         return {'allowed': True, 'reason': 'Security checks disabled'}

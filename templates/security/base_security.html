@@ -37,20 +37,17 @@
         --font-main: 'Cairo', sans-serif;
         --font-mono: 'Fira Code', monospace;
         
-        --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
-        --glass-blur: blur(12px);
+        --glass-shadow: 0 4px 12px 0 rgba(0, 0, 0, 0.2);
+        --glass-blur: none; /* Performance: disabled blur */
     }
 
     /* Global Overrides */
     body.security-body {
-        /* Complex Gradient Background mimicking the image using PURE CSS */
-        background: 
-            radial-gradient(circle at 15% 50%, rgba(0, 210, 255, 0.4) 0%, transparent 50%), 
-            radial-gradient(circle at 85% 30%, rgba(255, 0, 204, 0.4) 0%, transparent 50%), 
-            radial-gradient(circle at 50% 50%, rgba(58, 123, 213, 0.2) 0%, transparent 50%),
-            linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
-        background-attachment: fixed;
-        background-size: cover;
+        /* Simplified Background for Performance */
+        background-color: #111827;
+        background-image: linear-gradient(135deg, #111827 0%, #1f2937 100%);
+        background-attachment: scroll; /* Performance: fixed attachment causes lag */
+        background-size: auto;
         
         font-family: var(--font-main);
         color: var(--sec-text-main);
@@ -59,7 +56,7 @@
         min-height: 100vh;
     }
 
-    /* Sidebar Styling - Glassmorphism */
+    /* Sidebar Styling - Glassmorphism Optimized */
     .security-sidebar {
         position: fixed;
         top: var(--main-navbar-height);
@@ -67,14 +64,12 @@
         width: var(--sidebar-width);
         height: calc(100vh - var(--main-navbar-height));
         
-        background: var(--sec-sidebar-bg);
-        backdrop-filter: var(--glass-blur);
-        -webkit-backdrop-filter: var(--glass-blur);
+        background: #111827; /* Solid color instead of complex gradient/glass */
         border-left: 1px solid var(--sec-sidebar-border);
         
         z-index: 1040;
-        transition: all 0.3s ease-in-out;
-        box-shadow: -5px 0 25px rgba(0,0,0,0.2);
+        transition: transform 0.3s ease-in-out;
+        box-shadow: -2px 0 10px rgba(0,0,0,0.2);
         color: #fff;
     }
     

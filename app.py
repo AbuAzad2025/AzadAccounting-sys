@@ -1098,6 +1098,52 @@ def create_app(config_object=Config) -> Flask:
         _validate_system_integrity(app)
     else:
         app.logger.warning("System integrity check skipped by configuration.")
+        
+    # --- LOAD SETTINGS FROM DB ---
+    # This ensures that settings changed in the Security Dashboard (Email, Integrations)
+    # are actually used by the application (overriding env vars).
+    with app.app_context():
+        try:
+            from models import SystemSettings
+            
+            # 1. Mail Settings
+            mail_keys = ['MAIL_SERVER', 'MAIL_PORT', 'MAIL_USERNAME', 'MAIL_PASSWORD', 'MAIL_USE_TLS', 'MAIL_USE_SSL', 'MAIL_DEFAULT_SENDER']
+            mail_updated = False
+            for key in mail_keys:
+                val = SystemSettings.get_setting(key)
+                if val:
+                    # Convert types
+                    if key == 'MAIL_PORT':
+                        val = int(val)
+                    elif key in ('MAIL_USE_TLS', 'MAIL_USE_SSL'):
+                        val = str(val).lower() in ('true', '1', 'on', 'yes')
+                    
+                    app.config[key] = val
+                    mail_updated = True
+            
+            # Re-init mail if settings changed (though usually app.config update is enough if done early)
+            # from extensions import mail
+            # mail.init_app(app) # Careful, this might attach twice
+            
+            # 2. Integration Settings (Map lowercase to uppercase config keys)
+            integration_map = {
+                'stripe_public_key': 'STRIPE_PUBLIC_KEY',
+                'stripe_secret_key': 'STRIPE_SECRET_KEY',
+                'paypal_client_id': 'PAYPAL_CLIENT_ID',
+                'paypal_secret': 'PAYPAL_SECRET',
+                'twilio_account_sid': 'TWILIO_ACCOUNT_SID',
+                'twilio_auth_token': 'TWILIO_AUTH_TOKEN',
+                'twilio_whatsapp_number': 'TWILIO_WHATSAPP_NUMBER',
+            }
+            
+            for db_key, config_key in integration_map.items():
+                val = SystemSettings.get_setting(db_key)
+                if val:
+                    app.config[config_key] = val
+                    
+        except Exception as e:
+            app.logger.warning(f"Failed to load settings from DB: {e}")
+
     _register_cors(app)
     _register_app_handlers(app)
 
@@ -1329,17 +1375,25 @@ def create_app(config_object=Config) -> Flask:
     @app.context_processor
     def inject_system_settings():
         try:
-            cache_key = "system_settings:bundle:v2"
-            cached = cache.get(cache_key)
-            if cached:
-                return dict(system_settings=cached)
+            # Always refresh settings to avoid stale cache issues
+            # cache_key = "system_settings:bundle:v2"
+            # cached = cache.get(cache_key)
+            # if cached:
+            #     return dict(system_settings=cached)
 
             keys = [
                 'system_name',
-                'COMPANY_NAME',
+                'company_name',    # Lowercase (from security.py)
+                'COMPANY_NAME',    # Uppercase (legacy/other routes)
                 'custom_logo',
                 'custom_favicon',
                 'primary_color',
+                'secondary_color',
+                'sidebar_bg',
+                'sidebar_text',
+                'login_title',     # Added
+                'login_subtitle',  # Added
+                'footer_text',     # Added
                 'COMPANY_ADDRESS',
                 'COMPANY_PHONE',
                 'COMPANY_EMAIL',
@@ -1368,12 +1422,21 @@ def create_app(config_object=Config) -> Flask:
                     return False
                 return s
 
+            # Prioritize lowercase keys if available
+            company_name_val = _coerce('company_name') or _coerce('COMPANY_NAME', 'اسم الشركة')
+
             settings = {
                 'system_name': _coerce('system_name', 'نظام إدارة متكامل'),
-                'company_name': _coerce('COMPANY_NAME', 'اسم الشركة'),
+                'company_name': company_name_val,
+                'login_title': _coerce('login_title', 'مرحباً بك'),
+                'login_subtitle': _coerce('login_subtitle', 'سجل دخولك للمتابعة'),
+                'footer_text': _coerce('footer_text', 'جميع الحقوق محفوظة'),
                 'custom_logo': _coerce('custom_logo', ''),
                 'custom_favicon': _coerce('custom_favicon', ''),
                 'primary_color': _coerce('primary_color', '#007bff'),
+                'secondary_color': _coerce('secondary_color', '#1f2937'),
+                'sidebar_bg': _coerce('sidebar_bg', '#111827'),
+                'sidebar_text': _coerce('sidebar_text', '#f9fafb'),
                 'COMPANY_ADDRESS': _coerce('COMPANY_ADDRESS', ''),
                 'COMPANY_PHONE': _coerce('COMPANY_PHONE', ''),
                 'COMPANY_EMAIL': _coerce('COMPANY_EMAIL', app.config.get("DEV_EMAIL", "rafideen.ahmadghannam@gmail.com")),
@@ -1387,9 +1450,11 @@ def create_app(config_object=Config) -> Flask:
                 'marketing_price_from_usd': _coerce('MARKETING_PRICE_FROM_USD', '500'),
             }
 
-            cache.set(cache_key, settings, timeout=1800)
+            # Disable cache for immediate updates
+            # cache.set(cache_key, settings, timeout=1800)
             return dict(system_settings=settings, system_appearance=system_appearance)
         except Exception:
+            # Return defaults on error to prevent crash
             return dict(system_settings={}, system_appearance={})
     
     @app.before_request
@@ -1494,17 +1559,36 @@ def create_app(config_object=Config) -> Flask:
 
 def bootstrap_database():
     """
-    🔧 Bootstrap Database - تهيئة أولية (تُشغل مرة واحدة)
+    🔧 Bootstrap Database - تهيئة أولية آمنة (Safe Bootstrap)
     
-    - إنشاء الجداول إذا لم تكن موجودة
-    - زرع الإعدادات الافتراضية
-    - لا حذف، لا إعادة تهيئة
+    1. Check for critical tables (users, system_settings).
+    2. If MISSING -> Run db.create_all() (Safe for new installs).
+    3. If EXISTS -> Check if migrations are current (using Alembic).
+    4. Validate critical columns.
     """
     from models import db, SystemSettings, NotificationLog, TaxEntry, ExpenseType
+    from sqlalchemy import inspect
+    from flask_migrate import upgrade
     
     try:
-        # 1. إنشاء الجداول (idempotent - لا يحذف الموجود)
-        db.create_all()
+        inspector = inspect(db.engine)
+        existing_tables = inspector.get_table_names()
+        
+        # --- PHASE 1: Schema Initialization ---
+        if 'users' not in existing_tables or 'system_settings' not in existing_tables:
+            current_app.logger.warning("⚠️ Critical tables missing. Initializing database schema...")
+            db.create_all()
+            current_app.logger.info("✅ Database schema created successfully.")
+        else:
+            current_app.logger.info("✅ Critical tables exist. Checking for migrations...")
+            # Optional: Attempt to run migrations if alembic is set up
+            # try:
+            #     upgrade()
+            #     current_app.logger.info("✅ Database migrations applied.")
+            # except Exception as e:
+            #     current_app.logger.warning(f"⚠️ Migration warning: {e}")
+
+        # --- PHASE 2: Data Seeding (Idempotent) ---
         
         # 2. إضافة أنواع المصاريف الأساسية (إذا لم تكن موجودة)
         expense_types = [
@@ -1517,30 +1601,28 @@ def bootstrap_database():
             if not existing:
                 new_type = ExpenseType(code=code, name=name, description=desc)
                 db.session.add(new_type)
-                current_app.logger.info(f'[OK] Created ExpenseType: {code}')
         
-        # 3. زرع الإعدادات الافتراضية (إذا لم تكن موجودة)
+        # 3. زرع الإعدادات الافتراضية
         default_settings = {
-            'twilio_account_sid': ('', 'Twilio Account SID for SMS/WhatsApp', 'string'),
+            'twilio_account_sid': ('', 'Twilio Account SID', 'string'),
             'twilio_auth_token': ('', 'Twilio Auth Token', 'string'),
-            'twilio_phone_number': ('', 'Twilio Phone Number (e.g., +970562150193)', 'string'),
-            'twilio_whatsapp_number': ('whatsapp:+14155238886', 'Twilio WhatsApp Number', 'string'),
-            'inventory_manager_phone': ('', 'رقم هاتف مدير المخزون للإشعارات', 'string'),
-            'inventory_manager_email': ('', 'بريد مدير المخزون للإشعارات', 'string'),
+            'twilio_phone_number': ('', 'Twilio Phone Number', 'string'),
+            'inventory_manager_email': ('', 'Inventory Manager Email', 'string'),
         }
         
         for key, (value, desc, dtype) in default_settings.items():
             existing = SystemSettings.query.filter_by(key=key).first()
             if not existing:
                 SystemSettings.set_setting(key, value, desc, data_type=dtype, is_public=False)
-                current_app.logger.info(f'Created setting: {key}')
         
         db.session.commit()
-        current_app.logger.info('Bootstrap completed successfully')
+        current_app.logger.info('✅ Bootstrap & Validation completed successfully')
         
     except Exception as e:
-        current_app.logger.error(f'Bootstrap failed: {e}')
+        current_app.logger.error(f'❌ Bootstrap failed: {e}')
         db.session.rollback()
+        # In production, we might want to exit here, but for resilience we log and continue
+
 
 
 if __name__ == '__main__':

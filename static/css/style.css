@@ -5,42 +5,85 @@
 
 :root {
     /* --- Color Palette --- */
-    /* Backgrounds */
-    --bg-dark-deep: #0f172a;
-    --bg-dark-surface: #1e293b;
-    --bg-dark-card: rgba(30, 41, 59, 0.75);
-    --bg-glass: rgba(15, 23, 42, 0.85);
+    /* Backgrounds - Slightly lightened for better contrast */
+    --bg-dark-deep: #111827;      /* Was #0f172a - deep blue-black */
+    --bg-dark-surface: #1f2937;   /* Was #1e293b - slightly lighter slate */
+    --bg-dark-card: #1f2937;      /* Was rgba(30, 41, 59, 0.75) - solid for better readability */
+    --bg-glass: rgba(17, 24, 39, 0.95); /* Increased opacity */
     
     /* Accents */
-    --primary-cyan: #00e5ff;
-    --primary-cyan-hover: #29b6f6;
-    --accent-pink: #f50057;
-    --accent-yellow: #ffcc00;
-    --accent-purple: #d92d4b;
+    --primary-cyan: #06b6d4;      /* Cyan-500 - more readable than neon #00e5ff */
+    --primary-cyan-hover: #22d3ee;/* Cyan-400 */
+    --accent-pink: #ec4899;       /* Pink-500 - softer than #f50057 */
+    --accent-yellow: #eab308;     /* Yellow-500 - gold-like */
+    --accent-purple: #8b5cf6;     /* Violet-500 */
     
     /* Text */
-    --text-main: #f8fafc;
-    --text-muted: #94a3b8;
-    --text-dark: #0f172a;
+    --text-main: #f9fafb;         /* Gray-50 - almost white */
+    --text-muted: #d1d5db;        /* Gray-300 - much lighter than #94a3b8 */
+    --text-dark: #111827;         /* Gray-900 */
     
     /* Borders */
-    --border-glass: rgba(255, 255, 255, 0.1);
-    --border-neon: rgba(0, 229, 255, 0.3);
+    --border-glass: rgba(255, 255, 255, 0.15); /* Increased visibility */
+    --border-neon: rgba(6, 182, 212, 0.5);
     
     /* Gradients */
     --grad-sidebar: linear-gradient(180deg, rgba(13, 17, 30, 0.98) 0%, rgba(30, 27, 75, 0.95) 100%);
     --grad-primary: linear-gradient(135deg, #0060aa 0%, #00e5ff 100%);
     
     /* Shadows & Effects */
-    --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
-    --blur-glass: blur(12px);
-    --glow-primary: 0 0 10px rgba(0, 229, 255, 0.5);
+    --shadow-glass: 0 4px 12px 0 rgba(0, 0, 0, 0.2);
+    --blur-glass: none; /* Performance optimization: disabled blur */
+    --glow-primary: 0 0 5px rgba(6, 182, 212, 0.3);
     
     /* Layout */
     --sidebar-width: 260px;
     --header-height: 60px;
     --radius-main: 12px;
     --radius-sm: 8px;
+}
+
+/* --- RTL Layout Fixes for AdminLTE --- */
+body.rtl .main-sidebar, 
+body[dir="rtl"] .main-sidebar {
+    right: 0 !important;
+    left: auto !important;
+}
+
+body.rtl .content-wrapper,
+body[dir="rtl"] .content-wrapper,
+body.rtl .main-footer,
+body[dir="rtl"] .main-footer,
+body.rtl .main-header,
+body[dir="rtl"] .main-header {
+    margin-right: 260px !important;
+    margin-left: 0 !important;
+    width: auto !important; /* Allow auto width to fill remaining space */
+    transition: margin-right 0.3s ease-in-out;
+}
+
+/* When sidebar is collapsed */
+body.rtl.sidebar-collapse .content-wrapper,
+body[dir="rtl"].sidebar-collapse .content-wrapper,
+body.rtl.sidebar-collapse .main-footer,
+body[dir="rtl"].sidebar-collapse .main-footer,
+body.rtl.sidebar-collapse .main-header,
+body[dir="rtl"].sidebar-collapse .main-header {
+    margin-right: 4.6rem !important;
+    margin-left: 0 !important;
+}
+
+/* Fix overlapping on small screens */
+@media (max-width: 991.98px) {
+    body.rtl .content-wrapper,
+    body[dir="rtl"] .content-wrapper,
+    body.rtl .main-footer,
+    body[dir="rtl"] .main-footer,
+    body.rtl .main-header,
+    body[dir="rtl"] .main-header {
+        margin-right: 0 !important;
+        width: 100% !important;
+    }
 }
 
 /* --- Global Reset & Typography --- */
@@ -360,37 +403,77 @@ a:hover {
     background: transparent !important; /* Let body background show */
 }
 
-/* --- Stats Boxes (Small Box) --- */
-.small-box {
-    background: var(--bg-dark-card);
-    border: 1px solid var(--border-glass);
-    border-radius: var(--radius-main);
-    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
-    overflow: hidden;
+/* --- Forms & Inputs --- */
+.form-control, .custom-select, .select2-container--default .select2-selection--single {
+    background-color: var(--bg-dark-deep) !important;
+    border: 1px solid var(--border-glass) !important;
+    color: var(--text-main) !important;
+    border-radius: var(--radius-sm);
+    padding: 0.5rem 0.75rem;
+}
+
+.form-control:focus, .custom-select:focus, .select2-container--default.select2-container--open .select2-selection--single {
+    border-color: var(--primary-cyan) !important;
+    box-shadow: 0 0 0 0.2rem rgba(6, 182, 212, 0.25) !important;
+    background-color: var(--bg-dark-deep) !important;
     color: var(--text-main) !important;
 }
 
-.small-box .inner {
-    padding: 1.5rem;
+/* --- Buttons --- */
+.btn-action-add {
+    background: linear-gradient(135deg, var(--primary-cyan), var(--primary-cyan-hover));
+    color: #fff !important;
+    border: none;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+    font-weight: 600;
+    border-radius: var(--radius-sm);
+    padding: 0.5rem 1rem;
+    transition: all 0.2s ease;
 }
 
-.small-box h3 {
-    font-size: 2.2rem;
-    font-weight: 700;
-    margin-bottom: 0.5rem;
+.btn-action-add:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgba(6, 182, 212, 0.4);
     color: #fff !important;
 }
 
-.small-box p {
-    font-size: 1rem;
-    color: var(--text-muted);
+/* Ensure icons in buttons are spaced */
+.btn i { margin-left: 0.5rem; }
+
+/* --- Action Buttons Container --- */
+.btn-group-actions-end {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
 }
+
+/* --- Table Headers --- */
+.table thead th {
+    background-color: var(--bg-dark-surface);
+    color: var(--primary-cyan);
+    border-bottom: 2px solid var(--border-glass);
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    letter-spacing: 0.05em;
+}
+
+/* --- Small Box (Dashboard) --- */
+.small-box {
+    border-radius: var(--radius-main);
+    box-shadow: var(--shadow-glass);
+    background: var(--bg-dark-card);
+    color: var(--text-main);
+    overflow: hidden;
+}
+
+.small-box > .inner { padding: 1.25rem; }
+.small-box h3 { font-size: 2.2rem; font-weight: 700; margin: 0 0 0.5rem 0; }
+.small-box p { font-size: 1rem; margin-bottom: 0; color: var(--text-muted); }
 
 .small-box .icon {
     color: rgba(255, 255, 255, 0.1);
-    top: 10px;
-    right: 10px;
-    transition: all 0.3s;
+    z-index: 0;
 }
 
 .small-box:hover .icon {

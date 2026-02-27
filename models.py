@@ -773,10 +773,11 @@ class SystemSettings(db.Model):
     @classmethod
     def set_setting(cls, key, value, description=None, data_type='string', is_public=False, commit=True):
         """Set a system setting value"""
+        # Force Clear All Related Caches
         try:
             from extensions import cache
-            cache_key = f"system_setting_{key}"
-            cache.delete(cache_key)
+            cache.delete(f"system_setting_{key}")
+            cache.delete("system_settings:bundle:v2") # Also clear bundle cache
         except Exception:
             pass
         
@@ -795,12 +796,22 @@ class SystemSettings(db.Model):
         else:
             setting.value = str(value)
         
-        setting.description = description or setting.description
-        setting.data_type = data_type
+        if description:
+            setting.description = description
+        if data_type:
+            setting.data_type = data_type
+        
         setting.is_public = is_public
         setting.updated_at = datetime.now(timezone.utc)
         if commit:
             db.session.commit()
+            
+        # Ensure change is reflected immediately
+        try:
+            db.session.expire(setting)
+        except:
+            pass
+            
         return setting
 
 
