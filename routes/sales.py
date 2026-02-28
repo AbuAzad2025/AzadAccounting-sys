@@ -1185,7 +1185,7 @@ def sale_payments(id: int):
 @sales_bp.route("/<int:id>/edit", methods=["GET", "POST"], endpoint="edit_sale")
 @login_required
 @utils.permission_required("manage_sales")
-def edit_sale(id): int):
+def edit_sale(id):
     sale = _get_or_404(Sale, id)
     if sale.status in ("CANCELLED", "REFUNDED"):
         flash("❌ لا يمكن تعديل فاتورة ملغاة/مرتجعة.", "danger")

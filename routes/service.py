@@ -546,7 +546,7 @@ def create_request():
 @service_bp.route('/<int:rid>', methods=['GET'])
 @login_required
 @utils.permission_required("view_service")
-def detail(rid):view_request(rid):
+def detail(rid):
     service=_get_or_404(ServiceRequest, rid, options=[joinedload(ServiceRequest.customer), joinedload(ServiceRequest.parts).joinedload(ServicePart.part), joinedload(ServiceRequest.parts).joinedload(ServicePart.warehouse), joinedload(ServiceRequest.tasks)])
     warehouses=Warehouse.query.order_by(Warehouse.name.asc()).all()
     
