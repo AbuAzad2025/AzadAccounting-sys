@@ -1051,8 +1051,9 @@ def create_sale():
             db.session.commit()
             try:
                 run_sale_gl_sync_after_commit(sale.id)
-            except Exception:
-                pass
+            except Exception as e:
+                current_app.logger.error(f"⚠️ GL Sync Failed for Sale #{sale.id}: {e}")
+                # Don't flash error to user as the sale is valid, but log it for admin
             flash("✅ تم إنشاء الفاتورة.", "success")
             return redirect(url_for("sales_bp.sale_detail", id=sale.id))
         except SQLAlchemyError as e:
@@ -1262,8 +1263,8 @@ def edit_sale(id): int):
             db.session.commit()
             try:
                 run_sale_gl_sync_after_commit(sale.id)
-            except Exception:
-                pass
+            except Exception as e:
+                current_app.logger.error(f"⚠️ GL Sync Failed for Sale #{sale.id} (Update): {e}")
             # تحديث رصيد العميل
             try:
                 from utils.customer_balance_updater import update_customer_balance_components

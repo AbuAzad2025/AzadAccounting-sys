@@ -555,8 +555,8 @@ def detail(rid):view_request(rid):
         db.session.commit()
         try:
             run_service_gl_sync_after_commit(service.id)
-        except Exception:
-            pass
+        except Exception as e:
+            current_app.logger.error(f"⚠️ GL Sync Failed for Service #{service.id}: {e}")
     except Exception:
         db.session.rollback()
     
@@ -598,8 +598,8 @@ def update_diagnosis(rid):
         db.session.commit()
         try:
             run_service_gl_sync_after_commit(service.id)
-        except Exception:
-            pass
+        except Exception as e:
+            current_app.logger.error(f"⚠️ GL Sync Failed for Service #{service.id}: {e}")
         log_service_action(service,"DIAGNOSIS", old_data=old, new_data={'problem_description':service.problem_description,'diagnosis':service.diagnosis,'resolution':service.resolution,'estimated_duration':service.estimated_duration,'estimated_cost':str(service.estimated_cost or 0),'status':getattr(service.status,"value",service.status)})
         _refresh_service_related_balances(service)
         if service.customer and service.customer.phone: utils.send_whatsapp_message(service.customer.phone, f"تم تحديث ملاحظات المهندس للمركبة {service.vehicle_vrn}.")
@@ -655,8 +655,8 @@ def update_discount_tax(rid):
         db.session.commit()
         try:
             run_service_gl_sync_after_commit(service.id)
-        except Exception:
-            pass
+        except Exception as e:
+            current_app.logger.error(f"⚠️ GL Sync Failed for Service #{service.id}: {e}")
         # تسجيل في الـ audit log
         log_service_action(service, "UPDATE_DISCOUNT_TAX", 
                           old_data=old_data, 
@@ -701,8 +701,8 @@ def toggle_service(rid, action):
         db.session.commit()
         try:
             run_service_gl_sync_after_commit(service.id)
-        except Exception:
-            pass
+        except Exception as e:
+            current_app.logger.error(f"⚠️ GL Sync Failed for Service #{service.id}: {e}")
         _refresh_service_related_balances(service)
         
         if action=='complete':
@@ -797,8 +797,8 @@ def add_part(rid):
         db.session.commit()
         try:
             run_service_gl_sync_after_commit(service.id)
-        except Exception:
-            pass
+        except Exception as e:
+            current_app.logger.error(f"⚠️ GL Sync Failed for Service #{service.id}: {e}")
         _refresh_service_related_balances(service)
         flash('✅ تمت إضافة القطعة بنجاح','success')
         
@@ -840,8 +840,8 @@ def delete_part(pid):
         db.session.commit()
         try:
             run_service_gl_sync_after_commit(service.id)
-        except Exception:
-            pass
+        except Exception as e:
+            current_app.logger.error(f"⚠️ GL Sync Failed for Service #{service.id}: {e}")
         _refresh_service_related_balances(service)
         flash('✅ تم حذف القطعة ومعالجة المخزون','success')
     except SQLAlchemyError as e:
@@ -913,8 +913,8 @@ def add_task(rid):
         db.session.commit()
         try:
             run_service_gl_sync_after_commit(service.id)
-        except Exception:
-            pass
+        except Exception as e:
+            current_app.logger.error(f"⚠️ GL Sync Failed for Service #{service.id}: {e}")
         _refresh_service_related_balances(service)
         flash('✅ تمت إضافة المهمة بنجاح','success')
         
@@ -946,8 +946,8 @@ def delete_task(tid):
         db.session.commit()
         try:
             run_service_gl_sync_after_commit(service.id)
-        except Exception:
-            pass
+        except Exception as e:
+            current_app.logger.error(f"⚠️ GL Sync Failed for Service #{service.id}: {e}")
         _refresh_service_related_balances(service)
         flash('✅ تم حذف المهمة','success')
     except SQLAlchemyError as e:
