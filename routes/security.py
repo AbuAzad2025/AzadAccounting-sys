@@ -4938,16 +4938,19 @@ def system_branding():
             
             # تسجيل في AuditLog
             try:
+                import json
                 log = AuditLog(
                     user_id=current_user.id,
-                    action='security.update_branding',
-                    table_name='system_settings',
-                    note=f'Updated: {", ".join(updated)}',
+                    action='UPDATE',
+                    model_name='SystemSettings',
+                    new_data=json.dumps({'updated_fields': updated, 'note': 'Updated branding settings'}),
                     ip_address=request.remote_addr
                 )
                 db.session.add(log)
                 db.session.commit()
-            except Exception:
+            except Exception as e:
+                # Log error but don't stop the process
+                current_app.logger.error(f"Audit log failed: {e}")
                 pass
         else:
             flash('ℹ️ لم يتم تحديث أي شيء', 'info')
