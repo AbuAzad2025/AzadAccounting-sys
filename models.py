@@ -1138,6 +1138,27 @@ def _fx_rate_local_via_connection(connection, base: str, quote: str, at: datetim
     t = at or datetime.now(timezone.utc)
     try:
         from sqlalchemy import select as sa_select
+        
+        # 1. Priority: Manual Rate for TODAY (Overrides any online rate for same day)
+        today_start = t.replace(hour=0, minute=0, second=0, microsecond=0)
+        manual_today = connection.execute(
+            sa_select(ExchangeRate.rate)
+            .where(
+                ExchangeRate.base_code == b,
+                ExchangeRate.quote_code == qv,
+                ExchangeRate.is_active.is_(True),
+                ExchangeRate.valid_from >= today_start,
+                ExchangeRate.valid_from <= t,
+                ExchangeRate.source != 'External API' # Not auto-generated
+            )
+            .order_by(ExchangeRate.valid_from.desc())
+            .limit(1)
+        ).scalar_one_or_none()
+        
+        if manual_today is not None:
+            return Decimal(str(manual_today))
+
+        # 2. Fallback: Latest Rate (Manual or Online)
         row = connection.execute(
             sa_select(ExchangeRate.rate)
             .where(
@@ -1404,7 +1425,7 @@ def get_fx_rate_with_fallback(base: str, quote: str, at: datetime | None = None)
         try:
             with db.session.no_autoflush:
                 q = (
-                    db.session.query(ExchangeRate.rate)
+                    db.session.query(ExchangeRate.rate, ExchangeRate.source)
                     .filter(
                         ExchangeRate.base_code == b,
                         ExchangeRate.quote_code == qv,
@@ -1416,10 +1437,13 @@ def get_fx_rate_with_fallback(base: str, quote: str, at: datetime | None = None)
                 v = q.first()
             if v:
                 local_rate_value = Decimal(str(v[0]))
+                rate_source = v[1]
+                
                 if local_rate_value and local_rate_value > Decimal("0"):
+                    is_manual = (rate_source != 'External API')
                     return {
                         'rate': float(local_rate_value),
-                        'source': 'manual',
+                        'source': 'manual' if is_manual else 'online_cached',
                         'base': base,
                         'quote': quote,
                         'timestamp': at or datetime.now(timezone.utc),
