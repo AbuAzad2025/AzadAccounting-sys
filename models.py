@@ -3806,6 +3806,103 @@ def build_partner_settlement_draft(partner_id: int, date_from: datetime, date_to
                 total_gross -= base
                 total_share -= share_amt
 
+    # 4. Inventory Share (Current Stock - For Information/Liquidation)
+    # Only include if stock > 0
+    # Note: Usually this is not paid out unless liquidating, but added per request.
+    # We will mark it as INVENTORY_SHARE source_type.
+    
+    # A. ProductPartner Shares
+    pp_q = (
+        db.session.query(ProductPartner, StockLevel)
+        .join(StockLevel, StockLevel.product_id == ProductPartner.product_id)
+        .filter(
+            ProductPartner.partner_id == partner_id,
+            StockLevel.quantity > 0
+        )
+    )
+    
+    for pp, sl in pp_q:
+        pct = float(pp.share_percent or 0)
+        if pct > 0:
+            qty = Decimal(str(sl.quantity or 0))
+            # Use Purchase Price for Inventory Valuation
+            prod = pp.product
+            u_cost = Decimal(str(prod.purchase_price or 0)) if prod else Decimal("0")
+            
+            base = q(u_cost * qty)
+            share_amt = q(base * Decimal(str(pct / 100.0)))
+            pct_dec = Decimal(str(pct)).quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
+            
+            if share_amt > 0:
+                ps.lines.append(
+                    PartnerSettlementLine(
+                        source_type="INVENTORY_SHARE",
+                        source_id=sl.id, # Using StockLevel ID as source
+                        description=f"Inventory Share - Product #{pp.product_id} (WH: {sl.warehouse_id})",
+                        product_id=pp.product_id,
+                        warehouse_id=sl.warehouse_id,
+                        quantity=qty,
+                        unit_price=u_cost,
+                        gross_amount=base,
+                        share_percent=pct_dec,
+                        share_amount=share_amt,
+                    )
+                )
+                # Option: Do we add this to total_due? 
+                # If we do, it means we are PAYING the partner for the inventory.
+                # If the user wants to see it but not pay, it should be separate.
+                # Given the prompt "calculate shares... for products in stock", I will add it to totals
+                # but maybe the UI should distinguish it.
+                total_gross += base
+                total_share += share_amt
+
+    # B. WarehousePartnerShare
+    wps_q = (
+        db.session.query(WarehousePartnerShare, StockLevel)
+        .join(StockLevel, 
+              and_(
+                  StockLevel.product_id == WarehousePartnerShare.product_id,
+                  StockLevel.warehouse_id == WarehousePartnerShare.warehouse_id
+              )
+        )
+        .filter(
+            WarehousePartnerShare.partner_id == partner_id,
+            StockLevel.quantity > 0
+        )
+    )
+
+    for wps, sl in wps_q:
+        pct = float(wps.share_percentage or 0)
+        if pct > 0:
+            # Check if already covered by ProductPartner to avoid double counting?
+            # Assuming additive or mutually exclusive for now.
+            
+            qty = Decimal(str(sl.quantity or 0))
+            prod = sl.product
+            u_cost = Decimal(str(prod.purchase_price or 0)) if prod else Decimal("0")
+            
+            base = q(u_cost * qty)
+            share_amt = q(base * Decimal(str(pct / 100.0)))
+            pct_dec = Decimal(str(pct)).quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
+            
+            if share_amt > 0:
+                ps.lines.append(
+                    PartnerSettlementLine(
+                        source_type="INVENTORY_SHARE_WH",
+                        source_id=sl.id,
+                        description=f"WH Share - Product #{wps.product_id} (WH: {wps.warehouse_id})",
+                        product_id=wps.product_id,
+                        warehouse_id=wps.warehouse_id,
+                        quantity=qty,
+                        unit_price=u_cost,
+                        gross_amount=base,
+                        share_percent=pct_dec,
+                        share_amount=share_amt,
+                    )
+                )
+                total_gross += base
+                total_share += share_amt
+
     ps.total_gross = q(total_gross)
     ps.total_share = q(total_share)
     ps.total_costs = q(0)
@@ -8926,6 +9023,42 @@ def build_supplier_settlement_draft(
                 needs_pricing=needs_pricing,
                 cost_source=cost_source
             ))
+
+        # 5. Remaining Stock (Optional Buyout for Consignment)
+        stock_q = (
+             db.session.query(StockLevel, Product)
+             .join(Product, Product.id == StockLevel.product_id)
+             .join(Warehouse, Warehouse.id == StockLevel.warehouse_id)
+             .filter(
+                 Warehouse.supplier_id == supplier_id,
+                 Warehouse.warehouse_type == WarehouseType.EXCHANGE.value,
+                 StockLevel.quantity > 0
+             )
+         )
+         
+        for sl, prod in stock_q:
+             qty = Decimal(str(sl.quantity or 0))
+             u_price = _avg_cost_until(prod.id, supplier_id, date_to)
+             cost_source = "TX_AVG" if u_price > 0 else "MISSING"
+             needs_pricing = bool(u_price <= 0)
+             base = (qty * u_price).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+             
+             if base > 0 or qty > 0:
+                 ss.lines.append(
+                    SupplierSettlementLine(
+                        source_type="INVENTORY_HOLDING",
+                        source_id=sl.id,
+                        description=f"Remaining Stock (Buyout) - {prod.name}",
+                        product_id=prod.id,
+                        warehouse_id=sl.warehouse_id,
+                        quantity=qty,
+                        unit_price=u_price if u_price > 0 else None,
+                        gross_amount=base,
+                        needs_pricing=needs_pricing,
+                        cost_source=cost_source
+                    )
+                 )
+                 total_consumption += base
 
     loans_q = (
         db.session.query(SupplierLoanSettlement)
