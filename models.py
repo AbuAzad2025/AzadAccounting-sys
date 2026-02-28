@@ -12612,20 +12612,79 @@ def _sale_return_gl_upsert_core(connection, target: "SaleReturn") -> None:
     """منطق قيد GL لمرتجع المبيعات (يُستدعى من معاملة منفصلة بعد commit)."""
     if target.status != "CONFIRMED":
         return
-    amount = float(target.total_amount or 0)
-    if amount <= 0:
+    total_refund = float(target.total_amount or 0)
+    if total_refund <= 0:
         return
-    entries = [
-        (GL_ACCOUNTS.get("REV", "4000_SALES"), amount, 0),
-        (GL_ACCOUNTS.get("AR", "1100_AR"), 0, amount),
-    ]
+        
+    total_refund_dec = Decimal(str(total_refund))
+
+    # 1. Calculate Tax Share
+    tax_rate = Decimal("0")
+    if target.sale_id:
+        try:
+            # Use SQL to get tax_rate to avoid ORM loading issues
+            res = connection.execute(
+                sa_text("SELECT tax_rate FROM sales WHERE id = :sid"), 
+                {"sid": target.sale_id}
+            ).scalar()
+            if res:
+                tax_rate = Decimal(str(res))
+        except Exception:
+            pass
+
+    # Net = Total / (1 + Rate/100)
+    if tax_rate > 0:
+        net_sales = total_refund_dec / (Decimal("1") + (tax_rate / Decimal("100")))
+        net_sales = net_sales.quantize(Decimal("0.01"), ROUND_HALF_UP)
+        tax_amount = total_refund_dec - net_sales
+    else:
+        net_sales = total_refund_dec
+        tax_amount = Decimal("0")
+
+    # 2. Calculate Cost of Returned Goods (For Inventory/COGS reversal)
+    total_cost = Decimal("0")
+    try:
+        lines = connection.execute(
+            sa_text("""
+                SELECT srl.quantity, p.purchase_price, p.cost_after_shipping
+                FROM sale_return_lines srl
+                JOIN products p ON srl.product_id = p.id
+                WHERE srl.sale_return_id = :rid
+            """),
+            {"rid": target.id}
+        ).fetchall()
+        
+        for ln in lines:
+            qty = Decimal(str(ln[0] or 0))
+            # Use cost_after_shipping if available (>0), else purchase_price
+            c1 = Decimal(str(ln[2] or 0))
+            c2 = Decimal(str(ln[1] or 0))
+            cost = c1 if c1 > 0 else c2
+            total_cost += qty * cost
+    except Exception:
+        pass
+
+    entries = []
+    
+    # A. Reversing Revenue & Tax (Debit Sales, Debit Tax, Credit Customer)
+    entries.append((GL_ACCOUNTS.get("REV", "4000_SALES"), float(net_sales), 0))
+    if tax_amount > 0:
+        entries.append((GL_ACCOUNTS.get("TAX_OUT", "2100_VAT_PAYABLE"), float(tax_amount), 0))
+    
+    entries.append((GL_ACCOUNTS.get("AR", "1100_AR"), 0, float(total_refund_dec)))
+
+    # B. Reversing Cost (Debit Inventory, Credit COGS)
+    if total_cost > 0:
+        entries.append((GL_ACCOUNTS.get("INVENTORY", "1200_INVENTORY"), float(total_cost), 0))
+        entries.append((GL_ACCOUNTS.get("COGS", "5000_COGS"), 0, float(total_cost)))
+
     _gl_upsert_batch_and_entries(
         connection,
         source_type="SALE_RETURN",
         source_id=target.id,
         purpose="RETURN",
-        currency="ILS",
-        memo=f"Sale return #{target.id}",
+        currency=target.currency or "ILS",
+        memo=f"Sale return #{target.id} (Tax: {tax_rate}%)",
         entries=entries,
         ref=f"RET-{target.id}",
         entity_type="CUSTOMER",

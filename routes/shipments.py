@@ -122,6 +122,105 @@ def _create_shipment_gl_entries(sh: Shipment):
 
     db.session.flush()
 
+def _create_shipment_return_gl_entries(sh: Shipment):
+    """
+    إنشاء قيود عكسية عند إرجاع الشحنة (RETURNED)
+    Debit: AP / Partner
+    Credit: Inventory
+    """
+    # 1. Check for existing return batch
+    existing_batch = GLBatch.query.filter_by(
+        source_type='SHIPMENT',
+        source_id=sh.id,
+        purpose='RETURN',
+        status='POSTED'
+    ).first()
+    if existing_batch:
+        return
+
+    # 2. Accounts
+    inventory_acc = GL_ACCOUNTS.get('INVENTORY', '1200_INVENTORY')
+    ap_acc = GL_ACCOUNTS.get('AP', '2000_AP')
+    partner_equity_acc = GL_ACCOUNTS.get('PARTNER_EQUITY', '3200_PARTNER_EQUITY')
+
+    # 3. Values
+    total_cost = _compute_totals(sh)
+    total_val = float(total_cost)
+    
+    if total_val <= 0:
+        return
+
+    batch = GLBatch(
+        batch_date=datetime.now(timezone.utc),
+        posted_at=datetime.now(timezone.utc),
+        source_type='SHIPMENT',
+        source_id=sh.id,
+        purpose='RETURN',
+        description=f"إرجاع شحنة #{sh.shipment_number or sh.id}",
+        currency=sh.currency,
+        status='POSTED',
+        entity_type='SUPPLIER',
+        entity_id=None
+    )
+    db.session.add(batch)
+    db.session.flush()
+
+    # 4. Credit Inventory (Decrease Asset)
+    credit_entry = GLEntry(
+        batch_id=batch.id,
+        account=inventory_acc,
+        debit=0,
+        credit=total_val,
+        description=f"إرجاع مخزون شحنة #{sh.shipment_number or sh.id}",
+        currency=sh.currency
+    )
+    db.session.add(credit_entry)
+
+    # 5. Debit AP/Partner (Decrease Liability)
+    if sh.partners:
+        total_partners_share = 0
+        for sp in sh.partners:
+            share_amt = float(sp.share_amount or 0)
+            if share_amt > 0:
+                debit_entry = GLEntry(
+                    batch_id=batch.id,
+                    account=partner_equity_acc,
+                    debit=share_amt,
+                    credit=0,
+                    description=f"استرداد حصة شريك {sp.partner.name} - شحنة #{sh.shipment_number}",
+                    currency=sh.currency,
+                    entity_type='PARTNER',
+                    entity_id=sp.partner_id
+                )
+                db.session.add(debit_entry)
+                total_partners_share += share_amt
+        
+        remaining = total_val - total_partners_share
+        if abs(remaining) > 0.01:
+             debit_entry = GLEntry(
+                batch_id=batch.id,
+                account=ap_acc,
+                debit=remaining,
+                credit=0,
+                description=f"استرداد مورد - شحنة #{sh.shipment_number}",
+                currency=sh.currency,
+                entity_type='SUPPLIER'
+            )
+             db.session.add(debit_entry)
+    else:
+        debit_entry = GLEntry(
+            batch_id=batch.id,
+            account=ap_acc,
+            debit=total_val,
+            credit=0,
+            description=f"استرداد مورد - شحنة #{sh.shipment_number}",
+            currency=sh.currency,
+            entity_type='SUPPLIER'
+        )
+        db.session.add(debit_entry)
+
+    db.session.flush()
+
 @shipments_bp.app_context_processor
 def _inject_utils():
     return dict(format_currency=utils.format_currency)
@@ -1429,6 +1528,12 @@ def mark_returned(id):
             if _status_applies_stock(sh.status):
                 _reverse_arrival_items(_items_snapshot(sh))
             
+            # Create reverse GL entries for accounting
+            try:
+                _create_shipment_return_gl_entries(sh)
+            except Exception as e:
+                flash(f"⚠️ تم إرجاع المخزون ولكن فشل إنشاء القيد المحاسبي العكسي: {e}", "warning")
+
             sh.status = "RETURNED"
             
             # تحديث رصيد الشركاء عند إرجاع الشحنة (إذا كان هناك شركاء)
