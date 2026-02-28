@@ -617,6 +617,7 @@ def create_shipment():
             _apply_arrival_items(
                 [{"product_id": it.product_id, "warehouse_id": it.warehouse_id, "quantity": it.quantity} for it in sh.items]
             )
+            flash("⚠️ تم زيادة المخزون. تذكير: يرجى إنشاء قيد يومية يدوياً لضبط حساب المورد.", "warning")
 
         try:
             # تحديث رصيد الشركاء عند إنشاء الشحنة (إذا كان هناك شركاء)
@@ -852,6 +853,12 @@ def edit_shipment(id: int):
                 _queue_partner_balance(db.session, pid)
             
             db.session.commit()
+
+            # Warning about missing GL entries
+            if new_applies and not old_applies:
+                 flash("⚠️ تم زيادة المخزون بنجاح. تذكير هام: النظام لم ينشئ قيد محاسبي للمورد (Accounts Payable). يرجى إنشاء قيد يومية يدوياً لضبط حسابات الموردين والمخزون.", "warning")
+            elif new_applies and old_applies and _snapshot_key(old_items) != _snapshot_key(new_items):
+                 flash("⚠️ تم تحديث المخزون. يرجى مراجعة القيود المحاسبية يدوياً.", "warning")
 
             if _wants_json():
                 return jsonify({"ok": True, "shipment_id": sh.id, "number": sh.shipment_number})

@@ -332,6 +332,17 @@ def _generate_recurring_invoice(template, invoice_date=None):
     
     template.next_invoice_date = _calculate_next_invoice_date(template, invoice_date)
     
+    db.session.commit()
+    try:
+        run_invoice_gl_sync_after_commit(new_invoice.id)
+    except Exception as e:
+        # We log error but don't fail the generation
+        from flask import current_app
+        if current_app:
+            current_app.logger.error(f"GL Sync Failed for Recurring Invoice #{new_invoice.id}: {e}")
+        else:
+            print(f"GL Sync Failed for Recurring Invoice #{new_invoice.id}: {e}")
+
     return new_invoice
 
 
