@@ -40,11 +40,6 @@ def ai_access(f):
             flash('⛔ يجب تسجيل الدخول', 'danger')
             return redirect(url_for('auth.login'))
         
-        # تقييد صارم للمالك فقط
-        if not current_user.is_system:
-            flash('⛔ هذه الميزة متاحة فقط للمالك', 'danger')
-            return redirect(url_for('main.dashboard'))
-        
         # فحص إذا كان المساعد مفعّل
         from AI.engine.ai_permissions import is_ai_enabled
         
@@ -52,7 +47,7 @@ def ai_access(f):
             flash('⛔ المساعد الذكي معطّل حالياً', 'warning')
             return redirect(url_for('main.dashboard'))
         
-        # التحقق من الصلاحية
+        # التحقق من الصلاحية (يكفي هذا الشرط لأنه ممنوح للمالك فقط)
         if current_user.has_permission('access_ai_assistant'):
             return f(*args, **kwargs)
         

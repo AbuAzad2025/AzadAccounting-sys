@@ -488,6 +488,7 @@ def export_requests_csv():
 
 @service_bp.route('/dashboard')
 @login_required
+@utils.permission_required("view_service")
 def dashboard():
     total_requests=ServiceRequest.query.count()
     completed_this_month=ServiceRequest.query.filter(ServiceRequest.status==ServiceStatus.COMPLETED, _col('completed_at')>=datetime.now().replace(day=1,hour=0,minute=0,second=0,microsecond=0)).count()
@@ -544,7 +545,8 @@ def create_request():
 
 @service_bp.route('/<int:rid>', methods=['GET'])
 @login_required
-def view_request(rid):
+@utils.permission_required("view_service")
+def detail(rid):view_request(rid):
     service=_get_or_404(ServiceRequest, rid, options=[joinedload(ServiceRequest.customer), joinedload(ServiceRequest.parts).joinedload(ServicePart.part), joinedload(ServiceRequest.parts).joinedload(ServicePart.warehouse), joinedload(ServiceRequest.tasks)])
     warehouses=Warehouse.query.order_by(Warehouse.name.asc()).all()
     
