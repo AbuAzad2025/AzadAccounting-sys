@@ -279,6 +279,20 @@ def _init_extensions_stack(app):
         except Exception:
             pass
 
+    # --- AUTOMATIC SYSTEM SEEDING ---
+    try:
+        from seed_system import seed_all
+        if not app.config.get("SKIP_SEED", False):
+            with app.app_context():
+                try:
+                    seed_all()
+                    app.logger.info("✅ System Auto-Seeding Completed")
+                except Exception as e:
+                    app.logger.error(f"❌ System Seeding Failed: {e}")
+    except Exception as e:
+        app.logger.error(f"❌ Seeding Import Failed: {e}")
+    # --------------------------------
+
     try:
         from utils.performance_monitor import init_perf_monitor
         init_perf_monitor(app)
