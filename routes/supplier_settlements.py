@@ -1,5 +1,5 @@
 
-from datetime import datetime, date as _date, time as _time, timezone
+from datetime import datetime, date as _date, time as _time, timezone, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 from flask import Blueprint, request, jsonify, render_template, url_for, abort, current_app
 from flask_login import login_required
@@ -357,7 +357,16 @@ def supplier_settlement(supplier_id):
     if date_from:
         date_from = _parse_iso_to_datetime(date_from, end=False)
     else:
-        date_from = datetime(2024, 1, 1)
+        # Auto-detect start date from last settlement to prevent overlap
+        last_settlement = db.session.query(SupplierSettlement).filter(
+            SupplierSettlement.supplier_id == supplier_id,
+            SupplierSettlement.status == SupplierSettlementStatus.CONFIRMED.value
+        ).order_by(SupplierSettlement.to_date.desc()).first()
+        
+        if last_settlement:
+            date_from = last_settlement.to_date + timedelta(seconds=1)
+        else:
+            date_from = datetime(2024, 1, 1)
     
     if date_to:
         date_to = _parse_iso_to_datetime(date_to, end=True)
