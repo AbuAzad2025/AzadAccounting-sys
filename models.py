@@ -319,7 +319,7 @@ class PaymentProgress(str, enum.Enum):
 class SaleStatus(str, enum.Enum):
     DRAFT = "DRAFT"
     CONFIRMED = "CONFIRMED"
-    COMPLETED = "completed"  # للتوافق مع البيانات القديمة
+    COMPLETED = "COMPLETED"  # للتوافق مع البيانات القديمة
     CANCELLED = "CANCELLED"
     REFUNDED = "REFUNDED"
 
