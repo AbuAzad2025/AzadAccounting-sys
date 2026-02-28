@@ -89,7 +89,7 @@
   <div class="hero">
     <div class="hero-brand">
       <div class="hero-logo">
-        <img src="{{ url_for('static', filename='img/logo.png') }}" alt="" onerror="this.closest('.hero-logo').style.display='none'">
+        <img src="{{ system_settings.custom_logo_url }}" alt="" onerror="this.closest('.hero-logo').style.display='none'">
       </div>
       <div class="hero-text">
         <div class="hero-name">{{ system_settings.company_name or 'الشركة' }}</div>

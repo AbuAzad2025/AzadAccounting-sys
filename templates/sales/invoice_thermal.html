@@ -41,7 +41,7 @@
 {% block content %}
 <div class="header">
     {% if settings.invoice_logo_visibility == 'show' %}
-    <img src="{{ get_setting('custom_logo') or url_for('static', filename='img/logo.png') }}" class="logo">
+    <img class="logo" src="{{ system_settings.custom_logo_url }}" alt="Logo">
     {% endif %}
     <div style="font-weight: bold; font-size: 1.2em;">{{ get_setting('company_name', 'الشركة') }}</div>
     <div>{{ get_setting('company_phone', '') }}</div>

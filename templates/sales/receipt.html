@@ -78,7 +78,7 @@
 <div id="receipt">
   <div class="receipt-header">
     <div class="brand">
-      <img class="logo" src="{{ url_for('static', filename='img/logo.png') }}" alt="Logo">
+      <img class="logo" src="{{ system_settings.custom_logo_url }}" alt="Logo">
       <div>
         <div class="brand-name">{{ get_system_setting('company_name', 'الشركة') }}</div>
         <div class="brand-sub">فاتورة مبيعات</div>

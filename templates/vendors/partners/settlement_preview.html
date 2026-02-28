@@ -475,7 +475,7 @@ section.content .container-fluid .col-md-12 {
     {% if system_settings and system_settings.custom_logo %}
       <img src="{{ url_for('static', filename=system_settings.custom_logo.replace('static/', '')) }}" alt="Logo">
     {% else %}
-      <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Logo">
+      <img class="logo" src="{{ system_settings.custom_logo_url }}" alt="Logo">
     {% endif %}
   </div>
   <div class="company-info">

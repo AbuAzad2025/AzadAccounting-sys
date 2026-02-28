@@ -114,7 +114,7 @@
                     <div class="row mb-4 border-bottom pb-3" style="border-color: #eee !important;">
                         <div class="col-6">
                             <div id="logoPlaceholder" class="mb-2" style="display: {% if settings.invoice_show_logo == 'True' %}block{% else %}none{% endif %};">
-                                <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Logo" style="max-height: 80px;">
+                                <img class="logo" src="{{ system_settings.custom_logo_url }}" alt="Logo" style="max-height: 80px;">
                             </div>
                             <h4 class="fw-bold text-dark mb-1">{{ system_settings.company_name or 'اسم الشركة' }}</h4>
                             <div id="contactInfo" class="small text-muted" style="display: {% if settings.invoice_show_contact == 'True' %}block{% else %}none{% endif %};">

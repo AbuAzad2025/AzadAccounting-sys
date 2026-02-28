@@ -1426,6 +1426,18 @@ def create_app(config_object=Config) -> Flask:
             company_name_val = _coerce('company_name') or _coerce('COMPANY_NAME') or 'شركة الحازم للأنظمة الذكية'
             system_name_val = _coerce('system_name') or 'نظام الحازم'
 
+            # Prepare Logo URL helper
+            custom_logo = _coerce('custom_logo')
+            if custom_logo:
+                # Handle both full paths and relative paths
+                if custom_logo.startswith('static/'):
+                    logo_filename = custom_logo.replace('static/', '')
+                else:
+                    logo_filename = custom_logo
+                logo_url = url_for('static', filename=logo_filename)
+            else:
+                logo_url = url_for('static', filename='img/logo.png')
+
             settings = {
                 'system_name': system_name_val,
                 'company_name': company_name_val,
@@ -1433,6 +1445,7 @@ def create_app(config_object=Config) -> Flask:
                 'login_subtitle': _coerce('login_subtitle', 'سجل دخولك للمتابعة'),
                 'footer_text': _coerce('footer_text', 'جميع الحقوق محفوظة'),
                 'custom_logo': _coerce('custom_logo', ''),
+                'custom_logo_url': logo_url,  # <--- Added ready-to-use URL
                 'custom_favicon': _coerce('custom_favicon', ''),
                 'primary_color': _coerce('primary_color', '#007bff'),
                 'secondary_color': _coerce('secondary_color', '#1f2937'),
