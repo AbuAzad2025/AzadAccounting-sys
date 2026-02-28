@@ -1280,14 +1280,14 @@ def account_statement(customer_id):
         SaleReturn.query
         .filter(SaleReturn.customer_id == customer_id)
         .filter(SaleReturn.status == 'CONFIRMED')
-        .filter(SaleReturn.created_at >= start_date)
-        .filter(SaleReturn.created_at <= end_date)
-        .order_by(SaleReturn.created_at, SaleReturn.id)
+        .filter(SaleReturn.return_date >= start_date)
+        .filter(SaleReturn.return_date <= end_date)
+        .order_by(SaleReturn.return_date, SaleReturn.id)
         .all()
     )
     for ret in sale_returns:
         entries.append({
-            "date": getattr(ret, "created_at", None) or getattr(ret, "updated_at", None),
+            "date": getattr(ret, "return_date", None) or getattr(ret, "created_at", None),
             "type": "SALE_RETURN",
             "id": ret.id,
             "model": "sale_return",

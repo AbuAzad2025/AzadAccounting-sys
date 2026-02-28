@@ -606,6 +606,10 @@
                 {% elif e.type == 'SERVICE' %}
                   صيانة - خدمة صيانة
                 
+                {# للمرتجعات #}
+                {% elif e.type == 'SALE_RETURN' %}
+                  <span class="badge bg-warning text-dark"><i class="fas fa-undo"></i> مرتجع</span> {{ e.statement }}
+                
                 {# للحجوزات #}
                 {% elif e.type == 'PREORDER' %}
                   حجز مسبق
