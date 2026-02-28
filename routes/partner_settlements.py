@@ -3100,7 +3100,7 @@ def partner_inventory(partner_id):
         total_value += owned_value
 
     return render_template(
-        "partners/inventory.html",
+        "vendors/partners/inventory.html",
         partner=partner,
         inventory=inventory,
         total_value=round(total_value, 2)
