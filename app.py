@@ -279,19 +279,15 @@ def _init_extensions_stack(app):
         except Exception:
             pass
 
-    # --- AUTOMATIC SYSTEM SEEDING ---
+    # --- SYSTEM INTEGRITY & SELF-HEALING ---
+    # This ensures the system is always ready-to-use (Currencies, Roles, Warehouses, COA)
     try:
-        from seed_system import seed_all
+        from services.system_initializer import SystemInitializer
         if not app.config.get("SKIP_SEED", False):
-            with app.app_context():
-                try:
-                    seed_all()
-                    app.logger.info("✅ System Auto-Seeding Completed")
-                except Exception as e:
-                    app.logger.error(f"❌ System Seeding Failed: {e}")
+            SystemInitializer(app).ensure_integrity()
     except Exception as e:
-        app.logger.error(f"❌ Seeding Import Failed: {e}")
-    # --------------------------------
+        app.logger.error(f"❌ System Initialization Failed: {e}")
+    # ---------------------------------------
 
     try:
         from utils.performance_monitor import init_perf_monitor
