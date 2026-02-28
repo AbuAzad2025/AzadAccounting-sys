@@ -12,16 +12,16 @@
         --sec-bg-gradient: linear-gradient(135deg, #0060aa 0%, #5d2b7d 25%, #d92d4b 50%, #f7941d 75%, #fcd206 100%);
         
         /* Enhanced Sidebar Background - Deep Glass with Vibrant Tint */
-        --sec-sidebar-bg: linear-gradient(180deg, rgba(13, 17, 30, 0.95) 0%, rgba(30, 27, 75, 0.9) 100%);
+        --sec-sidebar-bg: {{ system_settings.sidebar_bg or '#111827' }};
         --sec-sidebar-border: rgba(255, 255, 255, 0.1);
         
-        --sec-text-main: #ffffff;
+        --sec-text-main: {{ system_settings.sidebar_text or '#ffffff' }};
         --sec-text-muted: #cbd5e1;
         
         /* Extracted Palette */
-        --sec-primary: #00e5ff; /* Hyper Bright Cyan */
+        --sec-primary: {{ system_settings.primary_color or '#00e5ff' }}; /* Hyper Bright Cyan */
         --sec-primary-hover: #29b6f6;
-        --sec-accent: #f50057; /* Deep Pink */
+        --sec-accent: {{ system_settings.secondary_color or '#f50057' }}; /* Deep Pink */
         
         --sec-danger: #ff3366; /* Red/Pink from image */
         --sec-success: #00ff9d; /* Contrast Green */
