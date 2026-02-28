@@ -17,11 +17,110 @@ from extensions import db
 from forms import ShipmentForm
 from models import (
     Shipment, ShipmentItem, ShipmentPartner,
-    Partner, Product, Warehouse, _queue_partner_balance
+    Partner, Product, Warehouse, _queue_partner_balance,
+    GLBatch, GLEntry, GL_ACCOUNTS
 )
 import utils
 
 shipments_bp = Blueprint("shipments_bp", __name__, url_prefix="/shipments")
+
+def _create_shipment_gl_entries(sh: Shipment):
+    """
+    إنشاء قيود محاسبية للشحنة المستلمة (ARRIVED)
+    """
+    # 1. التحقق من عدم وجود قيد سابق
+    existing_batch = GLBatch.query.filter_by(
+        source_type='SHIPMENT',
+        source_id=sh.id,
+        status='POSTED'
+    ).first()
+    if existing_batch:
+        return # تم الإنشاء سابقاً
+
+    # 2. إعداد الحسابات
+    inventory_acc = GL_ACCOUNTS.get('INVENTORY', '1200_INVENTORY')
+    ap_acc = GL_ACCOUNTS.get('AP', '2000_AP')
+    partner_equity_acc = GL_ACCOUNTS.get('PARTNER_EQUITY', '3200_PARTNER_EQUITY')
+
+    # 3. القيم
+    total_cost = _compute_totals(sh) # التأكد من الحساب
+    total_val = float(total_cost)
+    
+    if total_val <= 0:
+        return
+
+    batch = GLBatch(
+        batch_date=sh.actual_arrival or sh.shipment_date or datetime.now(),
+        posted_at=datetime.now(),
+        source_type='SHIPMENT',
+        source_id=sh.id,
+        description=f"استلام شحنة #{sh.shipment_number or sh.id}",
+        currency=sh.currency,
+        status='POSTED',
+        entity_type='SUPPLIER', # مبدئياً
+        entity_id=None # لا يوجد مورد محدد
+    )
+    db.session.add(batch)
+    db.session.flush()
+
+    # 4. الطرف المدين: المخزون
+    debit_entry = GLEntry(
+        batch_id=batch.id,
+        account=inventory_acc,
+        debit=total_val,
+        credit=0,
+        description=f"مخزون شحنة #{sh.shipment_number or sh.id}",
+        currency=sh.currency
+    )
+    db.session.add(debit_entry)
+
+    # 5. الطرف الدائن: شركاء أو موردين
+    if sh.partners:
+        # توزيع على الشركاء
+        total_partners_share = 0
+        for sp in sh.partners:
+            share_amt = float(sp.share_amount or 0)
+            if share_amt > 0:
+                credit_entry = GLEntry(
+                    batch_id=batch.id,
+                    account=partner_equity_acc,
+                    debit=0,
+                    credit=share_amt,
+                    description=f"حصة شريك {sp.partner.name} في شحنة #{sh.shipment_number}",
+                    currency=sh.currency,
+                    entity_type='PARTNER',
+                    entity_id=sp.partner_id
+                )
+                db.session.add(credit_entry)
+                total_partners_share += share_amt
+        
+        # الفارق (إن وجد) يذهب للموردين
+        remaining = total_val - total_partners_share
+        if abs(remaining) > 0.01:
+             credit_entry = GLEntry(
+                batch_id=batch.id,
+                account=ap_acc,
+                debit=0,
+                credit=remaining,
+                description=f"متبقي شحنة #{sh.shipment_number} (موردين)",
+                currency=sh.currency,
+                entity_type='SUPPLIER'
+            )
+             db.session.add(credit_entry)
+    else:
+        # كله للموردين
+        credit_entry = GLEntry(
+            batch_id=batch.id,
+            account=ap_acc,
+            debit=0,
+            credit=total_val,
+            description=f"استحقاق شحنة #{sh.shipment_number}",
+            currency=sh.currency,
+            entity_type='SUPPLIER'
+        )
+        db.session.add(credit_entry)
+
+    db.session.flush()
 
 @shipments_bp.app_context_processor
 def _inject_utils():
@@ -617,7 +716,11 @@ def create_shipment():
             _apply_arrival_items(
                 [{"product_id": it.product_id, "warehouse_id": it.warehouse_id, "quantity": it.quantity} for it in sh.items]
             )
-            flash("⚠️ تم زيادة المخزون. تذكير: يرجى إنشاء قيد يومية يدوياً لضبط حساب المورد.", "warning")
+            try:
+                _create_shipment_gl_entries(sh)
+                flash("✅ تم زيادة المخزون وإنشاء القيود المحاسبية.", "success")
+            except Exception as e:
+                flash(f"⚠️ تم زيادة المخزون ولكن فشل إنشاء القيد المحاسبي: {e}", "warning")
 
         try:
             # تحديث رصيد الشركاء عند إنشاء الشحنة (إذا كان هناك شركاء)
@@ -854,11 +957,15 @@ def edit_shipment(id: int):
             
             db.session.commit()
 
-            # Warning about missing GL entries
+            # Warning about missing GL entries -> Auto Create GL Entries
             if new_applies and not old_applies:
-                 flash("⚠️ تم زيادة المخزون بنجاح. تذكير هام: النظام لم ينشئ قيد محاسبي للمورد (Accounts Payable). يرجى إنشاء قيد يومية يدوياً لضبط حسابات الموردين والمخزون.", "warning")
+                 try:
+                     _create_shipment_gl_entries(sh)
+                     flash("✅ تم زيادة المخزون وإنشاء القيود المحاسبية (مخزون/موردين).", "success")
+                 except Exception as e:
+                     flash(f"⚠️ تم زيادة المخزون ولكن فشل إنشاء القيد المحاسبي: {e}", "warning")
             elif new_applies and old_applies and _snapshot_key(old_items) != _snapshot_key(new_items):
-                 flash("⚠️ تم تحديث المخزون. يرجى مراجعة القيود المحاسبية يدوياً.", "warning")
+                 flash("⚠️ تم تحديث المخزون. يرجى مراجعة القيود المحاسبية يدوياً (النظام لا يدعم تعديل القيود تلقائياً بعد إنشائها).", "warning")
 
             if _wants_json():
                 return jsonify({"ok": True, "shipment_id": sh.id, "number": sh.shipment_number})
