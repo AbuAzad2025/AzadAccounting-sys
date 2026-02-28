@@ -1,10 +1,10 @@
-
 import os
 import sys
 import getpass
 import psycopg2
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 from dotenv import load_dotenv
+from urllib.parse import quote_plus
 
 # Try to load from .env first, but allow manual override
 load_dotenv(".env")
@@ -34,7 +34,17 @@ def init_prod_db():
     port = get_input("Port", default_port)
     user = get_input("Username", default_user)
     db_name = get_input("Target Database Name", default_db)
-    password = getpass.getpass("Password: ")
+    
+    # Check if password is in env to avoid typing it every time
+    env_password = os.environ.get("PGPASSWORD")
+    if env_password:
+        use_env_pass = input("Found password in env. Use it? (yes/no) [yes]: ").strip().lower() or "yes"
+        if use_env_pass == "yes":
+            password = env_password
+        else:
+            password = getpass.getpass("Password: ")
+    else:
+        password = getpass.getpass("Password: ")
 
     if not password:
         print("❌ Error: Password is required.")
@@ -50,6 +60,7 @@ def init_prod_db():
     try:
         # 3. Connect to Maintenance DB (postgres)
         print("\n1️⃣ Connecting to maintenance database 'postgres'...")
+        # For maintenance connection, we use raw parameters, so special chars in password are fine
         conn = psycopg2.connect(
             host=host,
             port=port,
@@ -84,41 +95,34 @@ def init_prod_db():
         # 7. Initialize Schema (using App Context)
         print("\n5️⃣ Initializing Schema & Seed Data...")
         
-        # We need to set env vars for the app to connect to the NEW db
-        os.environ["DATABASE_URL"] = f"postgresql://{user}:{password}@{host}:{port}/{db_name}"
+        # CRITICAL FIX: URL Encode the password for the connection string
+        # This handles special characters like '@' in the password correctly
+        encoded_password = quote_plus(password)
+        
+        # Construct the safe URL
+        safe_db_url = f"postgresql://{user}:{encoded_password}@{host}:{port}/{db_name}"
+        
+        # Force set the environment variable for this process
+        os.environ["DATABASE_URL"] = safe_db_url
         os.environ["FLASK_APP"] = "app.py"
         
+        print(f"🔌 Connecting to app with safe URL (password hidden)...")
+        
         # Import app here to use the updated env
-        # Note: This requires the script to be run from project root with dependencies installed
         from app import create_app
         from extensions import db
         from flask_migrate import upgrade
         
         app = create_app()
         with app.app_context():
-            # Create tables
+            print("📦 Creating database tables...")
             db.create_all()
-            print("   - Tables created.")
+            print("✅ Tables created successfully!")
             
-            # Optional: Run migrations if you use them
-            # upgrade() 
-            
-            # Seed basic data
-            # You can call your seed functions here if they exist
-            # from seeds import seed_users
-            # seed_users()
-            
-            print("✅ Schema initialized.")
-
-    except ImportError:
-        print("⚠️  Warning: Could not import Flask app. Database is created but empty.")
-        print("   Run this command to init schema: flask db upgrade")
     except Exception as e:
         print(f"\n❌ ERROR: {e}")
-        return
-
-    print("\n🎉 Production Setup Complete!")
-    print(f"Update your .env file with:\nDATABASE_URL=postgresql://{user}:<password>@{host}:{port}/{db_name}")
+        import traceback
+        traceback.print_exc()
 
 if __name__ == "__main__":
     init_prod_db()
