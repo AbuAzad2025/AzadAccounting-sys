@@ -1700,8 +1700,8 @@ def _get_partner_sales_returns(partner_id: int, date_from: datetime, date_to: da
     
     sale_returns = db.session.query(SaleReturn).filter(
         SaleReturn.status == 'CONFIRMED',
-        SaleReturn.created_at >= date_from,
-        SaleReturn.created_at <= date_to
+        SaleReturn.return_date >= date_from,
+        SaleReturn.return_date <= date_to
     ).all()
     
     for sale_return in sale_returns:
