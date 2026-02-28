@@ -3766,8 +3766,8 @@ def build_partner_settlement_draft(partner_id: int, date_from: datetime, date_to
         db.session.query(SaleReturnLine)
         .join(SaleReturn, SaleReturn.id == SaleReturnLine.sale_return_id)
         .filter(
-            SaleReturn.return_date >= date_from,
-            SaleReturn.return_date <= date_to,
+            SaleReturn.created_at >= date_from,
+            SaleReturn.created_at <= date_to,
             SaleReturn.status == 'CONFIRMED'
         )
     )
