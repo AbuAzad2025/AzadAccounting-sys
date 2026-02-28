@@ -784,6 +784,61 @@ section.content .container-fluid .col-md-12 {
             </div>
             {% endif %}
             
+            <!-- 2.5 المرتجعات (تُخصم) -->
+            {% if balance_data.rights.sales_returns and balance_data.rights.sales_returns.get('items', [])|length > 0 %}
+            <div class="card settlement-detail-card">
+                <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-undo"></i> مرتجعات المبيعات (تُخصم من الحقوق)
+                        <span class="badge bg-dark text-white">{{ balance_data.rights.sales_returns.count }}</span>
+                    </h5>
+                    <button class="btn btn-sm btn-light no-print" onclick="printTable('salesReturnsTable', 'مرتجعات المبيعات')">
+                        <i class="fas fa-print"></i> طباعة
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover" id="salesReturnsTable">
+                            <thead>
+                                <tr>
+                                    <th>التاريخ</th>
+                                    <th>رقم المرتجع</th>
+                                    <th>رقم البيع</th>
+                                    <th>المنتج</th>
+                                    <th class="text-end">الكمية</th>
+                                    <th class="text-end">سعر الوحدة</th>
+                                    <th class="text-end">إجمالي الإرجاع</th>
+                                    <th class="text-end">نسبة الشريك</th>
+                                    <th class="text-end">المخصوم (ILS)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in balance_data.rights.sales_returns.get('items', []) %}
+                                <tr>
+                                    <td>{{ item.date }}</td>
+                                    <td>#{{ item.reference_number }}</td>
+                                    <td>#{{ item.sale_id }}</td>
+                                    <td>{{ item.product_name }}</td>
+                                    <td class="text-end text-danger">{{ item.quantity }}</td>
+                                    <td class="text-end">{{ "%.2f"|format(item.unit_price) }}</td>
+                                    <td class="text-end">{{ "%.2f"|format(item.return_amount) }}</td>
+                                    <td class="text-end">{{ "%.1f"|format(item.share_percentage) }}%</td>
+                                    <td class="text-end"><strong class="text-danger">-{{ "%.2f"|format(item.partner_return_share_ils) }}</strong></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot>
+                                <tr class="table-light">
+                                    <td colspan="8" class="text-end"><strong>إجمالي المخصوم:</strong></td>
+                                    <td class="text-end"><strong class="text-danger">-{{ "%.2f"|format(balance_data.rights.sales_returns.total_return_share_ils) }}</strong></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
             {# ✅ نصيب الحجوزات المسبقة #}
             {% if balance_data.rights.preorders_share and balance_data.rights.preorders_share.get('items', [])|length > 0 %}
             <div class="card settlement-detail-card">

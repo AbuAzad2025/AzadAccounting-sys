@@ -755,6 +755,7 @@ def _calculate_smart_partner_balance(partner_id: int, date_from: datetime, date_
         
         inventory = _get_partner_inventory(partner_id, date_from, date_to)
         sales_share = _get_partner_sales_share(partner_id, date_from, date_to)
+        sales_returns = _get_partner_sales_returns(partner_id, date_from, date_to)
         payments_from_partner = _get_partner_payments_received(partner_id, partner, date_from, date_to)
         preorders_prepaid = _get_partner_preorders_prepaid(partner_id, partner, date_from, date_to)
         shipments_share = _get_partner_shipments_share(partner_id, date_from, date_to)
@@ -804,7 +805,8 @@ def _calculate_smart_partner_balance(partner_id: int, date_from: datetime, date_
             })
         
         partner_rights = Decimal(str(inventory.get("total_ils", 0) if isinstance(inventory, dict) else 0)) + \
-                        Decimal(str(sales_share.get("total_share_ils", 0))) + \
+                        Decimal(str(sales_share.get("total_share_ils", 0))) - \
+                        Decimal(str(sales_returns.get("total_return_share_ils", 0) if isinstance(sales_returns, dict) else 0)) + \
                         Decimal(str(shipments_share.get("total_ils", 0) if isinstance(shipments_share, dict) else 0))
         partner_obligations = Decimal(str(sales_to_partner.get("total_ils", 0))) + \
                              Decimal(str(service_fees.get("total_ils", 0))) + \
@@ -838,6 +840,7 @@ def _calculate_smart_partner_balance(partner_id: int, date_from: datetime, date_
             "rights": {
                 "inventory": inventory,
                 "sales_share": sales_share,
+                "sales_returns": sales_returns,
                 "preorders_share": preorders_prepaid,
                 "shipments_share": shipments_share,
                 "total": float(partner_rights)

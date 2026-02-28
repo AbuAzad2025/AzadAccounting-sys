@@ -1393,6 +1393,8 @@ def _get_supplier_exchange_items(supplier_id: int, date_from: datetime, date_to:
     ).all()
     
     warehouse_ids = [w[0] for w in exchange_warehouses]
+    current_stock_items = []
+    total_stock_ils = Decimal('0.00')
     
     if warehouse_ids:
         current_stock = db.session.query(
@@ -1439,9 +1441,9 @@ def _get_supplier_exchange_items(supplier_id: int, date_from: datetime, date_to:
             else:
                 value_ils = value
             
-            total_ils += value_ils
+            total_stock_ils += value_ils
             
-            items.append({
+            current_stock_items.append({
                 "id": None,
                 "product_id": stock.product_id,
                 "product_name": stock.product_name or "غير محدد",
@@ -1456,8 +1458,10 @@ def _get_supplier_exchange_items(supplier_id: int, date_from: datetime, date_to:
     
     return {
         "items": items,
+        "current_stock_items": current_stock_items,
         "unpriced_items": unpriced_items,
         "total_value_ils": float(total_ils),
+        "total_stock_ils": float(total_stock_ils),
         "count": len(items)
     }
 
