@@ -1708,13 +1708,31 @@ def settings_center():
                 flash(f'✅ تم تحديث {key} بنجاح', 'success')
                 
         elif action == 'update_branding':
+            # 1. System Identity
+            system_name = request.form.get('system_name')
             company_name = request.form.get('company_name')
+            login_title = request.form.get('login_title')
+            login_subtitle = request.form.get('login_subtitle')
+            footer_text = request.form.get('footer_text')
+
+            if system_name: SystemSettings.set_setting('system_name', system_name)
+            if company_name: SystemSettings.set_setting('company_name', company_name)
+            if login_title: SystemSettings.set_setting('login_title', login_title)
+            if login_subtitle: SystemSettings.set_setting('login_subtitle', login_subtitle)
+            if footer_text: SystemSettings.set_setting('footer_text', footer_text)
+
+            # 2. Theme & Colors
             primary_color = request.form.get('primary_color')
-            if company_name:
-                SystemSettings.set_setting('company_name', company_name) # Changed to lowercase for consistency
-            if primary_color:
-                SystemSettings.set_setting('primary_color', primary_color)
-            flash('✅ تم تحديث العلامة التجارية بنجاح', 'success')
+            secondary_color = request.form.get('secondary_color')
+            sidebar_bg = request.form.get('sidebar_bg')
+            sidebar_text = request.form.get('sidebar_text')
+
+            if primary_color: SystemSettings.set_setting('primary_color', primary_color)
+            if secondary_color: SystemSettings.set_setting('secondary_color', secondary_color)
+            if sidebar_bg: SystemSettings.set_setting('sidebar_bg', sidebar_bg)
+            if sidebar_text: SystemSettings.set_setting('sidebar_text', sidebar_text)
+
+            flash('✅ تم تحديث العلامة التجارية وهوبة النظام بنجاح', 'success')
         
         db.session.commit()
         return redirect(url_for('security.settings_center', tab=tab))
@@ -1728,10 +1746,19 @@ def settings_center():
     }
     
     branding_settings = {
-        'company_name': _get_setting('COMPANY_NAME', 'اسم الشركة'),
+        'system_name': _get_setting('system_name', 'نظام الحازم'),
+        'company_name': _get_setting('company_name', 'اسم الشركة'),
         'company_logo': _get_setting('custom_logo', ''),
-        'primary_color': _get_setting('primary_color', '#007bff'),
         'custom_favicon': _get_setting('custom_favicon', ''),
+        'login_title': _get_setting('login_title', ''),
+        'login_subtitle': _get_setting('login_subtitle', ''),
+        'footer_text': _get_setting('footer_text', ''),
+        
+        # Colors
+        'primary_color': _get_setting('primary_color', '#007bff'),
+        'secondary_color': _get_setting('secondary_color', '#6c757d'),
+        'sidebar_bg': _get_setting('sidebar_bg', '#343a40'),
+        'sidebar_text': _get_setting('sidebar_text', '#ffffff'),
     }
     
     branches_data = {
