@@ -4020,12 +4020,14 @@ def toggle_user_status(user_id):
     try:
         log = AuditLog(
             user_id=current_user.id,
-            action=f'security.toggle_user_status',
-            table_name='users',
+            action='UPDATE',
+            model_name='User',
             record_id=user.id,
             old_data=json.dumps({'is_active': old_status}, ensure_ascii=False),
-            new_data=json.dumps({'is_active': user.is_active}, ensure_ascii=False),
-            note=f'Owner toggled user {user.username} status',
+            new_data=json.dumps({
+                'is_active': user.is_active,
+                'note': f'Owner toggled user {user.username} status'
+            }, ensure_ascii=False),
             ip_address=request.remote_addr
         )
         db.session.add(log)
@@ -4079,15 +4081,15 @@ def delete_user(user_id):
     try:
         log = AuditLog(
             user_id=current_user.id,
-            action='security.delete_user',
-            table_name='users',
+            action='DELETE',
+            model_name='User',
             record_id=user.id,
             old_data=json.dumps({
                 'username': user.username,
                 'email': user.email,
-                'role': user.role.name if user.role else None
+                'role': user.role.name if user.role else None,
+                'note': f'Owner deleted user: {username}'
             }, ensure_ascii=False),
-            note=f'Owner deleted user: {username}',
             ip_address=request.remote_addr
         )
         db.session.add(log)
@@ -4397,15 +4399,15 @@ def create_user():
         # Audit log
         log = AuditLog(
             user_id=current_user.id,
-            action='security.create_user',
-            table_name='users',
+            action='CREATE',
+            model_name='User',
             record_id=new_user.id,
             new_data=json.dumps({
                 'username': username,
                 'email': email,
-                'role_id': role_id
+                'role_id': role_id,
+                'note': f'Owner created new user: {username}'
             }, ensure_ascii=False),
-            note=f'Owner created new user: {username}',
             ip_address=request.remote_addr
         )
         db.session.add(log)
