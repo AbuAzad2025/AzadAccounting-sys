@@ -106,39 +106,39 @@ class SystemInitializer:
             self.logger.info("🏭 Main warehouse created.")
 
     def _ensure_chart_of_accounts(self):
-        # Basic COA Structure
+        # Basic COA Structure with String Codes
         accounts = [
             # Assets (1xxx)
-            (1000, 'النقدية في الصندوق', AccountType.ASSET),
-            (1010, 'البنك - شيقل', AccountType.ASSET),
-            (1020, 'البنك - دولار', AccountType.ASSET),
-            (1100, 'الذمم المدينة (العملاء)', AccountType.ASSET),
-            (1200, 'المخزون', AccountType.ASSET),
-            (1300, 'الأصول الثابتة', AccountType.ASSET),
+            ('1000_CASH', 'النقدية في الصندوق', AccountType.ASSET),
+            ('1010_BANK_ILS', 'البنك - شيقل', AccountType.ASSET),
+            ('1020_BANK_USD', 'البنك - دولار', AccountType.ASSET),
+            ('1100_AR', 'الذمم المدينة (العملاء)', AccountType.ASSET),
+            ('1200_INVENTORY', 'المخزون', AccountType.ASSET),
+            ('1300_FIXED_ASSETS', 'الأصول الثابتة', AccountType.ASSET),
             
             # Liabilities (2xxx)
-            (2000, 'الذمم الدائنة (الموردين)', AccountType.LIABILITY),
-            (2100, 'ضريبة القيمة المضافة مستحقة الدفع', AccountType.LIABILITY),
-            (2200, 'قروض قصيرة الأجل', AccountType.LIABILITY),
+            ('2000_AP', 'الذمم الدائنة (الموردين)', AccountType.LIABILITY),
+            ('2100_VAT_PAYABLE', 'ضريبة القيمة المضافة مستحقة الدفع', AccountType.LIABILITY),
+            ('2200_LOANS', 'قروض قصيرة الأجل', AccountType.LIABILITY),
             
             # Equity (3xxx)
-            (3000, 'رأس المال', AccountType.EQUITY),
-            (3100, 'الأرباح المحتجزة', AccountType.EQUITY),
-            (3200, 'جاري الشركاء', AccountType.EQUITY),
+            ('3000_CAPITAL', 'رأس المال', AccountType.EQUITY),
+            ('3100_RETAINED_EARNINGS', 'الأرباح المحتجزة', AccountType.EQUITY),
+            ('3200_PARTNER_EQUITY', 'جاري الشركاء', AccountType.EQUITY),
             
             # Revenue (4xxx)
-            (4000, 'إيرادات المبيعات', AccountType.REVENUE),
-            (4100, 'إيرادات الخدمات', AccountType.REVENUE),
-            (4200, 'إيرادات أخرى', AccountType.REVENUE),
+            ('4000_SALES', 'إيرادات المبيعات', AccountType.REVENUE),
+            ('4100_SERVICE_REVENUE', 'إيرادات الخدمات', AccountType.REVENUE),
+            ('4200_OTHER_REVENUE', 'إيرادات أخرى', AccountType.REVENUE),
             
             # Expenses (5xxx)
-            (5000, 'تكلفة البضاعة المباعة', AccountType.EXPENSE),
-            (5100, 'رواتب وأجور', AccountType.EXPENSE),
-            (5200, 'إيجار', AccountType.EXPENSE),
-            (5300, 'كهرباء وماء', AccountType.EXPENSE),
-            (5400, 'مصاريف تسويق', AccountType.EXPENSE),
-            (5500, 'مصاريف إدارية وعمومية', AccountType.EXPENSE),
-            (5600, 'مصاريف صيانة', AccountType.EXPENSE),
+            ('5000_COGS', 'تكلفة البضاعة المباعة', AccountType.EXPENSE),
+            ('5100_SALARIES', 'رواتب وأجور', AccountType.EXPENSE),
+            ('5200_RENT', 'إيجار', AccountType.EXPENSE),
+            ('5300_UTILITIES', 'كهرباء وماء', AccountType.EXPENSE),
+            ('5400_MARKETING', 'مصاريف تسويق', AccountType.EXPENSE),
+            ('5500_ADMIN', 'مصاريف إدارية وعمومية', AccountType.EXPENSE),
+            ('5600_MAINTENANCE', 'مصاريف صيانة', AccountType.EXPENSE),
         ]
 
         changes = False
