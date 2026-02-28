@@ -1156,7 +1156,12 @@ def _fx_rate_local_via_connection(connection, base: str, quote: str, at: datetim
         ).scalar_one_or_none()
         
         if manual_today is not None:
-            return Decimal(str(manual_today))
+            try:
+                val = Decimal(str(manual_today))
+                if val > Decimal("0"):
+                    return val
+            except Exception:
+                pass # Invalid manual rate, fallback to online/latest
 
         # 2. Fallback: Latest Rate (Manual or Online)
         row = connection.execute(
