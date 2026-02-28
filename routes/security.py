@@ -1699,7 +1699,9 @@ def settings_center():
     
     if request.method == 'POST':
         action = request.form.get('action')
+        active_tab = request.form.get('active_tab')
         
+        # 1. Handle explicit actions
         if action == 'update_setting':
             key = request.form.get('key')
             value = request.form.get('value')
@@ -1733,6 +1735,34 @@ def settings_center():
             if sidebar_text: SystemSettings.set_setting('sidebar_text', sidebar_text)
 
             flash('✅ تم تحديث العلامة التجارية وهوبة النظام بنجاح', 'success')
+
+        # 2. Handle tab-based bulk updates (from system_settings.html)
+        elif active_tab == 'general':
+            SystemSettings.set_setting('maintenance_mode', request.form.get('maintenance_mode') == 'on', data_type='boolean')
+            SystemSettings.set_setting('registration_enabled', request.form.get('registration_enabled') == 'on', data_type='boolean')
+            SystemSettings.set_setting('api_enabled', request.form.get('api_enabled') == 'on', data_type='boolean')
+            flash('✅ تم حفظ الإعدادات العامة بنجاح', 'success')
+            
+        elif active_tab == 'advanced':
+            SystemSettings.set_setting('SESSION_TIMEOUT', request.form.get('session_timeout'), data_type='integer')
+            SystemSettings.set_setting('MAX_LOGIN_ATTEMPTS', request.form.get('max_login_attempts'), data_type='integer')
+            SystemSettings.set_setting('PASSWORD_MIN_LENGTH', request.form.get('password_min_length'), data_type='integer')
+            
+            SystemSettings.set_setting('AUTO_BACKUP_ENABLED', request.form.get('auto_backup_enabled') == 'on', data_type='boolean')
+            SystemSettings.set_setting('BACKUP_INTERVAL_HOURS', request.form.get('backup_interval_hours'), data_type='integer')
+            
+            SystemSettings.set_setting('ENABLE_EMAIL_NOTIFICATIONS', request.form.get('enable_email_notifications') == 'on', data_type='boolean')
+            SystemSettings.set_setting('ENABLE_SMS_NOTIFICATIONS', request.form.get('enable_sms_notifications') == 'on', data_type='boolean')
+            flash('✅ تم حفظ التكوينات المتقدمة بنجاح', 'success')
+            
+        elif active_tab == 'company':
+            SystemSettings.set_setting('COMPANY_ADDRESS', request.form.get('company_address'))
+            SystemSettings.set_setting('COMPANY_PHONE', request.form.get('company_phone'))
+            SystemSettings.set_setting('COMPANY_EMAIL', request.form.get('company_email'))
+            SystemSettings.set_setting('TAX_NUMBER', request.form.get('tax_number'))
+            SystemSettings.set_setting('CURRENCY_SYMBOL', request.form.get('currency_symbol'))
+            SystemSettings.set_setting('TIMEZONE', request.form.get('timezone'))
+            flash('✅ تم حفظ بيانات الشركة بنجاح', 'success')
         
         db.session.commit()
         return redirect(url_for('security.settings_center', tab=tab))
