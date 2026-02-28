@@ -2469,3 +2469,54 @@ def show_settlement(settlement_id):
         balance_data=balance_data,
         gl_batch=gl_batch
     )
+
+@supplier_settlements_bp.route("/<int:supplier_id>/inventory", endpoint="supplier_inventory")
+@login_required
+def supplier_inventory(supplier_id):
+    """
+    تقرير مخزون المورد: يعرض المنتجات التي تم شراؤها من المورد وما زالت في المخزون.
+    """
+    from models import Supplier, Product, StockLevel, Warehouse
+    
+    supplier = db.session.get(Supplier, supplier_id)
+    if not supplier:
+        abort(404)
+    
+    # Products where this supplier is the primary supplier
+    items = db.session.query(
+        Product,
+        StockLevel.quantity,
+        Warehouse.name.label('warehouse_name')
+    ).join(
+        StockLevel, StockLevel.product_id == Product.id
+    ).join(
+        Warehouse, Warehouse.id == StockLevel.warehouse_id
+    ).filter(
+        Product.supplier_id == supplier_id,
+        StockLevel.quantity > 0
+    ).all()
+    
+    inventory = []
+    total_value = 0
+    
+    for prod, qty, wh_name in items:
+        qty = float(qty or 0)
+        cost = float(prod.purchase_price or 0)
+        val = qty * cost
+        
+        inventory.append({
+            "product_name": prod.name,
+            "sku": prod.sku,
+            "warehouse": wh_name,
+            "quantity": qty,
+            "unit_cost": cost,
+            "total_value": round(val, 2)
+        })
+        total_value += val
+        
+    return render_template(
+        "vendors/suppliers/inventory.html",
+        supplier=supplier,
+        inventory=inventory,
+        total_value=round(total_value, 2)
+    )

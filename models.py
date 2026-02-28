@@ -3761,6 +3761,51 @@ def build_partner_settlement_draft(partner_id: int, date_from: datetime, date_to
             total_gross += q(base)
             total_share += q(share_amt)
 
+    # 3. Sale Returns (Deduct from Settlement)
+    srl_q = (
+        db.session.query(SaleReturnLine)
+        .join(SaleReturn, SaleReturn.id == SaleReturnLine.sale_return_id)
+        .filter(
+            SaleReturn.return_date >= date_from,
+            SaleReturn.return_date <= date_to,
+            SaleReturn.status == 'CONFIRMED'
+        )
+    )
+    
+    for srl in srl_q:
+        pid = getattr(srl, "product_id", None)
+        wid = getattr(srl, "warehouse_id", None)
+        pct = _find_partner_share_percentage(partner_id, pid, wid)
+        
+        if pct > 0:
+            qty = Decimal(str(srl.quantity or 0))
+            # Use Product selling_price as approximation for "Lost Revenue" since return line might lack price
+            u_price = Decimal("0")
+            if srl.product:
+                 u_price = Decimal(str(srl.product.selling_price or 0))
+            
+            base = q(u_price * qty)
+            share_amt = q(base * Decimal(str(pct / 100.0)))
+            pct_dec = Decimal(str(pct)).quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
+
+            if share_amt > 0:
+                ps.lines.append(
+                    PartnerSettlementLine(
+                        source_type="SALE_RETURN_LINE",
+                        source_id=srl.id,
+                        description=f"Return #{srl.sale_return_id} - Product #{pid}",
+                        product_id=pid,
+                        warehouse_id=wid,
+                        quantity=-qty,
+                        unit_price=u_price,
+                        gross_amount=-base,
+                        share_percent=pct_dec,
+                        share_amount=-share_amt,
+                    )
+                )
+                total_gross -= base
+                total_share -= share_amt
+
     ps.total_gross = q(total_gross)
     ps.total_share = q(total_share)
     ps.total_costs = q(0)

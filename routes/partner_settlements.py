@@ -2980,3 +2980,115 @@ def partner_settlements_list(partner_id):
         partner=partner,
         settlements=settlements
     )
+
+@partner_settlements_bp.route("/<int:partner_id>/inventory")
+@login_required
+def partner_inventory(partner_id):
+    """
+    تقرير مخزون الشريك: يعرض المنتجات التي يملك الشريك حصة فيها
+    مع الكميات المتوفرة حالياً وقيمتها.
+    """
+    partner = Partner.query.get_or_404(partner_id)
+    
+    # 1. المنتجات المرتبطة بالشريك عبر ProductPartner (نسبة ثابتة في المنتج)
+    pp_items = db.session.query(
+        Product,
+        ProductPartner.share_percent,
+        StockLevel.quantity,
+        Warehouse.name.label('warehouse_name')
+    ).join(
+        ProductPartner, ProductPartner.product_id == Product.id
+    ).outerjoin(
+        StockLevel, StockLevel.product_id == Product.id
+    ).outerjoin(
+        Warehouse, Warehouse.id == StockLevel.warehouse_id
+    ).filter(
+        ProductPartner.partner_id == partner_id,
+        StockLevel.quantity > 0
+    ).all()
+
+    inventory = []
+    total_value = 0
+
+    for prod, share, qty, wh_name in pp_items:
+        qty = float(qty or 0)
+        share_pct = float(share or 0)
+        owned_qty = qty * (share_pct / 100.0)
+        
+        # Value based on purchase price (Asset Value)
+        unit_cost = float(prod.purchase_price or 0)
+        owned_value = owned_qty * unit_cost
+        
+        inventory.append({
+            "product_id": prod.id,
+            "product_name": prod.name,
+            "sku": prod.sku,
+            "warehouse": wh_name or "Unknown",
+            "total_qty": qty,
+            "share_pct": share_pct,
+            "owned_qty": round(owned_qty, 2),
+            "unit_cost": unit_cost,
+            "owned_value": round(owned_value, 2),
+            "source": "Product Share"
+        })
+        total_value += owned_value
+
+    # 2. المنتجات المرتبطة بالشريك عبر WarehousePartnerShare (نسبة في مستودع)
+    # هذا يتطلب منطقاً أعقد قليلاً إذا كان الشريك يملك نسبة في كل منتجات المستودع
+    # ولكن عادة WarehousePartnerShare يكون محدداً بمنتج معين أيضاً (حسب الموديل)
+    
+    # التحقق من الموديل WarehousePartnerShare
+    # إذا كان مرتبطاً بمنتج، نضيفه.
+    
+    from models import WarehousePartnerShare
+    wps_items = db.session.query(
+        Product,
+        WarehousePartnerShare.share_percentage,
+        StockLevel.quantity,
+        Warehouse.name.label('warehouse_name')
+    ).join(
+        WarehousePartnerShare, 
+        and_(
+            WarehousePartnerShare.product_id == Product.id,
+            WarehousePartnerShare.warehouse_id == StockLevel.warehouse_id
+        )
+    ).join(
+        StockLevel, StockLevel.product_id == Product.id
+    ).join(
+        Warehouse, Warehouse.id == StockLevel.warehouse_id
+    ).filter(
+        WarehousePartnerShare.partner_id == partner_id,
+        StockLevel.quantity > 0
+    ).all()
+
+    for prod, share, qty, wh_name in wps_items:
+        # Avoid duplicates if covered by ProductPartner (assuming ProductPartner overrides or adds?)
+        # Let's assume they are additive or mutually exclusive in usage.
+        # For reporting, we list them.
+        
+        qty = float(qty or 0)
+        share_pct = float(share or 0)
+        owned_qty = qty * (share_pct / 100.0)
+        unit_cost = float(prod.purchase_price or 0)
+        owned_value = owned_qty * unit_cost
+
+        inventory.append({
+            "product_id": prod.id,
+            "product_name": prod.name,
+            "sku": prod.sku,
+            "warehouse": wh_name,
+            "total_qty": qty,
+            "share_pct": share_pct,
+            "owned_qty": round(owned_qty, 2),
+            "unit_cost": unit_cost,
+            "owned_value": round(owned_value, 2),
+            "source": "Warehouse Share"
+        })
+        total_value += owned_value
+
+    return render_template(
+        "partners/inventory.html",
+        partner=partner,
+        inventory=inventory,
+        total_value=round(total_value, 2)
+    )
