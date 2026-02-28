@@ -1423,10 +1423,11 @@ def create_app(config_object=Config) -> Flask:
                 return s
 
             # Prioritize lowercase keys if available
-            company_name_val = _coerce('company_name') or _coerce('COMPANY_NAME', 'اسم الشركة')
+            company_name_val = _coerce('company_name') or _coerce('COMPANY_NAME') or 'شركة الحازم للأنظمة الذكية'
+            system_name_val = _coerce('system_name') or 'نظام الحازم'
 
             settings = {
-                'system_name': _coerce('system_name', 'نظام إدارة متكامل'),
+                'system_name': system_name_val,
                 'company_name': company_name_val,
                 'login_title': _coerce('login_title', 'مرحباً بك'),
                 'login_subtitle': _coerce('login_subtitle', 'سجل دخولك للمتابعة'),
