@@ -22,6 +22,16 @@ from models import (
 )
 import utils
 
+def _safe_get_id(obj):
+    try:
+        if hasattr(obj, 'id'):
+            return obj.id
+        if isinstance(obj, int):
+            return obj
+    except:
+        pass
+    return None
+
 shipments_bp = Blueprint("shipments_bp", __name__, url_prefix="/shipments")
 
 @shipments_bp.app_context_processor
@@ -603,7 +613,7 @@ def create_shipment():
             expected_arrival=form.expected_arrival.data,
             actual_arrival=form.actual_arrival.data,
             origin=form.origin.data or None,
-            destination_id=(form.destination_id.data.id if getattr(form.destination_id.data, "id", None) else (form.destination_id.data if isinstance(form.destination_id.data, int) else None)),
+            destination_id=_safe_get_id(form.destination_id.data),
             carrier=form.carrier.data or None,
             tracking_number=form.tracking_number.data or None,
             status=_norm_status(form.status.data),
