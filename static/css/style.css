@@ -43,46 +43,60 @@
     --radius-sm: 8px;
 }
 
-/* --- RTL Layout Fixes for AdminLTE --- */
-body.rtl .main-sidebar, 
-html[dir="rtl"] body .main-sidebar {
+/* --- RTL Layout Fixes for AdminLTE (Robust) --- */
+
+/* 1. Sidebar Position - Always Right in RTL */
+html[dir="rtl"] .main-sidebar {
     right: 0 !important;
     left: auto !important;
 }
 
-body.rtl .content-wrapper,
-html[dir="rtl"] body .content-wrapper,
-body.rtl .main-footer,
-html[dir="rtl"] body .main-footer,
-body.rtl .main-header,
-html[dir="rtl"] body .main-header {
-    margin-right: 260px !important;
-    margin-left: 0 !important;
-    width: auto !important;
-    transition: margin-right 0.3s ease-in-out;
+/* 2. Desktop Layout (Large Screens >= 992px) */
+@media (min-width: 992px) {
+    /* Normal State: Sidebar Expanded */
+    /* Using 260px to match var(--sidebar-width) and ensure clearance */
+    html[dir="rtl"] body:not(.sidebar-collapse) .content-wrapper,
+    html[dir="rtl"] body:not(.sidebar-collapse) .main-footer,
+    html[dir="rtl"] body:not(.sidebar-collapse) .main-header {
+        margin-right: 260px !important;
+        margin-left: 0 !important;
+        width: auto !important;
+        transition: margin-right 0.3s ease-in-out;
+    }
+
+    /* Collapsed State: Sidebar Mini */
+    html[dir="rtl"] body.sidebar-collapse .content-wrapper,
+    html[dir="rtl"] body.sidebar-collapse .main-footer,
+    html[dir="rtl"] body.sidebar-collapse .main-header {
+        margin-right: 4.6rem !important; /* Standard AdminLTE mini width */
+        margin-left: 0 !important;
+        width: auto !important;
+        transition: margin-right 0.3s ease-in-out;
+    }
+    
+    /* Ensure sidebar width matches our margin expectation */
+    html[dir="rtl"] body:not(.sidebar-collapse) .main-sidebar {
+        width: 260px !important;
+    }
 }
 
-/* When sidebar is collapsed */
-body.rtl.sidebar-collapse .content-wrapper,
-html[dir="rtl"] body.sidebar-collapse .content-wrapper,
-body.rtl.sidebar-collapse .main-footer,
-html[dir="rtl"] body.sidebar-collapse .main-footer,
-body.rtl.sidebar-collapse .main-header,
-html[dir="rtl"] body.sidebar-collapse .main-header {
-    margin-right: 4.6rem !important;
-    margin-left: 0 !important;
-}
-
-/* Fix overlapping on small screens */
+/* 3. Mobile/Tablet Layout (Small Screens < 992px) */
 @media (max-width: 991.98px) {
-    body.rtl .content-wrapper,
-    html[dir="rtl"] body .content-wrapper,
-    body.rtl .main-footer,
-    html[dir="rtl"] body .main-footer,
-    body.rtl .main-header,
-    html[dir="rtl"] body .main-header {
+    html[dir="rtl"] .content-wrapper,
+    html[dir="rtl"] .main-footer,
+    html[dir="rtl"] .main-header {
         margin-right: 0 !important;
+        margin-left: 0 !important;
         width: 100% !important;
+        min-width: 100% !important;
+    }
+    
+    /* Sidebar acts as overlay on mobile */
+    html[dir="rtl"] body.sidebar-open .main-sidebar {
+        right: 0 !important;
+        left: auto !important;
+        width: 260px !important;
+        z-index: 9999;
     }
 }
 
