@@ -10377,12 +10377,18 @@ def _service_gl_batch_upsert_sql(connection, service_id: int) -> None:
     if sid <= 0:
         return
     try:
+        invoice_exists = connection.execute(
+            sa_text("SELECT id FROM invoices WHERE service_id = :sid"),
+            {"sid": sid}
+        ).scalar()
+        if invoice_exists:
+            return
+
         row = connection.execute(
             sa_text(
                 """
                 SELECT
                     id,
-                    COALESCE(invoice_id, 0),
                     COALESCE(total_amount, 0),
                     COALESCE(currency, 'ILS'),
                     fx_rate_used,
@@ -10398,9 +10404,7 @@ def _service_gl_batch_upsert_sql(connection, service_id: int) -> None:
         if not row:
             return
 
-        _, invoice_id, total_amount, currency, fx_rate_used, received_at, service_number, customer_id = row
-        if int(invoice_id or 0) > 0:
-            return
+        _, total_amount, currency, fx_rate_used, received_at, service_number, customer_id = row
 
         amount = float(total_amount or 0)
         if amount <= 0:
@@ -10789,10 +10793,98 @@ class ServiceTask(db.Model, TimestampMixin):
     def __repr__(self):
         return f"<ServiceTask {self.description} for Service {self.service_id}>"
 
+def _recalc_service_totals_orm_safe(session, service_id: int):
+    sid = int(service_id or 0)
+    if sid <= 0: return
+    try:
+        parts_sum = session.execute(
+            sa_text("SELECT COALESCE(SUM(COALESCE(quantity, 0) * COALESCE(unit_price, 0) - COALESCE(discount, 0)), 0) FROM service_parts WHERE service_id = :sid"),
+            {"sid": sid}
+        ).scalar() or 0
+        tasks_sum = session.execute(
+            sa_text("SELECT COALESCE(SUM(COALESCE(quantity, 0) * COALESCE(unit_price, 0) - COALESCE(discount, 0)), 0) FROM service_tasks WHERE service_id = :sid"),
+            {"sid": sid}
+        ).scalar() or 0
+        
+        row = session.execute(
+            sa_text("SELECT discount_total, total_cost, currency FROM service_requests WHERE id = :sid"),
+            {"sid": sid}
+        ).first()
+        
+        if not row: return
+        discount_total, prev_cost, curr = row
+        
+        parts_d = Decimal(str(parts_sum))
+        tasks_d = Decimal(str(tasks_sum))
+        disc_d = Decimal(str(discount_total or 0))
+        
+        total_base = parts_d + tasks_d - disc_d
+        if total_base < 0: total_base = Decimal("0.00")
+        
+        prev_cost_d = Decimal(str(prev_cost or 0))
+        new_cost = total_base if prev_cost_d < total_base else prev_cost_d
+        
+        session.connection().execute(
+            sa_text("""
+                UPDATE service_requests 
+                SET parts_total = :pt, 
+                    labor_total = :lt, 
+                    total_amount = :ta, 
+                    total_cost = :tc,
+                    currency = :cur,
+                    updated_at = :now
+                WHERE id = :sid
+            """),
+            {
+                "sid": sid,
+                "pt": parts_d,
+                "lt": tasks_d,
+                "ta": total_base,
+                "tc": new_cost,
+                "cur": (curr or "ILS").upper(),
+                "now": datetime.now(timezone.utc)
+            }
+        )
+        
+        sr = session.get(ServiceRequest, sid)
+        if sr:
+            session.expire(sr)
+    except Exception:
+        pass
+
+@event.listens_for(ServiceRequest, "before_update")
+def _deduct_stock_on_complete(mapper, connection, target):
+    from sqlalchemy import inspect
+    state = inspect(target)
+    hist = state.get_history("status", True)
+    
+    # Check if status changed to COMPLETED
+    if hist.has_changes() and hist.added and hist.added[0] == ServiceStatus.COMPLETED.value:
+        # Use connection directly to avoid Session conflict in flush
+        for sp in target.parts:
+            result = connection.execute(
+                sa_text("UPDATE stock_levels SET quantity = COALESCE(quantity, 0) - :qty, updated_at = :now WHERE warehouse_id = :wh AND product_id = :pid"),
+                {"qty": sp.quantity, "wh": sp.warehouse_id, "pid": sp.part_id, "now": datetime.now(timezone.utc)}
+            )
+            
+            if result.rowcount == 0:
+                connection.execute(
+                    sa_text("INSERT INTO stock_levels (warehouse_id, product_id, quantity, created_at, updated_at) VALUES (:wh, :pid, :qty, :now, :now)"),
+                    {"wh": sp.warehouse_id, "pid": sp.part_id, "qty": -sp.quantity, "now": datetime.now(timezone.utc)}
+                )
+        
+        session = object_session(target)
+        if session:
+            session.expire_all()
+
 @event.listens_for(ServicePart, "after_insert")
 def _sp_after_insert(mapper, connection, target: ServicePart):
     sid = int(getattr(target, "service_id", 0) or 0)
-    if sid:
+    session = object_session(target)
+    if sid and session:
+        _recalc_service_totals_orm_safe(session, sid)
+        # _service_gl_batch_upsert_sql(connection, sid)
+    elif sid:
         _recalc_service_request_totals_sql(connection, sid)
         _service_gl_batch_upsert_sql(connection, sid)
     if hasattr(target, 'partner_id') and target.partner_id:
@@ -10801,7 +10893,11 @@ def _sp_after_insert(mapper, connection, target: ServicePart):
 @event.listens_for(ServicePart, "after_update")
 def _sp_after_update(mapper, connection, target: ServicePart):
     sid = int(getattr(target, "service_id", 0) or 0)
-    if sid:
+    session = object_session(target)
+    if sid and session:
+        _recalc_service_totals_orm_safe(session, sid)
+        _service_gl_batch_upsert_sql(connection, sid)
+    elif sid:
         _recalc_service_request_totals_sql(connection, sid)
         _service_gl_batch_upsert_sql(connection, sid)
     if hasattr(target, 'partner_id') and target.partner_id:
@@ -10810,7 +10906,11 @@ def _sp_after_update(mapper, connection, target: ServicePart):
 @event.listens_for(ServicePart, "after_delete")
 def _sp_after_delete(mapper, connection, target: ServicePart):
     sid = int(getattr(target, "service_id", 0) or 0)
-    if sid:
+    session = object_session(target)
+    if sid and session:
+        _recalc_service_totals_orm_safe(session, sid)
+        _service_gl_batch_upsert_sql(connection, sid)
+    elif sid:
         _recalc_service_request_totals_sql(connection, sid)
         _service_gl_batch_upsert_sql(connection, sid)
     if hasattr(target, 'partner_id') and target.partner_id:
@@ -10821,7 +10921,11 @@ def _sp_after_delete(mapper, connection, target: ServicePart):
 @event.listens_for(ServiceTask, "after_delete")
 def _st_sync_totals(mapper, connection, target: ServiceTask):
     sid = int(getattr(target, "service_id", 0) or 0)
-    if sid:
+    session = object_session(target)
+    if sid and session:
+        _recalc_service_totals_orm_safe(session, sid)
+        _service_gl_batch_upsert_sql(connection, sid)
+    elif sid:
         _recalc_service_request_totals_sql(connection, sid)
         _service_gl_batch_upsert_sql(connection, sid)
     if hasattr(target, 'partner_id') and target.partner_id:

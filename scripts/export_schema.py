@@ -5,7 +5,7 @@ from sqlalchemy.schema import CreateTable
 from sqlalchemy import create_mock_engine
 
 # Add project root to path
-sys.path.append(os.path.abspath(os.path.dirname(__file__)))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from app import create_app
 from extensions import db

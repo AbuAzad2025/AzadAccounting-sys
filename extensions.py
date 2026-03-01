@@ -1611,7 +1611,7 @@ def init_extensions(app):
         
         if app.config.get("ENABLE_AUTOMATED_BACKUPS", True):
             try:
-                from backup_automation import schedule_automated_backups
+                from services.backup_service import schedule_automated_backups
                 state = app.extensions.setdefault("auto_backup_scheduler", {})
                 if not state.get("scheduled"):
                     schedule_automated_backups(app, scheduler)

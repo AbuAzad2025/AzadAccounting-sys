@@ -4,7 +4,7 @@ from flask_login import login_required, current_user
 from sqlalchemy import text, func, inspect, or_
 from datetime import datetime, timedelta, timezone, date
 from extensions import db, cache
-from backup_automation import AutomatedBackupManager
+from services.backup_service import AutomatedBackupManager
 from models import User, SystemSettings
 import utils
 from utils import permission_required

@@ -2790,6 +2790,9 @@ def gl_seed_accounts():
     mapping = [
         ("1100_AR", "Accounts Receivable"),
         ("4000_SALES", "Sales Revenue"),
+        ("4100_SERVICE_REVENUE", "Service Revenue"),
+        ("1500_INVENTORY", "Inventory"),
+        ("5000_COGS", "Cost of Goods Sold"),
         ("2100_VAT_PAYABLE", "VAT Payable"),
         ("1000_CASH", "Cash on Hand"),
         ("1010_BANK", "Bank"),
