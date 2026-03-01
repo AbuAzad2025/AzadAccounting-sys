@@ -15,7 +15,7 @@ from extensions import db
 from sqlalchemy import func
 from models import (
     ServiceRequest, Payment, GLBatch, GLEntry, GL_ACCOUNTS,
-    StockLevel, StockMovement,
+    StockLevel,
     run_service_gl_sync_after_commit, run_payment_gl_sync_after_commit
 )
 
@@ -236,22 +236,23 @@ def fix_production_data():
         # 3. AUDIT STOCK LEVELS
         # ---------------------------------------------------------
         print("\n--- 3. Auditing Stock Levels ---")
-        levels = StockLevel.query.all()
-        issues = 0
-        for lvl in levels:
-            movements_sum = db.session.query(func.sum(StockMovement.quantity_change)).filter(
-                StockMovement.product_id == lvl.product_id,
-                StockMovement.warehouse_id == lvl.warehouse_id
-            ).scalar() or 0
-            
-            if float(lvl.quantity or 0) != float(movements_sum):
-                print(f"   ⚠️ Mismatch for Product {lvl.product_id} in WH {lvl.warehouse_id}: Level={lvl.quantity}, Movements={movements_sum}")
-                issues += 1
-        
-        if issues == 0:
-            print("   ✅ Stock levels are consistent.")
-        else:
-            print(f"   ⚠️ Found {issues} stock mismatches.")
+        print("   ⚠️ Stock Movement audit skipped (No StockMovement table found).")
+        # levels = StockLevel.query.all()
+        # issues = 0
+        # for lvl in levels:
+        #     movements_sum = db.session.query(func.sum(StockMovement.quantity_change)).filter(
+        #         StockMovement.product_id == lvl.product_id,
+        #         StockMovement.warehouse_id == lvl.warehouse_id
+        #     ).scalar() or 0
+        #     
+        #     if float(lvl.quantity or 0) != float(movements_sum):
+        #         print(f"   ⚠️ Mismatch for Product {lvl.product_id} in WH {lvl.warehouse_id}: Level={lvl.quantity}, Movements={movements_sum}")
+        #         issues += 1
+        # 
+        # if issues == 0:
+        #     print("   ✅ Stock levels are consistent.")
+        # else:
+        #     print(f"   ⚠️ Found {issues} stock mismatches.")
 
         print("\n=======================================================")
         print("                  FIX COMPLETED                        ")

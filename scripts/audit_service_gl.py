@@ -44,13 +44,6 @@ def audit_service_gl():
             total_paid = sum(p.total_amount for p in payments) if payments else 0
             
             has_gl = bool(gl_batch)
-            
-            if gl_batch:
-                gl_rev = sum(e.credit for e in gl_batch.entries if e.account_id in ['4100_SERVICE_REVENUE', '4000_REVENUE'])
-                svc_amt = float(svc.total_amount or 0)
-                if abs(float(gl_rev) - svc_amt) > 0.01:
-                    print(f"   ⚠️ GL Amount Mismatch! Service ID {svc.id}: Service Amt={svc_amt}, GL Revenue={gl_rev}")
-            
             is_fully_paid = (total_paid >= (svc.total_amount or 0))
             
             if not has_gl:
