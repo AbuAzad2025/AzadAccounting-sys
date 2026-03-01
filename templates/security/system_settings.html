@@ -72,6 +72,16 @@
             <i class="fas fa-briefcase"></i> ثوابت الأعمال
           </button>
         </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link {% if active_tab == 'branding' %}active{% endif %}" 
+                  id="branding-tab" 
+                  data-toggle="tab" 
+                  data-target="#branding" 
+                  type="button" 
+                  role="tab">
+            <i class="fas fa-paint-brush"></i> الهوية والمظهر
+          </button>
+        </li>
       </ul>
 
       <!-- Tab panes -->
@@ -998,6 +1008,73 @@
             <button type="submit" class="btn btn-primary floating-save-btn">
               <i class="fas fa-save me-2"></i> حفظ التغييرات
             </button>
+          </form>
+        </div>
+        
+        <!-- Branding Tab -->
+        <div class="tab-pane fade {% if active_tab == 'branding' %}show active{% endif %}" 
+             id="branding" 
+             role="tabpanel">
+          <form method="POST" enctype="multipart/form-data">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="active_tab" value="branding">
+            
+            <div class="card shadow-sm border-0">
+                <div class="card-body p-4">
+                    <h5 class="card-title fw-bold mb-4 text-primary"><i class="fas fa-paint-brush me-2"></i> إعدادات الهوية والمظهر</h5>
+                    
+                    <div class="row g-4">
+                      <div class="col-md-6">
+                        <div class="mb-3">
+                          <label class="form-label fw-bold">اسم النظام (يظهر في الشريط العلوي)</label>
+                          <input type="text" name="system_name" class="form-control form-control-lg" 
+                                 value="{{ data.branding.system_name }}" placeholder="نظام الحازم">
+                          <div class="form-text">الاسم الذي سيظهر في الزاوية العلوية اليمنى للنظام.</div>
+                        </div>
+                      </div>
+                      
+                      <div class="col-md-6">
+                        <div class="mb-3">
+                          <label class="form-label fw-bold">اسم الشركة (يظهر في التقارير)</label>
+                          <input type="text" name="company_name" class="form-control form-control-lg" 
+                                 value="{{ data.branding.company_name }}" placeholder="شركة الحازم">
+                          <div class="form-text">الاسم الرسمي للشركة الذي سيظهر في الفواتير والتقارير المطبوعة.</div>
+                        </div>
+                      </div>
+        
+                      <div class="col-md-12">
+                        <div class="mb-3 p-4 border rounded bg-light">
+                          <label class="form-label fw-bold mb-3 d-block">شعار النظام (Logo)</label>
+                          <div class="d-flex align-items-center gap-4">
+                              <div class="text-center">
+                                  {% if data.branding.company_logo %}
+                                    <img src="{{ url_for('static', filename=data.branding.company_logo.replace('static/', '')) }}" 
+                                         class="img-thumbnail bg-white" 
+                                         style="height: 80px; width: auto; object-fit: contain;">
+                                    <div class="small text-muted mt-1">الشعار الحالي</div>
+                                  {% else %}
+                                    <img src="{{ url_for('static', filename='img/azad_logo.png') }}" 
+                                         class="img-thumbnail bg-white opacity-50" 
+                                         style="height: 80px; width: auto; object-fit: contain;">
+                                    <div class="small text-muted mt-1">الشعار الافتراضي</div>
+                                  {% endif %}
+                              </div>
+                              <div class="flex-grow-1">
+                                  <input type="file" name="custom_logo" class="form-control" accept="image/*">
+                                  <div class="form-text mt-2">يفضل استخدام صورة بخلفية شفافة (PNG) وبأبعاد متناسقة.</div>
+                              </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div class="d-grid gap-2 mt-4">
+                      <button type="submit" class="btn btn-primary btn-lg shadow p-3">
+                        <i class="fas fa-save me-2"></i> حفظ إعدادات الهوية
+                      </button>
+                    </div>
+                </div>
+            </div>
           </form>
         </div>
         

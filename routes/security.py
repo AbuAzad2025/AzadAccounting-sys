@@ -4583,6 +4583,35 @@ def system_settings():
                     _set_system_setting(key, value)
             flash('✅ تم تحديث بيانات الشركة', 'success')
             
+        elif tab == 'branding':
+            # حفظ الهوية والمظهر
+            system_name = request.form.get('system_name')
+            company_name = request.form.get('company_name')
+            
+            if system_name: 
+                _set_system_setting('system_name', system_name)
+            if company_name: 
+                _set_system_setting('company_name', company_name)
+            
+            # معالجة الشعار
+            if 'custom_logo' in request.files:
+                file = request.files['custom_logo']
+                if file and file.filename:
+                    from werkzeug.utils import secure_filename
+                    import os
+                    filename = secure_filename(file.filename)
+                    # حفظ في static/img/uploads
+                    upload_folder = os.path.join(current_app.root_path, 'static', 'img', 'uploads')
+                    os.makedirs(upload_folder, exist_ok=True)
+                    
+                    file_path = os.path.join(upload_folder, filename)
+                    file.save(file_path)
+                    
+                    # حفظ المسار النسبي
+                    _set_system_setting('custom_logo', f'static/img/uploads/{filename}')
+            
+            flash('✅ تم تحديث هوية النظام بنجاح', 'success')
+            
         elif tab == 'business':
             # حفظ ثوابت الأعمال (Business Constants)
             try:
@@ -4758,6 +4787,11 @@ def system_settings():
             # Multi-Tenancy
             'multi_tenancy_enabled': SystemSettings.get_setting('multi_tenancy_enabled', False),
             'trial_period_days': SystemSettings.get_setting('trial_period_days', 30),
+        },
+        'branding': {
+            'system_name': _get_system_setting('system_name', 'نظام الحازم'),
+            'company_name': _get_system_setting('company_name', 'شركة الحازم للأنظمة الذكية'),
+            'company_logo': _get_system_setting('custom_logo', ''),
         }
     }
     
