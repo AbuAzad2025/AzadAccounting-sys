@@ -6,156 +6,112 @@
 {% block security_breadcrumb %}<li class="breadcrumb-item active">System Settings</li>{% endblock %}
 {% block security_content %}
   <style>
-    /* --- CRITICAL UI FIXES (VERSION 3) --- */
+    /* --- FINAL CLEAN CSS FIX --- */
     
-    /* 1. TABS: High Contrast & Visibility */
+    /* 1. Tabs Visibility */
     .nav-tabs {
         border-bottom: 2px solid rgba(255,255,255,0.1);
         margin-bottom: 20px;
     }
     .nav-tabs .nav-link {
-        color: #ffffff !important; /* Pure White for inactive */
-        font-weight: 700 !important; /* Bold */
-        font-size: 1.05rem;
-        opacity: 0.85;
-        text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+        color: #fff !important;
+        opacity: 0.8;
+        font-weight: bold;
         border: 1px solid transparent;
     }
-    .nav-tabs .nav-link:hover {
-        background-color: rgba(255,255,255,0.1);
-        opacity: 1;
-    }
     .nav-tabs .nav-link.active {
-        background-color: #ffffff !important;
-        color: #000000 !important; /* Pure Black for active */
-        border-color: #fff #fff #fff !important;
+        background-color: #fff !important;
+        color: #000 !important;
         opacity: 1;
-        text-shadow: none !important;
-        border-radius: 6px 6px 0 0;
+        border-radius: 5px 5px 0 0;
     }
-    
-    /* 2. MODULE CARDS: Clean Layout & High Contrast */
+
+    /* 2. Module Cards Layout */
     .module-card {
-        background-color: #ffffff !important;
-        color: #000000 !important;
-        opacity: 1 !important;
-        filter: none !important;
-        backdrop-filter: none !important;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.1) !important;
-        border: 1px solid #e9ecef !important;
-        position: relative;
+        background: #fff !important;
+        color: #212529 !important;
+        border: 1px solid #dee2e6;
+        position: relative; /* For absolute positioning */
+        height: 100%;
         display: flex;
         flex-direction: column;
-        height: 100%;
     }
-    
     .module-card .card-body {
         padding: 1.5rem;
         flex: 1;
+    }
+    
+    /* Switch Position in Card (Absolute Top-Left) */
+    .card-switch-absolute {
+        position: absolute;
+        top: 15px;
+        left: 15px; /* RTL: Left side */
+        z-index: 5;
+    }
+    
+    /* Icon Position in Card */
+    .module-icon {
+        width: 50px;
+        height: 50px;
+        border-radius: 10px;
         display: flex;
-        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        margin-bottom: 1rem;
     }
-    
-    /* Force ALL text inside cards to be black/dark */
-    .module-card h5.card-title {
-        color: #000000 !important;
-        font-weight: 800 !important;
-        margin-top: 10px;
-        margin-bottom: 5px;
-    }
-    .module-card p.card-text {
-        color: #444444 !important;
-        font-weight: 600 !important;
-        font-size: 0.9rem;
-        flex-grow: 1;
-    }
-    .module-card .text-muted {
-        color: #555555 !important;
-    }
-    
-    /* 3. SWITCHES & CHECKBOXES - FIXED LAYOUT */
-    
-    /* Global Reset for Switches */
-    .form-check {
-        padding-left: 0;
-        margin-bottom: 0;
-    }
+
+    /* 3. Switch Styling */
     .form-check-input {
-        border: 2px solid #666 !important;
-        cursor: pointer;
         width: 3em !important;
         height: 1.5em !important;
-        float: none !important; /* Important: Do not float */
-        margin-top: 0;
+        cursor: pointer;
+        border: 2px solid #adb5bd;
+        float: none !important;
+        margin: 0;
     }
     .form-check-input:checked {
-        background-color: #0d6efd !important;
-        border-color: #0d6efd !important;
+        background-color: #0d6efd;
+        border-color: #0d6efd;
     }
     
-    /* FIX: Module Card Switch (Inside d-flex parent) */
-    .module-card .form-check {
-        margin: 0 !important;
+    /* 4. General Settings Alignment */
+    .general-setting-wrapper {
         display: flex;
         align-items: center;
+        gap: 15px;
     }
-    
-    /* FIX: General Settings Switch (Row Layout) */
-    .card-body .form-check.form-switch {
-        display: flex;
-        align-items: center;
-        gap: 15px; /* Clean spacing */
-        padding: 0;
-    }
-    .card-body .form-check-label {
-        margin: 0 !important;
-        color: #000;
+    .general-setting-wrapper label {
+        margin: 0;
         font-weight: bold;
-        padding-top: 2px;
+        color: #000;
         cursor: pointer;
+        line-height: 1.2;
     }
     
-    /* 4. BOTTOM DETAILED SETTINGS (Tax Settings etc) */
+    /* 5. Bottom Section (Tax, Payroll, etc) */
     .collapse {
-        background-color: #f8f9fa !important; /* Light BG */
+        background-color: #f8f9fa;
+        color: #212529;
         border: 1px solid #dee2e6;
         border-radius: 8px;
-        margin-top: 15px;
         padding: 20px;
-        color: #212529 !important;
+        margin-top: 15px;
     }
-    .collapse label {
-        color: #212529 !important;
-        font-weight: bold;
-    }
-    .collapse h4 {
-        color: #0d6efd !important;
-    }
-    .collapse .input-group-text {
-        background-color: #e9ecef !important;
-        color: #495057 !important;
-        border: 1px solid #ced4da;
-    }
-    .collapse .form-control {
-        background-color: #fff !important;
-        color: #212529 !important;
-        border: 1px solid #ced4da !important;
-    }
+    .collapse label { color: #212529; font-weight: bold; }
+    .collapse h4 { color: #0d6efd; }
     
-    /* Dark Mode Overrides for Bottom Section Only */
+    /* Dark Mode Support for Bottom Section */
     body.dark-mode .collapse {
-        background-color: #2c3034 !important;
+        background-color: #2c3034;
+        color: #fff;
         border-color: #454d55;
-        color: #fff !important;
     }
-    body.dark-mode .collapse label,
-    body.dark-mode .collapse h4 {
-        color: #fff !important;
-    }
+    body.dark-mode .collapse label { color: #fff; }
     body.dark-mode .collapse .form-control {
-        background-color: #343a40 !important;
-        color: #fff !important;
-        border-color: #6c757d !important;
+        background-color: #343a40;
+        color: #fff;
+        border-color: #6c757d;
     }
   </style>
 
@@ -255,12 +211,14 @@
                     <strong><i class="fas fa-tools"></i> وضع الصيانة</strong>
                   </div>
                   <div class="card-body">
-                    <div class="form-check form-switch">
-                      <input class="form-check-input" type="checkbox" name="maintenance_mode" id="maintenance_mode" {% if data.general.maintenance_mode %}checked{% endif %}>
-                      <label class="form-check-label" for="maintenance_mode">
-                        تفعيل وضع الصيانة<br>
-                        <small class="text-muted">سيمنع الوصول لجميع المستخدمين</small>
-                      </label>
+                    <div class="general-setting-wrapper">
+                        <div class="form-check form-switch m-0 p-0">
+                          <input class="form-check-input" type="checkbox" name="maintenance_mode" id="maintenance_mode" {% if data.general.maintenance_mode %}checked{% endif %}>
+                        </div>
+                        <label class="form-check-label" for="maintenance_mode">
+                            تفعيل وضع الصيانة<br>
+                            <small class="text-muted fw-normal">سيمنع الوصول لجميع المستخدمين</small>
+                        </label>
                     </div>
                   </div>
                 </div>
@@ -272,12 +230,14 @@
                     <strong><i class="fas fa-user-plus"></i> التسجيل</strong>
                   </div>
                   <div class="card-body">
-                    <div class="form-check form-switch">
-                      <input class="form-check-input" type="checkbox" name="registration_enabled" id="registration_enabled" {% if data.general.registration_enabled %}checked{% endif %}>
-                      <label class="form-check-label" for="registration_enabled">
-                        السماح بتسجيل مستخدمين جدد<br>
-                        <small class="text-muted">يمكن للزوار إنشاء حسابات</small>
-                      </label>
+                    <div class="general-setting-wrapper">
+                        <div class="form-check form-switch m-0 p-0">
+                          <input class="form-check-input" type="checkbox" name="registration_enabled" id="registration_enabled" {% if data.general.registration_enabled %}checked{% endif %}>
+                        </div>
+                        <label class="form-check-label" for="registration_enabled">
+                            السماح بتسجيل مستخدمين جدد<br>
+                            <small class="text-muted fw-normal">يمكن للزوار إنشاء حسابات</small>
+                        </label>
                     </div>
                   </div>
                 </div>
@@ -289,12 +249,14 @@
                     <strong><i class="fas fa-code"></i> API</strong>
                   </div>
                   <div class="card-body">
-                    <div class="form-check form-switch">
-                      <input class="form-check-input" type="checkbox" name="api_enabled" id="api_enabled" {% if data.general.api_enabled %}checked{% endif %}>
-                      <label class="form-check-label" for="api_enabled">
-                        تفعيل الوصول لـ API<br>
-                        <small class="text-muted">يسمح بالاتصال عبر API</small>
-                      </label>
+                    <div class="general-setting-wrapper">
+                        <div class="form-check form-switch m-0 p-0">
+                          <input class="form-check-input" type="checkbox" name="api_enabled" id="api_enabled" {% if data.general.api_enabled %}checked{% endif %}>
+                        </div>
+                        <label class="form-check-label" for="api_enabled">
+                            تفعيل الوصول لـ API<br>
+                            <small class="text-muted fw-normal">يسمح بالاتصال عبر API</small>
+                        </label>
                     </div>
                   </div>
                 </div>
