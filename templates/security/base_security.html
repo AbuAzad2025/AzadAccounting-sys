@@ -360,35 +360,50 @@
         </div>
     </aside>
     <main class="security-main" id="securityMain">
-        <header class="security-header">
-            <button class="toggle-sidebar" id="sidebarToggle">
-                <i class="fas fa-bars fa-lg"></i>
-            </button>
-            <div class="ms-4 d-none d-md-block">
-                <nav aria-label="breadcrumb">
-                    <ol class="breadcrumb m-0">
-                        <li class="breadcrumb-item"><a href="{{ url_for('security.settings_center') }}" class="text-decoration-none text-muted">الكونسول</a></li>
-                        {% block security_breadcrumb %}{% endblock %}
+        <header class="security-header d-flex align-items-center justify-content-between px-4">
+            <!-- Right Side: Sidebar Toggle & Breadcrumb -->
+            <div class="d-flex align-items-center gap-3">
+                <button class="btn btn-glass btn-sm border-0" id="sidebarToggle" title="Toggle Menu">
+                    <i class="fas fa-bars fa-lg text-white"></i>
+                </button>
+                
+                <nav aria-label="breadcrumb" class="d-none d-md-block">
+                    <ol class="breadcrumb m-0 bg-transparent p-0 align-items-center">
+                        <li class="breadcrumb-item">
+                            <a href="{{ url_for('security.settings_center') }}" class="text-white-50 text-decoration-none hover-text-white">
+                                <i class="fas fa-shield-alt me-1"></i> الكونسول
+                            </a>
+                        </li>
+                        <li class="breadcrumb-item active text-white" aria-current="page">
+                            {% block security_breadcrumb %}{% endblock %}
+                        </li>
                     </ol>
                 </nav>
             </div>
-            <div class="ms-auto d-flex align-items-center gap-3">
-                <button class="btn btn-glass btn-sm d-flex align-items-center" data-bs-toggle="modal" data-bs-target="#commandPaletteModal">
-                    <i class="fas fa-terminal me-2" style="color: var(--sec-primary);"></i> <span class="d-none d-lg-inline font-monospace">_CMD (Ctrl+K)</span>
+
+            <!-- Left Side: Actions, CMD, User -->
+            <div class="d-flex align-items-center gap-3">
+                <button class="btn btn-glass btn-sm d-flex align-items-center px-3 py-1 rounded-pill" data-bs-toggle="modal" data-bs-target="#commandPaletteModal">
+                    <i class="fas fa-terminal me-2 text-info"></i> 
+                    <span class="d-none d-lg-inline font-monospace small text-white-50">_CMD</span>
                 </button>
-                <div class="vr h-50 my-auto bg-secondary"></div>
+                
+                <div class="vr h-50 my-auto bg-white opacity-10 mx-1"></div>
+                
                 {% block security_actions %}{% endblock %}
+                
                 <div class="dropdown">
-                    <a href="#" class="d-flex align-items-center text-decoration-none dropdown-toggle" id="userDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                        <div class="rounded-circle d-flex align-items-center justify-content-center border border-2" style="width: 38px; height: 38px; background: #000; border-color: var(--sec-danger) !important; box-shadow: 0 0 10px var(--sec-danger);">
-                            <span class="text-white font-weight-bold">{{ current_user.username[0]|upper }}</span>
+                    <a href="#" class="d-flex align-items-center text-decoration-none dropdown-toggle no-caret" id="userDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center border border-1 border-secondary bg-dark position-relative" style="width: 36px; height: 36px;">
+                            <span class="text-white font-weight-bold small">{{ current_user.username[0]|upper }}</span>
+                            <span class="position-absolute bottom-0 end-0 bg-success border border-dark rounded-circle" style="width: 10px; height: 10px;"></span>
                         </div>
                     </a>
-                    <ul class="dropdown-menu dropdown-menu-end shadow-lg border-0 bg-dark text-light" aria-labelledby="userDropdown" style="min-width: 200px; border: 1px solid #333;">
-                        <li><h6 class="dropdown-header text-muted font-monospace">ACCESS_LEVEL: OWNER</h6></li>
-                        <li><a class="dropdown-item text-light hover-bg-secondary" href="#"><i class="fas fa-user-secret me-2"></i> الهوية السرية</a></li>
-                        <li><hr class="dropdown-divider bg-secondary"></li>
-                        <li><a class="dropdown-item text-danger fw-bold" href="{{ url_for('auth.logout') }}"><i class="fas fa-power-off me-2"></i> قطع الاتصال</a></li>
+                    <ul class="dropdown-menu dropdown-menu-end shadow-lg border-0 bg-dark text-light mt-2" aria-labelledby="userDropdown" style="min-width: 200px; border: 1px solid rgba(255,255,255,0.1);">
+                        <li><h6 class="dropdown-header text-muted font-monospace text-uppercase small">User: {{ current_user.username }}</h6></li>
+                        <li><a class="dropdown-item text-light hover-bg-secondary" href="#"><i class="fas fa-user-shield me-2 text-info"></i> الملف الأمني</a></li>
+                        <li><hr class="dropdown-divider bg-secondary opacity-25"></li>
+                        <li><a class="dropdown-item text-danger fw-bold" href="{{ url_for('auth.logout') }}"><i class="fas fa-power-off me-2"></i> خروج آمن</a></li>
                     </ul>
                 </div>
             </div>

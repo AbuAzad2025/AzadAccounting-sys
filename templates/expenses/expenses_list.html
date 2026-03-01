@@ -34,10 +34,25 @@
   table.table-sticky th:last-child,
   table.table-sticky td:last-child{
     position:sticky;
-    right:0;                 /* لأننا RTL */
-    background:var(--bs-body-bg, #fff);
+    right:0;
     z-index:3;
     box-shadow:-4px 0 6px rgba(0,0,0,.06);
+  }
+  
+  /* خلفية الخلايا العادية بيضاء */
+  table.table-sticky tbody td:last-child {
+      background: var(--bs-body-bg, #fff);
+  }
+
+  /* خلفية الترويسة يجب أن تطابق لون الترويسة */
+  table.table-sticky thead th:last-child {
+      background-color: #0d6efd; /* Primary Color */
+      color: white;
+  }
+  
+  /* إذا كان الجدول striped، نحتاج لتعديل الصفوف الفردية/الزوجية في العمود اللاصق */
+  table.table-striped.table-sticky tbody tr:nth-of-type(odd) td:last-child {
+      background-color: var(--bs-table-striped-bg);
   }
 
   /* منع سحق الأعمدة على الشاشات الصغيرة */
@@ -502,13 +517,16 @@
                 <input id="expenses-search" type="text" class="form-control form-control-modern border-0" placeholder="بحث عام في المصاريف" value="{{ search or '' }}">
               </div>
             </div>
-            <div class="col-lg-6 col-md-5 text-md-left text-sm-right mt-3 mt-md-0">
-              <div class="d-flex align-items-center justify-content-end gap-2">
-                <label class="form-check-label d-flex align-items-center" for="show-archived-expenses">
-                  <input type="checkbox" class="form-check-input me-2" id="show-archived-expenses" {% if show_archived %}checked{% endif %} onchange="toggleArchivedExpenses()">
-                  <span>عرض المصروفات المؤرشفة</span>
-                </label>
-                <span class="text-muted d-inline-block" id="expenses-search-summary">إجمالي النتائج: {{ pagination.total if pagination else (summary.expenses_count if summary else expenses|length) }}</span>
+            <div class="col-lg-6 col-md-5 mt-3 mt-md-0">
+              <div class="d-flex flex-wrap align-items-center justify-content-md-end gap-3">
+                <div class="form-check form-switch bg-white rounded-pill px-3 py-1 border shadow-sm">
+                  <input class="form-check-input ms-0 me-2" type="checkbox" id="show-archived-expenses" {% if show_archived %}checked{% endif %} onchange="toggleArchivedExpenses()">
+                  <label class="form-check-label small fw-bold text-secondary" for="show-archived-expenses" style="cursor: pointer;">عرض المؤرشفة</label>
+                </div>
+                <div class="badge bg-white text-dark border p-2 shadow-sm rounded-pill">
+                  <i class="fas fa-list-ol text-muted me-1"></i>
+                  <span>النتائج: {{ pagination.total if pagination else (summary.expenses_count if summary else expenses|length) }}</span>
+                </div>
               </div>
             </div>
           </div>
