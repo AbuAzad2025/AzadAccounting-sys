@@ -244,24 +244,22 @@ def fix_production_data():
         # 3. AUDIT STOCK LEVELS
         # ---------------------------------------------------------
         print("\n--- 3. Auditing Stock Levels ---")
-        print("   ℹ️ Stock Movement table exists now. Audit skipped until Opening Balances are migrated.")
-        # levels = StockLevel.query.all()
-        # issues = 0
-        # for lvl in levels:
-        #     movements_sum = db.session.query(func.sum(StockMovement.quantity_change)).filter(
-        #         StockMovement.product_id == lvl.product_id,
-        #         StockMovement.warehouse_id == lvl.warehouse_id
-        #     ).scalar() or 0
-        #     
-        #     if float(lvl.quantity or 0) != float(movements_sum):
-        #         print(f"   ⚠️ Mismatch for Product {lvl.product_id} in WH {lvl.warehouse_id}: Level={lvl.quantity}, Movements={movements_sum}")
-        #         issues += 1
-        # 
-        # if issues == 0:
-        #     print("   ✅ Stock levels are consistent.")
-        # else:
-        #     print(f"   ⚠️ Found {issues} stock mismatches.")
-
+        
+        levels = StockLevel.query.all()
+        for lvl in levels:
+            movements_sum = db.session.query(func.sum(StockMovement.quantity_change)).filter(
+                StockMovement.product_id == lvl.product_id,
+                StockMovement.warehouse_id == lvl.warehouse_id
+            ).scalar() or 0
+            
+            current_qty = float(lvl.quantity or 0)
+            movements_qty = float(movements_sum)
+            
+            if abs(current_qty - movements_qty) > 0.001:
+                print(f"   ℹ️ Product {lvl.product_id} (WH {lvl.warehouse_id}): Level={current_qty}, Logged Movements={movements_qty} (Legacy Data)")
+            else:
+                print(f"   ✅ Product {lvl.product_id} (WH {lvl.warehouse_id}): Fully synced.")
+                
         print("\n=======================================================")
         print("                  FIX COMPLETED                        ")
         print("=======================================================")
