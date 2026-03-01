@@ -6,60 +6,70 @@
 {% block security_breadcrumb %}<li class="breadcrumb-item active">System Settings</li>{% endblock %}
 {% block security_content %}
   <style>
-    /* --- FIX VISIBILITY ISSUES --- */
+    /* --- CRITICAL UI FIXES --- */
     
-    /* 1. Module Cards (White Cards) MUST have Dark Text */
-    .module-card {
-        background-color: #ffffff !important;
-        color: #212529 !important; /* Dark Text */
+    /* 1. TABS: High Contrast Mode */
+    .nav-tabs {
+        border-bottom: 2px solid rgba(255,255,255,0.2);
+        margin-bottom: 20px;
     }
-    .module-card h5, 
-    .module-card p, 
-    .module-card label, 
-    .module-card span:not(.badge) {
-        color: #212529 !important;
+    .nav-tabs .nav-link {
+        color: #ffffff !important; /* Pure White for inactive */
+        font-weight: 700 !important; /* Bold */
+        font-size: 1.1rem;
+        opacity: 1 !important;
+        text-shadow: 0 1px 2px rgba(0,0,0,0.8); /* Shadow for readability against any bg */
     }
-    .module-card .text-muted {
-        color: #6c757d !important; /* Dark Gray */
-    }
-
-    /* 2. Tabs Navigation */
-    /* Active Tab: White Background -> Dark Text */
     .nav-tabs .nav-link.active {
         background-color: #ffffff !important;
+        color: #000000 !important; /* Pure Black for active */
+        border: 0 !important;
+        border-radius: 5px 5px 0 0;
+        text-shadow: none !important;
+    }
+    
+    /* 2. CARDS: Remove Blur & Force Black Text */
+    .module-card {
+        background-color: #ffffff !important;
         color: #000000 !important;
-        font-weight: bold;
-        border-bottom-color: #ffffff !important;
+        opacity: 1 !important;
+        filter: none !important;
+        backdrop-filter: none !important;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
+        border: 1px solid #ddd !important;
     }
     
-    /* Inactive Tabs: Dark Background -> Light Text */
-    /* Assuming dark mode or dark header */
-    .nav-tabs .nav-link:not(.active) {
-        color: rgba(255,255,255,0.8) !important;
+    /* Force ALL text inside cards to be black/dark */
+    .module-card h5.card-title {
+        color: #000000 !important;
+        font-weight: 800 !important;
     }
-    .nav-tabs .nav-link:not(.active):hover {
-        color: #ffffff !important;
-        background-color: rgba(255,255,255,0.1) !important;
+    .module-card p.card-text {
+        color: #333333 !important; /* Dark Gray */
+        font-weight: 600 !important;
     }
-
-    /* 3. General Forms Fix */
-    .form-control, .form-select, .form-check-label {
-        color: #212529; /* Default to dark */
-    }
-    /* Dark Mode Support for Forms */
-    body.dark-mode .form-control, 
-    body.dark-mode .form-select {
-        background-color: #343a40;
-        color: #fff;
-        border-color: #6c757d;
-    }
-    body.dark-mode .form-check-label {
-        color: #fff;
+    .module-card .text-muted {
+        color: #444444 !important; /* Darker Gray */
     }
     
-    /* Exception: Module Cards are ALWAYS White, so text inside is ALWAYS Dark */
-    body.dark-mode .module-card .form-check-label {
-        color: #212529 !important;
+    /* 3. ICONS: Clear Colors */
+    .module-icon {
+        background-color: transparent !important;
+        border: 1px solid rgba(0,0,0,0.1);
+    }
+    
+    /* 4. SWITCHES: High Visibility */
+    .form-check-input {
+        border: 2px solid #666 !important;
+        cursor: pointer;
+    }
+    .form-check-input:checked {
+        border-color: #0d6efd !important;
+    }
+    
+    /* Overwrite any global dark mode text settings for these specific components */
+    body.dark-mode .module-card * {
+        color: inherit; /* Should inherit the forced black from .module-card */
     }
   </style>
 
