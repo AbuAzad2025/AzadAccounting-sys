@@ -6,14 +6,60 @@
 {% block security_breadcrumb %}<li class="breadcrumb-item active">System Settings</li>{% endblock %}
 {% block security_content %}
   <style>
-    /* Fix for active tab visibility in dark mode */
-    .nav-tabs .nav-link.active {
-        color: #212529 !important; /* Dark text for active tab */
-        font-weight: bold;
+    /* --- FIX VISIBILITY ISSUES --- */
+    
+    /* 1. Module Cards (White Cards) MUST have Dark Text */
+    .module-card {
+        background-color: #ffffff !important;
+        color: #212529 !important; /* Dark Text */
     }
-    /* Ensure inactive tabs are visible if background is dark */
-    body.dark-mode .nav-tabs .nav-link:not(.active) {
-        color: #e1e1e1;
+    .module-card h5, 
+    .module-card p, 
+    .module-card label, 
+    .module-card span:not(.badge) {
+        color: #212529 !important;
+    }
+    .module-card .text-muted {
+        color: #6c757d !important; /* Dark Gray */
+    }
+
+    /* 2. Tabs Navigation */
+    /* Active Tab: White Background -> Dark Text */
+    .nav-tabs .nav-link.active {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        font-weight: bold;
+        border-bottom-color: #ffffff !important;
+    }
+    
+    /* Inactive Tabs: Dark Background -> Light Text */
+    /* Assuming dark mode or dark header */
+    .nav-tabs .nav-link:not(.active) {
+        color: rgba(255,255,255,0.8) !important;
+    }
+    .nav-tabs .nav-link:not(.active):hover {
+        color: #ffffff !important;
+        background-color: rgba(255,255,255,0.1) !important;
+    }
+
+    /* 3. General Forms Fix */
+    .form-control, .form-select, .form-check-label {
+        color: #212529; /* Default to dark */
+    }
+    /* Dark Mode Support for Forms */
+    body.dark-mode .form-control, 
+    body.dark-mode .form-select {
+        background-color: #343a40;
+        color: #fff;
+        border-color: #6c757d;
+    }
+    body.dark-mode .form-check-label {
+        color: #fff;
+    }
+    
+    /* Exception: Module Cards are ALWAYS White, so text inside is ALWAYS Dark */
+    body.dark-mode .module-card .form-check-label {
+        color: #212529 !important;
     }
   </style>
 
