@@ -546,7 +546,7 @@ def create_request():
 @service_bp.route('/<int:rid>', methods=['GET'])
 @login_required
 @utils.permission_required("view_service")
-def detail(rid):
+def view_request(rid):
     service=_get_or_404(ServiceRequest, rid, options=[joinedload(ServiceRequest.customer), joinedload(ServiceRequest.parts).joinedload(ServicePart.part), joinedload(ServiceRequest.parts).joinedload(ServicePart.warehouse), joinedload(ServiceRequest.tasks)])
     warehouses=Warehouse.query.order_by(Warehouse.name.asc()).all()
     
@@ -686,15 +686,15 @@ def toggle_service(rid, action):
         if action=='start':
             if not getattr(service,"started_at",None): service.started_at=datetime.now(timezone.utc).replace(tzinfo=None)
             service.status=ServiceStatus.IN_PROGRESS.value
-            _consume_service_stock_once(service)
+            # _consume_service_stock_once(service) # Handled by listener on COMPLETE
         elif action=='complete':
             service.completed_at=datetime.now(timezone.utc).replace(tzinfo=None)
             if service.started_at: service.actual_duration=int((service.completed_at-service.started_at).total_seconds()/60)
             service.status=ServiceStatus.COMPLETED.value
-            _consume_service_stock_once(service)
+            # _consume_service_stock_once(service) # Handled by listener
         elif action=='reopen':
             if current_status==ServiceStatus.COMPLETED.value:
-                _release_service_stock_once(service)
+                # _release_service_stock_once(service) # Handled by listener
                 service.status=ServiceStatus.IN_PROGRESS.value
                 service.completed_at=None
         else: abort(400)

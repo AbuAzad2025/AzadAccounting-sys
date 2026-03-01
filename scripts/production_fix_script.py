@@ -26,6 +26,16 @@ def fix_production_data():
         print("          PRODUCTION DATA FIX SCRIPT           ")
         print("=======================================================")
         
+        # 0. Pre-Fix: Correct Enum Values in DB (CASH -> cash) to avoid SQLAlchemy LookupError
+        try:
+            from sqlalchemy import text
+            db.session.execute(text("UPDATE payments SET method = 'cash' WHERE method = 'CASH'"))
+            db.session.commit()
+            print("   ✅ Corrected legacy 'CASH' enum values to 'cash'.")
+        except Exception as e:
+            db.session.rollback()
+            print(f"   ⚠️ Failed to correct enums: {e}")
+        
         # ---------------------------------------------------------
         # 1. FIX MISSING GL FOR COMPLETED SERVICES
         # ---------------------------------------------------------

@@ -10902,23 +10902,38 @@ def _deduct_stock_on_complete(mapper, connection, target):
     hist = state.get_history("status", True)
     
     # Check if status changed to COMPLETED
-    if hist.has_changes() and hist.added and hist.added[0] == ServiceStatus.COMPLETED.value:
-        # Use connection directly to avoid Session conflict in flush
-        for sp in target.parts:
-            _apply_stock_delta(
-                connection, 
-                sp.part_id, 
-                sp.warehouse_id, 
-                -int(sp.quantity or 0),
-                movement_type="SERVICE",
-                ref_type="SERVICE",
-                ref_id=target.id,
-                notes=f"Service Completion {target.service_number or target.id}"
-            )
+    if hist.has_changes():
+        # Case 1: Changed TO COMPLETED -> Deduct Stock
+        if hist.added and hist.added[0] == ServiceStatus.COMPLETED.value:
+            for sp in target.parts:
+                _apply_stock_delta(
+                    connection, 
+                    sp.part_id, 
+                    sp.warehouse_id, 
+                    -int(sp.quantity or 0),
+                    movement_type="SERVICE",
+                    ref_type="SERVICE",
+                    ref_id=target.id,
+                    notes=f"Service Completion {target.service_number or target.id}"
+                )
         
-        session = object_session(target)
-        if session:
-            session.expire_all()
+        # Case 2: Changed FROM COMPLETED -> Restore Stock (Reopen)
+        elif hist.deleted and hist.deleted[0] == ServiceStatus.COMPLETED.value:
+            for sp in target.parts:
+                _apply_stock_delta(
+                    connection, 
+                    sp.part_id, 
+                    sp.warehouse_id, 
+                    int(sp.quantity or 0), # Positive to restore
+                    movement_type="SERVICE_REVERSAL",
+                    ref_type="SERVICE",
+                    ref_id=target.id,
+                    notes=f"Service Reopen {target.service_number or target.id}"
+                )
+        
+        # session = object_session(target)
+        # if session:
+        #     session.expire_all()
 
 @event.listens_for(ServicePart, "after_insert")
 def _sp_after_insert(mapper, connection, target: ServicePart):

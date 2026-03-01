@@ -45,30 +45,30 @@
 
 /* --- RTL Layout Fixes for AdminLTE --- */
 body.rtl .main-sidebar, 
-body[dir="rtl"] .main-sidebar {
+html[dir="rtl"] body .main-sidebar {
     right: 0 !important;
     left: auto !important;
 }
 
 body.rtl .content-wrapper,
-body[dir="rtl"] .content-wrapper,
+html[dir="rtl"] body .content-wrapper,
 body.rtl .main-footer,
-body[dir="rtl"] .main-footer,
+html[dir="rtl"] body .main-footer,
 body.rtl .main-header,
-body[dir="rtl"] .main-header {
+html[dir="rtl"] body .main-header {
     margin-right: 260px !important;
     margin-left: 0 !important;
-    width: auto !important; /* Allow auto width to fill remaining space */
+    width: auto !important;
     transition: margin-right 0.3s ease-in-out;
 }
 
 /* When sidebar is collapsed */
 body.rtl.sidebar-collapse .content-wrapper,
-body[dir="rtl"].sidebar-collapse .content-wrapper,
+html[dir="rtl"] body.sidebar-collapse .content-wrapper,
 body.rtl.sidebar-collapse .main-footer,
-body[dir="rtl"].sidebar-collapse .main-footer,
+html[dir="rtl"] body.sidebar-collapse .main-footer,
 body.rtl.sidebar-collapse .main-header,
-body[dir="rtl"].sidebar-collapse .main-header {
+html[dir="rtl"] body.sidebar-collapse .main-header {
     margin-right: 4.6rem !important;
     margin-left: 0 !important;
 }
@@ -76,11 +76,11 @@ body[dir="rtl"].sidebar-collapse .main-header {
 /* Fix overlapping on small screens */
 @media (max-width: 991.98px) {
     body.rtl .content-wrapper,
-    body[dir="rtl"] .content-wrapper,
+    html[dir="rtl"] body .content-wrapper,
     body.rtl .main-footer,
-    body[dir="rtl"] .main-footer,
+    html[dir="rtl"] body .main-footer,
     body.rtl .main-header,
-    body[dir="rtl"] .main-header {
+    html[dir="rtl"] body .main-header {
         margin-right: 0 !important;
         width: 100% !important;
     }

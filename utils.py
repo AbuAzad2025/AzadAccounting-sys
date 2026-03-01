@@ -1746,7 +1746,7 @@ def restore_record(archive_id):
         if not model_name:
             raise ValueError(f'نوع السجل غير مدعوم للاستعادة: {archive.record_type}')
         
-        from models import ServiceRequest, Payment, Sale, Expense, Check, Customer, Supplier, Partner, Shipment
+        from models import ServiceRequest as ServiceRequest, Payment, Sale, Expense, Check, Customer, Supplier, Partner, Shipment
         model_map_actual = {
             'ServiceRequest': ServiceRequest,
             'Payment': Payment,
@@ -2335,7 +2335,7 @@ def notify_service_completed(service_id: int) -> dict:
     Returns:
         dict: نتيجة الإرسال
     """
-    from models import Service
+    from models import ServiceRequest as Service
     
     # التحقق من التفعيل
     if not is_business_group_enabled('notifications') or not get_system_constant('notify_on_service_complete', True):
