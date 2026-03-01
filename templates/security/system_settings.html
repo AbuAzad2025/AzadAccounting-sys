@@ -5,7 +5,18 @@
 {% block security_description %}إعدادات شاملة للنظام - عامة • متقدمة • ثوابت{% endblock %}
 {% block security_breadcrumb %}<li class="breadcrumb-item active">System Settings</li>{% endblock %}
 {% block security_content %}
-  
+  <style>
+    /* Fix for active tab visibility in dark mode */
+    .nav-tabs .nav-link.active {
+        color: #212529 !important; /* Dark text for active tab */
+        font-weight: bold;
+    }
+    /* Ensure inactive tabs are visible if background is dark */
+    body.dark-mode .nav-tabs .nav-link:not(.active) {
+        color: #e1e1e1;
+    }
+  </style>
+
   <div class="alert alert-info border-0 shadow-sm">
     <i class="fas fa-info-circle"></i>
     <strong>إعدادات موحدة:</strong> جميع إعدادات النظام في مكان واحد (عامة + متقدمة + ثوابت)
@@ -401,7 +412,11 @@
                 height: 100%;
                 overflow: hidden;
                 background: #fff;
+                color: #212529 !important;
                 border-top: 4px solid transparent;
+              }
+              .module-card .text-muted {
+                color: #6c757d !important;
               }
               .module-card:hover {
                 transform: translateY(-5px);
