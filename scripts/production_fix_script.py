@@ -15,7 +15,7 @@ from extensions import db
 from sqlalchemy import func
 from models import (
     ServiceRequest, Payment, GLBatch, GLEntry, GL_ACCOUNTS,
-    StockLevel,
+    StockLevel, StockMovement,
     run_service_gl_sync_after_commit, run_payment_gl_sync_after_commit
 )
 
@@ -244,7 +244,7 @@ def fix_production_data():
         # 3. AUDIT STOCK LEVELS
         # ---------------------------------------------------------
         print("\n--- 3. Auditing Stock Levels ---")
-        print("   ⚠️ Stock Movement audit skipped (No StockMovement table found).")
+        print("   ℹ️ Stock Movement table exists now. Audit skipped until Opening Balances are migrated.")
         # levels = StockLevel.query.all()
         # issues = 0
         # for lvl in levels:

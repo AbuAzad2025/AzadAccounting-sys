@@ -4714,6 +4714,24 @@ class StockLevel(db.Model, TimestampMixin):
     def last_updated(self): return self.updated_at
     def __repr__(self): return f"<StockLevel P{self.product_id} W{self.warehouse_id} Q{self.quantity} R{self.reserved_quantity}>"
 
+class StockMovement(db.Model, TimestampMixin):
+    __tablename__ = 'stock_movements'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False, index=True)
+    warehouse_id = db.Column(db.Integer, db.ForeignKey('warehouses.id'), nullable=False, index=True)
+    quantity_change = db.Column(db.Numeric(10, 2), nullable=False)
+    balance_after = db.Column(db.Numeric(10, 2))
+    movement_type = db.Column(db.String(50), nullable=False, index=True) # PURCHASE, SERVICE, ADJUSTMENT, TRANSFER, SALE
+    reference_type = db.Column(db.String(50)) # SERVICE, INVOICE, IMPORT, TRANSFER
+    reference_id = db.Column(db.Integer)
+    notes = db.Column(db.String(255))
+    
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    
+    product = db.relationship('Product', backref=db.backref('stock_movements', lazy='dynamic'))
+    warehouse = db.relationship('Warehouse', backref=db.backref('stock_movements', lazy='dynamic'))
+
 class ImportRun(db.Model, TimestampMixin):
     __tablename__ = "import_runs"
     id = db.Column(db.Integer, primary_key=True)
@@ -4753,7 +4771,8 @@ def _ensure_stock_row(connection, product_id: int, warehouse_id: int):
         pass
     return connection.execute(sa_text("SELECT id FROM stock_levels WHERE product_id = :p AND warehouse_id = :w"), {"p": product_id, "w": warehouse_id}).first()
 
-def _apply_stock_delta(connection, product_id: int, warehouse_id: int, delta_qty: int):
+def _apply_stock_delta(connection, product_id: int, warehouse_id: int, delta_qty: int, 
+                       movement_type: str = "ADJUSTMENT", ref_type: str = None, ref_id: int = None, notes: str = None, user_id: int = None):
     row = _ensure_stock_row(connection, product_id, warehouse_id); sid = row._mapping["id"]; qv = int(delta_qty or 0)
     if qv == 0:
         qty = connection.execute(sa_text("SELECT quantity FROM stock_levels WHERE id = :id"), {"id": sid}).scalar_one()
@@ -4765,6 +4784,30 @@ def _apply_stock_delta(connection, product_id: int, warehouse_id: int, delta_qty
         if getattr(res, "rowcount", None) != 1:
             raise ValueError(f"الكمية غير كافية للمنتج {product_id} في المستودع {warehouse_id}")
     qty = connection.execute(sa_text("SELECT quantity FROM stock_levels WHERE id = :id"), {"id": sid}).scalar_one()
+    
+    # Log Movement
+    try:
+        connection.execute(
+            sa_text("""
+                INSERT INTO stock_movements (product_id, warehouse_id, quantity_change, balance_after, movement_type, reference_type, reference_id, notes, created_by, created_at, updated_at)
+                VALUES (:pid, :wh, :qty, :bal, :type, :ref_type, :ref_id, :notes, :uid, :now, :now)
+            """),
+            {
+                "pid": product_id,
+                "wh": warehouse_id,
+                "qty": qv,
+                "bal": qty,
+                "type": movement_type or "ADJUSTMENT",
+                "ref_type": ref_type,
+                "ref_id": ref_id,
+                "notes": notes,
+                "uid": user_id,
+                "now": datetime.now(timezone.utc)
+            }
+        )
+    except Exception:
+        pass
+
     return int(qty)
 
 def _apply_reservation_delta(connection, product_id: int, warehouse_id: int, delta_qty: int):
@@ -10862,16 +10905,16 @@ def _deduct_stock_on_complete(mapper, connection, target):
     if hist.has_changes() and hist.added and hist.added[0] == ServiceStatus.COMPLETED.value:
         # Use connection directly to avoid Session conflict in flush
         for sp in target.parts:
-            result = connection.execute(
-                sa_text("UPDATE stock_levels SET quantity = COALESCE(quantity, 0) - :qty, updated_at = :now WHERE warehouse_id = :wh AND product_id = :pid"),
-                {"qty": sp.quantity, "wh": sp.warehouse_id, "pid": sp.part_id, "now": datetime.now(timezone.utc)}
+            _apply_stock_delta(
+                connection, 
+                sp.part_id, 
+                sp.warehouse_id, 
+                -int(sp.quantity or 0),
+                movement_type="SERVICE",
+                ref_type="SERVICE",
+                ref_id=target.id,
+                notes=f"Service Completion {target.service_number or target.id}"
             )
-            
-            if result.rowcount == 0:
-                connection.execute(
-                    sa_text("INSERT INTO stock_levels (warehouse_id, product_id, quantity, created_at, updated_at) VALUES (:wh, :pid, :qty, :now, :now)"),
-                    {"wh": sp.warehouse_id, "pid": sp.part_id, "qty": -sp.quantity, "now": datetime.now(timezone.utc)}
-                )
         
         session = object_session(target)
         if session:
