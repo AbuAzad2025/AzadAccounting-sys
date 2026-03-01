@@ -73,6 +73,10 @@ def fix_production_data():
                     
                     amount = Decimal(str(svc.total_amount or 0))
                     
+                    if amount <= 0:
+                        print(f"      ⚠️ Service {svc.id} amount is 0. Skipping GL entry.")
+                        continue
+                    
                     ar_acc = GL_ACCOUNTS.get("AR", "1100_AR")
                     rev_acc = GL_ACCOUNTS.get("SERVICE_REV", "4100_SERVICE_REVENUE")
                     
@@ -183,6 +187,10 @@ def fix_production_data():
                     db.session.flush()
                     
                     amount = Decimal(str(p.total_amount or 0))
+                    
+                    if amount <= 0:
+                        print(f"      ⚠️ Payment {p.id} amount is 0. Skipping GL entry.")
+                        continue
                     
                     if p.direction == 'OUT':
                         # Debit (AP/Expense)
