@@ -260,9 +260,24 @@
 
     .filter-label {
         font-size: 0.85rem;
-        font-weight: 400;
-        color: #111;
+        font-weight: 600;
         margin-bottom: 0.25rem;
+    }
+
+    /* تحسين التباين في الوضع الداكن */
+    body.dark-mode .filter-label {
+        color: #e1e1e1;
+    }
+    
+    body.dark-mode .btn-outline-dark {
+        color: #e1e1e1;
+        border-color: #6c757d;
+    }
+    
+    body.dark-mode .btn-outline-dark:hover,
+    body.dark-mode .btn-outline-dark.active {
+        background-color: #4b545c;
+        color: #fff;
     }
 
     #checks-filters-card .badge-custom,
@@ -397,16 +412,16 @@
                 <div class="card-body">
                     <div class="row gy-3 align-items-center">
                         <div class="col-lg-4">
-                            <small class="filter-label d-block">اتجاه الشيكات</small>
-                            <div class="btn-group btn-group-sm btn-group-toggle w-100" role="group">
-                                <button type="button" class="btn btn-outline-primary active" data-filter-direction="all">الكل</button>
-                                <button type="button" class="btn btn-outline-success" data-filter-direction="in"><i class="fas fa-arrow-down"></i> وارد</button>
-                                <button type="button" class="btn btn-outline-danger" data-filter-direction="out"><i class="fas fa-arrow-up"></i> صادر</button>
+                            <small class="filter-label d-block text-secondary font-weight-bold">اتجاه الشيكات</small>
+                            <div class="btn-group btn-group-sm btn-group-toggle w-100 shadow-sm" role="group">
+                                <button type="button" class="btn btn-primary active" data-filter-direction="all">الكل</button>
+                                <button type="button" class="btn btn-outline-success bg-white text-success font-weight-bold" data-filter-direction="in"><i class="fas fa-arrow-down"></i> وارد</button>
+                                <button type="button" class="btn btn-outline-danger bg-white text-danger font-weight-bold" data-filter-direction="out"><i class="fas fa-arrow-up"></i> صادر</button>
                             </div>
                         </div>
                         <div class="col-lg-4">
-                            <small class="filter-label d-block">حالة الشيك</small>
-                            <select class="custom-select custom-select-sm" id="filter-status">
+                            <small class="filter-label d-block text-secondary font-weight-bold">حالة الشيك</small>
+                            <select class="custom-select custom-select-sm shadow-sm border-secondary" id="filter-status">
                                 <option value="all" selected>كل الحالات</option>
                                 <option value="pending">معلقة / قيد التحصيل</option>
                                 <option value="overdue">متأخرة</option>
@@ -414,12 +429,12 @@
                             </select>
                         </div>
                         <div class="col-lg-4">
-                            <small class="filter-label d-block">مصدر الشيك</small>
-                            <div class="btn-group btn-group-sm btn-group-toggle w-100" role="group">
-                                <button type="button" class="btn btn-outline-dark active" data-filter-source="all">الكل</button>
-                                <button type="button" class="btn btn-outline-dark" data-filter-source="payment">دفعات</button>
-                                <button type="button" class="btn btn-outline-dark" data-filter-source="expense">مصاريف</button>
-                                <button type="button" class="btn btn-outline-dark" data-filter-source="manual">يدوي</button>
+                            <small class="filter-label d-block text-secondary font-weight-bold">مصدر الشيك</small>
+                            <div class="btn-group btn-group-sm btn-group-toggle w-100 shadow-sm" role="group">
+                                <button type="button" class="btn btn-secondary active" data-filter-source="all">الكل</button>
+                                <button type="button" class="btn btn-outline-secondary bg-white text-dark font-weight-bold" data-filter-source="payment">دفعات</button>
+                                <button type="button" class="btn btn-outline-secondary bg-white text-dark font-weight-bold" data-filter-source="expense">مصاريف</button>
+                                <button type="button" class="btn btn-outline-secondary bg-white text-dark font-weight-bold" data-filter-source="manual">يدوي</button>
                             </div>
                         </div>
                     </div>
