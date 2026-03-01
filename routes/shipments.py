@@ -1,4 +1,3 @@
-
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app
 from flask_login import login_required, current_user
 from extensions import db
@@ -252,5 +251,125 @@ def _reverse_arrival_items(items):
 def _ensure_partner_warehouse(wh_id, shipment):
     if not wh_id: return
     if not shipment.partners: return
+    # Basic impl
+    pass
+
+# --- ROUTES ---
+
+@shipments_bp.route('/')
+@login_required
+def list_shipments():
+    page = request.args.get('page', 1, type=int)
+    per_page = 20
     
-    # ... (Keep existing logic)
+    query = Shipment.query
+    
+    # Filters
+    status = request.args.get('status')
+    if status:
+        query = query.filter(Shipment.status == status)
+        
+    shipment_number = request.args.get('shipment_number')
+    if shipment_number:
+        query = query.filter(Shipment.shipment_number.ilike(f"%{shipment_number}%"))
+        
+    query = query.order_by(Shipment.created_at.desc())
+    
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    shipments = pagination.items
+    
+    return render_template('shipments/list.html', shipments=shipments, pagination=pagination)
+
+@shipments_bp.route('/create', methods=['GET', 'POST'])
+@login_required
+def create_shipment():
+    if request.method == 'POST':
+        shipment_number = request.form.get('shipment_number')
+        currency = request.form.get('currency', 'USD')
+        notes = request.form.get('notes')
+        
+        # Check uniqueness
+        existing = Shipment.query.filter_by(shipment_number=shipment_number).first()
+        if existing:
+            flash('رقم الشحنة موجود مسبقاً', 'danger')
+            return redirect(url_for('shipments_bp.create_shipment'))
+            
+        sh = Shipment(
+            shipment_number=shipment_number,
+            currency=currency,
+            status='DRAFT',
+            notes=notes,
+            created_by=current_user.id,
+            created_at=datetime.now(timezone.utc)
+        )
+        db.session.add(sh)
+        db.session.commit()
+        
+        flash('تم إنشاء الشحنة بنجاح', 'success')
+        return redirect(url_for('shipments_bp.view_shipment', sid=sh.id))
+        
+    return render_template('shipments/create.html')
+
+@shipments_bp.route('/<int:sid>')
+@login_required
+def view_shipment(sid):
+    sh = Shipment.query.get_or_404(sid)
+    return render_template('shipments/view.html', shipment=sh)
+
+@shipments_bp.route('/<int:sid>/edit', methods=['GET', 'POST'])
+@login_required
+def edit_shipment(sid):
+    sh = Shipment.query.get_or_404(sid)
+    
+    if request.method == 'POST':
+        sh.shipment_number = request.form.get('shipment_number')
+        sh.currency = request.form.get('currency')
+        sh.notes = request.form.get('notes')
+        sh.updated_at = datetime.now(timezone.utc)
+        
+        db.session.commit()
+        flash('تم تحديث الشحنة', 'success')
+        return redirect(url_for('shipments_bp.view_shipment', sid=sh.id))
+        
+    return render_template('shipments/edit.html', shipment=sh)
+
+@shipments_bp.route('/<int:sid>/delete', methods=['POST'])
+@login_required
+def delete_shipment(sid):
+    sh = Shipment.query.get_or_404(sid)
+    
+    # Prevent delete if processed
+    if sh.status in ('ARRIVED', 'RECEIVED', 'CLOSED'):
+        flash('لا يمكن حذف شحنة مكتملة أو مغلقة', 'danger')
+        return redirect(url_for('shipments_bp.view_shipment', sid=sh.id))
+        
+    db.session.delete(sh)
+    db.session.commit()
+    flash('تم حذف الشحنة', 'success')
+    return redirect(url_for('shipments_bp.list_shipments'))
+
+@shipments_bp.route('/<int:sid>/items/add', methods=['POST'])
+@login_required
+def add_item(sid):
+    sh = Shipment.query.get_or_404(sid)
+    
+    product_id = request.form.get('product_id')
+    quantity = request.form.get('quantity', 0, type=float)
+    unit_cost = request.form.get('unit_cost', 0, type=float)
+    
+    if not product_id or quantity <= 0:
+        flash('بيانات غير صالحة', 'danger')
+        return redirect(url_for('shipments_bp.view_shipment', sid=sh.id))
+        
+    item = ShipmentItem(
+        shipment_id=sh.id,
+        product_id=product_id,
+        quantity=quantity,
+        unit_cost=unit_cost,
+        warehouse_id=1 # Default Main Warehouse for now
+    )
+    db.session.add(item)
+    db.session.commit()
+    
+    flash('تم إضافة الصنف', 'success')
+    return redirect(url_for('shipments_bp.view_shipment', sid=sh.id))
