@@ -58,13 +58,47 @@
         border: 1px solid rgba(0,0,0,0.1);
     }
     
-    /* 4. SWITCHES: High Visibility */
+    /* 4. SWITCHES: High Visibility & Alignment Fix */
+    .form-check {
+        display: flex !important;
+        align-items: flex-start !important; /* Align to top for multiline text */
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+        margin-bottom: 0.5rem;
+    }
+    
+    .form-switch {
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+    }
+
     .form-check-input {
         border: 2px solid #666 !important;
         cursor: pointer;
+        float: none !important; /* Disable float */
+        margin-left: 12px !important; /* Space between checkbox and text (RTL) */
+        margin-right: 0 !important;
+        margin-top: 4px !important; /* Align with text */
+        flex-shrink: 0; /* Prevent shrinking */
+        width: 2.5em !important; /* Larger switch */
+        height: 1.25em !important;
     }
+    
+    .form-check-label {
+        cursor: pointer;
+        line-height: 1.5;
+        padding-top: 2px;
+    }
+    
     .form-check-input:checked {
         border-color: #0d6efd !important;
+        background-color: #0d6efd !important;
+    }
+    
+    /* Specific fix for General Settings Cards */
+    .card-body .form-switch {
+        display: flex;
+        align-items: center;
     }
     
     /* Overwrite any global dark mode text settings for these specific components */
