@@ -377,6 +377,7 @@ body.sidebar-hidden .sidebar-overlay{
 
 /* Removed conflicting sidebar nav styles to let style.css handle them */
 
+/* 5. Dashboard & Components */
 .dashboard-chart-card{
   border-radius:var(--ui-radius);
   border:1px solid rgba(255,255,255,0.1);
@@ -389,6 +390,42 @@ body.sidebar-hidden .sidebar-overlay{
   border-radius:var(--ui-radius);
   box-shadow:var(--shadow-glass);
   overflow:hidden;
+}
+
+/* NProgress Customization */
+#nprogress .bar {
+  background: var(--primary-cyan, #06b6d4) !important;
+  height: 3px !important;
+}
+#nprogress .peg {
+  box-shadow: 0 0 10px var(--primary-cyan), 0 0 5px var(--primary-cyan) !important;
+}
+#nprogress .spinner-icon {
+  border-top-color: var(--primary-cyan) !important;
+  border-left-color: var(--primary-cyan) !important;
+}
+
+/* Enhanced Table & Forms */
+.form-control-modern {
+  border-radius: 10px;
+  padding: 0.6rem 1rem;
+  height: auto !important;
+  min-height: 45px;
+  border: 1px solid var(--border-glass, rgba(255,255,255,0.1));
+  background-color: var(--bg-dark-card, #1f2937);
+  color: #fff;
+  transition: all 0.3s;
+}
+
+.table-rounded {
+  border-radius: 15px;
+  overflow: hidden;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+}
+.table-rounded thead th {
+  background: linear-gradient(45deg, var(--bg-dark-surface, #1f2937), #111827);
+  color: var(--primary-cyan, #06b6d4);
+  border: none;
 }
 
 .metric-value{
