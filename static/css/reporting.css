@@ -98,117 +98,98 @@
   color: #fff !important;
   font-weight: 500;
   border-radius: 0.5rem;
-  padding: 0.4rem 0.9rem;
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.nav-pills .nav-link i {
-  font-size: 1rem;
-}
-
-.nav-report-dashboard { background-color: #0d6efd; }
-.nav-report-dynamic { background-color: #6610f2; }
-.nav-report-customers { background-color: #20c997; }
-.nav-report-suppliers { background-color: #fd7e14; }
-.nav-report-partners { background-color: #6f42c1; }
-.nav-report-sales { background-color: #198754; }
-.nav-report-payments { background-color: #0dcaf0; }
-.nav-report-products { background-color: #ffc107; color: #000 !important; }
-.nav-report-expenses { background-color: #e83e8c; }
-.nav-report-inventory { background-color: #17a2b8; }
-.nav-report-below-min { background-color: #dc3545; }
-.nav-report-shipments { background-color: #6610f2; }
-.nav-report-online { background-color: #0dcaf0; }
-.nav-report-ar { background-color: #198754; }
-.nav-report-ap { background-color: #fd7e14; }
-.nav-report-service { background-color: #6c757d; }
-
-.nav-pills .nav-link.active {
-  box-shadow: 0 0 0 0.2rem rgba(0,0,0,0.15);
-  transform: translateY(-2px);
-}
-
+/* --- New Report Cards (Palestinian Theme) --- */
 .report-card {
-  border-radius: 0.75rem;
-  padding: 1.5rem;
-  text-align: center;
-  background: #fff;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
+    background: #fff;
+    border-radius: 16px;
+    padding: 30px 20px;
+    text-align: center;
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+    border: none;
+    border-top: 5px solid #ccc; /* Default fallback */
+    position: relative;
+    overflow: hidden;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
 }
 
 .report-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+    transform: translateY(-10px);
+    box-shadow: 0 20px 40px rgba(0,0,0,0.12);
 }
 
 .report-card i {
-  font-size: 2.5rem;
-  margin-bottom: 0.75rem;
-  display: block;
-  line-height: 1;
+    font-size: 3.5rem;
+    margin-bottom: 20px;
+    transition: transform 0.3s;
+    background: linear-gradient(135deg, #555 0%, #333 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.report-card:hover i {
+    transform: scale(1.1) rotate(5deg);
 }
 
 .report-card h5 {
-  font-size: 1.05rem;
-  font-weight: 600;
-  margin-bottom: 0.25rem;
+    font-weight: 800;
+    margin-bottom: 10px;
+    color: #2c3e50;
+    font-size: 1.2rem;
 }
 
 .report-card p {
-  font-size: 0.85rem;
-  color: #6c757d;
-  margin: 0;
+    color: #6c757d;
+    font-size: 0.9rem;
+    margin-bottom: 0;
 }
 
-.report-card.dashboard { color: #0d6efd; background: #e7f0ff; }
-.report-card.dynamic { color: #6610f2; background: #f1e7ff; }
-.report-card.customers { color: #20c997; background: #e6f9f4; }
-.report-card.suppliers { color: #fd7e14; background: #fff3e6; }
-.report-card.partners { color: #6f42c1; background: #f3e9fc; }
-.report-card.sales { color: #198754; background: #e9f7ef; }
-.report-card.payments { color: #0dcaf0; background: #e6fafd; }
-.report-card.products { color: #ffc107; background: #fffbe6; }
-.report-card.expenses { color: #e83e8c; background: #ffe6f0; }
-.report-card.inventory { color: #17a2b8; background: #e6f6f9; }
-.report-card.below-min { color: #dc3545; background: #fde7ea; }
-.report-card.shipments { color: #6610f2; background: #f1e7ff; }
-.report-card.online { color: #0dcaf0; background: #e6fafd; }
-.report-card.ar { color: #198754; background: #e9f7ef; }
-.report-card.ap { color: #fd7e14; background: #fff3e6; }
-.report-card.service { color: #6c757d; background: #f2f2f2; }
+/* Palestinian Colors Rotation */
+.report-card.dynamic { border-top-color: #000000; }
+.report-card.dynamic i { background: linear-gradient(135deg, #000 0%, #444 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
 
-@media print {
-  .report-toolbar,
-  .card-header,
-  .btn,
-  .form-text,
-  .dataTables_filter,
-  .dataTables_length,
-  .dataTables_paginate,
-  .dataTables_info {
-    display: none !important;
-  }
+.report-card.customers { border-top-color: #009736; }
+.report-card.customers i { background: linear-gradient(135deg, #009736 0%, #00c853 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
 
-  .card {
-    box-shadow: none !important;
-    border: 0 !important;
-  }
+.report-card.suppliers { border-top-color: #EE2A35; }
+.report-card.suppliers i { background: linear-gradient(135deg, #EE2A35 0%, #ff5252 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
 
-  .table {
-    font-size: 12px;
-    border-color: #444;
-  }
+.report-card.partners { border-top-color: #000000; }
+.report-card.partners i { background: linear-gradient(135deg, #000 0%, #444 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
 
-  .table thead th {
-    background: #eee !important;
-    color: #000 !important;
-  }
+.report-card.sales { border-top-color: #009736; }
+.report-card.sales i { background: linear-gradient(135deg, #009736 0%, #00c853 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+.report-card.payments { border-top-color: #EE2A35; }
+.report-card.payments i { background: linear-gradient(135deg, #EE2A35 0%, #ff5252 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+.report-card.products { border-top-color: #000000; }
+.report-card.products i { background: linear-gradient(135deg, #000 0%, #444 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+.report-card.expenses { border-top-color: #009736; }
+.report-card.expenses i { background: linear-gradient(135deg, #009736 0%, #00c853 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+.report-card.inventory { border-top-color: #EE2A35; }
+.report-card.inventory i { background: linear-gradient(135deg, #EE2A35 0%, #ff5252 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+.report-card.below-min { border-top-color: #000000; }
+.report-card.shipments { border-top-color: #009736; }
+.report-card.online { border-top-color: #EE2A35; }
+.report-card.ar { border-top-color: #000000; }
+.report-card.ap { border-top-color: #009736; }
+.report-card.service { border-top-color: #EE2A35; }
+.report-card.invoices { border-top-color: #000000; }
+
+/* Dark Mode */
+body.dark-mode .report-card {
+    background: #2c3038;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
 }
+body.dark-mode .report-card h5 { color: #fff; }
+body.dark-mode .report-card p { color: #adb5bd; }

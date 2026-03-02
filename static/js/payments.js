@@ -437,12 +437,12 @@ document.addEventListener('DOMContentLoaded', function() {
       const j = await r.json().catch(() => ({}));
       if (r.ok && (j.status === 'success' || j.ok)) {
         loadPayments();
-        alert('تم أرشفة سند الدفع بنجاح');
+        if(typeof showToast!=='undefined'){showToast('تم أرشفة سند الدفع بنجاح', 'success');}else{alert('تم أرشفة سند الدفع بنجاح');};
       } else {
-        alert('تعذر الأرشفة: ' + (j.message || 'خطأ غير معروف'));
+        if(typeof showToast!=='undefined'){showToast('تعذر الأرشفة: ' + (j.message || 'خطأ غير معروف', 'error');}else{alert('تعذر الأرشفة: ' + (j.message || 'خطأ غير معروف');});
       }
     } catch (err) {
-      alert('خطأ في الاتصال بالخادم.');
+      if(typeof showToast!=='undefined'){showToast('خطأ في الاتصال بالخادم.', 'error');}else{alert('خطأ في الاتصال بالخادم.');};
     }
   });
 
@@ -469,12 +469,12 @@ document.addEventListener('DOMContentLoaded', function() {
       const j = await r.json().catch(() => ({}));
       if (r.ok && (j.status === 'success' || j.success || j.ok)) {
         loadPayments();
-        alert('تم استعادة سند الدفع بنجاح');
+        if(typeof showToast!=='undefined'){showToast('تم استعادة سند الدفع بنجاح', 'success');}else{alert('تم استعادة سند الدفع بنجاح');};
       } else {
-        alert('تعذر الاستعادة: ' + (j.message || 'خطأ غير معروف'));
+        if(typeof showToast!=='undefined'){showToast('تعذر الاستعادة: ' + (j.message || 'خطأ غير معروف', 'error');}else{alert('تعذر الاستعادة: ' + (j.message || 'خطأ غير معروف');});
       }
     } catch (err) {
-      alert('خطأ في الاتصال بالخادم.');
+      if(typeof showToast!=='undefined'){showToast('خطأ في الاتصال بالخادم.', 'error');}else{alert('خطأ في الاتصال بالخادم.');};
     }
   });
 
@@ -486,8 +486,8 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!(sid || pid)) return;
     var isSplitRefunded = btn.getAttribute('data-split-refunded');
     var payStatus = btn.getAttribute('data-status');
-    if (sid && isSplitRefunded === 'true') { alert('لا يمكن إرجاع جزء مُرجع بالفعل.'); return; }
-    if (pid && payStatus && payStatus !== 'COMPLETED') { alert('لا يمكن إرجاع إلا الدفعات المكتملة محاسبياً.'); return; }
+    if (sid && isSplitRefunded === 'true') { if(typeof showToast!=='undefined'){showToast('لا يمكن إرجاع جزء مُرجع بالفعل.', 'success');}else{alert('لا يمكن إرجاع جزء مُرجع بالفعل.');}; return; }
+    if (pid && payStatus && payStatus !== 'COMPLETED') { if(typeof showToast!=='undefined'){showToast('لا يمكن إرجاع إلا الدفعات المكتملة محاسبياً.', 'success');}else{alert('لا يمكن إرجاع إلا الدفعات المكتملة محاسبياً.');}; return; }
     if (!confirm('سيتم إنشاء سند عكسي بنفس المبلغ وبالاتجاه المعاكس مع تحديث دفتر الأستاذ ووضع الدفعة/الجزء كمُرجع. هل أنت متأكد من الإرجاع؟')) return;
     const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || document.getElementById('csrf_token')?.value || '';
     try {
@@ -503,13 +503,13 @@ document.addEventListener('DOMContentLoaded', function() {
       });
       const j = await r.json().catch(() => ({}));
       if (r.ok && (j.success || j.ok)) {
-        alert('تم تنفيذ الإرجاع بنجاح: تم إنشاء سند عكسي وتحديث دفتر الأستاذ');
+        if(typeof showToast!=='undefined'){showToast('تم تنفيذ الإرجاع بنجاح: تم إنشاء سند عكسي وتحديث دفتر الأستاذ', 'success');}else{alert('تم تنفيذ الإرجاع بنجاح: تم إنشاء سند عكسي وتحديث دفتر الأستاذ');};
         loadPayments(1);
       } else {
-        alert('تعذر الإرجاع محاسبياً: ' + (j.message || 'العملية غير منطقية أو غير متاحة'));
+        if(typeof showToast!=='undefined'){showToast('تعذر الإرجاع محاسبياً: ' + (j.message || 'العملية غير منطقية أو غير متاحة', 'success');}else{alert('تعذر الإرجاع محاسبياً: ' + (j.message || 'العملية غير منطقية أو غير متاحة');});
       }
     } catch (err) {
-      alert('خطأ في الاتصال بالخادم.');
+      if(typeof showToast!=='undefined'){showToast('خطأ في الاتصال بالخادم.', 'error');}else{alert('خطأ في الاتصال بالخادم.');};
     }
   });
 
@@ -586,7 +586,7 @@ document.addEventListener('DOMContentLoaded', function() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (e) {
-      alert('تعذر إنشاء CSV.');
+      if(typeof showToast!=='undefined'){showToast('تعذر إنشاء CSV.', 'success');}else{alert('تعذر إنشاء CSV.');};
     }
   }
   syncFiltersFromUrl();

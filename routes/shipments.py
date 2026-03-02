@@ -539,12 +539,12 @@ def shipments_data():
     data = []
     for s in rows:
         actions_html = f"""
-        <div class="btn-group btn-group-sm" role="group">
-            <a href="{url_for('shipments_bp.shipment_detail', id=s.id)}" class="btn btn-info" title="تفاصيل"><i class="fa fa-eye"></i></a>
-            <a href="{url_for('shipments_bp.edit_shipment', id=s.id)}" class="btn btn-warning" title="تعديل"><i class="fa fa-edit"></i></a>
+        <div class="d-flex justify-content-center gap-1">
+            <a href="{url_for('shipments_bp.shipment_detail', id=s.id)}" class="btn btn-sm btn-info rounded-circle text-white" title="تفاصيل" data-bs-toggle="tooltip"><i class="fa fa-eye"></i></a>
+            <a href="{url_for('shipments_bp.edit_shipment', id=s.id)}" class="btn btn-sm btn-warning rounded-circle text-white" title="تعديل" data-bs-toggle="tooltip"><i class="fa fa-edit"></i></a>
             <form method="POST" action="{url_for('shipments_bp.delete_shipment', id=s.id)}" style="display:inline;" onsubmit="return confirm('تأكيد الحذف؟');">
                 <input type="hidden" name="csrf_token" value="{csrf_token}">
-                <button type="submit" class="btn btn-danger" title="حذف"><i class="fa fa-trash"></i></button>
+                <button type="submit" class="btn btn-sm btn-danger rounded-circle" title="حذف" data-bs-toggle="tooltip"><i class="fa fa-trash"></i></button>
             </form>
         </div>
         """

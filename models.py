@@ -5795,17 +5795,18 @@ def _sale_gl_upsert_core(connection, target: "Sale") -> None:
                 amount_ils = amount * exchange_rate
         except Exception:
             pass
+    # Modified Query to include purchase_price for COGS calculation
     sale_lines = connection.execute(
-        sa_select(
-            SaleLine.id,
-            SaleLine.product_id,
-            SaleLine.warehouse_id,
-            SaleLine.quantity,
-            SaleLine.unit_price,
-            SaleLine.discount_rate,
-            SaleLine.tax_rate,
-        ).where(SaleLine.sale_id == target.id)
+        sa_text("""
+            SELECT sl.id, sl.product_id, sl.warehouse_id, sl.quantity, sl.unit_price, 
+                   sl.discount_rate, sl.tax_rate, p.purchase_price
+            FROM sale_lines sl
+            JOIN products p ON p.id = sl.product_id
+            WHERE sl.sale_id = :sid
+        """),
+        {"sid": target.id}
     ).fetchall()
+
     if not sale_lines:
         return
     entries = []
@@ -5815,11 +5816,12 @@ def _sale_gl_upsert_core(connection, target: "Sale") -> None:
     shipping_income = _q2(Decimal(str(target.shipping_cost or 0)) * exchange_rate)
     total_revenue_partners = {}
     total_cogs_suppliers = {}
+    total_cogs_inventory = Decimal(0) # New: Track inventory COGS
     line_details = []
     subtotal_base_ils = Decimal(0)
     total_tax_ils = Decimal(0)
     for line in sale_lines:
-        line_id, product_id, warehouse_id, qty, unit_price, disc_rate, tax_rate = line
+        line_id, product_id, warehouse_id, qty, unit_price, disc_rate, tax_rate, purchase_price = line
         gross = Decimal(str(qty or 0)) * Decimal(str(unit_price or 0))
         discount = gross * (Decimal(str(disc_rate or 0)) / Decimal(100))
         taxable = gross - discount
@@ -5829,10 +5831,13 @@ def _sale_gl_upsert_core(connection, target: "Sale") -> None:
         line_total = line_base_ils + line_tax_ils
         subtotal_base_ils += line_base_ils
         total_tax_ils += line_tax_ils
+        
+        unit_cost_ils = Decimal(str(purchase_price or 0))
         line_details.append(
-            (product_id, warehouse_id, qty, line_base_ils, line_total)
+            (product_id, warehouse_id, qty, line_base_ils, line_total, unit_cost_ils)
         )
-    for product_id, warehouse_id, qty, line_base_ils, line_total in line_details:
+    for product_id, warehouse_id, qty, line_base_ils, line_total, unit_cost_ils in line_details:
+        cogs_amount = Decimal(str(qty or 0)) * unit_cost_ils
         wh_result = connection.execute(
             sa_text("SELECT warehouse_type, partner_id, supplier_id, share_percent FROM warehouses WHERE id = :wid"),
             {"wid": warehouse_id},
@@ -5869,6 +5874,9 @@ def _sale_gl_upsert_core(connection, target: "Sale") -> None:
                 for partner_id, share_pct in partners_result:
                     partner_amount = line_base_after_discount * (Decimal(str(share_pct or 0)) / Decimal(100))
                     total_revenue_partners[partner_id] = total_revenue_partners.get(partner_id, Decimal(0)) + partner_amount
+            
+            # Add COGS for Partner Warehouse
+            total_cogs_inventory += cogs_amount
         elif wh_type == 'EXCHANGE':
             exchange_result = connection.execute(
                 sa_text("""
@@ -5880,8 +5888,14 @@ def _sale_gl_upsert_core(connection, target: "Sale") -> None:
             ).fetchone()
             if exchange_result:
                 supplier_id, unit_cost = exchange_result
-                cogs_amount = Decimal(str(qty or 0)) * Decimal(str(unit_cost or 0))
-                total_cogs_suppliers[supplier_id] = total_cogs_suppliers.get(supplier_id, Decimal(0)) + cogs_amount
+                # Note: Using unit_cost from exchange table for supplier COGS
+                ex_cogs_amount = Decimal(str(qty or 0)) * Decimal(str(unit_cost or 0))
+                total_cogs_suppliers[supplier_id] = total_cogs_suppliers.get(supplier_id, Decimal(0)) + ex_cogs_amount
+            else:
+                total_cogs_inventory += cogs_amount
+        else:
+            # Normal Warehouse
+            total_cogs_inventory += cogs_amount
     total_revenue_company_base = _q2(subtotal_base_ils)
     total_revenue_company_tax = _q2(total_tax_ils)
     total_credits = _q2(total_revenue_company_base + total_revenue_company_tax + shipping_income)
@@ -5902,6 +5916,12 @@ def _sale_gl_upsert_core(connection, target: "Sale") -> None:
         if cogs_amt > 0:
             entries.append((GL_ACCOUNTS.get("COGS", "5100_COGS"), cogs_amt, Decimal(0)))
             entries.append((GL_ACCOUNTS.get("AP", "2000_AP"), Decimal(0), cogs_amt))
+            
+    # 7. COGS for Normal/Partner Warehouses (Debit COGS / Credit Inventory)
+    total_cogs_inv_amt = _q2(total_cogs_inventory)
+    if total_cogs_inv_amt > 0:
+        entries.append((GL_ACCOUNTS.get("COGS", "5100_COGS"), total_cogs_inv_amt, Decimal(0)))
+        entries.append((GL_ACCOUNTS.get("INVENTORY", "1200_INVENTORY"), Decimal(0), total_cogs_inv_amt))
     customer_name = getattr(getattr(target, "customer", None), "name", None) or "Customer"
     memo = f"Sale #{target.sale_number or target.id} - {customer_name}"
     batch_ids = connection.execute(

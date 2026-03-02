@@ -392,10 +392,10 @@ async function runVacuum() {
   try {
     const response = await fetch('/security/api/maintenance/vacuum', {method: 'POST'});
     const data = await response.json();
-    alert(data.message);
+    if(typeof showToast !== 'undefined') showToast(data.message, 'success'); else alert(data.message);
     loadDBInfo();
   } catch (err) {
-    alert('خطأ: ' + err.message);
+    if(typeof showToast !== 'undefined') showToast('خطأ: ' + err.message, 'error'); else alert('خطأ: ' + err.message);
   }
 }
 
@@ -403,9 +403,9 @@ async function runAnalyze() {
   try {
     const response = await fetch('/security/api/maintenance/analyze', {method: 'POST'});
     const data = await response.json();
-    alert(data.message);
+    if(typeof showToast !== 'undefined') showToast(data.message, 'success'); else alert(data.message);
   } catch (err) {
-    alert('خطأ: ' + err.message);
+    if(typeof showToast !== 'undefined') showToast('خطأ: ' + err.message, 'error'); else alert('خطأ: ' + err.message);
   }
 }
 
@@ -413,10 +413,10 @@ async function runCheckpoint() {
   try {
     const response = await fetch('/security/api/maintenance/checkpoint', {method: 'POST'});
     const data = await response.json();
-    alert(data.message);
+    if(typeof showToast !== 'undefined') showToast(data.message, 'success'); else alert(data.message);
     loadDBInfo();
   } catch (err) {
-    alert('خطأ: ' + err.message);
+    if(typeof showToast !== 'undefined') showToast('خطأ: ' + err.message, 'error'); else alert('خطأ: ' + err.message);
   }
 }
 

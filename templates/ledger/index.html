@@ -1306,15 +1306,16 @@ html[data-ui-mode="mobile"] body.ledger-page .col-md-12 {
                                         <tr>
                                             <th>الحساب</th>
                                             <th class="text-center">النوع</th>
-                                            <th class="text-end">المدين</th>
-                                            <th class="text-end">الدائن</th>
-                                            <th class="text-end">الرصيد الصافي</th>
+                                            <th class="text-end">رصيد افتتاحي</th>
+                                            <th class="text-end">حركة مدينة</th>
+                                            <th class="text-end">حركة دائنة</th>
+                                            <th class="text-end">رصيد ختامي</th>
                                             <th class="text-center">الجانب</th>
                                         </tr>
                                     </thead>
                                     <tbody id="accounts-summary">
                                         <tr>
-                                            <td colspan="6" class="text-center text-muted">
+                                            <td colspan="7" class="text-center text-muted">
                                                 <i class="fas fa-spinner fa-spin"></i> جاري التحميل...
                                             </td>
                                         </tr>
@@ -1322,6 +1323,7 @@ html[data-ui-mode="mobile"] body.ledger-page .col-md-12 {
                                     <tfoot class="bg-light">
                                         <tr>
                                             <td colspan="2"><strong>الإجماليات:</strong></td>
+                                            <td class="text-end" id="accounts-total-opening">0.00</td>
                                             <td class="text-end debit-cell" id="accounts-total-debit">0.00</td>
                                             <td class="text-end credit-cell" id="accounts-total-credit">0.00</td>
                                             <td class="text-end balance-cell" id="accounts-net-balance">0.00</td>
@@ -2355,17 +2357,69 @@ function loadAccountsSummary() {
 
 function loadReceivablesSummary() {
     const formData = $('#filter-form').serialize();
-
+    
     $.ajax({
-        url: '{{ url_for("ledger.get_receivables_detailed_summary") }}',
+        url: '{{ url_for("ledger.get_ar_ap_summary") }}',
         method: 'GET',
         data: formData,
         success: function(response) {
-
-            updateReceivablesDetailedSummary(response.receivables, response.totals);
+            const tbody = $('#receivables-detailed-summary');
+            tbody.empty();
+            
+            if (!response.data || response.data.length === 0) {
+                tbody.append('<tr><td colspan="7" class="text-center text-muted">لا توجد ذمم مسجلة في الفترة المحددة</td></tr>');
+                $('#receivables-detailed-total-debit').text('0.00');
+                $('#receivables-detailed-total-credit').text('0.00');
+                $('#receivables-detailed-net').text('0.00');
+                return;
+            }
+            
+            response.data.forEach(function(item) {
+                let badgeClass = 'secondary';
+                if (item.entity_type === 'CUSTOMER') badgeClass = 'primary';
+                else if (item.entity_type === 'SUPPLIER') badgeClass = 'warning';
+                else if (item.entity_type === 'PARTNER') badgeClass = 'info';
+                else if (item.entity_type === 'EMPLOYEE') badgeClass = 'success';
+                
+                let balanceClass = '';
+                let balanceText = formatCurrency(item.balance);
+                
+                if (item.balance > 0) {
+                    balanceClass = 'text-success fw-bold';
+                } else if (item.balance < 0) {
+                    balanceClass = 'text-danger fw-bold';
+                }
+                
+                const row = `
+                    <tr>
+                        <td><strong>${item.entity_name}</strong></td>
+                        <td><span class="badge bg-${badgeClass}">${item.entity_type}</span></td>
+                        <td class="text-end">${formatCurrency(item.total_debit)}</td>
+                        <td class="text-end">${formatCurrency(item.total_credit)}</td>
+                        <td class="text-end ${balanceClass}" dir="ltr">${balanceText}</td>
+                        <td class="text-center">
+                            ${item.balance > 0 ? '<span class="badge bg-success">لنا</span>' : 
+                              item.balance < 0 ? '<span class="badge bg-danger">علينا</span>' : 
+                              '<span class="badge bg-secondary">متزن</span>'}
+                        </td>
+                        <td class="text-center text-muted small">${item.last_transaction || '-'}</td>
+                    </tr>
+                `;
+                tbody.append(row);
+            });
+            
+            if (response.totals) {
+                $('#receivables-detailed-total-debit').text(formatCurrency(response.totals.total_ar));
+                $('#receivables-detailed-total-credit').text(formatCurrency(response.totals.total_ap));
+                
+                const net = response.totals.net_position;
+                const netClass = net >= 0 ? 'text-success' : 'text-danger';
+                const netLabel = net >= 0 ? '(لصالحنا)' : '(التزام علينا)';
+                
+                $('#receivables-detailed-net').html(`<span class="${netClass}">${formatCurrency(Math.abs(net))} ${netLabel}</span>`);
+            }
         },
-        error: function(xhr, status, error) {
-
+        error: function() {
             $('#receivables-detailed-summary').html('<tr><td colspan="7" class="text-center text-danger">خطأ في تحميل البيانات</td></tr>');
         }
     });
@@ -2377,7 +2431,7 @@ function updateAccountsSummary(data, totals, groups) {
     tbody.empty();
     
     if (!data || data.length === 0) {
-        tbody.append('<tr><td colspan="6" class="text-center text-muted">لا توجد بيانات</td></tr>');
+        tbody.append('<tr><td colspan="7" class="text-center text-muted">لا توجد بيانات</td></tr>');
         return;
     }
     
@@ -2399,12 +2453,13 @@ function updateAccountsSummary(data, totals, groups) {
         const meta = typeMeta[group.type] || typeMeta.OTHER;
         const headerRow = `
             <tr class="table-light">
-                <td colspan="6"><strong>${group.type_ar || meta.label}</strong></td>
+                <td colspan="7"><strong>${group.type_ar || meta.label}</strong></td>
             </tr>
         `;
         tbody.append(headerRow);
 
         (group.rows || []).forEach(function(account) {
+            const opening = parseFloat(account.opening || 0);
             const debit = parseFloat(account.debit || 0);
             const credit = parseFloat(account.credit || 0);
             const net = parseFloat(account.net || 0);
@@ -2417,6 +2472,7 @@ function updateAccountsSummary(data, totals, groups) {
                 <tr>
                     <td><strong>${account.account}</strong>${name}</td>
                     <td class="text-center"><span class="badge ${meta.badge}">${meta.label}</span></td>
+                    <td class="text-end text-muted">${formatCurrency(opening)}</td>
                     <td class="text-end ${debit > 0 ? 'debit-cell' : ''}">${debit > 0 ? formatCurrency(debit) : '—'}</td>
                     <td class="text-end ${credit > 0 ? 'credit-cell' : ''}">${credit > 0 ? formatCurrency(credit) : '—'}</td>
                     <td class="text-end balance-cell">${formatCurrency(Math.abs(net))}</td>
@@ -2427,6 +2483,7 @@ function updateAccountsSummary(data, totals, groups) {
         });
 
         if (group.totals) {
+            const gOpening = parseFloat(group.totals.total_opening || 0);
             const gDebit = parseFloat(group.totals.total_debit || 0);
             const gCredit = parseFloat(group.totals.total_credit || 0);
             const gNet = parseFloat(group.totals.net || 0);
@@ -2437,6 +2494,7 @@ function updateAccountsSummary(data, totals, groups) {
             const totalRow = `
                 <tr class="table-secondary fw-bold">
                     <td colspan="2">إجمالي ${group.type_ar || meta.label}</td>
+                    <td class="text-end">${formatCurrency(gOpening)}</td>
                     <td class="text-end">${formatCurrency(gDebit)}</td>
                     <td class="text-end">${formatCurrency(gCredit)}</td>
                     <td class="text-end">${formatCurrency(Math.abs(gNet))}</td>
@@ -2448,23 +2506,57 @@ function updateAccountsSummary(data, totals, groups) {
     });
     
     if (totals) {
-        const netBalance = parseFloat(totals.net_balance || 0);
+        // تحديث إجماليات التذييل
+        // نحن بحاجة لحساب total_opening من البيانات أو إرجاعها من البايثون
+        // لكن بما أن المجاميع موجودة في totals (بناءً على تحديثنا للبايثون، لم نضف total_opening للـ totals العامة، بل للمجموعات فقط)
+        // سأقوم بحساب total_opening هنا أو تعديل البايثون. 
+        // لتجنب تعقيد البايثون أكثر، سأحسبه هنا أو أتركه صفراً إذا لم يكن متوفراً، لكن الأفضل تعديل البايثون لإرجاعه.
+        // لحظة، في البايثون عرفت total_opening ولكن لم أضفه للـ totals النهائية!
+        
+        // سأكتفي بعرض الأرقام المتوفرة حالياً، أو يمكنني جمعها من المجموعات.
+        let grandOpening = 0;
+        orderedGroups.forEach(g => { if(g.totals) grandOpening += parseFloat(g.totals.total_opening || 0); });
+        
+        $('#accounts-total-opening').text(formatCurrency(grandOpening));
         $('#accounts-total-debit').text(formatCurrency(totals.total_debit));
         $('#accounts-total-credit').text(formatCurrency(totals.total_credit));
-        $('#accounts-net-balance').text(formatCurrency(Math.abs(netBalance)));
-        if (totals.balanced) {
+        // الرصيد الصافي العام عادة يكون صفراً (أو قريباً منه)
+        // لكن هنا نعرض الفرق بين المدين والدائن
+        // const netBalance = parseFloat(totals.net_balance || 0);
+        // $('#accounts-net-balance').text(formatCurrency(Math.abs(netBalance)));
+        
+        // الرصيد الختامي الإجمالي هو مجموع الأرصدة المطلقة؟ لا، هو الفرق.
+        // في ميزان المراجعة، مجموع الأرصدة المدينة يجب أن يساوي مجموع الأرصدة الدائنة.
+        // لذا الرصيد الصافي (الفرق) يجب أن يكون صفراً.
+        
+        // لكن في الجدول، العمود "الرصيد الصافي" هو لكل حساب.
+        // مجموع هذا العمود ليس له معنى محاسبي مباشر (لأنه يجمع مدين ودائن بقيم مطلقة).
+        // لذا سأعرض الفرق (diff) في الأسفل للتحقق من التوازن.
+        
+        const diff = parseFloat(totals.net_balance || 0); // هذا هو الفرق (debit - credit)
+        $('#accounts-net-balance').text(formatCurrency(Math.abs(diff)));
+        
+        if (Math.abs(diff) < 0.02) {
             $('#accounts-balance-status').html('<span class="badge bg-success">متوازن</span>');
         } else {
-            const sideBadge = netBalance >= 0
+            const sideBadge = diff >= 0
                 ? '<span class="badge bg-danger">مدين</span>'
                 : '<span class="badge bg-success">دائن</span>';
             $('#accounts-balance-status').html(sideBadge);
         }
+        
         const warn = document.getElementById('trial-balance-unbalanced-warning');
         if (warn) {
-            warn.style.display = totals.balanced === false ? 'block' : 'none';
-            if (totals.balanced === false && totals.net_balance !== undefined) {
-                warn.textContent = 'تنبيه: المدين لا يساوي الدائن (فرق: ' + formatCurrency(Math.abs(totals.net_balance)) + '). راجع القيود.';
+            // التحقق من توازن الرصيد الافتتاحي أيضاً (يجب أن يكون صفراً)
+            const openingDiff = Math.abs(grandOpening);
+            const isBalanced = Math.abs(diff) < 0.02 && openingDiff < 0.02;
+            
+            warn.style.display = isBalanced ? 'none' : 'block';
+            if (!isBalanced) {
+                let msg = 'تنبيه: ميزان المراجعة غير متوازن!';
+                if (Math.abs(diff) >= 0.02) msg += ` فرق الحركة: ${formatCurrency(Math.abs(diff))}`;
+                if (openingDiff >= 0.02) msg += ` فرق الافتتاحي: ${formatCurrency(openingDiff)}`;
+                warn.textContent = msg;
             }
         }
     }

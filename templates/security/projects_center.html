@@ -171,12 +171,17 @@
         .then(r => r.json())
         .then(data => {
             if(data.success) location.reload();
-            else alert('Error: ' + data.error);
+            else if(typeof showToast!=='undefined'){showToast('Error: ' + data.error);
         });
     }
 
     function deleteProject(id) {
-        if(!confirm('WARNING: This will permanently delete the project and all related data. Continue?')) return;
+        if(!confirm('WARNING: This will permanently delete the project and all related data. Continue?', 'error');}else{if(typeof showToast!=='undefined')showToast('Error: '+data.error,'error');else alert('Error: '+data.error);
+        });
+    }
+
+    function deleteProject(id) {
+        if(!confirm('WARNING: This will permanently delete the project and all related data. Continue?');}) return;
         
         fetch(`/security/api/projects/${id}`, {
             method: 'DELETE',
@@ -187,7 +192,7 @@
         .then(r => r.json())
         .then(data => {
             if(data.success) location.reload();
-            else alert('Error: ' + data.error);
+            else if(typeof showToast!=='undefined')showToast('Error: '+data.error,'error');else alert('Error: '+data.error);
         });
     }
 </script>

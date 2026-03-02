@@ -225,10 +225,10 @@
             }
           }
         }else{
-          alert(data.message || 'تعذر تحديث الحالة');
+          if(typeof showToast!=='undefined'){showToast(data.message || 'تعذر تحديث الحالة', 'error');}else{if(typeof showToast!=='undefined'){showToast(data.message || 'تعذر تحديث الحالة', 'info');}else{alert(data.message || 'تعذر تحديث الحالة');};}
         }
       }catch(err){
-        alert('خطأ في الاتصال');
+        if(typeof showToast!=='undefined'){showToast('خطأ في الاتصال', 'error');}else{alert('خطأ في الاتصال');};
       }
       return;
     }
@@ -240,16 +240,16 @@
       const raw = prompt('أدخل السعر الجديد', cur);
       if(raw === null) return;
       const val = normDecimalInput(raw);
-      if(val === '') { alert('قيمة غير صالحة'); return; }
+      if(val === '') { if(typeof showToast!=='undefined'){showToast('قيمة غير صالحة', 'success');}else{alert('قيمة غير صالحة');}; return; }
       try{
         const {ok, data} = await postJSON(`{{ url_for('shop.admin_product_update_fields', pid=0) }}`.replace('0', id), {price: val});
         if(ok){
           if(priceEl) priceEl.textContent = (data.price !== undefined ? Number(data.price).toFixed(2) : Number(val).toFixed(2));
         }else{
-          alert(data.message || 'تعذر تحديث السعر');
+          if(typeof showToast!=='undefined'){showToast(data.message || 'تعذر تحديث السعر', 'error');}else{if(typeof showToast!=='undefined'){showToast(data.message || 'تعذر تحديث السعر', 'info');}else{alert(data.message || 'تعذر تحديث السعر');};}
         }
       }catch(err){
-        alert('خطأ في الاتصال');
+        if(typeof showToast!=='undefined'){showToast('خطأ في الاتصال', 'error');}else{alert('خطأ في الاتصال');};
       }
       return;
     }
@@ -261,16 +261,16 @@
       const raw = prompt('أدخل سعر الأونلاين الجديد', cur === '—' ? '' : cur);
       if(raw === null) return;
       const val = normDecimalInput(raw);
-      if(val === '') { alert('قيمة غير صالحة'); return; }
+      if(val === '') { if(typeof showToast!=='undefined'){showToast('قيمة غير صالحة', 'success');}else{alert('قيمة غير صالحة');}; return; }
       try{
         const {ok, data} = await postJSON(`{{ url_for('shop.admin_product_update_fields', pid=0) }}`.replace('0', id), {online_price: val});
         if(ok){
           if(priceCell) priceCell.textContent = (data.online_price !== undefined ? Number(data.online_price).toFixed(2) : Number(val).toFixed(2));
         }else{
-          alert(data.message || 'تعذر تحديث سعر الأونلاين');
+          if(typeof showToast!=='undefined'){showToast(data.message || 'تعذر تحديث سعر الأونلاين', 'error');}else{if(typeof showToast!=='undefined'){showToast(data.message || 'تعذر تحديث سعر الأونلاين', 'info');}else{alert(data.message || 'تعذر تحديث سعر الأونلاين');};}
         }
       }catch(err){
-        alert('خطأ في الاتصال');
+        if(typeof showToast!=='undefined'){showToast('خطأ في الاتصال', 'error');}else{alert('خطأ في الاتصال');};
       }
       return;
     }
@@ -312,10 +312,7 @@
             
             // حفظ URL في قاعدة البيانات
             const payload = isOnline ? { online_image: imageUrl } : { image: imageUrl };
-            console.log('Sending payload:', payload);
-            console.log('Product ID:', id);
             const {ok, data} = await postJSON(`{{ url_for('shop.admin_product_update_fields', pid=0) }}`.replace('0', id), payload);
-            console.log('Response:', {ok, data});
             
             if (ok) {
               // تحديث الصورة في الجدول
@@ -326,15 +323,15 @@
                   imgTag.src = `{{ url_for('static', filename='') }}` + imageUrl;
                 }
               }
-              alert(`✅ تم رفع ${isOnline ? 'صورة الأونلاين' : 'الصورة الأساسية'} بنجاح!`);
+              if(typeof showToast!=='undefined'){showToast(`✅ تم رفع ${isOnline ? 'صورة الأونلاين' : 'الصورة الأساسية'} بنجاح!`, 'success');}else{if(typeof showToast!=='undefined'){showToast(`✅ تم رفع ${isOnline ? 'صورة الأونلاين' : 'الصورة الأساسية'} بنجاح!`, 'success');}else{alert(`✅ تم رفع ${isOnline ? 'صورة الأونلاين' : 'الصورة الأساسية'} بنجاح!`);};};
             } else {
-              alert(data.message || 'تعذر حفظ الصورة في قاعدة البيانات');
+              if(typeof showToast!=='undefined'){showToast(data.message || 'تعذر حفظ الصورة في قاعدة البيانات', 'error');}else{if(typeof showToast!=='undefined'){showToast(data.message || 'تعذر حفظ الصورة في قاعدة البيانات', 'info');}else{alert(data.message || 'تعذر حفظ الصورة في قاعدة البيانات');};}
             }
           } else {
-            alert(uploadData.error || 'فشل رفع الصورة');
+            if(typeof showToast!=='undefined'){showToast(uploadData.error || 'فشل رفع الصورة', 'error');}else{if(typeof showToast!=='undefined'){showToast(uploadData.error || 'فشل رفع الصورة', 'error');}else{alert(uploadData.error || 'فشل رفع الصورة');};}
           }
         } catch (err) {
-          alert('خطأ في الاتصال');
+          if(typeof showToast!=='undefined'){showToast('خطأ في الاتصال', 'error');}else{alert('خطأ في الاتصال');};
         }
         
         // إزالة input من DOM

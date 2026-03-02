@@ -1210,7 +1210,7 @@
     // إذا لم يتبقى قطع غير مسعّرة، إعادة تحميل الصفحة
     if (unpricedCount === 0) {
       setTimeout(() => {
-        alert('✓ تم تسعير جميع القطع بنجاح! سيتم تحديث التسوية الآن...');
+        if(typeof showToast!=='undefined'){showToast('✓ تم تسعير جميع القطع بنجاح! سيتم تحديث التسوية الآن...', 'success');}else{if(typeof showToast!=='undefined'){showToast('✓ تم تسعير جميع القطع بنجاح! سيتم تحديث التسوية الآن...', 'success');}else{alert('✓ تم تسعير جميع القطع بنجاح! سيتم تحديث التسوية الآن...');};};
         location.reload();
       }, 500);
     }
@@ -1223,7 +1223,7 @@
       const newPrice = parseFloat(input.value);
       
       if (isNaN(newPrice) || newPrice < 0) {
-        alert('❌ يرجى إدخال سعر صحيح (رقم >= 0)');
+        if(typeof showToast!=='undefined'){showToast('❌ يرجى إدخال سعر صحيح (رقم >= 0)', 'error');}else{if(typeof showToast!=='undefined'){showToast('❌ يرجى إدخال سعر صحيح (رقم >= 0)', 'error');}else{alert('❌ يرجى إدخال سعر صحيح (رقم >= 0)');};};
         input.focus();
         return;
       }
@@ -1273,13 +1273,19 @@
           }, 800);
           
         } else {
-          alert('❌ خطأ: ' + result.error);
+          if(typeof showToast!=='undefined'){showToast('❌ خطأ: ' + result.error);
           this.disabled = false;
           this.innerHTML = originalHTML;
           input.disabled = false;
         }
       } catch (error) {
-        alert('❌ حدث خطأ في الاتصال بالخادم');
+        if(typeof showToast!=='undefined'){showToast('❌ حدث خطأ في الاتصال بالخادم', 'error', 'error');}else{alert('❌ حدث خطأ في الاتصال بالخادم', 'error');};}else{if(typeof showToast!=='undefined'){showToast('❌ خطأ: ' + result.error, 'error');}else{alert('❌ خطأ: ' + result.error);};
+          this.disabled = false;
+          this.innerHTML = originalHTML;
+          input.disabled = false;
+        }
+      } catch (error) {
+        if(typeof showToast!=='undefined'){showToast('❌ حدث خطأ في الاتصال بالخادم', 'error');}else{alert('❌ حدث خطأ في الاتصال بالخادم');};};
 
         this.disabled = false;
         this.innerHTML = originalHTML;

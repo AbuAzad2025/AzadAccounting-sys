@@ -291,50 +291,70 @@
               </span>
             </td>
             <td>
-              <div class="d-flex flex-wrap gap-2">
-          <a href="{{ url_for('partner_settlements_bp.partner_settlement', partner_id=p.id) }}"
-                   class="btn btn-sm btn-success" title="التسوية الذكية الشاملة">
-                  <i class="fas fa-calculator"></i><span class="d-none d-xl-inline">تسوية</span>
+              <div class="d-flex flex-wrap gap-1 justify-content-start">
+                <a href="{{ url_for('partner_settlements_bp.partner_settlement', partner_id=p.id) }}"
+                   class="btn btn-sm btn-success rounded-circle"
+                   data-bs-toggle="tooltip"
+                   title="تسوية ذكية شاملة">
+                  <i class="fas fa-calculator"></i>
                 </a>
+
                 <a href="{{ url_for('expenses_bp.create_expense', partner_id=p.id, mode='partner_service') }}"
-                   class="btn btn-sm btn-info text-white js-partner-service"
+                   class="btn btn-sm btn-info rounded-circle text-white js-partner-service"
                    data-partner-id="{{ p.id }}"
                    data-partner-name="{{ p.name }}"
-                   title="توريد خدمات للشريك">
-                  <i class="fas fa-file-signature"></i><span class="d-none d-xl-inline">توريد خدمات</span>
+                   data-bs-toggle="tooltip"
+                   title="توريد خدمات">
+                  <i class="fas fa-file-signature"></i>
                 </a>
+
                 <a href="{{ url_for('payments.create_payment') }}?entity_type=PARTNER&entity_id={{ p.id }}&entity_name={{ p.name|urlencode }}"
-                   class="btn btn-sm btn-primary" title="إضافة دفعة">
-                  <i class="fas fa-money-bill-wave"></i><span class="d-none d-xl-inline">دفع</span>
+                   class="btn btn-sm btn-primary rounded-circle"
+                   data-bs-toggle="tooltip"
+                   title="دفع">
+                  <i class="fas fa-money-bill-wave"></i>
                 </a>
+
                 <a href="{{ url_for('payments.index') }}?entity_type=PARTNER&entity_id={{ p.id }}"
-                   class="btn btn-sm btn-warning text-white" title="كشف الحساب المالي">
-                  <i class="fas fa-file-invoice-dollar"></i><span class="d-none d-xl-inline">كشف حساب</span>
+                   class="btn btn-sm btn-warning rounded-circle text-white"
+                   data-bs-toggle="tooltip"
+                   title="كشف حساب">
+                  <i class="fas fa-file-invoice-dollar"></i>
                 </a>
+
                 {% if current_user.has_permission('manage_vendors') %}
-                  <a href="{{ url_for('vendors_bp.partners_edit', id=p.id) }}"
-                     class="btn btn-sm btn-secondary" title="تعديل بيانات الشريك">
-                    <i class="fas fa-edit"></i><span class="d-none d-xl-inline">تعديل</span>
-                  </a>
-                  {% if p.is_archived %}
-                    <button type="button" class="btn btn-sm btn-success" title="استعادة الشريك" onclick="restorePartner({{ p.id }})">
-                      <i class="fas fa-undo"></i><span class="d-none d-xl-inline">استعادة</span>
-                    </button>
-                  {% else %}
-                    <button type="button" class="btn btn-sm btn-outline-warning" title="أرشفة الشريك" onclick="archivePartner({{ p.id }})">
-                      <i class="fas fa-archive"></i><span class="d-none d-xl-inline">أرشفة</span>
-                    </button>
-                  {% endif %}
-                  <form method="post"
-                        action="{{ url_for('vendors_bp.partners_delete', id=p.id) }}"
-                        onsubmit="return confirm('حذف الشريك؟');"
-                        class="d-inline">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <button type="submit" class="btn btn-sm btn-outline-danger" title="حذف عادي">
-                      <i class="fas fa-trash"></i><span class="d-none d-xl-inline">حذف</span>
-                    </button>
-                  </form>
-                  
+                <div class="dropdown d-inline-block">
+                  <button class="btn btn-sm btn-secondary rounded-circle" type="button" data-toggle="dropdown" aria-expanded="false">
+                    <i class="fas fa-ellipsis-v"></i>
+                  </button>
+                  <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0">
+                    <li>
+                      <a class="dropdown-item" href="{{ url_for('vendors_bp.partners_edit', id=p.id) }}">
+                        <i class="fas fa-edit me-2 text-secondary"></i> تعديل
+                      </a>
+                    </li>
+                    <li>
+                      {% if p.is_archived %}
+                        <button class="dropdown-item text-success" onclick="restorePartner({{ p.id }})">
+                          <i class="fas fa-undo me-2"></i> استعادة
+                        </button>
+                      {% else %}
+                        <button class="dropdown-item text-warning" onclick="archivePartner({{ p.id }})">
+                          <i class="fas fa-archive me-2"></i> أرشفة
+                        </button>
+                      {% endif %}
+                    </li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li>
+                      <form method="post" action="{{ url_for('vendors_bp.partners_delete', id=p.id) }}" onsubmit="return confirm('حذف الشريك؟');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="dropdown-item text-danger">
+                          <i class="fas fa-trash me-2"></i> حذف
+                        </button>
+                      </form>
+                    </li>
+                  </ul>
+                </div>
                 {% endif %}
               </div>
             </td>
@@ -567,7 +587,7 @@
       .map(el => el.getAttribute('data-balance-partner'))
       .filter(Boolean);
     if (ids.length === 0) {
-      alert('لا يوجد شركاء لتحديث أرصدتهم.');
+      if(typeof showToast!=='undefined'){showToast('لا يوجد شركاء لتحديث أرصدتهم.', 'success');}else{if(typeof showToast!=='undefined'){showToast('لا يوجد شركاء لتحديث أرصدتهم.', 'info');}else{alert('لا يوجد شركاء لتحديث أرصدتهم.');};};
       return;
     }
     if (!confirm('إعادة حساب أرصدة الشركاء المعروضة؟\nهذه العملية قد تستغرق وقتاً...')) return;
@@ -587,17 +607,21 @@
     })
     .then(function(data) {
       if (data.success) {
-        alert('✅ تم تحديث أرصدة ' + data.updated + ' شريك.');
+        if(typeof showToast!=='undefined'){showToast('✅ تم تحديث أرصدة ' + data.updated + ' شريك.', 'success');}else{if(typeof showToast!=='undefined'){showToast('✅ تم تحديث أرصدة ' + data.updated + ' شريك.', 'success');}else{alert('✅ تم تحديث أرصدة ' + data.updated + ' شريك.');};};
         window.location.reload();
       } else {
-        alert('❌ فشل: ' + (data.error || data.message || 'تعذر التحديث'));
+        if(typeof showToast!=='undefined'){showToast('❌ فشل: ' + (data.error || data.message || 'تعذر التحديث', 'error');}else{if(typeof showToast!=='undefined'){showToast('❌ فشل: ' + (data.error || data.message || 'تعذر التحديث');}, 'error');}else{alert('❌ فشل: ' + (data.error || data.message || 'تعذر التحديث');});};
       }
     })
-    .catch(function(e) { alert('خطأ: ' + e.message); });
+    .catch(function(e) { if(typeof showToast!=='undefined'){showToast('خطأ: ' + e.message); });
   }
 
   // التحقق من القطع غير المسعّرة
-  fetch('/partners/unpriced-items')
+  fetch('/partners/unpriced-items', 'error');}else{if(typeof showToast!=='undefined')showToast('خطأ: '+e.message,'error');else alert('خطأ: '+e.message); });
+  }
+
+  // التحقق من القطع غير المسعّرة
+  fetch('/partners/unpriced-items');}
     .then(res => res.json())
     .then(data => {
       const alertBox = document.getElementById('unpricedAlert');
@@ -625,7 +649,7 @@
 // Modal لتسعير القطع
 function showUnpricedModal() {
   if (!window.unpricedItems || window.unpricedItems.length === 0) {
-    alert('لا توجد قطع غير مسعّرة');
+    if(typeof showToast!=='undefined'){showToast('لا توجد قطع غير مسعّرة', 'success');}else{if(typeof showToast!=='undefined'){showToast('لا توجد قطع غير مسعّرة', 'info');}else{alert('لا توجد قطع غير مسعّرة');};};
     return;
   }
   

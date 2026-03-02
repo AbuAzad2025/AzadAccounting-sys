@@ -266,7 +266,11 @@
 
     function removeLine(row){
       const rows = qsa('.sale-line',wrap);
-      if(rows.length<=1){ alert('يجب ترك بند واحد على الأقل.'); return; }
+      if(rows.length<=1){
+        if (typeof toastr !== 'undefined') toastr.warning('يجب ترك بند واحد على الأقل.');
+        else alert('يجب ترك بند واحد على الأقل.');
+        return;
+      }
       row.remove();
       qsa('.sale-line',wrap).forEach((r,i)=>renumberRow(r,i));
       recalc();

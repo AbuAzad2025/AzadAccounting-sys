@@ -219,7 +219,7 @@
         .then(r => r.json())
         .then(data => {
             if(data.success) location.reload();
-            else alert('Error: ' + data.error);
+            else if(typeof showToast !== 'undefined') showToast('Error: ' + data.error, 'error'); else alert('Error: ' + data.error);
         });
     }
 </script>

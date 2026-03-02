@@ -311,12 +311,12 @@ function updateDeliveryAttempt(shipmentId) {
         if (data.ok) {
             location.reload();
         } else {
-            alert('خطأ: ' + (data.error || 'حدث خطأ غير متوقع'));
+            if(typeof showToast!=='undefined'){showToast('خطأ: ' + (data.error || 'حدث خطأ غير متوقع', 'error');}else{if(typeof showToast!=='undefined')showToast('خطأ: '+(data.error || 'حدث خطأ غير متوقع','error');else if(typeof showToast!=='undefined'){showToast('خطأ: '+(data.error || 'حدث خطأ غير متوقع');}, 'error');}else{alert('خطأ: '+(data.error || 'حدث خطأ غير متوقع');});};
         }
     })
     .catch(error => {
 
-        alert('خطأ في الاتصال');
+        if(typeof showToast!=='undefined'){showToast('خطأ في الاتصال', 'error');}else{alert('خطأ في الاتصال');};
     });
 }
 </script>

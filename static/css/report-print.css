@@ -1,0 +1,10 @@
+@import url("print.css");
+@import url("report-print-core.css");
+
+/* تنسيقات إضافية للطباعة خاصة بالتقارير */
+@media print {
+    .report-card {
+        border: 1px solid #ddd !important;
+        box-shadow: none !important;
+    }
+}

@@ -415,8 +415,9 @@
           return $request;
         },
         error: function(xhr, status, error) {
-          if (status !== 'abort' && status !== 'timeout') {
-            console.error('Error loading data:', error, status);
+          if (status !== 'abort') {
+            if (typeof toastr !== 'undefined') toastr.error('تعذر تحميل البيانات. يرجى التحقق من الاتصال وتحديث الصفحة.');
+            else alert('تعذر تحميل البيانات. يرجى التحقق من الاتصال وتحديث الصفحة.');
           }
         }
       };
@@ -427,9 +428,7 @@
       if ($el.data('select2')) {
         try {
           $el.select2('destroy');
-        } catch(e) {
-          console.warn('Error destroying Select2:', e);
-        }
+        } catch(e) { }
     }
     $el.select2(opts);
       $el.data('s2-initialized', true);
@@ -439,14 +438,12 @@
           setTimeout(function() { 
             try {
               $search.trigger('input'); 
-            } catch(e) {
-              console.warn('Error triggering input:', e);
-            }
+            } catch(e) { }
           }, 100);
         }
       });
     } catch (e) {
-      console.error('Error initializing Select2:', e);
+      if (typeof toastr !== 'undefined') toastr.warning('تعذر تهيئة قائمة البحث. يرجى تحديث الصفحة.');
       $el.data('preorder-s2-init', false);
       $el.data('s2-initialized', false);
     }
@@ -489,9 +486,7 @@
           $prod.off('select2:select');
           $prod.select2('destroy'); 
         } 
-      } catch(e) {
-        console.warn('Error destroying Select2:', e);
-      }
+      } catch(e) { }
       
       $prod.val(null).trigger('change');
       $prod.data('preorder-s2-init', false);
@@ -551,8 +546,9 @@
                 return $request;
               },
               error: function(xhr, status, error) {
-                if (status !== 'abort' && status !== 'timeout') {
-                  console.error('Error loading products:', error, status);
+                if (status !== 'abort') {
+                  if (typeof toastr !== 'undefined') toastr.error('تعذر تحميل بيانات القطع. يرجى اختيار المستودع مرة أخرى.');
+                  else alert('تعذر تحميل بيانات القطع. يرجى اختيار المستودع مرة أخرى.');
                 }
               }
             }
@@ -587,7 +583,7 @@
           });
           
         } catch(e) {
-          console.error('Error initializing Select2 for products:', e);
+          if (typeof toastr !== 'undefined') toastr.warning('تعذر تهيئة قائمة القطع.');
         }
       }, 150);
     }

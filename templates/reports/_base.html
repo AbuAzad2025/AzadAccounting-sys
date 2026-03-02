@@ -1,6 +1,95 @@
 {% extends 'base.html' %}
 
-{% block title %}{% block page_title %}التقارير{% block scripts %}
+{% block title %}{% block page_title %}التقارير{% endblock %}{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">الرئيسية</a></li>
+<li class="breadcrumb-item"><a href="{{ url_for('reports_bp.index') }}">التقارير</a></li>
+{% block reports_breadcrumb_extra %}{% endblock %}
+{% endblock %}
+
+{% block content %}
+<div class="card card-primary card-outline">
+  <div class="card-header">
+    <h3 class="card-title">
+      <i class="fas fa-chart-bar mr-1"></i>
+      {% block report_title %}تقرير عام{% endblock %}
+    </h3>
+    <div class="card-tools">
+      {% block report_tools %}
+      <button type="button" class="btn btn-tool" data-card-widget="collapse">
+        <i class="fas fa-minus"></i>
+      </button>
+      <div class="btn-group">
+        <button type="button" class="btn btn-tool dropdown-toggle" data-toggle="dropdown">
+          <i class="fas fa-wrench"></i>
+        </button>
+        <div class="dropdown-menu dropdown-menu-right" role="menu">
+          <a href="#" class="dropdown-item" onclick="window.print(); return false;">طباعة سريعة</a>
+          <a href="#" class="dropdown-item" data-toggle="modal" data-target="#reportPrintModal">خيارات الطباعة</a>
+          <div class="dropdown-divider"></div>
+          <a href="#" class="dropdown-item">تصدير Excel</a>
+          <a href="#" class="dropdown-item">تصدير PDF</a>
+        </div>
+      </div>
+      {% endblock %}
+    </div>
+  </div>
+  
+  <div class="card-body">
+    <!-- Filters -->
+    <div class="row mb-3 d-print-none">
+      <div class="col-md-12">
+        {% block report_filters %}
+        <!-- Default Filters Placeholder -->
+        <div class="alert alert-info">
+          <i class="fas fa-info-circle"></i> استخدم الفلاتر لتخصيص التقرير.
+        </div>
+        {% endblock %}
+      </div>
+    </div>
+
+    <!-- Report Header (Print Only) -->
+    <div class="d-none d-print-block mb-4 text-center">
+      <h2>{% block print_header_title %}تقرير{% endblock %}</h2>
+      <p class="text-muted">تاريخ الطباعة: <span id="print-date"></span></p>
+    </div>
+
+    <!-- Toolbar -->
+    {% block report_table_toolbar %}
+    <div class="mb-2 d-print-none">
+      <!-- Toolbar buttons -->
+    </div>
+    {% endblock %}
+
+    <!-- Content -->
+    <div class="table-responsive">
+      {% block report_content %}{% endblock %}
+    </div>
+  </div>
+  <div class="card-footer d-print-none">
+    <small class="text-muted">تم استخراج التقرير في {{ now() }}</small>
+  </div>
+</div>
+{% endblock %}
+
+<!-- Styles -->
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/reporting.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/report-print.css') }}">
+<style>
+  @media print {
+    .d-print-none { display: none !important; }
+    .d-print-block { display: block !important; }
+    .card { border: none !important; shadow: none !important; }
+    .card-header { display: none !important; }
+    .card-footer { display: none !important; }
+  }
+</style>
+{% endblock %}
+
+<!-- Scripts -->
+{% block scripts %}
 <script>
   // Print Date Script
   document.addEventListener("DOMContentLoaded", function() {
@@ -10,226 +99,30 @@
     if(el) el.innerText = dateStr;
   });
 </script>
-{% endblock %}{% endblock %}
-
-{% block breadcrumb %}
-<li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">الرئيسية</a></li>
-<li class="breadcrumb-item"><a href="{{ url_for('reports_bp.index') }}">التقارير</a></li>
-{% block reports_breadcrumb_extra %}{% endblock %}
 {% endblock %}
 
-{% macro active_class(eps) -%}
-  {%- if request.endpoint in eps %}active{%- endif -%}
-{%- endmacro %}
-
-{% block content %}
-<div class="container-fluid" dir="rtl" data-report-title="{{ self.page_title() }}">
-  
-  <!-- Print Header -->
-  <div class="print-header d-none d-print-flex">
-    <div class="d-flex align-items-center">
-      {% if system_settings and system_settings.custom_logo %}
-      <img src="{{ url_for('static', filename=system_settings.custom_logo.replace('static/', '')) }}" class="print-logo ms-3" alt="Logo">
-      {% else %}
-      <img src="{{ url_for('static', filename='img/azad_logo.png') }}" class="print-logo ms-3" alt="Logo">
-      {% endif %}
-      <div>
-        <h4 class="fw-bold m-0">{{ system_settings.company_name or system_settings.system_name or 'النظام' }}</h4>
-        <small class="text-muted d-block">{{ self.page_title() }}</small>
-      </div>
-    </div>
-    <div class="text-end">
-      <small class="d-block">تاريخ الطباعة: <span id="print-date"></span></small>
-      <small class="d-block">طبع بواسطة: {{ current_user.username }}</small>
-    </div>
-  </div>
-
-  <div class="card mb-3 shadow-sm card-hover no-print">
-    <div class="card-body p-2">
-      <ul class="nav nav-pills flex-wrap gap-1">
-        <li class="nav-item">
-          <a class="nav-link nav-report-dashboard {{ active_class(['reports_bp.index']) }}" href="{{ url_for('reports_bp.index') }}">
-            <i class="fas fa-home"></i> لوحة التقارير
-          </a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link nav-report-dynamic {{ active_class(['reports_bp.dynamic_report']) }}" href="{{ url_for('reports_bp.dynamic_report') }}">
-            <i class="fas fa-sliders-h"></i> تقرير ديناميكي
-          </a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link nav-report-customers {{ active_class(['reports_bp.customers_report']) }}" href="{{ url_for('reports_bp.customers_report') }}">
-            <i class="fas fa-user-friends"></i> العملاء
-          </a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link nav-report-suppliers {{ active_class(['reports_bp.suppliers']) }}" href="{{ url_for('reports_bp.suppliers_report') }}">
-            <i class="fas fa-truck-loading"></i> الموردون
-          </a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link nav-report-partners {{ active_class(['reports_bp.partners']) }}" href="{{ url_for('reports_bp.partners_report') }}">
-            <i class="fas fa-handshake"></i> الشركاء
-          </a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link nav-report-sales {{ active_class(['reports_bp.sales']) }}" href="{{ url_for('reports_bp.sales') }}">
-            <i class="fas fa-chart-line"></i> المبيعات
-          </a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link nav-report-payments {{ active_class(['reports_bp.payments_summary']) }}" href="{{ url_for('reports_bp.payments_summary') }}">
-            <i class="fas fa-wallet"></i> ملخص المدفوعات
-          </a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link nav-report-products {{ active_class(['reports_bp.top_products']) }}" href="{{ url_for('reports_bp.top_products') }}">
-            <i class="fas fa-crown"></i> أفضل المنتجات
-          </a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link nav-report-expenses {{ active_class(['reports_bp.expenses']) }}" href="{{ url_for('reports_bp.expenses_report') }}">
-            <i class="fas fa-wallet"></i> المصاريف
-          </a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link nav-report-inventory {{ active_class(['reports_bp.inventory']) }}" href="{{ url_for('reports_bp.inventory') }}">
-            <i class="fas fa-boxes"></i> المخزون
-          </a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link nav-report-below-min {{ active_class(['reports_bp.below_min_stock']) }}" href="{{ url_for('reports_bp.below_min_stock_report') }}">
-            <i class="fas fa-exclamation-triangle"></i> تحت الحد الأدنى
-          </a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link nav-report-shipments {{ active_class(['reports_bp.shipments']) }}" href="{{ url_for('reports_bp.shipments') }}">
-            <i class="fas fa-shipping-fast"></i> الشحنات
-          </a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link nav-report-online {{ active_class(['reports_bp.online']) }}" href="{{ url_for('reports_bp.online') }}">
-            <i class="fas fa-globe"></i> الأونلاين
-          </a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link nav-report-ar {{ active_class(['reports_bp.ar_aging']) }}" href="{{ url_for('reports_bp.ar_aging') }}">
-            <i class="fas fa-user-clock"></i> أعمار الذمم (عملاء)
-          </a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link nav-report-ap {{ active_class(['reports_bp.ap_aging']) }}" href="{{ url_for('reports_bp.ap_aging') }}">
-            <i class="fas fa-truck-loading"></i> أعمار الذمم (موردون)
-          </a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link nav-report-service {{ active_class(['reports_bp.service_reports']) }}" href="{{ url_for('reports_bp.service_reports') }}">
-            <i class="fas fa-tools"></i> الصيانة
-          </a>
-        </li>
-      </ul>
-    </div>
-  </div>
-  {% block report_table_toolbar %}
-  <div class="d-flex justify-content-end mb-3 report-table-toolbar" style="display:none;">
-    <button type="button" class="btn btn-outline-primary btn-sm report-table-print" data-table-target="#report-table">
-      <i class="fas fa-print"></i> طباعة الجدول
-    </button>
-  </div>
-  {% endblock %}
-  {% block report_content %}{% endblock %}
-</div>
-{% endblock %}
-
-{% block styles %}
-<link rel="stylesheet" href="{{ static_url('css/reporting.css') }}">
-<link rel="stylesheet" href="{{ static_url('css/report-print-core.css') }}">
-{% endblock %}
-
-{% block scripts %}
-{{ super() }}
-<script src="{{ static_url('js/export-helpers.js') }}"></script>
-<script>
-(function() {
-  if (typeof Chart === 'undefined') {
-    const script1 = document.createElement('script');
-    script1.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js';
-    document.head.appendChild(script1);
-  }
-  if (typeof XLSX === 'undefined') {
-    const script2 = document.createElement('script');
-    script2.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
-    document.head.appendChild(script2);
-  }
-})();
-</script>
-<script src="{{ static_url('js/reporting.js') }}"></script>
+<!-- Print Modal -->
 {% block report_print_modal %}
 <div class="modal fade" id="reportPrintModal" tabindex="-1" role="dialog" aria-labelledby="reportPrintModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-lg" role="document">
+  <div class="modal-dialog" role="document">
     <div class="modal-content">
-      <form id="reportPrintForm">
-        <div class="modal-header">
-          <h5 class="modal-title" id="reportPrintModalLabel">خيارات طباعة الجدول</h5>
-          <button type="button" class="close" data-dismiss="modal" aria-label="إغلاق">
-            <span aria-hidden="true">&times;</span>
-          </button>
-        </div>
+      <div class="modal-header">
+        <h5 class="modal-title" id="reportPrintModalLabel">خيارات الطباعة</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <form id="reportPrintForm" onsubmit="window.print(); $('#reportPrintModal').modal('hide'); return false;">
         <div class="modal-body">
-          <div class="mb-3">
-            <div class="font-weight-bold mb-2">نطاق الطباعة</div>
-            <div class="custom-control custom-radio custom-control-inline">
-              <input type="radio" id="printModeAll" name="print_mode" value="all" class="custom-control-input" checked>
-              <label class="custom-control-label" for="printModeAll">كامل الجدول</label>
-            </div>
-            <div class="custom-control custom-radio custom-control-inline">
-              <input type="radio" id="printModeRows" name="print_mode" value="rows" class="custom-control-input">
-              <label class="custom-control-label" for="printModeRows">صفوف محددة</label>
-            </div>
-            <div class="custom-control custom-radio custom-control-inline">
-              <input type="radio" id="printModePages" name="print_mode" value="pages" class="custom-control-input">
-              <label class="custom-control-label" for="printModePages">صفحات تقريبية</label>
-            </div>
-            <div class="small text-muted mt-2">
-              إجمالي الصفوف: <span id="printRowCount">0</span> | الصفحات التقريبية: <span id="printPageCount">0</span>
-            </div>
-          </div>
-          <div class="row">
-            <div class="col-md-6">
-              <div class="form-group">
-                <label>الصفوف</label>
-                <div class="form-row">
-                  <div class="col">
-                    <input type="number" class="form-control" name="start_row" min="1" value="1" disabled>
-                  </div>
-                  <div class="col">
-                    <input type="number" class="form-control" name="end_row" min="1" value="1" disabled>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="col-md-6">
-              <div class="form-group">
-                <label>الصفحات</label>
-                <div class="form-row">
-                  <div class="col">
-                    <input type="number" class="form-control" name="start_page" min="1" value="1" disabled>
-                  </div>
-                  <div class="col">
-                    <input type="number" class="form-control" name="end_page" min="1" value="1" disabled>
-                  </div>
-                  <div class="col">
-                    <input type="number" class="form-control" name="rows_per_page" min="5" value="35" disabled>
-                  </div>
-                </div>
-                <small class="form-text text-muted">عدد الصفوف لكل صفحة</small>
-              </div>
-            </div>
-          </div>
           <div class="form-group">
-            <label>أعمدة الجدول</label>
-            <div class="report-print-columns border rounded p-2" id="printColumnsContainer">
-              <div class="text-muted small">لا يوجد أعمدة متاحة.</div>
+            <label>نطاق الطباعة</label>
+            <div class="custom-control custom-radio">
+              <input type="radio" id="printAll" name="printRange" class="custom-control-input" checked>
+              <label class="custom-control-label" for="printAll">الكل</label>
+            </div>
+            <div class="custom-control custom-radio">
+              <input type="radio" id="printCurrentPage" name="printRange" class="custom-control-input">
+              <label class="custom-control-label" for="printCurrentPage">الصفحة الحالية</label>
             </div>
           </div>
           <div class="form-group">
@@ -241,12 +134,11 @@
           </div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-outline-secondary" data-dismiss="modal">إلغاء</button>
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">إلغاء</button>
           <button type="submit" class="btn btn-primary">طباعة</button>
         </div>
       </form>
     </div>
   </div>
 </div>
-{% endblock %}
 {% endblock %}

@@ -119,38 +119,38 @@
                                 </span>
                             </td>
                             <td>
-                                <div class="d-flex flex-wrap gap-2">
+                                <div class="d-flex flex-wrap gap-1 justify-content-start">
                                     <a href="{{ url_for('supplier_settlements_bp.supplier_settlement', supplier_id=s.id) }}"
-                                       class="btn btn-sm btn-success rounded-pill px-3"
+                                       class="btn btn-sm btn-success rounded-circle"
+                                       data-bs-toggle="tooltip"
                                        title="تسوية ذكية">
                                         <i class="fas fa-calculator"></i>
-                                        <span class="d-none d-lg-inline ms-1">تسوية</span>
                                     </a>
                                     
                                     <a href="{{ url_for('expenses_bp.create_expense', supplier_id=s.id, mode='supplier_service') }}"
-                                       class="btn btn-sm btn-info rounded-pill px-3 text-white"
+                                       class="btn btn-sm btn-info rounded-circle text-white"
+                                       data-bs-toggle="tooltip"
                                        title="توريد خدمات">
                                         <i class="fas fa-file-signature"></i>
-                                        <span class="d-none d-lg-inline ms-1">خدمات</span>
                                     </a>
 
                                     <a href="{{ url_for('payments.create_payment') }}?entity_type=SUPPLIER&entity_id={{ s.id }}&entity_name={{ s.name|urlencode }}"
-                                       class="btn btn-sm btn-primary rounded-pill px-3"
+                                       class="btn btn-sm btn-primary rounded-circle"
+                                       data-bs-toggle="tooltip"
                                        title="دفع">
                                         <i class="fas fa-money-bill-wave"></i>
-                                        <span class="d-none d-lg-inline ms-1">دفع</span>
                                     </a>
 
                                     <a href="{{ url_for('vendors_bp.suppliers_statement', supplier_id=s.id) }}"
-                                       class="btn btn-sm btn-warning rounded-pill px-3 text-dark"
+                                       class="btn btn-sm btn-warning rounded-circle text-dark"
+                                       data-bs-toggle="tooltip"
                                        title="كشف حساب">
                                         <i class="fas fa-file-invoice"></i>
-                                        <span class="d-none d-lg-inline ms-1">كشف</span>
                                     </a>
 
                                     {% if current_user.has_permission('manage_vendors') %}
                                     <div class="dropdown d-inline-block">
-                                        <button class="btn btn-sm btn-outline-secondary rounded-circle" type="button" data-toggle="dropdown" aria-expanded="false">
+                                        <button class="btn btn-sm btn-secondary rounded-circle" type="button" data-toggle="dropdown" aria-expanded="false">
                                             <i class="fas fa-ellipsis-v"></i>
                                         </button>
                                         <ul class="dropdown-menu dropdown-menu-right shadow border-0 rounded-3">
@@ -246,7 +246,7 @@
             .map(el => el.getAttribute('data-balance-supplier'))
             .filter(Boolean);
         if (ids.length === 0) {
-            alert('لا يوجد موردون لتحديث أرصدتهم.');
+            if(typeof showToast!=='undefined'){showToast('لا يوجد موردون لتحديث أرصدتهم.', 'success');}else{if(typeof showToast!=='undefined'){showToast('لا يوجد موردون لتحديث أرصدتهم.', 'info');}else{alert('لا يوجد موردون لتحديث أرصدتهم.');};};
             return;
         }
         if (!confirm('إعادة حساب أرصدة الموردين المعروضة؟\nهذه العملية قد تستغرق وقتاً...')) return;
@@ -273,18 +273,23 @@
         })
         .then(function(data) {
             if (data.success) {
-                alert('✅ تم تحديث أرصدة ' + data.updated + ' مورد.');
+                if(typeof showToast!=='undefined'){showToast('✅ تم تحديث أرصدة ' + data.updated + ' مورد.', 'success');}else{if(typeof showToast!=='undefined'){showToast('✅ تم تحديث أرصدة ' + data.updated + ' مورد.', 'success');}else{alert('✅ تم تحديث أرصدة ' + data.updated + ' مورد.');};};
                 window.location.reload();
             } else {
-                alert('❌ فشل: ' + (data.error || data.message || 'تعذر التحديث'));
+                if(typeof showToast!=='undefined'){showToast('❌ فشل: ' + (data.error || data.message || 'تعذر التحديث', 'error');}else{if(typeof showToast!=='undefined'){showToast('❌ فشل: ' + (data.error || data.message || 'تعذر التحديث');}, 'error');}else{alert('❌ فشل: ' + (data.error || data.message || 'تعذر التحديث');});};
             }
         })
-        .catch(function(e) { alert('خطأ: ' + e.message); });
+        .catch(function(e) { if(typeof showToast!=='undefined'){showToast('خطأ: ' + e.message); });
     }
 
     // Simple search functionality if not handled by vendors.js
     function searchSuppliers() {
-        const query = document.getElementById('supplierSearch').value;
+        const query = document.getElementById('supplierSearch', 'error');}else{if(typeof showToast!=='undefined')showToast('خطأ: '+e.message,'error');else alert('خطأ: '+e.message); });
+    }
+
+    // Simple search functionality if not handled by vendors.js
+    function searchSuppliers() {
+        const query = document.getElementById('supplierSearch');}.value;
         window.location.href = `{{ url_for('vendors_bp.suppliers_list') }}?q=${encodeURIComponent(query)}`;
     }
 
@@ -300,7 +305,7 @@
         // Since we have server-side logic in python but it's not exposed as 'type' param in the snippet I saw
         // I will just reload with a placeholder or leave it for future implementation
         // Actually, let's just assume we want to search/filter
-        alert('ميزة التصفية قيد التطوير');
+        if(typeof showToast!=='undefined'){showToast('ميزة التصفية قيد التطوير', 'success');}else{if(typeof showToast!=='undefined'){showToast('ميزة التصفية قيد التطوير', 'info');}else{alert('ميزة التصفية قيد التطوير');};};
     }
     
     // Functions for archive/restore need to be defined or ensure vendors.js handles them

@@ -445,7 +445,7 @@ function copyToClipboard(elementId) {
   
   const text = element.textContent || element.value;
   navigator.clipboard.writeText(text).then(() => {
-    alert('✅ تم النسخ إلى الحافظة!');
+    if(typeof showToast !== 'undefined') showToast('✅ تم النسخ إلى الحافظة!', 'success'); else alert('✅ تم النسخ إلى الحافظة!');
   });
 }
 

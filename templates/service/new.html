@@ -362,7 +362,7 @@
           category: $('#et_category').val().trim(),
           notes: $('#et_notes').val().trim()
         };
-        if (!payload.name) { alert('الاسم مطلوب'); if (btn) btn.disabled = false; return; }
+        if (!payload.name) { if(typeof showToast!=='undefined'){showToast('الاسم مطلوب', 'success');}else{alert('الاسم مطلوب');}; if (btn) btn.disabled = false; return; }
         try {
           const res = await fetch("{{ url_for('api.create_equipment_type') }}", {
             method: 'POST',
@@ -377,7 +377,7 @@
           $('#equipmentTypeModal').hide();
           $('#equipmentTypeForm')[0].reset();
         } catch (err) {
-          alert(err.message || 'خطأ: ' + err.message);
+          if(typeof showToast !== 'undefined') showToast(err.message || 'خطأ: ' + err.message, 'error'); else if(typeof showToast!=='undefined'){showToast(err.message || 'خطأ: ' + err.message, 'error');}else{alert(err.message || 'خطأ: ' + err.message);};
         } finally {
           if (btn) btn.disabled = false;
         }

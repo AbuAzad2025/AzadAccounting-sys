@@ -2774,3 +2774,166 @@ def get_batch_details(batch_id):
         })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+@ledger_bp.route('/api/ar_ap_summary', methods=['GET'])
+@login_required
+def get_ar_ap_summary():
+    """
+    تقرير الذمم التفصيلي الحقيقي المعتمد على قيود دفتر الأستاذ فقط.
+    يجمع الأرصدة لكل كيان (عميل، مورد، شريك، موظف).
+    """
+    try:
+        from_date_str = request.args.get('from_date')
+        to_date_str = request.args.get('to_date')
+        from_date, to_date = _parse_ledger_date_range(from_date_str, to_date_str)
+
+        query = db.session.query(
+            GLBatch.entity_type,
+            GLBatch.entity_id,
+            func.sum(GLEntry.debit).label('total_debit'),
+            func.sum(GLEntry.credit).label('total_credit'),
+            func.max(GLBatch.posted_at).label('last_transaction_date')
+        ).join(GLEntry, GLEntry.batch_id == GLBatch.id)\
+         .filter(GLBatch.status == 'POSTED')\
+         .filter(GLBatch.entity_type.isnot(None))\
+         .filter(
+             or_(
+                 GLEntry.account.like('11%'), # AR & Receivables
+                 GLEntry.account.like('20%'), # AP & Payables
+                 GLEntry.account.like('1050%') # Employee Receivables
+             )
+         )
+         
+        if to_date:
+            query = query.filter(GLBatch.posted_at <= to_date)
+            
+        results = query.group_by(GLBatch.entity_type, GLBatch.entity_id).all()
+        
+        summary_data = []
+        total_ar = Decimal(0)
+        total_ap = Decimal(0)
+        
+        entity_ids = {
+            'CUSTOMER': [],
+            'SUPPLIER': [],
+            'PARTNER': [],
+            'EMPLOYEE': []
+        }
+        
+        for r in results:
+            etype = (r.entity_type or '').upper()
+            if etype in entity_ids:
+                entity_ids[etype].append(r.entity_id)
+                
+        names_map = {}
+        
+        if entity_ids['CUSTOMER']:
+            customers = db.session.query(Customer.id, Customer.name).filter(Customer.id.in_(entity_ids['CUSTOMER'])).all()
+            for c in customers: names_map[('CUSTOMER', c.id)] = c.name
+            
+        if entity_ids['SUPPLIER']:
+            suppliers = db.session.query(Supplier.id, Supplier.name).filter(Supplier.id.in_(entity_ids['SUPPLIER'])).all()
+            for s in suppliers: names_map[('SUPPLIER', s.id)] = s.name
+            
+        if entity_ids['PARTNER']:
+            partners = db.session.query(Partner.id, Partner.name).filter(Partner.id.in_(entity_ids['PARTNER'])).all()
+            for p in partners: names_map[('PARTNER', p.id)] = p.name
+
+        if entity_ids['EMPLOYEE']:
+            employees = db.session.query(Employee.id, Employee.name).filter(Employee.id.in_(entity_ids['EMPLOYEE'])).all()
+            for e in employees: names_map[('EMPLOYEE', e.id)] = e.name
+            
+        for r in results:
+            etype = (r.entity_type or '').upper()
+            eid = r.entity_id
+            debit = Decimal(str(r.total_debit or 0))
+            credit = Decimal(str(r.total_credit or 0))
+            balance = debit - credit
+            
+            if abs(balance) < Decimal('0.01'):
+                continue
+                
+            if not eid:
+                name = f"غير محدد ({etype})"
+            else:
+                name = names_map.get((etype, eid), f"{etype} #{eid}")
+            
+            if balance > 0:
+                total_ar += balance
+            else:
+                total_ap += abs(balance)
+                
+            summary_data.append({
+                'entity_type': etype,
+                'entity_id': eid,
+                'entity_name': name,
+                'total_debit': float(debit),
+                'total_credit': float(credit),
+                'balance': float(balance),
+                'last_transaction': r.last_transaction_date.strftime('%Y-%m-%d') if r.last_transaction_date else None
+            })
+            
+        summary_data.sort(key=lambda x: abs(x['balance']), reverse=True)
+            
+        return jsonify({
+            'data': summary_data,
+            'totals': {
+                'total_ar': float(total_ar),
+                'total_ap': float(total_ap),
+                'net_position': float(total_ar - total_ap)
+            }
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+@ledger_bp.route('/api/inventory_breakdown', methods=['GET'])
+@login_required
+def get_inventory_breakdown():
+    """تحليل قيمة المخزون الفعلي (المملوك vs الأمانة) ومقارنته بالدفتر"""
+    try:
+        from models import Warehouse, WarehouseType
+        
+        ledger_inventory = db.session.query(
+            func.sum(GLEntry.debit - GLEntry.credit)
+        ).join(GLBatch, GLBatch.id == GLEntry.batch_id)\
+         .filter(GLEntry.account == '1200_INVENTORY')\
+         .filter(GLBatch.status == 'POSTED').scalar() or 0
+        
+        inventory_query = db.session.query(
+            Warehouse.warehouse_type,
+            func.sum(StockLevel.quantity * Product.purchase_price)
+        ).join(StockLevel, StockLevel.warehouse_id == Warehouse.id)\
+         .join(Product, Product.id == StockLevel.product_id)\
+         .group_by(Warehouse.warehouse_type).all()
+         
+        breakdown = {
+            'NORMAL': 0.0,
+            'EXCHANGE': 0.0,
+            'PARTNER': 0.0,
+            'TOTAL_PHYSICAL': 0.0
+        }
+        
+        for w_type, value in inventory_query:
+            val = float(value or 0)
+            w_type_str = str(w_type.value if hasattr(w_type, 'value') else w_type)
+            
+            if w_type_str == 'NORMAL' or w_type_str == 'MAIN':
+                breakdown['NORMAL'] += val
+            elif w_type_str == 'EXCHANGE':
+                breakdown['EXCHANGE'] += val
+            elif w_type_str == 'PARTNER':
+                breakdown['PARTNER'] += val
+            
+            breakdown['TOTAL_PHYSICAL'] += val
+            
+        return jsonify({
+            'ledger_value': float(ledger_inventory),
+            'physical_breakdown': breakdown,
+            'diff': float(ledger_inventory) - breakdown['NORMAL']
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500

@@ -559,7 +559,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function updateAIAnalysis(analysis) {
         // Update AI insights based on product data
-        console.log('AI Analysis:', analysis);
     }
 
     // Smart recommendations
@@ -588,7 +587,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function displayRecommendations(recommendations) {
         // Display AI recommendations
-        console.log('Smart Recommendations:', recommendations);
     }
 
     // Enhanced add to cart with AI insights
@@ -704,8 +702,6 @@ function addToCart(productId) {
         button.innerHTML = '<i class="fas fa-check"></i> تم الإضافة!';
         button.style.background = 'var(--gradient-success)';
         
-        console.log('تم إضافة المنتج للسلة بنجاح!');
-        
         setTimeout(() => {
             button.innerHTML = originalText;
             button.disabled = false;
@@ -715,12 +711,10 @@ function addToCart(productId) {
 }
 
 function buyNow(productId) {
-    console.log('جاري إعداد عملية الشراء...');
     window.location.href = `/shop/checkout?product=${productId}`;
 }
 
 function searchFor(term) {
-    console.log(`البحث عن "${term}"...`);
     window.location.href = `/shop/?search=${encodeURIComponent(term)}`;
 }
 
@@ -728,36 +722,6 @@ function showToast(message, type = 'info') {
     return;
 }
 
-// Add to cart function (for booking)
-function addToCart(productId) {
-    // Show loading state
-    const button = event.target.closest('.cta-button');
-    const originalText = button.innerHTML;
-    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الحجز...';
-    button.disabled = true;
-    
-    // Simulate API call
-    setTimeout(() => {
-        button.innerHTML = originalText;
-        button.disabled = false;
-        showToast('تم حجز المنتج بنجاح!', 'success');
-    }, 1500);
-}
 
-// Buy now function (for immediate booking)
-function buyNow(productId) {
-    // Show loading state
-    const button = event.target.closest('.cta-button');
-    const originalText = button.innerHTML;
-    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري المعالجة...';
-    button.disabled = true;
-    
-    // Simulate API call
-    setTimeout(() => {
-        button.innerHTML = originalText;
-        button.disabled = false;
-        showToast('سيتم توجيهك لصفحة الحجز قريباً!', 'info');
-    }, 1500);
-}
 </script>
 {% endblock %}

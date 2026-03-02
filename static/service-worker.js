@@ -21,29 +21,29 @@ const STATIC_FILES = [
 
 // تثبيت Service Worker
 self.addEventListener('install', (event) => {
-  console.log('📦 Service Worker: Installing...');
+  // Installing...
   
   event.waitUntil(
     caches.open(STATIC_CACHE)
       .then((cache) => {
-        console.log('📦 Service Worker: Caching static files');
+        // Caching static files
         return cache.addAll(STATIC_FILES.map(url => new Request(url, {
           cache: 'reload'
         })));
       })
       .then(() => {
-        console.log('✅ Service Worker: Installed successfully');
+        // Installed successfully
         return self.skipWaiting();
       })
       .catch((error) => {
-        console.error('❌ Service Worker: Installation failed', error);
+        // Installation failed
       })
   );
 });
 
 // تفعيل Service Worker
 self.addEventListener('activate', (event) => {
-  console.log('🔄 Service Worker: Activating...');
+  // Activating...
   
   event.waitUntil(
     caches.keys()
@@ -52,13 +52,13 @@ self.addEventListener('activate', (event) => {
           keys
             .filter((key) => key !== STATIC_CACHE && key !== DYNAMIC_CACHE)
             .map((key) => {
-              console.log('🗑️ Service Worker: Removing old cache:', key);
+              // Removing old cache
               return caches.delete(key);
             })
         );
       })
       .then(() => {
-        console.log('✅ Service Worker: Activated');
+        // Activated
         return self.clients.claim();
       })
   );
@@ -104,7 +104,7 @@ async function networkFirst(request) {
     const cachedResponse = await caches.match(request);
     
     if (cachedResponse) {
-      console.log('📦 Serving from cache:', request.url);
+      // Serving from cache
       return cachedResponse;
     }
     
@@ -150,7 +150,7 @@ self.addEventListener('sync', (event) => {
 });
 
 async function syncData() {
-  console.log('🔄 Background sync started');
+  // Background sync started
   // يمكن إضافة منطق المزامنة هنا
 }
 
@@ -182,5 +182,4 @@ self.addEventListener('notificationclick', (event) => {
   );
 });
 
-console.log('🚀 Service Worker loaded');
-
+// Service Worker loaded

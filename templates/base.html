@@ -291,77 +291,9 @@
     */
     
   </style>
-    
-    
-    
-    
-    
-    
-    
-  </style>      color: #adb5bd;
-      font-weight: normal;
-    }
-    body:not(.ui-v2) .breadcrumb-item a {
-      color: #007bff;
-      text-decoration: none;
-      font-weight: 400;
-    }
-    body:not(.ui-v2) .breadcrumb-item a:hover {
-      color: #0056b3;
-      text-decoration: underline;
-    }
-    
-    /* Enhanced Text Contrast - Harmonized with AdminLTE */
-    body:not(.ui-v2) {
-      color: #495057;
-      background-color: #f4f6f9;
-    }
-    
-    body:not(.ui-v2) .text-muted {
-      color: #6c757d !important;
-    }
-    
-    body:not(.ui-v2) .text-dark {
-      color: #343a40 !important;
-    }
-    
-    body:not(.ui-v2) .text-primary {
-      color: #007bff !important;
-    }
-    
-    /* Enhanced Card Text - Harmonized with AdminLTE */
-    body:not(.ui-v2) .card:not([style]) {
-      background: #ffffff;
-      color: #495057;
-      border: 1px solid #dee2e6;
-    }
-    
-    /* تم تعطيل .card-header العام لصالح التنسيقات المخصصة */
-    body:not(.ui-v2) .card-header:not([style]) {
-      background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
-      color: #ffffff;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    }
-    
-    body:not(.ui-v2) .card-body {
-      color: #495057;
-    }
-    
-    /* Enhanced Table Text - Harmonized with AdminLTE */
-    body:not(.ui-v2) .table {
-      color: #495057;
-    }
-    
-    .table th {
-      color: #343a40;
-      font-weight: 600;
-      background-color: #f8f9fa;
-    }
-    
-    .table td {
-      color: #495057;
-    }
-  </style>
+  
+  <!-- Safe Enhancements Styles -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/enhancements.css') }}">
   <style>
     :root {
       --bs-primary: #007bff;

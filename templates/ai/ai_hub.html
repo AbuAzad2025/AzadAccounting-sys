@@ -1143,14 +1143,14 @@ setInterval(() => {
 // Quick Training
 function startQuickTraining() {
   if (confirm('هل تريد بدء تدريب سريع للمساعد الذكي؟')) {
-    alert('🎓 جارٍ التدريب السريع...\nهذا قد يستغرق بضع دقائق.');
-    // TODO: Backend call
+    if(typeof showToast!=='undefined'){showToast('🎓 جارٍ التدريب السريع...\nهذا قد يستغرق بضع دقائق.', 'success');}else{alert('🎓 جارٍ التدريب السريع...\nهذا قد يستغرق بضع دقائق.');};
+    
   }
 }
 
 // Generate Prediction
 function generatePrediction() {
-  alert('🔮 قريباً: إنشاء تنبؤات مخصصة بناءً على بياناتك!');
+  if(typeof showToast!=='undefined'){showToast('🔮 قريباً: إنشاء تنبؤات مخصصة بناءً على بياناتك!', 'success');}else{alert('🔮 قريباً: إنشاء تنبؤات مخصصة بناءً على بياناتك!');};
 }
 
 // Train Model
@@ -1234,11 +1234,11 @@ async function startBulkTraining() {
       
       updateTrainingUI(result.job_id);
     } else {
-      alert('❌ فشل بدء التدريب: ' + (result.error || 'خطأ غير معروف'));
+      if(typeof showToast!=='undefined'){showToast('❌ فشل بدء التدريب: ' + (result.error || 'خطأ غير معروف', 'error');}else{alert('❌ فشل بدء التدريب: ' + (result.error || 'خطأ غير معروف');});
     }
   } catch (error) {
     console.error('Error starting training:', error);
-    alert('❌ حدث خطأ أثناء بدء التدريب');
+    if(typeof showToast!=='undefined'){showToast('❌ حدث خطأ أثناء بدء التدريب', 'error');}else{alert('❌ حدث خطأ أثناء بدء التدريب');};
   }
 }
 
@@ -1333,7 +1333,7 @@ async function saveApiKey(apiName) {
   const apiKey = keyInput?.value.trim();
   
   if (!apiKey) {
-    alert('⚠️ الرجاء إدخال مفتاح API صحيح');
+    if(typeof showToast!=='undefined'){showToast('⚠️ الرجاء إدخال مفتاح API صحيح', 'success');}else{alert('⚠️ الرجاء إدخال مفتاح API صحيح');};
     return;
   }
   

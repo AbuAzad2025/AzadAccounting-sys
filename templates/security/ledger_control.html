@@ -349,7 +349,7 @@
                                 <button class="btn btn-primary ml-2" onclick="generateFinancialStatements()">
                                     <i class="fas fa-file-invoice-dollar"></i> القوائم المالية
                                 </button>
-                                <button class="btn btn-outline-info" onclick="alert('Trial Balance قيد التطوير')">
+                                <button class="btn btn-outline-info" onclick="if(typeof showToast !== 'undefined') showToast('Trial Balance قيد التطوير', 'success'); else alert('Trial Balance قيد التطوير');">
                                     <i class="fas fa-balance-scale"></i> ميزان المراجعة
                                 </button>
                             </div>
@@ -668,12 +668,17 @@ function doBackup() {
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (data.success) {
-                alert('تم النسخ: ' + data.filename);
+                if(typeof showToast !== 'undefined') showToast('تم النسخ: ' + data.filename, 'success');
+                else if(typeof showToast!=='undefined'){showToast('تم النسخ: ' + data.filename, 'success');}else{alert('تم النسخ: ' + data.filename);}
             } else {
-                alert('فشل: ' + data.error);
+                if(typeof showToast !== 'undefined') showToast('فشل: ' + data.error, 'error');
+                else if(typeof showToast!=='undefined'){showToast('فشل: ' + data.error, 'error');}else{alert('فشل: ' + data.error);}
             }
         })
-        .catch(function(e) { alert('❌ ' + (e && e.message ? e.message : 'خطأ غير معروف')); });
+        .catch(function(e) { 
+            if(typeof showToast !== 'undefined') showToast('❌ ' + (e && e.message ? e.message : 'خطأ غير معروف'), 'error');
+            else if(typeof showToast !== 'undefined') showToast('❌ ' + (e && e.message ? e.message : 'خطأ غير معروف', 'error'); else alert('❌ ' + (e && e.message ? e.message : 'خطأ غير معروف');); 
+        });
 }
 
 function doValidate() {
@@ -682,15 +687,21 @@ function doValidate() {
         .then(function(data) {
             if (data.success) {
                 if (data.imbalanced_batches && data.imbalanced_batches.length > 0) {
-                    alert('وُجد ' + data.imbalanced_batches.length + ' قيد غير متوازن!');
+                    if(typeof showToast !== 'undefined') showToast('وُجد ' + data.imbalanced_batches.length + ' قيد غير متوازن!', 'warning');
+                    else if(typeof showToast !== 'undefined') showToast('وُجد ' + data.imbalanced_batches.length + ' قيد غير متوازن!', 'success'); else alert('وُجد ' + data.imbalanced_batches.length + ' قيد غير متوازن!');;
                 } else {
-                    alert('جميع القيود متوازنة');
+                    if(typeof showToast !== 'undefined') showToast('جميع القيود متوازنة', 'success');
+                    else if(typeof showToast !== 'undefined') showToast('جميع القيود متوازنة', 'success'); else alert('جميع القيود متوازنة');;
                 }
             } else {
-                alert('❌ فشل التحقق');
+                if(typeof showToast !== 'undefined') showToast('❌ فشل التحقق', 'error');
+                else if(typeof showToast !== 'undefined') showToast('❌ فشل التحقق', 'error'); else alert('❌ فشل التحقق');;
             }
         })
-        .catch(function(e) { alert('❌ ' + (e && e.message ? e.message : 'خطأ')); });
+        .catch(function(e) { 
+            if(typeof showToast !== 'undefined') showToast('❌ ' + (e && e.message ? e.message : 'خطأ'), 'error');
+            else if(typeof showToast !== 'undefined') showToast('❌ ' + (e && e.message ? e.message : 'خطأ', 'error'); else alert('❌ ' + (e && e.message ? e.message : 'خطأ');); 
+        });
 }
 
 function openTrialBalance() {
@@ -703,12 +714,17 @@ function doCleanup() {
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (data.success) {
-                alert('تم حذف ' + data.deleted_count + ' قيد');
+                if(typeof showToast !== 'undefined') showToast('تم حذف ' + data.deleted_count + ' قيد', 'success');
+                else if(typeof showToast !== 'undefined') showToast('تم حذف ' + data.deleted_count + ' قيد', 'success'); else alert('تم حذف ' + data.deleted_count + ' قيد');;
             } else {
-                alert('❌ فشل الحذف');
+                if(typeof showToast !== 'undefined') showToast('❌ فشل الحذف', 'error');
+                else if(typeof showToast !== 'undefined') showToast('❌ فشل الحذف', 'error'); else alert('❌ فشل الحذف');;
             }
         })
-        .catch(function(e) { alert('❌ ' + (e && e.message ? e.message : 'خطأ')); });
+        .catch(function(e) { 
+            if(typeof showToast !== 'undefined') showToast('❌ ' + (e && e.message ? e.message : 'خطأ'), 'error');
+            else if(typeof showToast !== 'undefined') showToast('❌ ' + (e && e.message ? e.message : 'خطأ', 'error'); else alert('❌ ' + (e && e.message ? e.message : 'خطأ');); 
+        });
 }
 
 function deleteAcc(id) {
@@ -718,11 +734,16 @@ function deleteAcc(id) {
         .then(function(data) {
             if (data.success) {
                 loadAccounts();
+                if(typeof showToast !== 'undefined') showToast('تم حذف الحساب', 'success');
             } else {
-                alert(data.error || 'فشل الحذف');
+                if(typeof showToast !== 'undefined') showToast(data.error || 'فشل الحذف', 'error');
+                else if(typeof showToast !== 'undefined') showToast(data.error || 'فشل الحذف', 'error'); else alert(data.error || 'فشل الحذف');
             }
         })
-        .catch(function(e) { alert('❌ ' + (e && e.message ? e.message : 'خطأ غير معروف')); });
+        .catch(function(e) { 
+            if(typeof showToast !== 'undefined') showToast('❌ ' + (e && e.message ? e.message : 'خطأ غير معروف'), 'error');
+            else if(typeof showToast !== 'undefined') showToast('❌ ' + (e && e.message ? e.message : 'خطأ غير معروف', 'error'); else alert('❌ ' + (e && e.message ? e.message : 'خطأ غير معروف');); 
+        });
 }
 
 function voidBatch(id) {
@@ -732,11 +753,16 @@ function voidBatch(id) {
         .then(function(data) {
             if (data.success) {
                 loadEntries();
+                if(typeof showToast !== 'undefined') showToast('تم إلغاء القيد', 'success');
             } else {
-                alert(data.error || 'فشل الإلغاء');
+                if(typeof showToast !== 'undefined') showToast(data.error || 'فشل الإلغاء', 'error');
+                else if(typeof showToast !== 'undefined') showToast(data.error || 'فشل الإلغاء', 'error'); else alert(data.error || 'فشل الإلغاء');
             }
         })
-        .catch(function(e) { alert('❌ ' + (e && e.message ? e.message : 'خطأ غير معروف')); });
+        .catch(function(e) { 
+            if(typeof showToast !== 'undefined') showToast('❌ ' + (e && e.message ? e.message : 'خطأ غير معروف'), 'error');
+            else if(typeof showToast !== 'undefined') showToast('❌ ' + (e && e.message ? e.message : 'خطأ غير معروف', 'error'); else alert('❌ ' + (e && e.message ? e.message : 'خطأ غير معروف');); 
+        });
 }
 
 function openBatchEditor(id) {
@@ -763,7 +789,7 @@ function saveNewAccount() {
     var name = String(formData.get('name')||'').trim();
     var type = String(formData.get('type')||'').trim();
     if (!code || !name || !type) {
-        alert('يرجى تعبئة جميع الحقول');
+        if(typeof showToast !== 'undefined') showToast('يرجى تعبئة جميع الحقول', 'warning'); else alert('يرجى تعبئة جميع الحقول');;
         return;
     }
     
@@ -782,14 +808,14 @@ function saveNewAccount() {
     .then(function(r) { return r.json(); })
     .then(function(result) {
         if (result.success) {
-            alert('✅ تم إضافة الحساب بنجاح');
+            if(typeof showToast !== 'undefined') showToast('✅ تم إضافة الحساب بنجاح', 'success'); else alert('✅ تم إضافة الحساب بنجاح');;
             try { if (window.$ && $.fn && $.fn.modal) { $('#addAccountModal').modal('hide'); } } catch(e){}
             loadAccounts();
         } else {
-            alert('❌ فشل: ' + result.error);
+            if(typeof showToast!=='undefined'){showToast('❌ فشل: ' + result.error, 'error');}else{alert('❌ فشل: ' + result.error);}
         }
     })
-    .catch(function(e) { alert('خطأ: ' + e.message); });
+    .catch(function(e) { if(typeof showToast !== 'undefined') showToast('خطأ: ' + e.message, 'error'); else alert('خطأ: ' + e.message); });
 }
 
 function showEditAccountModal(id, code, name, type, isActive) {
@@ -809,7 +835,7 @@ function saveEditAccount() {
     name = String(name||'').trim();
     typeVal = String(typeVal||'').trim();
     if (!name || !typeVal) {
-        alert('يرجى تعبئة الاسم والنوع');
+        if(typeof showToast !== 'undefined') showToast('يرجى تعبئة الاسم والنوع', 'warning'); else alert('يرجى تعبئة الاسم والنوع');;
         return;
     }
     
@@ -827,14 +853,14 @@ function saveEditAccount() {
     .then(function(r) { return r.json(); })
     .then(function(result) {
         if (result.success) {
-            alert('✅ تم تحديث الحساب بنجاح');
+            if(typeof showToast !== 'undefined') showToast('✅ تم تحديث الحساب بنجاح', 'success'); else alert('✅ تم تحديث الحساب بنجاح');;
             try { if (window.$ && $.fn && $.fn.modal) { $('#editAccountModal').modal('hide'); } } catch(e){}
             loadAccounts();
         } else {
-            alert('❌ فشل: ' + result.error);
+            if(typeof showToast!=='undefined'){showToast('❌ فشل: ' + result.error, 'error');}else{alert('❌ فشل: ' + result.error);}
         }
     })
-    .catch(function(e) { alert('خطأ: ' + e.message); });
+    .catch(function(e) { if(typeof showToast !== 'undefined') showToast('خطأ: ' + e.message, 'error'); else alert('خطأ: ' + e.message); });
 }
 
 // وظائف متقدمة
@@ -845,12 +871,17 @@ function recalculateBalances() {
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (data.success) {
-                alert('✅ ' + data.message);
+                if(typeof showToast !== 'undefined') showToast('✅ ' + data.message, 'success');
+                else if(typeof showToast!=='undefined'){showToast('✅ ' + data.message, 'success');}else{alert('✅ ' + data.message);}
             } else {
-                alert('❌ فشل: ' + data.error);
+                if(typeof showToast !== 'undefined') showToast('❌ فشل: ' + data.error, 'error');
+                else if(typeof showToast!=='undefined'){showToast('❌ فشل: ' + data.error, 'error');}else{alert('❌ فشل: ' + data.error);}
             }
         })
-        .catch(function(e) { alert('خطأ: ' + e.message); });
+        .catch(function(e) { 
+            if(typeof showToast !== 'undefined') showToast('خطأ: ' + e.message, 'error');
+            else if(typeof showToast !== 'undefined') showToast('خطأ: ' + e.message, 'error'); else alert('خطأ: ' + e.message); 
+        });
 }
 
 function syncChecks() {
@@ -860,12 +891,17 @@ function syncChecks() {
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (data.success) {
-                alert('✅ ' + data.message);
+                if(typeof showToast !== 'undefined') showToast('✅ ' + data.message, 'success');
+                else if(typeof showToast!=='undefined'){showToast('✅ ' + data.message, 'success');}else{alert('✅ ' + data.message);}
             } else {
-                alert('❌ فشل: ' + data.error);
+                if(typeof showToast !== 'undefined') showToast('❌ فشل: ' + data.error, 'error');
+                else if(typeof showToast!=='undefined'){showToast('❌ فشل: ' + data.error, 'error');}else{alert('❌ فشل: ' + data.error);}
             }
         })
-        .catch(function(e) { alert('خطأ: ' + e.message); });
+        .catch(function(e) { 
+            if(typeof showToast !== 'undefined') showToast('خطأ: ' + e.message, 'error');
+            else if(typeof showToast !== 'undefined') showToast('خطأ: ' + e.message, 'error'); else alert('خطأ: ' + e.message); 
+        });
 }
 
 function loadStats() {
@@ -970,7 +1006,8 @@ async function loadFiscalPeriods() {
 async function generateClosingEntries() {
     const date = document.getElementById('closing-date').value;
     if (!date) {
-        alert('يرجى اختيار تاريخ الإقفال');
+        if(typeof showToast !== 'undefined') showToast('يرجى اختيار تاريخ الإقفال', 'warning');
+        else if(typeof showToast !== 'undefined') showToast('يرجى اختيار تاريخ الإقفال', 'warning'); else alert('يرجى اختيار تاريخ الإقفال');;
         return;
     }
     
@@ -1028,10 +1065,12 @@ async function generateClosingEntries() {
             document.getElementById('closing-results').innerHTML = html;
             document.getElementById('closing-results').style.display = 'block';
         } else {
-            alert('خطأ: ' + data.error);
+            if(typeof showToast !== 'undefined') showToast('خطأ: ' + data.error, 'error');
+            else if(typeof showToast !== 'undefined') showToast('خطأ: ' + data.error, 'error'); else alert('خطأ: ' + data.error);
         }
     } catch (error) {
-        alert('خطأ: ' + error.message);
+        if(typeof showToast !== 'undefined') showToast('خطأ: ' + error.message, 'error');
+        else if(typeof showToast !== 'undefined') showToast('خطأ: ' + error.message, 'error'); else alert('خطأ: ' + error.message);
     }
 }
 
@@ -1048,14 +1087,14 @@ async function postClosingEntries(date, entries) {
         const data = await response.json();
         
         if (data.success) {
-            alert(data.message);
+            if(typeof showToast !== 'undefined') showToast(data.message, 'success'); else alert(data.message);
             document.getElementById('closing-results').style.display = 'none';
             loadFiscalPeriods();
         } else {
-            alert('خطأ: ' + data.error);
+            if(typeof showToast !== 'undefined') showToast('خطأ: ' + data.error, 'error'); else alert('خطأ: ' + data.error);
         }
     } catch (error) {
-        alert('خطأ: ' + error.message);
+        if(typeof showToast !== 'undefined') showToast('خطأ: ' + error.message, 'error'); else alert('خطأ: ' + error.message);
     }
 }
 
@@ -1118,13 +1157,16 @@ async function approveBatch(batchId) {
         const data = await response.json();
         
         if (data.success) {
-            alert(data.message);
+            if(typeof showToast !== 'undefined') showToast(data.message, 'success');
+            else if(typeof showToast !== 'undefined') showToast(data.message, 'success'); else alert(data.message);
             loadPendingBatches();
         } else {
-            alert('خطأ: ' + data.error);
+            if(typeof showToast !== 'undefined') showToast('خطأ: ' + data.error, 'error');
+            else if(typeof showToast !== 'undefined') showToast('خطأ: ' + data.error, 'error'); else alert('خطأ: ' + data.error);
         }
     } catch (error) {
-        alert('خطأ: ' + error.message);
+        if(typeof showToast !== 'undefined') showToast('خطأ: ' + error.message, 'error');
+        else if(typeof showToast !== 'undefined') showToast('خطأ: ' + error.message, 'error'); else alert('خطأ: ' + error.message);
     }
 }
 
@@ -1142,13 +1184,16 @@ async function rejectBatch(batchId) {
         const data = await response.json();
         
         if (data.success) {
-            alert(data.message);
+            if(typeof showToast !== 'undefined') showToast(data.message, 'success');
+            else if(typeof showToast !== 'undefined') showToast(data.message, 'success'); else alert(data.message);
             loadPendingBatches();
         } else {
-            alert('خطأ: ' + data.error);
+            if(typeof showToast !== 'undefined') showToast('خطأ: ' + data.error, 'error');
+            else if(typeof showToast !== 'undefined') showToast('خطأ: ' + data.error, 'error'); else alert('خطأ: ' + data.error);
         }
     } catch (error) {
-        alert('خطأ: ' + error.message);
+        if(typeof showToast !== 'undefined') showToast('خطأ: ' + error.message, 'error');
+        else if(typeof showToast !== 'undefined') showToast('خطأ: ' + error.message, 'error'); else alert('خطأ: ' + error.message);
     }
 }
 
@@ -1156,7 +1201,8 @@ async function rejectBatch(batchId) {
 async function reverseBatch() {
     const batchId = document.getElementById('reverse-batch-id').value;
     if (!batchId) {
-        alert('يرجى إدخال رقم القيد');
+        if(typeof showToast !== 'undefined') showToast('يرجى إدخال رقم القيد', 'warning');
+        else if(typeof showToast !== 'undefined') showToast('يرجى إدخال رقم القيد', 'warning'); else alert('يرجى إدخال رقم القيد');;
         return;
     }
     
@@ -1287,7 +1333,7 @@ async function editBatch(batchId) {
             document.getElementById('editor-form').style.display = 'block';
         }
     } catch (error) {
-        alert('خطأ: ' + error.message);
+        if(typeof showToast !== 'undefined') showToast('خطأ: ' + error.message, 'error'); else alert('خطأ: ' + error.message);
     }
 }
 
@@ -1344,12 +1390,12 @@ function selectEntity(entityId, entityName, entityType) {
 // ربط الجهة بالقيد
 async function linkCurrentEntity() {
     if (!currentBatchId) {
-        alert('لم يتم اختيار قيد');
+        if(typeof showToast !== 'undefined') showToast('لم يتم اختيار قيد', 'success'); else alert('لم يتم اختيار قيد');;
         return;
     }
     
     if (!currentEntityType || !currentEntityId) {
-        alert('يرجى اختيار جهة');
+        if(typeof showToast !== 'undefined') showToast('يرجى اختيار جهة', 'warning'); else alert('يرجى اختيار جهة');;
         return;
     }
     
@@ -1367,13 +1413,13 @@ async function linkCurrentEntity() {
         const data = await response.json();
         
         if (data.success) {
-            alert(data.message);
+            if(typeof showToast !== 'undefined') showToast(data.message, 'success'); else alert(data.message);
             loadBatchesForEditor();
         } else {
-            alert('خطأ: ' + data.error);
+            if(typeof showToast !== 'undefined') showToast('خطأ: ' + data.error, 'error'); else alert('خطأ: ' + data.error);
         }
     } catch (error) {
-        alert('خطأ: ' + error.message);
+        if(typeof showToast !== 'undefined') showToast('خطأ: ' + error.message, 'error'); else alert('خطأ: ' + error.message);
     }
 }
 
@@ -1398,14 +1444,14 @@ async function saveBatch() {
         const data = await response.json();
         
         if (data.success) {
-            alert(data.message);
+            if(typeof showToast !== 'undefined') showToast(data.message, 'success'); else alert(data.message);
             cancelEdit();
             loadBatchesForEditor();
         } else {
-            alert('خطأ: ' + data.error);
+            if(typeof showToast !== 'undefined') showToast('خطأ: ' + data.error, 'error'); else alert('خطأ: ' + data.error);
         }
     } catch (error) {
-        alert('خطأ: ' + error.message);
+        if(typeof showToast !== 'undefined') showToast('خطأ: ' + error.message, 'error'); else alert('خطأ: ' + error.message);
     }
 }
 

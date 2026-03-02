@@ -282,7 +282,7 @@
               <div class="d-flex justify-content-between align-items-center mb-4">
                 <h5 class="fw-bold text-dark mb-0">إدارة المشتركين</h5>
                 <div class="btn-group">
-                  <button class="btn btn-outline-dark rounded-pill me-2" onclick="alert('Coming Soon')"><i class="fas fa-filter me-2"></i> فلترة</button>
+                  <button class="btn btn-outline-dark rounded-pill me-2" onclick="if(typeof showToast!=='undefined') showToast('Coming Soon', 'info'); else alert('Coming Soon')"><i class="fas fa-filter me-2"></i> فلترة</button>
                   <button class="btn btn-primary rounded-pill px-4 shadow-sm" data-bs-toggle="modal" data-bs-target="#newSubscriberModal">
                     <i class="fas fa-user-plus me-2"></i> مشترك جديد
                   </button>
@@ -377,7 +377,7 @@
       <div class="d-flex justify-content-between align-items-center mb-3">
         <h5><i class="fas fa-file-invoice-dollar ml-2"></i>الفواتير والمدفوعات ({{ invoices|length }})</h5>
         <div class="btn-group">
-          <button class="btn btn-sm btn-outline-primary" onclick="alert('🔧 ميزة الفلترة قيد التطوير')"><i class="fas fa-filter"></i> فلترة</button>
+          <button class="btn btn-sm btn-outline-primary" onclick="if(typeof showToast!=='undefined') showToast('🔧 ميزة الفلترة قيد التطوير', 'info'); else alert('🔧 ميزة الفلترة قيد التطوير')"><i class="fas fa-filter"></i> فلترة</button>
           <button class="btn btn-sm btn-outline-success" onclick="window.location.href='/security/saas-manager?export=invoices'"><i class="fas fa-download"></i> تصدير</button>
           <button class="btn btn-sm btn-primary" onclick="createInvoice()">
             <i class="fas fa-plus ml-1"></i> فاتورة جديدة
@@ -1039,7 +1039,7 @@ window.saveSubscriber = async function() {
 window.editPlan = function(planId) {
   const plan = plans.find(p => p.id === planId);
   if (!plan) {
-    alert('باقة غير موجودة');
+    if(typeof showToast!=='undefined')showToast('باقة غير موجودة','warning');else alert('باقة غير موجودة');
     return;
   }
   
@@ -1109,10 +1109,10 @@ window.viewSubscription = async function(subId) {
       const sub = data.subscription;
       alert(`تفاصيل الاشتراك\n\nالعميل: ${sub.customer_name}\nالباقة: ${sub.plan_name}\nالحالة: ${sub.status}\nالسعر: $${sub.price}/شهر\nالبداية: ${sub.start_date}\nالنهاية: ${sub.end_date}\nالأيام المتبقية: ${sub.days_left}`);
     } else {
-      alert('فشل جلب البيانات');
+      if(typeof showToast!=='undefined')showToast('فشل جلب البيانات','error');else alert('فشل جلب البيانات');
     }
   } catch (e) {
-    alert('خطأ: ' + e.message);
+    if(typeof showToast!=='undefined')showToast('خطأ: '+e.message,'error');else alert('خطأ: '+e.message);
   }
 }
 
@@ -1132,13 +1132,13 @@ window.editSubscription = async function(subId) {
     
     const data = await res.json();
     if (data.success) {
-      alert('تم التحديث بنجاح');
+      if(typeof showToast!=='undefined')showToast('تم التحديث بنجاح','success');else alert('تم التحديث بنجاح');
       location.reload();
     } else {
-      alert('خطأ: ' + (data.error || 'فشل التحديث'));
+      if(typeof showToast!=='undefined')showToast('خطأ: '+(data.error||'فشل التحديث'),'error');else alert('خطأ: '+(data.error||'فشل التحديث'));
     }
   } catch (e) {
-    alert('خطأ: ' + e.message);
+    if(typeof showToast!=='undefined')showToast('خطأ: '+e.message,'error');else alert('خطأ: '+e.message);
   }
 }
 
@@ -1158,13 +1158,13 @@ window.cancelSubscription = async function(subId) {
     const result = await res.json();
     
     if (result.success) {
-      alert('تم إلغاء الاشتراك بنجاح');
+      if(typeof showToast!=='undefined')showToast('تم إلغاء الاشتراك بنجاح','success');else alert('تم إلغاء الاشتراك بنجاح');
       location.reload();
     } else {
-      alert('خطأ: فشل الإلغاء');
+      if(typeof showToast!=='undefined')showToast('خطأ: فشل الإلغاء','error');else alert('خطأ: فشل الإلغاء');
     }
   } catch (e) {
-    alert('خطأ: ' + e.message);
+    if(typeof showToast!=='undefined')showToast('خطأ: '+e.message,'error');else alert('خطأ: '+e.message);
   }
 }
 
@@ -1183,13 +1183,13 @@ window.renewSubscription = async function(subId) {
     const result = await res.json();
     
     if (result.success) {
-      alert('تم تجديد الاشتراك بنجاح');
+      if(typeof showToast!=='undefined')showToast('تم تجديد الاشتراك بنجاح','success');else alert('تم تجديد الاشتراك بنجاح');
       location.reload();
     } else {
-      alert('خطأ: ' + (result.error || 'فشل التجديد'));
+      if(typeof showToast!=='undefined')showToast('خطأ: '+(result.error||'فشل التجديد'),'error');else alert('خطأ: '+(result.error||'فشل التجديد'));
     }
   } catch (e) {
-    alert('خطأ: ' + e.message);
+    if(typeof showToast!=='undefined')showToast('خطأ: '+e.message,'error');else alert('خطأ: '+e.message);
   }
 }
 
@@ -1218,13 +1218,13 @@ window.markPaid = async function(invId) {
     const result = await res.json();
     
     if (result.success) {
-      alert('تم تأكيد الدفع بنجاح');
+      if(typeof showToast!=='undefined')showToast('تم تأكيد الدفع بنجاح','success');else alert('تم تأكيد الدفع بنجاح');
       location.reload();
     } else {
-      alert('خطأ: فشل التأكيد');
+      if(typeof showToast!=='undefined')showToast('خطأ: فشل التأكيد','error');else alert('خطأ: فشل التأكيد');
     }
   } catch (e) {
-    alert('خطأ: ' + e.message);
+    if(typeof showToast!=='undefined')showToast('خطأ: '+e.message,'error');else alert('خطأ: '+e.message);
   }
 }
 
@@ -1242,19 +1242,19 @@ window.sendReminder = async function(invId) {
     const result = await res.json();
     
     if (result.success) {
-      alert(result.message || 'تم إرسال التذكير بنجاح');
+      if(typeof showToast!=='undefined')showToast(result.message||'تم إرسال التذكير بنجاح','success');else alert(result.message||'تم إرسال التذكير بنجاح');
     } else {
-      alert('خطأ: ' + (result.error || 'فشل الإرسال'));
+      if(typeof showToast!=='undefined')showToast('خطأ: '+(result.error||'فشل الإرسال'),'error');else alert('خطأ: '+(result.error||'فشل الإرسال'));
     }
   } catch (e) {
-    alert('خطأ: ' + e.message);
+    if(typeof showToast!=='undefined')showToast('خطأ: '+e.message,'error');else alert('خطأ: '+e.message);
   }
 }
 
 window.createInvoice = function() {
   const modal = document.getElementById('createInvoiceModal');
   if (!modal) {
-    alert('خطأ: Modal غير موجود');
+    if(typeof showToast!=='undefined')showToast('خطأ: Modal غير موجود','error');else alert('خطأ: Modal غير موجود');
     return;
   }
   
@@ -1268,7 +1268,7 @@ window.saveNewInvoice = async function() {
   const data = Object.fromEntries(formData);
   
   if (!data.subscription_id || !data.amount) {
-    alert('يرجى ملء جميع الحقول المطلوبة');
+    if(typeof showToast!=='undefined')showToast('يرجى ملء جميع الحقول المطلوبة','warning');else alert('يرجى ملء جميع الحقول المطلوبة');
     return;
   }
   
@@ -1285,13 +1285,13 @@ window.saveNewInvoice = async function() {
     const result = await res.json();
     
     if (result.success) {
-      alert('تم إنشاء الفاتورة بنجاح');
+      if(typeof showToast!=='undefined')showToast('تم إنشاء الفاتورة بنجاح','success');else alert('تم إنشاء الفاتورة بنجاح');
       location.reload();
     } else {
-      alert('خطأ: ' + (result.error || 'فشل الحفظ'));
+      if(typeof showToast!=='undefined')showToast('خطأ: '+(result.error||'فشل الحفظ'),'error');else alert('خطأ: '+(result.error||'فشل الحفظ'));
     }
   } catch (e) {
-    alert('خطأ: ' + e.message);
+    if(typeof showToast!=='undefined')showToast('خطأ: '+e.message,'error');else alert('خطأ: '+e.message);
   }
 }
 

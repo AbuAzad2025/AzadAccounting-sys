@@ -1008,7 +1008,7 @@
               confirmButtonText: 'فهمت'
             });
           } else {
-            alert(`مجموع نسب الشركاء ${fmt2(sum)}% يتجاوز 100%. يرجى التعديل.`);
+            if(typeof showToast!=='undefined'){showToast(`مجموع نسب الشركاء ${fmt2(sum)}% يتجاوز 100%. يرجى التعديل.`, 'warning');}else{if(typeof showToast!=='undefined'){showToast(`مجموع نسب الشركاء ${fmt2(sum)}% يتجاوز 100%. يرجى التعديل.`, 'warning');}else{alert(`مجموع نسب الشركاء ${fmt2(sum)}% يتجاوز 100%. يرجى التعديل.`);};};
           }
           return false;
         }

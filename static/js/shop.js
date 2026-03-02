@@ -15,6 +15,21 @@
 
   const t = k => T[k]?.[LANG] || T[k]?.ar || k;
 
+  const notify = (msg, type = 'info') => {
+    if (typeof Swal !== 'undefined') {
+      Swal.fire({
+        text: msg,
+        icon: type === 'error' ? 'error' : (type === 'success' ? 'success' : 'info'),
+        confirmButtonText: 'حسناً',
+        timer: type === 'success' ? 2000 : undefined
+      });
+    } else if (typeof toastr !== 'undefined') {
+      toastr[type === 'error' ? 'error' : (type === 'success' ? 'success' : 'info')](msg);
+    } else {
+      alert(msg);
+    }
+  };
+
   const normalizeDigits = s =>
     String(s || '').replace(/[0-9\u0660-\u0669\u06F0-\u06F9]/g, ch => {
       const c = ch.charCodeAt(0);
@@ -67,7 +82,7 @@
     const min = input.hasAttribute('min') ? Number(input.min) : 1;
     const max = input.dataset.max ? Number(input.dataset.max) : input.hasAttribute('max') ? Number(input.max) : Infinity;
     let v = !Number.isFinite(val) || val < min ? min : val;
-    if (Number.isFinite(max) && v > max) { alert(t('maxExceeded')); v = max; }
+    if (Number.isFinite(max) && v > max) { notify(t('maxExceeded'), 'warning'); v = max; }
     input.value = String(v);
     return v;
   };
@@ -278,8 +293,8 @@
           const nm = form ? form.querySelector('input[name="name"],#name') : document.getElementById('name');
           if (nm && payload.name) nm.value = payload.name;
           if (priceInput && payload.price) priceInput.value = Number(payload.price).toFixed(2);
-          alert(data.message || 'تم التحديث');
-        } else alert(data.message || 'تعذر التحديث');
+          notify(data.message || 'تم التحديث', 'success');
+        } else notify(data.message || 'تعذر التحديث', 'error');
       });
     }
 
@@ -294,8 +309,8 @@
           badge.classList.toggle('badge-active', off === true);
           badge.textContent = off ? 'غير مفعل' : 'مفعل';
           toggleBtn.innerHTML = off ? '<i class="fas fa-play me-1"></i> تفعيل' : '<i class="fas fa-pause me-1"></i> تعطيل';
-          alert(data.message || 'تم التحديث');
-        } else alert(data.message || 'تعذر التحديث');
+          notify(data.message || 'تم التحديث', 'success');
+        } else notify(data.message || 'تعذر التحديث', 'error');
       });
     }
 
@@ -308,13 +323,13 @@
         const url = catForm.getAttribute('data-url') || catForm.getAttribute('action');
         const nameEl = catForm.querySelector('#qc-name');
         const nm = (nameEl?.value || '').trim();
-        if (!nm) { alert('الاسم مطلوب'); nameEl && nameEl.focus(); return; }
+        if (!nm) { notify('الاسم مطلوب', 'warning'); nameEl && nameEl.focus(); return; }
         const fd = new FormData(catForm);
         fd.set('name', nm);
         const r = await fetch(url, { method: 'POST', headers: { 'X-CSRFToken': csrf() }, body: fd });
         let js = {};
         try { js = await r.json(); } catch { }
-        if (!r.ok || !js.ok) { alert(js.error || 'تعذر إنشاء الفئة'); return; }
+        if (!r.ok || !js.ok) { notify(js.error || 'تعذر إنشاء الفئة', 'error'); return; }
         const opt = document.createElement('option');
         opt.value = js.id; opt.textContent = js.name || nm; opt.selected = true;
         catSelect.appendChild(opt);
@@ -388,7 +403,7 @@
       };
 
       const uploadOnlineImage = async () => {
-        if (!fileEl?.files?.length) { alert('اختر صورة أولاً'); return; }
+        if (!fileEl?.files?.length) { notify('اختر صورة أولاً', 'warning'); return; }
         const fd = new FormData();
         fd.append('file', fileEl.files[0]);
         fd.append('subdir', 'products');
@@ -398,7 +413,7 @@
         try {
           const r = await fetch(uploadUrl, { method: 'POST', headers: { 'X-CSRFToken': csrf() }, body: fd });
           const js = await r.json();
-          if (!r.ok || !js.ok) { alert(js.error || 'فشل الرفع'); setStatus('فشل الرفع'); return; }
+          if (!r.ok || !js.ok) { notify(js.error || 'فشل الرفع', 'error'); setStatus('فشل الرفع'); return; }
           const url = js.url || js.thumb_url;
           if (thumbEl && url) thumbEl.src = js.thumb_url || url;
           if (imgUrlEl) imgUrlEl.textContent = url;
@@ -447,7 +462,7 @@
       };
 
       const saveOnline = async () => {
-        if (!onlineWid) { alert('لا يوجد مستودع أونلاين'); return; }
+        if (!onlineWid) { notify('لا يوجد مستودع أونلاين', 'error'); return; }
         const payload = {};
         const p = (priceEl?.value || '').trim();
         if (p !== '') {
@@ -463,7 +478,7 @@
         const u = (imgUrlEl?.textContent || '').trim();
         if (u) payload.online_image = u;
 
-        if (!Object.keys(payload).length) { alert('لا يوجد أي تغيير للحفظ'); return; }
+        if (!Object.keys(payload).length) { notify('لا يوجد أي تغيير للحفظ', 'info'); return; }
 
         setStatus('جارٍ الحفظ...', true);
         try {
@@ -475,11 +490,11 @@
           });
           const js = await res.json();
           if (!res.ok || !js.ok) {
-            alert(js.error || js.message || 'تعذر الحفظ');
+            notify(js.error || js.message || 'تعذر الحفظ', 'error');
             setStatus('تعذر الحفظ');
             return;
           }
-          alert(js.message || 'تم حفظ إعدادات الأونلاين');
+          notify(js.message || 'تم حفظ إعدادات الأونلاين', 'success');
           setStatus('تم الحفظ.');
         } catch {
           setStatus('تعذر الحفظ');
@@ -560,7 +575,7 @@
           const fd = new FormData(form);
           try {
             const r = await fetch(form.action, { method: 'POST', headers: { 'X-CSRFToken': csrf(), Accept: 'application/json' }, body: fd });
-            if (!r.ok) { alert('فشل العملية'); return; }
+            if (!r.ok) { notify('فشل العملية', 'error'); return; }
             const ct = (r.headers.get('content-type') || '').toLowerCase();
             if (ct.includes('application/json')) {
               const js = await r.json();
@@ -577,7 +592,7 @@
             const rows = document.querySelectorAll('.cart-row');
             if (rows.length) recalcSummary(); else location.reload();
           } catch {
-            alert('خطأ في الاتصال');
+            notify('خطأ في الاتصال', 'error');
           }
         })();
       }
@@ -649,22 +664,22 @@
               
               if (saveResponse.ok) {
 
-                alert('✅ تم رفع وحفظ صورة المنتج بنجاح!');
+                notify('✅ تم رفع وحفظ صورة المنتج بنجاح!', 'success');
               } else {
 
-                alert('✅ تم رفع الصورة! ⚠️ تأكد من الضغط على "حفظ" لحفظ التغييرات.');
+                notify('✅ تم رفع الصورة! ⚠️ تأكد من الضغط على "حفظ" لحفظ التغييرات.', 'warning');
               }
             } catch (saveError) {
 
-              alert('✅ تم رفع الصورة! ⚠️ تأكد من الضغط على "حفظ" لحفظ التغييرات.');
+              notify('✅ تم رفع الصورة! ⚠️ تأكد من الضغط على "حفظ" لحفظ التغييرات.', 'warning');
             }
             
             this.value = '';
           } else {
-            alert(js.error || 'فشل الرفع');
+            notify(js.error || 'فشل الرفع', 'error');
           }
         } catch (error) {
-          alert('تعذر رفع الصورة');
+          notify('تعذر رفع الصورة', 'error');
         }
       });
 

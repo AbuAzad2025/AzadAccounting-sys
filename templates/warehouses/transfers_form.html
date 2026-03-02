@@ -638,7 +638,7 @@
     }
     // استخدام native alert
     else {
-      alert(message);
+      if(typeof showToast !== 'undefined') showToast(message, 'info'); else alert(message);
     }
   }
 

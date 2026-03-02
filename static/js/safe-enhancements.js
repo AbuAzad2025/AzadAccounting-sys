@@ -66,7 +66,9 @@
             const field = form.elements[name];
             if (field && !field.value) field.value = data[name];
           });
-        } catch (e) {}
+        } catch (e) {
+          if (typeof toastr !== 'undefined') toastr.warning('بيانات المسودة المحفوظة تالفة، تم تجاهلها.');
+        }
       }
       const saveHandler = debounce(() => {
         const formData = new FormData(form);
@@ -134,7 +136,8 @@
           }
         }, 2000);
       } catch (err) {
-        alert('فشل النسخ إلى الحافظة');
+        if (typeof toastr !== 'undefined') toastr.error('فشل النسخ إلى الحافظة');
+        else alert('فشل النسخ إلى الحافظة');
       }
     });
   }

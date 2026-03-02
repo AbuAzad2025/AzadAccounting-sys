@@ -194,7 +194,7 @@ function createGPSButton() {
                 options  // تمرير الخيارات
             );
         } else {
-            alert('❌ المتصفح لا يدعم خدمات الموقع (GPS)');
+            if(typeof showToast!=='undefined'){showToast('❌ المتصفح لا يدعم خدمات الموقع (GPS)', 'success');}else{alert('❌ المتصفح لا يدعم خدمات الموقع (GPS)');};
         }
     });
 
@@ -232,7 +232,7 @@ function createShareButtons(latInput, lngInput) {
         const lng = lngInput.value;
         
         if (!lat || !lng) {
-            alert('⚠️ لم يتم تحديد موقع بعد!');
+            if(typeof showToast!=='undefined'){showToast('⚠️ لم يتم تحديد موقع بعد!', 'success');}else{alert('⚠️ لم يتم تحديد موقع بعد!');};
             return;
         }
 
@@ -284,7 +284,7 @@ function createShareButtons(latInput, lngInput) {
         const lng = lngInput.value;
         
         if (!lat || !lng) {
-            alert('⚠️ لم يتم تحديد موقع بعد!');
+            if(typeof showToast!=='undefined'){showToast('⚠️ لم يتم تحديد موقع بعد!', 'success');}else{alert('⚠️ لم يتم تحديد موقع بعد!');};
             return;
         }
 

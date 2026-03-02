@@ -1177,7 +1177,7 @@
       } else if (typeof toastr !== 'undefined') {
         toastr[type](message);
       } else {
-        alert(message);
+        if(typeof showToast !== 'undefined') showToast(message, 'info'); else alert(message);
       }
     }
     

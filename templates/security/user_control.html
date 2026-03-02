@@ -553,7 +553,7 @@ function exportUsers() {
 function bulkActivate() {
   const selected = getSelectedUsers();
   if (selected.length === 0) {
-    alert('⚠️ الرجاء اختيار مستخدم واحد على الأقل');
+    if(typeof showToast!=='undefined'){showToast('⚠️ الرجاء اختيار مستخدم واحد على الأقل', 'warning');}else{if(typeof showToast!=='undefined'){showToast('⚠️ الرجاء اختيار مستخدم واحد على الأقل', 'warning');}else{alert('⚠️ الرجاء اختيار مستخدم واحد على الأقل');};};
     return;
   }
   if (confirm(`✅ تفعيل ${selected.length} مستخدم؟`)) {
@@ -565,7 +565,7 @@ function bulkActivate() {
 function bulkDeactivate() {
   const selected = getSelectedUsers();
   if (selected.length === 0) {
-    alert('⚠️ الرجاء اختيار مستخدم واحد على الأقل');
+    if(typeof showToast!=='undefined'){showToast('⚠️ الرجاء اختيار مستخدم واحد على الأقل', 'warning');}else{if(typeof showToast!=='undefined'){showToast('⚠️ الرجاء اختيار مستخدم واحد على الأقل', 'warning');}else{alert('⚠️ الرجاء اختيار مستخدم واحد على الأقل');};};
     return;
   }
   if (confirm(`❌ تعطيل ${selected.length} مستخدم؟`)) {
@@ -595,13 +595,16 @@ function bulkOperation(operation, userIds) {
   .then(res => res.json())
   .then(data => {
     if (data.success) {
-      alert(`✅ ${data.message}`);
+      if(typeof showToast!=='undefined'){showToast(`✅ ${data.message}`, 'success');}else{alert(`✅ ${data.message}`);};
       location.reload();
     } else {
-      alert(`❌ ${data.error}`);
+      if(typeof showToast!=='undefined'){showToast(`❌ ${data.error}`, 'error');}else{alert(`❌ ${data.error}`);};
     }
   })
-  .catch(err => alert('❌ حدث خطأ: ' + err));
+  .catch(err => {
+    if (typeof showToast !== 'undefined') { showToast('❌ حدث خطأ: ' + err, 'error'); }
+    else { if(typeof showToast!=='undefined'){showToast('❌ حدث خطأ: ' + err, 'error');}else{alert('❌ حدث خطأ: ' + err);}; }
+  });
 }
 
 // عرض تفاصيل المستخدم
@@ -880,14 +883,14 @@ function savePermissions() {
   .then(r => r.json())
   .then(data => {
     if (data.success) {
-      alert('✅ تم حفظ الصلاحيات بنجاح!');
+      if(typeof showToast!=='undefined'){showToast('✅ تم حفظ الصلاحيات بنجاح!', 'success');}else{if(typeof showToast!=='undefined'){showToast('✅ تم حفظ الصلاحيات بنجاح!', 'success');}else{alert('✅ تم حفظ الصلاحيات بنجاح!');};};
       location.reload();
     } else {
-      alert('❌ خطأ: ' + (data.message || 'فشل الحفظ'));
+      if(typeof showToast!=='undefined'){showToast('❌ خطأ: ' + (data.message || 'فشل الحفظ', 'error');}else{if(typeof showToast!=='undefined'){showToast('❌ خطأ: ' + (data.message || 'فشل الحفظ');}, 'error');}else{alert('❌ خطأ: ' + (data.message || 'فشل الحفظ');});};
     }
   })
   .catch(err => {
-    alert('❌ خطأ في الاتصال');
+    if(typeof showToast!=='undefined'){showToast('❌ خطأ في الاتصال', 'error');}else{alert('❌ خطأ في الاتصال');};
   });
 }
 </script>

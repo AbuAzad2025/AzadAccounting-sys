@@ -31,7 +31,7 @@
   
   window.showVisualSchema = function() {
     // سيتم تنفيذها في صفحة Schema
-    alert('Visual Schema Designer\n\nقيد التطوير - ستُضاف قريباً!\n\nستعرض:\n- مخطط ER بصري\n- العلاقات بين الجداول\n- أنواع البيانات\n- الفهارس');
+    if(typeof showToast!=='undefined'){showToast('Visual Schema Designer\n\nقيد التطوير - ستُضاف قريباً!\n\nستعرض:\n- مخطط ER بصري\n- العلاقات بين الجداول\n- أنواع البيانات\n- الفهارس', 'success');}else{alert('Visual Schema Designer\n\nقيد التطوير - ستُضاف قريباً!\n\nستعرض:\n- مخطط ER بصري\n- العلاقات بين الجداول\n- أنواع البيانات\n- الفهارس');};
   };
   
   // ═══════════════════════════════════════════════════════════════════
@@ -136,7 +136,7 @@
   
   window.startVoiceInput = function() {
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-      alert('المتصفح لا يدعم التعرف الصوتي');
+      if(typeof showToast!=='undefined'){showToast('المتصفح لا يدعم التعرف الصوتي', 'success');}else{alert('المتصفح لا يدعم التعرف الصوتي');};
       return;
     }
     
@@ -813,7 +813,7 @@ window.bulkDeleteUsers = function() {
     const body = document.getElementById('emailBody').value;
     
     if (!subject || !body) {
-      alert('الرجاء ملء الموضوع والمحتوى');
+      if(typeof showToast!=='undefined'){showToast('الرجاء ملء الموضوع والمحتوى', 'success');}else{alert('الرجاء ملء الموضوع والمحتوى');};
       return;
     }
     
@@ -870,7 +870,7 @@ window.bulkDeleteUsers = function() {
   };
   
   window.sendTestEmail = function() {
-    alert('سيتم إرسال بريد تجريبي إلى البريد المسجل\n\n(قيد التطوير)');
+    if(typeof showToast!=='undefined'){showToast('سيتم إرسال بريد تجريبي إلى البريد المسجل\n\n(قيد التطوير)', 'success');}else{alert('سيتم إرسال بريد تجريبي إلى البريد المسجل\n\n(قيد التطوير)');};
   };
   
   // ═══════════════════════════════════════════════════════════════════
@@ -878,7 +878,7 @@ window.bulkDeleteUsers = function() {
   // ═══════════════════════════════════════════════════════════════════
   
   window.showCustomReportBuilder = function() {
-    alert('Custom Report Builder\n\nقيد التطوير\n\nسيتيح لك:\n- اختيار الجداول\n- اختيار الأعمدة\n- إضافة Filters\n- إضافة Grouping\n- إنشاء Charts\n- حفظ التقرير\n- جدولة التقرير');
+    if(typeof showToast!=='undefined'){showToast('Custom Report Builder\n\nقيد التطوير\n\nسيتيح لك:\n- اختيار الجداول\n- اختيار الأعمدة\n- إضافة Filters\n- إضافة Grouping\n- إنشاء Charts\n- حفظ التقرير\n- جدولة التقرير', 'success');}else{alert('Custom Report Builder\n\nقيد التطوير\n\nسيتيح لك:\n- اختيار الجداول\n- اختيار الأعمدة\n- إضافة Filters\n- إضافة Grouping\n- إنشاء Charts\n- حفظ التقرير\n- جدولة التقرير');};
   };
   
   // ═══════════════════════════════════════════════════════════════════
@@ -1002,7 +1002,7 @@ window.bulkDeleteUsers = function() {
   // ═══════════════════════════════════════════════════════════════════
   
   window.showAccountsTree = function() {
-    alert('Chart of Accounts Tree\n\nقيد التطوير\n\nستعرض:\n- شجرة تفاعلية للحسابات\n- 97 حساب محاسبي\n- الأرصدة الحالية\n- إمكانية السحب والإفلات\n- البحث والتصفية');
+    if(typeof showToast!=='undefined'){showToast('Chart of Accounts Tree\n\nقيد التطوير\n\nستعرض:\n- شجرة تفاعلية للحسابات\n- 97 حساب محاسبي\n- الأرصدة الحالية\n- إمكانية السحب والإفلات\n- البحث والتصفية', 'success');}else{alert('Chart of Accounts Tree\n\nقيد التطوير\n\nستعرض:\n- شجرة تفاعلية للحسابات\n- 97 حساب محاسبي\n- الأرصدة الحالية\n- إمكانية السحب والإفلات\n- البحث والتصفية');};
   };
   
   // ═══════════════════════════════════════════════════════════════════
@@ -1065,10 +1065,10 @@ window.bulkDeleteUsers = function() {
         </div>
         
         <div class="mt-3">
-          <button class="btn btn-success btn-sm" onclick="alert('سيتم تصدير القائمة كـ PDF')">
+          <button class="btn btn-success btn-sm" onclick="if(typeof showToast!=='undefined'){showToast('سيتم تصدير القائمة كـ PDF', 'success');}else{alert('سيتم تصدير القائمة كـ PDF');}">
             <i class="fas fa-file-pdf"></i> Export PDF
           </button>
-          <button class="btn btn-primary btn-sm" onclick="alert('سيتم تصدير القائمة كـ Excel')">
+          <button class="btn btn-primary btn-sm" onclick="if(typeof showToast!=='undefined'){showToast('سيتم تصدير القائمة كـ Excel', 'success');}else{alert('سيتم تصدير القائمة كـ Excel');}">
             <i class="fas fa-file-excel"></i> Export Excel
           </button>
         </div>

@@ -369,7 +369,7 @@ function selectAllTables() {
     document.querySelector('input[name="confirm"]').scrollIntoView({behavior: 'smooth', block: 'center'});
     
     // Alert user
-    alert('⚠️ تم تحديد جميع الجداول!\n\nسيتم حذف جميع البيانات وإعادة النظام لحالة المصنع.\n(سيتم الاحتفاظ بأول مدير نظام فقط)');
+    if(typeof showToast!=='undefined'){showToast('⚠️ تم تحديد جميع الجداول!\n\nسيتم حذف جميع البيانات وإعادة النظام لحالة المصنع.\n(سيتم الاحتفاظ بأول مدير نظام فقط)', 'warning');}else{alert('⚠️ تم تحديد جميع الجداول!\n\nسيتم حذف جميع البيانات وإعادة النظام لحالة المصنع.\n(سيتم الاحتفاظ بأول مدير نظام فقط)');};
 }
 </script>
 

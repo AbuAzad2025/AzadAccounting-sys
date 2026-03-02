@@ -170,7 +170,9 @@
       });
 
       let result = {};
-      try { result = await res.json(); } catch (_) {}
+      try { result = await res.json(); } catch (_) {
+        if (typeof toastr !== 'undefined') toastr.error('استجابة غير صالحة من الخادم.');
+      }
 
       if (result.success) {
         $('#noteModal').modal('hide');

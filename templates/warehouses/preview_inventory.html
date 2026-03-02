@@ -573,7 +573,7 @@
           showSaved();
           clearAllPendingVisual();
         } catch(e){
-          alert('تعذر الحفظ');
+          if(typeof showToast!=='undefined'){showToast('تعذر الحفظ', 'success');}else{alert('تعذر الحفظ');};
         } finally {
           btnSave.disabled = false;
         }
@@ -816,7 +816,7 @@
             $('#alertsModal').modal('show');
           }
         } else {
-          alert('✅ جميع البيانات مكتملة!\n\nلا توجد مشاكل في المنتجات.');
+          if(typeof showToast!=='undefined'){showToast('✅ جميع البيانات مكتملة!\n\nلا توجد مشاكل في المنتجات.', 'success');}else{if(typeof showToast!=='undefined'){showToast('✅ جميع البيانات مكتملة!\n\nلا توجد مشاكل في المنتجات.', 'success');}else{alert('✅ جميع البيانات مكتملة!\n\nلا توجد مشاكل في المنتجات.');};};
         }
       }
       
@@ -933,18 +933,18 @@
         });
         
         if (updatedCount > 0) {
-          alert(`✅ تم ملء البيانات لـ ${updatedCount} منتج.\n\nيرجى مراجعة البيانات ثم الضغط على "حفظ التغييرات".`);
+          if(typeof showToast!=='undefined'){showToast(`✅ تم ملء البيانات لـ ${updatedCount} منتج.\n\nيرجى مراجعة البيانات ثم الضغط على "حفظ التغييرات".`, 'warning');}else{if(typeof showToast!=='undefined'){showToast(`✅ تم ملء البيانات لـ ${updatedCount} منتج.\n\nيرجى مراجعة البيانات ثم الضغط على "حفظ التغييرات".`, 'warning');}else{alert(`✅ تم ملء البيانات لـ ${updatedCount} منتج.\n\nيرجى مراجعة البيانات ثم الضغط على "حفظ التغييرات".`);};};
           updatePendingBadge();
           showSaved();
         } else {
-          alert('✅ جميع البيانات مكتملة!');
+          if(typeof showToast!=='undefined'){showToast('✅ جميع البيانات مكتملة!', 'success');}else{if(typeof showToast!=='undefined'){showToast('✅ جميع البيانات مكتملة!', 'success');}else{alert('✅ جميع البيانات مكتملة!');};};
         }
       }
       
       // تطبيق الإصلاحات المقترحة من Modal
       document.getElementById('btnApplySuggestions')?.addEventListener('click', function() {
         if (!window.dataIssues || window.dataIssues.length === 0) {
-          alert('لا توجد إصلاحات لتطبيقها');
+          if(typeof showToast!=='undefined'){showToast('لا توجد إصلاحات لتطبيقها', 'success');}else{if(typeof showToast!=='undefined'){showToast('لا توجد إصلاحات لتطبيقها', 'info');}else{alert('لا توجد إصلاحات لتطبيقها');};};
           return;
         }
         
@@ -965,7 +965,7 @@
         });
         
         if (appliedCount > 0) {
-          alert(`✅ تم تطبيق ${appliedCount} إصلاح.\n\nيرجى مراجعة البيانات ثم الضغط على "حفظ التغييرات".`);
+          if(typeof showToast!=='undefined'){showToast(`✅ تم تطبيق ${appliedCount} إصلاح.\n\nيرجى مراجعة البيانات ثم الضغط على "حفظ التغييرات".`, 'warning');}else{if(typeof showToast!=='undefined'){showToast(`✅ تم تطبيق ${appliedCount} إصلاح.\n\nيرجى مراجعة البيانات ثم الضغط على "حفظ التغييرات".`, 'warning');}else{alert(`✅ تم تطبيق ${appliedCount} إصلاح.\n\nيرجى مراجعة البيانات ثم الضغط على "حفظ التغييرات".`);};};
           updatePendingBadge();
           
           // إغلاق Modal
@@ -973,7 +973,7 @@
             $('#alertsModal').modal('hide');
           }
         } else {
-          alert('لا توجد إصلاحات لتطبيقها.');
+          if(typeof showToast!=='undefined'){showToast('لا توجد إصلاحات لتطبيقها.', 'success');}else{if(typeof showToast!=='undefined'){showToast('لا توجد إصلاحات لتطبيقها.', 'info');}else{alert('لا توجد إصلاحات لتطبيقها.');};};
         }
       });
       

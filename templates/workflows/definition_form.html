@@ -334,7 +334,7 @@ document.getElementById('workflowForm').addEventListener('submit', function(e) {
     
     if (steps.length === 0) {
         e.preventDefault();
-        alert('يجب إضافة خطوة واحدة على الأقل!');
+        if(typeof showToast!=='undefined'){showToast('يجب إضافة خطوة واحدة على الأقل!', 'success');}else{if(typeof showToast!=='undefined'){showToast('يجب إضافة خطوة واحدة على الأقل!', 'info');}else{alert('يجب إضافة خطوة واحدة على الأقل!');};};
         return;
     }
     
