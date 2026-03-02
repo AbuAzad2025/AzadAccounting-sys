@@ -1,17 +1,17 @@
 :root {
-  --primary: #ff6b6b;
-  --success: #a8e6cf;
-  --warning: #ffa726;
-  --danger: #ff6b6b;
-  --info: #7dd3fc;
-  --light: #f8f9fa;
-  --dark: #212529;
-  --border-radius: 0.5rem;
-  --shadow: 0 4px 15px rgba(255, 107, 107, 0.1);
-  --gradient-primary: linear-gradient(135deg, #ff6b6b 0%, #ff8e8e 100%);
-  --gradient-success: linear-gradient(135deg, #a8e6cf 0%, #88d8c0 100%);
-  --gradient-info: linear-gradient(135deg, #7dd3fc 0%, #38bdf8 100%);
-  --gradient-warning: linear-gradient(135deg, #ffa726 0%, #ffcc02 100%);
+  --sales-primary: #ff6b6b;
+  --sales-success: #a8e6cf;
+  --sales-warning: #ffa726;
+  --sales-danger: #ff6b6b;
+  --sales-info: #7dd3fc;
+  --sales-light: #f8f9fa;
+  --sales-dark: #212529;
+  --sales-border-radius: 0.5rem;
+  --sales-shadow: 0 4px 15px rgba(255, 107, 107, 0.1);
+  --sales-gradient-primary: linear-gradient(135deg, #ff6b6b 0%, #ff8e8e 100%);
+  --sales-gradient-success: linear-gradient(135deg, #a8e6cf 0%, #88d8c0 100%);
+  --sales-gradient-info: linear-gradient(135deg, #7dd3fc 0%, #38bdf8 100%);
+  --sales-gradient-warning: linear-gradient(135deg, #ffa726 0%, #ffcc02 100%);
 }
 
 .card-shadow {
@@ -19,7 +19,7 @@
 }
 
 .rounded-4 {
-  border-radius: var(--border-radius) !important;
+  border-radius: var(--sales-border-radius) !important;
 }
 
 .table-hover tbody tr:hover {
@@ -38,10 +38,10 @@
 .sale-line-row {
   transition: all 0.3s ease;
   background-color: #f8fafc;
-  border-radius: var(--border-radius);
+  border-radius: var(--sales-border-radius);
   padding: 0.75rem;
   margin-bottom: 0.5rem;
-  border-left: 3px solid var(--primary);
+  border-left: 3px solid var(--sales-primary);
 }
 .sale-line-row:hover {
   background-color: #eef6ff;
@@ -54,17 +54,17 @@
   transition: color 0.2s;
 }
 .drag-handle:hover {
-  color: var(--primary);
+  color: var(--sales-primary);
 }
 
 .btn-sale {
   padding: 0.5rem 1rem;
-  border-radius: var(--border-radius);
+  border-radius: var(--sales-border-radius);
   font-weight: 600;
   transition: all 0.3s;
 }
 .btn-sale-primary {
-  background-color: var(--primary);
+  background-color: var(--sales-primary);
   color: #fff;
 }
 .btn-sale-primary:hover {
@@ -72,7 +72,7 @@
   transform: translateY(-2px);
 }
 .btn-sale-success {
-  background-color: var(--success);
+  background-color: var(--sales-success);
   color: #fff;
 }
 .btn-sale-success:hover {
@@ -88,15 +88,15 @@
 }
 .badge-draft {
   background-color: rgba(255, 193, 7, 0.15);
-  color: var(--warning);
+  color: var(--sales-warning);
 }
 .badge-confirmed {
   background-color: rgba(13, 110, 253, 0.15);
-  color: var(--primary);
+  color: var(--sales-primary);
 }
 .badge-paid {
   background-color: rgba(25, 135, 84, 0.15);
-  color: var(--success);
+  color: var(--sales-success);
 }
 .badge-cancelled {
   background-color: rgba(108, 117, 125, 0.15);
@@ -106,28 +106,28 @@
 .summary-card {
   background: linear-gradient(135deg, #f8f9fa, #e9ecef);
   border: none;
-  border-radius: var(--border-radius);
+  border-radius: var(--sales-border-radius);
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
   padding: 1.25rem;
 }
 .summary-card tr:last-child td {
   font-weight: 700;
   font-size: 1.1rem;
-  color: var(--success);
+  color: var(--sales-success);
 }
 
 .input-error {
-  border-color: var(--danger) !important;
+  border-color: var(--sales-danger) !important;
   box-shadow: 0 0 0 0.25rem rgba(220, 53, 69, 0.25);
 }
 .input-error-message {
-  color: var(--danger);
+  color: var(--sales-danger);
   font-size: 0.875em;
   margin-top: 0.25rem;
 }
 
 .payment-card {
-  border-radius: var(--border-radius);
+  border-radius: var(--sales-border-radius);
   overflow: hidden;
   transition: all 0.3s;
   border: 1px solid #e0e6ed;

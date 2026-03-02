@@ -1,23 +1,23 @@
 :root{
-  --badge-font: 0.85rem;
-  --badge-pad: 0.30rem 0.65rem;
-  --badge-radius: 12px;
-  --gray:#495057; --info:#0c5460; --success:#155724; --danger:#721c24; --primary:#0056b3;
-  --ink:#212529; --ink-2:#495057; --item-bg:#f8f9fa; --item-bd:#dee2e6;
-  --valid-bg:#d4edda; --invalid-bg:#f8d7da;
+  --ship-badge-font: 0.85rem;
+  --ship-badge-pad: 0.30rem 0.65rem;
+  --ship-badge-radius: 12px;
+  --ship-gray:#495057; --ship-info:#0c5460; --ship-success:#155724; --ship-danger:#721c24; --ship-primary:#0056b3;
+  --ship-ink:#212529; --ship-ink-2:#495057; --ship-item-bg:#f8f9fa; --ship-item-bd:#dee2e6;
+  --ship-valid-bg:#d4edda; --ship-invalid-bg:#f8d7da;
 }
 
 .badge,
 [class^="badge-"], [class*=" badge-"]{
-  color:#fff; font-size:var(--badge-font); font-weight:600;
-  padding:var(--badge-pad); border-radius:var(--badge-radius);
+  color:#fff; font-size:var(--ship-badge-font); font-weight:600;
+  padding:var(--ship-badge-pad); border-radius:var(--ship-badge-radius);
 }
 
-.badge-draft, .badge-pending { background-color: var(--gray); }
-.badge-in_transit { background-color: var(--info); }
-.badge-arrived, .badge-delivered { background-color: var(--success); }
-.badge-cancelled { background-color: var(--danger); }
-.badge-created { background-color: var(--primary); }
+.badge-draft, .badge-pending { background-color: var(--ship-gray); }
+.badge-in_transit { background-color: var(--ship-info); }
+.badge-arrived, .badge-delivered { background-color: var(--ship-success); }
+.badge-cancelled { background-color: var(--ship-danger); }
+.badge-created { background-color: var(--ship-primary); }
 
 #shipmentsTable td,
 #shipmentsTable th{
@@ -31,13 +31,13 @@
 .item-entry{
   margin-bottom: .5rem;
   font-size: .95rem;
-  color: var(--ink);
+  color: var(--ship-ink);
 }
 
 .shipment-item,
 .shipment-partner{
-  background: var(--item-bg);
-  border: 1px solid var(--item-bd);
+  background: var(--ship-item-bg);
+  border: 1px solid var(--ship-item-bd);
   border-radius: 10px;
   padding: .75rem;
   margin-bottom: .75rem;
@@ -47,23 +47,23 @@
 .shipment-partner .form-label{
   font-weight: 600;
   font-size: .85rem;
-  color: var(--ink-2);
+  color: var(--ship-ink-2);
 }
 
 .shipment-item input:required:invalid,
 .shipment-partner input:required:invalid,
 .shipment-item select:required:invalid,
 .shipment-partner select:required:invalid{
-  border-color: var(--danger);
-  background-color: var(--invalid-bg);
+  border-color: var(--ship-danger);
+  background-color: var(--ship-invalid-bg);
 }
 
 .shipment-item input:required:valid,
 .shipment-partner input:required:valid,
 .shipment-item select:required:valid,
 .shipment-partner select:required:valid{
-  border-color: var(--success);
-  background-color: var(--valid-bg);
+  border-color: var(--ship-success);
+  background-color: var(--ship-valid-bg);
 }
 
 .select2-container{ width:100% !important; }

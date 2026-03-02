@@ -245,31 +245,22 @@
   </script>
   {% if system_settings.primary_color %}
   <style>
+    /* System Dynamic Colors - Root variables only to prevent UI breakage */
     :root {
       --primary-color: {{ system_settings.primary_color }};
+      --theme-primary: {{ system_settings.primary_color }};
+      /* Overriding Electric Theme primary with user choice if needed */
+      --primary-cyan: {{ system_settings.primary_color }};
     }
     
-    .btn-primary, .badge-primary, .bg-primary, .alert-primary {
-      background-color: {{ system_settings.primary_color }} !important;
-      border-color: {{ system_settings.primary_color }} !important;
+    /* Subtle overrides without !important to allow style.css to take precedence */
+    .btn-primary:not(.btn-electric) {
+      background-color: var(--primary-color);
+      border-color: var(--primary-color);
     }
     
     .text-primary {
-      color: {{ system_settings.primary_color }} !important;
-      background-color: transparent !important;
-    }
-    
-    .border-primary {
-      border-color: {{ system_settings.primary_color }} !important;
-    }
-    
-    .btn-primary:hover, .btn-primary:focus {
-      background-color: {{ system_settings.primary_color }} !important;
-      border-color: {{ system_settings.primary_color }} !important;
-    }
-
-    :root {
-      --theme-primary: {{ system_settings.primary_color }};
+      color: var(--primary-color);
     }
   </style>
   {% endif %}
@@ -1271,7 +1262,7 @@ function applySidebarPosition(position) {
   
   const breakpoint = getBreakpoint();
   const screenWidth = window.innerWidth;
-  let sidebarWidth = '280px';
+  let sidebarWidth = '260px';
   
   switch (breakpoint) {
     case 'mobile':
@@ -1281,13 +1272,13 @@ function applySidebarPosition(position) {
       sidebarWidth = '0px';
       break;
     case 'desktop':
-      sidebarWidth = '280px';
+      sidebarWidth = '260px';
       break;
     case 'large':
-      sidebarWidth = '300px';
+      sidebarWidth = '260px';
       break;
     case 'xlarge':
-      sidebarWidth = '320px';
+      sidebarWidth = '260px';
       break;
   }
   

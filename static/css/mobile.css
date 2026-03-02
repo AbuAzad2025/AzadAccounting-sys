@@ -1,6 +1,6 @@
 :root {
   --gm-navbar-height: 60px;
-  --gm-sidebar-width: 280px;
+  --gm-sidebar-width: 260px;
   --gm-gutter: 12px;
   --gm-bottom-nav-height: 64px;
 }
@@ -137,7 +137,7 @@ html[data-ui-mode="mobile"] .main-sidebar {
   top: var(--gm-navbar-height, 60px) !important;
   bottom: 0 !important;
   z-index: 1049 !important;
-  width: min(88vw, var(--gm-sidebar-width, 300px)) !important;
+  width: min(88vw, var(--gm-sidebar-width, 260px)) !important;
   max-width: 88vw !important;
   left: 0 !important;
   right: auto !important;
@@ -960,7 +960,7 @@ html[data-ui-mode="mobile"] .col-lg-10 {
     top: var(--gm-navbar-height, 60px) !important;
     bottom: 0 !important;
     z-index: 1049 !important;
-    width: min(88vw, var(--gm-sidebar-width, 300px)) !important;
+    width: min(88vw, var(--gm-sidebar-width, 260px)) !important;
     max-width: 88vw !important;
     left: 0 !important;
     right: auto !important;

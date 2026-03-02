@@ -1,29 +1,21 @@
+/* 
+   UI Base Framework - Core Utilities 
+   Cleaned and Optimized for Electric Dark Theme
+*/
+
+:root{
+  --ui-radius:14px;
+  --ui-radius-sm:10px;
+  --ui-sidebar-width:260px;
+}
+
 html,
 body{
   max-width:100%;
   overflow-x:hidden;
 }
 
-:root{
-  --ui-bg:#f4f6fb;
-  --ui-surface:#ffffff;
-  --ui-surface-2:#f8fafc;
-  --ui-border:rgba(15,23,42,.10);
-  --ui-text:#0f172a;
-  --ui-muted:rgba(15,23,42,.62);
-  --ui-shadow:0 10px 30px rgba(2,6,23,.08);
-  --ui-shadow-sm:0 6px 18px rgba(2,6,23,.10);
-  --ui-radius:14px;
-  --ui-radius-sm:10px;
-  --ui-primary:#2563eb;
-  --ui-sidebar-width:280px;
-}
-
-body{
-  background-color:var(--ui-bg);
-  color:var(--ui-text);
-  font-family:Tajawal, "Source Sans Pro", -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
-}
+/* Removed body color overrides to respect style.css */
 
 h1,h2,h3,h4,h5,h6{
   font-weight:800;
@@ -48,32 +40,10 @@ img{
 .opacity-75{opacity:.75!important;}
 .opacity-50{opacity:.5!important;}
 
-.gap-1{gap:.25rem!important;}
-.gap-2{gap:.5rem!important;}
-.gap-3{gap:1rem!important;}
-.gap-4{gap:1.5rem!important;}
-
-.ms-1{margin-left:.25rem!important;}
-.ms-2{margin-left:.5rem!important;}
-.ms-3{margin-left:1rem!important;}
-.ms-4{margin-left:1.5rem!important;}
-.me-1{margin-right:.25rem!important;}
-.me-2{margin-right:.5rem!important;}
-.me-3{margin-right:1rem!important;}
-.me-4{margin-right:1.5rem!important;}
-.ps-1{padding-left:.25rem!important;}
-.ps-2{padding-left:.5rem!important;}
-.ps-3{padding-left:1rem!important;}
-.ps-4{padding-left:1.5rem!important;}
-.pe-1{padding-right:.25rem!important;}
-.pe-2{padding-right:.5rem!important;}
-.pe-3{padding-right:1rem!important;}
-.pe-4{padding-right:1.5rem!important;}
-
-.row.g-2{margin-right:-.5rem;margin-left:-.5rem;}
-.row.g-2>[class^="col"],.row.g-2>[class*=" col"]{padding-right:.5rem;padding-left:.5rem;margin-bottom:1rem;}
-.row.g-3{margin-right:-.75rem;margin-left:-.75rem;}
-.row.g-3>[class^="col"],.row.g-3>[class*=" col"]{padding-right:.75rem;padding-left:.75rem;margin-bottom:1.25rem;}
+/* Bootstrap 5 Native Utilities are preferred for RTL. 
+   Removing hardcoded .ms-* and .me-* fixes from here. 
+   Removing .row.g-* fixes that might conflict with Bootstrap grid.
+*/
 
 .navbar-brand img,
 .company-logo-link img,
@@ -88,10 +58,10 @@ img{
 .main-header.navbar img{max-height:34px;width:auto;object-fit:contain;}
 .main-footer img{max-height:42px;width:auto;object-fit:contain;}
 
-.gm-navbar-dropdown{min-width:280px;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,0.12);background:#fff;}
-.gm-navbar-dropdown-item{color:#212529;font-weight:600;font-size:0.9375rem;}
-.gm-navbar-dropdown-section{color:#0056b3;font-weight:700;font-size:0.9375rem;background:#e7f3ff;padding:8px 12px;border-radius:8px;}
-.gm-navbar-dropdown-section-warn{color:#e67e22;background:#fff3cd;}
+.gm-navbar-dropdown{min-width:280px;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,0.12);background:var(--bg-dark-surface, #1f2937);}
+.gm-navbar-dropdown-item{color:var(--text-main, #fff);font-weight:600;font-size:0.9375rem;}
+.gm-navbar-dropdown-section{color:var(--primary-cyan, #06b6d4);font-weight:700;font-size:0.9375rem;background:rgba(6, 182, 212, 0.1);padding:8px 12px;border-radius:8px;}
+.gm-navbar-dropdown-section-warn{color:#e67e22;background:rgba(230, 126, 34, 0.1);}
 .gm-navbar-logout-btn{font-weight:600;font-size:0.9375rem;padding:10px;border-radius:8px;}
 
 .print-header-info .company-logo img,
@@ -108,25 +78,25 @@ img{
 }
 
 .main-header.navbar{
-  background:linear-gradient(90deg,var(--theme-primary, #0d6efd) 0%, #008cff 55%, #00c2ff 100%);
-  border-bottom:1px solid rgba(255,255,255,.18);
-  box-shadow:0 10px 26px rgba(2,6,23,.14);
+  background: var(--bg-glass, rgba(17, 24, 39, 0.95)) !important;
+  border-bottom: 1px solid var(--border-glass, rgba(255,255,255,0.15)) !important;
+  box-shadow: var(--shadow-glass) !important;
 }
 
 .navbar-info-center .badge{
   border-radius:999px;
   padding:6px 10px;
   font-weight:800;
-  border:1px solid rgba(255,255,255,.12);
-  background:rgba(255,255,255,.10);
-  color:rgba(255,255,255,.92);
+  border:1px solid var(--border-glass);
+  background:rgba(255,255,255,.05);
+  color:var(--text-main);
 }
 
 .navbar-info-center .badge span{color:inherit;}
 
 .nav-strong,
 .nav-strong i{
-  color:rgba(255,255,255,.92)!important;
+  color:var(--text-main)!important;
   font-weight:800!important;
 }
 
@@ -136,7 +106,7 @@ img{
 }
 
 .navbar-text{
-  color:rgba(255,255,255,.90)!important;
+  color:var(--text-main)!important;
   font-weight:800!important;
 }
 
@@ -168,16 +138,17 @@ img{
 .dropdown-item{
   border-radius:10px;
   margin:2px 8px;
-  color:rgba(15,23,42,.92)!important;
+  color:var(--text-main)!important;
   font-weight:700!important;
   font-size:15px!important;
-  background-color:#f8f9fa!important;
-  border:1px solid #e9ecef;
+  background-color:transparent!important;
+  border:1px solid transparent;
+  transition: all 0.2s ease;
 }
 
 .dropdown-item:hover{
-  background-color:var(--theme-primary, #0d6efd)!important;
-  transform:translateX(5px);
+  background-color:var(--primary-cyan, #06b6d4)!important;
+  transform:translateX(-5px);
   color:#ffffff!important;
   border-color:rgba(0,0,0,.08)!important;
 }
@@ -188,15 +159,17 @@ img{
 
 .dropdown-item:active,
 .dropdown-item:focus{
-  background-color:var(--theme-primary, #0d6efd)!important;
+  background-color:var(--primary-cyan, #06b6d4)!important;
   color:#ffffff!important;
 }
 
 .dropdown-header{
   font-weight:900!important;
-  font-size:15px!important;
-  color:rgba(15,23,42,.92)!important;
+  font-size:13px!important;
+  color:var(--text-muted)!important;
   margin:5px 8px!important;
+  text-transform: uppercase;
+  letter-spacing: 1px;
 }
 
 .dropdown-menu .text-muted{
@@ -224,15 +197,10 @@ img{
 
 .content-wrapper .container-fluid{
   padding-left:12px!important;
-  padding-right:12px!important;
-}
-
-@media (min-width:992px){
-  .content-wrapper .container-fluid{
-    padding-left:16px!important;
-    padding-right:16px!important;
-  }
-}
+/* 
+   UI Utilities - Part 2
+   Removing conflicting layout logic handled by style.css 
+*/
 
 .dropdown-menu,
 .navbar .dropdown-menu,
@@ -241,59 +209,17 @@ img{
   position:absolute!important;
 }
 
+/* Sidebar width and Z-index are critical, kept consistent with style.css */
 .main-sidebar{
   width:var(--ui-sidebar-width)!important;
-  z-index:1000!important;
+  z-index:1040!important;
 }
 
-.content-wrapper{
-  margin-left:var(--ui-sidebar-width)!important;
-  margin-right:0!important;
-  width:calc(100% - var(--ui-sidebar-width))!important;
-  max-width:calc(100% - var(--ui-sidebar-width))!important;
-}
+/* Layout margins are handled in style.css for better RTL support. 
+   Removing conflicting .content-wrapper, .main-footer, .main-header overrides here.
+*/
 
-.main-footer{
-  margin-left:var(--ui-sidebar-width)!important;
-  margin-right:0!important;
-  width:calc(100% - var(--ui-sidebar-width))!important;
-}
-
-.main-header.navbar{
-  z-index:1030!important;
-  margin-left:var(--ui-sidebar-width)!important;
-  margin-right:0!important;
-  width:calc(100% - var(--ui-sidebar-width))!important;
-}
-
-body[data-sidebar-position="left"] .main-sidebar{
-  right:auto!important;
-  left:0!important;
-}
-
-body[data-sidebar-position="left"] .content-wrapper,
-body[data-sidebar-position="left"] .main-footer,
-body[data-sidebar-position="left"] .main-header.navbar{
-  margin-left:var(--ui-sidebar-width)!important;
-  margin-right:0!important;
-  width:calc(100% - var(--ui-sidebar-width))!important;
-  max-width:calc(100% - var(--ui-sidebar-width))!important;
-}
-
-body[data-sidebar-position="right"] .main-sidebar{
-  left:auto!important;
-  right:0!important;
-}
-
-body[data-sidebar-position="right"] .content-wrapper,
-body[data-sidebar-position="right"] .main-footer,
-body[data-sidebar-position="right"] .main-header.navbar{
-  margin-left:0!important;
-  margin-right:var(--ui-sidebar-width)!important;
-  width:calc(100% - var(--ui-sidebar-width))!important;
-  max-width:calc(100% - var(--ui-sidebar-width))!important;
-}
-
+/* Sidebar Visibility State Classes - kept as utilities */
 html body.sidebar-hidden .main-sidebar,
 html body.sidebar-hidden.sidebar-mini .main-sidebar,
 html body.sidebar-hidden.sidebar-collapse .main-sidebar,
@@ -320,25 +246,18 @@ body.sidebar-hidden .sidebar-overlay{
   display:none!important;
 }
 
-.sidebar{
-  direction:rtl;
-}
-
-.nav-sidebar>.nav-item .nav-icon{
-  margin-left:0;
-  margin-right:.5rem;
-}
-
+/* Select2 Customization - Kept as it enhances UI */
 .select2-container .select2-selection--single{
   height:calc(2.25rem + 2px);
-  border:1px solid #ced4da;
+  border:1px solid rgba(255,255,255,0.1);
   border-radius:12px;
   transition:all .15s ease-in-out;
+  background-color: var(--bg-dark-card, #1f2937);
 }
 
 .select2-container--default .select2-selection--single .select2-selection__rendered{
   line-height:2.25rem;
-  color:#495057;
+  color:var(--text-main, #fff);
   font-weight:600;
 }
 
@@ -348,10 +267,11 @@ body.sidebar-hidden .sidebar-overlay{
 }
 
 .select2-container--default .select2-selection--single:focus{
-  border-color:var(--theme-primary, #0d6efd);
-  box-shadow:0 0 0 .2rem rgba(13,110,253,.20);
+  border-color:var(--primary-cyan, #06b6d4);
+  box-shadow:0 0 0 .2rem rgba(6, 182, 212, 0.20);
 }
 
+/* Utilities: Back to Top & Scroll Indicator */
 #back-to-top{
   position:fixed;
   bottom:20px;
@@ -359,7 +279,7 @@ body.sidebar-hidden .sidebar-overlay{
   width:50px;
   height:50px;
   border-radius:50%;
-  background:var(--theme-primary, #0d6efd);
+  background:var(--primary-cyan, #06b6d4);
   color:#fff;
   border:none;
   box-shadow:0 4px 12px rgba(0,0,0,.20);
@@ -381,7 +301,7 @@ body.sidebar-hidden .sidebar-overlay{
   position:sticky;
   top:0;
   height:3px;
-  background:var(--theme-primary, #0d6efd);
+  background:var(--primary-cyan, #06b6d4);
   transform-origin:left;
   transition:transform .1s ease;
   z-index:10;
@@ -389,7 +309,7 @@ body.sidebar-hidden .sidebar-overlay{
 }
 
 *:focus-visible{
-  outline:2px solid var(--theme-primary, #0d6efd);
+  outline:2px solid var(--primary-cyan, #06b6d4);
   outline-offset:2px;
 }
 
@@ -402,17 +322,7 @@ body.sidebar-hidden .sidebar-overlay{
   letter-spacing:-.01em;
 }
 
-.card{
-  border-radius:var(--ui-radius);
-  border:1px solid var(--ui-border);
-  box-shadow:var(--ui-shadow-sm);
-}
-
-.card-header{
-  border-bottom:1px solid rgba(15,23,42,.08);
-  border-top-left-radius:var(--ui-radius);
-  border-top-right-radius:var(--ui-radius);
-}
+/* Removed conflicting .card styles to let style.css handle Glassmorphism */
 
 .btn{
   border-radius:12px;
@@ -428,15 +338,22 @@ body.sidebar-hidden .sidebar-overlay{
 .custom-select,
 .select2-container .select2-selection--single{
   border-radius:12px;
+  background-color: var(--bg-dark-card, #1f2937);
+  border: 1px solid var(--border-glass, rgba(255,255,255,0.1));
+  color: var(--text-main, #fff);
 }
 
-.main-sidebar{
-  background:linear-gradient(180deg,#ff6a88 0%, #ff99ac 22%, #6dd5ed 62%, #5ee7a0 100%)!important;
+.form-control:focus {
+    background-color: var(--bg-dark-deep, #111827);
+    color: #fff;
+    border-color: var(--primary-cyan, #06b6d4);
 }
+
+/* Removed gradient background for sidebar to respect Dark Theme in style.css */
 
 .garage-brand-area{
   padding:14px 14px 10px;
-  border-bottom:1px solid rgba(0,0,0,.10);
+  border-bottom:1px solid rgba(255,255,255,.10);
 }
 
 .garage-brand-link{
@@ -451,75 +368,26 @@ body.sidebar-hidden .sidebar-overlay{
   min-width:0;
   font-weight:900;
   letter-spacing:.2px;
-  color:rgba(11,17,32,.92)!important;
+  color:var(--text-main, #fff)!important;
   line-height:1.2;
   overflow:hidden;
   text-overflow:ellipsis;
   white-space:nowrap;
-  text-shadow:0 2px 10px rgba(2,6,23,.18);
 }
 
-.main-sidebar .user-panel a{
-  color:rgba(11,17,32,.92)!important;
-  font-weight:900;
-}
-
-.main-sidebar .nav-sidebar .nav-link{
-  color:rgba(11,17,32,.92)!important;
-  font-weight:900;
-  font-size:.95rem;
-  line-height:1.35;
-  border-radius:12px;
-  margin:6px 10px;
-  background:rgba(255,255,255,.26);
-  border:1px solid rgba(255,255,255,.26);
-  backdrop-filter:blur(8px);
-}
-
-.main-sidebar .nav-sidebar .nav-link p{margin:0;}
-
-.main-sidebar .nav-sidebar .nav-link .nav-icon{
-  color:inherit;
-  opacity:.95;
-}
-
-.main-sidebar .nav-sidebar .nav-link:hover{
-  background:rgba(255,255,255,.38)!important;
-  border-color:rgba(255,255,255,.42);
-  transform:translateY(-1px);
-}
-
-.main-sidebar .nav-sidebar .nav-link.active{
-  background:linear-gradient(90deg, rgba(13,110,253,.96) 0%, rgba(0,140,255,.92) 60%, rgba(0,194,255,.86) 100%)!important;
-  color:rgba(255,255,255,.98)!important;
-  border-color:rgba(255,255,255,.28);
-  box-shadow:0 10px 24px rgba(13,110,253,.26);
-}
-
-.main-sidebar .nav-sidebar .nav-link.active .nav-icon{color:#fff!important;}
-
-.main-sidebar .nav-treeview>.nav-item>.nav-link{
-  color:rgba(11,17,32,.90)!important;
-  font-weight:800;
-  background:rgba(255,255,255,.22);
-  border:1px solid rgba(255,255,255,.20);
-}
-
-.main-sidebar .nav-treeview>.nav-item>.nav-link:hover{
-  background:rgba(255,255,255,.34)!important;
-}
+/* Removed conflicting sidebar nav styles to let style.css handle them */
 
 .dashboard-chart-card{
   border-radius:var(--ui-radius);
-  border:1px solid var(--ui-border);
-  box-shadow:var(--ui-shadow-sm);
-  background:var(--ui-surface);
+  border:1px solid rgba(255,255,255,0.1);
+  box-shadow:var(--shadow-glass);
+  background:var(--bg-dark-card);
   overflow:hidden;
 }
 
 .dashboard-stats-card{
   border-radius:var(--ui-radius);
-  box-shadow:var(--ui-shadow-sm);
+  box-shadow:var(--shadow-glass);
   overflow:hidden;
 }
 
