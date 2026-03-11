@@ -1,4 +1,3 @@
-
 # -*- coding: utf-8 -*-
 from flask import Blueprint, flash, redirect, render_template, url_for, abort, request, jsonify
 from flask_login import login_required, current_user
@@ -10,10 +9,11 @@ from extensions import db
 from forms import PermissionForm
 from models import Permission, AuditLog
 import utils
+from permissions_config.enums import SystemPermissions
+from permissions_config.permissions import PermissionsRegistry
 
 permissions_bp = Blueprint("permissions", __name__, url_prefix="/permissions", template_folder="templates/permissions")
 
-from permissions_config.permissions import PermissionsRegistry
 
 _RESERVED_CODES = PermissionsRegistry.get_protected_permissions()
 
@@ -92,7 +92,7 @@ def _parse_aliases(raw: str | None):
 
 @permissions_bp.route("/", methods=["GET"], endpoint="list")
 @login_required
-@utils.permission_required("manage_permissions")
+@utils.permission_required(SystemPermissions.MANAGE_PERMISSIONS)
 def list_permissions():
     search = (request.args.get("search") or "").strip()
     q = Permission.query
@@ -107,7 +107,7 @@ def list_permissions():
 
 @permissions_bp.route("/create", methods=["GET", "POST"], endpoint="create")
 @login_required
-@utils.permission_required("manage_permissions")
+@utils.permission_required(SystemPermissions.MANAGE_PERMISSIONS)
 def create_permission():
     form = PermissionForm()
     if form.validate_on_submit():
@@ -157,7 +157,7 @@ def create_permission():
 
 @permissions_bp.route("/<int:permission_id>/edit", methods=["GET", "POST"], endpoint="edit")
 @login_required
-@utils.permission_required("manage_permissions")
+@utils.permission_required(SystemPermissions.MANAGE_PERMISSIONS)
 def edit_permission(permission_id):
     perm = _get_or_404(Permission, permission_id)
     form = PermissionForm(obj=perm)
@@ -209,7 +209,7 @@ def edit_permission(permission_id):
 
 @permissions_bp.route("/<int:permission_id>/delete", methods=["POST"], endpoint="delete")
 @login_required
-@utils.permission_required("manage_permissions")
+@utils.permission_required(SystemPermissions.MANAGE_PERMISSIONS)
 def delete_permission(permission_id):
     perm = _get_or_404(Permission, permission_id)
     if (perm.code and _normalize_code(perm.code) in _RESERVED_CODES) or (
@@ -270,31 +270,30 @@ def delete_permission(permission_id):
 
 @permissions_bp.route("/matrix", methods=["GET"], endpoint="matrix")
 @login_required
-@utils.permission_required("manage_permissions")
+@utils.permission_required(SystemPermissions.MANAGE_PERMISSIONS)
 def permissions_matrix():
-    from permissions_config.permissions import PermissionsRegistry
     mapping = {
-        "shop": {"read": "view_shop", "write": "manage_shop", "public_read": True},
-        "users": {"read": "manage_users", "write": "manage_users"},
-        "customers": {"read": "manage_customers", "write": "manage_customers"},
-        "vendors": {"read": "manage_vendors", "write": "manage_vendors"},
-        "shipments": {"read": "manage_shipments", "write": "manage_shipments"},
-        "warehouse": {"read": "view_warehouses", "write": "manage_warehouses"},
-        "payments": {"read": "manage_payments", "write": "manage_payments"},
-        "expenses": {"read": "manage_expenses", "write": "manage_expenses"},
-        "sales": {"read": "manage_sales", "write": "manage_sales"},
-        "service": {"read": "manage_service", "write": "manage_service"},
-        "reports": {"read": "view_reports", "write": "manage_reports"},
-        "roles": {"read": "manage_roles", "write": "manage_roles"},
-        "permissions": {"read": "manage_permissions", "write": "manage_permissions"},
-        "parts": {"read": "view_parts", "write": "manage_inventory"},
-        "admin_reports": {"read": "view_reports", "write": "manage_reports"},
-        "api": {"read": "access_api", "write": "manage_api"},
-        "barcode": {"read": "view_parts"},
-        "barcode_scanner": {"read": "view_barcode", "write": "manage_barcode"},
-        "ledger": {"read": "manage_ledger", "write": "manage_ledger"},
-        "currencies": {"read": "manage_currencies", "write": "manage_currencies"},
-        "checks": {"read": "view_payments", "write": "manage_payments"},
+        "shop": {"read": SystemPermissions.VIEW_SHOP, "write": SystemPermissions.MANAGE_SHOP, "public_read": True},
+        "users": {"read": SystemPermissions.MANAGE_USERS, "write": SystemPermissions.MANAGE_USERS},
+        "customers": {"read": SystemPermissions.MANAGE_CUSTOMERS, "write": SystemPermissions.MANAGE_CUSTOMERS},
+        "vendors": {"read": SystemPermissions.MANAGE_VENDORS, "write": SystemPermissions.MANAGE_VENDORS},
+        "shipments": {"read": SystemPermissions.MANAGE_SHIPMENTS, "write": SystemPermissions.MANAGE_SHIPMENTS},
+        "warehouse": {"read": SystemPermissions.VIEW_WAREHOUSES, "write": SystemPermissions.MANAGE_WAREHOUSES},
+        "payments": {"read": SystemPermissions.MANAGE_PAYMENTS, "write": SystemPermissions.MANAGE_PAYMENTS},
+        "expenses": {"read": SystemPermissions.MANAGE_EXPENSES, "write": SystemPermissions.MANAGE_EXPENSES},
+        "sales": {"read": SystemPermissions.MANAGE_SALES, "write": SystemPermissions.MANAGE_SALES},
+        "service": {"read": SystemPermissions.MANAGE_SERVICE, "write": SystemPermissions.MANAGE_SERVICE},
+        "reports": {"read": SystemPermissions.VIEW_REPORTS, "write": SystemPermissions.MANAGE_REPORTS},
+        "roles": {"read": SystemPermissions.MANAGE_ROLES, "write": SystemPermissions.MANAGE_ROLES},
+        "permissions": {"read": SystemPermissions.MANAGE_PERMISSIONS, "write": SystemPermissions.MANAGE_PERMISSIONS},
+        "parts": {"read": SystemPermissions.VIEW_PARTS, "write": SystemPermissions.MANAGE_INVENTORY},
+        "admin_reports": {"read": SystemPermissions.VIEW_REPORTS, "write": SystemPermissions.MANAGE_REPORTS},
+        "api": {"read": SystemPermissions.ACCESS_API, "write": SystemPermissions.MANAGE_API},
+        "barcode": {"read": SystemPermissions.VIEW_PARTS},
+        "barcode_scanner": {"read": SystemPermissions.VIEW_BARCODE, "write": SystemPermissions.MANAGE_BARCODE},
+        "ledger": {"read": SystemPermissions.MANAGE_LEDGER, "write": SystemPermissions.MANAGE_LEDGER},
+        "currencies": {"read": SystemPermissions.MANAGE_CURRENCIES, "write": SystemPermissions.MANAGE_CURRENCIES},
+        "checks": {"read": SystemPermissions.MANAGE_PAYMENTS, "write": SystemPermissions.MANAGE_PAYMENTS},
     }
     roles = {}
     for role_name in PermissionsRegistry.ROLES.keys():

@@ -8,9 +8,7 @@
         if (existing) return;
         window.__SOCKET_IO_SCRIPT_LOADING__ = true;
         const script = document.createElement('script');
-        script.src = 'https://cdn.socket.io/4.5.4/socket.io.min.js';
-        script.integrity = 'sha384-/KNQL8Nu5gCHLqwqfQjA689Hhoqgi2S84SNUxC3roTe4EhJ9AfLkp8QiQcU8AMzI';
-        script.crossOrigin = 'anonymous';
+        script.src = '/socket.io/socket.io.js';
         script.defer = true;
         script.setAttribute('data-socket-io-loader', '1');
         script.onload = function() {

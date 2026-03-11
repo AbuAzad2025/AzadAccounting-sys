@@ -182,6 +182,11 @@ role_permissions = db.Table(
     db.Column("permission_id", db.Integer, db.ForeignKey("permissions.id"), primary_key=True),
 )
 
+import constants
+from constants import (
+    DEFAULT_CURRENCY, CURRENCY_CHOICES, CENT, TWOPLACES, ZERO_PLACES
+)
+
 def sa_str_enum(enum_or_values, name=None):
     native = False
     if isinstance(enum_or_values, type) and issubclass(enum_or_values, enum.Enum):
@@ -196,18 +201,6 @@ def sa_str_enum(enum_or_values, name=None):
         vals = [str(enum_or_values)]
     return SAEnum(*vals, name=name, native_enum=native)
 
-CURRENCY_CHOICES = [
-    ("ILS", "شيكل إسرائيلي"), 
-    ("USD", "دولار أمريكي"), 
-    ("EUR", "يورو"), 
-    ("JOD", "دينار أردني"), 
-    ("AED", "درهم إماراتي"), 
-    ("SAR", "ريال سعودي"),
-    ("EGP", "جنيه مصري"),
-    ("GBP", "جنيه إسترليني")
-]
-CENT = Decimal("0.01")
-TWOPLACES = Decimal("0.01")
 TWO = TWOPLACES
 
 def D(x):
@@ -243,16 +236,24 @@ class PaymentMethod(str, enum.Enum):
     CARD = "card"
     CHEQUE = "cheque"
     ONLINE = "online"
+    # Added uppercase variants for compatibility
+    CASH_UPPER = "CASH"
+    BANK_UPPER = "BANK"
+    CARD_UPPER = "CARD"
+    CHEQUE_UPPER = "CHEQUE"
+    ONLINE_UPPER = "ONLINE"
 
     @property
     def label(self):
-        return {
+        val = self.value.lower()
+        mapping = {
             "cash": "نقدًا",
             "bank": "تحويل بنكي",
             "card": "بطاقة",
             "cheque": "شيك",
             "online": "أونلاين",
-        }[self.value]
+        }
+        return mapping.get(val, val)
 
 
 class PaymentStatus(str, enum.Enum):
@@ -305,14 +306,44 @@ class PaymentProgress(str, enum.Enum):
     PARTIAL = "PARTIAL"
     PAID = "PAID"
     REFUNDED = "REFUNDED"
+    COMPLETED = "COMPLETED"  # Added for compatibility
+
+
+class TimesheetStatus(str, enum.Enum):
+    DRAFT = "DRAFT"
+    SUBMITTED = "SUBMITTED"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
 
     @property
     def label(self):
         return {
+            "DRAFT": "مسودة",
+            "SUBMITTED": "تم التقديم",
+            "APPROVED": "موافق عليه",
+            "REJECTED": "مرفوض",
+        }[self.value]
+
+
+class TaskStatus(str, enum.Enum):
+    TODO = "TODO"
+    PENDING = "PENDING"
+    ASSIGNED = "ASSIGNED"
+    IN_PROGRESS = "IN_PROGRESS"
+    COMPLETED = "COMPLETED"
+    ON_HOLD = "ON_HOLD"
+    CANCELLED = "CANCELLED"
+
+    @property
+    def label(self):
+        return {
+            "TODO": "للقيام به",
             "PENDING": "قيد الانتظار",
-            "PARTIAL": "مدفوعة جزئيًا",
-            "PAID": "مدفوعة",
-            "REFUNDED": "مسترجعة",
+            "ASSIGNED": "تم التعيين",
+            "IN_PROGRESS": "قيد التنفيذ",
+            "COMPLETED": "مكتمل",
+            "ON_HOLD": "معلق",
+            "CANCELLED": "ملغي",
         }[self.value]
 
 
@@ -322,24 +353,27 @@ class SaleStatus(str, enum.Enum):
     COMPLETED = "COMPLETED"  # للتوافق مع البيانات القديمة
     CANCELLED = "CANCELLED"
     REFUNDED = "REFUNDED"
+    RETURNED = "RETURNED"
 
     @property
     def label(self):
         return {
             "DRAFT": "مسودة",
             "CONFIRMED": "مؤكدة",
-            "completed": "مكتملة",  # للتوافق مع البيانات القديمة
+            "COMPLETED": "مكتملة",  # للتوافق مع البيانات القديمة
             "CANCELLED": "ملغاة",
             "REFUNDED": "مسترجعة",
+            "RETURNED": "مرتجعة",
         }[self.value]
 
 
 _ALLOWED_SALE_TRANSITIONS = {
-    "DRAFT": {"CONFIRMED", "CANCELLED"},
-    "CONFIRMED": {"CANCELLED", "REFUNDED"},
-    "completed": {"CANCELLED", "REFUNDED"},  # للتوافق مع البيانات القديمة
-    "CANCELLED": set(),
-    "REFUNDED": set(),
+    SaleStatus.DRAFT.value: {SaleStatus.CONFIRMED.value, SaleStatus.CANCELLED.value},
+    SaleStatus.CONFIRMED.value: {SaleStatus.CANCELLED.value, SaleStatus.REFUNDED.value, SaleStatus.RETURNED.value},
+    SaleStatus.COMPLETED.value: {SaleStatus.CANCELLED.value, SaleStatus.REFUNDED.value, SaleStatus.RETURNED.value},  # للتوافق مع البيانات القديمة
+    SaleStatus.CANCELLED.value: set(),
+    SaleStatus.REFUNDED.value: set(),
+    SaleStatus.RETURNED.value: set(),
 }
 
 
@@ -350,6 +384,7 @@ class ServiceStatus(str, enum.Enum):
     COMPLETED = "COMPLETED"
     CANCELLED = "CANCELLED"
     ON_HOLD = "ON_HOLD"
+    DELIVERED = "DELIVERED"
 
     @property
     def label(self):
@@ -360,6 +395,7 @@ class ServiceStatus(str, enum.Enum):
             "COMPLETED": "مكتملة",
             "CANCELLED": "ملغاة",
             "ON_HOLD": "معلقة",
+            "DELIVERED": "تم التسليم",
         }[self.value]
 
 
@@ -393,6 +429,36 @@ class TransferDirection(str, enum.Enum):
         }[self.value]
 
 
+class OnlinePaymentStatus(str, enum.Enum):
+    PENDING = "PENDING"
+    SUCCESS = "SUCCESS"
+    FAILED = "FAILED"
+    REFUNDED = "REFUNDED"
+
+    @property
+    def label(self):
+        return {
+            "PENDING": "قيد الانتظار",
+            "SUCCESS": "ناجحة",
+            "FAILED": "فاشلة",
+            "REFUNDED": "مسترجعة",
+        }[self.value]
+
+
+class OnlineCartStatus(str, enum.Enum):
+    ACTIVE = "ACTIVE"
+    ABANDONED = "ABANDONED"
+    CONVERTED = "CONVERTED"
+
+    @property
+    def label(self):
+        return {
+            "ACTIVE": "نشطة",
+            "ABANDONED": "مهجورة",
+            "CONVERTED": "محولة",
+        }[self.value]
+
+
 class PreOrderStatus(str, enum.Enum):
     PENDING = "PENDING"
     CONFIRMED = "CONFIRMED"
@@ -409,12 +475,28 @@ class PreOrderStatus(str, enum.Enum):
         }[self.value]
 
 
+class CustomerCategory(str, enum.Enum):
+    NORMAL = "عادي"
+    GOLD = "ذهبي"
+    PLATINUM = "بلاتيني"
+
+    @property
+    def label(self):
+        return {
+            "عادي": "عادي",
+            "ذهبي": "ذهبي",
+            "بلاتيني": "بلاتيني",
+        }[self.value]
+
+
 class WarehouseType(str, enum.Enum):
     MAIN = "MAIN"
     PARTNER = "PARTNER"
     INVENTORY = "INVENTORY"
     EXCHANGE = "EXCHANGE"
     ONLINE = "ONLINE"
+    TEMP = "TEMP"
+    OUTLET = "OUTLET"
 
     @property
     def label(self):
@@ -424,6 +506,8 @@ class WarehouseType(str, enum.Enum):
             "INVENTORY": "ملكيتي",
             "EXCHANGE": "تبادل",
             "ONLINE": "أونلاين",
+            "TEMP": "مؤقت",
+            "OUTLET": "منفذ بيع",
         }[self.value]
 
 
@@ -537,6 +621,7 @@ class ProductCondition(str, enum.Enum):
 
 class ShipmentStatus(str, enum.Enum):
     DRAFT = "DRAFT"
+    CREATED = "CREATED"
     PENDING = "PENDING"
     IN_TRANSIT = "IN_TRANSIT"
     IN_CUSTOMS = "IN_CUSTOMS"
@@ -549,6 +634,7 @@ class ShipmentStatus(str, enum.Enum):
     def label(self):
         return {
             "DRAFT": "مسودة",
+            "CREATED": "تم الإنشاء",
             "PENDING": "قيد الانتظار",
             "IN_TRANSIT": "قيد النقل",
             "IN_CUSTOMS": "في الجمارك",
@@ -562,6 +648,7 @@ class ShipmentStatus(str, enum.Enum):
     def color(self):
         return {
             "DRAFT": "secondary",
+            "CREATED": "primary",
             "PENDING": "warning",
             "IN_TRANSIT": "info",
             "IN_CUSTOMS": "primary",
@@ -575,6 +662,7 @@ class ShipmentStatus(str, enum.Enum):
     def icon(self):
         return {
             "DRAFT": "fa-edit",
+            "CREATED": "fa-plus-circle",
             "PENDING": "fa-clock",
             "IN_TRANSIT": "fa-truck",
             "IN_CUSTOMS": "fa-building",
@@ -735,7 +823,7 @@ class SystemSettings(db.Model):
 
     @classmethod
     def get_setting(cls, key, default=None):
-        """Get a system setting value"""
+        """Get a system setting value with transaction safety"""
         try:
             from extensions import cache
             cache_key = f"system_setting_{key}"
@@ -745,7 +833,18 @@ class SystemSettings(db.Model):
         except Exception:
             pass
         
-        setting = cls.query.filter_by(key=key).first()
+        try:
+            setting = cls.query.filter_by(key=key).first()
+        except Exception as e:
+            # Handle failed transactions gracefully - Stronger Catch
+            try:
+                # Always rollback on any DB error here to be safe
+                db.session.rollback()
+                setting = cls.query.filter_by(key=key).first()
+            except Exception:
+                # If everything fails, return default to keep system running
+                return default
+
         if not setting:
             return default
         
@@ -1012,6 +1111,25 @@ class ExchangeRate(db.Model):
     __table_args__ = (
         db.UniqueConstraint("base_code", "quote_code", "valid_from", name="uq_fx_pair_from"),
     )
+
+class BlockedIP(db.Model):
+    __tablename__ = 'blocked_ips'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    ip = db.Column(db.String(50), unique=True, nullable=False, index=True)
+    reason = db.Column(db.String(255))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    expires_at = db.Column(db.DateTime, nullable=True)
+    blocked_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+
+class BlockedCountry(db.Model):
+    __tablename__ = 'blocked_countries'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    country_code = db.Column(db.String(2), unique=True, nullable=False, index=True)
+    reason = db.Column(db.String(255))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    blocked_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
 
 def _currency_codes_from_db() -> set[str]:
     try:
@@ -2121,7 +2239,7 @@ class Customer(db.Model, TimestampMixin, AuditMixin, UserMixin):
 
     @validates("currency")
     def _v_currency(self, _, v):
-        return (v or "ILS").upper()
+        return (v or DEFAULT_CURRENCY).upper()
 
     @validates("discount_rate")
     def _v_discount_rate(self, _, v):
@@ -2184,11 +2302,11 @@ class Customer(db.Model, TimestampMixin, AuditMixin, UserMixin):
         total = Decimal('0.00')
         for p in payments:
             amt = Decimal(str(p.total_amount or 0))
-            if p.currency == "ILS":
+            if p.currency == DEFAULT_CURRENCY:
                 total += amt
             else:
                 try:
-                    total += convert_amount(amt, p.currency, "ILS", p.payment_date)
+                    total += convert_amount(amt, p.currency, DEFAULT_CURRENCY, p.payment_date)
                 except Exception:
                     pass
         
@@ -2394,7 +2512,7 @@ def _customer_opening_balance_gl(mapper, connection, target: "Customer"):
             source_type="CUSTOMER",
             source_id=target.id,
             purpose="OPENING_BALANCE",
-            currency="ILS",
+            currency=DEFAULT_CURRENCY,
             memo=memo,
             entries=entries,
             ref=f"OB-CUST-{target.id}",
@@ -2415,7 +2533,7 @@ def _customer_enqueue_balance_update(mapper, connection, target: "Customer"):
         pass
 
 
-def _ensure_customer_for_counterparty(connection, *, name, phone, whatsapp=None, email=None, address=None, currency="ILS", source_label=None, source_id=None):
+def _ensure_customer_for_counterparty(connection, *, name, phone, whatsapp=None, email=None, address=None, currency=DEFAULT_CURRENCY, source_label=None, source_id=None):
     from datetime import datetime
     from sqlalchemy import insert as sa_insert, select as sa_select, func as sa_func
     from sqlalchemy.exc import IntegrityError
@@ -2459,7 +2577,7 @@ def _ensure_customer_for_counterparty(connection, *, name, phone, whatsapp=None,
             email=mail or None,
             address=trimmed_address,
             category="عادي",
-            currency=(currency or "ILS").upper(),
+            currency=(currency or DEFAULT_CURRENCY).upper(),
             is_active=True,
             notes=note_text,
         )
@@ -2492,7 +2610,7 @@ class Supplier(db.Model, TimestampMixin, AuditMixin):
     address = db.Column(db.String(200))
     notes = db.Column(db.Text)
     payment_terms = db.Column(db.String(50))
-    currency = db.Column(db.String(10), default="ILS", nullable=False, server_default=sa_text("'ILS'"))
+    currency = db.Column(db.String(10), default=DEFAULT_CURRENCY, nullable=False, server_default=sa_text(f"'{DEFAULT_CURRENCY}'"))
     opening_balance = db.Column(db.Numeric(12, 2), default=0, nullable=False, server_default=sa_text("0"), comment="الرصيد الافتتاحي (موجب=له رصيد عندنا، سالب=لنا رصيد عنده)")
     
     current_balance = Column(Numeric(12, 2), default=0, nullable=False, server_default=sa_text("0"), index=True, comment="الرصيد الحالي المحدث")
@@ -2541,7 +2659,7 @@ class Supplier(db.Model, TimestampMixin, AuditMixin):
 
     @validates("currency")
     def _v_currency(self, _, v):
-        return (v or "ILS").upper()
+        return (v or DEFAULT_CURRENCY).upper()
 
     @validates("name", "contact", "address", "notes", "payment_terms", "phone", "identity_number")
     def _v_strip(self, _, v):
@@ -2560,11 +2678,11 @@ class Supplier(db.Model, TimestampMixin, AuditMixin):
         direct = Decimal('0.00')
         for p in direct_payments:
             amt = Decimal(str(p.total_amount or 0))
-            if p.currency == "ILS":
+            if p.currency == DEFAULT_CURRENCY:
                 direct += amt
             else:
                 try:
-                    direct += convert_amount(amt, p.currency, "ILS", p.payment_date)
+                    direct += convert_amount(amt, p.currency, DEFAULT_CURRENCY, p.payment_date)
                 except Exception:
                     try:
                         db.session.rollback()
@@ -2581,11 +2699,11 @@ class Supplier(db.Model, TimestampMixin, AuditMixin):
         via_loans = Decimal('0.00')
         for p in via_loans_payments:
             amt = Decimal(str(p.total_amount or 0))
-            if p.currency == "ILS":
+            if p.currency == DEFAULT_CURRENCY:
                 via_loans += amt
             else:
                 try:
-                    via_loans += convert_amount(amt, p.currency, "ILS", p.payment_date)
+                    via_loans += convert_amount(amt, p.currency, DEFAULT_CURRENCY, p.payment_date)
                 except Exception:
                     try:
                         db.session.rollback()
@@ -2601,11 +2719,11 @@ class Supplier(db.Model, TimestampMixin, AuditMixin):
         expenses_total = Decimal('0.00')
         for exp in expenses:
             amt = Decimal(str(exp.amount or 0))
-            if exp.currency == "ILS":
+            if exp.currency == DEFAULT_CURRENCY:
                 expenses_total += amt
             else:
                 try:
-                    expenses_total += convert_amount(amt, exp.currency, "ILS", exp.date)
+                    expenses_total += convert_amount(amt, exp.currency, DEFAULT_CURRENCY, exp.date)
                 except Exception:
                     try:
                         db.session.rollback()
@@ -2700,12 +2818,12 @@ def supplier_after_insert_create_customer(mapper, connection, target):
 @event.listens_for(Supplier, "before_insert")
 def _supplier_before_insert(_m, _c, t: Supplier):
     t.email = (t.email or "").strip().lower() or None
-    t.currency = (t.currency or "ILS").upper()
+    t.currency = (t.currency or DEFAULT_CURRENCY).upper()
 
 @event.listens_for(Supplier, "before_update")
 def _supplier_before_update(_m, _c, t: Supplier):
     t.email = (t.email or "").strip().lower() or None
-    t.currency = (t.currency or "ILS").upper()
+    t.currency = (t.currency or DEFAULT_CURRENCY).upper()
 
 
 @event.listens_for(Supplier, "after_insert")
@@ -2747,7 +2865,7 @@ def _supplier_opening_balance_gl(mapper, connection, target: "Supplier"):
             source_type="SUPPLIER",
             source_id=target.id,
             purpose="OPENING_BALANCE",
-            currency="ILS",
+            currency=DEFAULT_CURRENCY,
             memo=memo,
             entries=entries,
             ref=f"OB-SUP-{target.id}",
@@ -2770,7 +2888,7 @@ class SupplierSettlement(db.Model, TimestampMixin, AuditMixin):
     supplier_id = db.Column(db.Integer, db.ForeignKey("suppliers.id"), nullable=False, index=True)
     from_date = db.Column(db.DateTime, nullable=False, index=True)
     to_date = db.Column(db.DateTime, nullable=False, index=True)
-    currency = db.Column(db.String(10), default="ILS", nullable=False)
+    currency = db.Column(db.String(10), default=DEFAULT_CURRENCY, nullable=False)
     
     # حقول سعر الصرف
     fx_rate_used = db.Column(db.Numeric(10, 6))
@@ -2836,7 +2954,7 @@ class SupplierSettlement(db.Model, TimestampMixin, AuditMixin):
 
     @validates("currency")
     def _v_currency(self, _, v):
-        return (v or "ILS").upper()
+        return (v or DEFAULT_CURRENCY).upper()
 
     @hybrid_property
     def total_paid(self):
@@ -3195,7 +3313,7 @@ class Partner(db.Model, TimestampMixin, AuditMixin):
 
     @validates("currency")
     def _v_currency(self, _, v):
-        return (v or "ILS").upper()
+        return (v or DEFAULT_CURRENCY).upper()
 
     @validates("share_percentage")
     def _v_share(self, _, v):
@@ -3223,11 +3341,11 @@ class Partner(db.Model, TimestampMixin, AuditMixin):
         total = Decimal('0.00')
         for p in payments:
             amt = Decimal(str(p.total_amount or 0))
-            if p.currency == "ILS":
+            if p.currency == DEFAULT_CURRENCY:
                 total += amt
             else:
                 try:
-                    total += convert_amount(amt, p.currency, "ILS", p.payment_date)
+                    total += convert_amount(amt, p.currency, DEFAULT_CURRENCY, p.payment_date)
                 except Exception:
                     try:
                         db.session.rollback()
@@ -3245,11 +3363,11 @@ class Partner(db.Model, TimestampMixin, AuditMixin):
         ).all()
         for exp in expenses:
             amt = Decimal(str(exp.amount or 0))
-            if exp.currency == "ILS":
+            if exp.currency == DEFAULT_CURRENCY:
                 total += amt
             else:
                 try:
-                    total += convert_amount(amt, exp.currency, "ILS", exp.date)
+                    total += convert_amount(amt, exp.currency, DEFAULT_CURRENCY, exp.date)
                 except Exception:
                     try:
                         db.session.rollback()
@@ -3429,7 +3547,7 @@ class PartnerSettlement(db.Model, TimestampMixin, AuditMixin):
     partner_id = db.Column(db.Integer, db.ForeignKey("partners.id"), nullable=False, index=True)
     from_date = db.Column(db.DateTime, nullable=False, index=True)
     to_date = db.Column(db.DateTime, nullable=False, index=True)
-    currency = db.Column(db.String(10), default="ILS", nullable=False)
+    currency = db.Column(db.String(10), default=DEFAULT_CURRENCY, nullable=False)
     
     fx_rate_used = db.Column(db.Numeric(10, 6))
     fx_rate_source = db.Column(db.String(20))
@@ -3942,7 +4060,7 @@ class Employee(db.Model, TimestampMixin, AuditMixin):
 
     @validates("currency")
     def _v_currency(self, _, v):
-        return (v or "ILS").upper()
+        return (v or DEFAULT_CURRENCY).upper()
 
     @validates("name", "position", "phone", "bank_name", "account_number", "notes")
     def _v_strip(self, _, v):
@@ -3956,11 +4074,11 @@ class Employee(db.Model, TimestampMixin, AuditMixin):
         total = Decimal('0.00')
         for exp in expenses:
             amt = Decimal(str(exp.amount or 0))
-            if exp.currency == "ILS":
+            if exp.currency == DEFAULT_CURRENCY:
                 total += amt
             else:
                 try:
-                    total += convert_amount(amt, exp.currency, "ILS", exp.date)
+                    total += convert_amount(amt, exp.currency, DEFAULT_CURRENCY, exp.date)
                 except Exception:
                     try:
                         db.session.rollback()
@@ -3983,11 +4101,11 @@ class Employee(db.Model, TimestampMixin, AuditMixin):
         total = Decimal('0.00')
         for p in payments:
             amt = Decimal(str(p.total_amount or 0))
-            if p.currency == "ILS":
+            if p.currency == DEFAULT_CURRENCY:
                 total += amt
             else:
                 try:
-                    total += convert_amount(amt, p.currency, "ILS", p.payment_date)
+                    total += convert_amount(amt, p.currency, DEFAULT_CURRENCY, p.payment_date)
                 except Exception:
                     try:
                         db.session.rollback()
@@ -4143,7 +4261,7 @@ class EmployeeDeduction(db.Model, TimestampMixin, AuditMixin):
     employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False, index=True)
     deduction_type = db.Column(db.String(50), nullable=False, index=True)  # تأمين/هاتف/قرض/أخرى
     amount = db.Column(db.Numeric(12, 2), nullable=False)
-    currency = db.Column(db.String(10), default="ILS", nullable=False)
+    currency = db.Column(db.String(10), default=DEFAULT_CURRENCY, nullable=False)
     start_date = db.Column(db.Date, nullable=False, index=True)
     end_date = db.Column(db.Date, nullable=True, index=True)
     is_active = db.Column(db.Boolean, default=True, nullable=False, index=True)
@@ -4164,7 +4282,7 @@ class EmployeeAdvance(db.Model, TimestampMixin, AuditMixin):
     id = db.Column(db.Integer, primary_key=True)
     employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False, index=True)
     amount = db.Column(db.Numeric(12, 2), nullable=False)
-    currency = db.Column(db.String(10), default="ILS", nullable=False)
+    currency = db.Column(db.String(10), default=DEFAULT_CURRENCY, nullable=False)
     advance_date = db.Column(db.Date, nullable=False, index=True)
     reason = db.Column(db.Text)
     total_installments = db.Column(db.Integer, nullable=False, default=1)
@@ -4190,7 +4308,7 @@ class EmployeeAdvanceInstallment(db.Model, TimestampMixin, AuditMixin):
     installment_number = db.Column(db.Integer, nullable=False)
     total_installments = db.Column(db.Integer, nullable=False)
     amount = db.Column(db.Numeric(12, 2), nullable=False)
-    currency = db.Column(db.String(10), default="ILS", nullable=False)
+    currency = db.Column(db.String(10), default=DEFAULT_CURRENCY, nullable=False)
     due_date = db.Column(db.Date, nullable=False, index=True)
     paid = db.Column(db.Boolean, default=False, nullable=False, index=True)
     paid_date = db.Column(db.Date, nullable=True, index=True)
@@ -4338,7 +4456,7 @@ class Product(db.Model, TimestampMixin, AuditMixin):
         super().__init__(**kwargs)
     @validates('currency')
     def _v_currency(self, _, v):
-        return ensure_currency(v or 'ILS')
+        return ensure_currency(v or DEFAULT_CURRENCY)
     @validates("sku", "serial_no", "barcode")
     def _v_strip_norm_ids(self, key, v):
         if v is None: return None
@@ -5147,7 +5265,7 @@ class PreOrder(db.Model, TimestampMixin, AuditMixin):
         if dv < 0: raise ValueError('amount must be >= 0')
         return dv
     @validates('currency')
-    def _v_curr(self, _, v): return ensure_currency(v or 'ILS')
+    def _v_curr(self, _, v): return ensure_currency(v or DEFAULT_CURRENCY)
     @hybrid_property
     def total_before_tax(self):
         price = D(getattr(self.product, "price", 0)); qty = D(self.quantity or 0)
@@ -5221,19 +5339,24 @@ class PreOrder(db.Model, TimestampMixin, AuditMixin):
         self.cancelled_at = datetime.now(timezone.utc); self.cancelled_by = by_user_id; self.cancel_reason = (reason or None); self.status = PreOrderStatus.CANCELLED.value
     def __repr__(self): return f"<PreOrder {self.reference or self.id}>"
 
-_ALLOWED_PREORDER_TRANSITIONS = {"PENDING":{"CONFIRMED","CANCELLED","FULFILLED"},"CONFIRMED":{"FULFILLED","CANCELLED"},"FULFILLED":set(),"CANCELLED":set()}
+_ALLOWED_PREORDER_TRANSITIONS = {
+    PreOrderStatus.PENDING.value: {PreOrderStatus.CONFIRMED.value, PreOrderStatus.CANCELLED.value, PreOrderStatus.FULFILLED.value},
+    PreOrderStatus.CONFIRMED.value: {PreOrderStatus.FULFILLED.value, PreOrderStatus.CANCELLED.value},
+    PreOrderStatus.FULFILLED.value: set(),
+    PreOrderStatus.CANCELLED.value: set()
+}
 
 @event.listens_for(PreOrder, 'before_insert')
 def _preorder_before_insert(mapper, connection, target):
     if not getattr(target, 'reference', None):
         prefix = datetime.now(timezone.utc).strftime("PRE%Y%m%d"); unique = uuid.uuid4().hex[:8].upper()
         target.reference = f"{prefix}-{unique}"
-    target.currency = ensure_currency(target.currency or 'ILS')
+    target.currency = ensure_currency(target.currency or DEFAULT_CURRENCY)
 
 @event.listens_for(PreOrder, 'before_update')
 def _preorder_before_update(mapper, connection, target):
     from sqlalchemy.orm.attributes import get_history
-    target.currency = ensure_currency(target.currency or 'ILS')
+    target.currency = ensure_currency(target.currency or DEFAULT_CURRENCY)
     h = get_history(target, "status")
     oldv = (getattr(h, "deleted", None) or [getattr(target, "status", None)])[0]
     newv = getattr(target, "status", None)
@@ -5383,7 +5506,7 @@ class Sale(db.Model, TimestampMixin, AuditMixin):
     status = db.Column(sa_str_enum(SaleStatus, name="sale_status"), default=SaleStatus.DRAFT.value, nullable=False, index=True)
     payment_status = db.Column(sa_str_enum(PaymentProgress, name="sale_payment_progress"), default=PaymentProgress.PENDING.value, nullable=False, index=True)
 
-    currency = db.Column(db.String(10), default="ILS", nullable=False)
+    currency = db.Column(db.String(10), default=DEFAULT_CURRENCY, nullable=False)
     
     # حقول سعر الصرف
     fx_rate_used = db.Column(db.Numeric(10, 6))
@@ -5513,7 +5636,7 @@ class Sale(db.Model, TimestampMixin, AuditMixin):
         from sqlalchemy import func
         from decimal import Decimal as D
         
-        sale_currency = (self.currency or "ILS").upper()
+        sale_currency = (self.currency or DEFAULT_CURRENCY).upper()
         payments = db.session.query(Payment).options(
             joinedload(Payment.splits)
         ).filter(
@@ -5643,7 +5766,7 @@ def _sale_before_insert_ref(mapper, connection, target: "Sale"):
                 target.fx_rate_source = "manual"
                 target.fx_rate_timestamp = datetime.now(timezone.utc)
                 target.fx_base_currency = sale_currency
-                target.fx_quote_currency = default_currency
+                target.fx_quote_currency = DEFAULT_CURRENCY
         except Exception:
             pass
 
@@ -5670,7 +5793,7 @@ def _sale_enforce_status(mapper, connection, target: "Sale"):
     h = get_history(target, "status")
     oldv = (getattr(h, "deleted", None) or [getattr(target, "status", None)])[0]
     newv = getattr(target, "status", None)
-    o = (getattr(oldv, "value", oldv) or "DRAFT")
+    o = (getattr(oldv, "value", oldv) or SaleStatus.DRAFT.value)
     n = getattr(newv, "value", newv)
     if o != n:
         allowed = _ALLOWED_SALE_TRANSITIONS.get(o, set())
@@ -5750,7 +5873,7 @@ def _sale_create_tax_entry(mapper, connection, target: "Sale"):
                 base_amount=base_amount,
                 tax_amount=tax_amount,
                 total_amount=total_amount,
-                currency=target.currency or 'ILS',
+                currency=target.currency or DEFAULT_CURRENCY,
                 fiscal_year=sale_date.year,
                 fiscal_month=sale_date.month,
                 tax_period=f"{sale_date.year}-{sale_date.month:02d}",
@@ -5787,9 +5910,9 @@ def _sale_gl_upsert_core(connection, target: "Sale") -> None:
         return
     amount_ils = amount
     exchange_rate = Decimal(1)
-    if target.currency and target.currency != 'ILS':
+    if target.currency and target.currency != DEFAULT_CURRENCY:
         try:
-            rate = _fx_rate_local_via_connection(connection, target.currency, 'ILS', target.sale_date or datetime.now(timezone.utc))
+            rate = _fx_rate_local_via_connection(connection, target.currency, DEFAULT_CURRENCY, target.sale_date or datetime.now(timezone.utc))
             if rate and rate > 0:
                 exchange_rate = Decimal(str(rate))
                 amount_ils = amount * exchange_rate
@@ -5936,7 +6059,7 @@ def _sale_gl_upsert_core(connection, target: "Sale") -> None:
         source_type="SALE",
         source_id=target.id,
         purpose="REVENUE",
-        currency="ILS",
+        currency=DEFAULT_CURRENCY,
         memo=memo,
         entries=entries,
         ref=target.sale_number or f"SALE-{target.id}",
@@ -5959,7 +6082,7 @@ def _sale_gl_upsert_core(connection, target: "Sale") -> None:
                 source_type="SALE_PARTNER_SHARE",
                 source_id=target.id,
                 purpose=f"PARTNER_{partner_id}",
-                currency="ILS",
+                currency=DEFAULT_CURRENCY,
                 memo=f"حصة شريك من بيع #{target.sale_number or target.id}",
                 entries=[
                     (GL_ACCOUNTS.get("REV", "4000_SALES"), amt, Decimal(0)),
@@ -6000,7 +6123,7 @@ def build_sale_reversal_snapshot(sale: "Sale") -> dict:
         return {
             "sale_id": sale.id,
             "amount": float(sale.total_amount or 0),
-            "currency": sale.currency or "ILS",
+            "currency": sale.currency or DEFAULT_CURRENCY,
             "sale_date": getattr(sale, "sale_date", None),
             "ar_account": GL_ACCOUNTS.get("AR", "1100_AR"),
             "revenue_account": GL_ACCOUNTS.get("SALES", "4000_SALES"),
@@ -6021,13 +6144,13 @@ def run_sale_gl_reversal_after_delete(snapshot: dict) -> None:
         amount = float(snapshot.get("amount") or 0)
         if amount <= 0:
             return
-        currency = (str(snapshot.get("currency") or "ILS").strip().upper() or "ILS")
+        currency = (str(snapshot.get("currency") or DEFAULT_CURRENCY).strip().upper() or DEFAULT_CURRENCY)
         amount_ils = amount
-        if currency != "ILS":
+        if currency != DEFAULT_CURRENCY:
             try:
                 with db.engine.connect() as c:
                     rate = _fx_rate_local_via_connection(
-                        c, currency, "ILS", snapshot.get("sale_date") or datetime.now(timezone.utc)
+                        c, currency, DEFAULT_CURRENCY, snapshot.get("sale_date") or datetime.now(timezone.utc)
                     )
                     if rate and rate > 0:
                         amount_ils = amount * float(rate)
@@ -6058,7 +6181,7 @@ def run_sale_gl_reversal_after_delete(snapshot: dict) -> None:
                     source_type="SALE_REVERSAL",
                     source_id=sale_id,
                     purpose="REVERSAL",
-                    currency="ILS",
+                    currency=DEFAULT_CURRENCY,
                     memo=memo,
                     entries=entries,
                     ref=ref,
@@ -6235,7 +6358,7 @@ class SaleReturn(db.Model, TimestampMixin, AuditMixin):
     total_amount = db.Column(db.Numeric(12,2), nullable=False, default=0)
     tax_rate = db.Column(db.Numeric(5, 2), default=0)
     tax_amount = db.Column(db.Numeric(12, 2), default=0)
-    currency = db.Column(db.String(10), nullable=False, default="ILS")
+    currency = db.Column(db.String(10), nullable=False, default=DEFAULT_CURRENCY)
     
     # حقول سعر الصرف
     fx_rate_used = db.Column(db.Numeric(10, 6))
@@ -6590,7 +6713,7 @@ def _sale_return_create_tax_entry(mapper, connection, target: "SaleReturn"):
                 base_amount=-abs(base_amount),
                 tax_amount=-abs(tax_amount),
                 total_amount=-abs(total_amount),
-                currency=target.currency or 'ILS',
+                currency=target.currency or DEFAULT_CURRENCY,
                 fiscal_year=return_date.year,
                 fiscal_month=return_date.month,
                 tax_period=f"{return_date.year}-{return_date.month:02d}",
@@ -6638,7 +6761,7 @@ class Invoice(db.Model, TimestampMixin):
     credit_for_id = Column(Integer, ForeignKey("invoices.id", ondelete="SET NULL"), index=True)
     refund_of_id = Column(Integer, ForeignKey("invoices.id", ondelete="SET NULL"), index=True)
 
-    currency = Column(String(10), default="ILS", nullable=False)
+    currency = Column(String(10), default=DEFAULT_CURRENCY, nullable=False)
     
     # حقول سعر الصرف
     fx_rate_used = Column(Numeric(10, 6))
@@ -6984,7 +7107,7 @@ def _invoice_create_tax_entry(mapper, connection, target: "Invoice"):
                 base_amount=base_amount,
                 tax_amount=tax_amount,
                 total_amount=total_amount,
-                currency=target.currency or 'ILS',
+                currency=target.currency or DEFAULT_CURRENCY,
                 fiscal_year=invoice_date.year,
                 fiscal_month=invoice_date.month,
                 tax_period=f"{invoice_date.year}-{invoice_date.month:02d}",
@@ -7830,7 +7953,7 @@ def _payment_gl_upsert_core(connection, target: "Payment") -> None:
         source_type="PAYMENT",
         source_id=target.id,
         purpose="PREORDER_PAYMENT" if is_preorder else "PAYMENT",
-        currency="ILS",
+        currency=DEFAULT_CURRENCY,
         memo=memo,
         entries=entries,
         ref=target.payment_number or f"PMT-{target.id}",
@@ -7871,7 +7994,7 @@ def build_payment_reversal_snapshot(payment: "Payment") -> dict:
         return {
             "payment_id": payment.id,
             "amount": float(payment.total_amount or 0),
-            "currency": payment.currency or "ILS",
+            "currency": payment.currency or DEFAULT_CURRENCY,
             "payment_date": getattr(payment, "payment_date", None),
             "direction": getattr(payment, "direction", None),
             "entity_type": getattr(payment, "entity_type", None),
@@ -7897,12 +8020,12 @@ def run_payment_gl_reversal_after_delete(snapshot: dict) -> None:
         amount = float(snapshot.get("amount") or 0)
         if amount <= 0:
             return
-        currency = (str(snapshot.get("currency") or "ILS").strip().upper() or "ILS")
+        currency = (str(snapshot.get("currency") or DEFAULT_CURRENCY).strip().upper() or DEFAULT_CURRENCY)
         amount_ils = amount
-        if currency != "ILS":
+        if currency != DEFAULT_CURRENCY:
             try:
                 with db.engine.connect() as c:
-                    rate = _fx_rate_local_via_connection(c, currency, "ILS", snapshot.get("payment_date") or datetime.now(timezone.utc))
+                    rate = _fx_rate_local_via_connection(c, currency, DEFAULT_CURRENCY, snapshot.get("payment_date") or datetime.now(timezone.utc))
                     if rate and rate > 0:
                         amount_ils = amount * float(rate)
             except Exception:
@@ -7947,7 +8070,7 @@ def run_payment_gl_reversal_after_delete(snapshot: dict) -> None:
                     source_type="PAYMENT_REVERSAL",
                     source_id=payment_id,
                     purpose="REVERSAL",
-                    currency="ILS",
+                    currency=DEFAULT_CURRENCY,
                     memo=f"Reversal - deleted payment #{payment_id}",
                     entries=entries,
                     ref=f"REV-PAY-{payment_id}",
@@ -8019,7 +8142,7 @@ def _payment_create_check_auto(mapper, connection, target: "Payment"):
                 if sale_row:
                     customer_id = sale_row[0]
         
-        check_currency = (getattr(target, 'currency', None) or 'ILS').upper()
+        check_currency = (getattr(target, 'currency', None) or DEFAULT_CURRENCY).upper()
         check_values = {
             "check_number": check_number,
             "check_bank": check_bank,
@@ -8058,9 +8181,9 @@ class PaymentSplit(db.Model):
     method = Column(sa_str_enum(PaymentMethod, name="split_payment_method"), nullable=False, index=True)
     amount = Column(Numeric(12, 2), nullable=False)
     details = Column(db.JSON, default=dict, nullable=False)
-    currency = Column(String(10), nullable=False, default="ILS")
+    currency = Column(String(10), nullable=False, default=DEFAULT_CURRENCY)
     converted_amount = Column(Numeric(12, 2), nullable=False, default=D("0.00"))
-    converted_currency = Column(String(10), nullable=False, default="ILS")
+    converted_currency = Column(String(10), nullable=False, default=DEFAULT_CURRENCY)
     fx_rate_used = Column(Numeric(10, 6))
     fx_rate_source = Column(String(20))
     fx_rate_timestamp = Column(DateTime)
@@ -8073,11 +8196,11 @@ class PaymentSplit(db.Model):
 
     @validates("currency")
     def _v_split_currency(self, _, value):
-        return ensure_currency(value or "ILS")
+        return ensure_currency(value or DEFAULT_CURRENCY)
 
     @validates("converted_currency")
     def _v_split_converted_currency(self, _, value):
-        return ensure_currency(value or "ILS")
+        return ensure_currency(value or DEFAULT_CURRENCY)
 
     @validates("fx_base_currency", "fx_quote_currency")
     def _v_split_fx_currencies(self, key, value):
@@ -8948,7 +9071,7 @@ def build_supplier_settlement_draft(
         supplier_id=supplier_id,
         from_date=date_from,
         to_date=date_to,
-        currency=(currency or "ILS").upper(),
+        currency=(currency or DEFAULT_CURRENCY).upper(),
         status=SupplierSettlementStatus.DRAFT.value,
         mode=final_mode
     )
@@ -9526,11 +9649,11 @@ def _shipment_status_toggle(target, value, oldvalue, initiator):
     if old == new:
         return
 
-    if old != "ARRIVED" and new == "ARRIVED":
+    if old != ShipmentStatus.ARRIVED.value and new == ShipmentStatus.ARRIVED.value:
         target._apply_arrival_stock()
         if not getattr(target, "actual_arrival", None):
             target.actual_arrival = datetime.now(timezone.utc)
-    elif old == "ARRIVED" and new != "ARRIVED":
+    elif old == ShipmentStatus.ARRIVED.value and new != ShipmentStatus.ARRIVED.value:
         target._revert_arrival_stock()
 
 @event.listens_for(Shipment, "before_delete")
@@ -9547,9 +9670,9 @@ def _shipment_gl_batch_reverse(mapper, connection, target: "Shipment"):
             return
         
         amount_ils = total_cost
-        if target.currency and target.currency != 'ILS':
+        if target.currency and target.currency != DEFAULT_CURRENCY:
             try:
-                rate = _fx_rate_local_via_connection(connection, target.currency, 'ILS', target.date or datetime.now(timezone.utc))
+                rate = _fx_rate_local_via_connection(connection, target.currency, DEFAULT_CURRENCY, target.date or datetime.now(timezone.utc))
                 if rate and rate > 0:
                     amount_ils = float(total_cost * float(rate))
             except Exception:
@@ -9568,7 +9691,7 @@ def _shipment_gl_batch_reverse(mapper, connection, target: "Shipment"):
             source_type="SHIPMENT_REVERSAL",
             source_id=target.id,
             purpose="REVERSAL",
-            currency="ILS",
+            currency=DEFAULT_CURRENCY,
             memo=f"عكس قيد - حذف شحنة #{target.id}",
             entries=entries,
             ref=f"REV-SHIP-{target.id}",
@@ -9710,7 +9833,7 @@ class ServiceRequest(db.Model, TimestampMixin, AuditMixin):
     expected_delivery = db.Column(db.DateTime)
     completed_at = db.Column(db.DateTime)
 
-    currency = db.Column(db.String(10), nullable=False, default="ILS")
+    currency = db.Column(db.String(10), nullable=False, default=DEFAULT_CURRENCY)
     
     # حقول سعر الصرف
     fx_rate_used = db.Column(db.Numeric(10, 6))
@@ -9854,7 +9977,7 @@ class ServiceRequest(db.Model, TimestampMixin, AuditMixin):
         ).all()
         
         total = D('0.00')
-        service_currency = self.currency or "ILS"
+        service_currency = self.currency or DEFAULT_CURRENCY
         
         for payment in payments:
             splits = payment.splits if hasattr(payment, 'splits') else []
@@ -10283,7 +10406,7 @@ def _service_create_tax_entry(mapper, connection, target: ServiceRequest):
                 base_amount=base_amount,
                 tax_amount=tax_amount,
                 total_amount=total_amount,
-                currency=target.currency or 'ILS',
+                currency=target.currency or DEFAULT_CURRENCY,
                 fiscal_year=service_date.year,
                 fiscal_month=service_date.month,
                 tax_period=f"{service_date.year}-{service_date.month:02d}",
@@ -10614,7 +10737,7 @@ def _gl_on_service_complete(mapper, connection, target: "ServiceRequest"):
     labor = _D(getattr(target, "labor_total", 0) or 0)
     discount = _D(getattr(target, "discount_total", 0) or 0)
     tax_rate = _D(getattr(target, "tax_rate", 0) or 0)
-    currency = ensure_currency(getattr(target, "currency", None) or "ILS")
+    currency = ensure_currency(getattr(target, "currency", None) or DEFAULT_CURRENCY)
     subtotal = parts + labor
     base = subtotal - discount
     if base < 0:
@@ -10991,8 +11114,13 @@ def _sp_after_delete(mapper, connection, target: ServicePart):
     elif sid:
         _recalc_service_request_totals_sql(connection, sid)
         _service_gl_batch_upsert_sql(connection, sid)
-    if hasattr(target, 'partner_id') and target.partner_id:
-        _queue_partner_balance(target, target.partner_id)
+    partner_id = None
+    try:
+        partner_id = target.__dict__.get("partner_id")
+    except Exception:
+        partner_id = None
+    if partner_id:
+        _queue_partner_balance(target, partner_id)
 
 @event.listens_for(ServiceTask, "after_insert")
 @event.listens_for(ServiceTask, "after_update")
@@ -11006,8 +11134,13 @@ def _st_sync_totals(mapper, connection, target: ServiceTask):
     elif sid:
         _recalc_service_request_totals_sql(connection, sid)
         _service_gl_batch_upsert_sql(connection, sid)
-    if hasattr(target, 'partner_id') and target.partner_id:
-        _queue_partner_balance(target, target.partner_id)
+    partner_id = None
+    try:
+        partner_id = target.__dict__.get("partner_id")
+    except Exception:
+        partner_id = None
+    if partner_id:
+        _queue_partner_balance(target, partner_id)
 
 class OnlineCart(db.Model, TimestampMixin):
     __tablename__ = 'online_carts'
@@ -11016,8 +11149,8 @@ class OnlineCart(db.Model, TimestampMixin):
     cart_id = db.Column(db.String(50), unique=True, index=True)
     customer_id = db.Column(db.Integer, db.ForeignKey('customers.id', ondelete='SET NULL'), index=True)
     session_id = db.Column(db.String(100), index=True)
-    status = db.Column(sa_str_enum(['ACTIVE', 'ABANDONED', 'CONVERTED'], name='cart_status'),
-                       default='ACTIVE', nullable=False, index=True)
+    status = db.Column(sa_str_enum(OnlineCartStatus, name='cart_status'),
+                       default=OnlineCartStatus.ACTIVE.value, nullable=False, index=True)
     expires_at = db.Column(db.DateTime, index=True)
 
     customer = db.relationship('Customer', back_populates='online_carts')
@@ -11160,10 +11293,10 @@ class OnlinePreOrder(db.Model, TimestampMixin):
     expected_fulfillment = db.Column(db.DateTime)
     actual_fulfillment = db.Column(db.DateTime)
 
-    status = db.Column(sa_str_enum(['PENDING', 'CONFIRMED', 'FULFILLED', 'CANCELLED'], name='online_preorder_status'),
-                       default='PENDING', nullable=False, index=True)
-    payment_status = db.Column(sa_str_enum(['PENDING', 'PARTIAL', 'PAID'], name='online_preorder_payment_status'),
-                               default='PENDING', nullable=False, index=True)
+    status = db.Column(sa_str_enum(PreOrderStatus, name='online_preorder_status'),
+                       default=PreOrderStatus.PENDING.value, nullable=False, index=True, server_default=sa_text("'PENDING'"))
+    payment_status = db.Column(sa_str_enum(PaymentProgress, name='online_preorder_payment_status'),
+                               default=PaymentProgress.PENDING.value, nullable=False, index=True, server_default=sa_text("'PENDING'"))
 
     payment_method = db.Column(db.String(50))
     notes = db.Column(db.Text)
@@ -11508,8 +11641,8 @@ class OnlinePayment(db.Model, TimestampMixin):
     
     method = db.Column(db.String(50))
     gateway = db.Column(db.String(50))
-    status = db.Column(sa_str_enum(['PENDING','SUCCESS','FAILED','REFUNDED'], name='online_payment_status'),
-                       default='PENDING', nullable=False, index=True)
+    status = db.Column(sa_str_enum(OnlinePaymentStatus, name='online_payment_status'),
+                       default=OnlinePaymentStatus.PENDING.value, nullable=False, index=True, server_default=sa_text("'PENDING'"))
     transaction_data = db.Column(db.JSON)
     processed_at = db.Column(db.DateTime)
     card_last4 = db.Column(db.String(4), index=True)
@@ -11537,7 +11670,7 @@ class OnlinePayment(db.Model, TimestampMixin):
 
     @validates('currency')
     def _v_currency(self, _, v):
-        return ensure_currency(v or 'ILS')
+        return ensure_currency(v or DEFAULT_CURRENCY)
 
     @validates('status')
     def _v_status(self, _, v):
@@ -11931,7 +12064,7 @@ class Expense(db.Model, TimestampMixin, AuditMixin):
     id = db.Column(db.Integer, primary_key=True)
     date = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), index=True)
     amount = db.Column(db.Numeric(12, 2), nullable=False)
-    currency = db.Column(db.String(10), default="ILS", nullable=False)
+    currency = db.Column(db.String(10), default=DEFAULT_CURRENCY, nullable=False)
     
     # حقول سعر الصرف
     fx_rate_used = db.Column(db.Numeric(10, 6))
@@ -12161,7 +12294,7 @@ class Expense(db.Model, TimestampMixin, AuditMixin):
 
     @validates("currency")
     def _v_currency(self, _, v):
-        return (v or "ILS").upper()
+        return (v or DEFAULT_CURRENCY).upper()
 
     @validates("payment_method")
     def _v_payment_method(self, _, v):
@@ -12566,7 +12699,7 @@ class Expense(db.Model, TimestampMixin, AuditMixin):
 @event.listens_for(Expense, "before_insert")
 def _expense_normalize_insert(mapper, connection, target: "Expense"):
     target.payment_method = (target.payment_method or "cash").lower()
-    target.currency = (target.currency or "ILS").upper()
+    target.currency = (target.currency or DEFAULT_CURRENCY).upper()
     
     # حفظ سعر الصرف تلقائياً للنفقات (فقط عند الإنشاء)
     expense_currency = target.currency
@@ -13500,7 +13633,7 @@ class GLBatch(db.Model, TimestampMixin):
     purpose = db.Column(db.String(30), index=True)
     memo = db.Column(db.String(255))
     posted_at = db.Column(db.DateTime, index=True)
-    currency = db.Column(db.String(10), default="ILS", nullable=False)
+    currency = db.Column(db.String(10), default=DEFAULT_CURRENCY, nullable=False)
     entity_type = db.Column(db.String(30), index=True)
     entity_id = db.Column(db.Integer, index=True)
     status = db.Column(sa_str_enum(["DRAFT", "POSTED", "VOID"], name="gl_batch_status"), default="DRAFT", nullable=False, index=True)
@@ -13516,7 +13649,7 @@ class GLBatch(db.Model, TimestampMixin):
 
     @validates("currency")
     def _v_currency(self, _, v):
-        return (v or "ILS").upper()
+        return (v or DEFAULT_CURRENCY).upper()
 
     @validates("status")
     def _v_status(self, _, v):
@@ -13528,7 +13661,7 @@ class GLBatch(db.Model, TimestampMixin):
 
 @event.listens_for(GLBatch, "before_insert")
 def _glb_before_insert(mapper, connection, target: "GLBatch"):
-    target.currency = (target.currency or "ILS").upper()
+    target.currency = (target.currency or DEFAULT_CURRENCY).upper()
     if not target.code:
         target.code = f"{target.source_type or 'SRC'}-{target.source_id or 0}-{target.purpose or 'PUR'}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
     if (target.status or "DRAFT").upper() == "POSTED" and not target.posted_at:
@@ -13537,7 +13670,7 @@ def _glb_before_insert(mapper, connection, target: "GLBatch"):
 
 @event.listens_for(GLBatch, "before_update")
 def _glb_before_update(mapper, connection, target: "GLBatch"):
-    target.currency = (target.currency or "ILS").upper()
+    target.currency = (target.currency or DEFAULT_CURRENCY).upper()
     st = (target.status or "DRAFT").upper()
     if st == "POSTED" and not target.posted_at:
         target.posted_at = datetime.now(timezone.utc)
@@ -13553,7 +13686,7 @@ class GLEntry(db.Model, TimestampMixin):
     account = db.Column(db.String(50), db.ForeignKey("accounts.code", ondelete="RESTRICT"), nullable=False, index=True)
     debit = db.Column(db.Numeric(12, 2), default=0, nullable=False)
     credit = db.Column(db.Numeric(12, 2), default=0, nullable=False)
-    currency = db.Column(db.String(10), default="ILS", nullable=False)
+    currency = db.Column(db.String(10), default=DEFAULT_CURRENCY, nullable=False)
     ref = db.Column(db.String(50))
 
     __table_args__ = (
@@ -13574,7 +13707,7 @@ class GLEntry(db.Model, TimestampMixin):
 
     @validates("currency")
     def _v_currency(self, _, v):
-        return (v or "ILS").upper()
+        return (v or DEFAULT_CURRENCY).upper()
 
     @validates("debit", "credit")
     def _v_amounts(self, key, v):
@@ -14486,8 +14619,8 @@ def _check_sync_payment_status_legacy(connection, target, payment_id):
 def _check_before_update(mapper, connection, target: "Check"):
     """تعيين سعر الصرف وقت صرف الشيك عند تغيير الحالة إلى CASHED"""
     _check_backfill_counterparty_ids(connection, target)
-    check_currency = getattr(target, "currency", None) or "ILS"
-    default_currency = "ILS"
+    check_currency = getattr(target, "currency", None) or DEFAULT_CURRENCY
+    default_currency = DEFAULT_CURRENCY
     
     # الحصول على الحالة السابقة
     insp = inspect(target)
@@ -14583,7 +14716,7 @@ class SaaSPlan(db.Model, TimestampMixin):
     description = Column(Text)
     price_monthly = Column(Numeric(10, 2), nullable=False)
     price_yearly = Column(Numeric(10, 2))
-    currency = Column(String(10), default='USD', nullable=False)
+    currency = Column(String(10), default=DEFAULT_CURRENCY, nullable=False)
     max_users = Column(Integer)
     max_invoices = Column(Integer)
     storage_gb = Column(Integer)
@@ -14629,7 +14762,7 @@ class SaaSInvoice(db.Model, TimestampMixin):
     invoice_number = Column(String(50), unique=True, nullable=False, index=True)
     subscription_id = Column(Integer, ForeignKey('saas_subscriptions.id'), nullable=False, index=True)
     amount = Column(Numeric(10, 2), nullable=False)
-    currency = Column(String(10), default='USD', nullable=False)
+    currency = Column(String(10), default=DEFAULT_CURRENCY, nullable=False)
     status = Column(String(20), default='pending', nullable=False)
     due_date = Column(DateTime)
     paid_at = Column(DateTime)

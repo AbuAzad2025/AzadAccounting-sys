@@ -235,11 +235,13 @@
       {% for p_form in partners_forms %}
       <div class="partner-entry border rounded p-3 mb-3 bg-light">
         <label class="form-label">الشريك <span class="text-danger">*</span></label>
-        {{ p_form.partner_id(
-             class_="form-control form-control-modern select2",
-             placeholder="اختر الشريك",
-             **{'data-url': url_for('api.search_partners')}
-           ) }}
+        <select name="partner_id" class="form-control form-control-modern select2" placeholder="اختر الشريك"
+                data-url="{{ url_for('api.search_partners') }}">
+          <option value="">اختر الشريك</option>
+          {% for pid, pname in partner_choices %}
+          <option value="{{ pid }}" {% if p_form.partner_id.data and (p_form.partner_id.data|string) == (pid|string) %}selected{% endif %}>{{ pname }}</option>
+          {% endfor %}
+        </select>
         <small class="text-muted"><i class="fas fa-user"></i> الشريك صاحب الحصة في هذه القطعة</small>
         
         <div class="row g-2 mt-2">
@@ -292,11 +294,13 @@
           <div class="col-md-12">
             <label class="form-label">{{ v_form.supplier_id.label.text }} <span class="text-muted">(اختياري)</span></label>
             <div class="input-group">
-              {{ v_form.supplier_id(
-                   class_="form-control form-control-modern select2",
-                   placeholder="اختر المورد/التاجر",
-                   **{'data-url': url_for('api.search_suppliers')}
-                 ) }}
+              <select name="supplier_id" class="form-control form-control-modern select2" placeholder="اختر المورد/التاجر"
+                      data-url="{{ url_for('api.search_suppliers') }}">
+                <option value="">اختر المورد/التاجر</option>
+                {% for sid, sname in supplier_choices %}
+                <option value="{{ sid }}" {% if v_form.supplier_id.data and (v_form.supplier_id.data|string) == (sid|string) %}selected{% endif %}>{{ sname }}</option>
+                {% endfor %}
+              </select>
               <a href="{{ url_for('vendors_bp.suppliers_create') }}" target="_blank" class="btn btn-outline-primary">
                 <i class="fas fa-plus"></i>
               </a>
@@ -574,7 +578,12 @@
   <div class="partner-entry border rounded p-3 mb-3 bg-light">
     <label class="form-label">الشريك <span class="text-danger">*</span></label>
     <select name="partner_id" class="form-control select2" placeholder="اختر الشريك"
-            data-url="{{ url_for('api.search_partners') }}"></select>
+            data-url="{{ url_for('api.search_partners') }}">
+      <option value="">اختر الشريك</option>
+      {% for pid, pname in partner_choices %}
+      <option value="{{ pid }}">{{ pname }}</option>
+      {% endfor %}
+    </select>
     <small class="text-muted"><i class="fas fa-user"></i> الشريك صاحب الحصة في هذه القطعة</small>
     
     <div class="row g-2 mt-2">
@@ -610,7 +619,12 @@
         <label class="form-label">المورّد/التاجر <span class="text-muted">(اختياري)</span></label>
         <div class="input-group">
           <select name="supplier_id" class="form-control select2" placeholder="اختر المورد/التاجر"
-                  data-url="{{ url_for('api.search_suppliers') }}"></select>
+                  data-url="{{ url_for('api.search_suppliers') }}">
+            <option value="">اختر المورد/التاجر</option>
+            {% for sid, sname in supplier_choices %}
+            <option value="{{ sid }}">{{ sname }}</option>
+            {% endfor %}
+          </select>
           <a href="{{ url_for('vendors_bp.suppliers_create') }}" target="_blank" class="btn btn-outline-primary">
             <i class="fas fa-plus"></i>
           </a>

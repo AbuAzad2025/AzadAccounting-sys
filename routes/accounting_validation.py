@@ -15,6 +15,7 @@
     - صلاحيات محددة عبر PBAC
 """
 
+from permissions_config.enums import SystemPermissions
 from flask import Blueprint, render_template, request, jsonify, current_app
 from flask_login import login_required, current_user
 from datetime import datetime, date, timedelta
@@ -32,13 +33,13 @@ from utils import permission_required
 accounting_validation_bp = Blueprint('accounting_validation', __name__, url_prefix='/validation/accounting')
 
 @accounting_validation_bp.route('/')
-@permission_required('validate_accounting')
+@permission_required(SystemPermissions.VALIDATE_ACCOUNTING)
 def index():
     """لوحة التحقق المحاسبي الرئيسية"""
     return render_template('validation/accounting/index.html')
 
 @accounting_validation_bp.route('/balance-check')
-@permission_required('validate_accounting')
+@permission_required(SystemPermissions.VALIDATE_ACCOUNTING)
 def balance_check():
     """فحص توازن القيود المحاسبية"""
     try:
@@ -83,7 +84,7 @@ def balance_check():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @accounting_validation_bp.route('/account-consistency')
-@permission_required('validate_accounting')
+@permission_required(SystemPermissions.VALIDATE_ACCOUNTING)
 def account_consistency():
     """فحص اتساق الحسابات"""
     try:
@@ -130,7 +131,7 @@ def account_consistency():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @accounting_validation_bp.route('/entity-balance-verification')
-@permission_required('validate_accounting')
+@permission_required(SystemPermissions.VALIDATE_ACCOUNTING)
 def entity_balance_verification():
     """التحقق من صحة أرصدة الكيانات"""
     try:
@@ -197,7 +198,7 @@ def entity_balance_verification():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @accounting_validation_bp.route('/transaction-integrity')
-@permission_required('validate_accounting')
+@permission_required(SystemPermissions.VALIDATE_ACCOUNTING)
 def transaction_integrity():
     """فحص تكامل المعاملات"""
     try:
@@ -305,7 +306,7 @@ def transaction_integrity():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @accounting_validation_bp.route('/periodic-audit')
-@permission_required('validate_accounting')
+@permission_required(SystemPermissions.VALIDATE_ACCOUNTING)
 def periodic_audit():
     """مراجعة دورية شاملة"""
     try:
@@ -385,7 +386,7 @@ def periodic_audit():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @accounting_validation_bp.route('/fix-unbalanced-batches')
-@permission_required('validate_accounting')
+@permission_required(SystemPermissions.VALIDATE_ACCOUNTING)
 def fix_unbalanced_batches():
     """إصلاح القيود غير المتوازنة"""
     try:

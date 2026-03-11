@@ -1,3 +1,4 @@
+from permissions_config.enums import SystemPermissions
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import login_required, current_user
 from extensions import db
@@ -14,7 +15,7 @@ engineering_bp = Blueprint('engineering', __name__, url_prefix='/engineering')
 
 @engineering_bp.route('/')
 @login_required
-@permission_required('manage_engineering')
+@permission_required(SystemPermissions.MANAGE_ENGINEERING)
 def dashboard():
     total_teams = EngineeringTeam.query.filter_by(is_active=True).count()
     total_engineers = db.session.query(func.count(func.distinct(EngineeringTeamMember.employee_id))).filter_by(is_active=True).scalar() or 0
@@ -84,7 +85,7 @@ def dashboard():
 
 @engineering_bp.route('/teams')
 @login_required
-@permission_required('manage_engineering')
+@permission_required(SystemPermissions.MANAGE_ENGINEERING)
 def teams():
     teams = EngineeringTeam.query.order_by(EngineeringTeam.is_active.desc(), EngineeringTeam.code).all()
     
@@ -105,7 +106,7 @@ def teams():
 
 @engineering_bp.route('/teams/add', methods=['GET', 'POST'])
 @login_required
-@permission_required('manage_engineering')
+@permission_required(SystemPermissions.MANAGE_ENGINEERING)
 def add_team():
     if request.method == 'POST':
         try:
@@ -156,7 +157,7 @@ def add_team():
 
 @engineering_bp.route('/tasks')
 @login_required
-@permission_required('manage_engineering')
+@permission_required(SystemPermissions.MANAGE_ENGINEERING)
 def tasks():
     status_filter = request.args.get('status')
     team_filter = request.args.get('team', type=int)
@@ -197,7 +198,7 @@ def tasks():
 
 @engineering_bp.route('/tasks/add', methods=['GET', 'POST'])
 @login_required
-@permission_required('manage_engineering')
+@permission_required(SystemPermissions.MANAGE_ENGINEERING)
 def add_task():
     if request.method == 'POST':
         try:
@@ -263,7 +264,7 @@ def add_task():
 
 @engineering_bp.route('/timesheets')
 @login_required
-@permission_required('manage_engineering')
+@permission_required(SystemPermissions.MANAGE_ENGINEERING)
 def timesheets():
     employee_filter = request.args.get('employee', type=int)
     date_from = request.args.get('date_from')
@@ -305,7 +306,7 @@ def timesheets():
 
 @engineering_bp.route('/timesheets/add', methods=['GET', 'POST'])
 @login_required
-@permission_required('manage_engineering')
+@permission_required(SystemPermissions.MANAGE_ENGINEERING)
 def add_timesheet():
     if request.method == 'POST':
         try:
@@ -367,7 +368,7 @@ def add_timesheet():
 
 @engineering_bp.route('/skills')
 @login_required
-@permission_required('manage_engineering')
+@permission_required(SystemPermissions.MANAGE_ENGINEERING)
 def skills():
     skills = EngineeringSkill.query.order_by(EngineeringSkill.category, EngineeringSkill.name).all()
     
@@ -375,7 +376,7 @@ def skills():
 
 @engineering_bp.route('/reports/productivity')
 @login_required
-@permission_required('manage_engineering')
+@permission_required(SystemPermissions.MANAGE_ENGINEERING)
 def report_productivity():
     date_from = request.args.get('date_from')
     date_to = request.args.get('date_to')

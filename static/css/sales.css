@@ -98,102 +98,124 @@
   background-color: rgba(25, 135, 84, 0.15);
   color: var(--sales-success);
 }
-.badge-cancelled {
-  background-color: rgba(108, 117, 125, 0.15);
-  color: #6c757d;
+
+/* --- Sales Form Styles (Migrated from Inline) --- */
+.sales-form .card-header h3 { font-weight: 700; }
+.sales-form .card-header .badge { border-radius: 999px; padding: .35rem .6rem; }
+.sales-form .section-title { font-weight: 700; color: var(--text-dark, #334155); margin: 0 0 .5rem; display: flex; align-items: center; gap: .4rem; }
+.sales-form .section-title i { opacity: .8; }
+.sales-form .section-subtitle { font-weight: 600; color: var(--text-muted, #64748b); font-size: .9rem; margin: .15rem 0 0; }
+.sales-form .advanced-toggle { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.sales-form .advanced-toggle .btn { white-space: nowrap; }
+
+.sales-form .totals-hero { 
+  background: var(--bg-dark-card, #ffffff); 
+  border: 1px solid var(--border-glass, #e9ecef); 
+  border-radius: 12px; 
+  padding: 14px 16px; 
+}
+.sales-form .totals-hero .label { font-weight: 700; color: var(--text-muted, #334155); }
+.sales-form .totals-hero .value { font-weight: 800; font-size: 1.55rem; color: var(--text-main, #0f172a); }
+.sales-form .totals-hero .meta { font-size: .85rem; color: var(--text-muted, #64748b); }
+
+#saleForm .head-grid { display: grid; grid-template-columns: repeat(12, 1fr); grid-gap: 12px; }
+#saleForm .head-grid .col-span-3 { grid-column: span 3; }
+#saleForm .head-grid .col-span-4 { grid-column: span 4; }
+#saleForm .head-grid .col-span-6 { grid-column: span 6; }
+#saleForm .head-grid .col-span-5 { grid-column: span 5; }
+#saleForm .head-grid .col-span-9 { grid-column: span 9; }
+#saleForm .head-grid .col-span-12 { grid-column: span 12; }
+
+@media(max-width: 992px) {
+  #saleForm .head-grid .col-span-3,
+  #saleForm .head-grid .col-span-4,
+  #saleForm .head-grid .col-span-6 { grid-column: span 6; }
+  #saleForm .head-grid .col-span-5 { grid-column: span 6; }
+  #saleForm .head-grid .col-span-9 { grid-column: span 12; }
+}
+@media(max-width: 576px) {
+  #saleForm .head-grid .col-span-3,
+  #saleForm .head-grid .col-span-4,
+  #saleForm .head-grid .col-span-6,
+  #saleForm .head-grid .col-span-5 { grid-column: span 12; }
 }
 
-.summary-card {
-  background: linear-gradient(135deg, #f8f9fa, #e9ecef);
-  border: none;
-  border-radius: var(--sales-border-radius);
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
-  padding: 1.25rem;
-}
-.summary-card tr:last-child td {
-  font-weight: 700;
-  font-size: 1.1rem;
-  color: var(--sales-success);
-}
+#saleForm .form-group label { font-weight: 600; color: var(--text-main, #374151); margin-bottom: .4rem; font-size: 0.95rem; }
+#saleForm label i { color: var(--text-muted, #6b7280); }
+#saleForm .text-danger { font-weight: 700; }
+#saleForm .text-muted { font-weight: 400; font-size: 0.85rem; }
 
-.input-error {
-  border-color: var(--sales-danger) !important;
-  box-shadow: 0 0 0 0.25rem rgba(220, 53, 69, 0.25);
-}
-.input-error-message {
-  color: var(--sales-danger);
-  font-size: 0.875em;
-  margin-top: 0.25rem;
+/* Enhanced Inputs for Dark Mode Compatibility */
+#saleForm .form-control {
+  border-radius: 10px;
+  /* Removed hardcoded black color */
+  font-size: 0.95rem !important;
+  font-weight: 500 !important;
 }
 
-.payment-card {
-  border-radius: var(--sales-border-radius);
-  overflow: hidden;
-  transition: all 0.3s;
-  border: 1px solid #e0e6ed;
-}
-.payment-card:hover {
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
-  transform: translateY(-3px);
+#saleForm select.form-control {
+  padding-top: .35rem;
+  padding-bottom: .35rem;
+  font-size: 0.9rem !important;
+  font-weight: 500 !important;
 }
 
-.payment-status {
-  font-size: 0.85rem;
-  padding: 0.4em 0.8em;
-  border-radius: 20px;
-  font-weight: 600;
-  display: inline-block;
+#saleForm input[type="number"],
+#saleForm input[type="text"] {
+  font-size: 0.95rem !important;
+  font-weight: 600 !important;
 }
 
-.payment-method {
-  font-weight: 600;
-  color: #4a5568;
+/* Select2 text overrides - kept but softened */
+#saleForm .select2-container--bootstrap4 .select2-selection--single .select2-selection__rendered {
+  font-size: 0.9rem !important;
+  font-weight: 500 !important;
 }
 
-
-.btn-sale:hover {
-  opacity: 0.95;
-  transform: translateY(-1px);
-  transition: all 0.2s ease-in-out;
+#saleForm .select2-results__option {
+  font-size: 0.9rem !important;
 }
 
-.sortable-ghost {
-  opacity: 0.6;
-  background: #c8ebfb;
-  transform: scale(1.02);
+/* Sale Lines Grid */
+.sale-line {
+  display: grid;
+  grid-template-columns: 140px minmax(200px, 3fr) 90px 110px 90px 130px minmax(150px, 2fr) 50px;
+  grid-gap: 8px;
+  align-items: end;
 }
 
-@media print {
-  .no-print {
-    display: none !important;
-  }
-
-  body {
-    background-color: white !important;
-    font-size: 12pt;
-  }
-
-  .card {
-    border: none !important;
-    box-shadow: none !important;
-  }
-
-  .table {
-    font-size: 10pt;
-  }
-}
-
-@media (max-width: 768px) {
-  .sale-line-row > div {
+@media (min-width: 992px) {
+  .sale-line label { display: none; }
+  .sale-lines-header {
+    display: grid;
+    grid-template-columns: 140px minmax(200px, 3fr) 90px 110px 90px 130px minmax(150px, 2fr) 50px;
+    grid-gap: 8px;
+    font-weight: 700;
+    color: var(--text-muted, #495057);
     margin-bottom: 0.5rem;
-  }
-
-  .btn-sale {
-    width: 100%;
-    margin-bottom: 0.5rem;
-  }
-
-  .summary-card {
-    margin-top: 1rem;
+    padding: 0 1rem;
+    font-size: 0.9rem;
   }
 }
+
+@media (max-width: 991.98px) {
+  .sale-lines-header { display: none; }
+  .sale-line { grid-template-columns: 1fr 1fr; }
+  .sale-line > div:nth-child(n+7) { grid-column: span 2; }
+  .sale-line > div:last-child { grid-column: span 2; text-align: left; }
+}
+
+.sale-line .form-control { border-radius: 8px; font-size: 0.95rem; }
+.sale-line .product-select { font-size: 0.9rem !important; }
+.sale-line input[type="number"] { min-width: 90px; }
+.sale-line label { font-size: 0.9rem; font-weight: 600; color: var(--text-muted, #495057); margin-bottom: 0.25rem; }
+.sale-line label .required { color: #dc3545; margin-right: 2px; }
+
+.stock-badge { min-width: 65px; font-size: 0.8rem; }
+.totals-table th { background: var(--bg-dark-surface, #f8fafc); font-weight: 700; color: var(--text-main, #334155); font-size: 1rem; }
+.totals-table td, .totals-table th { vertical-align: middle; font-size: 1rem; }
+.totals-table .grand { font-size: 1.15rem; }
+.sales-form .btn { border-radius: 10px; }
+.lines-wrap { max-height: 56vh; overflow: auto; }
+.lines-header { border-bottom: 1px solid var(--border-glass, #e9ecef); font-size: 1.05rem; }
+.sortable-ghost { opacity: .5; background: #c8ebfb; }

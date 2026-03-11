@@ -8,13 +8,14 @@ from sqlalchemy import or_, func
 from models import db, Account, GLBatch, GLEntry, Payment, PaymentMethod, PaymentStatus, Sale, Invoice, Check, CheckStatus, Partner, Supplier, Customer, GL_ACCOUNTS
 from routes.checks import create_check_record
 from utils import permission_required
+from permissions_config.enums import SystemPermissions
 
 # إنشاء Blueprint
 ledger_control_bp = Blueprint('ledger_control', __name__, url_prefix='/security/ledger-control')
 
 
 @ledger_control_bp.route('/')
-@permission_required('manage_ledger')
+@permission_required(SystemPermissions.MANAGE_LEDGER)
 def index():
     """
     🏦 لوحة التحكم الرئيسية لدفتر الأستاذ
@@ -122,7 +123,7 @@ def index():
 
 
 @ledger_control_bp.route('/accounts')
-@permission_required('manage_ledger')
+@permission_required(SystemPermissions.MANAGE_LEDGER)
 def accounts_management():
     """إدارة الحسابات المحاسبية - API"""
     
@@ -150,7 +151,7 @@ def accounts_management():
 
 
 @ledger_control_bp.route('/accounts/create', methods=['POST'])
-@permission_required('manage_ledger')
+@permission_required(SystemPermissions.MANAGE_LEDGER)
 def create_account():
     """إنشاء حساب محاسبي جديد"""
     try:
@@ -199,7 +200,7 @@ def create_account():
 
 
 @ledger_control_bp.route('/accounts/<int:account_id>/update', methods=['POST'])
-@permission_required('manage_ledger')
+@permission_required(SystemPermissions.MANAGE_LEDGER)
 def update_account(account_id):
     """تحديث حساب محاسبي"""
     try:
@@ -238,7 +239,7 @@ def update_account(account_id):
 
 
 @ledger_control_bp.route('/accounts/<int:account_id>/delete', methods=['POST'])
-@permission_required('manage_ledger')
+@permission_required(SystemPermissions.MANAGE_LEDGER)
 def delete_account(account_id):
     """حذف حساب محاسبي"""
     try:
@@ -270,7 +271,7 @@ def delete_account(account_id):
 
 
 @ledger_control_bp.route('/entries')
-@permission_required('manage_ledger')
+@permission_required(SystemPermissions.MANAGE_LEDGER)
 def entries_management():
     """إدارة القيود المحاسبية - API"""
     
@@ -301,7 +302,7 @@ def entries_management():
 
 
 @ledger_control_bp.route('/entries/<int:entry_id>/void', methods=['POST'])
-@permission_required('manage_ledger')
+@permission_required(SystemPermissions.MANAGE_LEDGER)
 def void_entry(entry_id):
     """إلغاء قيد محاسبي"""
     try:
@@ -330,7 +331,7 @@ def void_entry(entry_id):
 
 
 @ledger_control_bp.route('/reports')
-@permission_required('manage_ledger')
+@permission_required(SystemPermissions.MANAGE_LEDGER)
 def reports_management():
     """تقارير مالية متقدمة - API"""
     
@@ -381,7 +382,7 @@ def reports_management():
 
 
 @ledger_control_bp.route('/settings')
-@permission_required('manage_ledger')
+@permission_required(SystemPermissions.MANAGE_LEDGER)
 def settings_management():
     """إعدادات النظام المحاسبي - API"""
     
@@ -405,7 +406,7 @@ def settings_management():
 
 
 @ledger_control_bp.route('/settings/update', methods=['POST'])
-@permission_required('manage_ledger')
+@permission_required(SystemPermissions.MANAGE_LEDGER)
 def update_settings():
     """تحديث إعدادات النظام المحاسبي"""
     try:
@@ -427,7 +428,7 @@ def update_settings():
 
 
 @ledger_control_bp.route('/health-check')
-@permission_required('manage_ledger')
+@permission_required(SystemPermissions.MANAGE_LEDGER)
 def health_check():
     """فحص صحة النظام المحاسبي"""
     
@@ -697,7 +698,7 @@ def health_check():
 
 
 @ledger_control_bp.route('/api/account-balance/<account_code>')
-@permission_required('manage_ledger')
+@permission_required(SystemPermissions.MANAGE_LEDGER)
 def get_account_balance(account_code):
     """الحصول على رصيد حساب محدد"""
     try:
@@ -727,7 +728,7 @@ def get_account_balance(account_code):
 
 
 @ledger_control_bp.route('/batches/all')
-@permission_required('manage_ledger')
+@permission_required(SystemPermissions.MANAGE_LEDGER)
 def get_all_batches():
     """جلب جميع القيود للتحرير مع الفلاتر"""
     try:
@@ -813,7 +814,7 @@ def get_all_batches():
 
 
 @ledger_control_bp.route('/batches/<int:batch_id>')
-@permission_required('manage_ledger')
+@permission_required(SystemPermissions.MANAGE_LEDGER)
 def get_batch_by_id(batch_id):
     """جلب قيد واحد مع جميع تفاصيله"""
     try:
@@ -858,7 +859,7 @@ def get_batch_by_id(batch_id):
 
 
 @ledger_control_bp.route('/batches/<int:batch_id>/update', methods=['POST'])
-@permission_required('manage_ledger')
+@permission_required(SystemPermissions.MANAGE_LEDGER)
 def update_batch(batch_id):
     """تحديث قيد محاسبي - ينعكس فوراً على النظام"""
     try:
@@ -934,7 +935,7 @@ def update_batch(batch_id):
 
 
 @ledger_control_bp.route('/backup', methods=['POST'])
-@permission_required('backup_database')
+@permission_required(SystemPermissions.BACKUP_DATABASE)
 def backup_ledger():
     """إنشاء نسخة احتياطية من دفتر الأستاذ"""
     try:
@@ -961,7 +962,7 @@ def backup_ledger():
 
 
 @ledger_control_bp.route('/backup-old', methods=['POST'])
-@permission_required('backup_database')
+@permission_required(SystemPermissions.BACKUP_DATABASE)
 def backup_ledger_old():
     """النسخ الاحتياطي القديم (SQL Dump using SQLAlchemy)"""
     try:
@@ -1034,7 +1035,7 @@ def backup_ledger_old():
 
 
 @ledger_control_bp.route('/validate')
-@permission_required('manage_ledger')
+@permission_required(SystemPermissions.MANAGE_LEDGER)
 def validate_entries():
     """فحص توازن جميع القيود"""
     try:
@@ -1080,7 +1081,7 @@ def validate_entries():
 
 
 @ledger_control_bp.route('/cleanup', methods=['POST'])
-@permission_required('manage_ledger')
+@permission_required(SystemPermissions.MANAGE_LEDGER)
 def cleanup_old_entries():
     """تنظيف القيود الملغاة القديمة"""
     try:
@@ -1121,7 +1122,7 @@ def cleanup_old_entries():
 # ===============================
 
 @ledger_control_bp.route('/recalculate-balances', methods=['POST'])
-@permission_required('manage_advanced_accounting')
+@permission_required(SystemPermissions.MANAGE_ADVANCED_ACCOUNTING)
 def recalculate_all_balances():
     """إعادة حساب جميع الأرصدة من الصفر"""
     try:
@@ -1175,7 +1176,7 @@ def recalculate_all_balances():
 
 
 @ledger_control_bp.route('/fix-cashed-checks-balance', methods=['POST'])
-@permission_required('manage_advanced_accounting')
+@permission_required(SystemPermissions.MANAGE_ADVANCED_ACCOUNTING)
 def fix_cashed_checks_balance():
     """تصحيح أرصدة العملاء المتأثرين بالشيكات المسوية والمرتدة"""
     try:
@@ -1285,7 +1286,7 @@ def fix_cashed_checks_balance():
 
 
 @ledger_control_bp.route('/sync-checks', methods=['POST'])
-@permission_required('manage_system_health')
+@permission_required(SystemPermissions.MANAGE_SYSTEM_HEALTH)
 def sync_payments_checks():
     """مزامنة الدفعات مع الشيكات"""
     try:
@@ -1336,7 +1337,7 @@ def sync_payments_checks():
 
 
 @ledger_control_bp.route('/statistics', methods=['GET'])
-@permission_required('view_reports')
+@permission_required(SystemPermissions.VIEW_REPORTS)
 def get_advanced_statistics():
     """إحصائيات متقدمة شاملة"""
     try:
@@ -1415,7 +1416,7 @@ def get_advanced_statistics():
 # ========== مركز التحكم المتقدم - الفترات والعمليات ==========
 
 @ledger_control_bp.route('/operations/fiscal-periods/api', methods=['GET'])
-@permission_required('manage_ledger')
+@permission_required(SystemPermissions.MANAGE_LEDGER)
 def get_fiscal_periods():
     """API: جلب جميع الفترات المحاسبية"""
     try:
@@ -1500,7 +1501,7 @@ def get_fiscal_periods():
 
 
 @ledger_control_bp.route('/operations/closing-entries/generate', methods=['POST'])
-@permission_required('manage_ledger')
+@permission_required(SystemPermissions.MANAGE_LEDGER)
 def generate_closing_entries():
     """إنشاء قيود الإقفال التلقائية"""
     try:
@@ -1591,7 +1592,7 @@ def generate_closing_entries():
 
 
 @ledger_control_bp.route('/operations/closing-entries/post', methods=['POST'])
-@permission_required('manage_ledger')
+@permission_required(SystemPermissions.MANAGE_LEDGER)
 def post_closing_entries():
     """ترحيل قيود الإقفال"""
     try:
@@ -1646,7 +1647,7 @@ def post_closing_entries():
 
 
 @ledger_control_bp.route('/operations/reverse-entry/<int:batch_id>', methods=['POST'])
-@permission_required('manage_ledger')
+@permission_required(SystemPermissions.MANAGE_LEDGER)
 def reverse_entry(batch_id):
     """🔄 إنشاء قيد عكسي"""
     try:
@@ -1709,7 +1710,7 @@ def reverse_entry(batch_id):
 
 
 @ledger_control_bp.route('/operations/review-queue', methods=['GET'])
-@permission_required('validate_accounting')
+@permission_required(SystemPermissions.VALIDATE_ACCOUNTING)
 def review_queue():
     """📋 قائمة القيود المعلقة للمراجعة"""
     try:
@@ -1748,7 +1749,7 @@ def review_queue():
 
 
 @ledger_control_bp.route('/operations/approve-batch/<int:batch_id>', methods=['POST'])
-@permission_required('validate_accounting')
+@permission_required(SystemPermissions.VALIDATE_ACCOUNTING)
 def approve_batch(batch_id):
     """✅ الموافقة على قيد وترحيله"""
     try:
@@ -1786,7 +1787,7 @@ def approve_batch(batch_id):
 
 
 @ledger_control_bp.route('/operations/reject-batch/<int:batch_id>', methods=['POST'])
-@permission_required('validate_accounting')
+@permission_required(SystemPermissions.VALIDATE_ACCOUNTING)
 def reject_batch(batch_id):
     """❌ رفض قيد"""
     try:
@@ -1817,7 +1818,7 @@ def reject_batch(batch_id):
 # ========== تحرير وربط القيود ==========
 
 @ledger_control_bp.route('/operations/batch/<int:batch_id>/link-entity', methods=['POST'])
-@permission_required('manage_ledger')
+@permission_required(SystemPermissions.MANAGE_LEDGER)
 def link_batch_to_entity(batch_id):
     """🔗 ربط قيد محاسبي بجهة"""
     try:
@@ -1867,7 +1868,7 @@ def link_batch_to_entity(batch_id):
 
 
 @ledger_control_bp.route('/operations/batch/<int:batch_id>/edit', methods=['GET'])
-@permission_required('manage_ledger')
+@permission_required(SystemPermissions.MANAGE_LEDGER)
 def get_batch_for_edit(batch_id):
     """📝 جلب بيانات قيد للتحرير"""
     try:
@@ -1919,7 +1920,7 @@ def get_batch_for_edit(batch_id):
 
 
 @ledger_control_bp.route('/operations/batch/<int:batch_id>/update-full', methods=['POST'])
-@permission_required('manage_ledger')
+@permission_required(SystemPermissions.MANAGE_LEDGER)
 def update_batch_full(batch_id):
     """✏️ تحديث كامل لقيد محاسبي"""
     try:
@@ -1986,7 +1987,7 @@ def update_batch_full(batch_id):
 
 
 @ledger_control_bp.route('/operations/entities/search', methods=['GET'])
-@permission_required('manage_ledger')
+@permission_required(SystemPermissions.MANAGE_LEDGER)
 def search_entities():
     """🔍 البحث عن جهات لربطها بالقيود"""
     try:
@@ -2023,7 +2024,7 @@ def search_entities():
 
 
 @ledger_control_bp.route('/verify-customer-balances', methods=['POST'])
-@permission_required('manage_system_health')
+@permission_required(SystemPermissions.MANAGE_SYSTEM_HEALTH)
 def verify_customer_balances():
     """التحقق من أرصدة العملاء القدامى وتحديثها حسب النظام الجديد"""
     try:

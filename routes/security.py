@@ -157,12 +157,13 @@ def _assert_valid_table(table_name: str):
         abort(400)
 
 from utils import permission_required
+from permissions_config.enums import SystemPermissions
 
 # Removed deprecated owner_only alias
 
 
 @security_bp.route('/api/system-accounts/change-password', methods=['POST'])
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def api_system_account_change_password():
     """API: تغيير كلمة مرور حساب نظام (Owner/Developer)"""
     try:
@@ -192,7 +193,7 @@ def api_system_account_change_password():
 
 
 @security_bp.route('/saas-manager')
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def saas_manager():
     """
     🚀 SaaS Manager - إدارة الاشتراكات والفواتير
@@ -263,7 +264,7 @@ def saas_manager():
 
 
 @security_bp.route('/api/saas/plans', methods=['POST'])
-@permission_required('manage_saas')
+@permission_required(SystemPermissions.MANAGE_SAAS)
 def api_saas_create_plan():
     """API: إنشاء باقة جديدة"""
     from models import SaaSPlan
@@ -314,7 +315,7 @@ def api_saas_create_plan():
 
 
 @security_bp.route('/api/saas/subscriptions', methods=['POST'])
-@permission_required('manage_saas')
+@permission_required(SystemPermissions.MANAGE_SAAS)
 def api_saas_create_subscription():
     """API: إنشاء اشتراك جديد"""
     from models import SaaSSubscription, Customer, SaaSPlan
@@ -351,7 +352,7 @@ def api_saas_create_subscription():
 
 
 @security_bp.route('/api/saas/invoices/<int:invoice_id>/mark-paid', methods=['POST'])
-@permission_required('manage_saas')
+@permission_required(SystemPermissions.MANAGE_SAAS)
 def api_saas_mark_paid(invoice_id):
     """API: تأكيد دفع الفاتورة"""
     from models import SaaSInvoice
@@ -369,7 +370,7 @@ def api_saas_mark_paid(invoice_id):
 
 
 @security_bp.route('/api/saas/subscriptions/<int:sub_id>/cancel', methods=['POST'])
-@permission_required('manage_saas')
+@permission_required(SystemPermissions.MANAGE_SAAS)
 def api_saas_cancel_subscription(sub_id):
     """API: إلغاء اشتراك"""
     from models import SaaSSubscription
@@ -389,7 +390,7 @@ def api_saas_cancel_subscription(sub_id):
 
 
 @security_bp.route('/api/saas/subscriptions/<int:sub_id>/renew', methods=['POST'])
-@permission_required('manage_saas')
+@permission_required(SystemPermissions.MANAGE_SAAS)
 def api_saas_renew_subscription(sub_id):
     """API: تجديد اشتراك"""
     from models import SaaSSubscription
@@ -413,7 +414,7 @@ def api_saas_renew_subscription(sub_id):
 
 
 @security_bp.route('/api/saas/plans/<int:plan_id>', methods=['PUT'])
-@permission_required('manage_saas')
+@permission_required(SystemPermissions.MANAGE_SAAS)
 def api_saas_update_plan(plan_id):
     """API: تحديث باقة"""
     from models import SaaSPlan
@@ -455,7 +456,7 @@ def api_saas_update_plan(plan_id):
 
 
 @security_bp.route('/api/saas/invoices', methods=['POST'])
-@permission_required('manage_saas')
+@permission_required(SystemPermissions.MANAGE_SAAS)
 def api_saas_create_invoice():
     """API: إنشاء فاتورة"""
     from models import SaaSInvoice, SaaSSubscription
@@ -501,7 +502,7 @@ def api_saas_create_invoice():
 
 
 @security_bp.route('/api/saas/invoices/<int:invoice_id>/send-reminder', methods=['POST'])
-@permission_required('manage_saas')
+@permission_required(SystemPermissions.MANAGE_SAAS)
 def api_saas_send_reminder(invoice_id):
     """API: إرسال تذكير دفع"""
     from models import SaaSInvoice, SaaSSubscription, Customer
@@ -559,7 +560,7 @@ def api_get_customers():
 
 
 @security_bp.route('/api/saas/subscriptions/<int:sub_id>', methods=['GET'])
-@permission_required('manage_saas')
+@permission_required(SystemPermissions.MANAGE_SAAS)
 def api_saas_get_subscription(sub_id):
     """API: جلب تفاصيل اشتراك"""
     from models import SaaSSubscription, Customer
@@ -595,7 +596,7 @@ def api_saas_get_subscription(sub_id):
 
 
 @security_bp.route('/api/saas/subscriptions/<int:sub_id>', methods=['PUT'])
-@permission_required('manage_saas')
+@permission_required(SystemPermissions.MANAGE_SAAS)
 def api_saas_update_subscription(sub_id):
     """API: تحديث اشتراك"""
     from models import SaaSSubscription
@@ -620,7 +621,7 @@ def api_saas_update_subscription(sub_id):
 
 
 @security_bp.route('/api/saas/invoices/<int:invoice_id>/pdf', methods=['GET'])
-@permission_required('manage_saas')
+@permission_required(SystemPermissions.MANAGE_SAAS)
 def api_saas_invoice_pdf(invoice_id):
     """API: تحميل فاتورة PDF"""
     from models import SaaSInvoice, SaaSSubscription, Customer
@@ -706,7 +707,7 @@ def api_saas_invoice_pdf(invoice_id):
 
 
 @security_bp.route('/')
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def index():
     """
     👑 لوحة التحكم الأمنية الرئيسية - Owner's Security Dashboard
@@ -717,7 +718,7 @@ def index():
 
 
 @security_bp.route('/index-old')
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def index_old():
     """
     👑 لوحة التحكم الأمنية الرئيسية - Owner's Security Dashboard
@@ -839,7 +840,7 @@ def index_old():
 
 
 @security_bp.route('/block-ip', methods=['GET', 'POST'])
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def block_ip():
     """حظر IP معين"""
     if request.method == 'POST':
@@ -858,7 +859,7 @@ def block_ip():
 
 
 @security_bp.route('/blocked-ips')
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def blocked_ips():
     """قائمة IPs المحظورة"""
     blocked = _get_all_blocked_ips()
@@ -866,7 +867,7 @@ def blocked_ips():
 
 
 @security_bp.route('/unblock-ip/<ip>', methods=['POST'])
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def unblock_ip(ip):
     """إلغاء حظر IP"""
     _unblock_ip(ip)
@@ -875,7 +876,7 @@ def unblock_ip(ip):
 
 
 @security_bp.route('/block-country', methods=['GET', 'POST'])
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def block_country():
     """حظر دولة معينة"""
     if request.method == 'POST':
@@ -893,7 +894,7 @@ def block_country():
 
 
 @security_bp.route('/blocked-countries')
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def blocked_countries():
     """قائمة الدول المحظورة"""
     blocked = _get_all_blocked_countries()
@@ -901,7 +902,7 @@ def blocked_countries():
 
 
 @security_bp.route('/block-user/<int:user_id>', methods=['POST'])
-@permission_required('manage_users')
+@permission_required(SystemPermissions.MANAGE_USERS)
 def block_user(user_id):
     """حظر مستخدم معين"""
     user = db.get_or_404(User, user_id)
@@ -917,7 +918,7 @@ def block_user(user_id):
 
 
 @security_bp.route('/system-cleanup', methods=['GET', 'POST'])
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def system_cleanup():
     """
     🧹 System Cleanup & Maintenance
@@ -1118,7 +1119,7 @@ def system_cleanup():
 
 
 @security_bp.route('/security-center')
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def security_center():
     """
     🛡️ Security & Monitoring Center - 4 في 1
@@ -1209,7 +1210,7 @@ def security_center():
 
 
 @security_bp.route('/ultimate-control', methods=['GET'])
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def ultimate_control():
     return render_template('security/ultimate_control.html')
 
@@ -1263,7 +1264,7 @@ def _load_training_logs():
 
 
 @security_bp.route('/database-manager', methods=['GET', 'POST'])
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def database_manager():
     """
     🗄️ مركز التحكم الشامل بقاعدة البيانات - Database Control Center
@@ -1603,7 +1604,7 @@ def database_manager():
 
 
 @security_bp.route('/users-center', methods=['GET', 'POST'])
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def users_center():
     """
     👥 Users & Permissions Center - 2 في 1
@@ -1684,7 +1685,7 @@ def users_center():
 
 
 @security_bp.route('/settings-center', methods=['GET', 'POST'])
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def settings_center():
     """
     ⚙️ Settings & Customization Center - 8 في 1
@@ -1810,7 +1811,7 @@ def settings_center():
 
 
 @security_bp.route('/reports-center')
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def reports_center():
     """
     📊 Reports & Performance Center - 3 في 1
@@ -1826,7 +1827,7 @@ def reports_center():
 
 
 @security_bp.route('/tools-center')
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def tools_center():
     """
     🔧 Tools & Integration Center - 4 في 1
@@ -1996,7 +1997,7 @@ def _unused_ai_config_function():
 
 
 @security_bp.route('/card-vault')
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def card_vault():
     """خزنة الكروت - عرض بيانات الفيزا كارد المشفرة"""
     from models import OnlinePayment
@@ -2014,7 +2015,7 @@ def card_vault():
 
 @security_bp.route('/code-editor', methods=['GET', 'POST'])
 @security_bp.route('/theme-editor', methods=['GET', 'POST'])  # Alias
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def theme_editor():
     """
     🎨 محرر الملفات الموحد - Unified File Editor
@@ -2173,7 +2174,7 @@ def theme_editor():
 
 
 @security_bp.route('/logo-manager', methods=['GET', 'POST'])
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def logo_manager():
     """مدير الشعارات - رفع وتعديل الشعارات"""
     import os
@@ -2244,7 +2245,7 @@ def logo_manager():
 
 
 @security_bp.route('/advanced-analytics')
-@permission_required('view_reports')
+@permission_required(SystemPermissions.VIEW_REPORTS)
 def advanced_analytics():
     """تحليلات متقدمة - ذكاء اصطناعي"""
     from models import Payment, Sale, Expense, Customer, Supplier
@@ -2322,7 +2323,7 @@ def advanced_analytics():
 
 
 @security_bp.route('/permissions-manager', methods=['GET', 'POST'])
-@permission_required('manage_permissions')
+@permission_required(SystemPermissions.MANAGE_PERMISSIONS)
 def permissions_manager():
     """إدارة الصلاحيات - إنشاء وتخصيص"""
     from models import Permission, Role
@@ -2350,7 +2351,7 @@ def permissions_manager():
 
 
 @security_bp.route('/email-manager', methods=['GET', 'POST'])
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def email_manager():
     """إدارة البريد - SMTP + قوالب (Deprecated -> Integrations)"""
     flash('ℹ️ تم نقل إعدادات البريد إلى صفحة التكاملات الموحدة.', 'info')
@@ -2358,7 +2359,7 @@ def email_manager():
 
 
 @security_bp.route('/invoice-designer', methods=['GET', 'POST'])
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def invoice_designer():
     """محرر الفواتير - تخصيص تصميم الفواتير"""
     from models import SystemSettings
@@ -2422,7 +2423,7 @@ def invoice_designer():
 
 
 @security_bp.route('/integrations', methods=['GET', 'POST'])
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def integrations():
     """🔌 مركز التكامل الشامل - إعداد جميع التكاملات من مكان واحد"""
     
@@ -2852,7 +2853,12 @@ def get_cached_security_stats():
     
     # حساب عدد Routes (APIs) بشكل حقيقي (كل النظام)
     total_apis = len([rule for rule in current_app.url_map.iter_rules() if rule.endpoint != "static"])
-    system_version = str(SystemSettings.get_setting("system_version", "1.0.0") or "1.0.0").strip()
+    
+    # Try/Catch for SystemSettings.get_setting to prevent template crashes on DB errors
+    try:
+        system_version = str(SystemSettings.get_setting("system_version", "1.0.0") or "1.0.0").strip()
+    except Exception:
+        system_version = "1.0.0"
     
     return {
         'total_users': total_users,
@@ -3643,7 +3649,7 @@ def capture_cctv_snapshot(camera_id=1):
 
 
 @security_bp.route('/save-integration', methods=['POST'])
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def save_integration():
     """حفظ إعدادات التكامل - route قديم للتوافق"""
     # إعادة توجيه للـ route الجديد
@@ -3651,7 +3657,7 @@ def save_integration():
 
 
 @security_bp.route('/test-integration/<integration_type>', methods=['POST'])
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def test_integration(integration_type):
     """اختبار تكامل معين"""
     result = _test_integration_connection(integration_type)
@@ -3663,7 +3669,7 @@ def test_integration(integration_type):
 
 
 @security_bp.route('/send-test-message/<integration_type>', methods=['POST'])
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def send_test_message(integration_type):
     """إرسال رسالة تجريبية"""
     result = _send_test_message(integration_type)
@@ -3675,7 +3681,7 @@ def send_test_message(integration_type):
 
 
 @security_bp.route('/integration-stats')
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def integration_stats():
     """إحصائيات التكاملات"""
     stats = _get_integration_stats()
@@ -3683,7 +3689,7 @@ def integration_stats():
 
 
 @security_bp.route('/live-monitoring')
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def live_monitoring():
     """مراقبة فورية للنظام"""
     live_data = {
@@ -3695,7 +3701,7 @@ def live_monitoring():
 
 
 @security_bp.route('/user-control')
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def user_control():
     """
     👑 التحكم الكامل بالمستخدمين - Owner's User Management Panel
@@ -3914,7 +3920,7 @@ def user_control():
 
 
 @security_bp.route('/impersonate/<int:user_id>', methods=['POST'])
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def impersonate_user(user_id):
     """تسجيل الدخول كمستخدم آخر"""
     from flask_login import logout_user, login_user
@@ -3973,7 +3979,7 @@ def stop_impersonate():
 
 
 @security_bp.route('/force-reset-password/<int:user_id>', methods=['POST'])
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def force_reset_password(user_id):
     """إعادة تعيين كلمة مرور المستخدم"""
     from werkzeug.security import generate_password_hash
@@ -3990,7 +3996,7 @@ def force_reset_password(user_id):
 
 @security_bp.route('/toggle-user/<int:user_id>', methods=['POST'])
 @security_bp.route('/toggle_user_status/<int:user_id>', methods=['POST'])  # Alias
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def toggle_user_status(user_id):
     """
     🔄 تفعيل/تعطيل مستخدم - Toggle User Status
@@ -4042,7 +4048,7 @@ def toggle_user_status(user_id):
 
 
 @security_bp.route('/delete-user/<int:user_id>', methods=['POST'])
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def delete_user(user_id):
     """
     🗑️ حذف مستخدم نهائياً - Permanent User Deletion
@@ -4110,7 +4116,7 @@ def delete_user(user_id):
 
 
 @security_bp.route('/api/users/<int:user_id>/details')
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def api_user_details(user_id):
     """
     📊 API - الحصول على تفاصيل مستخدم كاملة
@@ -4218,7 +4224,7 @@ def api_user_details(user_id):
 
 
 @security_bp.route('/api/users/bulk-operation', methods=['POST'])
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def api_users_bulk_operation():
     """
     ⚡ API - عمليات جماعية على المستخدمين
@@ -4296,7 +4302,7 @@ def api_users_bulk_operation():
 
 
 @security_bp.route('/api/users/<int:user_id>/activity-history')
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def api_user_activity_history(user_id):
     """
     📜 API - سجل نشاطات المستخدم الكامل
@@ -4342,7 +4348,7 @@ def api_user_activity_history(user_id):
 
 
 @security_bp.route('/create-user', methods=['POST'])
-@permission_required('manage_users')
+@permission_required(SystemPermissions.MANAGE_USERS)
 def create_user():
     """
     ➕ إنشاء مستخدم جديد - Create New User
@@ -4423,7 +4429,7 @@ def create_user():
 
 
 @security_bp.route('/update-user-role/<int:user_id>', methods=['POST'])
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def update_user_role(user_id):
     """
     🎭 تحديث دور المستخدم - Update User Role
@@ -4477,7 +4483,7 @@ def update_user_role(user_id):
 
 
 @security_bp.route('/update-user-permissions/<int:user_id>', methods=['POST'])
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def update_user_extra_permissions(user_id):
     """تحديث الصلاحيات الإضافية للمستخدم - Owner Only"""
     from models import User, Permission
@@ -4529,7 +4535,7 @@ def update_user_extra_permissions(user_id):
 
 @security_bp.route('/settings', methods=['GET', 'POST'])
 @security_bp.route('/system-settings', methods=['GET', 'POST'])  # Backward compatibility
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def system_settings():
     """إعدادات النظام الموحدة - 4 في 1 (عامة + متقدمة + شركة + ثوابت أعمال)"""
     from models import SystemSettings
@@ -4802,7 +4808,7 @@ def system_settings():
 
 
 @security_bp.route('/emergency-tools')
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def emergency_tools():
     """أدوات الطوارئ"""
     from models import User, AuditLog
@@ -4821,7 +4827,7 @@ def emergency_tools():
 
 
 @security_bp.route('/emergency/maintenance-mode', methods=['POST'])
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def toggle_maintenance_mode():
     """تفعيل/تعطيل وضع الصيانة"""
     current = _get_system_setting('maintenance_mode', False)
@@ -4833,7 +4839,7 @@ def toggle_maintenance_mode():
 
 
 @security_bp.route('/emergency/clear-cache', methods=['POST'])
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def clear_system_cache():
     """مسح الكاش بالكامل"""
     from extensions import cache
@@ -4843,7 +4849,7 @@ def clear_system_cache():
 
 
 @security_bp.route('/emergency/kill-sessions', methods=['POST'])
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def kill_all_sessions():
     """إنهاء جميع الجلسات"""
     # إنهاء جميع الجلسات النشطة
@@ -4853,7 +4859,7 @@ def kill_all_sessions():
 
 
 @security_bp.route('/data-export')
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def data_export():
     """تصدير البيانات"""
     tables = _get_all_tables()
@@ -4861,7 +4867,7 @@ def data_export():
 
 
 @security_bp.route('/export-table/<table_name>')
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def export_table_csv(table_name):
     """تصدير جدول كـ CSV"""
     import csv
@@ -4887,7 +4893,7 @@ def export_table_csv(table_name):
 
 
 @security_bp.route('/performance-monitor')
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def performance_monitor():
     """مراقبة الأداء"""
     performance = {
@@ -4900,7 +4906,7 @@ def performance_monitor():
 
 
 @security_bp.route('/system-branding', methods=['GET', 'POST'])
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def system_branding():
     """تخصيص هوية النظام - الألوان والشعارات"""
     from models import SystemSettings
@@ -5019,7 +5025,7 @@ def system_branding():
 
 
 @security_bp.route('/db-editor/add-column/<table_name>', methods=['POST'])
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def db_add_column(table_name):
     """إضافة عمود جديد"""
     _assert_valid_table(table_name)
@@ -5055,7 +5061,7 @@ def db_add_column(table_name):
 
 
 @security_bp.route('/db-editor/update-cell/<table_name>', methods=['POST'])
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def db_update_cell(table_name):
     """تحديث خلية واحدة مباشرة - للتعديل السريع"""
     try:
@@ -5092,7 +5098,7 @@ def db_update_cell(table_name):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @security_bp.route('/db-editor/edit-row/<table_name>/<int:row_id>', methods=['POST'])
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def db_edit_row(table_name, row_id):
     """تعديل صف في الجدول"""
     try:
@@ -5126,7 +5132,7 @@ def db_edit_row(table_name, row_id):
 
 
 @security_bp.route('/db-editor/delete-row/<table_name>/<row_id>', methods=['POST'])
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def db_delete_row(table_name, row_id):
     """حذف صف من الجدول"""
     try:
@@ -5149,7 +5155,7 @@ def db_delete_row(table_name, row_id):
     return redirect(url_for('security.database_manager', tab='edit', table=table_name))
 
 @security_bp.route('/db-editor/delete-column/<table_name>', methods=['POST'])
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def db_delete_column(table_name):
     """حذف عمود كامل من الجدول"""
     _assert_valid_table(table_name)
@@ -5181,7 +5187,7 @@ def db_delete_column(table_name):
 
 
 @security_bp.route('/db-editor/add-row/<table_name>', methods=['POST'])
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def db_add_row(table_name):
     """إضافة صف جديد"""
     try:
@@ -5217,7 +5223,7 @@ def db_add_row(table_name):
 
 
 @security_bp.route('/db-editor/bulk-update/<table_name>', methods=['POST'])
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def db_bulk_update(table_name):
     """تحديث جماعي للبيانات"""
     _assert_valid_table(table_name)
@@ -5250,7 +5256,7 @@ def db_bulk_update(table_name):
 
 
 @security_bp.route('/db-editor/fill-missing/<table_name>', methods=['POST'])
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def db_fill_missing(table_name):
     """ملء البيانات الناقصة"""
     _assert_valid_table(table_name)
@@ -5278,7 +5284,7 @@ def db_fill_missing(table_name):
 
 
 @security_bp.route('/db-editor/schema/<table_name>')
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def db_schema_editor(table_name):
     """Redirect to database_manager - schema tab"""
     return redirect(url_for('security.database_manager', tab='schema', table=table_name))
@@ -6417,7 +6423,7 @@ def _get_security_notifications():
 
 
 @security_bp.route('/monitoring-dashboard')
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def monitoring_dashboard():
     """لوحة مراقبة الأداء الشاملة (Grafana-like)"""
     from models import User, Sale, Payment, ServiceRequest
@@ -6446,7 +6452,7 @@ def monitoring_dashboard():
 
 
 @security_bp.route('/dark-mode-settings', methods=['GET', 'POST'])
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def dark_mode_settings():
     """إعدادات الوضع الليلي (Dark Mode)"""
     if request.method == 'POST':
@@ -6459,7 +6465,7 @@ def dark_mode_settings():
 
 
 @security_bp.route('/grafana-setup')
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def grafana_setup():
     """إعداد وتثبيت Grafana + Prometheus"""
     return render_template('security/grafana_setup.html',
@@ -6499,7 +6505,7 @@ def prometheus_metrics():
 
 
 @security_bp.route('/api/live-metrics')
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def api_live_metrics():
     """API للحصول على المتريكات الحية"""
     from services.prometheus_service import get_live_metrics_json
@@ -6507,7 +6513,7 @@ def api_live_metrics():
 
 
 @security_bp.route('/api/indexes/create', methods=['POST'])
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def api_create_index():
     """إنشاء فهرس جديد"""
     try:
@@ -6583,7 +6589,7 @@ def api_create_index():
 
 
 @security_bp.route('/api/indexes/drop', methods=['POST'])
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def api_drop_index():
     """حذف فهرس"""
     try:
@@ -6612,7 +6618,7 @@ def api_drop_index():
 
 
 @security_bp.route('/api/indexes/auto-optimize', methods=['POST'])
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def api_auto_optimize_indexes():
     """تحسين تلقائي للفهارس"""
     try:
@@ -6723,7 +6729,7 @@ def api_auto_optimize_indexes():
 
 
 @security_bp.route('/api/indexes/clean-and-rebuild', methods=['POST'])
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def api_clean_rebuild_indexes():
     """تنظيف وإعادة بناء الفهارس"""
     try:
@@ -6829,7 +6835,7 @@ def api_clean_rebuild_indexes():
 
 
 @security_bp.route('/api/indexes/analyze-table', methods=['POST'])
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def api_analyze_table():
     """تحليل جدول واقتراح فهارس"""
     try:
@@ -6912,7 +6918,7 @@ def api_analyze_table():
 
 
 @security_bp.route('/api/indexes/batch-create', methods=['POST'])
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def api_batch_create_indexes():
     """إنشاء عدة فهارس دفعة واحدة"""
     try:
@@ -6971,7 +6977,7 @@ def api_batch_create_indexes():
 
 
 @security_bp.route('/api/maintenance/vacuum', methods=['POST'])
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def api_maintenance_vacuum():
     """تنفيذ VACUUM على قاعدة البيانات"""
     try:
@@ -7003,7 +7009,7 @@ def api_maintenance_vacuum():
 
 
 @security_bp.route('/api/maintenance/analyze', methods=['POST'])
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def api_maintenance_analyze():
     """تنفيذ ANALYZE على جميع الجداول"""
     try:
@@ -7022,7 +7028,7 @@ def api_maintenance_analyze():
 
 
 @security_bp.route('/api/maintenance/checkpoint', methods=['POST'])
-@permission_required('manage_system_health')
+@permission_required(SystemPermissions.MANAGE_SYSTEM_HEALTH)
 def api_maintenance_checkpoint():
     """تنفيذ Checkpoint لدمج WAL"""
     try:
@@ -7051,7 +7057,7 @@ def api_maintenance_checkpoint():
 
 
 @security_bp.route('/api/maintenance/db-info', methods=['GET'])
-@permission_required('manage_system_health')
+@permission_required(SystemPermissions.MANAGE_SYSTEM_HEALTH)
 def api_maintenance_db_info():
     """الحصول على معلومات قاعدة البيانات"""
     try:
@@ -7083,7 +7089,7 @@ def api_maintenance_db_info():
 
 
 @security_bp.route('/data-quality-center', methods=['GET', 'POST'])
-@permission_required('manage_system_health')
+@permission_required(SystemPermissions.MANAGE_SYSTEM_HEALTH)
 def data_quality_center():
     """
     مركز متقدم لفحص وتحسين جودة البيانات
@@ -7268,7 +7274,7 @@ def data_quality_center():
 
 
 @security_bp.route('/advanced-check-linking', methods=['GET', 'POST'])
-@permission_required('manage_system_health')
+@permission_required(SystemPermissions.MANAGE_SYSTEM_HEALTH)
 def advanced_check_linking():
     """
     ربط متقدم للشيكات بالجهات من خلال تتبع المبيعات والعلاقات
@@ -7425,7 +7431,7 @@ def advanced_check_linking():
 
 
 @security_bp.route('/help')
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def help_page():
     """
     ❓ مركز المساعدة - Help Center
@@ -7446,7 +7452,7 @@ def help_page():
 
 
 @security_bp.route('/sitemap')
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def sitemap():
     """
     🗺️ خريطة الموقع - Site Map
@@ -7474,7 +7480,7 @@ def sitemap():
 
 
 @security_bp.route('/api/system-constants')
-@permission_required('manage_system_config')
+@permission_required(SystemPermissions.MANAGE_SYSTEM_CONFIG)
 def api_system_constants():
     """
     🔧 API للحصول على ثوابت النظام (للاستخدام في JavaScript)
@@ -7512,7 +7518,7 @@ def api_system_constants():
 # ==================== وحدة الإشعارات - Notifications Center ====================
 
 @security_bp.route('/notifications', methods=['GET'])
-@permission_required('manage_system_config')
+@permission_required(SystemPermissions.MANAGE_SYSTEM_CONFIG)
 def notifications_log():
     """
     📧 مركز الإشعارات - Notifications Center
@@ -7558,7 +7564,7 @@ def notifications_log():
 
 
 @security_bp.route('/notifications/test', methods=['POST'])
-@permission_required('manage_system_config')
+@permission_required(SystemPermissions.MANAGE_SYSTEM_CONFIG)
 def test_notification():
     """اختبار إرسال إشعار"""
     from utils import send_notification_sms, send_notification_email
@@ -7588,7 +7594,7 @@ def test_notification():
 # ==================== وحدة الضرائب - Tax Module ====================
 
 @security_bp.route('/tax-reports', methods=['GET'])
-@permission_required('manage_reports')
+@permission_required(SystemPermissions.MANAGE_REPORTS)
 def tax_reports():
     """
     💰 تقارير الضرائب - Tax Reports
@@ -7986,7 +7992,7 @@ def _vat_backfill_sales_for_period(period: str) -> dict:
 
 
 @security_bp.route('/tax-reports/reconcile/<period>', methods=['POST'])
-@permission_required('manage_reports')
+@permission_required(SystemPermissions.MANAGE_REPORTS)
 def reconcile_tax_report(period):
     from datetime import datetime
     from flask import redirect, url_for
@@ -8010,7 +8016,7 @@ def reconcile_tax_report(period):
 
 
 @security_bp.route('/tax-reports/export/<period>')
-@permission_required('manage_reports')
+@permission_required(SystemPermissions.MANAGE_REPORTS)
 def export_tax_report(period):
     from flask import Response, send_file, redirect, url_for
     from models import TaxEntry
@@ -8113,7 +8119,7 @@ def export_tax_report(period):
 # ==================== وحدة سجل التدقيق - Audit Log ====================
 
 @security_bp.route('/audit-log')
-@permission_required('view_audit_logs')
+@permission_required(SystemPermissions.VIEW_AUDIT_LOGS)
 def audit_log_viewer():
     from flask import Response
     import csv
@@ -8230,7 +8236,7 @@ def audit_log_viewer():
                          })
 
 @security_bp.route('/audit-log/<int:log_id>')
-@permission_required('view_audit_logs')
+@permission_required(SystemPermissions.VIEW_AUDIT_LOGS)
 def audit_log_detail(log_id):
     log = db.session.get(AuditLog, log_id)
     if not log:
@@ -8300,7 +8306,7 @@ def audit_log_detail(log_id):
 
 
 @security_bp.route('/security-audit-report', methods=['GET'])
-@permission_required('view_audit_logs')
+@permission_required(SystemPermissions.VIEW_AUDIT_LOGS)
 def security_audit_report():
     """Security Audit Report شامل - تقرير أمني شامل"""
     from datetime import datetime, timedelta, timezone
@@ -8385,7 +8391,7 @@ def security_audit_report():
 
 
 @security_bp.route('/api/security-audit/stats', methods=['GET'])
-@permission_required('view_audit_logs')
+@permission_required(SystemPermissions.VIEW_AUDIT_LOGS)
 def api_security_audit_stats():
     """API للحصول على إحصائيات الأمان"""
     from datetime import datetime, timedelta, timezone

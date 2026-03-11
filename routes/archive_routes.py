@@ -1,4 +1,5 @@
 
+from permissions_config.enums import SystemPermissions
 from flask import Blueprint, request, redirect, url_for, flash
 from flask_login import login_required, current_user
 from extensions import db
@@ -9,7 +10,7 @@ archive_routes_bp = Blueprint('archive_routes', __name__)
 
 @archive_routes_bp.route("/shipments/archive/<int:shipment_id>", methods=["POST"])
 @login_required
-@permission_required("manage_shipments")
+@permission_required(SystemPermissions.MANAGE_SHIPMENTS)
 def archive_shipment(shipment_id):
     
     try:
@@ -38,7 +39,7 @@ def archive_shipment(shipment_id):
 
 @archive_routes_bp.route("/checks/archive/<int:check_id>", methods=["POST"])
 @login_required
-@permission_required("manage_payments")
+@permission_required(SystemPermissions.MANAGE_PAYMENTS)
 def archive_check(check_id):
     
     try:

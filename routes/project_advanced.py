@@ -1,3 +1,4 @@
+from permissions_config.enums import SystemPermissions
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import login_required, current_user
 from extensions import db
@@ -11,9 +12,98 @@ from utils import permission_required
 project_advanced_bp = Blueprint('project_advanced', __name__, url_prefix='/projects')
 
 
+@project_advanced_bp.route('/dashboard')
+@login_required
+@permission_required(SystemPermissions.MANAGE_PROJECTS)
+def advanced_dashboard():
+    """
+    لوحة تحكم المشاريع المتقدمة (Global Dashboard)
+    تعرض ملخصاً لجميع المشاريع النشطة ومؤشرات الأداء العامة
+    """
+    # 1. إحصائيات عامة
+    projects = Project.query.all()
+    total_projects = len(projects)
+    active_projects = sum(1 for p in projects if p.status in ['IN_PROGRESS', 'PLANNING'])
+    completed_projects = sum(1 for p in projects if p.status == 'COMPLETED')
+    
+    # حساب نسبة الإنجاز الكلية (متوسط نسب إنجاز المشاريع النشطة)
+    active_progress_sum = sum(float(p.completion_percentage or 0) for p in projects if p.status == 'IN_PROGRESS')
+    active_count = sum(1 for p in projects if p.status == 'IN_PROGRESS')
+    avg_progress = (active_progress_sum / active_count) if active_count else 0
+    
+    # 2. المخاطر
+    high_risks = ProjectRisk.query.filter(ProjectRisk.risk_level.in_(['CRITICAL', 'HIGH']), ProjectRisk.status != 'CLOSED').count()
+    
+    # 3. الميزانية (تجاوز الميزانية)
+    # مشروع يعتبر متجاوزاً إذا كانت التكلفة الفعلية > الميزانية
+    over_budget_count = 0
+    for p in projects:
+        budget = float(p.budget_amount or 0)
+        cost = float(p.actual_cost or 0)
+        if budget > 0 and cost > budget:
+            over_budget_count += 1
+
+    # 4. قائمة المشاريع (لجدول الحالة)
+    # نحتاج تفاصيل إضافية مثل المدير، الموعد النهائي، الحالة
+    projects_list = []
+    for p in projects:
+        # حساب التقدم (موجود في المودل عادة أو يحسب)
+        progress = float(p.completion_percentage or 0)
+        
+        # تحديد حالة الخطر للمشروع (بناءً على المخاطر المفتوحة)
+        project_risks = ProjectRisk.query.filter_by(project_id=p.id).all()
+        risk_status = 'normal'
+        if any(r.risk_level == 'CRITICAL' and r.status != 'CLOSED' for r in project_risks):
+            risk_status = 'critical'
+        elif any(r.risk_level == 'HIGH' and r.status != 'CLOSED' for r in project_risks):
+            risk_status = 'high'
+            
+        # المدير
+        manager_name = p.manager.username if p.manager else 'غير محدد'
+        
+        projects_list.append({
+            'id': p.id,
+            'name': p.name,
+            'code': p.code,
+            'manager': manager_name,
+            'end_date': p.end_date,
+            'progress': progress,
+            'status': p.status,
+            'risk_status': risk_status
+        })
+    
+    # 5. توزيع الموارد (Mock logic replaced with real aggregation)
+    # تجميع تكاليف الموارد حسب النوع عبر كل المشاريع
+    resource_stats = db.session.query(
+        ProjectResource.resource_type,
+        func.count(ProjectResource.id)
+    ).group_by(ProjectResource.resource_type).all()
+    
+    resource_distribution = {
+        'labels': [],
+        'data': []
+    }
+    type_map = {'EMPLOYEE': 'موظفين', 'MATERIAL': 'مواد', 'EQUIPMENT': 'معدات', 'SUBCONTRACTOR': 'مقاولين'}
+    
+    for r_type, count in resource_stats:
+        resource_distribution['labels'].append(type_map.get(r_type, r_type))
+        resource_distribution['data'].append(count)
+        
+    dashboard_data = {
+        'total_active': active_projects,
+        'avg_progress': round(avg_progress, 1),
+        'high_risks': high_risks,
+        'over_budget': over_budget_count,
+        'projects': projects_list,
+        'resources': resource_distribution
+    }
+
+    return render_template('projects/advanced/dashboard.html', data=dashboard_data)
+
+
 @project_advanced_bp.route('/<int:project_id>/tasks')
 @login_required
-@permission_required('manage_projects')
+@permission_required(SystemPermissions.MANAGE_PROJECTS)
 def tasks(project_id):
     project = db.get_or_404(Project, project_id)
     
@@ -60,7 +150,7 @@ def tasks(project_id):
 
 @project_advanced_bp.route('/<int:project_id>/tasks/add', methods=['POST'])
 @login_required
-@permission_required('manage_projects')
+@permission_required(SystemPermissions.MANAGE_PROJECTS)
 def add_task(project_id):
     try:
         project = db.get_or_404(Project, project_id)
@@ -99,7 +189,7 @@ def add_task(project_id):
 
 @project_advanced_bp.route('/<int:project_id>/resources')
 @login_required
-@permission_required('manage_projects')
+@permission_required(SystemPermissions.MANAGE_PROJECTS)
 def resources(project_id):
     project = db.get_or_404(Project, project_id)
     
@@ -141,7 +231,7 @@ def resources(project_id):
 
 @project_advanced_bp.route('/<int:project_id>/resources/add', methods=['POST'])
 @login_required
-@permission_required('manage_projects')
+@permission_required(SystemPermissions.MANAGE_PROJECTS)
 def add_resource(project_id):
     try:
         resource_type = request.form.get('resource_type')
@@ -178,7 +268,7 @@ def add_resource(project_id):
 
 @project_advanced_bp.route('/<int:project_id>/milestones')
 @login_required
-@permission_required('manage_projects')
+@permission_required(SystemPermissions.MANAGE_PROJECTS)
 def milestones(project_id):
     project = db.get_or_404(Project, project_id)
     
@@ -214,7 +304,7 @@ def milestones(project_id):
 
 @project_advanced_bp.route('/<int:project_id>/milestones/add', methods=['POST'])
 @login_required
-@permission_required('manage_projects')
+@permission_required(SystemPermissions.MANAGE_PROJECTS)
 def add_milestone(project_id):
     try:
         project = db.get_or_404(Project, project_id)
@@ -254,7 +344,7 @@ def add_milestone(project_id):
 
 @project_advanced_bp.route('/<int:project_id>/milestones/<int:milestone_id>/complete', methods=['POST'])
 @login_required
-@permission_required('manage_projects')
+@permission_required(SystemPermissions.MANAGE_PROJECTS)
 def complete_milestone(project_id, milestone_id):
     try:
         milestone = db.get_or_404(ProjectMilestone, milestone_id)
@@ -280,7 +370,7 @@ def complete_milestone(project_id, milestone_id):
 
 @project_advanced_bp.route('/<int:project_id>/risks')
 @login_required
-@permission_required('manage_projects')
+@permission_required(SystemPermissions.MANAGE_PROJECTS)
 def risks(project_id):
     project = db.get_or_404(Project, project_id)
     
@@ -311,7 +401,7 @@ def risks(project_id):
 
 @project_advanced_bp.route('/<int:project_id>/risks/add', methods=['POST'])
 @login_required
-@permission_required('manage_projects')
+@permission_required(SystemPermissions.MANAGE_PROJECTS)
 def add_risk(project_id):
     try:
         project = db.get_or_404(Project, project_id)
@@ -355,7 +445,7 @@ def add_risk(project_id):
 
 @project_advanced_bp.route('/<int:project_id>/change-orders')
 @login_required
-@permission_required('manage_projects')
+@permission_required(SystemPermissions.MANAGE_PROJECTS)
 def change_orders(project_id):
     project = db.get_or_404(Project, project_id)
     
@@ -384,7 +474,7 @@ def change_orders(project_id):
 
 @project_advanced_bp.route('/<int:project_id>/change-orders/add', methods=['POST'])
 @login_required
-@permission_required('manage_projects')
+@permission_required(SystemPermissions.MANAGE_PROJECTS)
 def add_change_order(project_id):
     try:
         project = db.get_or_404(Project, project_id)
@@ -419,7 +509,7 @@ def add_change_order(project_id):
 
 @project_advanced_bp.route('/<int:project_id>/change-orders/<int:co_id>/approve', methods=['POST'])
 @login_required
-@permission_required('manage_projects')
+@permission_required(SystemPermissions.MANAGE_PROJECTS)
 def approve_change_order(project_id, co_id):
     try:
         co = db.get_or_404(ProjectChangeOrder, co_id)
@@ -447,33 +537,53 @@ def approve_change_order(project_id, co_id):
 
 @project_advanced_bp.route('/<int:project_id>/evm')
 @login_required
-@permission_required('manage_projects')
+@permission_required(SystemPermissions.MANAGE_PROJECTS)
 def earned_value_analysis(project_id):
     project = db.get_or_404(Project, project_id)
     
+    # تحويل القيم النقدية إلى float للعمليات الحسابية
     total_budget = float(project.budget_amount or 0)
     actual_cost = float(project.actual_cost or 0)
     
+    # حساب القيمة المخططة (PV) بناءً على المهام
     tasks = ProjectTask.query.filter_by(project_id=project_id).all()
     total_tasks = len(tasks)
+    
+    # حساب نسبة إنجاز المهام
     completed_tasks = sum(1 for t in tasks if t.status == 'COMPLETED')
     
+    # PV: القيمة المخططة = الميزانية الكلية * نسبة الإنجاز المخططة (الزمنية)
+    # هنا سنستخدم نسبة المهام المنجزة كتقريب
     planned_value = total_budget * (completed_tasks / total_tasks) if total_tasks else 0
     
+    # EV: القيمة المكتسبة = الميزانية الكلية * نسبة الإنجاز الفعلية
     completion_pct = float(project.completion_percentage or 0)
     earned_value = total_budget * (completion_pct / 100) if completion_pct else 0
     
+    # CV: انحراف التكلفة = EV - AC
     cost_variance = earned_value - actual_cost
+    
+    # SV: انحراف الجدول الزمني = EV - PV
     schedule_variance = earned_value - planned_value
     
-    cost_performance_index = earned_value / actual_cost if actual_cost else 0
-    schedule_performance_index = earned_value / planned_value if planned_value else 0
+    # CPI: مؤشر أداء التكلفة = EV / AC
+    cost_performance_index = earned_value / actual_cost if actual_cost > 0 else 1.0
     
-    estimate_at_completion = total_budget / cost_performance_index if cost_performance_index else total_budget
+    # SPI: مؤشر أداء الجدول الزمني = EV / PV
+    schedule_performance_index = earned_value / planned_value if planned_value > 0 else 1.0
+    
+    # EAC: التقدير عند الاكتمال = BAC / CPI
+    estimate_at_completion = total_budget / cost_performance_index if cost_performance_index > 0 else total_budget
+    
+    # ETC: التقدير حتى الاكتمال = EAC - AC
     estimate_to_complete = estimate_at_completion - actual_cost
+    
+    # VAC: التباين عند الاكتمال = BAC - EAC
     variance_at_completion = total_budget - estimate_at_completion
     
-    to_complete_performance_index = (total_budget - earned_value) / (total_budget - actual_cost) if (total_budget - actual_cost) else 0
+    # TCPI: مؤشر الأداء حتى الاكتمال = (BAC - EV) / (BAC - AC)
+    remaining_budget = total_budget - actual_cost
+    to_complete_performance_index = (total_budget - earned_value) / remaining_budget if remaining_budget > 0 else 0
     
     evm_data = {
         'pv': planned_value,
@@ -505,7 +615,7 @@ def earned_value_analysis(project_id):
 
 @project_advanced_bp.route('/<int:project_id>/dashboard')
 @login_required
-@permission_required('manage_projects')
+@permission_required(SystemPermissions.MANAGE_PROJECTS)
 def dashboard(project_id):
     project = db.get_or_404(Project, project_id)
     
@@ -543,7 +653,7 @@ def dashboard(project_id):
         }
     }
     
-    return render_template('projects/advanced/dashboard.html',
+    return render_template('projects/advanced/single_project_dashboard.html',
                          project=project,
                          data=dashboard_data)
 

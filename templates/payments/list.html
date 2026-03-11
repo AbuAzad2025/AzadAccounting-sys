@@ -68,10 +68,6 @@
 
 {% block content %}
   {% if print_mode %}
-  {% set dir_labels = {'IN': 'وارد', 'OUT': 'صادر'} %}
-  {% set method_labels = {
-    'cash':'نقداً','cheque':'شيك','bank':'تحويل بنكي','card':'بطاقة','online':'إلكتروني','mobile':'محفظة'
-  } %}
   <div class="print-sheet">
     <div class="print-header">
       <h1>سندات الدفع</h1>
@@ -280,46 +276,36 @@
                   <label for="filterEntity" class="form-label">الجهة</label>
                   <select id="filterEntity" class="form-control">
                     <option value="">الكل</option>
-                    <option value="CUSTOMER">عميل</option>
-                    <option value="SUPPLIER">مورد</option>
-                    <option value="PARTNER">شريك</option>
-                    <option value="SALE">مبيعة</option>
-                    <option value="INVOICE">فاتورة</option>
-                    <option value="SERVICE">صيانة</option>
-                    <option value="EXPENSE">مصروف</option>
-                    <option value="LOAN">قرض</option>
-                    <option value="PREORDER">طلب مسبق</option>
-                    <option value="SHIPMENT">شحنة</option>
+                    {% for et in PaymentEntityType %}
+                    <option value="{{ et.value }}">{{ et.label }}</option>
+                    {% endfor %}
                   </select>
                 </div>
                 <div class="col-md-2 col-sm-4">
                   <label for="filterStatus" class="form-label">الحالة</label>
                   <select id="filterStatus" class="form-control">
                     <option value="">الكل</option>
-                    <option value="COMPLETED">مكتملة</option>
-                    <option value="PENDING">قيد الانتظار</option>
-                    <option value="FAILED">فاشلة</option>
-                    <option value="REFUNDED">مُرجعة</option>
+                    {% for s in PaymentStatus %}
+                    <option value="{{ s.value }}">{{ s.label }}</option>
+                    {% endfor %}
                   </select>
                 </div>
                 <div class="col-md-2 col-sm-4">
                   <label for="filterDirection" class="form-label">الاتجاه</label>
                   <select id="filterDirection" class="form-control">
                     <option value="">الكل</option>
-                    <option value="INCOMING">وارد</option>
-                    <option value="OUTGOING">صادر</option>
+                    {% for d in PaymentDirection %}
+                    <option value="{{ d.value }}">{{ d.label }}</option>
+                    {% endfor %}
                   </select>
                 </div>
                 <div class="col-md-2 col-sm-4">
                   <label for="filterMethod" class="form-label">الطريقة</label>
                   <select id="filterMethod" class="form-control">
                     <option value="">الكل</option>
-                    <option value="cash">نقداً</option>
-                    <option value="cheque">شيك</option>
-                    <option value="bank">تحويل بنكي</option>
-                    <option value="card">بطاقة</option>
-                    <option value="online">إلكتروني</option>
-                    <option value="mobile">محفظة</option>
+                    {% for m in PaymentMethod %}
+                    <option value="{{ m.value }}">{{ m.label }}</option>
+                    {% endfor %}
                   </select>
                 </div>
                 <div class="col-md-2 col-sm-4">

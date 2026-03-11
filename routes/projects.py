@@ -1,3 +1,4 @@
+from permissions_config.enums import SystemPermissions
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import login_required, current_user
 from extensions import db
@@ -14,7 +15,7 @@ projects_bp = Blueprint('projects', __name__, url_prefix='/projects')
 
 @projects_bp.route('/')
 @login_required
-@permission_required('manage_projects')
+@permission_required(SystemPermissions.MANAGE_PROJECTS)
 def index():
     status = request.args.get('status')
     customer_id = request.args.get('customer', type=int)
@@ -67,7 +68,7 @@ def index():
 
 @projects_bp.route('/add', methods=['GET', 'POST'])
 @login_required
-@permission_required('manage_projects')
+@permission_required(SystemPermissions.MANAGE_PROJECTS)
 def add_project():
     if request.method == 'POST':
         try:
@@ -132,7 +133,7 @@ def add_project():
 
 @projects_bp.route('/edit/<int:id>', methods=['GET', 'POST'])
 @login_required
-@permission_required('manage_projects')
+@permission_required(SystemPermissions.MANAGE_PROJECTS)
 def edit_project(id):
     project = db.get_or_404(Project, id)
     
@@ -178,7 +179,7 @@ def edit_project(id):
 
 @projects_bp.route('/<int:id>')
 @login_required
-@permission_required('manage_projects')
+@permission_required(SystemPermissions.MANAGE_PROJECTS)
 def view_project(id):
     project = db.get_or_404(Project, id)
     
@@ -236,7 +237,7 @@ def view_project(id):
 
 @projects_bp.route('/<int:id>/add-phase', methods=['POST'])
 @login_required
-@permission_required('manage_projects')
+@permission_required(SystemPermissions.MANAGE_PROJECTS)
 def add_phase(id):
     try:
         project = db.get_or_404(Project, id)
@@ -280,7 +281,7 @@ def add_phase(id):
 
 @projects_bp.route('/<int:id>/add-cost', methods=['POST'])
 @login_required
-@permission_required('manage_projects')
+@permission_required(SystemPermissions.MANAGE_PROJECTS)
 def add_cost(id):
     try:
         project = db.get_or_404(Project, id)
@@ -355,7 +356,7 @@ def add_cost(id):
 
 @projects_bp.route('/<int:id>/add-revenue', methods=['POST'])
 @login_required
-@permission_required('manage_projects')
+@permission_required(SystemPermissions.MANAGE_PROJECTS)
 def add_revenue(id):
     try:
         project = db.get_or_404(Project, id)
@@ -413,7 +414,7 @@ def add_revenue(id):
 
 @projects_bp.route('/reports/pnl')
 @login_required
-@permission_required('manage_projects')
+@permission_required(SystemPermissions.MANAGE_PROJECTS)
 def report_pnl():
     project_id = request.args.get('project', type=int)
     date_from = request.args.get('date_from')
@@ -483,7 +484,7 @@ def report_pnl():
 
 @projects_bp.route('/reports/profitability')
 @login_required
-@permission_required('manage_projects')
+@permission_required(SystemPermissions.MANAGE_PROJECTS)
 def report_profitability():
     projects = Project.query.order_by(Project.code).all()
     
@@ -523,7 +524,7 @@ def report_profitability():
 
 @projects_bp.route('/reports/budget-tracking')
 @login_required
-@permission_required('manage_projects')
+@permission_required(SystemPermissions.MANAGE_PROJECTS)
 def report_budget_tracking():
     project_id = request.args.get('project_id', type=int)
     
@@ -584,7 +585,7 @@ def report_budget_tracking():
 
 @projects_bp.route('/reports/variance')
 @login_required
-@permission_required('manage_projects')
+@permission_required(SystemPermissions.MANAGE_PROJECTS)
 def report_variance():
     projects = Project.query.filter(
         Project.budget_amount > 0,
@@ -618,7 +619,7 @@ def report_variance():
 
 @projects_bp.route('/api/dashboard-stats')
 @login_required
-@permission_required('manage_projects')
+@permission_required(SystemPermissions.MANAGE_PROJECTS)
 def api_dashboard_stats():
     total_projects = Project.query.count()
     active_projects = Project.query.filter(Project.status.in_(['IN_PROGRESS', 'PLANNING'])).count()

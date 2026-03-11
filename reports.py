@@ -14,6 +14,7 @@ from models import (
     Customer, Supplier, Product, Warehouse, SaleLine, Expense, Invoice,
     OnlinePreOrder, Payment, PaymentSplit, PaymentDirection, PaymentStatus,
     Sale, SaleStatus, ServiceRequest, ServiceStatus, InvoiceStatus,
+    PreOrder, PreOrderStatus,
 )
 
 import utils
@@ -768,13 +769,13 @@ def ar_aging_report(start_date=None, end_date=None):
     )
     po_min = (
         db.session.query(PreOrder.customer_id, func.min(PreOrder.preorder_date))
-        .filter(PreOrder.status != "CANCELLED", PreOrder.customer_id.in_(customer_ids))
+        .filter(PreOrder.status != PreOrderStatus.CANCELLED.value, PreOrder.customer_id.in_(customer_ids))
         .group_by(PreOrder.customer_id)
         .all()
     )
     online_min = (
         db.session.query(OnlinePreOrder.customer_id, func.min(OnlinePreOrder.created_at))
-        .filter(OnlinePreOrder.payment_status != "CANCELLED", OnlinePreOrder.customer_id.in_(customer_ids))
+        .filter(OnlinePreOrder.status != "CANCELLED", OnlinePreOrder.customer_id.in_(customer_ids))
         .group_by(OnlinePreOrder.customer_id)
         .all()
     )

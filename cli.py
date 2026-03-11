@@ -27,7 +27,7 @@ from models import (
     GLEntry, GL_ACCOUNTS, Invoice, Note, OnlineCart, OnlineCartItem, OnlinePayment, OnlinePreOrder, OnlinePreOrderItem,
     Partner, PartnerSettlement, Payment, PaymentDirection, PaymentEntityType, PaymentMethod, PaymentStatus, Permission,
     PreOrder, Product, ProductCategory, Role, Sale, SaleLine, ServicePart, ServiceRequest, ServiceStatus, ServiceTask,
-    Shipment, ShipmentItem, StockAdjustment, StockAdjustmentItem, StockLevel, Supplier,
+    Shipment, ShipmentItem, ShipmentStatus, StockAdjustment, StockAdjustmentItem, StockLevel, Supplier,
     SupplierSettlement, Transfer, TransferDirection, Warehouse, _ensure_customer_for_counterparty, _gl_upsert_batch_and_entries,
     build_partner_settlement_draft, build_supplier_settlement_draft, convert_amount, User,
     role_permissions,
@@ -2092,7 +2092,7 @@ def stock_unreserve(product_id, warehouse_id, qty):
 @click.option("--currency", default="USD")
 @click.option("--date", "sdate", default="")
 @click.option("--items-json", "items_json", required=True)
-@click.option("--status", default="DRAFT")
+@click.option("--status", default=ShipmentStatus.DRAFT.value)
 @with_appcontext
 def shipment_create(destination_id, currency, sdate, items_json, status):
     try_load=items_json.strip()
@@ -2112,7 +2112,7 @@ def shipment_create(destination_id, currency, sdate, items_json, status):
 
 @click.command("shipment-status")
 @click.option("--shipment-id", type=int, required=True)
-@click.option("--status", type=click.Choice(["DRAFT","IN_TRANSIT","ARRIVED","CANCELLED","CREATED"], case_sensitive=False), required=True)
+@click.option("--status", type=click.Choice([s.value for s in ShipmentStatus], case_sensitive=False), required=True)
 @with_appcontext
 def shipment_status(shipment_id: int, status: str):
     sh=db.session.get(Shipment, shipment_id)
@@ -2188,8 +2188,8 @@ def _entity_enum(v: str): return getattr(PaymentEntityType, v.upper()).value if 
 @click.option("--entity-type", "entity_type", required=True, type=click.Choice([e.value for e in PaymentEntityType], case_sensitive=False))
 @click.option("--target-id", type=int, required=True)
 @click.option("--amount", type=float, required=True)
-@click.option("--method", default="CASH", type=click.Choice([e.value for e in PaymentMethod], case_sensitive=False))
-@click.option("--status", default="COMPLETED", type=click.Choice([e.value for e in PaymentStatus], case_sensitive=False))
+@click.option("--method", default=PaymentMethod.CASH.value, type=click.Choice([e.value for e in PaymentMethod], case_sensitive=False))
+@click.option("--status", default=PaymentStatus.COMPLETED.value, type=click.Choice([e.value for e in PaymentStatus], case_sensitive=False))
 @click.option("--currency", default="ILS")
 @click.option("--reference", default="")
 @click.option("--notes", default="")

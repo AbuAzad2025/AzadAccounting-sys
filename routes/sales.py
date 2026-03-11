@@ -11,7 +11,7 @@ from sqlalchemy import func, or_, desc, extract, case, and_
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload, selectinload, load_only
 from extensions import db, cache
-from models import Sale, SaleLine, Invoice, Customer, Product, AuditLog, Warehouse, User, Payment, StockLevel, Employee, CostCenter, SaleStatus
+from models import Sale, SaleLine, Invoice, Customer, Product, AuditLog, Warehouse, User, Payment, StockLevel, Employee, CostCenter, SaleStatus, PaymentStatus, PaymentMethod
 from models import convert_amount, run_sale_gl_sync_after_commit
 
 
@@ -21,6 +21,7 @@ from forms import SaleForm
 import utils
 from utils import D, line_total_decimal, money_fmt, archive_record, restore_record  # Import from utils package
 from decimal import Decimal, ROUND_HALF_UP
+from permissions_config.enums import SystemPermissions
 
 # تعريف TWOPLACES للتقريب العشري
 TWOPLACES = Decimal('0.01')
@@ -28,18 +29,24 @@ TWOPLACES = Decimal('0.01')
 sales_bp = Blueprint("sales_bp", __name__, url_prefix="/sales", template_folder="templates/sales")
 
 STATUS_MAP = {
-    "DRAFT": ("مسودة", "bg-warning text-dark"),
-    "CONFIRMED": ("مؤكدة", "bg-primary"),
-    "CANCELLED": ("ملغاة", "bg-secondary"),
-    "REFUNDED": ("مرتجعة", "bg-info"),
+    SaleStatus.DRAFT.value: ("مسودة", "bg-warning text-dark"),
+    SaleStatus.CONFIRMED.value: ("مؤكدة", "bg-primary"),
+    SaleStatus.CANCELLED.value: ("ملغاة", "bg-secondary"),
+    SaleStatus.REFUNDED.value: ("مرتجعة", "bg-info"),
 }
 PAYMENT_STATUS_MAP = {
-    "PENDING": ("معلّق", "bg-warning"),
-    "COMPLETED": ("مكتمل", "bg-success"),
-    "FAILED": ("فشل", "bg-danger"),
-    "REFUNDED": ("مرتجع", "bg-info"),
+    PaymentStatus.PENDING.value: ("معلّق", "bg-warning"),
+    PaymentStatus.COMPLETED.value: ("مكتمل", "bg-success"),
+    PaymentStatus.FAILED.value: ("فشل", "bg-danger"),
+    PaymentStatus.REFUNDED.value: ("مرتجع", "bg-info"),
 }
-PAYMENT_METHOD_MAP = {"cash": "نقدي", "cheque": "شيك", "card": "بطاقة", "bank": "تحويل بنكي", "online": "دفع إلكتروني"}
+PAYMENT_METHOD_MAP = {
+    PaymentMethod.CASH.value: "نقدي",
+    PaymentMethod.CHEQUE.value: "شيك",
+    PaymentMethod.CARD.value: "بطاقة",
+    PaymentMethod.BANK.value: "تحويل بنكي",
+    PaymentMethod.ONLINE.value: "دفع إلكتروني"
+}
 
 def _get_or_404(model, ident, options: Optional[Iterable[Any]] = None):
     q = db.session.query(model)
@@ -163,7 +170,7 @@ def _collect_requirements_from_lines(lines: Iterable[SaleLine]) -> Dict[Tuple[in
     return req
 
 def _reserve_stock(sale: Sale) -> None:
-    if (getattr(sale, "status", "") or "").upper() != "CONFIRMED":
+    if (getattr(sale, "status", "") or "").upper() != SaleStatus.CONFIRMED.value:
         return
     req = _collect_requirements_from_lines(sale.lines or [])
     if not req:
@@ -306,7 +313,7 @@ def _safe_generate_number_after_flush(sale: Sale) -> None:
 @sales_bp.route("/<int:id>/archive", methods=["POST"])
 @login_required
 def archive_sale(id):
-    if not current_user.has_permission("archive_sale"):
+    if not current_user.has_permission(SystemPermissions.ARCHIVE_SALE):
         return jsonify({"status": "error", "message": "ليس لديك صلاحية لأرشفة المبيعات"}), 403
     
     sale = db.get_or_404(Sale, id)
@@ -327,7 +334,7 @@ def archive_sale(id):
 @sales_bp.route("/<int:id>/restore", methods=["POST"])
 @login_required
 def restore_sale(id):
-    if not current_user.has_permission("archive_sale"):
+    if not current_user.has_permission(SystemPermissions.ARCHIVE_SALE):
         return jsonify({"status": "error", "message": "ليس لديك صلاحية لاستعادة المبيعات"}), 403
         
     try:
@@ -362,7 +369,7 @@ def dashboard():
                 pass
     total_revenue = float(total_revenue)
     
-    pending_sales = db.session.query(func.count(Sale.id)).filter(Sale.status == "DRAFT").scalar() or 0
+    pending_sales = db.session.query(func.count(Sale.id)).filter(Sale.status == SaleStatus.DRAFT.value).scalar() or 0
     
     customers = db.session.query(Customer).all()
     top_customers_data = []
@@ -623,7 +630,7 @@ def list_sales():
     balance_due_ils = func.coalesce(Sale.balance_due, 0) * fx_mult
     refunded_total_ils = func.coalesce(Sale.refunded_total, 0) * fx_mult
 
-    contributing_cond = ~func.upper(func.coalesce(Sale.status, "DRAFT")).in_({s.upper() for s in excluded_statuses})
+    contributing_cond = ~func.upper(func.coalesce(Sale.status, SaleStatus.DRAFT.value)).in_({s.upper() for s in excluded_statuses})
     refunded_net_ils = case(
         (total_amount_ils - refunded_total_ils > 0, total_amount_ils - refunded_total_ils),
         else_=0,
@@ -691,7 +698,7 @@ def list_sales():
         ),
         else_=total_amount_ils,
     )
-    status_expr = func.upper(func.coalesce(Sale.status, "DRAFT"))
+    status_expr = func.upper(func.coalesce(Sale.status, SaleStatus.DRAFT.value))
     by_status_rows = (
         summary_q.with_entities(
             status_expr.label("status"),
@@ -702,7 +709,7 @@ def list_sales():
         .all()
     )
     sales_by_status: dict[str, dict[str, float | int]] = {
-        str(stt or "DRAFT").upper(): {"count": int(cnt or 0), "amount": float(amt or 0)}
+        str(stt or SaleStatus.DRAFT.value).upper(): {"count": int(cnt or 0), "amount": float(amt or 0)}
         for stt, cnt, amt in by_status_rows
     }
 
@@ -1184,7 +1191,7 @@ def sale_payments(id: int):
 
 @sales_bp.route("/<int:id>/edit", methods=["GET", "POST"], endpoint="edit_sale")
 @login_required
-@utils.permission_required("manage_sales")
+@utils.permission_required(SystemPermissions.MANAGE_SALES)
 def edit_sale(id):
     sale = _get_or_404(Sale, id)
     if sale.status in ("CANCELLED", "REFUNDED"):

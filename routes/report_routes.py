@@ -12,6 +12,7 @@ from sqlalchemy import inspect as sa_inspect
 from extensions import db
 from flask_login import login_required
 import utils
+from permissions_config.enums import SystemPermissions
 from sqlalchemy.exc import SQLAlchemyError
 import inspect as pyinspect
 
@@ -466,7 +467,7 @@ def _currency_acc_to_list(acc: dict) -> list:
 @reports_bp.route("/", methods=["GET"], endpoint="universal")
 @reports_bp.route("", methods=["GET"], endpoint="index")
 @login_required
-@utils.permission_required("view_reports")
+@utils.permission_required(SystemPermissions.VIEW_REPORTS)
 def reports_index():
     summary_counts = {
         "total": len(REPORT_CARDS),
@@ -486,7 +487,7 @@ def reports_index():
 
 @reports_bp.route("/dynamic", methods=["GET", "POST"])
 @login_required
-@utils.permission_required("manage_reports")
+@utils.permission_required(SystemPermissions.MANAGE_REPORTS)
 def dynamic_report():
     model_names = list(_MODEL_LOOKUP.keys())
     if request.method == "POST":
@@ -528,7 +529,7 @@ def dynamic_report():
 
 @reports_bp.route("/below_min_stock", endpoint="below_min_stock_report")
 @login_required
-@utils.permission_required("view_reports")
+@utils.permission_required(SystemPermissions.VIEW_REPORTS)
 def below_min_stock_report():
     try:
         from models import Warehouse
@@ -591,7 +592,7 @@ def below_min_stock_report():
 
 @reports_bp.route("/shipments", methods=["GET"], endpoint="shipments")
 @login_required
-@utils.permission_required("view_reports")
+@utils.permission_required(SystemPermissions.VIEW_REPORTS)
 def shipments_report():
     start_str = request.args.get("start")
     end_str = request.args.get("end")
@@ -650,7 +651,7 @@ def shipments_report():
 
 @reports_bp.route("/online", endpoint="online")
 @login_required
-@utils.permission_required("view_reports")
+@utils.permission_required(SystemPermissions.VIEW_REPORTS)
 def online_report():
     orders_count = db.session.query(func.count(OnlinePreOrder.id)).scalar() or 0
     carts_active = db.session.query(func.count(OnlineCart.id)).filter(OnlineCart.status == "ACTIVE").scalar() or 0
@@ -705,20 +706,20 @@ def online_report():
 
 @reports_bp.route("/sales", methods=["GET"])
 @login_required
-@utils.permission_required("view_reports")
+@utils.permission_required(SystemPermissions.VIEW_REPORTS)
 def sales():
     return sales_advanced_report()
 
 @reports_bp.route("/payments-summary", methods=["GET"], strict_slashes=False)
 @login_required
-@utils.permission_required("view_reports")
+@utils.permission_required(SystemPermissions.VIEW_REPORTS)
 def payments_summary():
     return payments_advanced_report()
 
 
 @reports_bp.route("/invoices", methods=["GET"], strict_slashes=False)
 @login_required
-@utils.permission_required("view_reports")
+@utils.permission_required(SystemPermissions.VIEW_REPORTS)
 def invoices_report():
     from datetime import datetime
     from decimal import Decimal
@@ -822,7 +823,7 @@ def invoices_report():
 
 @reports_bp.route("/preorders", methods=["GET"], strict_slashes=False)
 @login_required
-@utils.permission_required("view_reports")
+@utils.permission_required(SystemPermissions.VIEW_REPORTS)
 def preorders_report():
     from datetime import datetime
     from decimal import Decimal
@@ -922,7 +923,7 @@ def preorders_report():
 
 @reports_bp.route("/profit-loss", methods=["GET"], strict_slashes=False)
 @login_required
-@utils.permission_required("view_reports")
+@utils.permission_required(SystemPermissions.VIEW_REPORTS)
 def profit_loss_report():
     from datetime import datetime, timedelta
     from decimal import Decimal
@@ -1081,7 +1082,7 @@ def profit_loss_report():
 
 @reports_bp.route("/cash-flow", methods=["GET"], strict_slashes=False)
 @login_required
-@utils.permission_required("view_reports")
+@utils.permission_required(SystemPermissions.VIEW_REPORTS)
 def cash_flow_report():
     from datetime import datetime
     from decimal import Decimal
@@ -1209,7 +1210,7 @@ def cash_flow_report():
 
 @reports_bp.route("/payments/advanced", methods=["GET"], endpoint="payments_advanced_report")
 @login_required
-@utils.permission_required("view_reports")
+@utils.permission_required(SystemPermissions.VIEW_REPORTS)
 def payments_advanced_report():
     """تقرير المدفوعات الشامل الاحترافي"""
     sd = _parse_date(request.args.get("start_date"))
@@ -1360,7 +1361,7 @@ def payments_advanced_report():
 
 @reports_bp.route("/payments-summary-old", methods=["GET"], strict_slashes=False)
 @login_required
-@utils.permission_required("view_reports")
+@utils.permission_required(SystemPermissions.VIEW_REPORTS)
 def payments_summary_old():
     start = _parse_date(request.args.get("start"))
     end = _parse_date(request.args.get("end"))
@@ -1385,7 +1386,7 @@ def payments_summary_old():
 
 @reports_bp.route("/ar-aging", methods=["GET"])
 @login_required
-@utils.permission_required("view_reports")
+@utils.permission_required(SystemPermissions.VIEW_REPORTS)
 def ar_aging():
     start = _parse_date(request.args.get("start"))
     end = _parse_date(request.args.get("end"))
@@ -1394,7 +1395,7 @@ def ar_aging():
 
 @reports_bp.route("/inventory", methods=["GET"], endpoint="inventory")
 @login_required
-@utils.permission_required("view_reports")
+@utils.permission_required(SystemPermissions.VIEW_REPORTS)
 def inventory_report():
     from models import Warehouse, StockLevel, Product
     from sqlalchemy.orm import joinedload
@@ -1666,7 +1667,7 @@ def inventory_report():
 
 @reports_bp.route("/top-products", methods=["GET"])
 @login_required
-@utils.permission_required("view_reports")
+@utils.permission_required(SystemPermissions.VIEW_REPORTS)
 def top_products():
     start = _parse_date(request.args.get("start"))
     end = _parse_date(request.args.get("end"))
@@ -1714,7 +1715,7 @@ def top_products():
 
 @reports_bp.route("/suppliers", methods=["GET"], endpoint="suppliers_report")
 @login_required
-@utils.permission_required("view_reports")
+@utils.permission_required(SystemPermissions.VIEW_REPORTS)
 def suppliers_report():
     search = (request.args.get("q") or "").strip()
     balance_filter = (request.args.get("balance") or "").strip()
@@ -1773,7 +1774,7 @@ def suppliers_report():
 
 @reports_bp.route("/partners", methods=["GET"], endpoint="partners_report")
 @login_required
-@utils.permission_required("view_reports")
+@utils.permission_required(SystemPermissions.VIEW_REPORTS)
 def partners_report():
     from datetime import datetime
     from utils import get_entity_balance_in_ils
@@ -1856,14 +1857,14 @@ def partners_report():
 
 @reports_bp.route("/customers", methods=["GET"], endpoint="customers_report")
 @login_required
-@utils.permission_required("view_reports")
+@utils.permission_required(SystemPermissions.VIEW_REPORTS)
 def customers_report():
     return customers_advanced_report()
 
 
 @reports_bp.route("/customers/advanced", methods=["GET"], endpoint="customers_advanced_report")
 @login_required
-@utils.permission_required("view_reports")
+@utils.permission_required(SystemPermissions.VIEW_REPORTS)
 def customers_advanced_report():
     """تقرير العملاء الشامل الاحترافي"""
     from datetime import datetime
@@ -2015,7 +2016,7 @@ def customers_advanced_report():
 
 @reports_bp.route("/sales/advanced", methods=["GET"], endpoint="sales_advanced_report")
 @login_required
-@utils.permission_required("view_reports")
+@utils.permission_required(SystemPermissions.VIEW_REPORTS)
 def sales_advanced_report():
     """تقرير المبيعات الشامل الاحترافي"""
     from datetime import datetime, timedelta
@@ -2254,7 +2255,7 @@ def sales_advanced_report():
 
 @reports_bp.route("/expenses", methods=["GET"], endpoint="expenses_report")
 @login_required
-@utils.permission_required("view_reports")
+@utils.permission_required(SystemPermissions.VIEW_REPORTS)
 def expenses_report():
     from decimal import Decimal
     from models import Warehouse, Partner, ExpenseType, convert_amount
@@ -2507,7 +2508,7 @@ def expenses_report():
 
 @reports_bp.route("/ap-aging", methods=["GET"])
 @login_required
-@utils.permission_required("view_reports")
+@utils.permission_required(SystemPermissions.VIEW_REPORTS)
 def ap_aging():
     start = _parse_date(request.args.get("start"))
     end = _parse_date(request.args.get("end"))
@@ -2516,7 +2517,7 @@ def ap_aging():
 
 @reports_bp.route("/api/model_fields", methods=["GET"])
 @login_required
-@utils.permission_required("manage_reports")
+@utils.permission_required(SystemPermissions.MANAGE_REPORTS)
 def model_fields():
     model_name = (request.args.get("model") or "").strip()
     if not model_name:
@@ -2533,7 +2534,7 @@ def model_fields():
 
 @reports_bp.route("/service-reports", methods=["GET"])
 @login_required
-@utils.permission_required("view_reports")
+@utils.permission_required(SystemPermissions.VIEW_REPORTS)
 def service_reports():
     start = _parse_date(request.args.get("start"))
     end = _parse_date(request.args.get("end"))
@@ -2618,7 +2619,7 @@ def service_reports():
 
 @reports_bp.route("/api/dynamic", methods=["POST"])
 @login_required
-@utils.permission_required("manage_reports")
+@utils.permission_required(SystemPermissions.MANAGE_REPORTS)
 def api_dynamic():
     payload = request.get_json(silent=True) or {}
     table = (payload.get("table") or "").strip()
@@ -2686,7 +2687,7 @@ def _stream_csv_rows(header: List[str], rows_iter, filename: str):
 
 @reports_bp.route("/export/dynamic.csv", methods=["POST"])
 @login_required
-@utils.permission_required("manage_reports")
+@utils.permission_required(SystemPermissions.MANAGE_REPORTS)
 def export_dynamic_csv():
     table = (request.form.get("table") or "").strip()
     model = _ensure_model(table)
@@ -2708,7 +2709,7 @@ def export_dynamic_csv():
 
 @reports_bp.route("/export/ar_aging.csv", methods=["GET"])
 @login_required
-@utils.permission_required("view_reports")
+@utils.permission_required(SystemPermissions.VIEW_REPORTS)
 def export_ar_aging_csv():
     start = _parse_date(request.args.get("start"))
     end = _parse_date(request.args.get("end"))
@@ -2729,7 +2730,7 @@ def export_ar_aging_csv():
 
 @reports_bp.route("/export/ap_aging.csv", methods=["GET"])
 @login_required
-@utils.permission_required("view_reports")
+@utils.permission_required(SystemPermissions.VIEW_REPORTS)
 def export_ap_aging_csv():
     start = _parse_date(request.args.get("start"))
     end = _parse_date(request.args.get("end"))
@@ -2750,7 +2751,7 @@ def export_ap_aging_csv():
 
 @reports_bp.route("/customer-detail/<int:customer_id>", methods=["GET"])
 @login_required
-@utils.permission_required("view_reports")
+@utils.permission_required(SystemPermissions.VIEW_REPORTS)
 def customer_detail_report(customer_id):
     from sqlalchemy.orm import load_only
 
@@ -2906,7 +2907,7 @@ def customer_detail_report(customer_id):
 
 @reports_bp.route("/supplier-detail/<int:supplier_id>", methods=["GET"])
 @login_required
-@utils.permission_required("view_reports")
+@utils.permission_required(SystemPermissions.VIEW_REPORTS)
 def supplier_detail_report(supplier_id):
     from sqlalchemy.orm import load_only
     from datetime import datetime
@@ -3218,7 +3219,7 @@ def supplier_detail_report(supplier_id):
 
 @reports_bp.route("/partner-detail/<int:partner_id>", methods=["GET"])
 @login_required
-@utils.permission_required("view_reports")
+@utils.permission_required(SystemPermissions.VIEW_REPORTS)
 def partner_detail_report(partner_id):
     from sqlalchemy.orm import load_only
 

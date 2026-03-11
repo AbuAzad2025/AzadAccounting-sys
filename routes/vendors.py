@@ -1,6 +1,7 @@
 
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
+from permissions_config.enums import SystemPermissions
 from flask import abort, Blueprint, current_app, flash, jsonify, redirect, render_template, render_template_string, request, url_for
 from flask_login import login_required, current_user
 from flask_wtf import FlaskForm
@@ -11,7 +12,7 @@ from sqlalchemy.orm import joinedload
 from extensions import db
 from forms import PartnerForm, SupplierForm, CURRENCY_CHOICES
 import utils
-from utils import D, q2, archive_record, restore_record
+from utils import D, q2, archive_record, restore_record, permission_required
 from models import (
     ExchangeTransaction,
     Partner,
@@ -161,7 +162,7 @@ def suppliers_list():
             <i class="fas fa-file-invoice"></i>
             <span class="d-none d-lg-inline ms-1">كشف حساب</span>
           </a>
-          {% if current_user.has_permission('manage_vendors') %}
+          {% if current_user.has_permission(SystemPermissions.MANAGE_VENDORS) %}
             <a href="{{ url_for('vendors_bp.suppliers_edit', id=s.id) }}"
                class="btn btn-sm btn-outline-secondary d-flex align-items-center" title="تعديل">
               <i class="fas fa-edit"></i>
@@ -249,7 +250,7 @@ def suppliers_list():
 
 @vendors_bp.post("/suppliers/balances/recalculate", endpoint="suppliers_recalculate_balances")
 @login_required
-@utils.permission_required("manage_vendors")
+@permission_required(SystemPermissions.MANAGE_VENDORS)
 def suppliers_recalculate_balances():
     payload = request.get_json(silent=True) or {}
     ids_raw = (
@@ -2143,7 +2144,7 @@ def partners_list():
              class="btn btn-sm btn-primary" title="إضافة دفعة">
             <i class="fas fa-money-bill-wave"></i><span class="d-none d-xl-inline">دفع</span>
           </a>
-          {% if current_user.has_permission('manage_vendors') %}
+          {% if current_user.has_permission(SystemPermissions.MANAGE_VENDORS) %}
             <a href="{{ url_for('vendors_bp.partners_edit', id=p.id) }}"
                class="btn btn-sm btn-secondary" title="تعديل بيانات الشريك">
               <i class="fas fa-edit"></i><span class="d-none d-xl-inline">تعديل</span>
@@ -2214,7 +2215,7 @@ def partners_list():
 
 @vendors_bp.post("/partners/balances/recalculate", endpoint="partners_recalculate_balances")
 @login_required
-@utils.permission_required("manage_vendors")
+@utils.permission_required(SystemPermissions.MANAGE_VENDORS)
 def partners_recalculate_balances():
     payload = request.get_json(silent=True) or {}
     ids_raw = (

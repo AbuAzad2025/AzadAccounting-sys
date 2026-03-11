@@ -1,4 +1,3 @@
-
 import json
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for, abort, current_app
 from flask_login import current_user, login_required
@@ -9,6 +8,8 @@ from extensions import db
 from forms import UserForm
 from models import Permission, Role, User, AuditLog, Customer
 import utils
+from permissions_config.enums import SystemPermissions, SystemRoles
+from permissions_config.permissions import PermissionsRegistry
 
 users_bp = Blueprint("users_bp", __name__, url_prefix="/users", template_folder="templates/users")
 
@@ -21,7 +22,6 @@ def _actor_role_name() -> str:
 
 def _role_level_by_name(role_name: str) -> int:
     try:
-        from permissions_config.permissions import PermissionsRegistry
         info = PermissionsRegistry.ROLES.get((role_name or "").strip().lower())
         if isinstance(info, dict):
             return int(info.get("level", 999))
@@ -38,7 +38,6 @@ def _actor_can_manage_users() -> bool:
 
 def _actor_can_manage_super_level() -> bool:
     try:
-        from permissions_config.permissions import PermissionsRegistry
         info = PermissionsRegistry.ROLES.get(_actor_role_name(), {}) or {}
         caps = info.get("capabilities") or {}
         return bool(caps.get("can_manage_super_admins")) or _actor_level() == 0
@@ -49,7 +48,6 @@ def _role_is_assignable_by_actor(role: Role | None) -> bool:
     if not role:
         return False
     try:
-        from permissions_config.permissions import PermissionsRegistry
         name = (role.name or "").strip().lower()
         if _actor_level() == 0:
             return True
@@ -109,7 +107,6 @@ def _get_or_404(model, ident, options=None):
 
 def _is_super_admin_user(user: User) -> bool:
     try:
-        from permissions_config.permissions import PermissionsRegistry
         return bool(user.role and PermissionsRegistry.is_role_super(user.role.name))
     except Exception:
         return False
@@ -216,14 +213,13 @@ def change_password():
 
 @users_bp.route("/", methods=["GET"], endpoint="list_users")
 @login_required
-@utils.permission_required("manage_users")
+@utils.permission_required(SystemPermissions.MANAGE_USERS)
 def list_users():
     # استثناء حسابات النظام المخفية
     q = User.query.filter(User.is_system_account == False).options(joinedload(User.role))
     
     # Filter users based on role level
     # No user can see roles higher than them (Level < Actor Level)
-    from permissions_config.permissions import PermissionsRegistry
     actor_level = _actor_level()
     
     if actor_level > 0:
@@ -345,7 +341,7 @@ def registered_customers():
 
 @users_bp.route("/<int:user_id>", methods=["GET"], endpoint="user_detail")
 @login_required
-@utils.permission_required("manage_users")
+@utils.permission_required(SystemPermissions.MANAGE_USERS)
 def user_detail(user_id):
     user = _get_or_404(User, user_id, options=[joinedload(User.role)])
     if getattr(user, 'is_system_account', False) or getattr(user, 'username', '') == '__OWNER__':
@@ -364,7 +360,7 @@ def user_detail(user_id):
 
 @users_bp.route("/api", methods=["GET"], endpoint="api_users")
 @login_required
-@utils.permission_required("manage_users")
+@utils.permission_required(SystemPermissions.MANAGE_USERS)
 def api_users():
     q = User.query.filter(User.is_system_account == False)
     term = request.args.get("q", "")
@@ -380,7 +376,7 @@ def api_users():
 
 @users_bp.route("/create", methods=["GET", "POST"], endpoint="create_user")
 @login_required
-@utils.permission_required("manage_users")
+@utils.permission_required(SystemPermissions.MANAGE_USERS)
 def create_user():
     form = UserForm()
     all_permissions = _filter_permissions_assignable_by_actor(Permission.query.order_by(Permission.name).all())
@@ -475,7 +471,7 @@ def create_user():
 
 @users_bp.route("/<int:user_id>/edit", methods=["GET", "POST"], endpoint="edit_user")
 @login_required
-@utils.permission_required("manage_users")
+@utils.permission_required(SystemPermissions.MANAGE_USERS)
 def edit_user(user_id):
     user = _get_or_404(User, user_id)
     # حماية حسابات النظام من التعديل (كأنها غير موجودة)
@@ -498,7 +494,6 @@ def edit_user(user_id):
     if not allowed:
         abort(403)
     try:
-        from permissions_config.permissions import PermissionsRegistry
         is_target_super = PermissionsRegistry.is_role_super(target_role_name)
     except Exception:
         is_target_super = False
@@ -586,7 +581,7 @@ def edit_user(user_id):
 
 @users_bp.route("/<int:user_id>/delete", methods=["POST"], endpoint="delete_user")
 @login_required
-@utils.permission_required("manage_users")
+@utils.permission_required(SystemPermissions.MANAGE_USERS)
 def delete_user(user_id):
     user = _get_or_404(User, user_id)
     
@@ -610,7 +605,6 @@ def delete_user(user_id):
         abort(403)
 
     try:
-        from permissions_config.permissions import PermissionsRegistry
         is_target_super = PermissionsRegistry.is_role_super(target_role_name)
     except Exception:
         is_target_super = False

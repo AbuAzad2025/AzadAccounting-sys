@@ -2,6 +2,7 @@
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 import json
+from permissions_config.enums import SystemPermissions
 from flask import Blueprint, request, jsonify, render_template, current_app, abort
 from flask_login import login_required, current_user
 from flask_wtf.csrf import CSRFProtect
@@ -335,21 +336,21 @@ def _calculate_ledger_statistics(from_date: datetime | None, to_date: datetime |
 
 @ledger_bp.route("/", methods=["GET"], endpoint="index")
 @login_required
-@utils.permission_required("manage_ledger")
+@utils.permission_required(SystemPermissions.MANAGE_LEDGER)
 def ledger_index():
     """صفحة الدفتر الرئيسية"""
     return render_template("ledger/index.html")
 
 @ledger_bp.route("/chart-of-accounts", methods=["GET"], endpoint="chart_of_accounts")
 @login_required
-@utils.permission_required("manage_ledger")
+@utils.permission_required(SystemPermissions.MANAGE_LEDGER)
 def chart_of_accounts():
     """دليل الحسابات المحاسبية - واجهة مبسطة"""
     return render_template("ledger/chart_of_accounts.html")
 
 @ledger_bp.route("/accounts", methods=["GET"], endpoint="get_accounts")
 @login_required
-@utils.permission_required("manage_ledger")
+@utils.permission_required(SystemPermissions.MANAGE_LEDGER)
 def get_accounts():
     """API: جلب جميع الحسابات المحاسبية"""
     try:
@@ -376,7 +377,7 @@ def get_accounts():
 
 @ledger_bp.route("/manual-entry", methods=["POST"], endpoint="create_manual_entry")
 @login_required
-@utils.permission_required("manage_ledger")
+@utils.permission_required(SystemPermissions.MANAGE_LEDGER)
 def create_manual_entry():
     """إنشاء قيد يدوي (Manual Journal Entry)"""
     try:
@@ -473,7 +474,7 @@ def create_manual_entry():
 
 @ledger_bp.route("/data", methods=["GET"], endpoint="get_ledger_data")
 @login_required
-@utils.permission_required("manage_ledger")
+@utils.permission_required(SystemPermissions.MANAGE_LEDGER)
 def get_ledger_data():
     """جلب بيانات دفتر الأستاذ من قاعدة البيانات الحقيقية"""
     try:
@@ -784,7 +785,7 @@ def get_ledger_data():
 
 @ledger_bp.route("/statistics", methods=["GET"], endpoint="get_ledger_statistics")
 @login_required
-@utils.permission_required("manage_ledger")
+@utils.permission_required(SystemPermissions.MANAGE_LEDGER)
 def get_ledger_statistics():
     try:
         from_date_str = request.args.get("from_date")
@@ -798,7 +799,7 @@ def get_ledger_statistics():
 
 @ledger_bp.route("/cogs-audit", methods=["GET"], endpoint="cogs_audit_report")
 @login_required
-@utils.permission_required("manage_ledger")
+@utils.permission_required(SystemPermissions.MANAGE_LEDGER)
 def cogs_audit_report():
     """تقرير شامل لفحص تكلفة البضاعة المباعة (COGS) بدقة"""
     try:
@@ -971,7 +972,7 @@ def cogs_audit_report():
 
 @ledger_bp.route("/entity-balance-audit", methods=["GET"], endpoint="entity_balance_audit")
 @login_required
-@utils.permission_required("manage_ledger")
+@utils.permission_required(SystemPermissions.MANAGE_LEDGER)
 def entity_balance_audit():
     try:
         as_of_date_str = request.args.get("as_of_date")
@@ -1310,7 +1311,7 @@ def entity_balance_audit():
 
 @ledger_bp.route("/entity-balance-audit/fix-gl-entities", methods=["POST"], endpoint="fix_gl_entities_for_entity_audit")
 @login_required
-@utils.permission_required("manage_advanced_accounting")
+@utils.permission_required(SystemPermissions.MANAGE_ADVANCED_ACCOUNTING)
 def fix_gl_entities_for_entity_audit():
     try:
         payload = request.get_json(silent=True) or {}
@@ -1472,7 +1473,7 @@ def fix_gl_entities_for_entity_audit():
 
 @ledger_bp.route("/entity-balance-audit/recalculate-entities", methods=["POST"], endpoint="recalculate_entities_for_entity_audit")
 @login_required
-@utils.permission_required("manage_advanced_accounting")
+@utils.permission_required(SystemPermissions.MANAGE_ADVANCED_ACCOUNTING)
 def recalculate_entities_for_entity_audit():
     try:
         payload = request.get_json(silent=True) or {}
@@ -1733,7 +1734,7 @@ def recalculate_entities_for_entity_audit():
 
 @ledger_bp.route("/entity-balance-audit/auto-fix", methods=["POST"], endpoint="auto_fix_entity_balance_audit")
 @login_required
-@utils.permission_required("manage_advanced_accounting")
+@utils.permission_required(SystemPermissions.MANAGE_ADVANCED_ACCOUNTING)
 def auto_fix_entity_balance_audit():
     try:
         payload = request.get_json(silent=True) or {}
@@ -2027,7 +2028,7 @@ def auto_fix_entity_balance_audit():
 
 @ledger_bp.route("/accounts-summary", methods=["GET"], endpoint="get_accounts_summary")
 @login_required
-@utils.permission_required("manage_ledger")
+@utils.permission_required(SystemPermissions.MANAGE_LEDGER)
 def get_accounts_summary():
     """جلب ملخص الحسابات (ميزان مراجعة مبسط) من قيود GL مباشرة"""
     try:
@@ -2143,7 +2144,7 @@ def get_accounts_summary():
 
 @ledger_bp.route("/receivables-detailed-summary", methods=["GET"], endpoint="get_receivables_detailed_summary")
 @login_required
-@utils.permission_required("manage_ledger")
+@utils.permission_required(SystemPermissions.MANAGE_LEDGER)
 def get_receivables_detailed_summary():
     try:
         from_date_str = request.args.get('from_date')
@@ -2273,7 +2274,7 @@ def get_receivables_detailed_summary():
 
 @ledger_bp.route("/receivables-summary", methods=["GET"], endpoint="get_receivables_summary")
 @login_required
-@utils.permission_required("manage_ledger")
+@utils.permission_required(SystemPermissions.MANAGE_LEDGER)
 def get_receivables_summary():
     """جلب ملخص الذمم (العملاء، الموردين، الشركاء)"""
     try:
@@ -2386,7 +2387,7 @@ def get_receivables_summary():
 
 @ledger_bp.route("/export", methods=["GET"], endpoint="export_ledger")
 @login_required
-@utils.permission_required("manage_ledger")
+@utils.permission_required(SystemPermissions.MANAGE_LEDGER)
 def export_ledger():
     """تصدير دفتر الأستاذ"""
     # يمكن إضافة منطق التصدير هنا
@@ -2394,7 +2395,7 @@ def export_ledger():
 
 @ledger_bp.route("/transaction/<int:id>", methods=["GET"], endpoint="view_transaction")
 @login_required
-@utils.permission_required("manage_ledger")
+@utils.permission_required(SystemPermissions.MANAGE_LEDGER)
 def view_transaction(id):
     """عرض تفاصيل العملية"""
     # يمكن إضافة منطق عرض التفاصيل هنا
@@ -2442,7 +2443,7 @@ def _get_pagination():
 
 @ledger_bp.get("/trial-balance")
 @login_required
-@utils.permission_required("manage_ledger")
+@utils.permission_required(SystemPermissions.MANAGE_LEDGER)
 def trial_balance():
     dfrom, dto = _parse_dates()
     q = (db.session.query(
@@ -2466,7 +2467,7 @@ def trial_balance():
 
 @ledger_bp.get("/account/<account>")
 @login_required
-@utils.permission_required("manage_ledger")
+@utils.permission_required(SystemPermissions.MANAGE_LEDGER)
 def account_ledger(account):
     dfrom, dto = _parse_dates()
     
@@ -2615,7 +2616,7 @@ def account_ledger(account):
 
 @ledger_bp.get("/entity")
 @login_required
-@utils.permission_required("manage_ledger")
+@utils.permission_required(SystemPermissions.MANAGE_LEDGER)
 def entity_ledger():
     dfrom, dto = _parse_dates()
     et = (request.args.get("entity_type") or "").upper().strip()
@@ -2725,7 +2726,7 @@ def entity_ledger():
 
 @ledger_bp.route("/batch/<int:batch_id>", methods=["GET"], endpoint="get_batch_details")
 @login_required
-@utils.permission_required("manage_ledger")
+@utils.permission_required(SystemPermissions.MANAGE_LEDGER)
 def get_batch_details(batch_id):
     """جلب تفاصيل قيد محاسبي (GLBatch + Entries)"""
     try:

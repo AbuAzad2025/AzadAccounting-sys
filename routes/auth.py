@@ -236,7 +236,7 @@ def login():
         try:
             user.last_login = datetime.now(timezone.utc)
             user.last_login_ip = ip
-            user.login_count = (getattr(user, "login_count", 0) or 0) + 1
+            user.login_count = (user.login_count or 0) + 1
             db.session.commit()
         except Exception:
             db.session.rollback()

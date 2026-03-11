@@ -1,4 +1,13 @@
 import os
+import sys
+
+# Force UTF-8 to prevent emoji crashes on Windows consoles
+try:
+    sys.stdout.reconfigure(encoding='utf-8')
+    sys.stderr.reconfigure(encoding='utf-8')
+except Exception:
+    pass
+
 import uuid
 import logging
 import inspect
@@ -35,7 +44,14 @@ from config import Config, ensure_runtime_dirs, assert_production_sanity
 from extensions import db, migrate, login_manager, socketio, mail, csrf, limiter, cache, setup_logging, setup_sentry
 from extensions import init_extensions
 import utils
-from models import User, Role, Permission, Customer, SystemSettings
+from models import (
+    User, Role, Permission, Customer, SystemSettings,
+    PaymentStatus, PaymentDirection, PaymentMethod, PaymentEntityType,
+    SaleStatus, ShipmentStatus, ServiceStatus, WarehouseType,
+    OnlinePaymentStatus, OnlineCartStatus, PreOrderStatus, CheckStatus,
+    TransferDirection, TimesheetStatus, TaskStatus
+)
+
 from acl import attach_acl
 
 from routes.auth import auth_bp
@@ -286,7 +302,7 @@ def _init_extensions_stack(app):
         if not app.config.get("SKIP_SEED", False):
             SystemInitializer(app).ensure_integrity()
     except Exception as e:
-        app.logger.error(f"❌ System Initialization Failed: {e}")
+        app.logger.error(f"System Initialization Failed: {e}")
     # ---------------------------------------
 
     try:
@@ -501,6 +517,26 @@ def _register_template_support(app):
             "has_any": has_any,
             "get_module_flags": _get_module_flags_cached,
             "is_module_enabled": is_module_enabled,
+        }
+
+    @app.context_processor
+    def inject_enums():
+        return {
+            "PaymentStatus": PaymentStatus,
+            "PaymentDirection": PaymentDirection,
+            "PaymentMethod": PaymentMethod,
+            "PaymentEntityType": PaymentEntityType,
+            "SaleStatus": SaleStatus,
+            "ShipmentStatus": ShipmentStatus,
+            "ServiceStatus": ServiceStatus,
+            "WarehouseType": WarehouseType,
+            "OnlinePaymentStatus": OnlinePaymentStatus,
+            "OnlineCartStatus": OnlineCartStatus,
+            "PreOrderStatus": PreOrderStatus,
+            "CheckStatus": CheckStatus,
+            "TransferDirection": TransferDirection,
+            "TimesheetStatus": TimesheetStatus,
+            "TaskStatus": TaskStatus,
         }
 
     def url_for_any(*endpoints, **values):
@@ -832,11 +868,11 @@ def _register_app_handlers(app):
         if not app.config.get('DEBUG'):
             response.headers['Content-Security-Policy'] = (
                 "default-src 'self'; "
-                "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://code.jquery.com https://cdn.datatables.net; "
-                "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com https://cdn.datatables.net; "
+                "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://code.jquery.com https://cdn.datatables.net https://cdnjs.cloudflare.com https://cdn.socket.io; "
+                "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com https://cdn.datatables.net https://cdnjs.cloudflare.com; "
                 "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net; "
                 "img-src 'self' data: https:; "
-                "connect-src 'self' https://cdn.jsdelivr.net;"
+                "connect-src 'self' ws: wss: https://cdn.jsdelivr.net https://cdn.socket.io;"
             )
         if app.config.get('SESSION_COOKIE_SECURE'):
             response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
@@ -977,6 +1013,7 @@ def create_app(config_object=Config) -> Flask:
     @app.route("/@vite/client")
     def vite_client_shim():
         return "", 200
+
     _configure_app(app, config_object)
     _init_extensions_stack(app)
 
@@ -1170,11 +1207,17 @@ def create_app(config_object=Config) -> Flask:
                 last_ts = cache.get(cache_key)
                 if last_ts and (now.timestamp() - float(last_ts)) < 3600:
                     return
-                db.session.query(model).filter_by(id=ident).update({"last_seen": now}, synchronize_session=False)
-                db.session.commit()
-                cache.set(cache_key, now.timestamp(), timeout=7200)
+                
+                # Use a fresh session for this update to avoid polluting the main session
+                # or getting blocked by a previous failure
+                try:
+                    db.session.query(model).filter_by(id=ident).update({"last_seen": now}, synchronize_session=False)
+                    db.session.commit()
+                    cache.set(cache_key, now.timestamp(), timeout=7200)
+                except Exception:
+                    db.session.rollback()
             except Exception:
-                db.session.rollback()
+                pass
 
     @app.before_request
     def _mark_request_start():
@@ -1384,102 +1427,85 @@ def create_app(config_object=Config) -> Flask:
 
     @app.context_processor
     def inject_system_settings():
-        try:
-            # Always refresh settings to avoid stale cache issues
-            # cache_key = "system_settings:bundle:v2"
-            # cached = cache.get(cache_key)
-            # if cached:
-            #     return dict(system_settings=cached)
-
-            keys = [
-                'system_name',
-                'company_name',    # Lowercase (from security.py)
-                'COMPANY_NAME',    # Uppercase (legacy/other routes)
-                'custom_logo',
-                'custom_favicon',
-                'primary_color',
-                'secondary_color',
-                'sidebar_bg',
-                'sidebar_text',
-                'login_title',     # Added
-                'login_subtitle',  # Added
-                'footer_text',     # Added
-                'COMPANY_ADDRESS',
-                'COMPANY_PHONE',
-                'COMPANY_EMAIL',
-                'TAX_NUMBER',
-                'CURRENCY_SYMBOL',
-                'TIMEZONE',
-                'MARKETING_MODULES',
-                'MARKETING_APIS',
-                'MARKETING_INDEXES',
-                'MARKETING_OTHER_SYSTEMS',
-                'MARKETING_PRICE_FROM_USD',
-            ]
-
-            rows = SystemSettings.query.filter(SystemSettings.key.in_(keys)).all()
-            raw_map = {r.key: (r.value if r else None) for r in rows}
-
-            def _coerce(key, default=None):
-                v = raw_map.get(key)
-                if v is None:
+        # print("DEBUG: inject_system_settings called")
+        # Helper to get setting from DB or cache (preferred way)
+        def _get(key, default=None):
+            try:
+                # Force direct DB query to bypass potential cache issues
+                setting = SystemSettings.query.filter_by(key=key).first()
+                if not setting:
+                    setting = SystemSettings.query.filter_by(key=key.upper()).first()
+                
+                val = setting.value if setting else None
+                
+                if val is None:
                     return default
-                s = str(v).strip()
+                    
+                s = str(val).strip()
                 low = s.lower()
                 if low in ['true', '1', 'yes']:
                     return True
                 if low in ['false', '0', 'no']:
                     return False
                 return s
+            except Exception:
+                # Silently fail and return default
+                return default
 
-            # Prioritize lowercase keys if available
-            company_name_val = _coerce('company_name') or _coerce('COMPANY_NAME') or 'شركة الحازم للأنظمة الذكية'
-            system_name_val = _coerce('system_name') or 'نظام الحازم'
+        # Get values with fallbacks
+        val1 = _get('system_name')
+        val2 = _get('SystemName')
+        
+        system_name_val = val1 or val2
+        if not system_name_val:
+            system_name_val = 'أزاد لإدارة الكراج'
 
-            # Prepare Logo URL helper
-            custom_logo = _coerce('custom_logo')
-            if custom_logo:
-                # Handle both full paths and relative paths
-                if custom_logo.startswith('static/'):
-                    logo_filename = custom_logo.replace('static/', '')
-                else:
-                    logo_filename = custom_logo
-                logo_url = url_for('static', filename=logo_filename)
+        company_name_val = _get('company_name') or _get('CompanyName') or 'شركة أزاد للأنظمة الذكية'
+
+        # Prepare Logo URL helper
+        custom_logo = _get('custom_logo')
+        if custom_logo:
+            # Handle both full paths and relative paths
+            if custom_logo.startswith('static/'):
+                logo_filename = custom_logo.replace('static/', '')
+            elif '/' not in custom_logo:
+                # If just a filename, assume it is in img/
+                logo_filename = f'img/{custom_logo}'
             else:
-                logo_url = url_for('static', filename='img/logo.png')
+                logo_filename = custom_logo
+            
+            logo_url = url_for('static', filename=logo_filename)
+        else:
+            logo_url = url_for('static', filename='img/azad_logo.png')
 
-            settings = {
-                'system_name': system_name_val,
-                'company_name': company_name_val,
-                'login_title': _coerce('login_title', 'مرحباً بك'),
-                'login_subtitle': _coerce('login_subtitle', 'سجل دخولك للمتابعة'),
-                'footer_text': _coerce('footer_text', 'جميع الحقوق محفوظة'),
-                'custom_logo': _coerce('custom_logo', ''),
-                'custom_logo_url': logo_url,  # <--- Added ready-to-use URL
-                'custom_favicon': _coerce('custom_favicon', ''),
-                'primary_color': _coerce('primary_color', '#007bff'),
-                'secondary_color': _coerce('secondary_color', '#1f2937'),
-                'sidebar_bg': _coerce('sidebar_bg', '#111827'),
-                'sidebar_text': _coerce('sidebar_text', '#f9fafb'),
-                'COMPANY_ADDRESS': _coerce('COMPANY_ADDRESS', ''),
-                'COMPANY_PHONE': _coerce('COMPANY_PHONE', ''),
-                'COMPANY_EMAIL': _coerce('COMPANY_EMAIL', app.config.get("DEV_EMAIL", "rafideen.ahmadghannam@gmail.com")),
-                'TAX_NUMBER': _coerce('TAX_NUMBER', ''),
-                'CURRENCY_SYMBOL': _coerce('CURRENCY_SYMBOL', '$'),
-                'TIMEZONE': _coerce('TIMEZONE', 'UTC'),
-                'marketing_modules': _coerce('MARKETING_MODULES', '40+'),
-                'marketing_apis': _coerce('MARKETING_APIS', '133'),
-                'marketing_indexes': _coerce('MARKETING_INDEXES', '89'),
-                'marketing_other_systems': _coerce('MARKETING_OTHER_SYSTEMS', '4'),
-                'marketing_price_from_usd': _coerce('MARKETING_PRICE_FROM_USD', '500'),
-            }
+        settings = {
+            'system_name': system_name_val,
+            'company_name': company_name_val,
+            'login_title': _get('login_title', 'مرحباً بك'),
+            'login_subtitle': _get('login_subtitle', 'سجل دخولك للمتابعة'),
+            'footer_text': _get('footer_text', 'جميع الحقوق محفوظة'),
+            'custom_logo': _get('custom_logo', ''),
+            'custom_logo_url': logo_url,
+            'custom_favicon': _get('custom_favicon', ''),
+            'primary_color': _get('primary_color', '#007bff'),
+            'secondary_color': _get('secondary_color', '#1f2937'),
+            'sidebar_bg': _get('sidebar_bg', '#111827'),
+            'sidebar_text': _get('sidebar_text', '#f9fafb'),
+            'COMPANY_ADDRESS': _get('COMPANY_ADDRESS', ''),
+            'COMPANY_PHONE': _get('COMPANY_PHONE', ''),
+            'COMPANY_EMAIL': _get('COMPANY_EMAIL', app.config.get("DEV_EMAIL", "rafideen.ahmadghannam@gmail.com")),
+            'TAX_NUMBER': _get('TAX_NUMBER', ''),
+            'CURRENCY_SYMBOL': _get('CURRENCY_SYMBOL', '$'),
+            'TIMEZONE': _get('TIMEZONE', 'UTC'),
+            'marketing_modules': _get('MARKETING_MODULES', '40+'),
+            'marketing_apis': _get('MARKETING_APIS', '133'),
+            'marketing_indexes': _get('MARKETING_INDEXES', '89'),
+            'marketing_other_systems': _get('MARKETING_OTHER_SYSTEMS', '4'),
+            'marketing_price_from_usd': _get('MARKETING_PRICE_FROM_USD', '500'),
+        }
 
-            # Disable cache for immediate updates
-            # cache.set(cache_key, settings, timeout=1800)
-            return dict(system_settings=settings, system_appearance=system_appearance)
-        except Exception:
-            # Return defaults on error to prevent crash
-            return dict(system_settings={}, system_appearance={})
+        system_appearance = {} # Fix: Define system_appearance to prevent NameError
+        return dict(system_settings=settings, system_appearance=system_appearance)
     
     @app.before_request
     def check_maintenance_mode():
@@ -1600,17 +1626,17 @@ def bootstrap_database():
         
         # --- PHASE 1: Schema Initialization ---
         if 'users' not in existing_tables or 'system_settings' not in existing_tables:
-            current_app.logger.warning("⚠️ Critical tables missing. Initializing database schema...")
+            current_app.logger.warning("Critical tables missing. Initializing database schema...")
             db.create_all()
-            current_app.logger.info("✅ Database schema created successfully.")
+            current_app.logger.info("Database schema created successfully.")
         else:
-            current_app.logger.info("✅ Critical tables exist. Checking for migrations...")
+            current_app.logger.info("Critical tables exist. Checking for migrations...")
             # Optional: Attempt to run migrations if alembic is set up
             # try:
             #     upgrade()
-            #     current_app.logger.info("✅ Database migrations applied.")
+            #     current_app.logger.info("Database migrations applied.")
             # except Exception as e:
-            #     current_app.logger.warning(f"⚠️ Migration warning: {e}")
+            #     current_app.logger.warning(f"Migration warning: {e}")
 
         # --- PHASE 2: Data Seeding (Idempotent) ---
         
@@ -1640,10 +1666,12 @@ def bootstrap_database():
                 SystemSettings.set_setting(key, value, desc, data_type=dtype, is_public=False)
         
         db.session.commit()
-        current_app.logger.info('✅ Bootstrap & Validation completed successfully')
+        print('Bootstrap & Validation completed successfully')
+        current_app.logger.info('Bootstrap & Validation completed successfully')
         
     except Exception as e:
-        current_app.logger.error(f'❌ Bootstrap failed: {e}')
+        print(f'Bootstrap failed: {e}')
+        current_app.logger.error(f'Bootstrap failed: {e}')
         db.session.rollback()
         # In production, we might want to exit here, but for resilience we log and continue
 
@@ -1653,11 +1681,15 @@ if __name__ == '__main__':
     import atexit
     import signal
     
+    print("Initializing application...")
     app = create_app()
+    print("Application created.")
     
-    # Bootstrap على أول تشغيل
+    # Bootstrap on first run
     with app.app_context():
+        print("Running bootstrap_database...")
         bootstrap_database()
+        print("Bootstrap completed.")
     
     def cleanup_on_exit():
         try:
@@ -1677,6 +1709,7 @@ if __name__ == '__main__':
     atexit.register(cleanup_on_exit)
     
     def signal_handler(signum, frame):
+        print(f"Signal {signum} received. Exiting...")
         try:
             from AI.scheduler import stop_scheduler
             stop_scheduler()
@@ -1700,9 +1733,13 @@ if __name__ == '__main__':
     try:
         host = os.environ.get("HOST") or app.config.get("HOST") or "0.0.0.0"
         port = int(os.environ.get("PORT") or app.config.get("PORT") or 5000)
-        app.run(debug=bool(app.config.get("DEBUG", False)), host=host, port=port)
+        print(f"Starting server on {host}:{port}...")
+        app.run(debug=bool(app.config.get("DEBUG", False)), host=host, port=port, use_reloader=False)
+        print("Server stopped gracefully (app.run returned).")
     except KeyboardInterrupt:
-        pass
+        print("\nServer stopped by user.")
+    except Exception as e:
+        print(f"\nServer error: {e}")
     finally:
         try:
             from AI.scheduler import stop_scheduler

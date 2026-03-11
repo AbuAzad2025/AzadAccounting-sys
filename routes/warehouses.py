@@ -42,6 +42,7 @@ except Exception:
 from extensions import db, csrf
 import utils
 from utils import _get_or_404, permission_required
+from permissions_config.enums import SystemPermissions
 from routes.checks import create_check_record
 from forms import (
     ExchangeTransactionForm,
@@ -73,6 +74,7 @@ from models import (
     StockLevel,
     Supplier,
     Transfer,
+    TransferDirection,
     Warehouse,
     WarehousePartnerShare,
     WarehouseType,
@@ -689,9 +691,9 @@ def _save_image_file(
 @warehouse_bp.app_context_processor
 def _inject_utils():
     labels = {
-        "warehouse_type": {"MAIN": "المستودع الرئيسي", "PARTNER": "مستودع شريك", "EXCHANGE": "مستودع تبادل", "TEMP": "مستودع مؤقت", "OUTLET": "منفذ بيع", "ONLINE": "مستودع أونلاين"},
-        "transfer_direction": {"IN": "وارد", "OUT": "صادر", "ADJUSTMENT": "تسوية"},
-        "preorder_status": {"PENDING": "قيد الانتظار", "CONFIRMED": "مؤكد", "FULFILLED": "تم التنفيذ", "CANCELLED": "ملغى"},
+        "warehouse_type": {t.value: t.label for t in WarehouseType},
+        "transfer_direction": {t.value: t.label for t in TransferDirection},
+        "preorder_status": {t.value: t.label for t in PreOrderStatus},
     }
 
     def ar_label(category, key):
@@ -756,25 +758,26 @@ def list_warehouses():
         q = q.order_by(Warehouse.name.asc())
     warehouses = q.all()
     if request.is_json or (request.args.get("format") or "").lower() == "json":
-        labels = {
-            "MAIN": "المستودع الرئيسي",
-            "PARTNER": "مستودع شريك",
-            "EXCHANGE": "مستودع تبادل",
-            "TEMP": "مستودع مؤقت",
-            "OUTLET": "منفذ بيع",
-            "INVENTORY": "مخزون",
-            "ONLINE": "مستودع أونلاين",
-        }
         data = []
         for w in warehouses:
-            wt = getattr(w.warehouse_type, "value", w.warehouse_type)
-            wt = str(wt) if wt is not None else ""
+            wt_enum = w.warehouse_type
+            if hasattr(wt_enum, "value"):
+                wt_val = wt_enum.value
+                wt_label = wt_enum.label
+            else:
+                wt_val = str(wt_enum or "")
+                # Fallback if somehow not an Enum instance (shouldn't happen with SQLAlchemy Enum type)
+                try:
+                    wt_label = WarehouseType(wt_val).label
+                except (ValueError, KeyError):
+                    wt_label = wt_val
+
             data.append(
                 {
                     "id": w.id,
                     "name": w.name,
-                    "warehouse_type": wt,
-                    "warehouse_type_label": labels.get(wt, wt),
+                    "warehouse_type": wt_val,
+                    "warehouse_type_label": wt_label,
                     "parent_id": w.parent_id,
                     "partner_id": w.partner_id,
                     "is_active": bool(w.is_active),
@@ -1362,7 +1365,7 @@ def products(id):
 
 @warehouse_bp.route("/<int:id>/transfer", methods=["POST"], endpoint="transfer_inline")
 @login_required
-@permission_required("manage_inventory", "manage_warehouses", "warehouse_transfer")
+@permission_required(SystemPermissions.MANAGE_INVENTORY, SystemPermissions.MANAGE_WAREHOUSES, SystemPermissions.WAREHOUSE_TRANSFER)
 def transfer_inline(id):
     warehouse_id = id
     data = request.get_json(silent=True) or request.form or {}
@@ -1695,6 +1698,28 @@ def add_product(id):
 
     partners_forms = [ProductPartnerShareForm()] if is_partner else []
     exchange_vendors_forms = [ExchangeVendorForm()] if is_exchange else []
+    partner_choices = []
+    supplier_choices = []
+    if is_partner:
+        partner_q = Partner.query.order_by(Partner.name.asc())
+        if hasattr(Partner, "is_archived"):
+            partner_q = partner_q.filter(Partner.is_archived.is_(False))
+        partner_choices = [(p.id, p.name) for p in partner_q.all()]
+        for p_form in partners_forms:
+            try:
+                p_form.partner_id.choices = partner_choices
+            except Exception:
+                pass
+    if is_exchange:
+        supplier_q = Supplier.query.order_by(Supplier.name.asc())
+        if hasattr(Supplier, "is_archived"):
+            supplier_q = supplier_q.filter(Supplier.is_archived.is_(False))
+        supplier_choices = [(s.id, s.name) for s in supplier_q.all()]
+        for v_form in exchange_vendors_forms:
+            try:
+                v_form.supplier_id.choices = supplier_choices
+            except Exception:
+                pass
 
     if request.method == "GET":
         try:
@@ -1760,6 +1785,8 @@ SELECT setval(
                     stock_form=stock_form,
                     warehouse=warehouse,
                     partners_forms=partners_forms,
+                    partner_choices=partner_choices,
+                    supplier_choices=supplier_choices,
                     exchange_vendors_forms=exchange_vendors_forms,
                     wtype=wtype,
                     is_online=is_online,
@@ -1773,6 +1800,8 @@ SELECT setval(
                 stock_form=stock_form,
                 warehouse=warehouse,
                 partners_forms=partners_forms,
+                partner_choices=partner_choices,
+                supplier_choices=supplier_choices,
                 exchange_vendors_forms=exchange_vendors_forms,
                 wtype=wtype,
                 is_online=is_online,
@@ -2051,6 +2080,8 @@ SELECT setval(
         stock_form=stock_form,
         warehouse=warehouse,
         partners_forms=partners_forms,
+        partner_choices=partner_choices,
+        supplier_choices=supplier_choices,
         exchange_vendors_forms=exchange_vendors_forms,
         wtype=wtype,
         is_online=is_online,

@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from typing import Any, Optional, Dict
 from decimal import Decimal, InvalidOperation
 from flask_wtf.csrf import generate_csrf
+from permissions_config.enums import SystemPermissions
 from flask import Blueprint, render_template, request, abort, jsonify, current_app, redirect, url_for, flash, g
 from flask_login import login_required, current_user
 from sqlalchemy import func, case, and_
@@ -33,6 +34,10 @@ from models import (
     GLBatch,
     GLEntry,
     TaxEntry,
+    OnlineCartStatus,
+    PreOrderStatus,
+    OnlinePaymentStatus,
+    PaymentProgress,
 )
 import utils
 
@@ -62,7 +67,7 @@ def _get_or_404(model, ident, options=None):
     return obj
 
 def _reserve_statuses():
-    return set(current_app.config.get("SHOP_RESERVE_STATUSES") or ["PENDING", "CONFIRMED"])
+    return set(current_app.config.get("SHOP_RESERVE_STATUSES") or [PreOrderStatus.PENDING.value, PreOrderStatus.CONFIRMED.value])
 
 def _resp(msg, cat="info", code=None, data=None, to="shop.catalog"):
     if request.is_json or request.args.get("format") == "json":
@@ -334,7 +339,7 @@ def is_super_admin(user) -> bool:
             return False
         # PBAC: التحقق من الصلاحية بدلاً من الدور
         if hasattr(user, 'has_permission'):
-            return user.has_permission('manage_shop')
+            return user.has_permission(SystemPermissions.MANAGE_SHOP)
         return False
     except Exception:
         return False
@@ -397,7 +402,7 @@ class BlooprintAdapter(GatewayAdapter):
                     if v:
                         return v
             return None
-        status = "SUCCESS" if amount > 0 else "PENDING"
+        status = OnlinePaymentStatus.SUCCESS.value if amount > 0 else OnlinePaymentStatus.PENDING.value
         return {
             "success": amount > 0,
             "status": status,
@@ -410,7 +415,7 @@ class BlooprintAdapter(GatewayAdapter):
             "raw": raw,
         }
     def refund(self, op: OnlinePayment) -> dict:
-        return {"success": True, "status": "REFUNDED"}
+        return {"success": True, "status": OnlinePaymentStatus.REFUNDED.value}
     def handle_webhook(self, request) -> dict:
         secret = current_app.config.get("BLOOPRINT_WEBHOOK_SECRET") or ""
         sig = (request.headers.get("X-Blooprint-Signature") or "").strip()
@@ -419,7 +424,7 @@ class BlooprintAdapter(GatewayAdapter):
         payload = request.get_json(silent=True) or {}
         ref = (payload.get("payment_ref") or "").strip()
         new_status = (payload.get("status") or "").strip().upper()
-        if not ref or new_status not in {"SUCCESS", "FAILED", "REFUNDED"}:
+        if not ref or new_status not in {OnlinePaymentStatus.SUCCESS.value, OnlinePaymentStatus.FAILED.value, OnlinePaymentStatus.REFUNDED.value}:
             return {"ok": False, "error": "bad_payload"}
         op = OnlinePayment.query.filter_by(payment_ref=ref).first()
         if not op:
@@ -701,7 +706,7 @@ def place_order():
 def get_active_cart(customer_id: int) -> OnlineCart | None:
     return OnlineCart.query.filter_by(
         customer_id=customer_id,
-        status="ACTIVE"
+        status=OnlineCartStatus.ACTIVE.value
     ).first()
 
 def _json_requested():
@@ -741,7 +746,7 @@ def add_to_cart(product_id):
             return jsonify({"ok": False, "message": "الكمية المطلوبة غير متوفرة."}), 400
         return _resp("الكمية المطلوبة غير متوفرة.", "danger")
     cart = get_active_cart(g.online_customer.id) or OnlineCart(
-        customer_id=g.online_customer.id, session_id=uuid.uuid4().hex, status="ACTIVE"
+        customer_id=g.online_customer.id, session_id=uuid.uuid4().hex, status=OnlineCartStatus.ACTIVE.value
     )
     db.session.add(cart)
     db.session.flush()
@@ -891,7 +896,7 @@ def checkout():
                 for itm in cart.items:
                     if itm.quantity > available_qty(itm.product_id):
                         abort(409, description="الكمية المطلوبة غير متوفرة.")
-                payment_status = "PAID" if prepaid >= subtotal else ("PARTIAL" if prepaid > 0 else "PENDING")
+                payment_status = PaymentProgress.PAID.value if prepaid >= subtotal else (PaymentProgress.PARTIAL.value if prepaid > 0 else PaymentProgress.PENDING.value)
                 
                 preorder = OnlinePreOrder(
                     customer_id=g.online_customer.id,
@@ -902,7 +907,7 @@ def checkout():
                     base_amount=subtotal_before_tax,
                     tax_rate=vat_rate,
                     tax_amount=tax_amount,
-                    status="CONFIRMED",
+                    status=PreOrderStatus.CONFIRMED.value,
                     payment_status=payment_status,
                     payment_method="card",
                     shipping_address=request.form.get("shipping_address") or getattr(g.online_customer, "address", None),
@@ -928,7 +933,7 @@ def checkout():
                     currency=getattr(g.online_customer, "currency", "ILS"),
                     method="card",
                     gateway=(current_app.config.get("ONLINE_GATEWAY_DEFAULT") or "blooprint").lower(),
-                    status="PENDING",
+                    status=OnlinePaymentStatus.PENDING.value,
                     transaction_data=_json_loads(request.form.get("transaction_data", "")),
                 )
                 db.session.add(op)
@@ -936,7 +941,7 @@ def checkout():
                 adp = _get_adapter(op.gateway)
                 res = adp.authorize_capture(preorder=preorder, amount=float(prepaid or 0), currency=op.currency)
                 if res.get("success"):
-                    op.status = res.get("status") or "SUCCESS"
+                    op.status = res.get("status") or OnlinePaymentStatus.SUCCESS.value
                     op.transaction_data = res.get("raw") or op.transaction_data
                     op.card_last4 = res.get("card_last4") or op.card_last4
                     op.card_expiry = res.get("card_expiry") or op.card_expiry
@@ -944,9 +949,9 @@ def checkout():
                     op.card_brand = res.get("card_brand") or op.card_brand
                     op.card_fingerprint = res.get("card_fingerprint") or op.card_fingerprint
                 else:
-                    op.status = "FAILED" if prepaid > 0 else "PENDING"
+                    op.status = OnlinePaymentStatus.FAILED.value if prepaid > 0 else OnlinePaymentStatus.PENDING.value
                 db.session.add(op)
-                if prepaid > 0 and op.status == "SUCCESS":
+                if prepaid > 0 and op.status == OnlinePaymentStatus.SUCCESS.value:
                     payment = Payment(
                         entity_type=PaymentEntityType.CUSTOMER.value,
                         customer_id=g.online_customer.id,

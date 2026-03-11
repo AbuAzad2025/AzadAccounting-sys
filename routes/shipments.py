@@ -18,7 +18,7 @@ from forms import ShipmentForm
 from models import (
     Shipment, ShipmentItem, ShipmentPartner,
     Partner, Product, Warehouse, _queue_partner_balance,
-    GLBatch, GLEntry, GL_ACCOUNTS
+    GLBatch, GLEntry, GL_ACCOUNTS, ShipmentStatus
 )
 import utils
 
@@ -74,7 +74,7 @@ def _norm_status(v):
     if hasattr(v, "data"):
         v = v.data
     if v is None:
-        return "DRAFT"
+        return ShipmentStatus.DRAFT.value
     if hasattr(v, "value"):
         v = v.value
     return str(v).upper()
@@ -281,7 +281,7 @@ def _items_snapshot(sh):
 
 def _status_applies_stock(status: str) -> bool:
     st = (status or "").upper()
-    return st in ("ARRIVED", "DELIVERED")
+    return st in (ShipmentStatus.ARRIVED.value, ShipmentStatus.DELIVERED.value)
 
 def _snapshot_key(items):
     return sorted(
@@ -321,17 +321,10 @@ def list_shipments():
     destination = (request.args.get("destination") or "").strip()
 
     def _status_label(st):
-        return {
-            "DRAFT": "مسودة",
-            "PENDING": "قيد الانتظار",
-            "IN_TRANSIT": "قيد النقل",
-            "IN_CUSTOMS": "في الجمارك",
-            "ARRIVED": "وصلت",
-            "DELIVERED": "تم التسليم",
-            "CANCELLED": "ملغاة",
-            "RETURNED": "مرتجعة",
-            "CREATED": "مُنشأة"
-        }.get((st or "").upper(), st)
+        try:
+            return ShipmentStatus((st or "").upper()).label
+        except ValueError:
+            return st
 
     if _wants_json():
         q = db.session.query(Shipment).filter(Shipment.is_archived == False).options(
@@ -523,18 +516,10 @@ def shipments_data():
     csrf_token = generate_csrf()
 
     def _status_label(st):
-        st = (st or "").upper()
-        return {
-            "DRAFT": "مسودة",
-            "IN_TRANSIT": "في الطريق",
-            "ARRIVED": "واصل",
-            "CANCELLED": "ملغاة",
-            "CREATED": "مُنشأة",
-            "PENDING": "قيد الانتظار",
-            "IN_CUSTOMS": "في الجمارك",
-            "DELIVERED": "تم التسليم",
-            "RETURNED": "مرتجعة"
-        }.get(st, st)
+        try:
+            return ShipmentStatus((st or "").upper()).label
+        except ValueError:
+            return st
 
     data = []
     for s in rows:
@@ -723,7 +708,7 @@ def create_shipment():
 
         _compute_shipment_totals(sh)
 
-        if (sh.status or "").upper() == "ARRIVED":
+        if (sh.status or "").upper() == ShipmentStatus.ARRIVED.value:
             _apply_arrival_items(
                 [{"product_id": it.product_id, "warehouse_id": it.warehouse_id, "quantity": it.quantity} for it in sh.items]
             )
@@ -1062,13 +1047,13 @@ def shipment_detail(id: int):
     # رسائل تحذيرية بناءً على حالة الشحنة
     alerts = []
     status = (sh.status or "").upper()
-    if status == "CANCELLED":
+    if status == ShipmentStatus.CANCELLED.value:
         alerts.append({"level": "warning", "msg": "⚠️ هذه الشحنة ملغاة ولا يمكن تعديلها."})
-    elif status == "DRAFT":
+    elif status == ShipmentStatus.DRAFT.value:
         alerts.append({"level": "info", "msg": "✏️ هذه الشحنة ما زالت في وضع المسودة."})
-    elif status == "IN_TRANSIT":
+    elif status == ShipmentStatus.IN_TRANSIT.value:
         alerts.append({"level": "info", "msg": "🚚 الشحنة في الطريق."})
-    elif status == "ARRIVED":
+    elif status == ShipmentStatus.ARRIVED.value:
         alerts.append({"level": "success", "msg": "📦 الشحنة وصلت وتم اعتمادها."})
 
     if _wants_json():

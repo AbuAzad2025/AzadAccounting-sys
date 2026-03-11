@@ -6,6 +6,7 @@ import re
 import unicodedata
 from datetime import datetime, date as _date, timezone
 from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
+from permissions_config.enums import SystemPermissions
 from flask import Blueprint, flash, redirect, render_template, render_template_string, abort, request, url_for, Response, current_app, jsonify, stream_with_context
 from flask_login import login_required, current_user
 from sqlalchemy.exc import SQLAlchemyError
@@ -726,14 +727,14 @@ def _csv_safe(v):
 
 @expenses_bp.route("/employees", methods=["GET"], endpoint="employees_list")
 @login_required
-@utils.permission_required("manage_expenses")
+@utils.permission_required(SystemPermissions.MANAGE_EXPENSES)
 def employees_list():
     employees = Employee.query.order_by(Employee.name).all()
     return render_template("expenses/employees_list.html", employees=employees)
 
 @expenses_bp.route("/employees/add", methods=["GET", "POST"], endpoint="add_employee")
 @login_required
-@utils.permission_required("manage_expenses")
+@utils.permission_required(SystemPermissions.MANAGE_EXPENSES)
 def add_employee():
     form = EmployeeForm()
     try:
@@ -760,7 +761,7 @@ def add_employee():
 
 @expenses_bp.route("/employees/edit/<int:emp_id>", methods=["GET", "POST"], endpoint="edit_employee")
 @login_required
-@utils.permission_required("manage_expenses")
+@utils.permission_required(SystemPermissions.MANAGE_EXPENSES)
 def edit_employee(emp_id):
     e = _get_or_404(Employee, emp_id)
     form = EmployeeForm(obj=e)
@@ -786,7 +787,7 @@ def edit_employee(emp_id):
 
 @expenses_bp.route("/employees/<int:emp_id>/statement", methods=["GET"], endpoint="employee_statement")
 @login_required
-@utils.permission_required("manage_expenses")
+@utils.permission_required(SystemPermissions.MANAGE_EXPENSES)
 def employee_statement(emp_id):
     """كشف حساب الموظف: السلف، الخصومات، الرواتب، الرصيد"""
     from models import EmployeeDeduction, EmployeeAdvanceInstallment, ExpenseType
@@ -818,7 +819,7 @@ def employee_statement(emp_id):
 
 @expenses_bp.route("/employees/<int:emp_id>/installments-due", methods=["GET"], endpoint="get_installments_due")
 @login_required
-@utils.permission_required("manage_expenses")
+@utils.permission_required(SystemPermissions.MANAGE_EXPENSES)
 def get_installments_due(emp_id):
     """API: جلب الأقساط المستحقة في شهر معين"""
     from models import EmployeeAdvanceInstallment
@@ -860,7 +861,7 @@ def get_installments_due(emp_id):
 
 @expenses_bp.route("/employees/<int:emp_id>/generate-salary", methods=["POST"], endpoint="generate_salary")
 @login_required
-@utils.permission_required("manage_expenses")
+@utils.permission_required(SystemPermissions.MANAGE_EXPENSES)
 def generate_salary(emp_id):
     """توليد راتب شهري تلقائياً مع دعم الدفع الجزئي"""
     from models import ExpenseType, EmployeeAdvanceInstallment
@@ -1124,7 +1125,7 @@ def generate_salary(emp_id):
 
 @expenses_bp.route("/salary-receipt/<int:salary_exp_id>", methods=["GET"], endpoint="salary_receipt")
 @login_required
-@utils.permission_required("manage_expenses")
+@utils.permission_required(SystemPermissions.MANAGE_EXPENSES)
 def salary_receipt(salary_exp_id):
     """إيصال راتب قابل للطباعة - A4 Format"""
     from models import EmployeeDeduction, EmployeeAdvanceInstallment, ExpenseType, SystemSettings
@@ -1176,7 +1177,7 @@ def salary_receipt(salary_exp_id):
 
 @expenses_bp.route("/employees/delete/<int:emp_id>", methods=["POST"], endpoint="delete_employee")
 @login_required
-@utils.permission_required("manage_expenses")
+@utils.permission_required(SystemPermissions.MANAGE_EXPENSES)
 def delete_employee(emp_id):
     e = _get_or_404(Employee, emp_id)
     if Expense.query.filter_by(employee_id=emp_id).first():
@@ -1193,14 +1194,14 @@ def delete_employee(emp_id):
 
 @expenses_bp.route("/types", methods=["GET"], endpoint="types_list")
 @login_required
-@utils.permission_required("manage_expenses")
+@utils.permission_required(SystemPermissions.MANAGE_EXPENSES)
 def types_list():
     types = ExpenseType.query.order_by(ExpenseType.name).all()
     return render_template("expenses/types_list.html", types=types)
 
 @expenses_bp.route("/types/add", methods=["GET", "POST"], endpoint="add_type")
 @login_required
-@utils.permission_required("manage_expenses")
+@utils.permission_required(SystemPermissions.MANAGE_EXPENSES)
 def add_type():
     form = ExpenseTypeForm()
     if form.validate_on_submit():
@@ -1218,7 +1219,7 @@ def add_type():
 
 @expenses_bp.route("/types/edit/<int:type_id>", methods=["GET", "POST"], endpoint="edit_type")
 @login_required
-@utils.permission_required("manage_expenses")
+@utils.permission_required(SystemPermissions.MANAGE_EXPENSES)
 def edit_type(type_id):
     t = _get_or_404(ExpenseType, type_id)
     form = ExpenseTypeForm(obj=t)
@@ -1235,7 +1236,7 @@ def edit_type(type_id):
 
 @expenses_bp.route("/types/delete/<int:type_id>", methods=["POST"], endpoint="delete_type")
 @login_required
-@utils.permission_required("manage_expenses")
+@utils.permission_required(SystemPermissions.MANAGE_EXPENSES)
 def delete_type(type_id):
     t = _get_or_404(ExpenseType, type_id)
     if Expense.query.filter_by(type_id=type_id).first():
@@ -1252,7 +1253,7 @@ def delete_type(type_id):
 
 @expenses_bp.route("/", methods=["GET"], endpoint="list_expenses")
 @login_required
-@utils.permission_required("manage_expenses")
+@utils.permission_required(SystemPermissions.MANAGE_EXPENSES)
 def index():
     query, filt = _base_query_with_filters()
     latest_expense = query.first()
@@ -1554,7 +1555,7 @@ def index():
       <td class="text-nowrap text-center">
         <div class="btn-group">
           <a href="{{ url_for('expenses_bp.detail', exp_id=e.id) }}" class="btn btn-sm btn-info" title="تفاصيل"><i class="fas fa-eye"></i></a>
-          {% if current_user.has_permission('manage_expenses') %}
+          {% if current_user.has_permission(SystemPermissions.MANAGE_EXPENSES) %}
             <a href="{{ url_for('expenses_bp.edit', exp_id=e.id) }}" class="btn btn-sm btn-warning" title="تعديل"><i class="fas fa-edit"></i></a>
             {% if e.is_archived %}
             <form method="post" action="{{ url_for('expenses_bp.restore_expense', expense_id=e.id) }}" class="d-inline">
@@ -1577,7 +1578,7 @@ def index():
             </form>
             
           {% endif %}
-          {% if current_user.has_permission('manage_payments') and not e.is_paid and e.balance and e.balance > 0 %}
+          {% if current_user.has_permission(SystemPermissions.MANAGE_PAYMENTS) and not e.is_paid and e.balance and e.balance > 0 %}
             <a href="{{ url_for('expenses_bp.pay', exp_id=e.id) }}" class="btn btn-sm btn-outline-success" title="دفع ({{ '%.2f'|format(e.balance) }} ₪)"><i class="fas fa-money-bill-wave"></i></a>
           {% endif %}
         </div>
@@ -1759,7 +1760,7 @@ def index():
 
 @expenses_bp.route("/<int:exp_id>", methods=["GET"], endpoint="detail")
 @login_required
-@utils.permission_required("manage_expenses")
+@utils.permission_required(SystemPermissions.MANAGE_EXPENSES)
 def detail(exp_id):
     exp = _get_or_404(
         Expense,
@@ -1895,7 +1896,7 @@ def detail(exp_id):
 
 @expenses_bp.route("/add", methods=["GET", "POST"], endpoint="create_expense")
 @login_required
-@utils.permission_required("manage_expenses")
+@utils.permission_required(SystemPermissions.MANAGE_EXPENSES)
 def add():
     from models import Branch, Site
     
@@ -2274,7 +2275,7 @@ def add():
 
 @expenses_bp.route("/quick-supplier-service", methods=["POST"], endpoint="quick_supplier_service")
 @login_required
-@utils.permission_required("manage_expenses")
+@utils.permission_required(SystemPermissions.MANAGE_EXPENSES)
 def quick_supplier_service():
     if not request.is_json:
         return jsonify({"success": False, "message": "payload_required"}), 400
@@ -2356,7 +2357,7 @@ def quick_supplier_service():
 
 @expenses_bp.route("/quick-supplier-service/pay", methods=["POST"], endpoint="quick_supplier_service_pay")
 @login_required
-@utils.permission_required("manage_expenses")
+@utils.permission_required(SystemPermissions.MANAGE_EXPENSES)
 def quick_supplier_service_pay():
     if not request.is_json:
         return jsonify({"success": False, "message": "payload_required"}), 400
@@ -2416,7 +2417,7 @@ def quick_supplier_service_pay():
 
 @expenses_bp.route("/quick-partner-service", methods=["POST"], endpoint="quick_partner_service")
 @login_required
-@utils.permission_required("manage_expenses")
+@utils.permission_required(SystemPermissions.MANAGE_EXPENSES)
 def quick_partner_service():
     if not request.is_json:
         return jsonify({"success": False, "message": "payload_required"}), 400
@@ -2498,7 +2499,7 @@ def quick_partner_service():
 
 @expenses_bp.route("/quick-partner-service/pay", methods=["POST"], endpoint="quick_partner_service_pay")
 @login_required
-@utils.permission_required("manage_expenses")
+@utils.permission_required(SystemPermissions.MANAGE_EXPENSES)
 def quick_partner_service_pay():
     if not request.is_json:
         return jsonify({"success": False, "message": "payload_required"}), 400
@@ -2557,7 +2558,7 @@ def quick_partner_service_pay():
 
 @expenses_bp.route("/edit/<int:exp_id>", methods=["GET", "POST"], endpoint="edit")
 @login_required
-@utils.permission_required("manage_expenses")
+@utils.permission_required(SystemPermissions.MANAGE_EXPENSES)
 def edit(exp_id):
     from models import Branch, Site
     
@@ -2688,7 +2689,7 @@ def edit(exp_id):
 
 @expenses_bp.route("/sync-to-ledger", methods=["POST"], endpoint="sync_expenses_to_ledger")
 @login_required
-@utils.permission_required("manage_expenses")
+@utils.permission_required(SystemPermissions.MANAGE_EXPENSES)
 def sync_expenses_to_ledger():
     try:
         from sqlalchemy import and_
@@ -2743,7 +2744,7 @@ def sync_expenses_to_ledger():
 
 @expenses_bp.route("/delete/<int:exp_id>", methods=["POST"], endpoint="delete")
 @login_required
-@utils.permission_required("manage_expenses")
+@utils.permission_required(SystemPermissions.MANAGE_EXPENSES)
 def delete(exp_id):
     exp = _get_or_404(Expense, exp_id)
     before_pairs = _expense_related_entity_pairs(exp)
@@ -2770,7 +2771,7 @@ def delete(exp_id):
 
 @expenses_bp.route("/<int:exp_id>/pay", methods=["GET"], endpoint="pay")
 @login_required
-@utils.permission_required("manage_expenses")
+@utils.permission_required(SystemPermissions.MANAGE_EXPENSES)
 def pay(exp_id):
     exp = _get_or_404(Expense, exp_id)
     
@@ -2804,7 +2805,7 @@ def pay(exp_id):
 
 @expenses_bp.route("/export", methods=["GET"], endpoint="export")
 @login_required
-@utils.permission_required("manage_expenses")
+@utils.permission_required(SystemPermissions.MANAGE_EXPENSES)
 def export_csv():
     query, _ = _base_query_with_filters()
     filename = f"expenses_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv"
@@ -2876,7 +2877,7 @@ def export_csv():
 
 @expenses_bp.route("/print", methods=["GET"], endpoint="print_list")
 @login_required
-@utils.permission_required("manage_expenses")
+@utils.permission_required(SystemPermissions.MANAGE_EXPENSES)
 def print_list():
     query, filt = _base_query_with_filters()
     rows = query.limit(50000).all()
@@ -2902,7 +2903,7 @@ def print_list():
 
 @expenses_bp.route("/archive/<int:expense_id>", methods=["POST"])
 @login_required
-@utils.permission_required("manage_expenses")
+@utils.permission_required(SystemPermissions.MANAGE_EXPENSES)
 def archive_expense(expense_id):
     
     try:
@@ -2923,7 +2924,7 @@ def archive_expense(expense_id):
 
 @expenses_bp.route('/restore/<int:expense_id>', methods=['POST'])
 @login_required
-@utils.permission_required("manage_expenses")
+@utils.permission_required(SystemPermissions.MANAGE_EXPENSES)
 def restore_expense(expense_id):
     """استعادة نفقة"""
     
@@ -2955,7 +2956,7 @@ def restore_expense(expense_id):
 
 @expenses_bp.route("/payroll/monthly", methods=["GET"], endpoint="payroll_monthly")
 @login_required
-@utils.permission_required("manage_expenses")
+@utils.permission_required(SystemPermissions.MANAGE_EXPENSES)
 def payroll_monthly():
     from models import ExpenseType, EmployeeDeduction, EmployeeAdvanceInstallment
     from calendar import monthrange
@@ -3043,7 +3044,7 @@ def payroll_monthly():
 
 @expenses_bp.route("/payroll/generate-all", methods=["POST"], endpoint="generate_all_salaries")
 @login_required
-@utils.permission_required("manage_expenses")
+@utils.permission_required(SystemPermissions.MANAGE_EXPENSES)
 def generate_all_salaries():
     from models import ExpenseType, EmployeeAdvanceInstallment
     from calendar import monthrange
@@ -3179,7 +3180,7 @@ def generate_all_salaries():
 
 @expenses_bp.route("/payroll/summary", methods=["GET"], endpoint="payroll_summary")
 @login_required
-@utils.permission_required("manage_expenses")
+@utils.permission_required(SystemPermissions.MANAGE_EXPENSES)
 def payroll_summary():
     from models import ExpenseType
     from sqlalchemy import extract as sql_extract

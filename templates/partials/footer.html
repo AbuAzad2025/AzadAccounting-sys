@@ -1,45 +1,11 @@
-<footer class="main-footer enhanced-footer text-center" dir="rtl">
-  <div class="container">
-    <div class="footer-brand">
-      <img src="{{ url_for('static', filename='img/azad_logo.png') }}"
-           alt="ازاد"
-           class="footer-logo"
-           style="height:28px;max-width:90px;object-fit:contain;">
-      <div class="footer-company">
-        <strong class="footer-company-name">{{ system_settings.company_name or system_settings.system_name or 'النظام' }}</strong>
-        <small class="footer-system-name">{{ system_settings.system_name or 'نظام إدارة متكامل' }}</small>
-      </div>
+<footer class="main-footer" dir="rtl">
+    <div class="float-right d-none d-sm-block">
+        <b>الإصدار</b> 3.2.0
     </div>
-    
-    <div class="footer-contact">
-      <div class="row text-center">
-        {% if system_settings and system_settings.COMPANY_PHONE %}
-        <div class="col-md-4 mb-2 mb-md-0">
-          <a href="tel:{{ system_settings.COMPANY_PHONE }}" class="footer-contact-link">
-            <i class="fas fa-phone"></i>
-            <span>{{ system_settings.COMPANY_PHONE }}</span>
-          </a>
-        </div>
-        {% endif %}
-        {% if system_settings and system_settings.COMPANY_EMAIL %}
-        <div class="col-md-4 mb-2 mb-md-0">
-          <a href="mailto:{{ system_settings.COMPANY_EMAIL }}" class="footer-contact-link">
-            <i class="fas fa-envelope"></i>
-            <span>{{ system_settings.COMPANY_EMAIL }}</span>
-          </a>
-        </div>
-        {% endif %}
-      </div>
-    </div>
-    
-    <div class="footer-copyright">
-      <div class="d-flex justify-content-center align-items-center gap-3 flex-wrap">
-        <span><strong>&copy; 2025</strong> جميع الحقوق محفوظة</span>
-        <span class="footer-divider">|</span>
-        <span>رام الله - فلسطين</span>
-        <span class="footer-divider">|</span>
-        <span>الإصدار: <strong>{{ system_settings.system_version or '1.0.0' }}</strong></span>
-      </div>
-    </div>
-  </div>
+    <strong>حقوق النشر &copy; <span id="copyright-year"></span> <a href="#">شركة أزاد للأنظمة الذكية</a>.</strong>
+    جميع الحقوق محفوظة. برمجة وتطوير <a href="#">أحمد غنام</a>.
+    <img src="{{ url_for('static', filename='img/azad_logo.png') }}" alt="Azad" style="height: 24px; vertical-align: middle; margin-right: 10px;">
+    <script>
+        document.getElementById('copyright-year').textContent = new Date().getFullYear();
+    </script>
 </footer>

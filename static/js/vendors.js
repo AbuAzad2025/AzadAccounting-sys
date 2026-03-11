@@ -12,6 +12,8 @@
   function directionBadge(dir) {
     if (dir === "IN") return '<span class="badge bg-success">وارد</span>';
     if (dir === "OUT") return '<span class="badge bg-danger">صادر</span>';
+    if (dir === "INCOMING") return '<span class="badge bg-success">وارد</span>'; // Legacy support
+    if (dir === "OUTGOING") return '<span class="badge bg-danger">صادر</span>'; // Legacy support
     return '<span class="badge bg-secondary">—</span>';
   }
 

@@ -8,10 +8,11 @@
 - سهولة الإضافة والتعديل والصيانة
 
 Created: 2025-11-02
-Last Updated: 2025-11-02
+Last Updated: 2026-03-11
 """
 
 from typing import Dict, List, Set, Optional
+from .enums import SystemPermissions, SystemRoles
 
 
 class PermissionsRegistry:
@@ -21,149 +22,153 @@ class PermissionsRegistry:
     """
     
     PERMISSIONS_AR_MAP = {
-        'manage_branches': 'إدارة_الفروع',
-        'backup_database': 'نسخ_احتياطي',
-        'restore_database': 'استعادة_نسخة',
-        'hard_delete': 'حذف_قوي',
-        'view_audit_logs': 'عرض_سجلات_التدقيق',
-        'access_owner_dashboard': 'لوحة_المالك',
-        'manage_advanced_accounting': 'محاسبة_متقدمة',
-        'manage_any_user_permissions': 'تعديل_صلاحيات_المستخدمين',
-        'manage_ledger': 'إدارة_الدفتر',
-        'access_ai_assistant': 'مساعد_ذكي',
-        'train_ai': 'تدريب_الذكاء',
-        'manage_permissions': 'إدارة_الصلاحيات',
-        'manage_roles': 'إدارة_الأدوار',
-        'manage_users': 'إدارة_المستخدمين',
-        'manage_customers': 'إدارة_العملاء',
-        'add_customer': 'إضافة_عميل',
-        'view_customers': 'عرض_العملاء',
-        'manage_sales': 'إدارة_المبيعات',
-        'archive_sale': 'أرشفة_المبيعات',
-        'view_sales': 'عرض_المبيعات',
-        'manage_service': 'إدارة_الصيانة',
-        'view_service': 'عرض_الصيانة',
-        'manage_warehouses': 'إدارة_المستودعات',
-        'view_warehouses': 'عرض_المستودعات',
-        'manage_inventory': 'إدارة_الجرد',
-        'view_inventory': 'عرض_الجرد',
-        'warehouse_transfer': 'تحويل_مخزني',
-        'view_parts': 'عرض_القطع',
-        'manage_vendors': 'إدارة_الموردين',
-        'add_supplier': 'إضافة_مورد',
-        'add_partner': 'إضافة_شريك',
-        'manage_payments': 'إدارة_المدفوعات',
-        'manage_expenses': 'إدارة_المصاريف',
-        'view_reports': 'عرض_التقارير',
-        'manage_reports': 'إدارة_التقارير',
-        'manage_exchange': 'إدارة_التحويلات',
-        'manage_currencies': 'إدارة_العملات',
-        'manage_shipments': 'إدارة_الشحن',
-        'view_shop': 'عرض_المتجر',
-        'browse_products': 'تصفح_المنتجات',
-        'manage_shop': 'إدارة_المتجر',
-        'place_online_order': 'طلب_أونلاين',
-        'view_preorders': 'عرض_الطلبات_المسبقة',
-        'add_preorder': 'إضافة_طلب_مسبق',
-        'edit_preorder': 'تعديل_طلب_مسبق',
-        'delete_preorder': 'حذف_طلب_مسبق',
-        'access_api': 'الوصول_API',
-        'manage_api': 'إدارة_API',
-        'view_notes': 'عرض_الملاحظات',
-        'manage_notes': 'إدارة_الملاحظات',
-        'view_barcode': 'عرض_الباركود',
-        'manage_barcode': 'إدارة_الباركود',
-        'view_own_orders': 'عرض_طلباتي',
-        'view_own_account': 'عرض_حسابي',
-        'access_dashboard': 'الوصول_للوحة_التحكم',
+        SystemPermissions.MANAGE_BRANCHES: 'إدارة_الفروع',
+        SystemPermissions.BACKUP_DATABASE: 'نسخ_احتياطي',
+        SystemPermissions.RESTORE_DATABASE: 'استعادة_نسخة',
+        SystemPermissions.HARD_DELETE: 'حذف_قوي',
+        SystemPermissions.VIEW_AUDIT_LOGS: 'عرض_سجلات_التدقيق',
+        SystemPermissions.ACCESS_OWNER_DASHBOARD: 'لوحة_المالك',
+        SystemPermissions.MANAGE_ADVANCED_ACCOUNTING: 'محاسبة_متقدمة',
+        SystemPermissions.MANAGE_ANY_USER_PERMISSIONS: 'تعديل_صلاحيات_المستخدمين',
+        SystemPermissions.MANAGE_LEDGER: 'إدارة_الدفتر',
+        SystemPermissions.VIEW_LEDGER: 'عرض_الدفتر',
+        SystemPermissions.ACCESS_AI_ASSISTANT: 'مساعد_ذكي',
+        SystemPermissions.TRAIN_AI: 'تدريب_الذكاء',
+        SystemPermissions.MANAGE_PERMISSIONS: 'إدارة_الصلاحيات',
+        SystemPermissions.MANAGE_ROLES: 'إدارة_الأدوار',
+        SystemPermissions.MANAGE_USERS: 'إدارة_المستخدمين',
+        SystemPermissions.MANAGE_CUSTOMERS: 'إدارة_العملاء',
+        SystemPermissions.ADD_CUSTOMER: 'إضافة_عميل',
+        SystemPermissions.VIEW_CUSTOMERS: 'عرض_العملاء',
+        SystemPermissions.MANAGE_SALES: 'إدارة_المبيعات',
+        SystemPermissions.ARCHIVE_SALE: 'أرشفة_المبيعات',
+        SystemPermissions.VIEW_SALES: 'عرض_المبيعات',
+        SystemPermissions.MANAGE_SERVICE: 'إدارة_الصيانة',
+        SystemPermissions.VIEW_SERVICE: 'عرض_الصيانة',
+        SystemPermissions.MANAGE_WAREHOUSES: 'إدارة_المستودعات',
+        SystemPermissions.VIEW_WAREHOUSES: 'عرض_المستودعات',
+        SystemPermissions.MANAGE_INVENTORY: 'إدارة_الجرد',
+        SystemPermissions.VIEW_INVENTORY: 'عرض_الجرد',
+        SystemPermissions.WAREHOUSE_TRANSFER: 'تحويل_مخزني',
+        SystemPermissions.VIEW_PARTS: 'عرض_القطع',
+        SystemPermissions.MANAGE_VENDORS: 'إدارة_الموردين',
+        SystemPermissions.ADD_SUPPLIER: 'إضافة_مورد',
+        SystemPermissions.ADD_PARTNER: 'إضافة_شريك',
+        SystemPermissions.MANAGE_PAYMENTS: 'إدارة_المدفوعات',
+        SystemPermissions.VIEW_PAYMENTS: 'عرض_المدفوعات',
+        SystemPermissions.MANAGE_EXPENSES: 'إدارة_المصاريف',
+        SystemPermissions.VIEW_REPORTS: 'عرض_التقارير',
+        SystemPermissions.MANAGE_REPORTS: 'إدارة_التقارير',
+        SystemPermissions.EXPORT_DATA: 'تصدير_البيانات',
+        SystemPermissions.MANAGE_EXCHANGE: 'إدارة_التحويلات',
+        SystemPermissions.MANAGE_CURRENCIES: 'إدارة_العملات',
+        SystemPermissions.MANAGE_SHIPMENTS: 'إدارة_الشحن',
+        SystemPermissions.VIEW_SHOP: 'عرض_المتجر',
+        SystemPermissions.BROWSE_PRODUCTS: 'تصفح_المنتجات',
+        SystemPermissions.MANAGE_SHOP: 'إدارة_المتجر',
+        SystemPermissions.PLACE_ONLINE_ORDER: 'طلب_أونلاين',
+        SystemPermissions.VIEW_PREORDERS: 'عرض_الطلبات_المسبقة',
+        SystemPermissions.ADD_PREORDER: 'إضافة_طلب_مسبق',
+        SystemPermissions.EDIT_PREORDER: 'تعديل_طلب_مسبق',
+        SystemPermissions.DELETE_PREORDER: 'حذف_طلب_مسبق',
+        SystemPermissions.ACCESS_API: 'الوصول_API',
+        SystemPermissions.MANAGE_API: 'إدارة_API',
+        SystemPermissions.VIEW_NOTES: 'عرض_الملاحظات',
+        SystemPermissions.MANAGE_NOTES: 'إدارة_الملاحظات',
+        SystemPermissions.VIEW_BARCODE: 'عرض_الباركود',
+        SystemPermissions.MANAGE_BARCODE: 'إدارة_الباركود',
+        SystemPermissions.USE_SCANNER: 'استخدام_الماسح',
+        SystemPermissions.VIEW_OWN_ORDERS: 'عرض_طلباتي',
+        SystemPermissions.VIEW_OWN_ACCOUNT: 'عرض_حسابي',
+        SystemPermissions.ACCESS_DASHBOARD: 'الوصول_للوحة_التحكم',
 
         # Branches
-        'manage_branches': 'إدارة_الفروع',
+        SystemPermissions.MANAGE_BRANCHES: 'إدارة_الفروع',
 
         # Bank
-        'manage_bank': 'إدارة_البنك',
-        'view_bank': 'عرض_البنك',
-        'add_bank_transaction': 'إضافة_معاملة_بنكية',
+        SystemPermissions.MANAGE_BANK: 'إدارة_البنك',
+        SystemPermissions.VIEW_BANK: 'عرض_البنك',
+        SystemPermissions.ADD_BANK_TRANSACTION: 'إضافة_معاملة_بنكية',
 
         # Projects
-        'manage_projects': 'إدارة_المشاريع',
-        'view_projects': 'عرض_المشاريع',
+        SystemPermissions.MANAGE_PROJECTS: 'إدارة_المشاريع',
+        SystemPermissions.VIEW_PROJECTS: 'عرض_المشاريع',
 
         # Workflows
-        'manage_workflows': 'إدارة_سير_العمل',
-        'view_workflows': 'عرض_سير_العمل',
+        SystemPermissions.MANAGE_WORKFLOWS: 'إدارة_سير_العمل',
+        SystemPermissions.VIEW_WORKFLOWS: 'عرض_سير_العمل',
 
         # Engineering & Cost Centers
-        'manage_engineering': 'إدارة_الهندسة',
-        'manage_cost_centers': 'إدارة_مراكز_التكلفة',
+        SystemPermissions.MANAGE_ENGINEERING: 'إدارة_الهندسة',
+        SystemPermissions.MANAGE_COST_CENTERS: 'إدارة_مراكز_التكلفة',
         
         # Additional Accounting
-        'manage_accounting_docs': 'إدارة_المستندات',
-        'validate_accounting': 'التحقق_المحاسبي',
+        SystemPermissions.MANAGE_ACCOUNTING_DOCS: 'إدارة_المستندات',
+        SystemPermissions.VALIDATE_ACCOUNTING: 'التحقق_المحاسبي',
         
         # AI Admin
-        'manage_ai': 'إدارة_الذكاء_الاصطناعي',
+        SystemPermissions.MANAGE_AI: 'إدارة_الذكاء_الاصطناعي',
     }
     
     PERMISSIONS = {
         'system': {
-            'access_dashboard': {
+            SystemPermissions.ACCESS_DASHBOARD: {
                 'name_ar': 'الوصول للوحة التحكم',
                 'code_ar': 'الوصول_للوحة_التحكم',
                 'description': 'الوصول للوحة التحكم الرئيسية',
                 'module': 'system',
                 'is_protected': True,
             },
-            'backup_database': {
+            SystemPermissions.BACKUP_DATABASE: {
                 'name_ar': 'نسخ احتياطي للنظام',
                 'code_ar': 'نسخ_احتياطي',
                 'description': 'إنشاء نسخة احتياطية من قاعدة البيانات',
                 'module': 'system',
                 'is_protected': True,
             },
-            'restore_database': {
+            SystemPermissions.RESTORE_DATABASE: {
                 'name_ar': 'استعادة نسخة احتياطية',
                 'code_ar': 'استعادة_نسخة',
                 'description': 'استعادة قاعدة البيانات من نسخة احتياطية',
                 'module': 'system',
                 'is_protected': True,
             },
-            'hard_delete': {
+            SystemPermissions.HARD_DELETE: {
                 'name_ar': 'حذف قوي',
                 'code_ar': 'حذف_قوي',
                 'description': 'حذف نهائي من قاعدة البيانات',
                 'module': 'system',
                 'is_protected': True,
             },
-            'view_audit_logs': {
+            SystemPermissions.VIEW_AUDIT_LOGS: {
                 'name_ar': 'عرض سجلات التدقيق',
                 'code_ar': 'عرض_سجلات_التدقيق',
                 'description': 'عرض كل سجلات النظام',
                 'module': 'system',
                 'is_protected': True,
             },
-            'manage_tenants': {
+            SystemPermissions.MANAGE_TENANTS: {
                 'name_ar': 'إدارة المستأجرين',
                 'code_ar': 'إدارة_المستأجرين',
                 'description': 'إدارة قواعد البيانات والمستأجرين',
                 'module': 'system',
                 'is_protected': True,
             },
-            'manage_system_config': {
+            SystemPermissions.MANAGE_SYSTEM_CONFIG: {
                 'name_ar': 'إعدادات النظام',
                 'code_ar': 'إعدادات_النظام',
                 'description': 'إدارة إعدادات النظام والميزات',
                 'module': 'system',
                 'is_protected': True,
             },
-            'manage_system_health': {
+            SystemPermissions.MANAGE_SYSTEM_HEALTH: {
                 'name_ar': 'صحة النظام',
                 'code_ar': 'صحة_النظام',
                 'description': 'مراقبة أداء وصحة النظام',
                 'module': 'system',
                 'is_protected': True,
             },
-            'manage_mobile_app': {
+            SystemPermissions.MANAGE_MOBILE_APP: {
                 'name_ar': 'إدارة تطبيق الجوال',
                 'code_ar': 'إدارة_تطبيق_الجوال',
                 'description': 'إنشاء وإدارة تطبيقات الجوال',
@@ -173,21 +178,21 @@ class PermissionsRegistry:
         },
         
         'owner_only': {
-            'access_owner_dashboard': {
+            SystemPermissions.ACCESS_OWNER_DASHBOARD: {
                 'name_ar': 'الوصول للوحة المالك',
                 'code_ar': 'لوحة_المالك',
                 'description': 'الوصول للوحة التحكم الخاصة بالمالك',
                 'module': 'owner_only',
                 'is_protected': True,
             },
-            'manage_advanced_accounting': {
+            SystemPermissions.MANAGE_ADVANCED_ACCOUNTING: {
                 'name_ar': 'إدارة المحاسبة المتقدمة',
                 'code_ar': 'محاسبة_متقدمة',
                 'description': 'الوصول لوحدات المحاسبة المتقدمة',
                 'module': 'owner_only',
                 'is_protected': True,
             },
-            'manage_any_user_permissions': {
+            SystemPermissions.MANAGE_ANY_USER_PERMISSIONS: {
                 'name_ar': 'إدارة صلاحيات أي مستخدم',
                 'code_ar': 'تعديل_صلاحيات_المستخدمين',
                 'description': 'إضافة وتعديل وحذف صلاحيات أي مستخدم',
@@ -197,21 +202,21 @@ class PermissionsRegistry:
         },
         
         'ai': {
-            'manage_ai': {
+            SystemPermissions.MANAGE_AI: {
                 'name_ar': 'إدارة الذكاء الاصطناعي',
                 'code_ar': 'إدارة_الذكاء_الاصطناعي',
                 'description': 'إدارة إعدادات ونماذج الذكاء الاصطناعي',
                 'module': 'ai',
                 'is_protected': True,
             },
-            'access_ai_assistant': {
+            SystemPermissions.ACCESS_AI_ASSISTANT: {
                 'name_ar': 'الوصول للمساعد الذكي',
                 'code_ar': 'مساعد_ذكي',
                 'description': 'استخدام المساعد الذكي',
                 'module': 'ai',
                 'is_protected': True,
             },
-            'train_ai': {
+            SystemPermissions.TRAIN_AI: {
                 'name_ar': 'تدريب المساعد الذكي',
                 'code_ar': 'تدريب_الذكاء',
                 'description': 'تدريب وإدارة المساعد الذكي',
@@ -221,21 +226,21 @@ class PermissionsRegistry:
         },
         
         'users': {
-            'manage_users': {
+            SystemPermissions.MANAGE_USERS: {
                 'name_ar': 'إدارة المستخدمين',
                 'code_ar': 'إدارة_المستخدمين',
                 'description': 'إضافة وتعديل وحذف المستخدمين',
                 'module': 'users',
                 'is_protected': True,
             },
-            'manage_roles': {
+            SystemPermissions.MANAGE_ROLES: {
                 'name_ar': 'إدارة الأدوار',
                 'code_ar': 'إدارة_الأدوار',
                 'description': 'إضافة وتعديل وحذف أدوار المستخدمين',
                 'module': 'users',
                 'is_protected': True,
             },
-            'manage_permissions': {
+            SystemPermissions.MANAGE_PERMISSIONS: {
                 'name_ar': 'إدارة الصلاحيات',
                 'code_ar': 'إدارة_الصلاحيات',
                 'description': 'إضافة وتعديل وحذف الصلاحيات',
@@ -245,21 +250,21 @@ class PermissionsRegistry:
         },
         
         'customers': {
-            'manage_customers': {
+            SystemPermissions.MANAGE_CUSTOMERS: {
                 'name_ar': 'إدارة العملاء',
                 'code_ar': 'إدارة_العملاء',
                 'description': 'إدارة كاملة للعملاء',
                 'module': 'customers',
                 'is_protected': False,
             },
-            'add_customer': {
+            SystemPermissions.ADD_CUSTOMER: {
                 'name_ar': 'إضافة عميل',
                 'code_ar': 'إضافة_عميل',
                 'description': 'إضافة عميل جديد',
                 'module': 'customers',
                 'is_protected': False,
             },
-            'view_customers': {
+            SystemPermissions.VIEW_CUSTOMERS: {
                 'name_ar': 'عرض العملاء',
                 'code_ar': 'عرض_العملاء',
                 'description': 'عرض قائمة العملاء',
@@ -269,21 +274,21 @@ class PermissionsRegistry:
         },
         
         'sales': {
-            'manage_sales': {
+            SystemPermissions.MANAGE_SALES: {
                 'name_ar': 'إدارة المبيعات',
                 'code_ar': 'إدارة_المبيعات',
                 'description': 'إدارة كاملة للمبيعات',
                 'module': 'sales',
                 'is_protected': False,
             },
-            'archive_sale': {
+            SystemPermissions.ARCHIVE_SALE: {
                 'name_ar': 'أرشفة المبيعات',
                 'code_ar': 'أرشفة_المبيعات',
                 'description': 'أرشفة عمليات البيع',
                 'module': 'sales',
                 'is_protected': False,
             },
-            'view_sales': {
+            SystemPermissions.VIEW_SALES: {
                 'name_ar': 'عرض المبيعات',
                 'code_ar': 'عرض_المبيعات',
                 'description': 'عرض قائمة المبيعات',
@@ -293,14 +298,14 @@ class PermissionsRegistry:
         },
         
         'service': {
-            'manage_service': {
+            SystemPermissions.MANAGE_SERVICE: {
                 'name_ar': 'إدارة الصيانة',
                 'code_ar': 'إدارة_الصيانة',
                 'description': 'إدارة كاملة لطلبات الصيانة',
                 'module': 'service',
                 'is_protected': False,
             },
-            'view_service': {
+            SystemPermissions.VIEW_SERVICE: {
                 'name_ar': 'عرض الصيانة',
                 'code_ar': 'عرض_الصيانة',
                 'description': 'عرض طلبات الصيانة',
@@ -310,42 +315,42 @@ class PermissionsRegistry:
         },
         
         'warehouses': {
-            'manage_warehouses': {
+            SystemPermissions.MANAGE_WAREHOUSES: {
                 'name_ar': 'إدارة المستودعات',
                 'code_ar': 'إدارة_المستودعات',
                 'description': 'إدارة كاملة للمستودعات',
                 'module': 'warehouses',
                 'is_protected': False,
             },
-            'view_warehouses': {
+            SystemPermissions.VIEW_WAREHOUSES: {
                 'name_ar': 'عرض المستودعات',
                 'code_ar': 'عرض_المستودعات',
                 'description': 'عرض قائمة المستودعات',
                 'module': 'warehouses',
                 'is_protected': False,
             },
-            'manage_inventory': {
+            SystemPermissions.MANAGE_INVENTORY: {
                 'name_ar': 'إدارة الجرد',
                 'code_ar': 'إدارة_الجرد',
                 'description': 'إدارة جرد المخزون',
                 'module': 'warehouses',
                 'is_protected': False,
             },
-            'view_inventory': {
+            SystemPermissions.VIEW_INVENTORY: {
                 'name_ar': 'عرض الجرد',
                 'code_ar': 'عرض_الجرد',
                 'description': 'عرض جرد المخزون',
                 'module': 'warehouses',
                 'is_protected': False,
             },
-            'warehouse_transfer': {
+            SystemPermissions.WAREHOUSE_TRANSFER: {
                 'name_ar': 'تحويل مخزني',
                 'code_ar': 'تحويل_مخزني',
                 'description': 'نقل البضائع بين المستودعات',
                 'module': 'warehouses',
                 'is_protected': False,
             },
-            'view_parts': {
+            SystemPermissions.VIEW_PARTS: {
                 'name_ar': 'عرض القطع',
                 'code_ar': 'عرض_القطع',
                 'description': 'عرض قطع الغيار',
@@ -355,21 +360,21 @@ class PermissionsRegistry:
         },
         
         'vendors': {
-            'manage_vendors': {
+            SystemPermissions.MANAGE_VENDORS: {
                 'name_ar': 'إدارة الموردين',
                 'code_ar': 'إدارة_الموردين',
                 'description': 'إدارة الموردين والشركاء',
                 'module': 'vendors',
                 'is_protected': False,
             },
-            'add_supplier': {
+            SystemPermissions.ADD_SUPPLIER: {
                 'name_ar': 'إضافة مورد',
                 'code_ar': 'إضافة_مورد',
                 'description': 'إضافة مورد جديد',
                 'module': 'vendors',
                 'is_protected': False,
             },
-            'add_partner': {
+            SystemPermissions.ADD_PARTNER: {
                 'name_ar': 'إضافة شريك',
                 'code_ar': 'إضافة_شريك',
                 'description': 'إضافة شريك جديد',
@@ -379,63 +384,63 @@ class PermissionsRegistry:
         },
         
         'accounting': {
-            'manage_accounting_docs': {
+            SystemPermissions.MANAGE_ACCOUNTING_DOCS: {
                 'name_ar': 'إدارة المستندات',
                 'code_ar': 'إدارة_المستندات',
                 'description': 'إدارة المستندات المحاسبية والأرشيف',
                 'module': 'accounting',
                 'is_protected': True,
             },
-            'validate_accounting': {
+            SystemPermissions.VALIDATE_ACCOUNTING: {
                 'name_ar': 'التحقق المحاسبي',
                 'code_ar': 'التحقق_المحاسبي',
                 'description': 'التحقق من صحة القيود والمراجعة',
                 'module': 'accounting',
                 'is_protected': True,
             },
-            'manage_ledger': {
+            SystemPermissions.MANAGE_LEDGER: {
                 'name_ar': 'إدارة الدفتر',
                 'code_ar': 'إدارة_الدفتر',
                 'description': 'التحكم الكامل بالدفتر العام',
                 'module': 'accounting',
                 'is_protected': True,
             },
-            'manage_payments': {
+            SystemPermissions.MANAGE_PAYMENTS: {
                 'name_ar': 'إدارة المدفوعات',
                 'code_ar': 'إدارة_المدفوعات',
                 'description': 'إدارة المدفوعات والسندات',
                 'module': 'accounting',
                 'is_protected': False,
             },
-            'manage_expenses': {
+            SystemPermissions.MANAGE_EXPENSES: {
                 'name_ar': 'إدارة المصاريف',
                 'code_ar': 'إدارة_المصاريف',
                 'description': 'إدارة المصاريف والرواتب',
                 'module': 'accounting',
                 'is_protected': False,
             },
-            'view_reports': {
+            SystemPermissions.VIEW_REPORTS: {
                 'name_ar': 'عرض التقارير',
                 'code_ar': 'عرض_التقارير',
                 'description': 'عرض التقارير المالية',
                 'module': 'accounting',
                 'is_protected': False,
             },
-            'manage_reports': {
+            SystemPermissions.MANAGE_REPORTS: {
                 'name_ar': 'إدارة التقارير',
                 'code_ar': 'إدارة_التقارير',
                 'description': 'إنشاء وتعديل التقارير',
                 'module': 'accounting',
                 'is_protected': False,
             },
-            'manage_exchange': {
+            SystemPermissions.MANAGE_EXCHANGE: {
                 'name_ar': 'إدارة التحويلات',
                 'code_ar': 'إدارة_التحويلات',
                 'description': 'إدارة تحويلات العملات',
                 'module': 'accounting',
                 'is_protected': False,
             },
-            'manage_currencies': {
+            SystemPermissions.MANAGE_CURRENCIES: {
                 'name_ar': 'إدارة العملات',
                 'code_ar': 'إدارة_العملات',
                 'description': 'إدارة العملات وأسعار الصرف',
@@ -445,7 +450,7 @@ class PermissionsRegistry:
         },
         
         'shipments': {
-            'manage_shipments': {
+            SystemPermissions.MANAGE_SHIPMENTS: {
                 'name_ar': 'إدارة الشحن',
                 'code_ar': 'إدارة_الشحن',
                 'description': 'إدارة الشحنات والتوصيل',
@@ -455,7 +460,7 @@ class PermissionsRegistry:
         },
         
         'branches': {
-            'manage_branches': {
+            SystemPermissions.MANAGE_BRANCHES: {
                 'name_ar': 'إدارة الفروع',
                 'code_ar': 'إدارة_الفروع',
                 'description': 'إدارة الفروع والمواقع',
@@ -465,7 +470,7 @@ class PermissionsRegistry:
         },
         
         'saas': {
-            'manage_saas': {
+            SystemPermissions.MANAGE_SAAS: {
                 'name_ar': 'إدارة SaaS',
                 'code_ar': 'إدارة_SaaS',
                 'description': 'إدارة الاشتراكات والباقات',
@@ -475,56 +480,56 @@ class PermissionsRegistry:
         },
         
         'shop': {
-            'view_shop': {
+            SystemPermissions.VIEW_SHOP: {
                 'name_ar': 'عرض المتجر',
                 'code_ar': 'عرض_المتجر',
                 'description': 'الدخول للمتجر الإلكتروني',
                 'module': 'shop',
                 'is_protected': False,
             },
-            'browse_products': {
+            SystemPermissions.BROWSE_PRODUCTS: {
                 'name_ar': 'تصفح المنتجات',
                 'code_ar': 'تصفح_المنتجات',
                 'description': 'تصفح منتجات المتجر',
                 'module': 'shop',
                 'is_protected': False,
             },
-            'manage_shop': {
+            SystemPermissions.MANAGE_SHOP: {
                 'name_ar': 'إدارة المتجر',
                 'code_ar': 'إدارة_المتجر',
                 'description': 'إدارة المتجر الإلكتروني',
                 'module': 'shop',
                 'is_protected': False,
             },
-            'place_online_order': {
+            SystemPermissions.PLACE_ONLINE_ORDER: {
                 'name_ar': 'طلب أونلاين',
                 'code_ar': 'طلب_أونلاين',
                 'description': 'إنشاء طلب من المتجر',
                 'module': 'shop',
                 'is_protected': False,
             },
-            'view_preorders': {
+            SystemPermissions.VIEW_PREORDERS: {
                 'name_ar': 'عرض الطلبات المسبقة',
                 'code_ar': 'عرض_الطلبات_المسبقة',
                 'description': 'عرض الطلبات المسبقة',
                 'module': 'shop',
                 'is_protected': False,
             },
-            'add_preorder': {
+            SystemPermissions.ADD_PREORDER: {
                 'name_ar': 'إضافة طلب مسبق',
                 'code_ar': 'إضافة_طلب_مسبق',
                 'description': 'إضافة طلب مسبق',
                 'module': 'shop',
                 'is_protected': False,
             },
-            'edit_preorder': {
+            SystemPermissions.EDIT_PREORDER: {
                 'name_ar': 'تعديل طلب مسبق',
                 'code_ar': 'تعديل_طلب_مسبق',
                 'description': 'تعديل طلب مسبق',
                 'module': 'shop',
                 'is_protected': False,
             },
-            'delete_preorder': {
+            SystemPermissions.DELETE_PREORDER: {
                 'name_ar': 'حذف طلب مسبق',
                 'code_ar': 'حذف_طلب_مسبق',
                 'description': 'حذف طلب مسبق',
@@ -534,56 +539,56 @@ class PermissionsRegistry:
         },
         
         'other': {
-            'access_api': {
+            SystemPermissions.ACCESS_API: {
                 'name_ar': 'الوصول إلى API',
                 'code_ar': 'الوصول_API',
                 'description': 'الوصول لواجهة API',
                 'module': 'other',
                 'is_protected': False,
             },
-            'manage_api': {
+            SystemPermissions.MANAGE_API: {
                 'name_ar': 'إدارة API',
                 'code_ar': 'إدارة_API',
                 'description': 'إدارة واجهة API',
                 'module': 'other',
                 'is_protected': False,
             },
-            'view_notes': {
+            SystemPermissions.VIEW_NOTES: {
                 'name_ar': 'عرض الملاحظات',
                 'code_ar': 'عرض_الملاحظات',
                 'description': 'عرض الملاحظات',
                 'module': 'other',
                 'is_protected': False,
             },
-            'manage_notes': {
+            SystemPermissions.MANAGE_NOTES: {
                 'name_ar': 'إدارة الملاحظات',
                 'code_ar': 'إدارة_الملاحظات',
                 'description': 'إضافة وتعديل الملاحظات',
                 'module': 'other',
                 'is_protected': False,
             },
-            'view_barcode': {
+            SystemPermissions.VIEW_BARCODE: {
                 'name_ar': 'عرض الباركود',
                 'code_ar': 'عرض_الباركود',
                 'description': 'عرض الباركود',
                 'module': 'other',
                 'is_protected': False,
             },
-            'manage_barcode': {
+            SystemPermissions.MANAGE_BARCODE: {
                 'name_ar': 'إدارة الباركود',
                 'code_ar': 'إدارة_الباركود',
                 'description': 'إدارة الباركود',
                 'module': 'other',
                 'is_protected': False,
             },
-            'view_own_orders': {
+            SystemPermissions.VIEW_OWN_ORDERS: {
                 'name_ar': 'عرض طلباتي',
                 'code_ar': 'عرض_طلباتي',
                 'description': 'عرض طلبات المستخدم الشخصية',
                 'module': 'other',
                 'is_protected': False,
             },
-            'view_own_account': {
+            SystemPermissions.VIEW_OWN_ACCOUNT: {
                 'name_ar': 'عرض حسابي',
                 'code_ar': 'عرض_حسابي',
                 'description': 'عرض الحساب الشخصي',
@@ -593,21 +598,21 @@ class PermissionsRegistry:
         },
 
         'bank': {
-            'manage_bank': {
+            SystemPermissions.MANAGE_BANK: {
                 'name_ar': 'إدارة البنك',
                 'code_ar': 'إدارة_البنك',
                 'description': 'إدارة الحسابات البنكية والمعاملات',
                 'module': 'bank',
                 'is_protected': True,
             },
-            'view_bank': {
+            SystemPermissions.VIEW_BANK: {
                 'name_ar': 'عرض البنك',
                 'code_ar': 'عرض_البنك',
                 'description': 'عرض الحسابات البنكية',
                 'module': 'bank',
                 'is_protected': False,
             },
-            'add_bank_transaction': {
+            SystemPermissions.ADD_BANK_TRANSACTION: {
                 'name_ar': 'إضافة معاملة بنكية',
                 'code_ar': 'إضافة_معاملة_بنكية',
                 'description': 'إضافة إيداع أو سحب بنكي',
@@ -617,14 +622,14 @@ class PermissionsRegistry:
         },
 
         'projects': {
-            'manage_projects': {
+            SystemPermissions.MANAGE_PROJECTS: {
                 'name_ar': 'إدارة المشاريع',
                 'code_ar': 'إدارة_المشاريع',
                 'description': 'إدارة المشاريع بالكامل',
                 'module': 'projects',
                 'is_protected': True,
             },
-            'view_projects': {
+            SystemPermissions.VIEW_PROJECTS: {
                 'name_ar': 'عرض المشاريع',
                 'code_ar': 'عرض_المشاريع',
                 'description': 'عرض قائمة المشاريع',
@@ -634,14 +639,14 @@ class PermissionsRegistry:
         },
 
         'workflows': {
-            'manage_workflows': {
+            SystemPermissions.MANAGE_WORKFLOWS: {
                 'name_ar': 'إدارة سير العمل',
                 'code_ar': 'إدارة_سير_العمل',
                 'description': 'إدارة وتصميم سير العمل',
                 'module': 'workflows',
                 'is_protected': True,
             },
-            'view_workflows': {
+            SystemPermissions.VIEW_WORKFLOWS: {
                 'name_ar': 'عرض سير العمل',
                 'code_ar': 'عرض_سير_العمل',
                 'description': 'عرض حالات سير العمل',
@@ -651,7 +656,7 @@ class PermissionsRegistry:
         },
 
         'archive': {
-            'restore_archive': {
+            SystemPermissions.RESTORE_ARCHIVE: {
                 'name_ar': 'استعادة الأرشيف',
                 'code_ar': 'استعادة_أرشيف',
                 'description': 'استعادة السجلات المؤرشفة',
@@ -661,7 +666,7 @@ class PermissionsRegistry:
         },
         
         'engineering': {
-            'manage_engineering': {
+            SystemPermissions.MANAGE_ENGINEERING: {
                 'name_ar': 'إدارة الهندسة',
                 'code_ar': 'إدارة_الهندسة',
                 'description': 'إدارة العمليات الهندسية',
@@ -671,7 +676,7 @@ class PermissionsRegistry:
         },
         
         'cost_centers': {
-            'manage_cost_centers': {
+            SystemPermissions.MANAGE_COST_CENTERS: {
                 'name_ar': 'إدارة مراكز التكلفة',
                 'code_ar': 'إدارة_مراكز_التكلفة',
                 'description': 'إدارة مراكز التكلفة والمشاريع المالية',
@@ -683,18 +688,18 @@ class PermissionsRegistry:
     
     
     HIERARCHY = {
-        0: ['owner', 'developer'],
-        1: ['super_admin', 'super'],
-        2: ['admin'],
-        3: ['manager'],
-        4: ['staff'],
-        5: ['mechanic'],
-        6: ['registered_customer'],
-        7: ['guest'],
+        0: [SystemRoles.OWNER, SystemRoles.DEVELOPER],
+        1: [SystemRoles.SUPER_ADMIN, SystemRoles.SUPER],
+        2: [SystemRoles.ADMIN],
+        3: [SystemRoles.MANAGER],
+        4: [SystemRoles.STAFF],
+        5: [SystemRoles.MECHANIC],
+        6: [SystemRoles.REGISTERED_CUSTOMER],
+        7: [SystemRoles.GUEST],
     }
     
     ROLES = {
-        'owner': {
+        SystemRoles.OWNER: {
             'name_ar': 'المالك',
             'description': '👑 مالك النظام - صلاحيات كاملة ومطلقة على كل شيء بلا استثناء',
             'permissions': '*',
@@ -704,14 +709,14 @@ class PermissionsRegistry:
             'level': 0,
             'max_accounts': 1,
             'special_access': [
-                'access_owner_dashboard',
-                'manage_advanced_accounting',
-                'manage_any_user_permissions',
-                'manage_ledger',
-                'access_ai_assistant',
-                'train_ai',
-                'hard_delete',
-                'view_audit_logs',
+                SystemPermissions.ACCESS_OWNER_DASHBOARD,
+                SystemPermissions.MANAGE_ADVANCED_ACCOUNTING,
+                SystemPermissions.MANAGE_ANY_USER_PERMISSIONS,
+                SystemPermissions.MANAGE_LEDGER,
+                SystemPermissions.ACCESS_AI_ASSISTANT,
+                SystemPermissions.TRAIN_AI,
+                SystemPermissions.HARD_DELETE,
+                SystemPermissions.VIEW_AUDIT_LOGS,
             ],
             'capabilities': {
                 'can_restore_db': True,
@@ -727,7 +732,7 @@ class PermissionsRegistry:
             },
         },
         
-        'developer': {
+        SystemRoles.DEVELOPER: {
             'name_ar': 'المطور',
             'description': '💻 مطور النظام - نفس صلاحيات المالك',
             'permissions': '*',
@@ -737,14 +742,14 @@ class PermissionsRegistry:
             'level': 0,
             'max_accounts': 2,
             'special_access': [
-                'access_owner_dashboard',
-                'manage_advanced_accounting',
-                'manage_any_user_permissions',
-                'manage_ledger',
-                'access_ai_assistant',
-                'train_ai',
-                'hard_delete',
-                'view_audit_logs',
+                SystemPermissions.ACCESS_OWNER_DASHBOARD,
+                SystemPermissions.MANAGE_ADVANCED_ACCOUNTING,
+                SystemPermissions.MANAGE_ANY_USER_PERMISSIONS,
+                SystemPermissions.MANAGE_LEDGER,
+                SystemPermissions.ACCESS_AI_ASSISTANT,
+                SystemPermissions.TRAIN_AI,
+                SystemPermissions.HARD_DELETE,
+                SystemPermissions.VIEW_AUDIT_LOGS,
             ],
             'capabilities': {
                 'can_restore_db': True,
@@ -760,27 +765,27 @@ class PermissionsRegistry:
             },
         },
         
-        'super_admin': {
+        SystemRoles.SUPER_ADMIN: {
             'name_ar': 'المدير الأعلى',
             'description': '⚡ مدير النظام - صلاحيات كاملة تقريباً ما عدا لوحة المالك والمساعد الذكي',
             'permissions': '*',
             'exclude': [
-                'access_owner_dashboard', 
-                'manage_any_user_permissions', 
-                'hard_delete',
-                'manage_api',
-                'access_ai_assistant',
-                'train_ai',
-                'manage_ai'
+                SystemPermissions.ACCESS_OWNER_DASHBOARD, 
+                SystemPermissions.MANAGE_ANY_USER_PERMISSIONS, 
+                SystemPermissions.HARD_DELETE,
+                SystemPermissions.MANAGE_API,
+                SystemPermissions.ACCESS_AI_ASSISTANT,
+                SystemPermissions.TRAIN_AI,
+                SystemPermissions.MANAGE_AI
             ],
             'is_protected': True,
             'is_super': True,
             'level': 1,
             'max_accounts': None,
             'special_access': [
-                'manage_advanced_accounting',
-                'manage_ledger',
-                'manage_shop',
+                SystemPermissions.MANAGE_ADVANCED_ACCOUNTING,
+                SystemPermissions.MANAGE_LEDGER,
+                SystemPermissions.MANAGE_SHOP,
             ],
             'capabilities': {
                 'can_restore_db': True,
@@ -796,27 +801,27 @@ class PermissionsRegistry:
             },
         },
         
-        'super': {
+        SystemRoles.SUPER: {
             'name_ar': 'سوبر',
             'description': '⚡ سوبر - نفس صلاحيات المدير الأعلى',
             'permissions': '*',
             'exclude': [
-                'access_owner_dashboard', 
-                'manage_any_user_permissions', 
-                'hard_delete',
-                'manage_api',
-                'access_ai_assistant',
-                'train_ai',
-                'manage_ai'
+                SystemPermissions.ACCESS_OWNER_DASHBOARD, 
+                SystemPermissions.MANAGE_ANY_USER_PERMISSIONS, 
+                SystemPermissions.HARD_DELETE,
+                SystemPermissions.MANAGE_API,
+                SystemPermissions.ACCESS_AI_ASSISTANT,
+                SystemPermissions.TRAIN_AI,
+                SystemPermissions.MANAGE_AI
             ],
             'is_protected': True,
             'is_super': True,
             'level': 1,
             'max_accounts': None,
             'special_access': [
-                'manage_advanced_accounting',
-                'manage_ledger',
-                'manage_shop',
+                SystemPermissions.MANAGE_ADVANCED_ACCOUNTING,
+                SystemPermissions.MANAGE_LEDGER,
+                SystemPermissions.MANAGE_SHOP,
             ],
             'capabilities': {
                 'can_restore_db': True,
@@ -832,29 +837,29 @@ class PermissionsRegistry:
             },
         },
         
-        'admin': {
+        SystemRoles.ADMIN: {
             'name_ar': 'المدير',
             'description': '🎯 المدير - إدارة يومية كاملة (بدون متجر ومساعد ذكي ولوحة مالك)',
             'permissions': '*',
             'exclude': [
-                'restore_database', 
-                'access_owner_dashboard', 
-                'manage_advanced_accounting', 
-                'manage_any_user_permissions', 
-                'hard_delete', 
-                'access_ai_assistant', 
-                'train_ai', 
-                'manage_ledger',
-                'manage_shop',
-                'view_shop',
-                'browse_products',
-                'place_online_order',
-                'view_preorders',
-                'add_preorder',
-                'edit_preorder',
-                'delete_preorder',
-                'manage_api',
-                'access_api'
+                SystemPermissions.RESTORE_DATABASE, 
+                SystemPermissions.ACCESS_OWNER_DASHBOARD, 
+                SystemPermissions.MANAGE_ADVANCED_ACCOUNTING, 
+                SystemPermissions.MANAGE_ANY_USER_PERMISSIONS, 
+                SystemPermissions.HARD_DELETE, 
+                SystemPermissions.ACCESS_AI_ASSISTANT, 
+                SystemPermissions.TRAIN_AI, 
+                SystemPermissions.MANAGE_LEDGER,
+                SystemPermissions.MANAGE_SHOP,
+                SystemPermissions.VIEW_SHOP,
+                SystemPermissions.BROWSE_PRODUCTS,
+                SystemPermissions.PLACE_ONLINE_ORDER,
+                SystemPermissions.VIEW_PREORDERS,
+                SystemPermissions.ADD_PREORDER,
+                SystemPermissions.EDIT_PREORDER,
+                SystemPermissions.DELETE_PREORDER,
+                SystemPermissions.MANAGE_API,
+                SystemPermissions.ACCESS_API
             ],
             'is_protected': True,
             'is_super': False,
@@ -874,21 +879,21 @@ class PermissionsRegistry:
             },
         },
         
-        'manager': {
+        SystemRoles.MANAGER: {
             'name_ar': 'المشرف',
             'description': '👨‍💼 مشرف - إشراف على العمليات اليومية',
             'permissions': [
-                'access_dashboard',
-                'manage_customers', 'add_customer', 'view_customers',
-                'manage_service', 'view_service',
-                'manage_sales', 'view_sales',
-                'manage_payments', 'manage_expenses',
-                'manage_warehouses', 'view_warehouses', 'manage_inventory', 'view_inventory', 'warehouse_transfer',
-                'manage_vendors', 'add_supplier', 'add_partner',
-                'view_reports', 'manage_reports',
-                'view_parts',
-                'view_notes', 'manage_notes',
-                'view_barcode', 'manage_barcode',
+                SystemPermissions.ACCESS_DASHBOARD,
+                SystemPermissions.MANAGE_CUSTOMERS, SystemPermissions.ADD_CUSTOMER, SystemPermissions.VIEW_CUSTOMERS,
+                SystemPermissions.MANAGE_SERVICE, SystemPermissions.VIEW_SERVICE,
+                SystemPermissions.MANAGE_SALES, SystemPermissions.VIEW_SALES,
+                SystemPermissions.MANAGE_PAYMENTS, SystemPermissions.MANAGE_EXPENSES,
+                SystemPermissions.MANAGE_WAREHOUSES, SystemPermissions.VIEW_WAREHOUSES, SystemPermissions.MANAGE_INVENTORY, SystemPermissions.VIEW_INVENTORY, SystemPermissions.WAREHOUSE_TRANSFER,
+                SystemPermissions.MANAGE_VENDORS, SystemPermissions.ADD_SUPPLIER, SystemPermissions.ADD_PARTNER,
+                SystemPermissions.VIEW_REPORTS, SystemPermissions.MANAGE_REPORTS,
+                SystemPermissions.VIEW_PARTS,
+                SystemPermissions.VIEW_NOTES, SystemPermissions.MANAGE_NOTES,
+                SystemPermissions.VIEW_BARCODE, SystemPermissions.MANAGE_BARCODE,
             ],
             'is_protected': False,
             'is_super': False,
@@ -905,18 +910,18 @@ class PermissionsRegistry:
             },
         },
         
-        'staff': {
+        SystemRoles.STAFF: {
             'name_ar': 'الموظف',
             'description': '👨‍💻 موظف - المبيعات والصيانة والمحاسبة',
             'permissions': [
-                'access_dashboard',
-                'manage_customers', 'add_customer', 'view_customers',
-                'manage_service', 'view_service',
-                'manage_sales', 'view_sales',
-                'manage_payments', 'manage_expenses',
-                'view_warehouses', 'view_inventory', 'view_parts',
-                'view_reports',
-                'view_notes',
+                SystemPermissions.ACCESS_DASHBOARD,
+                SystemPermissions.MANAGE_CUSTOMERS, SystemPermissions.ADD_CUSTOMER, SystemPermissions.VIEW_CUSTOMERS,
+                SystemPermissions.MANAGE_SERVICE, SystemPermissions.VIEW_SERVICE,
+                SystemPermissions.MANAGE_SALES, SystemPermissions.VIEW_SALES,
+                SystemPermissions.MANAGE_PAYMENTS, SystemPermissions.MANAGE_EXPENSES,
+                SystemPermissions.VIEW_WAREHOUSES, SystemPermissions.VIEW_INVENTORY, SystemPermissions.VIEW_PARTS,
+                SystemPermissions.VIEW_REPORTS,
+                SystemPermissions.VIEW_NOTES,
             ],
             'is_protected': False,
             'is_super': False,
@@ -933,14 +938,14 @@ class PermissionsRegistry:
             },
         },
         
-        'mechanic': {
+        SystemRoles.MECHANIC: {
             'name_ar': 'الميكانيكي',
             'description': '🔧 ميكانيكي - الصيانة والقطع فقط',
             'permissions': [
-                'access_dashboard',
-                'manage_service', 'view_service',
-                'view_warehouses', 'view_inventory', 'view_parts',
-                'view_reports',
+                SystemPermissions.ACCESS_DASHBOARD,
+                SystemPermissions.MANAGE_SERVICE, SystemPermissions.VIEW_SERVICE,
+                SystemPermissions.VIEW_WAREHOUSES, SystemPermissions.VIEW_INVENTORY, SystemPermissions.VIEW_PARTS,
+                SystemPermissions.VIEW_REPORTS,
             ],
             'is_protected': False,
             'is_super': False,
@@ -957,11 +962,11 @@ class PermissionsRegistry:
             },
         },
         
-        'registered_customer': {
+        SystemRoles.REGISTERED_CUSTOMER: {
             'name_ar': 'عميل مسجل',
             'description': '🛒 عميل - التصفح والطلبات الشخصية',
             'permissions': [
-                'view_shop', 'browse_products',
+                SystemPermissions.VIEW_SHOP, SystemPermissions.BROWSE_PRODUCTS,
             ],
             'is_protected': False,
             'is_super': False,
@@ -978,12 +983,12 @@ class PermissionsRegistry:
             },
         },
         
-        'guest': {
+        SystemRoles.GUEST: {
             'name_ar': 'ضيف',
             'description': '👤 زائر غير مسجل - تصفح المتجر فقط',
             'permissions': [
-                'view_shop',
-                'browse_products',
+                SystemPermissions.VIEW_SHOP,
+                SystemPermissions.BROWSE_PRODUCTS,
             ],
             'is_protected': False,
             'is_super': False,
@@ -1327,4 +1332,3 @@ class PermissionsRegistry:
 __all__ = [
     'PermissionsRegistry',
 ]
-

@@ -1,4 +1,5 @@
 
+from permissions_config.enums import SystemPermissions
 from flask import Blueprint, render_template, render_template_string, request, redirect, url_for, flash, jsonify, current_app, send_file, session, Response, abort
 from flask_login import login_required, current_user
 from sqlalchemy import text, func, inspect, or_
@@ -135,7 +136,7 @@ def inject_owner_sections_meta():
 
 @advanced_bp.route('/owner-hub')
 @login_required
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def owner_hub():
     cache_key = "owner_hub_data"
     cached_data = cache.get(cache_key)
@@ -283,7 +284,7 @@ def owner_hub():
 
 
 @advanced_bp.route('/owner-smoke-checklist', methods=['GET', 'POST'])
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def owner_smoke_checklist():
     state = _load_smoke_checklist_state()
     if request.method == 'POST':
@@ -309,7 +310,7 @@ def owner_smoke_checklist():
     )
 
 @advanced_bp.route('/db-merger', methods=['GET', 'POST'])
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def db_merger():
     """معالج دمج قواعد البيانات"""
     
@@ -359,7 +360,7 @@ def db_merger():
 
 
 @advanced_bp.route('/multi-tenant', methods=['GET', 'POST'])
-@permission_required('manage_tenants')
+@permission_required(SystemPermissions.MANAGE_TENANTS)
 def multi_tenant():
     """إدارة Multi-Tenant المتقدمة - نسخ متعددة مع تحكم كامل"""
     
@@ -490,7 +491,7 @@ def multi_tenant():
 
 
 @advanced_bp.route('/dashboard-links', methods=['GET', 'POST'])
-@permission_required('manage_system_config')
+@permission_required(SystemPermissions.MANAGE_SYSTEM_CONFIG)
 def dashboard_links():
     """إدارة روابط الداشبورد - إخفاء/إظهار"""
     if request.method == 'POST':
@@ -536,7 +537,7 @@ def dashboard_links():
 
 
 @advanced_bp.route('/version-control', methods=['GET', 'POST'])
-@permission_required('manage_system_config')
+@permission_required(SystemPermissions.MANAGE_SYSTEM_CONFIG)
 def version_control():
     """إدارة النسخ والإصدارات"""
     if request.method == 'POST':
@@ -598,7 +599,7 @@ def version_control():
 
 
 @advanced_bp.route('/licensing', methods=['GET', 'POST'])
-@permission_required('manage_system_config')
+@permission_required(SystemPermissions.MANAGE_SYSTEM_CONFIG)
 def licensing():
     """إدارة التراخيص والتفعيل"""
     if request.method == 'POST':
@@ -666,7 +667,7 @@ MODULE_LOOKUP = {m['key']: m for m in MODULE_CATALOG}
 
 
 @advanced_bp.route('/module-manager', methods=['GET', 'POST'])
-@permission_required('manage_system_config')
+@permission_required(SystemPermissions.MANAGE_SYSTEM_CONFIG)
 def module_manager():
     """مدير الوحدات - تفعيل/تعطيل"""
     module_states = _get_module_states()
@@ -730,7 +731,7 @@ def _get_module_states():
 
 
 @advanced_bp.route('/backup-manager', methods=['GET', 'POST'])
-@permission_required('backup_database')
+@permission_required(SystemPermissions.BACKUP_DATABASE)
 def backup_manager():
     backup_dir = current_app.config.get("BACKUP_DB_DIR") or os.path.join(current_app.instance_path, "backups")
     
@@ -879,7 +880,7 @@ def backup_manager():
 
 
 @advanced_bp.route('/download-backup/<filename>')
-@permission_required('backup_database')
+@permission_required(SystemPermissions.BACKUP_DATABASE)
 def download_backup(filename):
     """تحميل نسخة احتياطية"""
     try:
@@ -901,7 +902,7 @@ def download_backup(filename):
 
 
 @advanced_bp.route('/restore-json-backup/<filename>', methods=['POST'])
-@permission_required('backup_database')
+@permission_required(SystemPermissions.BACKUP_DATABASE)
 def restore_json_backup(filename):
     """استعادة نسخة احتياطية من ملف JSON"""
     try:
@@ -946,7 +947,7 @@ def restore_json_backup(filename):
 
 
 @advanced_bp.route('/restore-backup/<filename>', methods=['POST'])
-@permission_required('backup_database')
+@permission_required(SystemPermissions.BACKUP_DATABASE)
 def restore_backup(filename):
     """استعادة نسخة احتياطية"""
     try:
@@ -986,7 +987,7 @@ def restore_backup(filename):
 
 
 @advanced_bp.route('/delete-backup/<filename>', methods=['POST'])
-@permission_required('backup_database')
+@permission_required(SystemPermissions.BACKUP_DATABASE)
 def delete_backup(filename):
     """حذف نسخة احتياطية"""
     try:
@@ -1018,7 +1019,7 @@ def delete_backup(filename):
 
 
 @advanced_bp.route('/toggle-auto-backup', methods=['POST'])
-@permission_required('backup_database')
+@permission_required(SystemPermissions.BACKUP_DATABASE)
 def toggle_auto_backup():
     """تفعيل/تعطيل النسخ التلقائي"""
     try:
@@ -1045,7 +1046,7 @@ def toggle_auto_backup():
 
 
 @advanced_bp.route('/test-db-connection', methods=['POST'])
-@permission_required('manage_system_config')
+@permission_required(SystemPermissions.MANAGE_SYSTEM_CONFIG)
 def test_db_connection():
     """اختبار الاتصال بقاعدة البيانات"""
     try:
@@ -1082,7 +1083,7 @@ def test_db_connection():
 
 
 @advanced_bp.route('/api-generator', methods=['GET', 'POST'])
-@permission_required('manage_system_config')
+@permission_required(SystemPermissions.MANAGE_SYSTEM_CONFIG)
 def api_generator():
     """مولد API تلقائي"""
     if request.method == 'POST':
@@ -1100,7 +1101,7 @@ def api_generator():
 
 
 @advanced_bp.route('/feature-flags', methods=['GET', 'POST'])
-@permission_required('manage_system_config')
+@permission_required(SystemPermissions.MANAGE_SYSTEM_CONFIG)
 def feature_flags():
     """إدارة Feature Flags"""
     if request.method == 'POST':
@@ -1139,7 +1140,7 @@ def feature_flags():
 
 
 @advanced_bp.route('/system-health', methods=['GET', 'POST'])
-@permission_required('manage_system_health')
+@permission_required(SystemPermissions.MANAGE_SYSTEM_HEALTH)
 def system_health():
     if request.method == 'POST':
         action = request.form.get('action')
@@ -2207,7 +2208,7 @@ def _run_accounting_system_check():
 
 
 @advanced_bp.route('/download-cloned-system/<clone_name>')
-@permission_required('manage_system_config')
+@permission_required(SystemPermissions.MANAGE_SYSTEM_CONFIG)
 def download_cloned_system(clone_name):
     """تحميل نظام مستنسخ"""
     if not _validate_safe_slug(clone_name):
@@ -2247,7 +2248,7 @@ def download_cloned_system(clone_name):
 
 
 @advanced_bp.route('/system-cloner', methods=['GET', 'POST'])
-@permission_required('manage_system_config')
+@permission_required(SystemPermissions.MANAGE_SYSTEM_CONFIG)
 def system_cloner():
     """مولد الأنظمة المخصصة - استنساخ ذكي للمزايا المختارة"""
     
@@ -2680,7 +2681,7 @@ http://localhost:5000
 
 
 @advanced_bp.route('/download-mobile-app/<app_name>')
-@permission_required('manage_mobile_app')
+@permission_required(SystemPermissions.MANAGE_MOBILE_APP)
 def download_mobile_app(app_name):
     """تحميل تطبيق موبايل"""
     try:
@@ -2697,7 +2698,7 @@ def download_mobile_app(app_name):
 
 
 @advanced_bp.route('/mobile-app-generator', methods=['GET', 'POST'])
-@permission_required('manage_mobile_app')
+@permission_required(SystemPermissions.MANAGE_MOBILE_APP)
 def mobile_app_generator():
     """مولد تطبيقات الموبايل - تحويل النظام لتطبيق Android/iOS"""
     
@@ -3663,7 +3664,7 @@ def _create_tenant_database(db_path):
 
 
 @advanced_bp.route('/financial-control', methods=['GET', 'POST'])
-@permission_required('manage_advanced_accounting')
+@permission_required(SystemPermissions.MANAGE_ADVANCED_ACCOUNTING)
 def financial_control():
     from models import SystemSettings, Budget, FixedAsset, FixedAssetCategory
     
@@ -3760,7 +3761,7 @@ def financial_control():
 
 
 @advanced_bp.route("/accounting-control", methods=["GET", "POST"])
-@permission_required('manage_advanced_accounting')
+@permission_required(SystemPermissions.MANAGE_ADVANCED_ACCOUNTING)
 def accounting_control():
     settings_bundle = _get_accounting_settings_bundle()
     
@@ -3804,7 +3805,7 @@ def accounting_control():
 
 
 @advanced_bp.route("/api/advanced-accounting-stats")
-@permission_required('manage_advanced_accounting')
+@permission_required(SystemPermissions.MANAGE_ADVANCED_ACCOUNTING)
 def api_accounting_stats():
     from models import BankTransaction
     
@@ -3827,7 +3828,7 @@ def api_accounting_stats():
 
 
 @advanced_bp.route("/accounting-control/export-settings", methods=["GET"])
-@permission_required('manage_advanced_accounting')
+@permission_required(SystemPermissions.MANAGE_ADVANCED_ACCOUNTING)
 def accounting_control_export_settings():
     settings_bundle = _get_accounting_settings_bundle()
     payload = {
@@ -3845,7 +3846,7 @@ def accounting_control_export_settings():
 
 
 @advanced_bp.route("/accounting-control/import-settings", methods=["POST"])
-@permission_required('manage_advanced_accounting')
+@permission_required(SystemPermissions.MANAGE_ADVANCED_ACCOUNTING)
 def accounting_control_import_settings():
     payload = request.get_json(silent=True)
     if not payload:
@@ -3872,14 +3873,14 @@ def accounting_control_import_settings():
 
 
 @advanced_bp.route("/accounting-control/system-check", methods=["GET"])
-@permission_required('manage_advanced_accounting')
+@permission_required(SystemPermissions.MANAGE_ADVANCED_ACCOUNTING)
 def accounting_control_system_check():
     report = _run_accounting_system_check()
     return jsonify({"success": True, "report": report})
 
 
 @advanced_bp.route("/accounting-control/manual-backup", methods=["POST"])
-@permission_required('backup_database')
+@permission_required(SystemPermissions.BACKUP_DATABASE)
 def accounting_control_manual_backup():
     manager = AutomatedBackupManager(current_app._get_current_object())
     backup_path = manager.create_backup()
@@ -3904,7 +3905,7 @@ def accounting_control_manual_backup():
 
 
 @advanced_bp.route("/accounting-control/report.pdf", methods=["GET"])
-@permission_required('manage_advanced_accounting')
+@permission_required(SystemPermissions.MANAGE_ADVANCED_ACCOUNTING)
 def accounting_control_report_pdf():
     from weasyprint import HTML
     
@@ -3928,7 +3929,7 @@ def accounting_control_report_pdf():
 
 
 @advanced_bp.route('/performance-profiler', methods=['GET'])
-@permission_required('manage_system_health')
+@permission_required(SystemPermissions.MANAGE_SYSTEM_HEALTH)
 def performance_profiler():
     """Performance Profiler - تحليل أداء النظام"""
     from sqlalchemy import text
@@ -3996,7 +3997,7 @@ def performance_profiler():
 
 
 @advanced_bp.route('/database-optimizer', methods=['GET', 'POST'])
-@permission_required('manage_system_health')
+@permission_required(SystemPermissions.MANAGE_SYSTEM_HEALTH)
 def database_optimizer():
     """Database Optimizer - تحسين قاعدة البيانات"""
     from sqlalchemy import text
@@ -4180,7 +4181,7 @@ def database_optimizer():
 
 
 @advanced_bp.route('/api/performance/stats', methods=['GET'])
-@permission_required('manage_system_health')
+@permission_required(SystemPermissions.MANAGE_SYSTEM_HEALTH)
 def api_performance_stats():
     """API للحصول على إحصائيات الأداء"""
     from sqlalchemy import text

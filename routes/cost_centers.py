@@ -8,13 +8,14 @@ from datetime import datetime, date, timedelta
 from decimal import Decimal
 from functools import wraps
 from utils import permission_required
+from permissions_config.enums import SystemPermissions
 
 cost_centers_bp = Blueprint('cost_centers', __name__, url_prefix='/cost-centers')
 
 
 @cost_centers_bp.route('/')
 @login_required
-@permission_required('manage_cost_centers')
+@permission_required(SystemPermissions.MANAGE_COST_CENTERS)
 def index():
     parent_id = request.args.get('parent', type=int)
     
@@ -80,7 +81,7 @@ def index():
 
 @cost_centers_bp.route('/add', methods=['GET', 'POST'])
 @login_required
-@permission_required('manage_cost_centers')
+@permission_required(SystemPermissions.MANAGE_COST_CENTERS)
 def add():
     if request.method == 'POST':
         try:
@@ -129,7 +130,7 @@ def add():
 
 @cost_centers_bp.route('/edit/<int:id>', methods=['GET', 'POST'])
 @login_required
-@permission_required('manage_cost_centers')
+@permission_required(SystemPermissions.MANAGE_COST_CENTERS)
 def edit(id):
     center = db.get_or_404(CostCenter, id)
     
@@ -168,7 +169,7 @@ def edit(id):
 
 @cost_centers_bp.route('/<int:id>')
 @login_required
-@permission_required('manage_cost_centers')
+@permission_required(SystemPermissions.MANAGE_COST_CENTERS)
 def view(id):
     center = db.get_or_404(CostCenter, id)
     
@@ -218,7 +219,7 @@ def view(id):
 
 @cost_centers_bp.route('/<int:id>/allocate', methods=['POST'])
 @login_required
-@permission_required('manage_cost_centers')
+@permission_required(SystemPermissions.MANAGE_COST_CENTERS)
 def allocate(id):
     try:
         center = db.get_or_404(CostCenter, id)
@@ -252,7 +253,7 @@ def allocate(id):
 
 @cost_centers_bp.route('/reports/summary')
 @login_required
-@permission_required('manage_cost_centers')
+@permission_required(SystemPermissions.MANAGE_COST_CENTERS)
 def report_summary():
     date_from = request.args.get('date_from')
     date_to = request.args.get('date_to')
@@ -328,7 +329,7 @@ def report_summary():
 
 @cost_centers_bp.route('/reports/comparison')
 @login_required
-@permission_required('manage_cost_centers')
+@permission_required(SystemPermissions.MANAGE_COST_CENTERS)
 def report_comparison():
     period1_from = request.args.get('period1_from')
     period1_to = request.args.get('period1_to')
@@ -419,7 +420,7 @@ def report_comparison():
 
 @cost_centers_bp.route('/reports/budget-variance')
 @login_required
-@permission_required('manage_cost_centers')
+@permission_required(SystemPermissions.MANAGE_COST_CENTERS)
 def report_budget_variance():
     date_from = request.args.get('date_from')
     date_to = request.args.get('date_to')
@@ -476,7 +477,7 @@ def report_budget_variance():
 
 @cost_centers_bp.route('/api/hierarchy')
 @login_required
-@permission_required('manage_cost_centers')
+@permission_required(SystemPermissions.MANAGE_COST_CENTERS)
 def api_hierarchy():
     def build_tree(parent_id=None):
         centers = CostCenter.query.filter_by(parent_id=parent_id, is_active=True).order_by(CostCenter.code).all()

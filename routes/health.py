@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Dict, Any
 
+from permissions_config.enums import SystemPermissions
 from flask import Blueprint, jsonify, current_app
 from flask_login import login_required
 from sqlalchemy import text
@@ -207,7 +208,7 @@ def _get_system_info() -> Dict[str, Any]:
 @health_bp.route("/", methods=["GET"])
 @health_bp.route("/status", methods=["GET"])
 @login_required
-@permission_required("manage_system_health")
+@permission_required(SystemPermissions.MANAGE_SYSTEM_HEALTH)
 def health_check():
     """
     نقطة نهاية فحص الصحة الشاملة

@@ -53,14 +53,9 @@
           <label for="fStatus" class="form-label">الحالة</label>
           <select id="fStatus" class="custom-select form-control-modern" name="status">
             <option value="">الكل</option>
-            <option value="DRAFT" {{ 'selected' if status=='DRAFT' else '' }}>مسودة</option>
-            <option value="PENDING" {{ 'selected' if status=='PENDING' else '' }}>قيد الانتظار</option>
-            <option value="IN_TRANSIT" {{ 'selected' if status=='IN_TRANSIT' else '' }}>قيد النقل</option>
-            <option value="IN_CUSTOMS" {{ 'selected' if status=='IN_CUSTOMS' else '' }}>في الجمارك</option>
-            <option value="ARRIVED" {{ 'selected' if status=='ARRIVED' else '' }}>وصلت</option>
-            <option value="DELIVERED" {{ 'selected' if status=='DELIVERED' else '' }}>تم التسليم</option>
-            <option value="CANCELLED" {{ 'selected' if status=='CANCELLED' else '' }}>ملغاة</option>
-            <option value="RETURNED" {{ 'selected' if status=='RETURNED' else '' }}>مرتجعة</option>
+            {% for s in ShipmentStatus %}
+            <option value="{{ s.value }}" {% if status == s.value %}selected{% endif %}>{{ s.label }}</option>
+            {% endfor %}
           </select>
         </div>
         <div class="col-md-2">

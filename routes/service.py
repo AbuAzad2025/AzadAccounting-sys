@@ -30,31 +30,33 @@ from forms import (
 )
 import utils
 from utils import archive_record, restore_record  # Import from utils package
+from permissions_config.enums import SystemPermissions
 
 service_bp = Blueprint('service', __name__, url_prefix='/service')
 
 # ثوابت النظام
 STATUS_LABELS = {
-    "PENDING": "معلق",
-    "DIAGNOSIS": "تشخيص",
-    "IN_PROGRESS": "قيد التنفيذ",
-    "COMPLETED": "مكتمل",
-    "CANCELLED": "ملغي",
-    "ON_HOLD": "مؤجل"
+    ServiceStatus.PENDING.value: "معلق",
+    ServiceStatus.DIAGNOSIS.value: "تشخيص",
+    ServiceStatus.IN_PROGRESS.value: "قيد التنفيذ",
+    ServiceStatus.COMPLETED.value: "مكتمل",
+    ServiceStatus.CANCELLED.value: "ملغي",
+    ServiceStatus.ON_HOLD.value: "مؤجل",
+    ServiceStatus.DELIVERED.value: "تم التسليم"
 }
 
 PRIORITY_LABELS = {
-    "LOW": "منخفضة",
-    "MEDIUM": "متوسطة",
-    "HIGH": "عالية",
-    "URGENT": "عاجلة"
+    ServicePriority.LOW.value: "منخفضة",
+    ServicePriority.MEDIUM.value: "متوسطة",
+    ServicePriority.HIGH.value: "عالية",
+    ServicePriority.URGENT.value: "عاجلة"
 }
 
 PRIORITY_COLORS = {
-    "LOW": "info",
-    "MEDIUM": "warning",
-    "HIGH": "danger",
-    "URGENT": "dark"
+    ServicePriority.LOW.value: "info",
+    ServicePriority.MEDIUM.value: "warning",
+    ServicePriority.HIGH.value: "danger",
+    ServicePriority.URGENT.value: "dark"
 }
 
 def _get_or_404(model, ident, options=None):
@@ -87,14 +89,32 @@ def _ensure_partner_warehouse(warehouse_id: int) -> Warehouse:
 
 def _update_service_totals(service):
     """تحديث parts_total, labor_total, و total_amount في ServiceRequest"""
+    sid = None
     try:
-        parts_total = Decimal('0.00')
-        for p in service.parts or []:
-            parts_total += Decimal(str(p.line_total or 0))
-        
-        labor_total = Decimal('0.00')
-        for t in service.tasks or []:
-            labor_total += Decimal(str(t.line_total or 0))
+        sid = int(getattr(service, "id", 0) or 0)
+        if sid <= 0:
+            return
+        parts_sum = db.session.query(
+            func.coalesce(
+                func.sum(
+                    func.coalesce(ServicePart.quantity, 0) * func.coalesce(ServicePart.unit_price, 0) -
+                    func.coalesce(ServicePart.discount, 0)
+                ),
+                0
+            )
+        ).filter(ServicePart.service_id == sid).scalar() or 0
+        tasks_sum = db.session.query(
+            func.coalesce(
+                func.sum(
+                    func.coalesce(ServiceTask.quantity, 0) * func.coalesce(ServiceTask.unit_price, 0) -
+                    func.coalesce(ServiceTask.discount, 0)
+                ),
+                0
+            )
+        ).filter(ServiceTask.service_id == sid).scalar() or 0
+
+        parts_total = Decimal(str(parts_sum or 0))
+        labor_total = Decimal(str(tasks_sum or 0))
         
         service.parts_total = parts_total
         service.labor_total = labor_total
@@ -105,7 +125,7 @@ def _update_service_totals(service):
         if service.total_amount < 0:
             service.total_amount = Decimal('0.00')
     except Exception as e:
-        current_app.logger.warning(f"خطأ في تحديث totals للصيانة {service.id}: {e}")
+        current_app.logger.warning(f"خطأ في تحديث totals للصيانة {sid or 'unknown'}: {e}")
 
 def _refresh_service_related_balances(service) -> None:
     try:
@@ -227,9 +247,6 @@ def _release_service_stock_once(service) -> bool:
     current_app.logger.info("service.stock_release",extra={"event":"service.stock.release","service_id":service.id,"items":[{"part_id":i["part_id"],"warehouse_id":i["warehouse_id"],"qty":i["qty"]} for i in items]})
     return True
 
-STATUS_LABELS={"PENDING":"معلق","DIAGNOSIS":"تشخيص","IN_PROGRESS":"قيد التنفيذ","COMPLETED":"مكتمل","CANCELLED":"ملغي","ON_HOLD":"مؤجل"}
-PRIORITY_COLORS={"LOW":"info","MEDIUM":"warning","HIGH":"danger","URGENT":"dark"}
-
 @service_bp.context_processor
 def inject_service_constants():
     return {"STATUS_LABELS":STATUS_LABELS,"PRIORITY_COLORS":PRIORITY_COLORS}
@@ -251,14 +268,12 @@ def api_service_statuses():
 @service_bp.get("/api/priorities")
 @login_required
 def api_service_priorities():
-    priority_labels={"LOW":"منخفضة","MEDIUM":"متوسطة","HIGH":"عالية","URGENT":"عاجلة"}
-    return jsonify({"results":_enum_results_with_counts(ServicePriority, priority_labels, ServiceRequest.priority)})
+    return jsonify({"results":_enum_results_with_counts(ServicePriority, PRIORITY_LABELS, ServiceRequest.priority)})
 
 @service_bp.get("/api/options")
 @login_required
 def api_service_options():
-    priority_labels={"LOW":"منخفضة","MEDIUM":"متوسطة","HIGH":"عالية","URGENT":"عاجلة"}
-    return jsonify({"statuses":_enum_results_with_counts(ServiceStatus, STATUS_LABELS, ServiceRequest.status),"priorities":_enum_results_with_counts(ServicePriority, priority_labels, ServiceRequest.priority)})
+    return jsonify({"statuses":_enum_results_with_counts(ServiceStatus, STATUS_LABELS, ServiceRequest.status),"priorities":_enum_results_with_counts(ServicePriority, PRIORITY_LABELS, ServiceRequest.priority)})
 
 def _status_list(values):
     out=[]
@@ -488,7 +503,7 @@ def export_requests_csv():
 
 @service_bp.route('/dashboard')
 @login_required
-@utils.permission_required("view_service")
+@utils.permission_required(SystemPermissions.VIEW_SERVICE)
 def dashboard():
     total_requests=ServiceRequest.query.count()
     completed_this_month=ServiceRequest.query.filter(ServiceRequest.status==ServiceStatus.COMPLETED, _col('completed_at')>=datetime.now().replace(day=1,hour=0,minute=0,second=0,microsecond=0)).count()
@@ -545,7 +560,7 @@ def create_request():
 
 @service_bp.route('/<int:rid>', methods=['GET'])
 @login_required
-@utils.permission_required("view_service")
+@utils.permission_required(SystemPermissions.VIEW_SERVICE)
 def view_request(rid):
     service=_get_or_404(ServiceRequest, rid, options=[joinedload(ServiceRequest.customer), joinedload(ServiceRequest.parts).joinedload(ServicePart.part), joinedload(ServiceRequest.parts).joinedload(ServicePart.warehouse), joinedload(ServiceRequest.tasks)])
     warehouses=Warehouse.query.order_by(Warehouse.name.asc()).all()
@@ -825,15 +840,21 @@ def delete_part(pid):
         _flash_error('لا يمكن تعديل صيانة مكتملة. يرجى الضغط على "إعادة للصيانه" أولاً')
         return redirect(url_for('service.view_request', rid=rid))
     
-    if not current_user.has_permission('manage_service'):
+    if not current_user.has_permission(SystemPermissions.MANAGE_SERVICE):
         _flash_error('غير مصرح لك بحذف قطع الغيار')
         return redirect(url_for('service.view_request', rid=rid))
+    stock_release_ok = True
     try:
         if _service_consumes_stock(service):
-            _ensure_partner_warehouse(part.warehouse_id)
-            new_qty=utils._apply_stock_delta(part.part_id, part.warehouse_id, +int(part.quantity or 0))
-            _log_service_stock_action(service,"STOCK_RELEASE_PART",[{"part_id":part.part_id,"warehouse_id":part.warehouse_id,"qty":+int(part.quantity or 0),"stock_after":int(new_qty)}])
-            current_app.logger.info("service.part_delete",extra={"event":"service.part.delete","service_id":service.id,"part_id":part.part_id,"warehouse_id":part.warehouse_id,"qty":+int(part.quantity or 0)})
+            try:
+                with db.session.begin_nested():
+                    _ensure_partner_warehouse(part.warehouse_id)
+                    new_qty=utils._apply_stock_delta(part.part_id, part.warehouse_id, +int(part.quantity or 0))
+                    _log_service_stock_action(service,"STOCK_RELEASE_PART",[{"part_id":part.part_id,"warehouse_id":part.warehouse_id,"qty":+int(part.quantity or 0),"stock_after":int(new_qty)}])
+                    current_app.logger.info("service.part_delete",extra={"event":"service.part.delete","service_id":service.id,"part_id":part.part_id,"warehouse_id":part.warehouse_id,"qty":+int(part.quantity or 0)})
+            except Exception:
+                stock_release_ok = False
+                current_app.logger.exception("service.part_delete.stock_release_failed service_id=%s part_id=%s", service.id, part.id)
         db.session.delete(part)
         service.updated_at=datetime.now(timezone.utc).replace(tzinfo=None)
         _update_service_totals(service)
@@ -843,7 +864,10 @@ def delete_part(pid):
         except Exception as e:
             current_app.logger.error(f"⚠️ GL Sync Failed for Service #{service.id}: {e}")
         _refresh_service_related_balances(service)
-        flash('✅ تم حذف القطعة ومعالجة المخزون','success')
+        if stock_release_ok:
+            flash('✅ تم حذف القطعة ومعالجة المخزون','success')
+        else:
+            flash('✅ تم حذف القطعة، لكن تعذر تحديث المخزون تلقائياً. يرجى مراجعة المخزون يدوياً.','warning')
     except SQLAlchemyError as e:
         db.session.rollback()
         _log_and_flash("service.delete_part", e, "تعذر حذف القطعة حالياً.")
@@ -938,9 +962,11 @@ def delete_task(tid):
     if service.status == ServiceStatus.COMPLETED.value:
         _flash_error('لا يمكن تعديل صيانة مكتملة. يرجى الضغط على "إعادة للصيانه" أولاً')
         return redirect(url_for('service.view_request', rid=rid))
-    
-    db.session.delete(task)
+    if not current_user.has_permission(SystemPermissions.MANAGE_SERVICE):
+        _flash_error('غير مصرح لك بحذف المهام')
+        return redirect(url_for('service.view_request', rid=rid))
     try:
+        db.session.delete(task)
         service.updated_at=datetime.now(timezone.utc).replace(tzinfo=None)
         _update_service_totals(service)
         db.session.commit()
@@ -953,6 +979,9 @@ def delete_task(tid):
     except SQLAlchemyError as e:
         db.session.rollback()
         _log_and_flash("service.delete_task", e, "تعذر حذف المهمة حالياً.")
+    except Exception as e:
+        db.session.rollback()
+        _log_and_flash("service.delete_task_unexpected", e, "حدث خطأ غير متوقع أثناء حذف المهمة.")
     return redirect(url_for('service.view_request', rid=rid))
 
 @service_bp.route('/<int:rid>/payments/add', methods=['GET','POST'])

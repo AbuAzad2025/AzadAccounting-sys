@@ -111,9 +111,9 @@
   <label class="form-label"><i class="fas fa-tag"></i> الحالة</label>
   <select name="status" class="form-select">
     <option value="">الكل</option>
-    <option value="DRAFT" {% if request.args.get('status') == 'DRAFT' %}selected{% endif %}>مسودة</option>
-    <option value="CONFIRMED" {% if request.args.get('status') == 'CONFIRMED' %}selected{% endif %}>مؤكد</option>
-    <option value="CANCELLED" {% if request.args.get('status') == 'CANCELLED' %}selected{% endif %}>ملغي</option>
+    {% for s in PreOrderStatus %}
+    <option value="{{ s.value }}" {% if request.args.get('status') == s.value %}selected{% endif %}>{{ s.label }}</option>
+    {% endfor %}
   </select>
 </div>
 <div class="col-md-12">
@@ -176,12 +176,14 @@
     </span>
   </td>
   <td class="text-center">
-    {% if pre.status.value == 'CONFIRMED' %}
-    <span class="badge bg-success">مؤكد</span>
-    {% elif pre.status.value == 'DRAFT' %}
-    <span class="badge bg-secondary">مسودة</span>
+    {% if pre.status.value == PreOrderStatus.CONFIRMED.value %}
+    <span class="badge bg-success">{{ PreOrderStatus.CONFIRMED.label }}</span>
+    {% elif pre.status.value == PreOrderStatus.PENDING.value %}
+    <span class="badge bg-secondary">{{ PreOrderStatus.PENDING.label }}</span>
+    {% elif pre.status.value == PreOrderStatus.FULFILLED.value %}
+    <span class="badge bg-primary">{{ PreOrderStatus.FULFILLED.label }}</span>
     {% else %}
-    <span class="badge bg-danger">ملغي</span>
+    <span class="badge bg-danger">{{ PreOrderStatus.CANCELLED.label }}</span>
     {% endif %}
   </td>
   <td class="text-center no-print">

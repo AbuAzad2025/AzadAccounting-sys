@@ -14,6 +14,7 @@ from extensions import db
 from models import Branch, Site, Employee, Expense, Warehouse, User
 from utils import _get_or_404, permission_required
 import utils
+from permissions_config.enums import SystemPermissions
 
 
 branches_bp = Blueprint('branches_bp', __name__, url_prefix='/branches')
@@ -25,7 +26,7 @@ branches_bp = Blueprint('branches_bp', __name__, url_prefix='/branches')
 
 @branches_bp.route('/', methods=['GET'], endpoint='list_branches')
 @login_required
-@permission_required('manage_branches')
+@permission_required(SystemPermissions.MANAGE_BRANCHES)
 def list_branches():
     """قائمة الفروع مع فلاتر وإحصائيات"""
     search = request.args.get('q', '').strip()
@@ -61,7 +62,7 @@ def list_branches():
 
 @branches_bp.route('/create', methods=['GET', 'POST'], endpoint='create_branch')
 @login_required
-@permission_required('manage_branches')
+@permission_required(SystemPermissions.MANAGE_BRANCHES)
 def create_branch():
     """إنشاء فرع جديد"""
     if request.method == 'POST':
@@ -110,7 +111,7 @@ def create_branch():
 
 @branches_bp.route('/<int:branch_id>/edit', methods=['GET', 'POST'], endpoint='edit_branch')
 @login_required
-@permission_required('manage_branches')
+@permission_required(SystemPermissions.MANAGE_BRANCHES)
 def edit_branch(branch_id):
     """تعديل فرع"""
     b = _get_or_404(Branch, branch_id)
@@ -164,7 +165,7 @@ def edit_branch(branch_id):
 
 @branches_bp.route('/<int:branch_id>/archive', methods=['POST'], endpoint='archive_branch')
 @login_required
-@permission_required('manage_branches')
+@permission_required(SystemPermissions.MANAGE_BRANCHES)
 def archive_branch(branch_id):
     """أرشفة فرع (soft delete)"""
     b = _get_or_404(Branch, branch_id)
@@ -191,7 +192,7 @@ def archive_branch(branch_id):
 
 @branches_bp.route('/<int:branch_id>/restore', methods=['POST'], endpoint='restore_branch')
 @login_required
-@permission_required('manage_branches')
+@permission_required(SystemPermissions.MANAGE_BRANCHES)
 def restore_branch(branch_id):
     """استعادة فرع من الأرشيف"""
     b = _get_or_404(Branch, branch_id)
@@ -213,7 +214,7 @@ def restore_branch(branch_id):
 
 @branches_bp.route('/<int:branch_id>/dashboard', methods=['GET'], endpoint='branch_dashboard')
 @login_required
-@permission_required('manage_branches')
+@permission_required(SystemPermissions.MANAGE_BRANCHES)
 def branch_dashboard(branch_id):
     """لوحة تحكم متقدمة للفرع"""
     branch = _get_or_404(Branch, branch_id)
@@ -267,7 +268,7 @@ def branch_dashboard(branch_id):
 
 @branches_bp.route('/<int:branch_id>/sites', methods=['GET'], endpoint='list_sites')
 @login_required
-@permission_required('manage_branches')
+@permission_required(SystemPermissions.MANAGE_BRANCHES)
 def list_sites(branch_id):
     """قائمة المواقع لفرع معين"""
     branch = _get_or_404(Branch, branch_id)
@@ -282,7 +283,7 @@ def list_sites(branch_id):
 
 @branches_bp.route('/<int:branch_id>/sites/create', methods=['GET', 'POST'], endpoint='create_site')
 @login_required
-@permission_required('manage_branches')
+@permission_required(SystemPermissions.MANAGE_BRANCHES)
 def create_site(branch_id):
     """إنشاء موقع جديد"""
     branch = _get_or_404(Branch, branch_id)
@@ -329,7 +330,7 @@ def create_site(branch_id):
 
 @branches_bp.route('/sites/<int:site_id>/edit', methods=['GET', 'POST'], endpoint='edit_site')
 @login_required
-@permission_required('manage_branches')
+@permission_required(SystemPermissions.MANAGE_BRANCHES)
 def edit_site(site_id):
     """تعديل موقع"""
     s = _get_or_404(Site, site_id, load_options=[joinedload(Site.branch)])
@@ -378,7 +379,7 @@ def edit_site(site_id):
 
 @branches_bp.route('/sites/<int:site_id>/archive', methods=['POST'], endpoint='archive_site')
 @login_required
-@permission_required('manage_branches')
+@permission_required(SystemPermissions.MANAGE_BRANCHES)
 def archive_site(site_id):
     """أرشفة موقع"""
     s = _get_or_404(Site, site_id)
@@ -404,7 +405,7 @@ def archive_site(site_id):
 
 @branches_bp.route('/<int:branch_id>/report', methods=['GET'], endpoint='branch_report')
 @login_required
-@permission_required('manage_branches')
+@permission_required(SystemPermissions.MANAGE_BRANCHES)
 def branch_report(branch_id):
     """تقرير مفصل لفرع: نفقات، موظفين، مستودعات، مواقع"""
     from sqlalchemy import func
@@ -483,7 +484,7 @@ def branch_report(branch_id):
 
 @branches_bp.route('/export', methods=['GET'], endpoint='export_branches')
 @login_required
-@permission_required('manage_branches')
+@permission_required(SystemPermissions.MANAGE_BRANCHES)
 def export_branches():
     """تصدير الفروع إلى CSV"""
     branches = Branch.query.order_by(Branch.name).all()

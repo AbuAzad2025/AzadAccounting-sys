@@ -15,6 +15,7 @@
     - صلاحيات محددة (manage_accounting_docs)
 """
 
+from permissions_config.enums import SystemPermissions
 from flask import Blueprint, render_template, request, jsonify, current_app
 from flask_login import login_required, current_user
 from datetime import datetime, date
@@ -27,13 +28,13 @@ from utils import permission_required
 accounting_docs_bp = Blueprint('accounting_docs', __name__, url_prefix='/docs/accounting')
 
 @accounting_docs_bp.route('/')
-@permission_required('manage_accounting_docs')
+@permission_required(SystemPermissions.MANAGE_ACCOUNTING_DOCS)
 def index():
     """دليل النظام المحاسبي الرئيسي"""
     return render_template('docs/accounting/index.html')
 
 @accounting_docs_bp.route('/chart-of-accounts')
-@permission_required('manage_accounting_docs')
+@permission_required(SystemPermissions.MANAGE_ACCOUNTING_DOCS)
 def chart_of_accounts():
     """دليل الحسابات المحاسبية"""
     try:
@@ -82,7 +83,7 @@ def chart_of_accounts():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @accounting_docs_bp.route('/accounting-standards')
-@permission_required('manage_accounting_docs')
+@permission_required(SystemPermissions.MANAGE_ACCOUNTING_DOCS)
 def accounting_standards():
     """معايير القيود المحاسبية"""
     try:
@@ -136,7 +137,7 @@ def accounting_standards():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @accounting_docs_bp.route('/audit-policies')
-@permission_required('manage_accounting_docs')
+@permission_required(SystemPermissions.MANAGE_ACCOUNTING_DOCS)
 def audit_policies():
     """سياسات المراجعة والفحص"""
     try:
@@ -214,7 +215,7 @@ def audit_policies():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @accounting_docs_bp.route('/correction-procedures')
-@permission_required('manage_accounting_docs')
+@permission_required(SystemPermissions.MANAGE_ACCOUNTING_DOCS)
 def correction_procedures():
     """إجراءات الإصلاح والتصحيح"""
     try:
@@ -276,7 +277,7 @@ def correction_procedures():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @accounting_docs_bp.route('/gl-accounts-reference')
-@permission_required('manage_accounting_docs')
+@permission_required(SystemPermissions.MANAGE_ACCOUNTING_DOCS)
 def gl_accounts_reference():
     """مرجع حسابات دفتر الأستاذ"""
     try:
@@ -335,7 +336,7 @@ def gl_accounts_reference():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @accounting_docs_bp.route('/system-health-guide')
-@permission_required('manage_accounting_docs')
+@permission_required(SystemPermissions.MANAGE_ACCOUNTING_DOCS)
 def system_health_guide():
     """دليل صحة النظام المحاسبي"""
     try:

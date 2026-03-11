@@ -3,6 +3,7 @@ AI Security Module - حماية المعلومات السرية
 يتحكم في ما يمكن للمساعد الذكي مشاركته حسب دور المستخدم
 """
 
+from permissions_config.enums import SystemPermissions
 from flask_login import current_user
 from typing import Dict, Any, List
 import re
@@ -50,7 +51,7 @@ def is_owner() -> bool:
         
         # PBAC: التحقق من الصلاحية بدلاً من الدور
         if hasattr(current_user, 'has_permission'):
-            return current_user.has_permission('access_owner_dashboard')
+            return current_user.has_permission(SystemPermissions.ACCESS_OWNER_DASHBOARD)
             
         # Fallback for system accounts
         if hasattr(current_user, 'is_system_account') and current_user.is_system_account:
@@ -75,9 +76,9 @@ def is_manager() -> bool:
             
         # PBAC: التحقق من صلاحيات إدارية عامة
         if hasattr(current_user, 'has_permission'):
-            return (current_user.has_permission('view_reports') or 
-                    current_user.has_permission('manage_sales') or
-                    current_user.has_permission('manage_users'))
+            return (current_user.has_permission(SystemPermissions.VIEW_REPORTS) or 
+                    current_user.has_permission(SystemPermissions.MANAGE_SALES) or
+                    current_user.has_permission(SystemPermissions.MANAGE_USERS))
         
         return False
     except Exception:

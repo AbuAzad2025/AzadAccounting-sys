@@ -13,6 +13,7 @@ Created: 2025-11-01
 import json
 from typing import Dict, List, Any, Optional
 from flask_login import current_user
+from permissions_config.enums import SystemPermissions
 from flask import current_app
 from models import SystemSettings
 
@@ -132,11 +133,11 @@ def is_ai_visible_to_role(role_name: str) -> bool:
     # استخدام نظام الصلاحيات الحديث
     if hasattr(current_user, 'is_authenticated') and current_user.is_authenticated:
         # إذا كان لديه صلاحية صريحة
-        if hasattr(current_user, 'has_permission') and current_user.has_permission('access_ai_assistant'):
+        if hasattr(current_user, 'has_permission') and current_user.has_permission(SystemPermissions.ACCESS_AI_ASSISTANT):
             return True
             
         # المالك دائماً يرى
-        if hasattr(current_user, 'has_permission') and current_user.has_permission('access_owner_dashboard'):
+        if hasattr(current_user, 'has_permission') and current_user.has_permission(SystemPermissions.ACCESS_OWNER_DASHBOARD):
             return True
 
     # Fallback for compatibility if needed, but prefer permissions
@@ -247,7 +248,7 @@ def get_ai_access_level(user) -> str:
         return 'full'
     
     # التحقق باستخدام الصلاحيات بدلاً من الأدوار
-    if user.has_permission('manage_ai') or user.has_permission('access_owner_dashboard'):
+    if user.has_permission(SystemPermissions.MANAGE_AI) or user.has_permission(SystemPermissions.ACCESS_OWNER_DASHBOARD):
         return 'full'
     
     # فحص إذا كان المساعد مخفي
@@ -255,13 +256,13 @@ def get_ai_access_level(user) -> str:
         return 'none'
     
     # التحقق من صلاحية الوصول الأساسية
-    if user.has_permission('access_ai_assistant'):
+    if user.has_permission(SystemPermissions.ACCESS_AI_ASSISTANT):
         # تحديد مستوى الوصول بناءً على صلاحيات التعديل
         has_write_access = (
-            user.has_permission('manage_sales') or 
-            user.has_permission('manage_inventory') or 
-            user.has_permission('manage_customers') or
-            user.has_permission('manage_service')
+            user.has_permission(SystemPermissions.MANAGE_SALES) or 
+            user.has_permission(SystemPermissions.MANAGE_INVENTORY) or 
+            user.has_permission(SystemPermissions.MANAGE_CUSTOMERS) or
+            user.has_permission(SystemPermissions.MANAGE_SERVICE)
         )
         return 'limited' if has_write_access else 'readonly'
     

@@ -1,4 +1,5 @@
 
+from permissions_config.enums import SystemPermissions
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app
 from flask_login import login_required, current_user
 from sqlalchemy import func, or_, desc, and_
@@ -24,7 +25,7 @@ def _parse_date(value: str | None):
 
 @archive_bp.route('/')
 @login_required
-@permission_required("view_audit_logs")
+@permission_required(SystemPermissions.VIEW_AUDIT_LOGS)
 def index():
     stats = get_archive_stats()
     recent_archives = Archive.query.order_by(desc(Archive.archived_at)).limit(10).all()
@@ -37,7 +38,7 @@ def index():
 
 @archive_bp.route('/search', methods=['GET', 'POST'])
 @login_required
-@permission_required("view_audit_logs")
+@permission_required(SystemPermissions.VIEW_AUDIT_LOGS)
 def search():
     """البحث في الأرشيفات"""
     # form = ArchiveSearchForm()
@@ -81,7 +82,7 @@ def search():
 
 @archive_bp.route('/bulk-archive', methods=['GET', 'POST'])
 @login_required
-@permission_required("hard_delete")
+@permission_required(SystemPermissions.HARD_DELETE)
 def bulk_archive():
     """الأرشفة الجماعية"""
     # form = BulkArchiveForm()
@@ -149,7 +150,7 @@ def bulk_archive():
 
 @archive_bp.route('/view/<int:archive_id>')
 @login_required
-@permission_required("view_audit_logs")
+@permission_required(SystemPermissions.VIEW_AUDIT_LOGS)
 def view_archive(archive_id):
     """عرض تفاصيل الأرشيف"""
     archive = db.get_or_404(Archive, archive_id)
@@ -164,7 +165,7 @@ def view_archive(archive_id):
 
 @archive_bp.route('/restore/<int:archive_id>', methods=['GET', 'POST'])
 @login_required
-@permission_required("restore_archive")
+@permission_required(SystemPermissions.RESTORE_ARCHIVE)
 def restore_archive(archive_id):
     """استعادة الأرشيف - يتطلب صلاحية restore_archive"""
     archive = db.get_or_404(Archive, archive_id)
@@ -182,7 +183,7 @@ def restore_archive(archive_id):
 
 @archive_bp.route('/delete/<int:archive_id>', methods=['POST'])
 @login_required
-@permission_required("hard_delete")
+@permission_required(SystemPermissions.HARD_DELETE)
 def delete_archive(archive_id):
     """حذف الأرشيف نهائياً - يتطلب صلاحية hard_delete"""
     archive = db.get_or_404(Archive, archive_id)
@@ -199,7 +200,7 @@ def delete_archive(archive_id):
 
 @archive_bp.route('/export')
 @login_required
-@permission_required("view_audit_logs")
+@permission_required(SystemPermissions.VIEW_AUDIT_LOGS)
 def export_archives():
     """تصدير الأرشيفات"""
     # يمكن تطوير هذا لاحقاً لتصدير الأرشيفات

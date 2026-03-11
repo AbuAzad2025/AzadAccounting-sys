@@ -17,6 +17,7 @@ from models import (
     Check, CheckStatus, Customer, Supplier, Partner, GLBatch, GLEntry, Account,
     _ALLOWED_TRANSITIONS,
 )
+from permissions_config.enums import SystemPermissions
 import utils
 from decimal import Decimal
 import json
@@ -2951,7 +2952,7 @@ def _build_check_groups(checks):
 
 @checks_bp.route('/')
 @login_required
-@utils.permission_required("view_payments")
+@utils.permission_required(SystemPermissions.VIEW_PAYMENTS)
 def index():
     """صفحة عرض الشيكات"""
     return render_template('checks/index.html', is_owner=_current_user_is_owner())
@@ -2959,7 +2960,7 @@ def index():
 
 @checks_bp.route('/api/checks')
 @login_required
-@utils.permission_required("view_payments")
+@utils.permission_required(SystemPermissions.VIEW_PAYMENTS)
 def get_checks():
     """
     API لجلب الشيكات من جميع المصادر مع الفلاتر
@@ -3748,7 +3749,7 @@ def get_checks():
 
 @checks_bp.route('/api/statistics')
 @login_required
-@utils.permission_required("view_payments")
+@utils.permission_required(SystemPermissions.VIEW_PAYMENTS)
 def get_statistics():
     """
     API للحصول على إحصائيات الشيكات
@@ -4562,7 +4563,7 @@ def unsettle_check(check_token):
 
 @checks_bp.route('/api/alerts')
 @login_required
-@utils.permission_required("view_payments")
+@utils.permission_required(SystemPermissions.VIEW_PAYMENTS)
 def get_alerts():
     """
     API للحصول على التنبيهات - محسّن لجلب من جميع المصادر
@@ -4895,7 +4896,7 @@ def check_detail(check_id):
 
 @checks_bp.route("/delete/<int:check_id>", methods=["POST"])
 @login_required
-@utils.permission_required("manage_payments")
+@utils.permission_required(SystemPermissions.MANAGE_PAYMENTS)
 def delete_check(check_id):
     """حذف شيك"""
     try:

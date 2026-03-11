@@ -53,6 +53,7 @@ import utils
 from utils import archive_record, restore_record
 from utils.balance_calculator import build_customer_balance_view
 from sqlalchemy import text as sa_text
+from permissions_config.enums import SystemPermissions
 
 customers_bp = Blueprint(
     "customers_bp",
@@ -410,7 +411,7 @@ def list_customers():
 
 @customers_bp.post("/balances/recalculate", endpoint="balances_recalculate")
 @login_required
-@utils.permission_required("manage_customers")
+@utils.permission_required(SystemPermissions.MANAGE_CUSTOMERS)
 def balances_recalculate():
     payload = request.get_json(silent=True) or {}
     ids_raw = (

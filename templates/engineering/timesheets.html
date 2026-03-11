@@ -112,10 +112,9 @@
                 <label class="mr-2">الحالة:</label>
                 <select name="status" class="form-control">
                     <option value="">الكل</option>
-                    <option value="DRAFT" {% if selected_status == 'DRAFT' %}selected{% endif %}>مسودة</option>
-                    <option value="SUBMITTED" {% if selected_status == 'SUBMITTED' %}selected{% endif %}>مقدمة</option>
-                    <option value="APPROVED" {% if selected_status == 'APPROVED' %}selected{% endif %}>معتمدة</option>
-                    <option value="REJECTED" {% if selected_status == 'REJECTED' %}selected{% endif %}>مرفوضة</option>
+                    {% for s in TimesheetStatus %}
+                    <option value="{{ s.value }}" {% if selected_status == s.value %}selected{% endif %}>{{ s.label }}</option>
+                    {% endfor %}
                 </select>
             </div>
             <button type="submit" class="btn btn-primary mx-2">
@@ -163,9 +162,15 @@
                     <td>{{ "{:.2f}".format(ts.billable_hours) if ts.billable_hours else 0 }}</td>
                     <td>{{ "{:,.2f}".format(ts.total_cost) if ts.total_cost else 0 }}</td>
                     <td>
-                        <span class="badge badge-{% if ts.status == 'APPROVED' %}success{% elif ts.status == 'SUBMITTED' %}primary{% elif ts.status == 'REJECTED' %}danger{% else %}secondary{% endif %}">
-                            {{ ts.status }}
-                        </span>
+                        {% if ts.status.value == TimesheetStatus.APPROVED.value %}
+                            <span class="badge badge-success">{{ TimesheetStatus.APPROVED.label }}</span>
+                        {% elif ts.status.value == TimesheetStatus.SUBMITTED.value %}
+                            <span class="badge badge-primary">{{ TimesheetStatus.SUBMITTED.label }}</span>
+                        {% elif ts.status.value == TimesheetStatus.REJECTED.value %}
+                            <span class="badge badge-danger">{{ TimesheetStatus.REJECTED.label }}</span>
+                        {% else %}
+                            <span class="badge badge-secondary">{{ ts.status }}</span>
+                        {% endif %}
                     </td>
                 </tr>
                 {% endfor %}

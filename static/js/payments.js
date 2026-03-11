@@ -38,8 +38,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
   function normDir(v) {
     v = (v || '').toUpperCase();
-    if (v === 'IN') return 'INCOMING';
-    if (v === 'OUT') return 'OUTGOING';
+    if (v === 'INCOMING') return 'IN';
+    if (v === 'OUTGOING') return 'OUT';
     return v;
   }
 

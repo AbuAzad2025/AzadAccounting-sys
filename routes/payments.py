@@ -71,6 +71,8 @@ import utils
 from routes.partner_settlements import _calculate_smart_partner_balance
 from routes.checks import create_check_record, CheckActionService
 from utils import D, q0, archive_record, restore_record, permission_required
+from permissions_config.enums import SystemPermissions
+from constants import DEFAULT_CURRENCY
 try:
     from acl import super_only
 except Exception:
@@ -219,10 +221,10 @@ def _norm_dir(val):
         return None
     v = val.value if hasattr(val, "value") else val
     v = str(v).strip().upper()
-    if v in ("IN", "INCOMING", "INCOME", "RECEIVE"):
-        return "IN"
-    if v in ("OUT", "OUTGOING", "PAY", "PAYMENT", "EXPENSE"):
-        return "OUT"
+    if v in (PaymentDirection.IN.value, "INCOMING", "INCOME", "RECEIVE"):
+        return PaymentDirection.IN.value
+    if v in (PaymentDirection.OUT.value, "OUTGOING", "PAY", "PAYMENT", "EXPENSE"):
+        return PaymentDirection.OUT.value
     return v
 
 def _dir_to_db(v: str | None):
@@ -700,7 +702,7 @@ def index():
     
     if status:
         st_val = status.strip().upper()
-        if st_val in ["RETURNED", "BOUNCED", "PENDING", "CASHED", "RESUBMITTED", "CANCELLED", "ARCHIVED", "OVERDUE"]:
+        if st_val in [s.value for s in CheckStatus]:
             check_filters.append(Check.status == st_val)
     
     if direction:
@@ -896,7 +898,7 @@ def index():
                     (
                         and_(Payment.status == PaymentStatus.COMPLETED.value, Payment.direction == PaymentDirection.IN.value),
                         case(
-                            (Payment.currency == 'ILS', Payment.total_amount),
+                            (Payment.currency == DEFAULT_CURRENCY, Payment.total_amount),
                             else_=Payment.total_amount * func.coalesce(Payment.fx_rate_used, 1)
                         ),
                     ),
@@ -911,7 +913,7 @@ def index():
                     (
                         and_(Payment.status == PaymentStatus.COMPLETED.value, Payment.direction == PaymentDirection.OUT.value),
                         case(
-                            (Payment.currency == 'ILS', Payment.total_amount),
+                            (Payment.currency == DEFAULT_CURRENCY, Payment.total_amount),
                             else_=Payment.total_amount * func.coalesce(Payment.fx_rate_used, 1)
                         ),
                     ),
@@ -923,7 +925,7 @@ def index():
         func.coalesce(
             func.sum(
                 case(
-                    (Payment.currency == 'ILS', Payment.total_amount),
+                    (Payment.currency == DEFAULT_CURRENCY, Payment.total_amount),
                     else_=Payment.total_amount * func.coalesce(Payment.fx_rate_used, 1)
                 )
             ),
@@ -964,7 +966,7 @@ def index():
                         (
                             Check.direction == PaymentDirection.IN.value,
                             case(
-                                (Check.currency == 'ILS', Check.amount),
+                                (Check.currency == DEFAULT_CURRENCY, Check.amount),
                                 else_=Check.amount * func.coalesce(Check.fx_rate_cash, Check.fx_rate_issue, 0)
                             ),
                         ),
@@ -979,7 +981,7 @@ def index():
                         (
                             Check.direction == PaymentDirection.OUT.value,
                             case(
-                                (Check.currency == 'ILS', Check.amount),
+                                (Check.currency == DEFAULT_CURRENCY, Check.amount),
                                 else_=Check.amount * func.coalesce(Check.fx_rate_cash, Check.fx_rate_issue, 0)
                             ),
                         ),
@@ -991,7 +993,7 @@ def index():
             func.coalesce(
                 func.sum(
                     case(
-                        (Check.currency == 'ILS', Check.amount),
+                        (Check.currency == DEFAULT_CURRENCY, Check.amount),
                         else_=Check.amount * func.coalesce(Check.fx_rate_cash, Check.fx_rate_issue, 0)
                     )
                 ),
@@ -2021,7 +2023,7 @@ def view_payment(payment_id: int):
 
 @payments_bp.route("/<int:payment_id>/status", methods=["POST"], endpoint="update_payment_status")
 @login_required
-@permission_required("manage_payments")
+@permission_required(SystemPermissions.MANAGE_PAYMENTS)
 def update_payment_status(payment_id: int):
     """تحديث حالة الدفعة"""
     payment = _safe_get_payment(payment_id, all_rels=True)
@@ -3496,7 +3498,7 @@ def view_payment_split_legacy(payment_id: int, split_id: int):
 
 @payments_bp.route("/split/<int:split_id>/refund", methods=["POST"], endpoint="refund_split")
 @login_required
-@permission_required("manage_payments")
+@permission_required(SystemPermissions.MANAGE_PAYMENTS)
 def refund_split(split_id: int):
     split = db.session.get(PaymentSplit, split_id)
     if not split:
@@ -3602,7 +3604,7 @@ def refund_split(split_id: int):
 
 @payments_bp.route("/refund/<int:payment_id>", methods=["POST"], endpoint="refund_payment")
 @login_required
-@permission_required("manage_payments")
+@permission_required(SystemPermissions.MANAGE_PAYMENTS)
 def refund_payment(payment_id: int):
     original = db.session.get(Payment, payment_id)
     if not original:

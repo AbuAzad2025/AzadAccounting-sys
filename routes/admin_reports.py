@@ -5,7 +5,7 @@ from flask_login import login_required, current_user
 from sqlalchemy import or_, func, case
 from sqlalchemy.orm import joinedload, selectinload
 from extensions import db, limiter, csrf, cache
-from models import OnlinePayment, OnlinePreOrder, Customer
+from models import OnlinePayment, OnlinePreOrder, Customer, OnlinePaymentStatus, PreOrderStatus
 import utils
 
 admin_reports_bp = Blueprint(
@@ -28,19 +28,19 @@ def admin_reports_index():
     if stats is None:
         try:
             total_payments = OnlinePayment.query.count()
-            successful_payments = OnlinePayment.query.filter_by(status="SUCCESS").count()
+            successful_payments = OnlinePayment.query.filter_by(status=OnlinePaymentStatus.SUCCESS.value).count()
             total_preorders = OnlinePreOrder.query.count()
-            pending_preorders = OnlinePreOrder.query.filter_by(status="PENDING").count()
+            pending_preorders = OnlinePreOrder.query.filter_by(status=PreOrderStatus.PENDING.value).count()
             
             today_start = datetime.combine(_date.today(), _time.min)
             today_payments = OnlinePayment.query.filter(
                 OnlinePayment.created_at >= today_start,
-                OnlinePayment.status == "SUCCESS"
+                OnlinePayment.status == OnlinePaymentStatus.SUCCESS.value
             ).count()
             
             today_revenue = db.session.query(func.sum(OnlinePayment.amount)).filter(
                 OnlinePayment.created_at >= today_start,
-                OnlinePayment.status == "SUCCESS"
+                OnlinePayment.status == OnlinePaymentStatus.SUCCESS.value
             ).scalar() or 0
             
             stats = {
@@ -110,7 +110,7 @@ def cards():
         q = q.filter(OnlinePayment.created_at >= datetime.combine(sd, _time.min))
     if ed:
         q = q.filter(OnlinePayment.created_at < datetime.combine(ed + timedelta(days=1), _time.min))
-    if status and status in ("PENDING", "SUCCESS", "FAILED", "REFUNDED"):
+    if status and status in [s.value for s in OnlinePaymentStatus]:
         q = q.filter(OnlinePayment.status == status)
     if search:
         like = f"%{search}%"
@@ -209,7 +209,7 @@ def preorders():
         base_q = base_q.filter(OnlinePreOrder.created_at >= datetime.combine(sd, _time.min))
     if ed:
         base_q = base_q.filter(OnlinePreOrder.created_at < datetime.combine(ed + timedelta(days=1), _time.min))
-    if status and status in ("PENDING", "CONFIRMED", "FULFILLED", "CANCELLED"):
+    if status and status in [s.value for s in PreOrderStatus]:
         base_q = base_q.filter(OnlinePreOrder.status == status)
     if search:
         like = f"%{search}%"
@@ -225,7 +225,7 @@ def preorders():
         func.count(OnlinePreOrder.id).label("total"),
         func.coalesce(func.sum(func.coalesce(OnlinePreOrder.total_amount, 0)), 0).label("total_amount"),
         func.coalesce(func.sum(func.coalesce(OnlinePreOrder.prepaid_amount, 0)), 0).label("prepaid_amount"),
-        func.coalesce(func.sum(case((OnlinePreOrder.status == "FULFILLED", 1), else_=0)), 0).label("fulfilled"),
+        func.coalesce(func.sum(case((OnlinePreOrder.status == PreOrderStatus.FULFILLED.value, 1), else_=0)), 0).label("fulfilled"),
     ).first()
     totals = {
         "total": int(getattr(totals_row, "total", 0) or 0),
@@ -262,7 +262,7 @@ def preorders():
 def admin_dashboard():
     """Dashboard شامل للمالك مع إحصائيات حية"""
     from sqlalchemy import func, and_
-    from models import Sale, Payment, Expense, ServiceRequest, Product, StockLevel
+    from models import Sale, Payment, Expense, ServiceRequest, Product, StockLevel, SaleStatus, PaymentStatus, PaymentDirection, ServiceStatus
     from decimal import Decimal
     
     cache_key = "admin_dashboard_stats"
@@ -281,21 +281,21 @@ def admin_dashboard():
                 and_(
                     Sale.sale_date >= today_start,
                     Sale.sale_date < today_end,
-                    Sale.status == "CONFIRMED"
+                    Sale.status == SaleStatus.CONFIRMED.value
                 )
             ).scalar() or Decimal("0")
             
             week_sales = db.session.query(func.sum(Sale.total_amount)).filter(
                 and_(
                     Sale.sale_date >= datetime.combine(week_start, _time.min),
-                    Sale.status == "CONFIRMED"
+                    Sale.status == SaleStatus.CONFIRMED.value
                 )
             ).scalar() or Decimal("0")
             
             month_sales = db.session.query(func.sum(Sale.total_amount)).filter(
                 and_(
                     Sale.sale_date >= datetime.combine(month_start, _time.min),
-                    Sale.status == "CONFIRMED"
+                    Sale.status == SaleStatus.CONFIRMED.value
                 )
             ).scalar() or Decimal("0")
             
@@ -303,8 +303,8 @@ def admin_dashboard():
                 and_(
                     Payment.payment_date >= today_start,
                     Payment.payment_date < today_end,
-                    Payment.direction == "IN",
-                    Payment.status == "COMPLETED"
+                    Payment.direction == PaymentDirection.IN.value,
+                    Payment.status == PaymentStatus.COMPLETED.value
                 )
             ).scalar() or Decimal("0")
             
@@ -312,13 +312,13 @@ def admin_dashboard():
                 and_(
                     Payment.payment_date >= today_start,
                     Payment.payment_date < today_end,
-                    Payment.direction == "OUT",
-                    Payment.status == "COMPLETED"
+                    Payment.direction == PaymentDirection.OUT.value,
+                    Payment.status == PaymentStatus.COMPLETED.value
                 )
             ).scalar() or Decimal("0")
             
             pending_services = ServiceRequest.query.filter(
-                ~ServiceRequest.status.in_(["COMPLETED", "CANCELLED"])
+                ~ServiceRequest.status.in_([ServiceStatus.COMPLETED.value, ServiceStatus.CANCELLED.value])
             ).count()
             
             low_stock_count = db.session.query(func.count(Product.id)).join(
@@ -338,7 +338,7 @@ def admin_dashboard():
             recent_online_payments = OnlinePayment.query.options(
                 joinedload(OnlinePayment.order).joinedload(OnlinePreOrder.customer)
             ).filter(
-                OnlinePayment.status == "SUCCESS"
+                OnlinePayment.status == OnlinePaymentStatus.SUCCESS.value
             ).order_by(OnlinePayment.created_at.desc()).limit(10).all()
             
             stats = {
@@ -383,7 +383,7 @@ def admin_dashboard():
 def api_stats():
     """API للحصول على إحصائيات حية"""
     from sqlalchemy import func, and_
-    from models import Sale, Payment, ServiceRequest
+    from models import Sale, Payment, ServiceRequest, SaleStatus, PaymentStatus, ServiceStatus
     
     try:
         today = _date.today()
@@ -394,7 +394,7 @@ def api_stats():
             and_(
                 Sale.sale_date >= today_start,
                 Sale.sale_date < today_end,
-                Sale.status == "CONFIRMED"
+                Sale.status == SaleStatus.CONFIRMED.value
             )
         ).count()
         
@@ -402,12 +402,12 @@ def api_stats():
             and_(
                 Payment.payment_date >= today_start,
                 Payment.payment_date < today_end,
-                Payment.status == "COMPLETED"
+                Payment.status == PaymentStatus.COMPLETED.value
             )
         ).count()
         
         pending_services = ServiceRequest.query.filter(
-            ~ServiceRequest.status.in_(["COMPLETED", "CANCELLED"])
+            ~ServiceRequest.status.in_([ServiceStatus.COMPLETED.value, ServiceStatus.CANCELLED.value])
         ).count()
         
         return jsonify({
@@ -433,6 +433,33 @@ def download_backup():
 
 @admin_reports_bp.route("/logs/view", methods=["GET"])
 @login_required
+@utils.permission_required('manage_system_settings')
 def view_logs():
-    # ... log viewing logic
-    return render_template("admin/logs.html")
+    """
+    عرض سجلات النظام من الملفات مباشرة
+    """
+    log_files = ['app.log', 'errors.log', 'access.log', 'worker.log']
+    logs_data = {}
+    
+    base_dir = current_app.root_path
+    # Assuming logs are in a 'logs' directory next to app or in root
+    logs_dir = os.path.join(os.path.dirname(base_dir), 'logs')
+    if not os.path.exists(logs_dir):
+        # Fallback to current directory if not found
+        logs_dir = base_dir
+
+    for log_file in log_files:
+        file_path = os.path.join(logs_dir, log_file)
+        if os.path.exists(file_path):
+            try:
+                # Read last 100 lines
+                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    # Efficiently read last N lines
+                    lines = f.readlines()[-200:]
+                    logs_data[log_file] = "".join(lines)
+            except Exception as e:
+                logs_data[log_file] = f"Error reading log: {str(e)}"
+        else:
+            logs_data[log_file] = f"File not found: {log_file}"
+
+    return render_template("admin/logs.html", logs=logs_data)

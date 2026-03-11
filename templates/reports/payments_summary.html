@@ -99,28 +99,27 @@
   <label class="form-label"><i class="fas fa-exchange-alt"></i> الاتجاه</label>
   <select name="direction" class="form-select form-control-modern">
     <option value="">الكل</option>
-    <option value="IN" {% if request.args.get('direction') == 'IN' %}selected{% endif %}>وارد (IN)</option>
-    <option value="OUT" {% if request.args.get('direction') == 'OUT' %}selected{% endif %}>صادر (OUT)</option>
+    {% for d in PaymentDirection %}
+    <option value="{{ d.value }}" {% if request.args.get('direction') == d.value %}selected{% endif %}>{{ d.label }} ({{ d.value }})</option>
+    {% endfor %}
   </select>
 </div>
 <div class="col-md-2">
   <label class="form-label"><i class="fas fa-wallet"></i> طريقة الدفع</label>
   <select name="method" class="form-select form-control-modern">
     <option value="">الكل</option>
-    <option value="cash" {% if request.args.get('method') == 'cash' %}selected{% endif %}>نقدي</option>
-    <option value="bank" {% if request.args.get('method') == 'bank' %}selected{% endif %}>تحويل بنكي</option>
-    <option value="cheque" {% if request.args.get('method') == 'cheque' %}selected{% endif %}>شيك</option>
-    <option value="card" {% if request.args.get('method') == 'card' %}selected{% endif %}>بطاقة</option>
-    <option value="online" {% if request.args.get('method') == 'online' %}selected{% endif %}>أونلاين</option>
+    {% for m in PaymentMethod %}
+    <option value="{{ m.value }}" {% if request.args.get('method') == m.value %}selected{% endif %}>{{ m.label }}</option>
+    {% endfor %}
   </select>
 </div>
 <div class="col-md-2">
   <label class="form-label"><i class="fas fa-info-circle"></i> الحالة</label>
   <select name="status" class="form-select form-control-modern">
     <option value="">الكل</option>
-    <option value="COMPLETED" {% if request.args.get('status') == 'COMPLETED' %}selected{% endif %}>مكتمل</option>
-    <option value="PENDING" {% if request.args.get('status') == 'PENDING' %}selected{% endif %}>معلق</option>
-    <option value="CANCELLED" {% if request.args.get('status') == 'CANCELLED' %}selected{% endif %}>ملغي</option>
+    {% for s in PaymentStatus %}
+    <option value="{{ s.value }}" {% if request.args.get('status') == s.value %}selected{% endif %}>{{ s.label }}</option>
+    {% endfor %}
   </select>
 </div>
 <div class="col-md-12">
@@ -178,8 +177,8 @@
     {% endif %}
   </td>
   <td class="text-center">
-    {% set dirv = payment.direction.value if payment.direction is not string and payment.direction is not none else payment.direction %}
-    {% if (dirv|string|upper) == 'IN' %}
+    {% set dirv = (payment.direction.value if payment.direction and payment.direction.value else payment.direction)|string|upper %}
+    {% if dirv == PaymentDirection.IN.value %}
     <span class="badge bg-success"><i class="fas fa-arrow-down"></i> وارد</span>
     {% else %}
     <span class="badge bg-danger"><i class="fas fa-arrow-up"></i> صادر</span>
@@ -192,31 +191,29 @@
     {% endif %}
   </td>
   <td>
-    {% set m = (payment.method.value if payment.method is not string and payment.method is not none else payment.method) or '' %}
-    {% if m == 'cash' %}
+    {% set m = (payment.method.value if payment.method and payment.method.value else payment.method)|string|upper %}
+    {% if m == PaymentMethod.CASH.value %}
     <span class="badge bg-success">نقدي</span>
-    {% elif m == 'bank' %}
+    {% elif m == PaymentMethod.BANK.value %}
     <span class="badge bg-primary">تحويل بنكي</span>
-    {% elif m == 'cheque' %}
-    <span class="badge bg-info">شيك</span>
-    {% elif m == 'card' %}
-    <span class="badge bg-warning">بطاقة</span>
-    {% elif m == 'online' %}
-    <span class="badge bg-secondary">أونلاين</span>
+    {% elif m == PaymentMethod.CHEQUE.value %}
+    <span class="badge bg-warning text-dark">شيك</span>
+    {% elif m == PaymentMethod.CARD.value %}
+    <span class="badge bg-info text-dark">بطاقة</span>
     {% else %}
-    {{ payment.method.label if payment.method is not string and payment.method is not none and payment.method.label else m }}
+    <span class="badge bg-secondary">{{ m }}</span>
     {% endif %}
   </td>
   <td class="text-center">
-    {% set sv = payment.status.value if payment.status is not string and payment.status is not none else payment.status %}
-    {% if (sv|string|upper) == 'COMPLETED' %}
+    {% set s = (payment.status.value if payment.status and payment.status.value else payment.status)|string|upper %}
+    {% if s == PaymentStatus.COMPLETED.value %}
     <span class="badge bg-success">مكتمل</span>
-    {% elif (sv|string|upper) == 'PENDING' %}
+    {% elif s == PaymentStatus.PENDING.value %}
     <span class="badge bg-warning">معلق</span>
-    {% elif (sv|string|upper) == 'CANCELLED' %}
+    {% elif s == PaymentStatus.CANCELLED.value %}
     <span class="badge bg-danger">ملغي</span>
     {% else %}
-    {{ sv }}
+    <span class="badge bg-secondary">{{ s }}</span>
     {% endif %}
   </td>
   <td>

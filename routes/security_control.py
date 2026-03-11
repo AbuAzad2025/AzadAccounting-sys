@@ -6,13 +6,14 @@ import json
 from datetime import datetime, timezone
 from routes.advanced_control import _log_owner_action
 from utils import permission_required
+from permissions_config.enums import SystemPermissions
 
 security_control_bp = Blueprint('security_control', __name__, url_prefix='/advanced')
 
 
 @security_control_bp.route('/security-control', methods=['GET', 'POST'])
 @login_required
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def security_control():
     if request.method == 'POST':
         action = request.form.get('action')
@@ -123,7 +124,7 @@ def security_control():
 
 @security_control_bp.route('/api/check-ip/<ip>')
 @login_required
-@permission_required('access_owner_dashboard')
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def api_check_ip(ip):
     from utils import check_ip_allowed
     result = check_ip_allowed(ip)

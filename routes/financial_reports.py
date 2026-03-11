@@ -11,18 +11,19 @@ from models import (
     GL_ACCOUNTS, _gl_upsert_batch_and_entries, _ensure_account_exists,
 )
 from utils import permission_required, get_income_tax_rate
+from permissions_config.enums import SystemPermissions
 
 # إنشاء Blueprint
 financial_reports_bp = Blueprint('financial_reports', __name__, url_prefix='/reports/financial')
 
 @financial_reports_bp.route('/')
-@permission_required('view_reports')
+@permission_required(SystemPermissions.VIEW_REPORTS)
 def index():
     return render_template('reports/financial/index.html')
 
 
 @financial_reports_bp.route('/accrue-income-tax', methods=['POST'])
-@permission_required('view_reports')
+@permission_required(SystemPermissions.VIEW_REPORTS)
 def accrue_income_tax():
     """استحقاق ضريبة الدخل على الربح: قيد من مدين 6200 (مصروف ضريبة) دائن 2200 (ضريبة مستحقة)."""
     try:
@@ -115,7 +116,7 @@ def accrue_income_tax():
 
 
 @financial_reports_bp.route('/income-statement')
-@permission_required('view_reports')
+@permission_required(SystemPermissions.VIEW_REPORTS)
 def income_statement():
     try:
         start_date = request.args.get('start_date')
@@ -173,9 +174,7 @@ def income_statement():
             GLEntry.account != '5105_COGS_EXCHANGE'
         ).join(Account, Account.code == GLEntry.account).scalar() or 0
         
-        # الضرائب (فقط حسابات المصاريف الضريبية إن وجدت)
-        # ملاحظة: 2100_VAT_PAYABLE هو التزام وليس مصروف
-        # سنبحث عن حسابات مصاريف تحتوي على كلمة "Tax" أو "ضريبة"
+
         taxes_query = db.session.query(
             func.sum(GLEntry.debit - GLEntry.credit).label('total_taxes')
         ).join(GLBatch).filter(
@@ -310,7 +309,7 @@ def income_statement():
         return render_template('errors/500.html', error=str(e)), 500
 
 @financial_reports_bp.route('/balance-sheet')
-@permission_required('view_reports')
+@permission_required(SystemPermissions.VIEW_REPORTS)
 def balance_sheet():
     """الميزانية العمومية (Balance Sheet) - يدعم HTML وJSON"""
     try:
@@ -468,7 +467,7 @@ def balance_sheet():
         return render_template('errors/500.html', error=str(e)), 500
 
 @financial_reports_bp.route('/cash-flow')
-@permission_required('view_reports')
+@permission_required(SystemPermissions.VIEW_REPORTS)
 def cash_flow():
     """قائمة التدفق النقدي (Cash Flow Statement)"""
     try:
@@ -636,7 +635,7 @@ def cash_flow():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @financial_reports_bp.route('/balances-summary')
-@permission_required('view_reports')
+@permission_required(SystemPermissions.VIEW_REPORTS)
 def balances_summary():
     """تقرير الأرصدة المجمعة"""
     try:
@@ -706,7 +705,7 @@ def balances_summary():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @financial_reports_bp.route('/validation')
-@permission_required('view_reports')
+@permission_required(SystemPermissions.VIEW_REPORTS)
 def validation_report():
     """تقرير التحقق من صحة النظام المحاسبي"""
     try:
@@ -774,7 +773,7 @@ def validation_report():
 # ========== تبويبات جديدة ==========
 
 @financial_reports_bp.route('/trial-balance')
-@permission_required('view_reports')
+@permission_required(SystemPermissions.VIEW_REPORTS)
 def trial_balance():
     try:
         as_of_date = request.args.get('date')
@@ -968,7 +967,7 @@ def trial_balance():
 
 
 @financial_reports_bp.route('/aging-report')
-@permission_required('view_reports')
+@permission_required(SystemPermissions.VIEW_REPORTS)
 def aging_report():
     try:
         report_type = request.args.get('type', 'ar')
@@ -1174,7 +1173,7 @@ def aging_report():
 
 
 @financial_reports_bp.route('/profit-trends')
-@permission_required('view_reports')
+@permission_required(SystemPermissions.VIEW_REPORTS)
 def profit_trends():
     """📈 اتجاهات الربحية - مقارنة شهرية"""
     try:
@@ -1238,7 +1237,7 @@ def profit_trends():
 
 
 @financial_reports_bp.route('/expense-breakdown')
-@permission_required('view_reports')
+@permission_required(SystemPermissions.VIEW_REPORTS)
 def expense_breakdown():
     """📊 تحليل المصروفات حسب النوع"""
     try:
@@ -1297,7 +1296,7 @@ def expense_breakdown():
 
 
 @financial_reports_bp.route('/receivables-payables')
-@permission_required('view_reports')
+@permission_required(SystemPermissions.VIEW_REPORTS)
 def receivables_payables():
     try:
         report_type = request.args.get('type', 'receivables')
@@ -1445,7 +1444,7 @@ def receivables_payables():
 
 
 @financial_reports_bp.route('/revenue-by-source')
-@permission_required('view_reports')
+@permission_required(SystemPermissions.VIEW_REPORTS)
 def revenue_by_source():
     """📊 تحليل مصادر الإيرادات"""
     try:

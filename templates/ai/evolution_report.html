@@ -1,0 +1,144 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="card shadow-sm mb-4">
+        <div class="card-body d-flex justify-content-between align-items-center bg-gradient-info text-white rounded">
+            <div>
+                <h3 class="mb-1"><i class="fas fa-dna me-2"></i>تقرير التطور الذاتي (AI Evolution Report)</h3>
+                <p class="mb-0 opacity-75">متابعة نمو وتطور نموذج الذكاء الاصطناعي عبر الزمن</p>
+            </div>
+            <div class="text-end">
+                <div class="h2 mb-0">v2.4.1</div>
+                <small>الإصدار الحالي</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Evolution Timeline -->
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">مخطط النمو المعرفي</h6>
+                </div>
+                <div class="card-body">
+                    <div class="chart-area" style="height: 320px;">
+                        <canvas id="evolutionChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">سجل التحسينات الأخيرة</h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="list-group list-group-flush">
+                        {% for item in report.improvements %}
+                        <div class="list-group-item d-flex align-items-center">
+                            <div class="avatar bg-{{ item.color }}-subtle text-{{ item.color }} rounded-circle me-3">
+                                <i class="{{ item.icon }}"></i>
+                            </div>
+                            <div class="flex-grow-1">
+                                <h6 class="mb-0">{{ item.title }}</h6>
+                                <small class="text-muted">{{ item.desc }}</small>
+                            </div>
+                            <span class="text-muted small">{{ item.date }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <!-- Skills Matrix -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">مصفوفة المهارات (Skills Matrix)</h6>
+                </div>
+                <div class="card-body">
+                    {% for skill, score in report.skills.items() %}
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <small class="fw-bold">{{ skill|replace('_', ' ')|title }}</small>
+                            <small>{{ score }}%</small>
+                        </div>
+                        <div class="progress" style="height: 6px;">
+                            <div class="progress-bar {% if score > 90 %}bg-success{% elif score > 70 %}bg-info{% else %}bg-warning{% endif %}" style="width: {{ score }}%"></div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Learning Stats -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">إحصائيات التعلم</h6>
+                </div>
+                <div class="card-body text-center">
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <h3 class="font-weight-bold text-dark">{{ report.stats.data_points }}</h3>
+                            <div class="small text-muted text-uppercase">نقطة بيانات</div>
+                        </div>
+                        <div class="col-6 mb-3">
+                            <h3 class="font-weight-bold text-dark">{{ report.stats.training_cycles }}</h3>
+                            <div class="small text-muted text-uppercase">دورة تدريبية</div>
+                        </div>
+                        <div class="col-6">
+                            <h3 class="font-weight-bold text-dark">{{ report.stats.uptime }}</h3>
+                            <div class="small text-muted text-uppercase">وقت التشغيل</div>
+                        </div>
+                        <div class="col-6">
+                            <h3 class="font-weight-bold text-dark">{{ report.stats.inference_speed }}</h3>
+                            <div class="small text-muted text-uppercase">سرعة الاستنتاج</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const ctxEvo = document.getElementById('evolutionChart').getContext('2d');
+    
+    // Data from Flask
+    const labels = {{ report.labels|tojson }};
+    const gii_scores = {{ report.gii_scores|tojson }};
+    const error_rates = {{ report.error_rates|tojson }};
+
+    new Chart(ctxEvo, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'مؤشر الذكاء العام (GII)',
+                data: gii_scores,
+                borderColor: '#4e73df',
+                backgroundColor: 'rgba(78, 115, 223, 0.05)',
+                fill: true,
+                tension: 0.4
+            },
+            {
+                label: 'معدل الخطأ (%)',
+                data: error_rates,
+                borderColor: '#e74a3b',
+                borderDash: [5, 5],
+                fill: false,
+                tension: 0.4
+            }]
+        },
+        options: {
+            maintainAspectRatio: false,
+            scales: {
+                y: { beginAtZero: true, max: 100 }
+            }
+        }
+    });
+</script>
+{% endblock %}

@@ -84,13 +84,9 @@
                 <label class="mr-2">الحالة:</label>
                 <select name="status" class="form-control">
                     <option value="">الكل</option>
-                    <option value="PENDING" {% if selected_status == 'PENDING' %}selected{% endif %}>معلق</option>
-                    <option value="ASSIGNED" {% if selected_status == 'ASSIGNED' %}selected{% endif %}>مسندة</option>
-                    <option value="IN_PROGRESS" {% if selected_status == 'IN_PROGRESS' %}selected{% endif %}>قيد العمل</option>
-                    <option value="ON_HOLD" {% if selected_status == 'ON_HOLD' %}selected{% endif %}>معلقة</option>
-                    <option value="REVIEW" {% if selected_status == 'REVIEW' %}selected{% endif %}>مراجعة</option>
-                    <option value="COMPLETED" {% if selected_status == 'COMPLETED' %}selected{% endif %}>مكتملة</option>
-                    <option value="CANCELLED" {% if selected_status == 'CANCELLED' %}selected{% endif %}>ملغاة</option>
+                    {% for s in TaskStatus %}
+                    <option value="{{ s.value }}" {% if selected_status == s.value %}selected{% endif %}>{{ s.label }}</option>
+                    {% endfor %}
                 </select>
             </div>
             <div class="form-group mx-2">
@@ -148,9 +144,17 @@
                         </span>
                     </td>
                     <td>
-                        <span class="badge badge-{% if task.status == 'COMPLETED' %}success{% elif task.status == 'IN_PROGRESS' %}primary{% elif task.status == 'CANCELLED' %}danger{% else %}secondary{% endif %}">
-                            {{ task.status }}
-                        </span>
+                        {% if task.status.value == TaskStatus.COMPLETED.value %}
+                            <span class="badge badge-success">{{ TaskStatus.COMPLETED.label }}</span>
+                        {% elif task.status.value == TaskStatus.IN_PROGRESS.value %}
+                            <span class="badge badge-primary">{{ TaskStatus.IN_PROGRESS.label }}</span>
+                        {% elif task.status.value == TaskStatus.CANCELLED.value %}
+                            <span class="badge badge-danger">{{ TaskStatus.CANCELLED.label }}</span>
+                        {% elif task.status.value == TaskStatus.ON_HOLD.value %}
+                            <span class="badge badge-warning">{{ TaskStatus.ON_HOLD.label }}</span>
+                        {% else %}
+                            <span class="badge badge-secondary">{{ task.status }}</span>
+                        {% endif %}
                     </td>
                     <td>{{ task.assigned_team.name if task.assigned_team else '-' }}</td>
                     <td>{{ task.assigned_to.name if task.assigned_to else '-' }}</td>

@@ -101,37 +101,15 @@ from models import (
     ServicePriority,
     ServiceStatus,
     Currency as CurrencyModel,
+    CustomerCategory,
+    CURRENCY_CHOICES,
 )
+from constants import DEFAULT_CURRENCY
 
 import utils
 from utils import D  # Import D from utils package
 from custom_validators import Unique
 from barcodes import validate_barcode
-
-CURRENCY_CHOICES = [
-    ("ILS", "شيكل إسرائيلي"),
-    ("USD", "دولار أمريكي"),
-    ("EUR", "يورو"),
-    ("JOD", "دينار أردني"),
-    ("AED", "درهم إماراتي"),
-    ("SAR", "ريال سعودي"),
-    ("EGP", "جنيه مصري"),
-    ("GBP", "جنيه إسترليني"),
-]
-
-SERVICE_PRIORITY_CHOICES = [
-    ("LOW", "منخفضة"),
-    ("MEDIUM", "متوسطة"),
-    ("HIGH", "عالية"),
-    ("URGENT", "عاجلة"),
-]
-
-SERVICE_STATUS_CHOICES = [
-    ("NEW", "جديد"),
-    ("IN_PROGRESS", "قيد التنفيذ"),
-    ("COMPLETED", "مكتمل"),
-    ("CANCELLED", "ملغي"),
-]
 
 CENT = Decimal("0.01")
 _AR_DIGITS = str.maketrans("٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹", "01234567890123456789")
@@ -594,11 +572,7 @@ class TransferForm(FlaskForm):
     source_id = AjaxSelectField("المخزن المصدر", endpoint="api.search_warehouses", get_label="name", validators=[DataRequired()])
     destination_id = AjaxSelectField("المخزن الوجهة", endpoint="api.search_warehouses", get_label="name", validators=[DataRequired()])
     quantity = IntegerField("الكمية", validators=[DataRequired(), NumberRange(min=1)])
-    direction = EnumSelectField(TransferDirection, validators=[DataRequired()],
-                               labels_map={
-                                   "IN": "وارد",
-                                   "OUT": "صادر"
-                               })
+    direction = EnumSelectField(TransferDirection, validators=[DataRequired()])
     transfer_date = UnifiedDateTimeField("تاريخ التحويل", format="%Y-%m-%d %H:%M", formats=["%Y-%m-%d %H:%M", "%Y-%m-%dT%H:%M"], validators=[Optional()])
     notes = TextAreaField("ملاحظات", validators=[Optional(), Length(max=2000)])
     submit = SubmitField("حفظ")
@@ -841,7 +815,7 @@ class CustomerForm(FlaskForm):
     email = StrippedStringField('البريد الإلكتروني', validators=[Optional(), Email(message="صيغة البريد غير صحيحة"), Length(max=120), Unique(Customer, "email", message="البريد مستخدم مسبقًا", case_insensitive=True, normalizer=normalize_email)])
     address = StrippedStringField('العنوان', validators=[Optional(), Length(max=200, message="أقصى طول 200 حرف")])
     whatsapp = StrippedStringField('واتساب', validators=[Optional(), Length(max=20, message="أقصى طول 20 رقم")])
-    category = SelectField('تصنيف العميل', choices=[('عادي','عادي'),('ذهبي','ذهبي'),('بلاتيني','بلاتيني')], default='عادي', validators=[DataRequired()])
+    category = EnumSelectField(CustomerCategory, 'تصنيف العميل', default=CustomerCategory.NORMAL.value, validators=[DataRequired()])
     credit_limit = MoneyField('حد الائتمان', validators=[Optional(), NumberRange(min=0, message="يجب أن يكون ≥ 0")])
     discount_rate = PercentField('معدل الخصم (%)', validators=[Optional()])
     currency = CurrencySelectField('العملة', validators=[DataRequired(message='العملة مطلوبة')])
@@ -872,8 +846,7 @@ class CustomerForm(FlaskForm):
         field.data = val or normalize_phone(self.phone.data)
 
     def validate_category(self, field):
-        if (field.data or '') not in {'عادي','ذهبي','بلاتيني'}:
-            raise ValidationError('قيمة غير صالحة لتصنيف العميل')
+        pass
 
     def apply_to(self, customer: Customer) -> Customer:
         customer.name = (self.name.data or "").strip()
@@ -882,7 +855,7 @@ class CustomerForm(FlaskForm):
         customer.email = normalize_email(self.email.data)
         customer.address = (self.address.data or "").strip() or None
         customer.category = self.category.data
-        customer.currency = (self.currency.data or 'ILS').upper()
+        customer.currency = (self.currency.data or DEFAULT_CURRENCY).upper()
         customer.is_active = bool(self.is_active.data)
         customer.is_online = bool(self.is_online.data)
         customer.is_archived = bool(self.is_archived.data)
@@ -955,7 +928,7 @@ class SupplierForm(FlaskForm):
         supplier.notes = (self.notes.data or '').strip() or None
         supplier.opening_balance = self.opening_balance.data or Decimal('0')  # ✅ تصليح
         supplier.payment_terms = (self.payment_terms.data or '').strip() or None
-        supplier.currency = (self.currency.data or 'ILS').upper()
+        supplier.currency = (self.currency.data or DEFAULT_CURRENCY).upper()
         return supplier
 
 
@@ -990,7 +963,7 @@ class PartnerForm(FlaskForm):
         partner.address = (self.address.data or '').strip() or None
         partner.opening_balance = self.opening_balance.data or Decimal('0')  # ✅ تصليح
         partner.share_percentage = self.share_percentage.data or Decimal('0')
-        partner.currency = (self.currency.data or 'ILS').upper()
+        partner.currency = (self.currency.data or DEFAULT_CURRENCY).upper()
         partner.notes = (self.notes.data or '').strip() or None
         return partner
 
@@ -1066,20 +1039,17 @@ class PaymentAllocationForm(FlaskForm):
         return ok
 
 
-METHOD_LABELS_AR = {'CASH': 'نقدي', 'CARD': 'بطاقة', 'BANK': 'تحويل', 'CHEQUE': 'شيك', 'ONLINE': 'إلكتروني'}
-
 class BulkPaymentForm(IdempotencyMixin, FlaskForm):
     payer_type = SelectField(choices=[('customer','عميل'),('partner','شريك'),('supplier','مورد')], validators=[DataRequired()], coerce=str)
     payer_search = StringField(validators=[Optional(), Length(max=100)])
     payer_id = HiddenField(validators=[DataRequired()])
     total_amount = MoneyField(validators=[DataRequired(), NumberRange(min=0.01)])
     allocations = FieldList(FormField(PaymentAllocationForm), min_entries=1)
-    method = SelectField(
-        choices=enum_choices(PaymentMethod, labels_map=METHOD_LABELS_AR, include_blank=True, blank='— اختر الطريقة —'),
+    method = EnumSelectField(
+        PaymentMethod,
         validators=[DataRequired()],
-        coerce=str,
-        default='',
-        validate_choice=False
+        include_blank=True,
+        blank='— اختر الطريقة —',
     )
     currency = CurrencySelectField('العملة', validators=[DataRequired()])
     submit = SubmitField('حفظ الدفعة')
@@ -1139,17 +1109,8 @@ class SupplierSettlementForm(FlaskForm):
     from_date = UnifiedDateTimeField("من تاريخ", format="%Y-%m-%d %H:%M", formats=["%Y-%m-%d %H:%M","%Y-%m-%dT%H:%M"], default=_utc_now_naive, validators=[DataRequired()], render_kw={"type":"datetime-local","step":"60"})
     to_date = UnifiedDateTimeField("إلى تاريخ", format="%Y-%m-%d %H:%M", formats=["%Y-%m-%d %H:%M","%Y-%m-%dT%H:%M"], default=_utc_now_naive, validators=[DataRequired()], render_kw={"type":"datetime-local","step":"60"})
     currency = CurrencySelectField("العملة", validators=[DataRequired()])
-    status = EnumSelectField(SupplierSettlementStatus, "الحالة", default=SupplierSettlementStatus.DRAFT.value, validators=[DataRequired()],
-                            labels_map={
-                                "DRAFT": "مسودة",
-                                "CONFIRMED": "مؤكد",
-                                "CANCELLED": "ملغي"
-                            })
-    mode = EnumSelectField(SupplierSettlementMode, "الوضع", default=SupplierSettlementMode.ON_RECEIPT.value, validators=[DataRequired()],
-                           labels_map={
-                               "ON_RECEIPT": "عند الاستلام",
-                               "ON_DELIVERY": "عند التسليم"
-                           })
+    status = EnumSelectField(SupplierSettlementStatus, "الحالة", default=SupplierSettlementStatus.DRAFT.value, validators=[DataRequired()])
+    mode = EnumSelectField(SupplierSettlementMode, "الوضع", default=SupplierSettlementMode.ON_RECEIPT.value, validators=[DataRequired()])
     notes = TextAreaField("ملاحظات", validators=[Optional(), Length(max=500)])
     total_gross = MoneyField("الإجمالي", validators=[Optional(), NumberRange(min=0)], render_kw={"readonly": True, "tabindex": "-1"})
     total_due = MoneyField("المستحق", validators=[Optional(), NumberRange(min=0)], render_kw={"readonly": True, "tabindex": "-1"})
@@ -1190,7 +1151,7 @@ class SupplierSettlementForm(FlaskForm):
         ss.supplier_id = int(self.supplier_id.data) if self.supplier_id.data else None
         ss.from_date = self.from_date.data
         ss.to_date = self.to_date.data
-        ss.currency = (self.currency.data or "ILS").upper()
+        ss.currency = (self.currency.data or DEFAULT_CURRENCY).upper()
         ss.status = (self.status.data or SupplierSettlementStatus.DRAFT.value)
         ss.mode = (self.mode.data or SupplierSettlementMode.ON_RECEIPT.value)
         ss.notes = (self.notes.data or "").strip() or None
@@ -1330,12 +1291,7 @@ class PartnerSettlementForm(FlaskForm):
     from_date = UnifiedDateTimeField("من تاريخ", format="%Y-%m-%d %H:%M", formats=["%Y-%m-%d %H:%M", "%Y-%m-%dT%H:%M"], default=_utc_now_naive, validators=[DataRequired()], render_kw={"type": "datetime-local", "step": "60"})
     to_date = UnifiedDateTimeField("إلى تاريخ", format="%Y-%m-%d %H:%M", formats=["%Y-%m-%d %H:%M", "%Y-%m-%dT%H:%M"], default=_utc_now_naive, validators=[DataRequired()], render_kw={"type": "datetime-local", "step": "60"})
     currency = CurrencySelectField("العملة", validators=[DataRequired()])
-    status = EnumSelectField(PartnerSettlementStatus, "الحالة", default=PartnerSettlementStatus.DRAFT.value, validators=[DataRequired()],
-                             labels_map={
-                                 "DRAFT": "مسودة",
-                                 "CONFIRMED": "مؤكد",
-                                 "CANCELLED": "ملغي"
-                             })
+    status = EnumSelectField(PartnerSettlementStatus, "الحالة", default=PartnerSettlementStatus.DRAFT.value, validators=[DataRequired()])
     notes = TextAreaField("ملاحظات", validators=[Optional(), Length(max=500)])
     lines = FieldList(FormField(PartnerSettlementLineForm), min_entries=1)
     submit = SubmitField("حفظ التسوية")
@@ -1372,7 +1328,7 @@ class PartnerSettlementForm(FlaskForm):
         ps.partner_id = int(self.partner_id.data) if self.partner_id.data else None
         ps.from_date = self.from_date.data
         ps.to_date = self.to_date.data
-        ps.currency = (self.currency.data or "ILS").upper()
+        ps.currency = (self.currency.data or DEFAULT_CURRENCY).upper()
         ps.status = (self.status.data or PartnerSettlementStatus.DRAFT.value)
         ps.notes = (self.notes.data or "").strip() or None
         return ps
@@ -1380,11 +1336,11 @@ class PartnerSettlementForm(FlaskForm):
 class LoanSettlementPaymentForm(FlaskForm):
     settlement_id = AjaxSelectField(endpoint='api.search_loan_settlements', get_label='id', validators=[DataRequired()])
     amount = MoneyField(validators=[DataRequired(), NumberRange(min=0.01)])
-    method = SelectField(
-        choices=[('', '— اختر الطريقة —')] + [(m.value, METHOD_LABELS_AR.get(m.value, m.value)) for m in PaymentMethod],
+    method = EnumSelectField(
+        PaymentMethod,
         validators=[DataRequired()],
-        coerce=str,
-        default='',
+        include_blank=True,
+        blank='— اختر الطريقة —',
     )
     reference = StringField(validators=[Optional(), Length(max=100)])
     notes = TextAreaField(validators=[Optional(), Length(max=300)])
@@ -1395,16 +1351,13 @@ class SplitEntryForm(PaymentDetailsMixin, FlaskForm):
     class Meta:
         csrf = False
 
-    method = SelectField('طريقة الدفع', 
-                         choices=[
-                             ("", "— اختر —"),
-                             ("cash", "نقدًا"),
-                             ("card", "بطاقة"),
-                             ("bank", "تحويل بنكي"),
-                             ("cheque", "شيك"),
-                             ("online", "أونلاين")
-                         ],
-                         validators=[Optional()], default='')
+    method = EnumSelectField(
+        PaymentMethod,
+        'طريقة الدفع',
+        validators=[Optional()],
+        include_blank=True,
+        blank="— اختر —",
+    )
     amount = MoneyField('المبلغ', validators=[Optional(), NumberRange(min=0)], default=Decimal('0.00'))
     currency = CurrencySelectField('العملة', validators=[DataRequired()])
     fx_rate = DecimalField('سعر الصرف', places=6, validators=[Optional(), NumberRange(min=Decimal('0.000001'))])
@@ -1494,47 +1447,10 @@ class PaymentForm(PaymentDetailsMixin, FlaskForm):
 
     currency = CurrencySelectField('العملة', validators=[DataRequired()])
 
-    method      = SelectField('طريقة الدفع', 
-                             choices=[
-                                 ("", "— اختر —"),
-                                 ("cash", "نقدًا"),
-                                 ("card", "بطاقة"),
-                                 ("bank", "تحويل بنكي"),
-                                 ("cheque", "شيك"),
-                                 ("online", "أونلاين")
-                             ],
-                             validators=[Optional()])
-    status      = SelectField('حالة الدفع', 
-                             choices=[
-                                 ("PENDING", "قيد الانتظار"),
-                                 ("COMPLETED", "مكتمل"),
-                                 ("FAILED", "فشل"),
-                                 ("REFUNDED", "مسترجع"),
-                                 ("CANCELLED", "ملغي")
-                             ],
-                             validators=[DataRequired()])
-    direction   = SelectField('اتجاه الدفع', 
-                             choices=[
-                                 ("IN", "وارد"),
-                                 ("OUT", "صادر")
-                             ],
-                             validators=[DataRequired()])
-    entity_type = SelectField('نوع الجهة', 
-                             choices=[
-                                 ("CUSTOMER", "عميل"),
-                                 ("SUPPLIER", "مورد/تاجر"),
-                                 ("PARTNER", "شريك"),
-                                 ("SHIPMENT", "شحنة"),
-                                 ("EXPENSE", "مصروف"),
-                                 ("LOAN", "تسوية قرض"),
-                                 ("SALE", "بيع"),
-                                 ("INVOICE", "فاتورة"),
-                                 ("PREORDER", "طلب مسبق"),
-                                 ("SERVICE", "طلب صيانة"),
-                                 ("MISCELLANEOUS", "متفرقات"),
-                                 ("OTHER", "أخرى")
-                             ],
-                             validators=[DataRequired()])
+    method      = EnumSelectField(PaymentMethod, 'طريقة الدفع', validators=[Optional()], include_blank=True, blank='— اختر —')
+    status      = EnumSelectField(PaymentStatus, 'حالة الدفع', validators=[DataRequired()])
+    direction   = EnumSelectField(PaymentDirection, 'اتجاه الدفع', validators=[DataRequired()])
+    entity_type = EnumSelectField(PaymentEntityType, 'نوع الجهة', validators=[DataRequired()])
 
     entity_id = HiddenField(validators=[Optional()])
 
@@ -1602,7 +1518,7 @@ class PaymentForm(PaymentDetailsMixin, FlaskForm):
         super().__init__(*args, **kwargs)
         utils.prepare_payment_form_choices(self)
 
-        fixed_currency = "ILS"
+        fixed_currency = DEFAULT_CURRENCY
         fixed_label = dict(CURRENCY_CHOICES).get(fixed_currency, fixed_currency)
         self.currency.choices = [(fixed_currency, fixed_label)]
         self.currency.data = fixed_currency
@@ -1619,12 +1535,12 @@ class PaymentForm(PaymentDetailsMixin, FlaskForm):
                     entry.form.currency.choices = available_split_currency_choices
                     entry.form.currency.validate_choice = False
                     if not entry.form.currency.data:
-                        entry.form.currency.data = ensure_currency(self.currency.data or "ILS")
+                        entry.form.currency.data = ensure_currency(self.currency.data or DEFAULT_CURRENCY)
                 if hasattr(entry.form, "fx_rate"):
                     split_obj = getattr(entry, "object_data", None)
                     if not entry.form.fx_rate.data and split_obj is not None and hasattr(split_obj, "fx_rate_used") and split_obj.fx_rate_used is not None:
                         entry.form.fx_rate.data = Decimal(str(split_obj.fx_rate_used))
-                    if entry.form.currency.data == ensure_currency(self.currency.data or "ILS"):
+                    if entry.form.currency.data == ensure_currency(self.currency.data or DEFAULT_CURRENCY):
                         entry.form.fx_rate.data = Decimal("1")
         except Exception:
             pass
@@ -1848,13 +1764,7 @@ class PreOrderForm(PaymentDetailsMixin, FlaskForm):
     reference = StrippedStringField('مرجع الحجز', validators=[Optional(), Length(max=50)])
     preorder_date   = UnifiedDateTimeField('تاريخ الحجز', format='%Y-%m-%d %H:%M', validators=[Optional()], render_kw={'autocomplete': 'off', 'dir': 'ltr'})
     expected_date   = UnifiedDateTimeField('تاريخ التسليم المتوقع', format='%Y-%m-%d %H:%M', validators=[Optional()], render_kw={'autocomplete': 'off', 'dir': 'ltr'})
-    status = EnumSelectField(PreOrderStatus, 'الحالة', default=PreOrderStatus.PENDING.value, validators=[DataRequired()],
-                             labels_map={
-                                 "PENDING": "معلق",
-                                 "CONFIRMED": "مؤكد",
-                                 "CANCELLED": "ملغي",
-                                 "COMPLETED": "مكتمل"
-                             })
+    status = EnumSelectField(PreOrderStatus, 'الحالة', default=PreOrderStatus.PENDING.value, validators=[DataRequired()])
 
     customer_id  = AjaxSelectField('العميل',   endpoint='api.search_customers', get_label='name', validators=[DataRequired()])
     product_id   = AjaxSelectField('القطعة',    endpoint='api.search_products',  get_label='name', validators=[DataRequired()])
@@ -1866,14 +1776,7 @@ class PreOrderForm(PaymentDetailsMixin, FlaskForm):
     prepaid_amount = MoneyField('المدفوع مسبقاً', validators=[Optional(), NumberRange(min=0)])
     tax_rate       = PercentField('ضريبة %', validators=[Optional()])
 
-    payment_method = EnumSelectField(PaymentMethod, 'طريقة الدفع', default=PaymentMethod.CASH.value, validators=[Optional()], include_blank=True, blank='— اختر —',
-                                     labels_map={
-                                         "cash": "نقدًا",
-                                         "card": "بطاقة",
-                                         "bank": "تحويل بنكي",
-                                         "cheque": "شيك",
-                                         "online": "أونلاين"
-                                     })
+    payment_method = EnumSelectField(PaymentMethod, 'طريقة الدفع', default=PaymentMethod.CASH.value, validators=[Optional()], include_blank=True, blank='— اختر —')
     
     check_number = StrippedStringField('رقم الشيك', validators=[Optional(), Length(max=100)])
     check_bank   = StrippedStringField('البنك',     validators=[Optional(), Length(max=100)])
@@ -1949,8 +1852,8 @@ class ServiceRequestForm(FlaskForm):
     engineer_notes      = TextAreaField('ملاحظات المهندس', validators=[Optional(), Length(max=4000)])
     description         = TextAreaField('وصف عام', validators=[Optional(), Length(max=2000)])
 
-    priority = SelectField('الأولوية', choices=SERVICE_PRIORITY_CHOICES, validators=[Optional()], default='')
-    status   = SelectField('الحالة',   choices=SERVICE_STATUS_CHOICES,  validators=[Optional()], default='')
+    priority = EnumSelectField(ServicePriority, 'الأولوية', validators=[Optional()])
+    status   = EnumSelectField(ServiceStatus, 'الحالة', validators=[Optional()])
 
     estimated_duration = IntegerField('المدة المتوقعة (دقيقة)', validators=[Optional(), NumberRange(min=0)])
     actual_duration    = IntegerField('المدة الفعلية (دقيقة)', validators=[Optional(), NumberRange(min=0)])
@@ -2302,12 +2205,11 @@ class ShipmentPaymentForm(PaymentDetailsMixin, FlaskForm):
     shipment_id = AjaxSelectField('الشحنة', endpoint='api.search_shipments', get_label='shipment_number', validators=[DataRequired()], coerce=int)
     total_amount = MoneyField('المبلغ', validators=[DataRequired(), NumberRange(min=0.01)])
     currency = CurrencySelectField('العملة', validators=[DataRequired()])
-    method = SelectField('طريقة الدفع', choices=enum_choices(PaymentMethod, labels_map=METHOD_LABELS_AR, include_blank=False), validators=[Optional()], coerce=str, validate_choice=False, default='cash')
+    method = EnumSelectField(PaymentMethod, 'طريقة الدفع', validators=[Optional()], include_blank=True, blank='— اختر —')
     direction = EnumSelectField(
         PaymentDirection,
         label="الاتجاه",
-        validators=[DataRequired()],
-        get_label=lambda e: e.label  # ← هي اللي بتخلي العرض بالعربي
+        validators=[DataRequired()]
     )
     reference = StrippedStringField('مرجع', validators=[Optional(), Length(max=100)])
     notes = TextAreaField('ملاحظات', validators=[Optional(), Length(max=2000)])
@@ -2327,10 +2229,10 @@ class ShipmentPaymentForm(PaymentDetailsMixin, FlaskForm):
             return False
 
         dirv = (self.direction.data or '').strip().upper()
-        if dirv not in ('INCOMING','OUTGOING'):
+        if dirv not in (PaymentDirection.IN.value, PaymentDirection.OUT.value):
             self.direction.errors.append('اتجاه غير صالح.')
             return False
-        if dirv == 'INCOMING':
+        if dirv == PaymentDirection.IN.value:
             if not ((self.reference.data or '').strip() or (self.notes.data or '').strip()):
                 self.direction.errors.append('يُسمح بالوارد فقط مع سبب موثّق.')
                 return False
@@ -2392,7 +2294,7 @@ class ShipmentPaymentForm(PaymentDetailsMixin, FlaskForm):
         return {
             'entity_type': 'SHIPMENT',
             'entity_id': to_int(self.shipment_id.data),
-            'direction': (self.direction.data or 'OUTGOING').strip().upper(),
+            'direction': (self.direction.data or PaymentDirection.OUT.value).strip().upper(),
             'total_amount': D(self.total_amount.data),
             'currency': (self.currency.data or '').upper(),
             'method': m,
@@ -2735,11 +2637,7 @@ class ExpenseForm(PaymentDetailsMixin, FlaskForm):
     period_start = DateField('بداية الفترة', validators=[Optional()])
     period_end   = DateField('نهاية الفترة', validators=[Optional()])
 
-    payment_method = SelectField(
-        'طريقة الدفع',
-        choices=enum_choices(PaymentMethod, labels_map=METHOD_LABELS_AR, include_blank=False),
-        validators=[DataRequired()], coerce=str, validate_choice=False
-    )
+    payment_method = EnumSelectField(PaymentMethod, 'طريقة الدفع', validators=[DataRequired()], include_blank=True, blank='— اختر —')
     check_number = StrippedStringField('رقم الشيك', validators=[Optional(), Length(max=100)])
     check_bank   = StrippedStringField('البنك',     validators=[Optional(), Length(max=100)])
     check_due_date    = DateField('تاريخ الاستحقاق', format='%Y-%m-%d', validators=[Optional()])

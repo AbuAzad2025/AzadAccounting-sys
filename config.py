@@ -11,8 +11,8 @@ basedir = os.path.abspath(os.path.dirname(__file__))
 instance_dir = os.path.join(basedir, "instance")
 os.makedirs(instance_dir, exist_ok=True)
 
-load_dotenv(os.path.join(basedir, ".env"))
-load_dotenv(os.path.join(basedir, ".env.txt"))
+load_dotenv(os.path.join(basedir, ".env"), override=True)
+load_dotenv(os.path.join(basedir, ".env.txt"), override=True)
 
 
 def _bool(v: str | None, default: bool = False) -> bool:
@@ -172,6 +172,17 @@ class Config:
 
     if _db_uri.startswith("postgres://"):
         _db_uri = _db_uri.replace("postgres://", "postgresql://", 1)
+
+    if _db_uri.startswith("sqlite:///"):
+        sqlite_path = _db_uri[len("sqlite:///"):]
+        if sqlite_path and sqlite_path != ":memory:":
+            if not os.path.isabs(sqlite_path):
+                sqlite_path = os.path.abspath(os.path.join(basedir, sqlite_path))
+            sqlite_path = sqlite_path.replace("\\", "/")
+            _db_uri = f"sqlite:///{sqlite_path}"
+            sqlite_parent = os.path.dirname(sqlite_path)
+            if sqlite_parent:
+                os.makedirs(sqlite_parent, exist_ok=True)
     
     # Allow PostgreSQL, MySQL, and SQLite
     if not _db_uri.startswith(("postgresql://", "mysql://", "mysql+pymysql://", "sqlite://")):

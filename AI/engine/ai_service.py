@@ -2397,6 +2397,7 @@ def local_intelligent_response(message, session_id=None):
         from AI.engine.ai_predictive_analytics import predict_needed_parts, analyze_recurring_failures
         from AI.engine.ai_ecu_knowledge import explain_dtc_code, ecu_connection_guide, ECU_KNOWLEDGE
     except Exception:
+        # Fallback functions if modules are missing
         search_part_by_name = lambda x: None
         search_part_by_number = lambda x: None
         explain_part_function = lambda x: "لم أجد معلومات عن هذه القطعة"
@@ -2407,12 +2408,151 @@ def local_intelligent_response(message, session_id=None):
         VEHICLE_SYSTEMS = {}
         smart_diagnose = lambda x: {'success': False, 'message': 'التشخيص غير متاح'}
         diagnose_heavy_equipment = lambda x: None
-        check_part_in_inventory = lambda x: {'found': False}
-        predict_needed_parts = lambda x: {'success': False}
-        analyze_recurring_failures = lambda x: "التحليل غير متاح"
+        # check_part_in_inventory is defined below as a real function
+        # predict_needed_parts is defined below as a real function
+        # analyze_recurring_failures is defined below as a real function
         explain_dtc_code = lambda x: "معلومات الكود غير متاحة"
         ecu_connection_guide = lambda x: None
         ECU_KNOWLEDGE = {}
+
+    # دوال حقيقية بدلاً من Lambdas الوهمية
+    def check_part_in_inventory(query):
+        """البحث عن قطعة في المخزون الحقيقي"""
+        try:
+            from models import Product, Warehouse
+            # استخراج كلمات البحث
+            keywords = query.replace('بحث', '').replace('عن', '').replace('قطعة', '').split()
+            if not keywords: return {'found': False}
+            
+            search_term = keywords[0]
+            products = Product.query.filter(
+                (Product.name.ilike(f'%{search_term}%')) | 
+                (Product.sku.ilike(f'%{search_term}%'))
+            ).limit(5).all()
+            
+            if not products:
+                return {'found': False, 'response': f"❌ لم أجد أي قطعة باسم '{search_term}' في المخزون."}
+            
+            response = f"🔍 **نتائج البحث عن '{search_term}':**\n\n"
+            for p in products:
+                stock = p.quantity_on_hand or 0
+                price = p.sale_price or 0
+                status = "✅ متوفر" if stock > 0 else "❌ نفد"
+                response += f"• **{p.name}** ({p.sku})\n  - المخزون: {stock}\n  - السعر: {price:,.2f}\n  - الحالة: {status}\n\n"
+            
+            return {'found': True, 'response': response}
+        except Exception as e:
+            return {'found': False, 'response': "حدث خطأ أثناء البحث."}
+
+    def predict_needed_parts(days=30):
+        """توقع القطع المطلوبة بناءً على استهلاك الصيانة السابق"""
+        try:
+            from models import ServicePart, Product
+            start_date = datetime.now() - timedelta(days=days)
+            
+            # أكثر القطع استهلاكاً في الفترة الماضية
+            top_parts = db.session.query(
+                ServicePart.product_id,
+                func.sum(ServicePart.quantity).label('total_qty'),
+                func.count(ServicePart.id).label('usage_count')
+            ).join(ServiceRequest).filter(
+                ServiceRequest.created_at >= start_date,
+                ServiceRequest.status == 'COMPLETED'
+            ).group_by(ServicePart.product_id).order_by(text('total_qty DESC')).limit(5).all()
+            
+            if not top_parts:
+                return {'success': False, 'message': "لا توجد بيانات صيانة كافية للتنبؤ."}
+            
+            predictions = []
+            for pid, qty, count in top_parts:
+                product = Product.query.get(pid)
+                if product:
+                    monthly_rate = float(qty)
+                    current_stock = float(product.quantity_on_hand or 0)
+                    # معادلة بسيطة: نحتاج مخزون يكفي لشهرين
+                    needed = (monthly_rate * 2) - current_stock
+                    priority = '🔴 عالية جداً' if current_stock < monthly_rate else ('High' if needed > 0 else 'Normal')
+                    
+                    if needed > 0:
+                        predictions.append({
+                            'part_name': product.name,
+                            'total_used': float(qty),
+                            'usage_count': count,
+                            'monthly_rate': monthly_rate,
+                            'predicted_next_month': monthly_rate * 1.1, # توقع نمو 10%
+                            'current_stock': current_stock,
+                            'need_to_order': max(0, needed),
+                            'priority': priority
+                        })
+            
+            return {'success': True, 'period': f'{days} يوم', 'top_5': predictions}
+        except Exception:
+            return {'success': False}
+
+    def analyze_recurring_failures(days=180):
+        """تحليل الأعطال المتكررة من طلبات الصيانة"""
+        try:
+            from models import ServiceRequest
+            # البحث عن الكلمات المفتاحية في وصف المشكلة
+            problems = db.session.query(ServiceRequest.problem_description).filter(
+                ServiceRequest.created_at >= datetime.now() - timedelta(days=days),
+                ServiceRequest.problem_description.isnot(None)
+            ).all()
+            
+            if not problems: return "لا توجد بيانات كافية للتحليل."
+            
+            # تحليل بسيط للكلمات المتكررة (يمكن تطويره لـ NLP)
+            text_blob = " ".join([p[0] for p in problems]).lower()
+            keywords = ['brake', 'oil', 'engine', 'tire', 'battery', 'heat', 'sound', 'فرامل', 'زيت', 'محرك', 'إطار', 'بطارية', 'حرارة', 'صوت']
+            counts = {k: text_blob.count(k) for k in keywords if text_blob.count(k) > 0}
+            
+            if not counts: return "لم يتم اكتشاف أنماط أعطال واضحة."
+            
+            sorted_faults = sorted(counts.items(), key=lambda x: x[1], reverse=True)
+            
+            response = f"📊 **تحليل الأعطال المتكررة (آخر {days} يوم):**\n\n"
+            for fault, count in sorted_faults[:5]:
+                response += f"• **{fault.upper()}**: تكرر {count} مرة\n"
+                
+            response += "\n💡 **توصية:** جهز عروض صيانة خاصة لهذه المشاكل!"
+            return response
+        except Exception:
+            return "حدث خطأ في التحليل."
+
+    # دوال مساعدة أخرى (Stubs for now but better than None)
+    search_part_by_name = lambda x: check_part_in_inventory(x)
+    search_part_by_number = lambda x: check_part_in_inventory(x)
+    
+    def explain_part_function(query):
+        return f"ℹ️ **معلومات:** '{query}' هي قطعة مهمة في السيارة. (جاري تطوير قاعدة المعرفة الميكانيكية لتقديم شرح تفصيلي)."
+
+    get_parts_for_vehicle = lambda x: [] # يحتاج قاعدة بيانات سيارات
+    
+    def smart_diagnose(query):
+        return {
+            'success': False, 
+            'message': "🤔 **تشخيص مبدئي:**\nأحتاج لمزيد من التفاصيل. هل تظهر أي أضواء تحذيرية؟",
+            'questions': ['ما هو نوع السيارة؟', 'متى بدأت المشكلة؟', 'هل هناك صوت غريب؟']
+        }
+        
+    diagnose_problem = lambda x: smart_diagnose(x)
+    get_repair_guide = lambda x: None
+    COMMON_PROBLEMS = {}
+    VEHICLE_SYSTEMS = {}
+    diagnose_heavy_equipment = lambda x: None
+    
+    def explain_dtc_code(code):
+        # قاعدة بيانات بسيطة للكودات الشائعة
+        codes = {
+            'P0300': 'Random/Multiple Cylinder Misfire Detected (احتراق غير منتظم في عدة اسطوانات)',
+            'P0420': 'Catalyst System Efficiency Below Threshold (كفاءة المحول الحفاز منخفضة)',
+            'P0171': 'System Too Lean (خليط الوقود فقير جداً)',
+            'P0442': 'Evaporative Emission Control System Leak Detected (تسريب في نظام التبخير)',
+        }
+        return codes.get(code.upper(), f"⚠️ الكود **{code}** غير موجود في قاعدة البيانات المحلية. يرجى مراجعة الدليل.")
+        
+    ecu_connection_guide = lambda x: None
+    ECU_KNOWLEDGE = {}
     
     from models import Customer, ServiceRequest, Expense, Product, Supplier, Invoice, Payment, User, Role, Permission
     

@@ -10,6 +10,7 @@
 Created: 2025-11-01
 """
 
+from permissions_config.enums import SystemPermissions
 from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for
 from flask_login import login_required, current_user
 from models import SystemSettings
@@ -36,11 +37,35 @@ def restrict_to_owner():
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# 📋 ROUTES
-# ═══════════════════════════════════════════════════════════════════════════
+@ai_admin_bp.route('/config', methods=['GET'])
+@permission_required(SystemPermissions.MANAGE_AI)
+def ai_config_dashboard():
+    """
+    لوحة تحكم إعدادات الذكاء الاصطناعي (Dashboard)
+    تعرض حالة النظام والمفاتيح والتدريب
+    """
+    from AI.engine.ai_management import get_live_ai_stats, get_model_status
+    
+    # 1. إحصائيات النظام الحية
+    try:
+        stats = get_live_ai_stats()
+    except:
+        stats = {'status': 'unknown', 'latency': 'N/A', 'queries_today': 0}
+
+    # 2. حالة النماذج
+    try:
+        model_status = get_model_status()
+    except:
+        model_status = {'last_trained': 'N/A'}
+
+    return render_template(
+        'security/ai_config.html',
+        stats=stats,
+        model_status=model_status
+    )
 
 @ai_admin_bp.route('/settings', methods=['GET', 'POST'])
-@permission_required('manage_ai')
+@permission_required(SystemPermissions.MANAGE_AI)
 def ai_settings():
     """
     إعدادات المساعد الذكي (للمالك فقط)
@@ -104,7 +129,7 @@ def ai_settings():
 
 
 @ai_admin_bp.route('/toggle-visibility', methods=['POST'])
-@permission_required('manage_ai')
+@permission_required(SystemPermissions.MANAGE_AI)
 def toggle_visibility():
     """
     تبديل إظهار/إخفاء المساعد (API)
@@ -135,7 +160,7 @@ def toggle_visibility():
 
 
 @ai_admin_bp.route('/reset-knowledge', methods=['POST'])
-@permission_required('train_ai')
+@permission_required(SystemPermissions.TRAIN_AI)
 def reset_knowledge():
     """
     إعادة بناء قاعدة المعرفة بالكامل - تدريب حقيقي
@@ -194,7 +219,7 @@ def reset_knowledge():
 
 
 @ai_admin_bp.route('/training-status', methods=['GET'])
-@permission_required('train_ai')
+@permission_required(SystemPermissions.TRAIN_AI)
 def training_status():
     """الحصول على حالة التدريب"""
     try:
@@ -216,7 +241,7 @@ def training_status():
 
 
 @ai_admin_bp.route('/training-log', methods=['GET'])
-@permission_required('train_ai')
+@permission_required(SystemPermissions.TRAIN_AI)
 def training_log():
     """الحصول على سجل التدريب"""
     try:
@@ -239,7 +264,7 @@ def training_log():
 
 
 @ai_admin_bp.route('/daily-reports', methods=['GET'])
-@permission_required('manage_ai')
+@permission_required(SystemPermissions.MANAGE_AI)
 def daily_reports():
     """عرض التقارير اليومية"""
     try:
@@ -270,7 +295,7 @@ def daily_reports():
 
 
 @ai_admin_bp.route('/evolution-report', methods=['GET'])
-@permission_required('manage_ai')
+@permission_required(SystemPermissions.MANAGE_AI)
 def evolution_report():
     """تقرير التطور الذاتي"""
     try:
@@ -292,7 +317,7 @@ def evolution_report():
 
 
 @ai_admin_bp.route('/run-code-scan', methods=['POST'])
-@permission_required('manage_ai')
+@permission_required(SystemPermissions.MANAGE_AI)
 def run_code_scan():
     try:
         from AI.engine.ai_code_quality_monitor import get_code_monitor
@@ -326,7 +351,7 @@ def run_code_scan():
 
 
 @ai_admin_bp.route('/performance', methods=['GET'])
-@permission_required('manage_ai')
+@permission_required(SystemPermissions.MANAGE_AI)
 def performance_report():
     try:
         from AI.engine.ai_performance_tracker import get_performance_tracker
@@ -354,7 +379,7 @@ def performance_report():
 
 
 @ai_admin_bp.route('/stats-api', methods=['GET'])
-@permission_required('manage_ai')
+@permission_required(SystemPermissions.MANAGE_AI)
 def stats_api():
     try:
         from AI.engine.ai_performance_tracker import get_performance_tracker
@@ -380,14 +405,14 @@ def stats_api():
 
 
 @ai_admin_bp.route('/advanced-training', methods=['GET'])
-@permission_required('train_ai')
+@permission_required(SystemPermissions.TRAIN_AI)
 def advanced_training():
     """صفحة التدريب المتقدم"""
     return render_template('ai/advanced_training.html')
 
 
 @ai_admin_bp.route('/command/<command_name>', methods=['POST'])
-@permission_required('manage_ai')
+@permission_required(SystemPermissions.MANAGE_AI)
 def execute_command(command_name):
     """تنفيذ أوامر النظام"""
     try:
@@ -413,7 +438,7 @@ def execute_command(command_name):
 
 
 @ai_admin_bp.route('/upload_book', methods=['POST'])
-@permission_required('train_ai')
+@permission_required(SystemPermissions.TRAIN_AI)
 def upload_book():
     """رفع وقراءة كتاب"""
     try:
@@ -462,7 +487,7 @@ def upload_book():
 
 
 @ai_admin_bp.route('/memory_stats', methods=['GET'])
-@permission_required('manage_ai')
+@permission_required(SystemPermissions.MANAGE_AI)
 def memory_stats():
     """إحصائيات الذاكرة"""
     try:
@@ -484,7 +509,7 @@ def memory_stats():
 
 
 @ai_admin_bp.route('/system_status', methods=['GET'])
-@permission_required('manage_ai')
+@permission_required(SystemPermissions.MANAGE_AI)
 def system_status():
     """حالة النظام"""
     try:
@@ -506,7 +531,7 @@ def system_status():
 
 
 @ai_admin_bp.route('/train-package', methods=['POST'])
-@permission_required('train_ai')
+@permission_required(SystemPermissions.TRAIN_AI)
 def train_package():
     """تدريب باقة متخصصة"""
     try:
@@ -535,7 +560,7 @@ def train_package():
 
 
 @ai_admin_bp.route('/train-all-packages', methods=['POST'])
-@permission_required('train_ai')
+@permission_required(SystemPermissions.TRAIN_AI)
 def train_all_packages():
     """تدريب جميع الباقات"""
     try:
@@ -554,7 +579,7 @@ def train_all_packages():
 
 
 @ai_admin_bp.route('/marathon-training', methods=['POST'])
-@permission_required('train_ai')
+@permission_required(SystemPermissions.TRAIN_AI)
 def marathon_training():
     """تدريب ماراثوني شامل"""
     try:

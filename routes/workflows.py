@@ -1,3 +1,4 @@
+from permissions_config.enums import SystemPermissions
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import login_required, current_user
 from extensions import db
@@ -16,7 +17,7 @@ workflows_bp = Blueprint('workflows', __name__, url_prefix='/workflows')
 
 @workflows_bp.route('/')
 @login_required
-@permission_required('manage_workflows')
+@permission_required(SystemPermissions.MANAGE_WORKFLOWS)
 def index():
     stats = WorkflowEngine.get_workflow_stats()
     
@@ -34,7 +35,7 @@ def index():
 
 @workflows_bp.route('/definitions')
 @login_required
-@permission_required('manage_workflows')
+@permission_required(SystemPermissions.MANAGE_WORKFLOWS)
 def definitions():
     entity_type_filter = request.args.get('entity_type')
     workflow_type_filter = request.args.get('workflow_type')
@@ -75,7 +76,7 @@ def definitions():
 
 @workflows_bp.route('/definitions/add', methods=['GET', 'POST'])
 @login_required
-@permission_required('manage_workflows')
+@permission_required(SystemPermissions.MANAGE_WORKFLOWS)
 def add_definition():
     if request.method == 'POST':
         try:
@@ -133,7 +134,7 @@ def add_definition():
 
 @workflows_bp.route('/definitions/<int:id>/edit', methods=['GET', 'POST'])
 @login_required
-@permission_required('manage_workflows')
+@permission_required(SystemPermissions.MANAGE_WORKFLOWS)
 def edit_definition(id):
     definition = db.get_or_404(WorkflowDefinition, id)
     
@@ -172,7 +173,7 @@ def edit_definition(id):
 
 @workflows_bp.route('/definitions/<int:id>/toggle', methods=['POST'])
 @login_required
-@permission_required('manage_workflows')
+@permission_required(SystemPermissions.MANAGE_WORKFLOWS)
 def toggle_definition(id):
     try:
         definition = db.get_or_404(WorkflowDefinition, id)
@@ -194,7 +195,7 @@ def toggle_definition(id):
 
 @workflows_bp.route('/instances')
 @login_required
-@permission_required('manage_workflows')
+@permission_required(SystemPermissions.MANAGE_WORKFLOWS)
 def instances():
     status_filter = request.args.get('status')
     entity_type_filter = request.args.get('entity_type')
@@ -217,7 +218,7 @@ def instances():
 
 @workflows_bp.route('/instances/<int:id>')
 @login_required
-@permission_required('manage_workflows')
+@permission_required(SystemPermissions.MANAGE_WORKFLOWS)
 def view_instance(id):
     instance = db.get_or_404(WorkflowInstance, id)
     
@@ -256,7 +257,7 @@ def view_instance(id):
 
 @workflows_bp.route('/instances/<int:id>/execute', methods=['POST'])
 @login_required
-@permission_required('manage_workflows')
+@permission_required(SystemPermissions.MANAGE_WORKFLOWS)
 def execute_action(id):
     try:
         action_type = request.form.get('action_type')
@@ -292,7 +293,7 @@ def execute_action(id):
 
 @workflows_bp.route('/instances/<int:id>/cancel', methods=['POST'])
 @login_required
-@permission_required('manage_workflows')
+@permission_required(SystemPermissions.MANAGE_WORKFLOWS)
 def cancel_instance(id):
     try:
         reason = request.form.get('reason')
@@ -326,7 +327,7 @@ def my_pending():
 
 @workflows_bp.route('/api/start', methods=['POST'])
 @login_required
-@permission_required('manage_workflows')
+@permission_required(SystemPermissions.MANAGE_WORKFLOWS)
 def api_start_workflow():
     try:
         data = request.get_json()
@@ -359,7 +360,7 @@ def api_start_workflow():
 
 @workflows_bp.route('/reports/summary')
 @login_required
-@permission_required('manage_workflows')
+@permission_required(SystemPermissions.MANAGE_WORKFLOWS)
 def report_summary():
     entity_type = request.args.get('entity_type')
     date_from = request.args.get('date_from')
@@ -421,7 +422,7 @@ def report_summary():
 
 @workflows_bp.route('/reports/performance')
 @login_required
-@permission_required('manage_workflows')
+@permission_required(SystemPermissions.MANAGE_WORKFLOWS)
 def report_performance():
     date_from = request.args.get('date_from')
     date_to = request.args.get('date_to')
@@ -521,7 +522,7 @@ def report_performance():
 
 @workflows_bp.route('/reports/cost-center-analysis')
 @login_required
-@permission_required('manage_workflows')
+@permission_required(SystemPermissions.MANAGE_WORKFLOWS)
 def report_cost_center_analysis():
     date_from = request.args.get('date_from')
     date_to = request.args.get('date_to')

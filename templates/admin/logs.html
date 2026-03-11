@@ -1,0 +1,139 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0 text-gray-800"><i class="fas fa-terminal me-2"></i>سجلات النظام (System Logs)</h1>
+        <div>
+            <button class="btn btn-sm btn-outline-secondary" onclick="window.location.reload()"><i class="fas fa-sync-alt"></i> تحديث</button>
+            <button class="btn btn-sm btn-outline-danger" onclick="alert('سيتم مسح السجلات')"><i class="fas fa-trash-alt"></i> مسح السجلات</button>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                    <h6 class="m-0 font-weight-bold text-primary">ملفات السجل (Log Files)</h6>
+                    <div class="dropdown no-arrow">
+                        <select class="form-select form-select-sm" style="width: auto;" id="logFileSelector" onchange="switchLogFile(this.value)">
+                            {% for filename, content in logs.items() %}
+                            <option value="{{ filename }}">{{ filename }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="card-body bg-dark text-light font-monospace p-0">
+                    {% for filename, content in logs.items() %}
+                    <div class="p-3 log-content" id="log-{{ filename }}" style="height: 500px; overflow-y: auto; white-space: pre-wrap; display: none;">
+{{ content }}
+                    </div>
+                    {% endfor %}
+                    
+                    <!-- Fallback if no logs -->
+                    <div id="no-logs" class="p-3 text-center text-muted" style="display: none;">
+                        <i class="fas fa-exclamation-triangle"></i> لا توجد سجلات للعرض
+                    </div>
+                </div>
+                <div class="card-footer small text-muted">
+                    Last updated: Just now | File size: 45KB
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">مستويات السجل (Log Levels)</h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-2">
+                        <small>INFO</small>
+                        <div class="progress progress-sm mb-2">
+                            <div class="progress-bar bg-info" role="progressbar" style="width: 75%"></div>
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <small>WARNING</small>
+                        <div class="progress progress-sm mb-2">
+                            <div class="progress-bar bg-warning" role="progressbar" style="width: 15%"></div>
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <small>ERROR</small>
+                        <div class="progress progress-sm mb-2">
+                            <div class="progress-bar bg-danger" role="progressbar" style="width: 5%"></div>
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <small>CRITICAL</small>
+                        <div class="progress progress-sm mb-2">
+                            <div class="progress-bar bg-dark" role="progressbar" style="width: 1%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">إعدادات السجل</h6>
+                </div>
+                <div class="card-body">
+                    <form>
+                        <div class="mb-3">
+                            <label class="form-label">مستوى التسجيل (Log Level)</label>
+                            <select class="form-select">
+                                <option>DEBUG</option>
+                                <option selected>INFO</option>
+                                <option>WARNING</option>
+                                <option>ERROR</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" checked>
+                                <label class="form-check-label">تدوير السجلات (Log Rotation)</label>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">الاحتفاظ بالسجلات لمدة (أيام)</label>
+                            <input type="number" class="form-control" value="30">
+                        </div>
+                        <button type="button" class="btn btn-primary btn-sm">حفظ الإعدادات</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function switchLogFile(filename) {
+        // Hide all log contents
+        document.querySelectorAll('.log-content').forEach(el => el.style.display = 'none');
+        document.getElementById('no-logs').style.display = 'none';
+        
+        // Show selected
+        const el = document.getElementById('log-' + filename);
+        if (el) {
+            el.style.display = 'block';
+            el.scrollTop = el.scrollHeight;
+        } else {
+            document.getElementById('no-logs').style.display = 'block';
+        }
+    }
+
+    // Initialize first log
+    document.addEventListener('DOMContentLoaded', function() {
+        const selector = document.getElementById('logFileSelector');
+        if (selector && selector.options.length > 0) {
+            switchLogFile(selector.value);
+        } else {
+            document.getElementById('no-logs').style.display = 'block';
+        }
+    });
+</script>
+{% endblock %}

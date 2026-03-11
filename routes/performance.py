@@ -1,5 +1,6 @@
 import json
 import time
+from permissions_config.enums import SystemPermissions
 from flask import Blueprint, Response, jsonify, render_template, request
 from flask_login import login_required
 
@@ -12,7 +13,7 @@ performance_bp = Blueprint("performance_bp", __name__, url_prefix="/system/perfo
 
 @performance_bp.get("/", endpoint="index")
 @login_required
-@utils.permission_required("manage_system_health")
+@utils.permission_required(SystemPermissions.MANAGE_SYSTEM_HEALTH)
 def performance_index():
     metric = (request.args.get("metric") or "total_ms").strip()
     limit = request.args.get("limit", 20, type=int)
@@ -39,7 +40,7 @@ def performance_index():
 
 @performance_bp.get("/data", endpoint="data")
 @login_required
-@utils.permission_required("manage_system_health")
+@utils.permission_required(SystemPermissions.MANAGE_SYSTEM_HEALTH)
 def performance_data():
     metric = (request.args.get("metric") or "total_ms").strip()
     limit = request.args.get("limit", 20, type=int)
@@ -61,7 +62,7 @@ def performance_data():
 
 @performance_bp.get("/snapshot", endpoint="snapshot")
 @login_required
-@utils.permission_required("manage_system_health")
+@utils.permission_required(SystemPermissions.MANAGE_SYSTEM_HEALTH)
 def performance_snapshot():
     agg_by = (request.args.get("agg_by") or "endpoint").strip()
     agg_sort = (request.args.get("agg_sort") or "p95_total_ms").strip()

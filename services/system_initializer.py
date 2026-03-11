@@ -19,7 +19,7 @@ class SystemInitializer:
 
     def ensure_integrity(self):
         """تشغيل الفحص الذاتي والتهيئة"""
-        print("🔧 SystemInitializer: Starting integrity check...")
+        print("SystemInitializer: Starting integrity check...")
         with self.app.app_context():
             try:
                 self._ensure_settings()
@@ -28,9 +28,9 @@ class SystemInitializer:
                 self._ensure_chart_of_accounts()
                 self._ensure_categories()
                 self._ensure_roles_and_users()
-                self.logger.info("✅ System integrity check passed.")
+                self.logger.info("System integrity check passed.")
             except Exception as e:
-                self.logger.error(f"❌ System integrity check failed: {e}")
+                self.logger.error(f"System integrity check failed: {e}")
                 # لا نوقف النظام، ولكن نسجل الخطأ
     
     def _ensure_settings(self):
@@ -90,16 +90,15 @@ class SystemInitializer:
              db.session.add(ExchangeRate(base_code='ILS', quote_code='USD', rate=1/3.75))
              db.session.add(ExchangeRate(base_code='ILS', quote_code='JOD', rate=1/5.29))
              db.session.commit()
-             self.logger.info("💰 Default currencies initialized.")
+             self.logger.info("Default currencies initialized.")
 
     def _ensure_warehouse(self):
         if not Warehouse.query.first():
             wh = Warehouse(
                 name="المستودع الرئيسي",
                 location="المقر الرئيسي",
-                is_active=True,
-                warehouse_type="MAIN",
-                online_is_default=True
+                warehouse_type=WarehouseType.MAIN.value,
+                is_active=True
             )
             db.session.add(wh)
             db.session.commit()
@@ -224,7 +223,7 @@ class SystemInitializer:
                 user.set_password('admin123')
                 db.session.add(user)
                 db.session.commit()
-                self.logger.info("👤 Default admin user created.")
+                self.logger.info("Default admin user created.")
 
     def _get_roles_config(self, perm_lookup, all_db_perms):
         """تحديد صلاحيات الأدوار"""

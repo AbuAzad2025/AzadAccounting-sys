@@ -1,3 +1,4 @@
+from permissions_config.enums import SystemPermissions
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import login_required, current_user
 from extensions import db
@@ -15,7 +16,7 @@ cost_centers_advanced_bp = Blueprint('cost_centers_advanced', __name__, url_pref
 
 @cost_centers_advanced_bp.route('/dashboard')
 @login_required
-@permission_required('manage_cost_centers')
+@permission_required(SystemPermissions.MANAGE_COST_CENTERS)
 def dashboard():
     total_centers = CostCenter.query.filter_by(is_active=True).count()
     
@@ -78,7 +79,7 @@ def dashboard():
 
 @cost_centers_advanced_bp.route('/alerts')
 @login_required
-@permission_required('manage_cost_centers')
+@permission_required(SystemPermissions.MANAGE_COST_CENTERS)
 def alerts_list():
     cost_center_id = request.args.get('cost_center', type=int)
     alert_type = request.args.get('type')
@@ -103,7 +104,7 @@ def alerts_list():
 
 @cost_centers_advanced_bp.route('/alerts/add', methods=['POST'])
 @login_required
-@permission_required('manage_cost_centers')
+@permission_required(SystemPermissions.MANAGE_COST_CENTERS)
 def add_alert():
     try:
         cost_center_id = request.form.get('cost_center_id', type=int)
@@ -137,7 +138,7 @@ def add_alert():
 
 @cost_centers_advanced_bp.route('/alerts/<int:alert_id>/toggle', methods=['POST'])
 @login_required
-@permission_required('manage_cost_centers')
+@permission_required(SystemPermissions.MANAGE_COST_CENTERS)
 def toggle_alert(alert_id):
     try:
         alert = db.get_or_404(CostCenterAlert, alert_id)
@@ -158,7 +159,7 @@ def toggle_alert(alert_id):
 
 @cost_centers_advanced_bp.route('/allocation-rules')
 @login_required
-@permission_required('manage_cost_centers')
+@permission_required(SystemPermissions.MANAGE_COST_CENTERS)
 def allocation_rules():
     rules = CostAllocationRule.query.order_by(CostAllocationRule.is_active.desc(), CostAllocationRule.code).all()
     
@@ -186,7 +187,7 @@ def allocation_rules():
 
 @cost_centers_advanced_bp.route('/allocation-rules/add', methods=['GET', 'POST'])
 @login_required
-@permission_required('manage_cost_centers')
+@permission_required(SystemPermissions.MANAGE_COST_CENTERS)
 def add_allocation_rule():
     if request.method == 'POST':
         try:
@@ -247,7 +248,7 @@ def add_allocation_rule():
 
 @cost_centers_advanced_bp.route('/allocation-rules/<int:rule_id>/execute', methods=['POST'])
 @login_required
-@permission_required('manage_cost_centers')
+@permission_required(SystemPermissions.MANAGE_COST_CENTERS)
 def execute_allocation_rule(rule_id):
     try:
         rule = db.get_or_404(CostAllocationRule, rule_id)
@@ -316,7 +317,7 @@ def execute_allocation_rule(rule_id):
 
 @cost_centers_advanced_bp.route('/reports/trends')
 @login_required
-@permission_required('manage_cost_centers')
+@permission_required(SystemPermissions.MANAGE_COST_CENTERS)
 def report_trends():
     cost_center_id = request.args.get('cost_center', type=int)
     months = request.args.get('months', 12, type=int)

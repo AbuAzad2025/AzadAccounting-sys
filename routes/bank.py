@@ -1,3 +1,4 @@
+from permissions_config.enums import SystemPermissions
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, send_file
 from flask_login import login_required, current_user
 from extensions import db
@@ -17,7 +18,7 @@ bank_bp = Blueprint('bank', __name__, url_prefix='/bank')
 
 @bank_bp.route('/accounts')
 @login_required
-@permission_required('manage_bank')
+@permission_required(SystemPermissions.MANAGE_BANK)
 def accounts():
     bank_accounts = BankAccount.query.order_by(BankAccount.code).all()
     
@@ -50,7 +51,7 @@ def accounts():
 
 @bank_bp.route('/accounts/add', methods=['GET', 'POST'])
 @login_required
-@permission_required('manage_bank')
+@permission_required(SystemPermissions.MANAGE_BANK)
 def add_account():
     if request.method == 'POST':
         try:
@@ -142,7 +143,7 @@ def add_account():
 
 @bank_bp.route('/accounts/edit/<int:id>', methods=['GET', 'POST'])
 @login_required
-@permission_required('manage_bank')
+@permission_required(SystemPermissions.MANAGE_BANK)
 def edit_account(id):
     account = db.get_or_404(BankAccount, id)
     
@@ -180,7 +181,7 @@ def edit_account(id):
 
 @bank_bp.route('/accounts/<int:id>')
 @login_required
-@permission_required('manage_bank')
+@permission_required(SystemPermissions.MANAGE_BANK)
 def view_account(id):
     account = db.get_or_404(BankAccount, id)
     
@@ -227,7 +228,7 @@ def view_account(id):
 
 @bank_bp.route('/statements')
 @login_required
-@permission_required('manage_bank')
+@permission_required(SystemPermissions.MANAGE_BANK)
 def statements():
     bank_account_id = request.args.get('account', type=int)
     
@@ -247,7 +248,7 @@ def statements():
 
 @bank_bp.route('/statements/upload', methods=['GET', 'POST'])
 @login_required
-@permission_required('manage_bank')
+@permission_required(SystemPermissions.MANAGE_BANK)
 def upload_statement():
     if request.method == 'POST':
         try:
@@ -416,7 +417,7 @@ def upload_statement():
 
 @bank_bp.route('/statements/<int:id>')
 @login_required
-@permission_required('manage_bank')
+@permission_required(SystemPermissions.MANAGE_BANK)
 def view_statement(id):
     statement = db.get_or_404(BankStatement, id)
     
@@ -448,7 +449,7 @@ def view_statement(id):
 
 @bank_bp.route('/reconciliation')
 @login_required
-@permission_required('manage_bank')
+@permission_required(SystemPermissions.MANAGE_BANK)
 def reconciliations():
     bank_account_id = request.args.get('account', type=int)
     status = request.args.get('status')
@@ -471,7 +472,7 @@ def reconciliations():
 
 @bank_bp.route('/reconciliation/new', methods=['GET', 'POST'])
 @login_required
-@permission_required('manage_bank')
+@permission_required(SystemPermissions.MANAGE_BANK)
 def new_reconciliation():
     if request.method == 'POST':
         try:
@@ -519,7 +520,7 @@ def new_reconciliation():
 
 @bank_bp.route('/reconciliation/<int:id>')
 @login_required
-@permission_required('manage_bank')
+@permission_required(SystemPermissions.MANAGE_BANK)
 def view_reconciliation(id):
     reconciliation = db.get_or_404(BankReconciliation, id)
     
@@ -560,7 +561,7 @@ def view_reconciliation(id):
 
 @bank_bp.route('/reconciliation/<int:id>/complete', methods=['POST'])
 @login_required
-@permission_required('manage_bank')
+@permission_required(SystemPermissions.MANAGE_BANK)
 def complete_reconciliation(id):
     try:
         reconciliation = db.get_or_404(BankReconciliation, id)
@@ -594,7 +595,7 @@ def complete_reconciliation(id):
 
 @bank_bp.route('/reports/unmatched')
 @login_required
-@permission_required('manage_bank')
+@permission_required(SystemPermissions.MANAGE_BANK)
 def report_unmatched():
     bank_account_id = request.args.get('account', type=int)
     date_from = request.args.get('date_from')
@@ -641,7 +642,7 @@ def report_unmatched():
 
 @bank_bp.route('/reports/aged')
 @login_required
-@permission_required('manage_bank')
+@permission_required(SystemPermissions.MANAGE_BANK)
 def report_aged():
     bank_account_id = request.args.get('account', type=int)
     
@@ -695,7 +696,7 @@ def report_aged():
 
 @bank_bp.route('/reports/summary')
 @login_required
-@permission_required('manage_bank')
+@permission_required(SystemPermissions.MANAGE_BANK)
 def report_summary():
     date_from = request.args.get('date_from')
     date_to = request.args.get('date_to')
@@ -747,7 +748,7 @@ def report_summary():
 
 @bank_bp.route('/api/auto-match/<int:bank_account_id>', methods=['POST'])
 @login_required
-@permission_required('manage_bank')
+@permission_required(SystemPermissions.MANAGE_BANK)
 def auto_match(bank_account_id):
     try:
         bank_account = db.get_or_404(BankAccount, bank_account_id)

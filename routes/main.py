@@ -35,6 +35,7 @@ from models import (
 from models import convert_amount, fx_rate
 import utils
 from reports import sales_report, ar_aging_report
+from permissions_config.enums import SystemPermissions
 
 main_bp = Blueprint("main", __name__, template_folder="templates")
 
@@ -167,7 +168,7 @@ def dashboard():
         except Exception:
             return value
 
-    if _has_perm("manage_sales"):
+    if _has_perm(SystemPermissions.MANAGE_SALES):
         cache_key_recent = f'dashboard_recent_sales_{today}'
         recent_sales = cache.get(cache_key_recent)
         if recent_sales is None:
@@ -676,9 +677,9 @@ def dashboard():
     general_alerts = [a for a in dashboard_alerts if a.get("category") != "الشيكات"]
 
     recent_services_count = 0
-    if _has_perm("manage_service") or _has_perm("view_service"):
+    if _has_perm(SystemPermissions.MANAGE_SERVICE) or _has_perm(SystemPermissions.VIEW_SERVICE):
         q = ServiceRequest.query
-        if not any(_has_perm(c) for c in ("manage_customers", "manage_sales", "manage_users")):
+        if not any(_has_perm(c) for c in (SystemPermissions.MANAGE_CUSTOMERS, SystemPermissions.MANAGE_SALES, SystemPermissions.MANAGE_USERS)):
             q = q.filter_by(mechanic_id=current_user.id)
         done_statuses = ("COMPLETED", "CANCELLED", "CLOSED", "DELIVERED", "FINISHED")
         q = q.filter(~ServiceRequest.status.in_(done_statuses))
@@ -687,7 +688,7 @@ def dashboard():
     recent_notes = []
     service_metrics = {"day_labels": [], "day_counts": []}
     customer_metrics = {}
-    if _has_perm("view_reports"):
+    if _has_perm(SystemPermissions.VIEW_REPORTS):
         day_expr = func.date(ServiceRequest.start_time)
         rows = (
             db.session.query(day_expr.label("day"), func.count(ServiceRequest.id).label("cnt"))
@@ -746,7 +747,7 @@ def dashboard():
 
 @main_bp.route("/backup_db", methods=["GET"], endpoint="backup_db")
 @login_required
-# @utils.permission_required("backup_database")  # Commented out - function not available
+@utils.permission_required(SystemPermissions.BACKUP_DATABASE)
 def backup_db():
     is_prod = (current_app.config.get("ENV") == "production" or current_app.config.get("FLASK_ENV") == "production")
     if is_prod and not utils.is_super():
@@ -770,7 +771,7 @@ def backup_db():
 
 @main_bp.route("/restore_db", methods=["GET", "POST"], endpoint="restore_db")
 @login_required
-# @utils.permission_required("restore_database")  # Commented out - function not available
+@utils.permission_required(SystemPermissions.RESTORE_DATABASE)
 def restore_db():
     is_prod = (current_app.config.get("ENV") == "production" or current_app.config.get("FLASK_ENV") == "production")
     if is_prod and not utils.is_super():

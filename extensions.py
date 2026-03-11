@@ -39,7 +39,7 @@ except Exception:
 
 try:
     from colorama import init as colorama_init, Fore, Style
-    colorama_init(autoreset=True)
+    # colorama_init(autoreset=True) # DISABLED to prevent UnicodeEncodeError on Windows
 except Exception:
     class _Fore:
         BLUE = ""; GREEN = ""; YELLOW = ""; RED = ""

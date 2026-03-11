@@ -1,4 +1,5 @@
 
+from permissions_config.enums import SystemPermissions
 from flask import Blueprint, render_template, request, redirect, url_for, flash, abort
 from flask_login import login_required, current_user
 from sqlalchemy.exc import IntegrityError
@@ -47,7 +48,7 @@ def _group_permissions():
 
 @roles_bp.route("/", methods=["GET"], endpoint="list_roles")
 @login_required
-@utils.permission_required("manage_roles")
+@utils.permission_required(SystemPermissions.MANAGE_ROLES)
 def list_roles():
     q = Role.query
     search = (request.args.get("search") or "").strip()
@@ -59,7 +60,7 @@ def list_roles():
 
 @roles_bp.route("/create", methods=["GET", "POST"], endpoint="create_role")
 @login_required
-@utils.permission_required("manage_roles")
+@utils.permission_required(SystemPermissions.MANAGE_ROLES)
 def create_role():
     form = RoleForm()
     all_permissions = _group_permissions() or {}
@@ -104,7 +105,7 @@ def create_role():
 
 @roles_bp.route("/<int:role_id>/edit", methods=["GET", "POST"], endpoint="edit_role")
 @login_required
-@utils.permission_required("manage_roles")
+@utils.permission_required(SystemPermissions.MANAGE_ROLES)
 def edit_role(role_id):
     role = _get_or_404(Role, role_id)
     is_protected = _is_protected_role_name(role.name)
@@ -156,7 +157,7 @@ def edit_role(role_id):
 
 @roles_bp.route("/<int:role_id>/delete", methods=["POST"], endpoint="delete_role")
 @login_required
-@utils.permission_required("manage_roles")
+@utils.permission_required(SystemPermissions.MANAGE_ROLES)
 def delete_role(role_id):
     role = _get_or_404(Role, role_id)
     if (role.name or "").strip().lower() == "super_admin":

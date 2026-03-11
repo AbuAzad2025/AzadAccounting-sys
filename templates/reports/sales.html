@@ -215,12 +215,16 @@
     {% endif %}
   </td>
   <td class="text-center">
-    {% if sale.status.value == 'CONFIRMED' %}
-    <span class="badge bg-success">مؤكد</span>
-    {% elif sale.status.value == 'PENDING' %}
-    <span class="badge bg-warning">معلق</span>
-    {% elif sale.status.value == 'CANCELLED' %}
-    <span class="badge bg-danger">ملغي</span>
+    {% if sale.status.value == SaleStatus.CONFIRMED.value %}
+    <span class="badge bg-success">{{ SaleStatus.CONFIRMED.label }}</span>
+    {% elif sale.status.value == SaleStatus.DRAFT.value %}
+    <span class="badge bg-warning">{{ SaleStatus.DRAFT.label }}</span>
+    {% elif sale.status.value == SaleStatus.CANCELLED.value %}
+    <span class="badge bg-danger">{{ SaleStatus.CANCELLED.label }}</span>
+    {% elif sale.status.value == SaleStatus.REFUNDED.value %}
+    <span class="badge bg-secondary">{{ SaleStatus.REFUNDED.label }}</span>
+    {% elif sale.status.value == SaleStatus.RETURNED.value %}
+    <span class="badge bg-dark">{{ SaleStatus.RETURNED.label }}</span>
     {% else %}
     <span class="badge bg-secondary">{{ sale.status.value }}</span>
     {% endif %}

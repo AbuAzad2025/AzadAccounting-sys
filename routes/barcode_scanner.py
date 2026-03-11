@@ -11,6 +11,7 @@ from extensions import db
 from models import Product, ProductCategory, Supplier, Warehouse, StockLevel, ProductCondition
 import utils
 from utils import permission_required
+from permissions_config.enums import SystemPermissions
 from barcodes import normalize_barcode, generate_barcode_image
 from datetime import datetime, timezone
 import json
@@ -66,6 +67,7 @@ def auto_assign_barcodes():
 
 @barcode_scanner_bp.route("/", methods=["GET"], endpoint="index")
 @login_required
+@permission_required(SystemPermissions.USE_SCANNER)
 def scanner_index():
     """صفحة ماسح الباركود الرئيسية"""
     return render_template("barcode_scanner/index.html")
@@ -73,6 +75,7 @@ def scanner_index():
 
 @barcode_scanner_bp.route("/scan", methods=["POST"], endpoint="scan_barcode")
 @login_required
+@permission_required(SystemPermissions.USE_SCANNER)
 def scan_barcode():
     """مسح الباركود والبحث عن المنتج"""
     try:
@@ -753,7 +756,7 @@ def search_products():
 
 @barcode_scanner_bp.route("/auto-assign", methods=["POST"], endpoint="auto_assign_barcodes")
 @login_required
-@permission_required("manage_warehouses")
+@permission_required(SystemPermissions.MANAGE_WAREHOUSES)
 def auto_assign_barcodes_route():
     """إعطاء باركود فريد لكل منتج بدون باركود"""
     try:
@@ -830,7 +833,7 @@ def barcode_stats():
 
 @barcode_scanner_bp.route("/bulk-import", methods=["POST"], endpoint="bulk_import_products")
 @login_required
-@permission_required("manage_warehouses")
+@permission_required(SystemPermissions.MANAGE_WAREHOUSES)
 def bulk_import_products():
     """استيراد جماعي للمنتجات بالباركود مع دعم الحقول الديناميكية"""
     import logging

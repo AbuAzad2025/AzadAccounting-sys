@@ -5,6 +5,7 @@ import csv
 import hashlib
 import io
 import json
+import os
 import re
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
@@ -17,6 +18,7 @@ from flask_login import current_user, login_required
 from flask_mail import Message
 from sqlalchemy import case, func, select, or_, text
 from sqlalchemy.orm.attributes import set_committed_value
+from constants import DEFAULT_CURRENCY
 from extensions import cache
 
 try:
@@ -203,16 +205,20 @@ def init_app(app):
         "status_label": status_label,
     })
 
-    try:
-        rc = redis.StrictRedis.from_url(
-            app.config.get("REDIS_URL", "redis://localhost:6379/0"),
-            decode_responses=True,
-        )
-        if getattr(rc, "ping", None):
-            rc.ping()
-        redis_client = rc
-    except Exception:
+    skip_redis = str(os.getenv("SKIP_REDIS", "")).strip().lower() in {"1", "true", "yes", "on"}
+    if skip_redis:
         redis_client = None
+    else:
+        try:
+            rc = redis.StrictRedis.from_url(
+                app.config.get("REDIS_URL", "redis://localhost:6379/0"),
+                decode_responses=True,
+            )
+            if getattr(rc, "ping", None):
+                rc.ping()
+            redis_client = rc
+        except Exception:
+            redis_client = None
 
     def _acl_ctx():
         def can(code: str) -> bool:
@@ -1625,7 +1631,7 @@ def _install_accounting_listeners():
         if not sale:
             return
         paid = Decimal("0.00")
-        sale_curr = (getattr(sale, "currency", None) or "ILS").upper()
+        sale_curr = (getattr(sale, "currency", None) or DEFAULT_CURRENCY).upper()
         from models import convert_amount as _convert_amount
         for p in sale.payments or []:
             if getattr(p, "status", None) == PaymentStatus.COMPLETED.value:
@@ -2529,7 +2535,7 @@ def create_tax_entry(
             base_amount=base_amount,
             tax_amount=tax_amount,
             total_amount=total_amount,
-            currency=kwargs.get('currency', 'ILS'),
+            currency=kwargs.get('currency', DEFAULT_CURRENCY),
             fiscal_year=now.year,
             fiscal_month=now.month,
             tax_period=now.strftime('%Y-%m'),
@@ -2673,3 +2679,11 @@ def check_ip_allowed(ip: str) -> Dict[str, Any]:
             pass
     
     return {'allowed': True, 'reason': 'مسموح'}
+
+
+def serialize_enum(enum_cls):
+    """Return a dict of {name: value} for an Enum class."""
+    try:
+        return {name: member.value for name, member in enum_cls.__members__.items()}
+    except Exception:
+        return {}

@@ -104,6 +104,10 @@
     $(document).on('click', '.btn-delete', function (e) {
       e.preventDefault();
       var $form = $(this).closest('form'); if (!$form.length) return;
+      if (typeof Swal === 'undefined') {
+        $form.trigger('submit');
+        return;
+      }
       Swal.fire({ icon: 'warning', title: 'تأكيد الحذف', text: 'سيتم حذف السجل نهائيًا', showCancelButton: true, confirmButtonText: 'احذف' })
       .then(function (r) { if (r.isConfirmed) $form.trigger('submit'); });
     });
