@@ -1734,8 +1734,8 @@ if __name__ == '__main__':
         host = os.environ.get("HOST") or app.config.get("HOST") or "0.0.0.0"
         port = int(os.environ.get("PORT") or app.config.get("PORT") or 5000)
         print(f"Starting server on {host}:{port}...")
-        app.run(debug=bool(app.config.get("DEBUG", False)), host=host, port=port, use_reloader=False)
-        print("Server stopped gracefully (app.run returned).")
+        socketio.run(app, debug=bool(app.config.get("DEBUG", False)), host=host, port=port, use_reloader=False)
+        print("Server stopped gracefully (socketio.run returned).")
     except KeyboardInterrupt:
         print("\nServer stopped by user.")
     except Exception as e:

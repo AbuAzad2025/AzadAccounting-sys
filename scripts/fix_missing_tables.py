@@ -19,23 +19,34 @@ def fix_missing_tables():
         
         print(f"Existing tables: {len(existing_tables)}")
         
-        # --- FIX 1: Ensure 'users' table has a Primary Key ---
-        # The error "there is no unique constraint matching given keys for referenced table 'users'"
-        # usually means 'users.id' is not a PK.
-        try:
-            print("🔍 Checking 'users' table constraints...")
-            pk_check = inspector.get_pk_constraint('users')
-            if not pk_check or not pk_check.get('constrained_columns'):
-                print("⚠️ 'users' table missing PRIMARY KEY! Fixing...")
-                # Try to add PK. This might fail if duplicates exist, but we assume user ids are unique from import.
-                db.session.execute(text("ALTER TABLE users ADD PRIMARY KEY (id);"))
-                db.session.commit()
-                print("✅ Added PRIMARY KEY to 'users'.")
-            else:
-                print(f"✅ 'users' table has PK: {pk_check.get('constrained_columns')}")
-        except Exception as e:
-            print(f"⚠️ Warning checking users PK: {e}")
-            db.session.rollback()
+        # --- FIX 1: Ensure Critical Tables have Primary Keys ---
+        # List of tables that are referenced by Foreign Keys and MUST have a PK
+        critical_tables = ['users', 'products', 'warehouses', 'customers', 'suppliers']
+        
+        for table_name in critical_tables:
+            if table_name not in existing_tables:
+                continue
+                
+            try:
+                print(f"🔍 Checking '{table_name}' table constraints...")
+                pk_check = inspector.get_pk_constraint(table_name)
+                
+                # If no PK or empty constrained columns
+                if not pk_check or not pk_check.get('constrained_columns'):
+                    print(f"⚠️ '{table_name}' table missing PRIMARY KEY! Fixing...")
+                    try:
+                        # Try to add PK on 'id' column
+                        db.session.execute(text(f"ALTER TABLE {table_name} ADD PRIMARY KEY (id);"))
+                        db.session.commit()
+                        print(f"✅ Added PRIMARY KEY to '{table_name}'.")
+                    except Exception as pk_err:
+                        print(f"❌ Failed to add PK to '{table_name}': {pk_err}")
+                        db.session.rollback()
+                else:
+                    print(f"✅ '{table_name}' table has PK: {pk_check.get('constrained_columns')}")
+            except Exception as e:
+                print(f"⚠️ Warning checking {table_name} PK: {e}")
+                db.session.rollback()
 
         # --- FIX 2: Create Missing Tables ---
         try:
