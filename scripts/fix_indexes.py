@@ -2,6 +2,7 @@
 import os
 import sys
 from sqlalchemy import create_engine, text, MetaData, inspect
+from sqlalchemy.schema import CreateIndex, CreateConstraint
 from alembic.migration import MigrationContext
 from alembic.autogenerate import compare_metadata
 from alembic.operations import Operations
@@ -119,10 +120,9 @@ def fix_indexes_and_constraints():
                     else:
                         print(f"➕ Adding Index: {expected_name} on table {table_name}...", end=" ")
                         try:
-                            col_str = ", ".join([f'"{c}"' for c in col_names])
-                            unique_str = "UNIQUE" if index.unique else ""
-                            sql = f'CREATE {unique_str} INDEX IF NOT EXISTS "{expected_name}" ON "{table_name}" ({col_str});'
-                            connection.execute(text(sql))
+                            # Use SQLAlchemy to generate correct DDL for functional/partial indexes
+                            # This handles func.lower(), postgresql_where, etc. correctly
+                            connection.execute(CreateIndex(index))
                             connection.commit()
                             print("✅ Done.")
                             stats['added'] += 1
@@ -296,29 +296,59 @@ def fix_indexes_and_constraints():
                         new_str = str(new_type).upper()
                         
                         # 1. Check String Expansion
-                        if 'VARCHAR' in existing_str and ('VARCHAR' in new_str or 'STRING' in new_str):
+                        # Special handling for Enum(native_enum=False) which is effectively VARCHAR
+                        is_new_enum_varchar = False
+                        if hasattr(new_type, 'native_enum') and new_type.native_enum is False:
+                             is_new_enum_varchar = True
+                        
+                        if 'VARCHAR' in existing_str and (
+                            'VARCHAR' in new_str or 'STRING' in new_str or is_new_enum_varchar
+                        ):
                             import re
                             match_old = re.search(r'\(.*?(\d+).*?\)', existing_str)
                             len_old = int(match_old.group(1)) if match_old else 0
                             
-                            match_new = re.search(r'\(.*?(\d+).*?\)', new_str)
-                            len_new = int(match_new.group(1)) if match_new else 0
+                            # If it's Enum(native_enum=False), we need to find max length of values
+                            len_new = 0
+                            if is_new_enum_varchar:
+                                if hasattr(new_type, 'enums'):
+                                     len_new = max(len(e) for e in new_type.enums) if new_type.enums else 0
+                                elif hasattr(new_type, 'length'):
+                                     len_new = new_type.length
+                            else:
+                                match_new = re.search(r'\(.*?(\d+).*?\)', new_str)
+                                len_new = int(match_new.group(1)) if match_new else 0
                             
-                            if len_new > len_old:
+                            # If new length is greater, OR if it's just converting to Enum-Varchar wrapper
+                            # we can just run the ALTER because VARCHAR(N) -> VARCHAR(M) where M>=N is safe
+                            if len_new >= len_old:
                                 is_string_expansion = True
                         
-                        # 2. Check Enum Fix (VARCHAR -> Enum or Enum change)
-                        # Often Postgres needs explicit cast for this
-                        if 'ENUM' in new_str and 'VARCHAR' in existing_str:
+                        # 2. Check Enum Fix (VARCHAR -> Native Enum)
+                        if 'ENUM' in new_str and 'VARCHAR' in existing_str and not is_new_enum_varchar:
                              is_enum_fix = True
                              
                     except Exception as e:
+                        print(f"DEBUG: Type check error: {e}")
                         pass
                         
                     if is_string_expansion:
-                        print(f"📏 Expanding Column: {table_name}.{col_name} ({existing_type} -> {new_type})...", end=" ")
+                        # Construct the new type string correctly
+                        new_type_sql = new_type
+                        if is_new_enum_varchar:
+                             # Force it to be VARCHAR(N) for the ALTER statement
+                             # Otherwise SQLAlchemy might try to output ENUM syntax
+                             # We need to find the length
+                             length = 255
+                             if hasattr(new_type, 'length') and new_type.length:
+                                 length = new_type.length
+                             elif hasattr(new_type, 'enums'):
+                                 length = max(len(e) for e in new_type.enums)
+                             new_type_sql = f"VARCHAR({length})"
+
+                        print(f"📏 Expanding Column: {table_name}.{col_name} ({existing_type} -> {new_type_sql})...", end=" ")
                         try:
-                            sql = f'ALTER TABLE "{table_name}" ALTER COLUMN "{col_name}" TYPE {new_type};'
+                            sql = f'ALTER TABLE "{table_name}" ALTER COLUMN "{col_name}" TYPE {new_type_sql};'
                             connection.execute(text(sql))
                             connection.commit()
                             print("✅ Done.")
