@@ -1023,10 +1023,11 @@ def account_statement(customer_id):
         if end_date_arg:
             end_date = datetime.strptime(end_date_arg, "%Y-%m-%d").replace(hour=23, minute=59, second=59)
         else:
-            # Use end of current day to ensure we capture all transactions from today regardless of timezone differences
-            end_date = datetime.now().replace(hour=23, minute=59, second=59)
+            # Fix: Use tomorrow to avoid timezone issues where server time is behind user time
+            # causing today's transactions to be filtered out.
+            end_date = (datetime.now() + timedelta(days=1)).replace(hour=23, minute=59, second=59)
     except Exception:
-        end_date = datetime.now()
+        end_date = datetime.now() + timedelta(days=1)
 
     try:
         from flask import current_app
