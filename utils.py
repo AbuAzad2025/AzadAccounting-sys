@@ -1054,6 +1054,8 @@ def is_super() -> bool:
     try:
         if not getattr(current_user, "is_authenticated", False):
             return False
+        if getattr(current_user, "is_super_role", False):
+            return True
         return bool(getattr(current_user, "is_system_account", False) or getattr(current_user, "username", "") == "__OWNER__")
     except Exception:
         return False

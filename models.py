@@ -1975,7 +1975,7 @@ class User(db.Model, UserMixin, TimestampMixin, AuditMixin):
     def has_permission(self, code: str) -> bool:
         if not code:
             return False
-        if self.is_system or self.role_name_l in {"owner", "developer"}:
+        if self.is_system or self.is_super_role or self.role_name_l in {"owner", "developer"}:
             return True
         from utils import _expand_perms, _get_user_permissions
         targets = {c.strip().lower() for c in _expand_perms(code)}

@@ -364,9 +364,13 @@
         };
         if (!payload.name) { if(typeof showToast!=='undefined'){showToast('الاسم مطلوب', 'success');}else{alert('الاسم مطلوب');}; if (btn) btn.disabled = false; return; }
         try {
+          const csrfToken = document.querySelector('meta[name="csrf-token"]');
+          const headers = { 'Content-Type': 'application/json' };
+          if (csrfToken) headers['X-CSRFToken'] = csrfToken.getAttribute('content');
+          
           const res = await fetch("{{ url_for('api.create_equipment_type') }}", {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: headers,
             body: JSON.stringify(payload)
           });
           const data = await res.json();
