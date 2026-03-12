@@ -17,15 +17,27 @@ def fix_missing_tables():
         inspector = inspect(db.engine)
         existing_tables = inspector.get_table_names()
         
-        # List of critical tables that were reported missing
-        # We will use db.create_all() but restrict it to only create what's missing
-        # effectively, db.create_all() checks existence, but sometimes explicit creation is safer
-        
         print(f"Existing tables: {len(existing_tables)}")
         
-        # Explicitly create tables if they don't exist
-        # This uses SQLAlchemy's metadata to create CREATE TABLE statements
-        # It won't touch existing tables
+        # --- FIX 1: Ensure 'users' table has a Primary Key ---
+        # The error "there is no unique constraint matching given keys for referenced table 'users'"
+        # usually means 'users.id' is not a PK.
+        try:
+            print("🔍 Checking 'users' table constraints...")
+            pk_check = inspector.get_pk_constraint('users')
+            if not pk_check or not pk_check.get('constrained_columns'):
+                print("⚠️ 'users' table missing PRIMARY KEY! Fixing...")
+                # Try to add PK. This might fail if duplicates exist, but we assume user ids are unique from import.
+                db.session.execute(text("ALTER TABLE users ADD PRIMARY KEY (id);"))
+                db.session.commit()
+                print("✅ Added PRIMARY KEY to 'users'.")
+            else:
+                print(f"✅ 'users' table has PK: {pk_check.get('constrained_columns')}")
+        except Exception as e:
+            print(f"⚠️ Warning checking users PK: {e}")
+            db.session.rollback()
+
+        # --- FIX 2: Create Missing Tables ---
         try:
             print("🚀 Running db.create_all() to create missing tables...")
             db.create_all()
@@ -45,8 +57,7 @@ def fix_missing_tables():
         except Exception as e:
             print(f"❌ Error creating tables: {e}")
             
-        # Additional Schema Fixes (Columns that might be missed by create_all if table existed but col didn't)
-        # Check sale_returns again just in case
+        # --- FIX 3: Sale Returns Schema ---
         try:
             print("🔍 Verifying 'sale_returns.return_date'...")
             res = db.session.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='sale_returns' AND column_name='return_date'")).fetchone()
