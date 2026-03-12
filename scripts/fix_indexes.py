@@ -260,7 +260,24 @@ def fix_indexes_and_constraints():
                             print(f"❌ Failed: {e}")
                             connection.rollback()
                     else:
-                        pass # Ignore purely extra indexes for safety
+                        # NEW: Force drop specific "stubborn" indexes that appear as Extra but also Missing in check report
+                        stubborn_indexes = [
+                            'ix_payments_payment_number', 'ix_payments_receipt_number', 
+                            'uq_products_name_global_ci', 'uq_products_name_wh_ci', 
+                            'uq_products_serial_ci', 'uq_products_sku_ci',
+                            'ix_invoices_invoice_number'
+                        ]
+                        if index_name in stubborn_indexes:
+                            print(f"🔨 Force Dropping Stubborn Index: {index_name} on {table_name}...", end=" ")
+                            try:
+                                sql = f'DROP INDEX IF EXISTS "{index_name}";'
+                                connection.execute(text(sql))
+                                connection.commit()
+                                print("✅ Done.")
+                                stats['added'] += 1
+                            except Exception as e:
+                                print(f"❌ Failed: {e}")
+                                connection.rollback()
                 
                 # --- FIX TYPE MISMATCH (Safe Expansion Only & Enum Fixes) ---
                 elif op_type == 'modify_type':
