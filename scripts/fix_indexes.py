@@ -15,6 +15,10 @@ from extensions import db
 def ensure_primary_key(connection, table_name, pk_column='id'):
     """Ensures a table has a primary key on the specified column."""
     try:
+        # Special handling for tables where PK is not 'id'
+        if table_name == 'currencies':
+            pk_column = 'code'
+            
         inspector = inspect(connection)
         pk_constraint = inspector.get_pk_constraint(table_name)
         
@@ -78,15 +82,37 @@ def fix_indexes_and_constraints():
                         if existing_name != expected_name:
                             print(f"🔄 Renaming Index on '{table_name}': '{existing_name}' -> '{expected_name}'...", end=" ")
                             try:
-                                sql = f'ALTER INDEX "{existing_name}" RENAME TO "{expected_name}";'
+                                # Check if target index exists (conflict) and drop it
+                                sql_check = f"SELECT 1 FROM pg_indexes WHERE indexname = '{expected_name}';"
+                                conflict = connection.execute(text(sql_check)).scalar()
+                                if conflict:
+                                    print(f" (Target '{expected_name}' exists, dropping old '{existing_name}' instead)...", end=" ")
+                                    sql = f'DROP INDEX "{existing_name}";'
+                                else:
+                                    sql = f'ALTER INDEX "{existing_name}" RENAME TO "{expected_name}";'
+                                
                                 connection.execute(text(sql))
                                 connection.commit()
                                 print("✅ Done.")
                                 stats['renamed'] += 1
                             except Exception as e:
-                                print(f"❌ Failed: {e}")
-                                stats['errors'] += 1
-                                connection.rollback()
+                                if "already exists" in str(e) or "DuplicateTable" in str(e):
+                                    print(f" (Conflict detected, dropping old '{existing_name}')...", end=" ")
+                                    try:
+                                        connection.rollback()
+                                        sql = f'DROP INDEX "{existing_name}";'
+                                        connection.execute(text(sql))
+                                        connection.commit()
+                                        print("✅ Done (Dropped old).")
+                                        stats['renamed'] += 1
+                                    except Exception as e2:
+                                        print(f"❌ Failed to drop old: {e2}")
+                                        stats['errors'] += 1
+                                        connection.rollback()
+                                else:
+                                    print(f"❌ Failed: {e}")
+                                    stats['errors'] += 1
+                                    connection.rollback()
                         else:
                             # print(f"⏩ Index '{expected_name}' exists. (Skipped)")
                             stats['skipped'] += 1
@@ -130,15 +156,31 @@ def fix_indexes_and_constraints():
                         if existing_name != fk_name:
                             print(f"🔄 Renaming FK on '{table_name}': '{existing_name}' -> '{fk_name}'...", end=" ")
                             try:
+                                # Check if target FK exists (conflict)
+                                # This is harder to check with simple SQL across all tables, but we can try-catch
                                 sql = f'ALTER TABLE "{table_name}" RENAME CONSTRAINT "{existing_name}" TO "{fk_name}";'
                                 connection.execute(text(sql))
                                 connection.commit()
                                 print("✅ Done.")
                                 stats['renamed'] += 1
                             except Exception as e:
-                                print(f"❌ Failed: {e}")
-                                stats['errors'] += 1
-                                connection.rollback()
+                                if "already exists" in str(e):
+                                    print(f" (Target '{fk_name}' exists, dropping old '{existing_name}' instead)...", end=" ")
+                                    connection.rollback()
+                                    try:
+                                        sql = f'ALTER TABLE "{table_name}" DROP CONSTRAINT "{existing_name}";'
+                                        connection.execute(text(sql))
+                                        connection.commit()
+                                        print("✅ Done (Dropped old).")
+                                        stats['renamed'] += 1
+                                    except Exception as e2:
+                                        print(f"❌ Failed to drop old: {e2}")
+                                        stats['errors'] += 1
+                                        connection.rollback()
+                                else:
+                                    print(f"❌ Failed: {e}")
+                                    stats['errors'] += 1
+                                    connection.rollback()
                         else:
                             stats['skipped'] += 1
                     else:
