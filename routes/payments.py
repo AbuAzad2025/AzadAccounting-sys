@@ -2005,21 +2005,57 @@ def delete_split(split_id):
         current_app.logger.exception("payment.split_delete_failed", extra={"event": "payments.split.error", "split_id": split_id})
         return jsonify(status="error", message=str(e)), 400
 
-@payments_bp.route("/<int:payment_id>", methods=["GET"], endpoint="view_payment")
+@payments_bp.route("/<string:payment_id>", methods=["GET"], endpoint="view_payment")
 @login_required
-def view_payment(payment_id: int):
+def view_payment(payment_id: str):
     """عرض تفاصيل الدفعة"""
-    payment = _safe_get_payment(payment_id, all_rels=True)
+    # معالجة المعرفات المركبة (مثل 309_split_233)
+    real_id = payment_id
+    split_id = None
+    
+    if isinstance(payment_id, str) and '_split_' in payment_id:
+        try:
+            parts = payment_id.split('_split_')
+            real_id = int(parts[0])
+            split_id = int(parts[1])
+        except (ValueError, IndexError):
+            pass
+    
+    try:
+        real_id = int(real_id)
+    except (ValueError, TypeError):
+        if _wants_json():
+            return jsonify(error="invalid_id", message="معرف السند غير صالح"), 400
+        flash("معرف السند غير صالح", "error")
+        return redirect(url_for("payments.index"))
+
+    payment = _safe_get_payment(real_id, all_rels=True)
     if not payment:
         if _wants_json():
             return jsonify(error="not_found", message="السند غير موجود"), 404
         flash("السند غير موجود", "error")
         return redirect(url_for("payments.index"))
     
+    # إذا كان المطلوب جزء معين من الدفعة، نقوم بتجهيزه للعرض
+    display_payment = payment
+    if split_id:
+        # البحث عن الجزء المطلوب
+        target_split = None
+        for split in payment.splits:
+            if split.id == split_id:
+                target_split = split
+                break
+        
+        if target_split:
+            # إنشاء كائن مؤقت للعرض يمثل الجزء
+            # نحتاج لاستيراد SplitPaymentWrapper إذا لم يكن متاحاً في النطاق
+            # لكن للتبسيط سنقوم بتمرير الدفعة الأصلية مع تحديد الجزء المطلوب في القالب
+            pass
+
     if _wants_json():
         return jsonify(payment=_serialize_payment(payment, full=True))
     
-    return render_template("payments/view.html", payment=payment)
+    return render_template("payments/view.html", payment=payment, highlight_split_id=split_id)
 
 @payments_bp.route("/<int:payment_id>/status", methods=["POST"], endpoint="update_payment_status")
 @login_required
@@ -2062,12 +2098,39 @@ def update_payment_status(payment_id: int):
         return jsonify(error="update_failed", message=str(e)), 500
 
 
-@payments_bp.route("/<int:payment_id>/receipt", methods=["GET"], endpoint="payment_receipt")
+@payments_bp.route("/<string:payment_id>/receipt", methods=["GET"], endpoint="payment_receipt")
 @login_required
-def view_receipt(payment_id: int):
-    payment = _safe_get_payment(payment_id, all_rels=True)
+def view_receipt(payment_id: str):
+    # معالجة المعرفات المركبة (مثل 309_split_233)
+    real_id = payment_id
+    split_id = None
+    
+    if isinstance(payment_id, str) and '_split_' in payment_id:
+        try:
+            parts = payment_id.split('_split_')
+            real_id = int(parts[0])
+            split_id = int(parts[1])
+        except (ValueError, IndexError):
+            pass
+    
+    try:
+        real_id = int(real_id)
+    except (ValueError, TypeError):
+        return _ok_not_found("رقم السند غير صالح")
+
+    payment = _safe_get_payment(real_id, all_rels=True)
     if not payment:
         return _ok_not_found()
+    
+    # إذا كان هناك جزء محدد، نحاول تجهيز بيانات الإيصال له
+    display_payment = payment
+    if split_id:
+        target_split = next((s for s in payment.splits if s.id == split_id), None)
+        if target_split:
+            # هنا يمكننا إنشاء كائن مؤقت يحمل بيانات الجزء فقط للطباعة
+            # لكن حالياً سنطبع الدفعة الأصلية مع تمرير split_id للقالب لتمييزه
+            pass
+
     sale_info = _sale_info_dict(payment.sale) if getattr(payment, "sale_id", None) else None
     if _wants_json():
         payload = _serialize_payment_min(payment)
@@ -2078,12 +2141,25 @@ def view_receipt(payment_id: int):
     use_simple = request.args.get('simple', '').strip().lower() in ('1', 'true', 'yes')
     template_name = "payments/receipt_simple.html" if use_simple else "payments/receipt.html"
     
-    return render_template(template_name, payment=payment, now=_utc_now_naive(), sale_info=sale_info)
+    return render_template(template_name, payment=payment, now=_utc_now_naive(), sale_info=sale_info, split_id=split_id)
 
-@payments_bp.route("/<int:payment_id>/receipt/download", methods=["GET"], endpoint="download_receipt")
+@payments_bp.route("/<string:payment_id>/receipt/download", methods=["GET"], endpoint="download_receipt")
 @login_required
-def download_receipt(payment_id: int):
-    payment = _safe_get_payment(payment_id, all_rels=False)
+def download_receipt(payment_id: str):
+    # معالجة المعرفات المركبة (مثل 309_split_233)
+    real_id = payment_id
+    if isinstance(payment_id, str) and '_split_' in payment_id:
+        try:
+            real_id = int(payment_id.split('_split_')[0])
+        except (ValueError, IndexError):
+            pass
+    
+    try:
+        real_id = int(real_id)
+    except (ValueError, TypeError):
+        return _ok_not_found("رقم السند غير صالح")
+
+    payment = _safe_get_payment(real_id, all_rels=False)
     if not payment:
         return _ok_not_found("السند غير موجود للتنزيل")
     try:
