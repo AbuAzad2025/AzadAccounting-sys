@@ -135,10 +135,75 @@ def fix_final_schema_v8():
                     print(f"❌ Failed: {e}")
                     connection.rollback()
 
-            # 3. Fix Extra Indexes (Cleanup)
-            # If there are indexes that are truly extra (e.g. auto-generated names that conflict)
-            # We rely on check_schema_drift to report them, but here we can do a cleanup of known bad patterns
-            # e.g. "ix_table_col_1" vs "ix_table_col"
+            # 3. Fix Extra Indexes (Aggressive Cleanup)
+            print("\n🧹 Cleaning up OLD/WARNING indexes (Aggressive)...")
+            
+            # List of indexes reported as WARNING (Extra) by check_schema_drift
+            # These are indexes that exist in DB but are NOT in the models/code
+            # We will DROP them to ensure perfect sync.
+            
+            indexes_to_drop = [
+                ('checks', 'ix_checks_check_date'),
+                ('checks', 'ix_checks_check_date_status'),
+                ('checks', 'ix_checks_customer_id_date'),
+                ('checks', 'ix_checks_date_pending'),
+                ('checks', 'ix_checks_is_archived_status'),
+                ('checks', 'ix_checks_partner_id_date'),
+                ('checks', 'ix_checks_payment_id_status'),
+                ('checks', 'ix_checks_status_due_date_direction'),
+                ('checks', 'ix_checks_supplier_id_date'),
+                ('customers', 'ix_customers_category'),
+                ('customers', 'ix_customers_is_active'),
+                ('customers', 'ix_customers_is_archived'),
+                ('customers', 'ix_customers_is_online'),
+                ('customers', 'ix_customers_lower_email'),
+                ('customers', 'ix_customers_name'),
+                ('customers', 'ix_customers_phone'),
+                ('invoices', 'ix_invoices_customer_date'),
+                ('partners', 'ix_partners_currency_balance'),
+                ('partners', 'ix_partners_is_archived_balance'),
+                ('partners', 'ix_partners_name_phone'),
+                ('partners', 'ix_partners_share_percentage'),
+                ('payments', 'ix_payments_currency'),
+                ('payments', 'ix_payments_customer_date'),
+                ('payments', 'ix_payments_customer_date_completed'),
+                ('payments', 'ix_payments_date'),
+                ('payments', 'ix_payments_date_active'),
+                ('payments', 'ix_payments_direction'),
+                ('payments', 'ix_payments_partner_date'),
+                ('payments', 'ix_payments_status'),
+                ('payments', 'ix_payments_supplier_date'),
+                ('sales', 'ix_sales_customer_date'),
+                ('sales', 'ix_sales_date'),
+                ('service_requests', 'ix_service_received_active'),
+                ('service_requests', 'ix_service_requests_customer_date'),
+                ('service_requests', 'ix_service_requests_customer_status_date'),
+                ('service_requests', 'ix_service_requests_mechanic_status'),
+                ('service_requests', 'ix_service_requests_received_status'),
+                ('service_requests', 'ix_service_requests_status_created_at'),
+                ('service_requests', 'ix_service_requests_status_priority'),
+                ('stock_levels', 'ix_stock_levels_prod'),
+                ('stock_levels', 'ix_stock_levels_wh'),
+                ('stock_levels', 'ix_stock_levels_wh_prod'),
+                ('suppliers', 'ix_suppliers_currency'),
+                ('suppliers', 'ix_suppliers_lower_email'),
+                ('suppliers', 'ix_suppliers_name'),
+                ('users', 'ix_users_is_active'),
+                ('users', 'ix_users_last_login'),
+                ('users', 'ix_users_last_seen'),
+                ('users', 'ix_users_lower_email'),
+                ('users', 'ix_users_lower_username')
+            ]
+            
+            for table_name, idx_name in indexes_to_drop:
+                 print(f"   Dropping extra index: {idx_name} on {table_name}...", end=" ")
+                 try:
+                     connection.execute(text(f'DROP INDEX IF EXISTS "{idx_name}";'))
+                     connection.commit()
+                     print("✅ Dropped.")
+                 except Exception as e:
+                     print(f"❌ Failed: {e}")
+                     connection.rollback()
             
             print("\n🧹 Final Cleanup Complete.")
             
