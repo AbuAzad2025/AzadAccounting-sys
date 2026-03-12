@@ -307,6 +307,7 @@ class PaymentProgress(str, enum.Enum):
     PAID = "PAID"
     REFUNDED = "REFUNDED"
     COMPLETED = "COMPLETED"  # Added for compatibility
+    CANCELLED = "CANCELLED"  # Added to support cancellation checks
 
 
 class TimesheetStatus(str, enum.Enum):
