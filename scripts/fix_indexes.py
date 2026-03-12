@@ -190,6 +190,57 @@ def fix_indexes_and_constraints():
                             print(f"❌ Failed: {e}")
                             stats['errors'] += 1
                             connection.rollback()
+                
+                # --- FIX TYPE MISMATCH (Safe Expansion Only) ---
+                elif op_type == 'modify_type':
+                    # ('modify_type', schema, table_name, col_name, existing_meta, existing_type, new_type)
+                    table_name = change[2]
+                    col_name = change[3]
+                    existing_type = change[5]
+                    new_type = change[6]
+                    
+                    # Only auto-fix String expansion (e.g. VARCHAR(20) -> VARCHAR(50))
+                    # Check if both are String/VARCHAR types
+                    is_string_expansion = False
+                    try:
+                        from sqlalchemy import String, VARCHAR
+                        # Use string representation to compare types safely
+                        existing_str = str(existing_type).upper()
+                        new_str = str(new_type).upper()
+                        
+                        if 'VARCHAR' in existing_str and ('VARCHAR' in new_str or 'STRING' in new_str):
+                            # Extract lengths
+                            import re
+                            # For existing_str: VARCHAR(20) or VARCHAR(length=20)
+                            match_old = re.search(r'\(.*?(\d+).*?\)', existing_str)
+                            len_old = int(match_old.group(1)) if match_old else 0
+                            
+                            # For new_type: String(length=50) -> VARCHAR(50)
+                            match_new = re.search(r'\(.*?(\d+).*?\)', new_str)
+                            len_new = int(match_new.group(1)) if match_new else 0
+                            
+                            if len_new > len_old:
+                                is_string_expansion = True
+                    except Exception as e:
+                        # print(f"DEBUG: Type check failed: {e}")
+                        pass
+                        
+                    if is_string_expansion:
+                        print(f"📏 Expanding Column: {table_name}.{col_name} ({existing_type} -> {new_type})...", end=" ")
+                        try:
+                            # Postgres syntax for altering column type
+                            # We need the raw SQL type string for the new type (e.g. VARCHAR(50))
+                            # SQLAlchemy's compile() is best, but simple str() usually works for basic types
+                            sql = f'ALTER TABLE "{table_name}" ALTER COLUMN "{col_name}" TYPE {new_type};'
+                            connection.execute(text(sql))
+                            connection.commit()
+                            print("✅ Done.")
+                            stats['added'] += 1
+                        except Exception as e:
+                            print(f"❌ Failed: {e}")
+                            stats['errors'] += 1
+                            connection.rollback()
+
 
             print("\n" + "="*50)
             print("📊 SELF-HEALING REPORT")
