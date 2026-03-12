@@ -2,7 +2,7 @@
 import os
 import sys
 from sqlalchemy import create_engine, text, MetaData, inspect
-from sqlalchemy.schema import CreateIndex, CreateConstraint
+from sqlalchemy.schema import CreateIndex
 from alembic.migration import MigrationContext
 from alembic.autogenerate import compare_metadata
 from alembic.operations import Operations
