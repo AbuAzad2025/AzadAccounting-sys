@@ -12,16 +12,36 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app import create_app
 from extensions import db
 
+def ensure_primary_key(connection, table_name, pk_column='id'):
+    """Ensures a table has a primary key on the specified column."""
+    try:
+        inspector = inspect(connection)
+        pk_constraint = inspector.get_pk_constraint(table_name)
+        
+        if not pk_constraint or not pk_constraint.get('constrained_columns'):
+            print(f"   ⚠️  Target table '{table_name}' has no PK. Fixing...", end=" ")
+            # Check if index exists on id to avoid duplication or conflict
+            # In postgres, adding PK automatically creates unique index
+            connection.execute(text(f'ALTER TABLE "{table_name}" ADD PRIMARY KEY ("{pk_column}");'))
+            connection.commit()
+            print("✅ PK Added.")
+            return True
+    except Exception as e:
+        print(f"   ❌ Failed to add PK to '{table_name}': {e}")
+        connection.rollback()
+        return False
+    return True
+
 def fix_indexes_and_constraints():
     app = create_app()
     with app.app_context():
-        print(f"🔧 Starting STRICT Schema Synchronization on: {app.config['SQLALCHEMY_DATABASE_URI']}")
+        print(f"🔧 Starting SELF-HEALING Schema Synchronization on: {app.config['SQLALCHEMY_DATABASE_URI']}")
         
         engine = db.engine
         metadata = db.metadata
         inspector = inspect(engine)
         
-        stats = {'added': 0, 'renamed': 0, 'skipped': 0, 'errors': 0}
+        stats = {'added': 0, 'renamed': 0, 'skipped': 0, 'errors': 0, 'pks_fixed': 0}
 
         with engine.connect() as connection:
             context = MigrationContext.configure(connection)
@@ -31,7 +51,7 @@ def fix_indexes_and_constraints():
                 print("✅ Schema is perfectly IN SYNC. No actions needed.")
                 return
 
-            print(f"🔍 Found {len(diff)} discrepancies. Analyzing...\n")
+            print(f"🔍 Found {len(diff)} discrepancies. Applying fixes safely...\n")
             
             for change in diff:
                 op_type = change[0]
@@ -68,7 +88,7 @@ def fix_indexes_and_constraints():
                                 stats['errors'] += 1
                                 connection.rollback()
                         else:
-                            print(f"⏩ Index '{expected_name}' exists and matches. (Skipped)")
+                            # print(f"⏩ Index '{expected_name}' exists. (Skipped)")
                             stats['skipped'] += 1
                     else:
                         print(f"➕ Adding Index: {expected_name} on table {table_name}...", end=" ")
@@ -89,11 +109,10 @@ def fix_indexes_and_constraints():
                 elif op_type == 'add_fk':
                     fk_constraint = change[1]
                     table_name = fk_constraint.table.name
-                    expected_name = fk_constraint.name
+                    fk_name = fk_constraint.name
                     
-                    if not expected_name:
-                         # Skip unnamed FKs or generate standard name
-                         expected_name = f"fk_{table_name}_{fk_constraint.column_keys[0]}_{fk_constraint.elements[0].column.table.name}"
+                    if not fk_name:
+                         fk_name = f"fk_{table_name}_{fk_constraint.column_keys[0]}_{fk_constraint.elements[0].column.table.name}"
 
                     # Check existing FKs
                     existing_fks = inspector.get_foreign_keys(table_name)
@@ -108,11 +127,10 @@ def fix_indexes_and_constraints():
                             break
                     
                     if found_equivalent:
-                        if existing_name != expected_name:
-                            print(f"🔄 Renaming FK on '{table_name}': '{existing_name}' -> '{expected_name}'...", end=" ")
+                        if existing_name != fk_name:
+                            print(f"🔄 Renaming FK on '{table_name}': '{existing_name}' -> '{fk_name}'...", end=" ")
                             try:
-                                # Postgres requires renaming the constraint
-                                sql = f'ALTER TABLE "{table_name}" RENAME CONSTRAINT "{existing_name}" TO "{expected_name}";'
+                                sql = f'ALTER TABLE "{table_name}" RENAME CONSTRAINT "{existing_name}" TO "{fk_name}";'
                                 connection.execute(text(sql))
                                 connection.commit()
                                 print("✅ Done.")
@@ -122,10 +140,9 @@ def fix_indexes_and_constraints():
                                 stats['errors'] += 1
                                 connection.rollback()
                         else:
-                            print(f"⏩ FK '{expected_name}' exists and matches. (Skipped)")
                             stats['skipped'] += 1
                     else:
-                        print(f"🔗 Adding FK: {expected_name} on {table_name}...", end=" ")
+                        print(f"🔗 Adding FK: {fk_name} on {table_name}...", end=" ")
                         try:
                             local_cols_str = ", ".join([f'"{c}"' for c in fk_constraint.column_keys])
                             remote_table = fk_constraint.elements[0].column.table.name
@@ -133,9 +150,12 @@ def fix_indexes_and_constraints():
                             ondelete = f"ON DELETE {fk_constraint.ondelete}" if fk_constraint.ondelete else ""
                             onupdate = f"ON UPDATE {fk_constraint.onupdate}" if fk_constraint.onupdate else ""
                             
+                            # --- CRITICAL FIX: Ensure referenced table has PK ---
+                            ensure_primary_key(connection, remote_table)
+                            
                             sql = f'''
                                 ALTER TABLE "{table_name}" 
-                                ADD CONSTRAINT "{expected_name}" 
+                                ADD CONSTRAINT "{fk_name}" 
                                 FOREIGN KEY ({local_cols_str}) 
                                 REFERENCES "{remote_table}" ({remote_cols_str})
                                 {ondelete} {onupdate};
@@ -149,11 +169,33 @@ def fix_indexes_and_constraints():
                             stats['errors'] += 1
                             connection.rollback()
 
+                # --- FIX UNIQUE CONSTRAINTS ---
+                elif op_type == 'add_constraint':
+                    constraint = change[1]
+                    if hasattr(constraint, 'columns'): 
+                        table_name = constraint.table.name
+                        con_name = constraint.name
+                        if not con_name:
+                            con_name = f"uq_{table_name}_{'_'.join([c.name for c in constraint.columns])}"
+                            
+                        print(f"🔒 Adding Unique Constraint: {con_name} on {table_name}...", end=" ")
+                        try:
+                            cols = [f'"{c.name}"' for c in constraint.columns]
+                            sql = f'ALTER TABLE "{table_name}" ADD CONSTRAINT "{con_name}" UNIQUE ({", ".join(cols)});'
+                            connection.execute(text(sql))
+                            connection.commit()
+                            print("✅ Done.")
+                            stats['added'] += 1
+                        except Exception as e:
+                            print(f"❌ Failed: {e}")
+                            stats['errors'] += 1
+                            connection.rollback()
+
             print("\n" + "="*50)
-            print("📊 STRICT SYNCHRONIZATION REPORT")
-            print(f"   - Added: {stats['added']}")
-            print(f"   - Renamed (Corrected): {stats['renamed']}")
-            print(f"   - Skipped (Perfect Match): {stats['skipped']}")
+            print("📊 SELF-HEALING REPORT")
+            print(f"   - Added (Indexes/FKs): {stats['added']}")
+            print(f"   - Renamed: {stats['renamed']}")
+            print(f"   - Skipped: {stats['skipped']}")
             print(f"   - Errors: {stats['errors']}")
             print("="*50)
 

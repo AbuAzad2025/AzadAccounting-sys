@@ -58,6 +58,14 @@ def check_schema_drift():
                     table_name = op[2]
                     col_name = op[3]
                     print(f"⚠️  Type Mismatch: Table '{table_name}' -> Column '{col_name}'")
+                elif op_type == 'add_index':
+                    print(f"❌ Missing Index: {op[1].name} on table {op[1].table.name}")
+                elif op_type == 'remove_index':
+                    print(f"ℹ️  Extra Index: {op[1].name} on table {op[1].table.name}")
+                elif op_type == 'add_fk':
+                    print(f"❌ Missing Foreign Key: {op[1].name} on table {op[1].table.name}")
+                elif op_type == 'remove_fk':
+                    print(f"ℹ️  Extra Foreign Key: {op[1].name} on table {op[1].table.name}")
                 else:
                     print(f"⚠️  Other Change: {op}")
             
