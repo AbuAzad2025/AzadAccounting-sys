@@ -235,22 +235,32 @@ def fix_indexes_and_constraints():
                 
                 # --- FIX REMOVE INDEX ---
                 elif op_type == 'remove_index':
-                    # Sometimes indexes are named differently or need recreation
-                    # We can try to drop them if they are truly extra
+                    # Fix for indexes that are "extra" but also "missing" with different properties (e.g. Unique vs Non-Unique)
+                    # We should drop them to allow 'add_index' to recreate them correctly
                     index = change[1]
                     table_name = index.table.name
                     index_name = index.name
-                    # print(f"➖ Removing Extra Index: {index_name} on {table_name}...", end=" ")
-                    # try:
-                    #     sql = f'DROP INDEX IF EXISTS "{index_name}";'
-                    #     connection.execute(text(sql))
-                    #     connection.commit()
-                    #     print("✅ Done.")
-                    #     stats['added'] += 1
-                    # except Exception as e:
-                    #     print(f"❌ Failed: {e}")
-                    #     connection.rollback()
-                    pass
+                    
+                    # Check if this index is also in the 'add_index' list (implies recreation needed)
+                    is_recreation = False
+                    for other_change in diff:
+                        if other_change[0] == 'add_index' and other_change[1].name == index_name and other_change[1].table.name == table_name:
+                            is_recreation = True
+                            break
+                    
+                    if is_recreation:
+                        print(f"♻️  Recreating Index (Drop Old): {index_name} on {table_name}...", end=" ")
+                        try:
+                            sql = f'DROP INDEX IF EXISTS "{index_name}";'
+                            connection.execute(text(sql))
+                            connection.commit()
+                            print("✅ Done.")
+                            stats['added'] += 1 # Count as action taken
+                        except Exception as e:
+                            print(f"❌ Failed: {e}")
+                            connection.rollback()
+                    else:
+                        pass # Ignore purely extra indexes for safety
                 
                 # --- FIX TYPE MISMATCH (Safe Expansion Only & Enum Fixes) ---
                 elif op_type == 'modify_type':
@@ -306,13 +316,15 @@ def fix_indexes_and_constraints():
                         try:
                             # We need to extract enum name and values from new_type if possible, 
                             # or just try a generic cast if the type object has a name
-                            # This is tricky without raw SQL, but we can try:
-                            # ALTER TABLE t ALTER COLUMN c TYPE enum_name USING c::enum_name
                             
                             if hasattr(new_type, 'name'):
                                 enum_name = new_type.name
                                 # First ensure enum type exists
-                                # connection.execute(text(f"CREATE TYPE {enum_name} AS ENUM ...")) # Hard to get values here easily
+                                # Extract values from Enum type if available to create it
+                                if hasattr(new_type, 'enums'):
+                                    enums_str = ", ".join([f"'{e}'" for e in new_type.enums])
+                                    create_type_sql = f"DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = '{enum_name}') THEN CREATE TYPE {enum_name} AS ENUM ({enums_str}); END IF; END $$;"
+                                    connection.execute(text(create_type_sql))
                                 
                                 # Fallback: Attempt simple cast, usually fails if type doesn't exist
                                 sql = f'ALTER TABLE "{table_name}" ALTER COLUMN "{col_name}" TYPE {enum_name} USING "{col_name}"::{enum_name};'
