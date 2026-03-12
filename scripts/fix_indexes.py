@@ -233,7 +233,26 @@ def fix_indexes_and_constraints():
                             stats['errors'] += 1
                             connection.rollback()
                 
-                # --- FIX TYPE MISMATCH (Safe Expansion Only) ---
+                # --- FIX REMOVE INDEX ---
+                elif op_type == 'remove_index':
+                    # Sometimes indexes are named differently or need recreation
+                    # We can try to drop them if they are truly extra
+                    index = change[1]
+                    table_name = index.table.name
+                    index_name = index.name
+                    # print(f"➖ Removing Extra Index: {index_name} on {table_name}...", end=" ")
+                    # try:
+                    #     sql = f'DROP INDEX IF EXISTS "{index_name}";'
+                    #     connection.execute(text(sql))
+                    #     connection.commit()
+                    #     print("✅ Done.")
+                    #     stats['added'] += 1
+                    # except Exception as e:
+                    #     print(f"❌ Failed: {e}")
+                    #     connection.rollback()
+                    pass
+                
+                # --- FIX TYPE MISMATCH (Safe Expansion Only & Enum Fixes) ---
                 elif op_type == 'modify_type':
                     # ('modify_type', schema, table_name, col_name, existing_meta, existing_type, new_type)
                     table_name = change[2]
@@ -241,38 +260,37 @@ def fix_indexes_and_constraints():
                     existing_type = change[5]
                     new_type = change[6]
                     
-                    # Only auto-fix String expansion (e.g. VARCHAR(20) -> VARCHAR(50))
-                    # Check if both are String/VARCHAR types
                     is_string_expansion = False
+                    is_enum_fix = False
+                    
                     try:
-                        from sqlalchemy import String, VARCHAR
-                        # Use string representation to compare types safely
+                        from sqlalchemy import String, VARCHAR, Enum
                         existing_str = str(existing_type).upper()
                         new_str = str(new_type).upper()
                         
+                        # 1. Check String Expansion
                         if 'VARCHAR' in existing_str and ('VARCHAR' in new_str or 'STRING' in new_str):
-                            # Extract lengths
                             import re
-                            # For existing_str: VARCHAR(20) or VARCHAR(length=20)
                             match_old = re.search(r'\(.*?(\d+).*?\)', existing_str)
                             len_old = int(match_old.group(1)) if match_old else 0
                             
-                            # For new_type: String(length=50) -> VARCHAR(50)
                             match_new = re.search(r'\(.*?(\d+).*?\)', new_str)
                             len_new = int(match_new.group(1)) if match_new else 0
                             
                             if len_new > len_old:
                                 is_string_expansion = True
+                        
+                        # 2. Check Enum Fix (VARCHAR -> Enum or Enum change)
+                        # Often Postgres needs explicit cast for this
+                        if 'ENUM' in new_str and 'VARCHAR' in existing_str:
+                             is_enum_fix = True
+                             
                     except Exception as e:
-                        # print(f"DEBUG: Type check failed: {e}")
                         pass
                         
                     if is_string_expansion:
                         print(f"📏 Expanding Column: {table_name}.{col_name} ({existing_type} -> {new_type})...", end=" ")
                         try:
-                            # Postgres syntax for altering column type
-                            # We need the raw SQL type string for the new type (e.g. VARCHAR(50))
-                            # SQLAlchemy's compile() is best, but simple str() usually works for basic types
                             sql = f'ALTER TABLE "{table_name}" ALTER COLUMN "{col_name}" TYPE {new_type};'
                             connection.execute(text(sql))
                             connection.commit()
@@ -282,6 +300,30 @@ def fix_indexes_and_constraints():
                             print(f"❌ Failed: {e}")
                             stats['errors'] += 1
                             connection.rollback()
+                            
+                    elif is_enum_fix:
+                        print(f"🔄 Converting Column to ENUM: {table_name}.{col_name}...", end=" ")
+                        try:
+                            # We need to extract enum name and values from new_type if possible, 
+                            # or just try a generic cast if the type object has a name
+                            # This is tricky without raw SQL, but we can try:
+                            # ALTER TABLE t ALTER COLUMN c TYPE enum_name USING c::enum_name
+                            
+                            if hasattr(new_type, 'name'):
+                                enum_name = new_type.name
+                                # First ensure enum type exists
+                                # connection.execute(text(f"CREATE TYPE {enum_name} AS ENUM ...")) # Hard to get values here easily
+                                
+                                # Fallback: Attempt simple cast, usually fails if type doesn't exist
+                                sql = f'ALTER TABLE "{table_name}" ALTER COLUMN "{col_name}" TYPE {enum_name} USING "{col_name}"::{enum_name};'
+                                connection.execute(text(sql))
+                                connection.commit()
+                                print("✅ Done.")
+                                stats['added'] += 1
+                        except Exception as e:
+                            print(f"❌ Failed (Enum): {e}")
+                            connection.rollback()
+
 
 
             print("\n" + "="*50)
