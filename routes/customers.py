@@ -1124,14 +1124,27 @@ def account_statement(customer_id):
         
         elif entry_type == "SALE":
             notes = getattr(obj, 'notes', '') or ''
+            receiver_name = getattr(obj, 'receiver_name', '') or ''
             items = getattr(obj, 'lines', [])
+            
+            parts = []
             if items and len(items) > 0:
                 first_item = items[0]
                 product_name = getattr(getattr(first_item, 'product', None), 'name', 'منتج')
                 if len(items) > 1:
-                    return f"بيع {product_name} و {len(items)-1} منتج آخر"
-                return f"بيع {product_name}"
-            return f"عملية بيع - {notes[:50]}" if notes else "عملية بيع"
+                    parts.append(f"بيع {product_name} و {len(items)-1} منتج آخر")
+                else:
+                    parts.append(f"بيع {product_name}")
+            else:
+                parts.append("عملية بيع")
+            
+            if receiver_name:
+                parts.append(f"المستلم: {receiver_name}")
+            
+            if notes:
+                parts.append(f"{notes[:50]}")
+                
+            return " - ".join(parts)
         
         elif entry_type == "SERVICE":
             vehicle = getattr(obj, 'vehicle_model', '') or ''
