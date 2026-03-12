@@ -15,6 +15,14 @@ from utils import permission_required
 
 bank_bp = Blueprint('bank', __name__, url_prefix='/bank')
 
+@bank_bp.before_request
+@login_required
+def restrict_bank_access():
+    # الحماية: فقط للمالك والمطور (Level 0)
+    if not (current_user.is_system or current_user.role_name_l in ['owner', 'developer']):
+        flash('⛔ غير مصرح لك بالوصول لإدارة البنوك (تتطلب صلاحيات المالك)', 'danger')
+        return redirect(url_for('main.dashboard'))
+
 
 @bank_bp.route('/accounts')
 @login_required

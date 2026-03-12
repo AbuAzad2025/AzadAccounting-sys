@@ -12,6 +12,14 @@ from utils import permission_required
 
 projects_bp = Blueprint('projects', __name__, url_prefix='/projects')
 
+@projects_bp.before_request
+@login_required
+def restrict_projects_access():
+    # الحماية: فقط للمالك والمطور (Level 0)
+    if not (current_user.is_system or current_user.role_name_l in ['owner', 'developer']):
+        flash('⛔ غير مصرح لك بالوصول لإدارة المشاريع', 'danger')
+        return redirect(url_for('main.dashboard'))
+
 
 @projects_bp.route('/')
 @login_required

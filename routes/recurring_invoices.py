@@ -18,6 +18,11 @@ def _dec_from_form(field_name: str, default: str = "0") -> Decimal:
 @recurring_bp.route('/')
 @login_required
 def index():
+    # الحماية: فقط للمالك والمطور (Level 0)
+    if not (current_user.is_system or current_user.role_name_l in ['owner', 'developer']):
+        flash('⛔ غير مصرح لك بالوصول لهذه الصفحة (تتطلب صلاحيات المالك)', 'danger')
+        return redirect(url_for('main.dashboard'))
+
     page = request.args.get('page', 1, type=int)
     status_filter = request.args.get('status', '').strip()
     customer_filter = request.args.get('customer', type=int)

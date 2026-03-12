@@ -14,6 +14,15 @@ from utils import permission_required
 
 cost_centers_advanced_bp = Blueprint('cost_centers_advanced', __name__, url_prefix='/cost-centers')
 
+@cost_centers_advanced_bp.before_request
+@login_required
+def restrict_cost_centers_access():
+    # الحماية: فقط للمالك والمطور (Level 0)
+    if not (current_user.is_system or current_user.role_name_l in ['owner', 'developer']):
+        flash('⛔ غير مصرح لك بالوصول لمراكز التكلفة المتقدمة', 'danger')
+        return redirect(url_for('main.dashboard'))
+
+
 @cost_centers_advanced_bp.route('/dashboard')
 @login_required
 @permission_required(SystemPermissions.MANAGE_COST_CENTERS)

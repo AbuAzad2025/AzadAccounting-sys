@@ -43,6 +43,16 @@ import utils
 
 shop_bp = Blueprint("shop", __name__, url_prefix="/shop", template_folder="templates/shop")
 
+@shop_bp.before_request
+def restrict_shop_access():
+    # الحماية: فقط للمالك والمطور (Level 0) لصفحات الإدارة
+    if request.endpoint and 'admin' in request.endpoint:
+        if not current_user.is_authenticated:
+             return redirect(url_for('auth.login'))
+        if not (current_user.is_system or current_user.role_name_l in ['owner', 'developer']):
+            flash('⛔ غير مصرح لك بإدارة المتجر (تتطلب صلاحيات المالك)', 'danger')
+            return redirect(url_for('main.dashboard'))
+
 @shop_bp.app_context_processor
 def _inject_shop_helpers():
     def _display_name_for_shop(p: Product) -> str:

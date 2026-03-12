@@ -24,6 +24,14 @@ from AI.engine.ai_service import (
 
 security_bp = Blueprint('security', __name__, url_prefix='/security')
 
+@security_bp.before_request
+@login_required
+def restrict_security_access():
+    # الحماية: فقط للمالك والمطور (Level 0)
+    if not (current_user.is_system or current_user.role_name_l in ['owner', 'developer']):
+        flash('⛔ غير مصرح لك بالوصول للوحة المالك', 'danger')
+        return redirect(url_for('main.dashboard'))
+
 
 def make_aware(dt):
     if dt and dt.tzinfo is None:

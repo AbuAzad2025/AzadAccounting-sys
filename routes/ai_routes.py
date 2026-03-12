@@ -48,6 +48,11 @@ def ai_access(f):
             flash('⛔ المساعد الذكي معطّل حالياً', 'warning')
             return redirect(url_for('main.dashboard'))
         
+        # الحماية: فقط للمالك والمطور (Level 0)
+        if not (current_user.is_system or current_user.role_name_l in ['owner', 'developer']):
+            flash('⛔ غير مصرح لك بالوصول للمساعد الذكي (تتطلب صلاحيات المالك)', 'danger')
+            return redirect(url_for('main.dashboard'))
+
         # التحقق من الصلاحية (يكفي هذا الشرط لأنه ممنوح للمالك فقط)
         if current_user.has_permission(SystemPermissions.ACCESS_AI_ASSISTANT):
             return f(*args, **kwargs)
