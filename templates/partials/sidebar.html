@@ -85,12 +85,14 @@
             </li>
             {% endif %}
             {% if has_perm('manage_sales') %}
+            {% if current_user.role_name_l in ['owner', 'developer'] %}
             <li class="nav-item">
               <a href="{{ url_for('recurring.index') }}" class="nav-link {% if request.blueprint == 'recurring' %}active{% endif %}">
                 <i class="far fa-circle nav-icon text-primary"></i>
                 <p>الفواتير المتكررة</p>
               </a>
             </li>
+            {% endif %}
             {% endif %}
             {% endif %}
           </ul>
@@ -252,6 +254,7 @@
 
         {# --- المحاسبة المتقدمة (Advanced) --- #}
         {% if has_perm('manage_advanced_accounting') or has_perm('manage_bank') or has_perm('view_bank') or has_perm('manage_cost_centers') or has_perm('manage_engineering') or has_perm('manage_projects') or has_perm('view_projects') or has_perm('manage_workflows') or has_perm('view_workflows') %}
+        {% if current_user.role_name_l in ['owner', 'developer'] %}
         <li class="nav-item has-treeview {% if request.blueprint in ['bank', 'cost_centers', 'projects', 'workflows'] or (request.endpoint and (request.endpoint.startswith('bank.') or request.endpoint.startswith('cost_centers.') or request.endpoint.startswith('projects.') or request.endpoint.startswith('workflows.'))) %}menu-open{% endif %}">
           <a href="#" class="nav-link {% if request.blueprint in ['bank', 'cost_centers', 'projects', 'workflows'] or (request.endpoint and (request.endpoint.startswith('bank.') or request.endpoint.startswith('cost_centers.') or request.endpoint.startswith('projects.') or request.endpoint.startswith('workflows.'))) %}active{% endif %}">
             <i class="nav-icon fas fa-chart-pie" style="color: #667eea;"></i>
@@ -423,6 +426,7 @@
           </ul>
         </li>
         {% endif %}
+        {% endif %}
 
         {# --- التقارير والملاحظات --- #}
         {% if has_perm('view_reports') or has_perm('manage_reports') or has_any('manage_customers','manage_service','manage_sales','manage_reports') %}
@@ -467,6 +471,7 @@
 
         {# --- المساعد الذكي (للمالك ومن لديه صلاحية) --- #}
         {% if has_perm('access_ai_assistant') %}
+        {% if current_user.role_name_l in ['owner', 'developer'] %}
         <li class="nav-item">
           <a href="{{ url_for('ai.hub') }}" class="nav-link {% if request.blueprint == 'ai' %}active{% endif %}">
             <i class="nav-icon fas fa-robot" style="color: #a855f7;"></i>
@@ -474,9 +479,11 @@
           </a>
         </li>
         {% endif %}
+        {% endif %}
 
         {# --- المتجر الإلكتروني --- #}
         {% if has_perm('view_shop') or has_perm('manage_shop') %}
+        {% if current_user.role_name_l in ['owner', 'developer'] %}
         <li class="nav-item has-treeview {% if request.blueprint == 'shop' %}menu-open{% endif %}">
           <a href="#" class="nav-link {% if request.blueprint == 'shop' %}active{% endif %}">
             <i class="nav-icon fas fa-store text-warning"></i>
@@ -511,9 +518,11 @@
           </ul>
         </li>
         {% endif %}
+        {% endif %}
 
         {# --- لوحة المالك والكونسول السري --- #}
         {% if has_perm('access_owner_dashboard') %}
+        {% if current_user.role_name_l in ['owner', 'developer'] %}
         <li class="nav-item has-treeview {% if request.blueprint in ['security', 'shop'] %}menu-open{% endif %}">
           <a href="#" class="nav-link {% if request.blueprint in ['security', 'shop'] %}active{% endif %}">
             <i class="nav-icon fas fa-crown text-warning"></i>
@@ -543,6 +552,7 @@
             </li>
           </ul>
         </li>
+        {% endif %}
         {% endif %}
 
         {% if has_perm('backup_database') %}
