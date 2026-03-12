@@ -529,7 +529,55 @@
             <th style="width:200px" data-sortable="false">إجراءات</th>
           </tr>
         </thead>
-        <tbody></tbody>
+        <tbody>
+          {% for payment in payments %}
+          <tr data-id="{{ payment.id }}">
+            <td>{{ loop.index0 + row_offset + 1 }}</td>
+            <td>{{ payment.payment_date.strftime('%Y-%m-%d') if payment.payment_date else '-' }}</td>
+            <td>{{ payment.total_amount }}</td>
+            <td>{{ payment.currency }}</td>
+            <td>{{ payment.fx_rate_used or '-' }}</td>
+            <td>
+              {% if payment.currency == 'ILS' %}
+                {{ payment.total_amount }}
+              {% else %}
+                {{ payment.amount_in_ils|default(payment.total_amount)|round(2) }}
+              {% endif %}
+            </td>
+            <td>{{ payment.method }}</td>
+            <td>{{ payment.direction }}</td>
+            <td>{{ payment.status }}</td>
+            <td>{{ payment.deliverer_name or '-' }}</td>
+            <td>{{ payment.receiver_name or '-' }}</td>
+            <td>{{ payment.reference or payment.notes or '-' }}</td>
+            <td class="text-center">
+              <div class="btn-group btn-group-sm">
+                <a href="{{ url_for('payments.view_payment', payment_id=payment.id) }}" class="btn btn-info" title="عرض التفاصيل">
+                  <i class="fas fa-eye"></i>
+                </a>
+                <a href="{{ url_for('payments.download_receipt', payment_id=payment.id) }}" class="btn btn-secondary" title="طباعة الإيصال" target="_blank">
+                  <i class="fas fa-print"></i>
+                </a>
+                {% if payment.is_archived %}
+                <button type="button" class="btn btn-success" title="استعادة" onclick="restorePayment('{{ payment.id }}')">
+                  <i class="fas fa-undo"></i>
+                </button>
+                {% else %}
+                <button type="button" class="btn btn-warning" title="أرشفة" onclick="archivePayment('{{ payment.id }}')">
+                  <i class="fas fa-archive"></i>
+                </button>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="13" class="text-center py-4 text-muted">
+              <i class="fas fa-info-circle mr-1"></i> لا توجد دفعات مطابقة
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
       </table>
       </div>
     </div>
