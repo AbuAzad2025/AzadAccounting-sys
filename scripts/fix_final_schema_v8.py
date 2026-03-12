@@ -108,13 +108,13 @@ def fix_final_schema_v8():
                     'table': 'sales',
                     'col': 'payment_status',
                     'type': 'sale_payment_progress',
-                    'vals': ["PENDING", "PARTIAL", "PAID", "REFUNDED", "COMPLETED"]
+                    'vals': ["PENDING", "PARTIAL", "PAID", "REFUNDED", "COMPLETED", "CANCELLED"]
                 },
                 {
                     'table': 'online_preorders',
                     'col': 'payment_status',
                     'type': 'online_preorder_payment_status',
-                    'vals': ["PENDING", "PARTIAL", "PAID", "REFUNDED", "COMPLETED"]
+                    'vals': ["PENDING", "PARTIAL", "PAID", "REFUNDED", "COMPLETED", "CANCELLED"]
                 }
             ]
             
@@ -126,6 +126,12 @@ def fix_final_schema_v8():
                     create_type = f"DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = '{fix['type']}') THEN CREATE TYPE {fix['type']} AS ENUM ({vals_str}); END IF; END $$;"
                     connection.execute(text(create_type))
                     
+                    # 1.5 Ensure CANCELLED exists in enum (for existing types)
+                    if "CANCELLED" in fix['vals']:
+                         # Try to add value if not exists (handling both new and old PG versions via exception block)
+                         add_val_sql = f"DO $$ BEGIN ALTER TYPE {fix['type']} ADD VALUE 'CANCELLED'; EXCEPTION WHEN duplicate_object THEN null; END $$;"
+                         connection.execute(text(add_val_sql))
+
                     # 2. Alter Column
                     alter_col = f'ALTER TABLE "{fix["table"]}" ALTER COLUMN "{fix["col"]}" TYPE {fix["type"]} USING "{fix["col"]}"::{fix["type"]};'
                     connection.execute(text(alter_col))
