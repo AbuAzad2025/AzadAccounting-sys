@@ -104,7 +104,7 @@ pandas==2.2.3
 passlib==1.7.4
 peewee==3.19.0
 pendulum==3.2.0
-pgdumplib==4.0.0
+pgdumplib==3.1.0
 pillow==10.4.0
 platformdirs==4.5.1
 pluggy==1.6.0
