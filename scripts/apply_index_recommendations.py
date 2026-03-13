@@ -68,7 +68,8 @@ def main() -> None:
     failed = 0
 
     with app.app_context():
-        with db.engine.connect() as conn:
+        # نستخدم معاملة عادية؛ DDL في PostgreSQL يعمل داخل المعاملة بشكل طبيعي
+        with db.engine.begin() as conn:
             for rec in recommendations:
                 sql = rec.get("sql")
                 table = rec.get("table")
@@ -88,7 +89,7 @@ def main() -> None:
                     continue
 
                 try:
-                    conn.execution_options(isolation_level="AUTOCOMMIT").execute(text(sql))
+                    conn.execute(text(sql))
                     executed += 1
                 except Exception as e:
                     failed += 1
