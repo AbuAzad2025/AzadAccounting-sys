@@ -11,23 +11,13 @@ from models import Permission, AuditLog
 import utils
 from permissions_config.enums import SystemPermissions
 from permissions_config.permissions import PermissionsRegistry
+from utils import _get_or_404
 
 permissions_bp = Blueprint("permissions", __name__, url_prefix="/permissions", template_folder="templates/permissions")
 
 
 _RESERVED_CODES = PermissionsRegistry.get_protected_permissions()
 
-def _get_or_404(model, ident, options=None):
-    q = db.session.query(model)
-    if options:
-        for opt in options:
-            q = q.options(opt)
-        obj = q.filter_by(id=ident).first()
-    else:
-        obj = db.session.get(model, ident)
-    if obj is None:
-        abort(404)
-    return obj
 
 def _normalize_code(s: str | None) -> str | None:
     if not s:
@@ -303,8 +293,10 @@ def permissions_matrix():
             rp = req.get("read")
             wp = req.get("write")
             public_read = bool(req.get("public_read"))
-            read_allowed = public_read or (rp is None) or (rp in perms)
-            write_allowed = bool(wp and (wp in perms))
+            rp_code = rp.value if hasattr(rp, "value") else rp
+            wp_code = wp.value if hasattr(wp, "value") else wp
+            read_allowed = public_read or (rp is None) or (rp_code in perms)
+            write_allowed = bool(wp and (wp_code in perms))
             modules[bp_name] = {"read": bool(read_allowed), "write": bool(write_allowed)}
         roles[role_name] = {"permissions": sorted(list(perms)), "modules": modules}
     return jsonify({"roles": roles})

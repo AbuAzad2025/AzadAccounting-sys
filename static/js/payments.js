@@ -16,40 +16,23 @@ function initializeSmartSearchOnce() {
 
 document.addEventListener('DOMContentLoaded', function() {
   'use strict';
-  
+
+  var getCSRFToken = window.getCSRFToken || function() {
+    return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || document.getElementById('csrf_token')?.value || '';
+  };
+
   initializeSmartSearchOnce();
-  
+
   const filterSelectors = ['#filterEntity', '#filterStatus', '#filterDirection', '#filterMethod', '#startDate', '#endDate', '#filterCurrency'];
   const searchInput = document.querySelector('#payments-search');
   const ENTITY_ENUM = { customer:'CUSTOMER', supplier:'SUPPLIER', partner:'PARTNER', sale:'SALE', service:'SERVICE', expense:'EXPENSE', loan:'LOAN', preorder:'PREORDER', shipment:'SHIPMENT' };
   const AR_STATUS = { COMPLETED:'مكتملة', PENDING:'قيد الانتظار', FAILED:'فاشلة', REFUNDED:'مُرجعة', CANCELLED:'ملغية' };
 
-  function normalizeEntity(val) {
-    if (!val) return '';
-    const k = val.toString().toLowerCase();
-    return ENTITY_ENUM[k] || val.toString().toUpperCase();
-  }
-
-  function normalizeMethod(v) {
-    v = String(v || '').trim();
-    if (!v) return '';
-    return v.replace(/\s+/g,'_').replace(/-/g,'_').toUpperCase();
-  }
-
-  function normDir(v) {
-    v = (v || '').toUpperCase();
-    if (v === 'INCOMING') return 'IN';
-    if (v === 'OUTGOING') return 'OUT';
-    return v;
-  }
-
-  function validDates(start, end) {
-    if (!start || !end) return { start, end };
-    const s = new Date(start), e = new Date(end);
-    if (isNaN(s) || isNaN(e)) return { start, end };
-    if (s.getTime() > e.getTime()) return { start: end, end: start };
-    return { start, end };
-  }
+  var normalizeEntity = window.normalizeEntity || function(val) { if (!val) return ''; var k = String(val).toLowerCase(); return ENTITY_ENUM[k] || String(val).toUpperCase(); };
+  var normalizeMethod = window.normalizeMethod || function(v) { v = String(v || '').trim(); return v ? v.replace(/\s+/g,'_').replace(/-/g,'_').toUpperCase() : ''; };
+  function normDir(v) { v = (v || '').toUpperCase(); if (v === 'INCOMING') return 'IN'; if (v === 'OUTGOING') return 'OUT'; return v; }
+  var validDates = window.validDates || function(start, end) { if (!start || !end) return { start: start, end: end }; var s = new Date(start), e = new Date(end); if (isNaN(s) || isNaN(e)) return { start: start, end: end }; if (s.getTime() > e.getTime()) return { start: end, end: start }; return { start: start, end: end }; };
+  var deriveEntityLabel = window.deriveEntityLabel || function(p) { if (p && p.entity_display) return p.entity_display; var m = [['customer_id','عميل'],['supplier_id','مورد'],['partner_id','شريك'],['sale_id','بيع'],['invoice_id','فاتورة'],['service_id','صيانة'],['shipment_id','شحنة'],['expense_id','مصروف'],['preorder_id','حجز'],['loan_settlement_id','تسوية']]; for (var i = 0; i < m.length; i++) if (p && p[m[i][0]]) return m[i][1] + ' #' + p[m[i][0]]; return (p && p.entity_type) || ''; };
   function inferEntityContext() {
     const path = location.pathname.replace(/\/+$/, '');
     const m = path.match(/^\/vendors\/(suppliers|partners)\/(\d+)\/payments$/i);
@@ -78,7 +61,7 @@ document.addEventListener('DOMContentLoaded', function() {
   if (typeof window !== 'undefined' && typeof window.enableTableSorting === 'function') {
     window.enableTableSorting('#paymentsTable');
   }
-  function debounce(fn, ms) { let t; return function () { clearTimeout(t); t = setTimeout(() => fn.apply(this, arguments), ms); }; }
+  var debounce = window.debounce || function(fn, ms) { var t; return function () { clearTimeout(t); t = setTimeout(function() { fn.apply(this, arguments); }, ms); }; };
   const debouncedReload = debounce(function () { updateUrlQuery(); loadPayments(1); }, 250);
   
   
@@ -421,7 +404,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     if (!confirm('هل أنت متأكد من أرشفة سند الدفع #' + id + '؟')) return;
     
-    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || document.getElementById('csrf_token')?.value || '';
+    const csrf = getCSRFToken();
     try {
       const r = await fetch('/payments/archive/' + id, {
         method: 'POST',
@@ -454,7 +437,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     if (!confirm('هل أنت متأكد من استعادة سند الدفع #' + id + '؟')) return;
     
-    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || document.getElementById('csrf_token')?.value || '';
+    const csrf = getCSRFToken();
     try {
       const r = await fetch('/payments/restore/' + id, {
         method: 'POST',
@@ -489,7 +472,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (sid && isSplitRefunded === 'true') { if(typeof showToast!=='undefined'){showToast('لا يمكن إرجاع جزء مُرجع بالفعل.', 'success');}else{alert('لا يمكن إرجاع جزء مُرجع بالفعل.');}; return; }
     if (pid && payStatus && payStatus !== 'COMPLETED') { if(typeof showToast!=='undefined'){showToast('لا يمكن إرجاع إلا الدفعات المكتملة محاسبياً.', 'success');}else{alert('لا يمكن إرجاع إلا الدفعات المكتملة محاسبياً.');}; return; }
     if (!confirm('سيتم إنشاء سند عكسي بنفس المبلغ وبالاتجاه المعاكس مع تحديث دفتر الأستاذ ووضع الدفعة/الجزء كمُرجع. هل أنت متأكد من الإرجاع؟')) return;
-    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || document.getElementById('csrf_token')?.value || '';
+    const csrf = getCSRFToken();
     try {
       var url = sid ? ('/payments/split/' + sid + '/refund') : ('/payments/refund/' + pid);
       const r = await fetch(url, {

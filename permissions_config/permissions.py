@@ -82,9 +82,6 @@ class PermissionsRegistry:
         SystemPermissions.VIEW_OWN_ACCOUNT: 'عرض_حسابي',
         SystemPermissions.ACCESS_DASHBOARD: 'الوصول_للوحة_التحكم',
 
-        # Branches
-        SystemPermissions.MANAGE_BRANCHES: 'إدارة_الفروع',
-
         # Bank
         SystemPermissions.MANAGE_BANK: 'إدارة_البنك',
         SystemPermissions.VIEW_BANK: 'عرض_البنك',

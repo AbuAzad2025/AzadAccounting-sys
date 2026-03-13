@@ -1,9 +1,16 @@
-{% extends 'base.html' %}
-{% block title %}تنظيف النظام{% endblock %}
-{% block page_title %}🧹 تنظيف وصيانة النظام - System Cleanup{% endblock %}
+{% extends 'security/base_security.html' %}
 
-{% block content %}
-<div class="container-fluid">
+{% block tour_name %}system_cleanup{% endblock %}
+{% block security_title %}تنظيف وصيانة النظام{% endblock %}
+{% block security_icon %}<i class="fas fa-broom"></i>{% endblock %}
+{% block security_description %}أدوات صيانة وتنظيف النظام مع منطقة خاصة لتصفير البيانات (Factory Reset){% endblock %}
+
+{% block security_breadcrumb %}
+<li class="breadcrumb-item active">تنظيف النظام</li>
+{% endblock %}
+
+{% block security_content %}
+<div class="container-fluid px-0">
     
     <!-- Header -->
     <div class="d-flex justify-content-between align-items-center mb-4">

@@ -1,0 +1,60 @@
+# فهرس Blueprints
+
+| الاسم | url_prefix | read_perm | write_perm |
+|------|------------|-----------|------------|
+| accounting_docs | /docs/accounting | - | - |
+| accounting_validation | /validation/accounting | - | - |
+| admin_reports | /admin/reports | - | - |
+| advanced | /advanced | - | - |
+| ai | /ai | - | - |
+| ai_admin | /ai-admin | - | - |
+| api | /api | - | - |
+| archive | /archive | - | - |
+| archive_routes |  | - | - |
+| assets | /assets | - | - |
+| auth | /auth | - | - |
+| balances_api | /api/balances | - | - |
+| bank | /bank | - | - |
+| barcode_scanner | /barcode | - | - |
+| bp_barcode | /api | view_parts | - |
+| branches_bp | /branches | - | - |
+| budgets | /budgets | - | - |
+| checks | /checks | - | - |
+| cost_centers | /cost-centers | - | - |
+| cost_centers_advanced | /cost-centers | - | - |
+| currencies | /currencies | - | - |
+| customers_bp | /customers | manage_customers | manage_customers |
+| engineering | /engineering | - | - |
+| expenses_bp | /expenses | manage_expenses | manage_expenses |
+| financial_reports | /reports/financial | - | - |
+| health | /health | - | - |
+| ledger | /ledger | - | - |
+| ledger_control | /security/ledger-control | - | - |
+| main |  | - | - |
+| notes_bp | /notes | view_notes | manage_notes |
+| other_systems | /other-systems | - | - |
+| partner_settlements_bp | /partners | manage_vendors | manage_vendors |
+| parts_bp | /parts | view_parts | manage_inventory |
+| payments | /payments | - | - |
+| performance_bp | /system/performance | - | - |
+| permissions | /permissions | - | - |
+| pricing | /pricing | - | - |
+| project_advanced | /projects | - | - |
+| projects | /projects | - | - |
+| recurring | /recurring | - | - |
+| reports_bp | /reports | view_reports | manage_reports |
+| returns | /returns | - | - |
+| roles | /roles | - | - |
+| sales_bp | /sales | manage_sales | manage_sales |
+| security | /security | - | - |
+| security_control | /advanced | - | - |
+| security_expenses | /security/expenses-control | - | - |
+| service | /service | - | - |
+| shipments_bp | /shipments | manage_shipments | manage_shipments |
+| shop | /shop | - | - |
+| supplier_settlements_bp | /suppliers | manage_vendors | manage_vendors |
+| user_guide | /user-guide | - | - |
+| users_bp | /users | manage_users | manage_users |
+| vendors_bp | /vendors | manage_vendors | manage_vendors |
+| warehouse_bp | /warehouses | view_warehouses | manage_warehouses |
+| workflows | /workflows | - | - |

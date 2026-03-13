@@ -1,0 +1,1814 @@
+[
+  {
+    "table": "accounts",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_accounts_created_at ON accounts (created_at)"
+  },
+  {
+    "table": "accounts",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_accounts_updated_at ON accounts (updated_at)"
+  },
+  {
+    "table": "accounts",
+    "column": "is_active",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_accounts_is_active ON accounts (is_active)"
+  },
+  {
+    "table": "asset_depreciations",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_asset_depreciations_created_at ON asset_depreciations (created_at)"
+  },
+  {
+    "table": "asset_depreciations",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_asset_depreciations_updated_at ON asset_depreciations (updated_at)"
+  },
+  {
+    "table": "asset_maintenance",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_asset_maintenance_created_at ON asset_maintenance (created_at)"
+  },
+  {
+    "table": "asset_maintenance",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_asset_maintenance_updated_at ON asset_maintenance (updated_at)"
+  },
+  {
+    "table": "audit_logs",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_audit_logs_created_at ON audit_logs (created_at)"
+  },
+  {
+    "table": "audit_logs",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_audit_logs_updated_at ON audit_logs (updated_at)"
+  },
+  {
+    "table": "audit_logs",
+    "column": "customer_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_audit_logs_customer_id ON audit_logs (customer_id)"
+  },
+  {
+    "table": "auth_audit",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_auth_audit_created_at ON auth_audit (created_at)"
+  },
+  {
+    "table": "bank_accounts",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_bank_accounts_created_at ON bank_accounts (created_at)"
+  },
+  {
+    "table": "bank_accounts",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_bank_accounts_updated_at ON bank_accounts (updated_at)"
+  },
+  {
+    "table": "bank_accounts",
+    "column": "is_active",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_bank_accounts_is_active ON bank_accounts (is_active)"
+  },
+  {
+    "table": "bank_reconciliations",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_bank_reconciliations_created_at ON bank_reconciliations (created_at)"
+  },
+  {
+    "table": "bank_reconciliations",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_bank_reconciliations_updated_at ON bank_reconciliations (updated_at)"
+  },
+  {
+    "table": "bank_reconciliations",
+    "column": "status",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_bank_reconciliations_status ON bank_reconciliations (status)"
+  },
+  {
+    "table": "bank_statements",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_bank_statements_created_at ON bank_statements (created_at)"
+  },
+  {
+    "table": "bank_statements",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_bank_statements_updated_at ON bank_statements (updated_at)"
+  },
+  {
+    "table": "bank_statements",
+    "column": "status",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_bank_statements_status ON bank_statements (status)"
+  },
+  {
+    "table": "bank_transactions",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_bank_transactions_created_at ON bank_transactions (created_at)"
+  },
+  {
+    "table": "bank_transactions",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_bank_transactions_updated_at ON bank_transactions (updated_at)"
+  },
+  {
+    "table": "blocked_countries",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_blocked_countries_created_at ON blocked_countries (created_at)"
+  },
+  {
+    "table": "blocked_ips",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_blocked_ips_created_at ON blocked_ips (created_at)"
+  },
+  {
+    "table": "branches",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_branches_created_at ON branches (created_at)"
+  },
+  {
+    "table": "branches",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_branches_updated_at ON branches (updated_at)"
+  },
+  {
+    "table": "branches",
+    "column": "is_active",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_branches_is_active ON branches (is_active)"
+  },
+  {
+    "table": "budget_commitments",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_budget_commitments_created_at ON budget_commitments (created_at)"
+  },
+  {
+    "table": "budget_commitments",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_budget_commitments_updated_at ON budget_commitments (updated_at)"
+  },
+  {
+    "table": "budget_commitments",
+    "column": "status",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_budget_commitments_status ON budget_commitments (status)"
+  },
+  {
+    "table": "budgets",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_budgets_created_at ON budgets (created_at)"
+  },
+  {
+    "table": "budgets",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_budgets_updated_at ON budgets (updated_at)"
+  },
+  {
+    "table": "budgets",
+    "column": "is_active",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_budgets_is_active ON budgets (is_active)"
+  },
+  {
+    "table": "checks",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_checks_created_at ON checks (created_at)"
+  },
+  {
+    "table": "checks",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_checks_updated_at ON checks (updated_at)"
+  },
+  {
+    "table": "cost_allocation_executions",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_cost_allocation_executions_created_at ON cost_allocation_executions (created_at)"
+  },
+  {
+    "table": "cost_allocation_executions",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_cost_allocation_executions_updated_at ON cost_allocation_executions (updated_at)"
+  },
+  {
+    "table": "cost_allocation_executions",
+    "column": "status",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_cost_allocation_executions_status ON cost_allocation_executions (status)"
+  },
+  {
+    "table": "cost_allocation_rules",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_cost_allocation_rules_created_at ON cost_allocation_rules (created_at)"
+  },
+  {
+    "table": "cost_allocation_rules",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_cost_allocation_rules_updated_at ON cost_allocation_rules (updated_at)"
+  },
+  {
+    "table": "cost_allocation_rules",
+    "column": "is_active",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_cost_allocation_rules_is_active ON cost_allocation_rules (is_active)"
+  },
+  {
+    "table": "cost_center_alert_logs",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_cost_center_alert_logs_created_at ON cost_center_alert_logs (created_at)"
+  },
+  {
+    "table": "cost_center_alert_logs",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_cost_center_alert_logs_updated_at ON cost_center_alert_logs (updated_at)"
+  },
+  {
+    "table": "cost_center_alerts",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_cost_center_alerts_created_at ON cost_center_alerts (created_at)"
+  },
+  {
+    "table": "cost_center_alerts",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_cost_center_alerts_updated_at ON cost_center_alerts (updated_at)"
+  },
+  {
+    "table": "cost_center_alerts",
+    "column": "is_active",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_cost_center_alerts_is_active ON cost_center_alerts (is_active)"
+  },
+  {
+    "table": "cost_center_allocations",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_cost_center_allocations_created_at ON cost_center_allocations (created_at)"
+  },
+  {
+    "table": "cost_center_allocations",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_cost_center_allocations_updated_at ON cost_center_allocations (updated_at)"
+  },
+  {
+    "table": "cost_centers",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_cost_centers_created_at ON cost_centers (created_at)"
+  },
+  {
+    "table": "cost_centers",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_cost_centers_updated_at ON cost_centers (updated_at)"
+  },
+  {
+    "table": "cost_centers",
+    "column": "is_active",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_cost_centers_is_active ON cost_centers (is_active)"
+  },
+  {
+    "table": "currencies",
+    "column": "is_active",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_currencies_is_active ON currencies (is_active)"
+  },
+  {
+    "table": "customer_loyalty",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_customer_loyalty_created_at ON customer_loyalty (created_at)"
+  },
+  {
+    "table": "customer_loyalty",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_customer_loyalty_updated_at ON customer_loyalty (updated_at)"
+  },
+  {
+    "table": "customer_loyalty",
+    "column": "customer_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_customer_loyalty_customer_id ON customer_loyalty (customer_id)"
+  },
+  {
+    "table": "customer_loyalty_points",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_customer_loyalty_points_created_at ON customer_loyalty_points (created_at)"
+  },
+  {
+    "table": "customer_loyalty_points",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_customer_loyalty_points_updated_at ON customer_loyalty_points (updated_at)"
+  },
+  {
+    "table": "customer_loyalty_points",
+    "column": "customer_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_customer_loyalty_points_customer_id ON customer_loyalty_points (customer_id)"
+  },
+  {
+    "table": "customers",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_customers_updated_at ON customers (updated_at)"
+  },
+  {
+    "table": "deletion_logs",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_deletion_logs_created_at ON deletion_logs (created_at)"
+  },
+  {
+    "table": "deletion_logs",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_deletion_logs_updated_at ON deletion_logs (updated_at)"
+  },
+  {
+    "table": "deletion_logs",
+    "column": "status",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_deletion_logs_status ON deletion_logs (status)"
+  },
+  {
+    "table": "employee_advance_installments",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_employee_advance_installments_created_at ON employee_advance_installments (created_at)"
+  },
+  {
+    "table": "employee_advance_installments",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_employee_advance_installments_updated_at ON employee_advance_installments (updated_at)"
+  },
+  {
+    "table": "employee_advances",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_employee_advances_created_at ON employee_advances (created_at)"
+  },
+  {
+    "table": "employee_advances",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_employee_advances_updated_at ON employee_advances (updated_at)"
+  },
+  {
+    "table": "employee_deductions",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_employee_deductions_created_at ON employee_deductions (created_at)"
+  },
+  {
+    "table": "employee_deductions",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_employee_deductions_updated_at ON employee_deductions (updated_at)"
+  },
+  {
+    "table": "employee_deductions",
+    "column": "is_active",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_employee_deductions_is_active ON employee_deductions (is_active)"
+  },
+  {
+    "table": "employee_skills",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_employee_skills_created_at ON employee_skills (created_at)"
+  },
+  {
+    "table": "employee_skills",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_employee_skills_updated_at ON employee_skills (updated_at)"
+  },
+  {
+    "table": "employees",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_employees_created_at ON employees (created_at)"
+  },
+  {
+    "table": "employees",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_employees_updated_at ON employees (updated_at)"
+  },
+  {
+    "table": "engineering_skills",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_engineering_skills_created_at ON engineering_skills (created_at)"
+  },
+  {
+    "table": "engineering_skills",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_engineering_skills_updated_at ON engineering_skills (updated_at)"
+  },
+  {
+    "table": "engineering_skills",
+    "column": "is_active",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_engineering_skills_is_active ON engineering_skills (is_active)"
+  },
+  {
+    "table": "engineering_tasks",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_engineering_tasks_created_at ON engineering_tasks (created_at)"
+  },
+  {
+    "table": "engineering_tasks",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_engineering_tasks_updated_at ON engineering_tasks (updated_at)"
+  },
+  {
+    "table": "engineering_tasks",
+    "column": "status",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_engineering_tasks_status ON engineering_tasks (status)"
+  },
+  {
+    "table": "engineering_tasks",
+    "column": "customer_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_engineering_tasks_customer_id ON engineering_tasks (customer_id)"
+  },
+  {
+    "table": "engineering_team_members",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_engineering_team_members_created_at ON engineering_team_members (created_at)"
+  },
+  {
+    "table": "engineering_team_members",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_engineering_team_members_updated_at ON engineering_team_members (updated_at)"
+  },
+  {
+    "table": "engineering_team_members",
+    "column": "is_active",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_engineering_team_members_is_active ON engineering_team_members (is_active)"
+  },
+  {
+    "table": "engineering_teams",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_engineering_teams_created_at ON engineering_teams (created_at)"
+  },
+  {
+    "table": "engineering_teams",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_engineering_teams_updated_at ON engineering_teams (updated_at)"
+  },
+  {
+    "table": "engineering_teams",
+    "column": "is_active",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_engineering_teams_is_active ON engineering_teams (is_active)"
+  },
+  {
+    "table": "engineering_timesheets",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_engineering_timesheets_created_at ON engineering_timesheets (created_at)"
+  },
+  {
+    "table": "engineering_timesheets",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_engineering_timesheets_updated_at ON engineering_timesheets (updated_at)"
+  },
+  {
+    "table": "engineering_timesheets",
+    "column": "status",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_engineering_timesheets_status ON engineering_timesheets (status)"
+  },
+  {
+    "table": "equipment_types",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_equipment_types_created_at ON equipment_types (created_at)"
+  },
+  {
+    "table": "equipment_types",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_equipment_types_updated_at ON equipment_types (updated_at)"
+  },
+  {
+    "table": "exchange_rates",
+    "column": "is_active",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_exchange_rates_is_active ON exchange_rates (is_active)"
+  },
+  {
+    "table": "exchange_transactions",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_exchange_transactions_created_at ON exchange_transactions (created_at)"
+  },
+  {
+    "table": "exchange_transactions",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_exchange_transactions_updated_at ON exchange_transactions (updated_at)"
+  },
+  {
+    "table": "exchange_transactions",
+    "column": "supplier_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_exchange_transactions_supplier_id ON exchange_transactions (supplier_id)"
+  },
+  {
+    "table": "exchange_transactions",
+    "column": "partner_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_exchange_transactions_partner_id ON exchange_transactions (partner_id)"
+  },
+  {
+    "table": "exchange_transactions",
+    "column": "warehouse_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_exchange_transactions_warehouse_id ON exchange_transactions (warehouse_id)"
+  },
+  {
+    "table": "expense_types",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_expense_types_created_at ON expense_types (created_at)"
+  },
+  {
+    "table": "expense_types",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_expense_types_updated_at ON expense_types (updated_at)"
+  },
+  {
+    "table": "expense_types",
+    "column": "is_active",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_expense_types_is_active ON expense_types (is_active)"
+  },
+  {
+    "table": "expenses",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_expenses_created_at ON expenses (created_at)"
+  },
+  {
+    "table": "expenses",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_expenses_updated_at ON expenses (updated_at)"
+  },
+  {
+    "table": "expenses",
+    "column": "supplier_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_expenses_supplier_id ON expenses (supplier_id)"
+  },
+  {
+    "table": "expenses",
+    "column": "partner_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_expenses_partner_id ON expenses (partner_id)"
+  },
+  {
+    "table": "expenses",
+    "column": "warehouse_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_expenses_warehouse_id ON expenses (warehouse_id)"
+  },
+  {
+    "table": "fixed_asset_categories",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_fixed_asset_categories_created_at ON fixed_asset_categories (created_at)"
+  },
+  {
+    "table": "fixed_asset_categories",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_fixed_asset_categories_updated_at ON fixed_asset_categories (updated_at)"
+  },
+  {
+    "table": "fixed_asset_categories",
+    "column": "is_active",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_fixed_asset_categories_is_active ON fixed_asset_categories (is_active)"
+  },
+  {
+    "table": "fixed_assets",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_fixed_assets_created_at ON fixed_assets (created_at)"
+  },
+  {
+    "table": "fixed_assets",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_fixed_assets_updated_at ON fixed_assets (updated_at)"
+  },
+  {
+    "table": "fixed_assets",
+    "column": "status",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_fixed_assets_status ON fixed_assets (status)"
+  },
+  {
+    "table": "fixed_assets",
+    "column": "supplier_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_fixed_assets_supplier_id ON fixed_assets (supplier_id)"
+  },
+  {
+    "table": "gl_batches",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_gl_batches_created_at ON gl_batches (created_at)"
+  },
+  {
+    "table": "gl_batches",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_gl_batches_updated_at ON gl_batches (updated_at)"
+  },
+  {
+    "table": "gl_entries",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_gl_entries_created_at ON gl_entries (created_at)"
+  },
+  {
+    "table": "gl_entries",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_gl_entries_updated_at ON gl_entries (updated_at)"
+  },
+  {
+    "table": "import_runs",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_import_runs_created_at ON import_runs (created_at)"
+  },
+  {
+    "table": "import_runs",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_import_runs_updated_at ON import_runs (updated_at)"
+  },
+  {
+    "table": "import_runs",
+    "column": "warehouse_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_import_runs_warehouse_id ON import_runs (warehouse_id)"
+  },
+  {
+    "table": "invoices",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_invoices_created_at ON invoices (created_at)"
+  },
+  {
+    "table": "invoices",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_invoices_updated_at ON invoices (updated_at)"
+  },
+  {
+    "table": "invoices",
+    "column": "supplier_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_invoices_supplier_id ON invoices (supplier_id)"
+  },
+  {
+    "table": "invoices",
+    "column": "partner_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_invoices_partner_id ON invoices (partner_id)"
+  },
+  {
+    "table": "notes",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_notes_created_at ON notes (created_at)"
+  },
+  {
+    "table": "notes",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_notes_updated_at ON notes (updated_at)"
+  },
+  {
+    "table": "notification_logs",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_notification_logs_created_at ON notification_logs (created_at)"
+  },
+  {
+    "table": "notification_logs",
+    "column": "status",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_notification_logs_status ON notification_logs (status)"
+  },
+  {
+    "table": "notification_logs",
+    "column": "customer_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_notification_logs_customer_id ON notification_logs (customer_id)"
+  },
+  {
+    "table": "notifications",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_notifications_created_at ON notifications (created_at)"
+  },
+  {
+    "table": "notifications",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_notifications_updated_at ON notifications (updated_at)"
+  },
+  {
+    "table": "online_carts",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_online_carts_created_at ON online_carts (created_at)"
+  },
+  {
+    "table": "online_carts",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_online_carts_updated_at ON online_carts (updated_at)"
+  },
+  {
+    "table": "online_carts",
+    "column": "status",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_online_carts_status ON online_carts (status)"
+  },
+  {
+    "table": "online_carts",
+    "column": "customer_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_online_carts_customer_id ON online_carts (customer_id)"
+  },
+  {
+    "table": "online_payments",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_online_payments_created_at ON online_payments (created_at)"
+  },
+  {
+    "table": "online_payments",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_online_payments_updated_at ON online_payments (updated_at)"
+  },
+  {
+    "table": "online_payments",
+    "column": "status",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_online_payments_status ON online_payments (status)"
+  },
+  {
+    "table": "online_preorders",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_online_preorders_created_at ON online_preorders (created_at)"
+  },
+  {
+    "table": "online_preorders",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_online_preorders_updated_at ON online_preorders (updated_at)"
+  },
+  {
+    "table": "online_preorders",
+    "column": "status",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_online_preorders_status ON online_preorders (status)"
+  },
+  {
+    "table": "online_preorders",
+    "column": "customer_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_online_preorders_customer_id ON online_preorders (customer_id)"
+  },
+  {
+    "table": "online_preorders",
+    "column": "warehouse_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_online_preorders_warehouse_id ON online_preorders (warehouse_id)"
+  },
+  {
+    "table": "partner_settlement_lines",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_partner_settlement_lines_created_at ON partner_settlement_lines (created_at)"
+  },
+  {
+    "table": "partner_settlement_lines",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_partner_settlement_lines_updated_at ON partner_settlement_lines (updated_at)"
+  },
+  {
+    "table": "partner_settlement_lines",
+    "column": "warehouse_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_partner_settlement_lines_warehouse_id ON partner_settlement_lines (warehouse_id)"
+  },
+  {
+    "table": "partner_settlements",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_partner_settlements_created_at ON partner_settlements (created_at)"
+  },
+  {
+    "table": "partner_settlements",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_partner_settlements_updated_at ON partner_settlements (updated_at)"
+  },
+  {
+    "table": "partner_settlements",
+    "column": "status",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_partner_settlements_status ON partner_settlements (status)"
+  },
+  {
+    "table": "partner_settlements",
+    "column": "partner_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_partner_settlements_partner_id ON partner_settlements (partner_id)"
+  },
+  {
+    "table": "partners",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_partners_created_at ON partners (created_at)"
+  },
+  {
+    "table": "partners",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_partners_updated_at ON partners (updated_at)"
+  },
+  {
+    "table": "payments",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_payments_created_at ON payments (created_at)"
+  },
+  {
+    "table": "payments",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_payments_updated_at ON payments (updated_at)"
+  },
+  {
+    "table": "preorders",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_preorders_created_at ON preorders (created_at)"
+  },
+  {
+    "table": "preorders",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_preorders_updated_at ON preorders (updated_at)"
+  },
+  {
+    "table": "preorders",
+    "column": "status",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_preorders_status ON preorders (status)"
+  },
+  {
+    "table": "preorders",
+    "column": "customer_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_preorders_customer_id ON preorders (customer_id)"
+  },
+  {
+    "table": "preorders",
+    "column": "supplier_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_preorders_supplier_id ON preorders (supplier_id)"
+  },
+  {
+    "table": "preorders",
+    "column": "partner_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_preorders_partner_id ON preorders (partner_id)"
+  },
+  {
+    "table": "preorders",
+    "column": "warehouse_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_preorders_warehouse_id ON preorders (warehouse_id)"
+  },
+  {
+    "table": "product_categories",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_product_categories_created_at ON product_categories (created_at)"
+  },
+  {
+    "table": "product_categories",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_product_categories_updated_at ON product_categories (updated_at)"
+  },
+  {
+    "table": "product_partners",
+    "column": "partner_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_product_partners_partner_id ON product_partners (partner_id)"
+  },
+  {
+    "table": "product_rating_helpful",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_product_rating_helpful_created_at ON product_rating_helpful (created_at)"
+  },
+  {
+    "table": "product_rating_helpful",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_product_rating_helpful_updated_at ON product_rating_helpful (updated_at)"
+  },
+  {
+    "table": "product_rating_helpful",
+    "column": "customer_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_product_rating_helpful_customer_id ON product_rating_helpful (customer_id)"
+  },
+  {
+    "table": "product_ratings",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_product_ratings_created_at ON product_ratings (created_at)"
+  },
+  {
+    "table": "product_ratings",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_product_ratings_updated_at ON product_ratings (updated_at)"
+  },
+  {
+    "table": "product_ratings",
+    "column": "customer_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_product_ratings_customer_id ON product_ratings (customer_id)"
+  },
+  {
+    "table": "product_supplier_loans",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_product_supplier_loans_created_at ON product_supplier_loans (created_at)"
+  },
+  {
+    "table": "product_supplier_loans",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_product_supplier_loans_updated_at ON product_supplier_loans (updated_at)"
+  },
+  {
+    "table": "product_supplier_loans",
+    "column": "supplier_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_product_supplier_loans_supplier_id ON product_supplier_loans (supplier_id)"
+  },
+  {
+    "table": "products",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_products_created_at ON products (created_at)"
+  },
+  {
+    "table": "products",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_products_updated_at ON products (updated_at)"
+  },
+  {
+    "table": "products",
+    "column": "is_active",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_products_is_active ON products (is_active)"
+  },
+  {
+    "table": "products",
+    "column": "supplier_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_products_supplier_id ON products (supplier_id)"
+  },
+  {
+    "table": "products",
+    "column": "warehouse_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_products_warehouse_id ON products (warehouse_id)"
+  },
+  {
+    "table": "project_change_orders",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_project_change_orders_created_at ON project_change_orders (created_at)"
+  },
+  {
+    "table": "project_change_orders",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_project_change_orders_updated_at ON project_change_orders (updated_at)"
+  },
+  {
+    "table": "project_change_orders",
+    "column": "status",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_project_change_orders_status ON project_change_orders (status)"
+  },
+  {
+    "table": "project_costs",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_project_costs_created_at ON project_costs (created_at)"
+  },
+  {
+    "table": "project_costs",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_project_costs_updated_at ON project_costs (updated_at)"
+  },
+  {
+    "table": "project_issues",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_project_issues_created_at ON project_issues (created_at)"
+  },
+  {
+    "table": "project_issues",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_project_issues_updated_at ON project_issues (updated_at)"
+  },
+  {
+    "table": "project_issues",
+    "column": "status",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_project_issues_status ON project_issues (status)"
+  },
+  {
+    "table": "project_milestones",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_project_milestones_created_at ON project_milestones (created_at)"
+  },
+  {
+    "table": "project_milestones",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_project_milestones_updated_at ON project_milestones (updated_at)"
+  },
+  {
+    "table": "project_milestones",
+    "column": "status",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_project_milestones_status ON project_milestones (status)"
+  },
+  {
+    "table": "project_phases",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_project_phases_created_at ON project_phases (created_at)"
+  },
+  {
+    "table": "project_phases",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_project_phases_updated_at ON project_phases (updated_at)"
+  },
+  {
+    "table": "project_phases",
+    "column": "status",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_project_phases_status ON project_phases (status)"
+  },
+  {
+    "table": "project_resources",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_project_resources_created_at ON project_resources (created_at)"
+  },
+  {
+    "table": "project_resources",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_project_resources_updated_at ON project_resources (updated_at)"
+  },
+  {
+    "table": "project_resources",
+    "column": "status",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_project_resources_status ON project_resources (status)"
+  },
+  {
+    "table": "project_revenues",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_project_revenues_created_at ON project_revenues (created_at)"
+  },
+  {
+    "table": "project_revenues",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_project_revenues_updated_at ON project_revenues (updated_at)"
+  },
+  {
+    "table": "project_risks",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_project_risks_created_at ON project_risks (created_at)"
+  },
+  {
+    "table": "project_risks",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_project_risks_updated_at ON project_risks (updated_at)"
+  },
+  {
+    "table": "project_risks",
+    "column": "status",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_project_risks_status ON project_risks (status)"
+  },
+  {
+    "table": "project_tasks",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_project_tasks_created_at ON project_tasks (created_at)"
+  },
+  {
+    "table": "project_tasks",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_project_tasks_updated_at ON project_tasks (updated_at)"
+  },
+  {
+    "table": "project_tasks",
+    "column": "status",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_project_tasks_status ON project_tasks (status)"
+  },
+  {
+    "table": "projects",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_projects_created_at ON projects (created_at)"
+  },
+  {
+    "table": "projects",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_projects_updated_at ON projects (updated_at)"
+  },
+  {
+    "table": "projects",
+    "column": "is_active",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_projects_is_active ON projects (is_active)"
+  },
+  {
+    "table": "projects",
+    "column": "status",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_projects_status ON projects (status)"
+  },
+  {
+    "table": "recurring_invoice_schedules",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_recurring_invoice_schedules_created_at ON recurring_invoice_schedules (created_at)"
+  },
+  {
+    "table": "recurring_invoice_schedules",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_recurring_invoice_schedules_updated_at ON recurring_invoice_schedules (updated_at)"
+  },
+  {
+    "table": "recurring_invoice_schedules",
+    "column": "status",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_recurring_invoice_schedules_status ON recurring_invoice_schedules (status)"
+  },
+  {
+    "table": "recurring_invoice_templates",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_recurring_invoice_templates_created_at ON recurring_invoice_templates (created_at)"
+  },
+  {
+    "table": "recurring_invoice_templates",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_recurring_invoice_templates_updated_at ON recurring_invoice_templates (updated_at)"
+  },
+  {
+    "table": "recurring_invoice_templates",
+    "column": "is_active",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_recurring_invoice_templates_is_active ON recurring_invoice_templates (is_active)"
+  },
+  {
+    "table": "recurring_invoice_templates",
+    "column": "customer_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_recurring_invoice_templates_customer_id ON recurring_invoice_templates (customer_id)"
+  },
+  {
+    "table": "resource_time_logs",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_resource_time_logs_created_at ON resource_time_logs (created_at)"
+  },
+  {
+    "table": "resource_time_logs",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_resource_time_logs_updated_at ON resource_time_logs (updated_at)"
+  },
+  {
+    "table": "saas_invoices",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_saas_invoices_created_at ON saas_invoices (created_at)"
+  },
+  {
+    "table": "saas_invoices",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_saas_invoices_updated_at ON saas_invoices (updated_at)"
+  },
+  {
+    "table": "saas_invoices",
+    "column": "status",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_saas_invoices_status ON saas_invoices (status)"
+  },
+  {
+    "table": "saas_plans",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_saas_plans_created_at ON saas_plans (created_at)"
+  },
+  {
+    "table": "saas_plans",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_saas_plans_updated_at ON saas_plans (updated_at)"
+  },
+  {
+    "table": "saas_plans",
+    "column": "is_active",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_saas_plans_is_active ON saas_plans (is_active)"
+  },
+  {
+    "table": "saas_subscriptions",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_saas_subscriptions_created_at ON saas_subscriptions (created_at)"
+  },
+  {
+    "table": "saas_subscriptions",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_saas_subscriptions_updated_at ON saas_subscriptions (updated_at)"
+  },
+  {
+    "table": "saas_subscriptions",
+    "column": "status",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_saas_subscriptions_status ON saas_subscriptions (status)"
+  },
+  {
+    "table": "saas_subscriptions",
+    "column": "customer_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_saas_subscriptions_customer_id ON saas_subscriptions (customer_id)"
+  },
+  {
+    "table": "sale_lines",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_sale_lines_created_at ON sale_lines (created_at)"
+  },
+  {
+    "table": "sale_lines",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_sale_lines_updated_at ON sale_lines (updated_at)"
+  },
+  {
+    "table": "sale_lines",
+    "column": "warehouse_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_sale_lines_warehouse_id ON sale_lines (warehouse_id)"
+  },
+  {
+    "table": "sale_return_lines",
+    "column": "warehouse_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_sale_return_lines_warehouse_id ON sale_return_lines (warehouse_id)"
+  },
+  {
+    "table": "sale_returns",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_sale_returns_created_at ON sale_returns (created_at)"
+  },
+  {
+    "table": "sale_returns",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_sale_returns_updated_at ON sale_returns (updated_at)"
+  },
+  {
+    "table": "sale_returns",
+    "column": "status",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_sale_returns_status ON sale_returns (status)"
+  },
+  {
+    "table": "sale_returns",
+    "column": "warehouse_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_sale_returns_warehouse_id ON sale_returns (warehouse_id)"
+  },
+  {
+    "table": "sales",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_sales_created_at ON sales (created_at)"
+  },
+  {
+    "table": "sales",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_sales_updated_at ON sales (updated_at)"
+  },
+  {
+    "table": "service_parts",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_service_parts_created_at ON service_parts (created_at)"
+  },
+  {
+    "table": "service_parts",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_service_parts_updated_at ON service_parts (updated_at)"
+  },
+  {
+    "table": "service_parts",
+    "column": "partner_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_service_parts_partner_id ON service_parts (partner_id)"
+  },
+  {
+    "table": "service_parts",
+    "column": "warehouse_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_service_parts_warehouse_id ON service_parts (warehouse_id)"
+  },
+  {
+    "table": "service_requests",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_service_requests_updated_at ON service_requests (updated_at)"
+  },
+  {
+    "table": "service_tasks",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_service_tasks_created_at ON service_tasks (created_at)"
+  },
+  {
+    "table": "service_tasks",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_service_tasks_updated_at ON service_tasks (updated_at)"
+  },
+  {
+    "table": "service_tasks",
+    "column": "partner_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_service_tasks_partner_id ON service_tasks (partner_id)"
+  },
+  {
+    "table": "shipment_items",
+    "column": "warehouse_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_shipment_items_warehouse_id ON shipment_items (warehouse_id)"
+  },
+  {
+    "table": "shipment_partners",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_shipment_partners_created_at ON shipment_partners (created_at)"
+  },
+  {
+    "table": "shipment_partners",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_shipment_partners_updated_at ON shipment_partners (updated_at)"
+  },
+  {
+    "table": "shipment_partners",
+    "column": "partner_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_shipment_partners_partner_id ON shipment_partners (partner_id)"
+  },
+  {
+    "table": "shipments",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_shipments_created_at ON shipments (created_at)"
+  },
+  {
+    "table": "shipments",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_shipments_updated_at ON shipments (updated_at)"
+  },
+  {
+    "table": "shipments",
+    "column": "status",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_shipments_status ON shipments (status)"
+  },
+  {
+    "table": "sites",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_sites_created_at ON sites (created_at)"
+  },
+  {
+    "table": "sites",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_sites_updated_at ON sites (updated_at)"
+  },
+  {
+    "table": "sites",
+    "column": "is_active",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_sites_is_active ON sites (is_active)"
+  },
+  {
+    "table": "stock_adjustment_items",
+    "column": "warehouse_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_stock_adjustment_items_warehouse_id ON stock_adjustment_items (warehouse_id)"
+  },
+  {
+    "table": "stock_adjustments",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_stock_adjustments_created_at ON stock_adjustments (created_at)"
+  },
+  {
+    "table": "stock_adjustments",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_stock_adjustments_updated_at ON stock_adjustments (updated_at)"
+  },
+  {
+    "table": "stock_adjustments",
+    "column": "warehouse_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_stock_adjustments_warehouse_id ON stock_adjustments (warehouse_id)"
+  },
+  {
+    "table": "stock_levels",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_stock_levels_created_at ON stock_levels (created_at)"
+  },
+  {
+    "table": "stock_levels",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_stock_levels_updated_at ON stock_levels (updated_at)"
+  },
+  {
+    "table": "supplier_loan_settlements",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_supplier_loan_settlements_created_at ON supplier_loan_settlements (created_at)"
+  },
+  {
+    "table": "supplier_loan_settlements",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_supplier_loan_settlements_updated_at ON supplier_loan_settlements (updated_at)"
+  },
+  {
+    "table": "supplier_loan_settlements",
+    "column": "supplier_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_supplier_loan_settlements_supplier_id ON supplier_loan_settlements (supplier_id)"
+  },
+  {
+    "table": "supplier_settlement_lines",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_supplier_settlement_lines_created_at ON supplier_settlement_lines (created_at)"
+  },
+  {
+    "table": "supplier_settlement_lines",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_supplier_settlement_lines_updated_at ON supplier_settlement_lines (updated_at)"
+  },
+  {
+    "table": "supplier_settlements",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_supplier_settlements_created_at ON supplier_settlements (created_at)"
+  },
+  {
+    "table": "supplier_settlements",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_supplier_settlements_updated_at ON supplier_settlements (updated_at)"
+  },
+  {
+    "table": "supplier_settlements",
+    "column": "status",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_supplier_settlements_status ON supplier_settlements (status)"
+  },
+  {
+    "table": "supplier_settlements",
+    "column": "supplier_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_supplier_settlements_supplier_id ON supplier_settlements (supplier_id)"
+  },
+  {
+    "table": "suppliers",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_suppliers_created_at ON suppliers (created_at)"
+  },
+  {
+    "table": "suppliers",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_suppliers_updated_at ON suppliers (updated_at)"
+  },
+  {
+    "table": "suppliers",
+    "column": "customer_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_suppliers_customer_id ON suppliers (customer_id)"
+  },
+  {
+    "table": "system_settings",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_system_settings_created_at ON system_settings (created_at)"
+  },
+  {
+    "table": "system_settings",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_system_settings_updated_at ON system_settings (updated_at)"
+  },
+  {
+    "table": "tax_entries",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_tax_entries_created_at ON tax_entries (created_at)"
+  },
+  {
+    "table": "tax_entries",
+    "column": "customer_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_tax_entries_customer_id ON tax_entries (customer_id)"
+  },
+  {
+    "table": "tax_entries",
+    "column": "supplier_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_tax_entries_supplier_id ON tax_entries (supplier_id)"
+  },
+  {
+    "table": "transfers",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_transfers_created_at ON transfers (created_at)"
+  },
+  {
+    "table": "transfers",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_transfers_updated_at ON transfers (updated_at)"
+  },
+  {
+    "table": "user_branches",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_user_branches_created_at ON user_branches (created_at)"
+  },
+  {
+    "table": "user_branches",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_user_branches_updated_at ON user_branches (updated_at)"
+  },
+  {
+    "table": "users",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_users_created_at ON users (created_at)"
+  },
+  {
+    "table": "users",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_users_updated_at ON users (updated_at)"
+  },
+  {
+    "table": "utility_accounts",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_utility_accounts_created_at ON utility_accounts (created_at)"
+  },
+  {
+    "table": "utility_accounts",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_utility_accounts_updated_at ON utility_accounts (updated_at)"
+  },
+  {
+    "table": "utility_accounts",
+    "column": "is_active",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_utility_accounts_is_active ON utility_accounts (is_active)"
+  },
+  {
+    "table": "warehouse_partner_shares",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_warehouse_partner_shares_created_at ON warehouse_partner_shares (created_at)"
+  },
+  {
+    "table": "warehouse_partner_shares",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_warehouse_partner_shares_updated_at ON warehouse_partner_shares (updated_at)"
+  },
+  {
+    "table": "warehouse_partner_shares",
+    "column": "partner_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_warehouse_partner_shares_partner_id ON warehouse_partner_shares (partner_id)"
+  },
+  {
+    "table": "warehouse_partner_shares",
+    "column": "warehouse_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_warehouse_partner_shares_warehouse_id ON warehouse_partner_shares (warehouse_id)"
+  },
+  {
+    "table": "warehouses",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_warehouses_created_at ON warehouses (created_at)"
+  },
+  {
+    "table": "warehouses",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_warehouses_updated_at ON warehouses (updated_at)"
+  },
+  {
+    "table": "warehouses",
+    "column": "is_active",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_warehouses_is_active ON warehouses (is_active)"
+  },
+  {
+    "table": "warehouses",
+    "column": "supplier_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_warehouses_supplier_id ON warehouses (supplier_id)"
+  },
+  {
+    "table": "warehouses",
+    "column": "partner_id",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_warehouses_partner_id ON warehouses (partner_id)"
+  },
+  {
+    "table": "workflow_actions",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_workflow_actions_created_at ON workflow_actions (created_at)"
+  },
+  {
+    "table": "workflow_actions",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_workflow_actions_updated_at ON workflow_actions (updated_at)"
+  },
+  {
+    "table": "workflow_definitions",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_workflow_definitions_created_at ON workflow_definitions (created_at)"
+  },
+  {
+    "table": "workflow_definitions",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_workflow_definitions_updated_at ON workflow_definitions (updated_at)"
+  },
+  {
+    "table": "workflow_definitions",
+    "column": "is_active",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_workflow_definitions_is_active ON workflow_definitions (is_active)"
+  },
+  {
+    "table": "workflow_instances",
+    "column": "created_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_workflow_instances_created_at ON workflow_instances (created_at)"
+  },
+  {
+    "table": "workflow_instances",
+    "column": "updated_at",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_workflow_instances_updated_at ON workflow_instances (updated_at)"
+  },
+  {
+    "table": "workflow_instances",
+    "column": "status",
+    "reason": "common filter column without index",
+    "sql": "CREATE INDEX IF NOT EXISTS ix_workflow_instances_status ON workflow_instances (status)"
+  }
+]

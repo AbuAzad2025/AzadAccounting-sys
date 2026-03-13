@@ -11,14 +11,9 @@
     try { return raw ? JSON.parse(raw) : fallback; } catch { return fallback; }
   };
 
-  function escapeHtml(value) {
-    return String(value ?? '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
-  }
+  var escapeHtml = window.escapeHtml || function(value) {
+    return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  };
 
   function buildDataPreviewHtml(el) {
     const labels = parseJsonSafe(el.getAttribute('data-labels'), []);

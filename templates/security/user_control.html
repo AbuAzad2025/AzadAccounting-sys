@@ -1,9 +1,9 @@
 {% extends 'security/base_security.html' %}
 {% block tour_name %}user_control{% endblock %}
-{% block security_title %}User Control Panel{% endblock %}
+{% block security_title %}لوحة تحكم المستخدمين المتقدمة{% endblock %}
 {% block security_icon %}<i class="fas fa-user-shield"></i>{% endblock %}
-{% block security_description %}التحكم الكامل بالمستخدمين - انتحال • حذف • تعديل شامل{% endblock %}
-{% block security_breadcrumb %}<li class="breadcrumb-item active">User Control</li>{% endblock %}
+{% block security_description %}أدوات متقدمة لإدارة المستخدمين: انتحال آمن، تعطيل، إعادة تعيين، وتحليل سلوك المستخدمين{% endblock %}
+{% block security_breadcrumb %}<li class="breadcrumb-item active">التحكم المتقدم بالمستخدمين</li>{% endblock %}
 {% block security_content %}
   
   {% if session.get('impersonating') %}

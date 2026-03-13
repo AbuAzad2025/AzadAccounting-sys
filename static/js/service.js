@@ -4,10 +4,10 @@
 
   'use strict';
 
-  function toNum(v) {
+  var toNum = window.toNumber || function(v) {
     var n = parseFloat(v);
     return isNaN(n) ? 0 : n;
-  }
+  };
 
   function round2(v) {
     return (Math.round((toNum(v) + Number.EPSILON) * 100) / 100).toFixed(2);
@@ -470,17 +470,14 @@
     });
   }
 
-  // Debounce helper
-  function debounce(func, wait) {
+  var debounce = window.debounce || function(func, wait) {
     var timeout;
     return function() {
       var context = this, args = arguments;
       clearTimeout(timeout);
-      timeout = setTimeout(function() {
-        func.apply(context, args);
-      }, wait);
+      timeout = setTimeout(function() { func.apply(context, args); }, wait);
     };
-  }
+  };
 
   // Validation للخصم الإجمالي
   function validateTotalDiscount() {

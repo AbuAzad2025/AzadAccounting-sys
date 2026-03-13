@@ -38,7 +38,7 @@ shipments_bp = Blueprint("shipments_bp", __name__, url_prefix="/shipments")
 def _inject_utils():
     return dict(format_currency=utils.format_currency)
 
-from utils import D as _D, _q2
+from utils import D as _D, _q2, _get_or_404
 
 def _norm_currency(v):
     return (v or "USD").strip().upper()
@@ -46,18 +46,6 @@ def _norm_currency(v):
 def _wants_json() -> bool:
     accept = request.headers.get("Accept", "")
     return ("application/json" in accept and "text/html" not in accept) or ((request.args.get("format") or "").lower() == "json")
-
-def _sa_get_or_404(model, ident, options=None):
-    if options:
-        q = db.session.query(model)
-        for opt in (options if isinstance(options, (list, tuple)) else (options,)):
-            q = q.options(opt)
-        obj = q.filter_by(id=ident).first()
-    else:
-        obj = db.session.get(model, ident)
-    if obj is None:
-        abort(404)
-    return obj
 
 def _compute_totals(sh: Shipment) -> Decimal:
     items_total = sum((_q2(it.quantity) * _q2(it.unit_cost)) for it in sh.items)
@@ -735,7 +723,7 @@ def create_shipment():
 @shipments_bp.route("/<int:id>/edit", methods=["GET", "POST"], endpoint="edit_shipment")
 @login_required
 def edit_shipment(id: int):
-    sh = _sa_get_or_404(Shipment, id, options=[
+    sh = _get_or_404(Shipment, id, load_options=[
         joinedload(Shipment.items), 
         joinedload(Shipment.partners),
         joinedload(Shipment.destination_warehouse)
@@ -970,7 +958,7 @@ def edit_shipment(id: int):
 @shipments_bp.route("/<int:id>/delete", methods=["POST"], endpoint="delete_shipment")
 @login_required
 def delete_shipment(id: int):
-    sh = _sa_get_or_404(Shipment, id, options=[joinedload(Shipment.items), joinedload(Shipment.partners)])
+    sh = _get_or_404(Shipment, id, load_options=[joinedload(Shipment.items), joinedload(Shipment.partners)])
     dest_id = sh.destination_id
     try:
         # إذا وصلت الشحنة، لازم نرجع المخزون قبل الحذف
@@ -1011,10 +999,10 @@ def delete_shipment(id: int):
 @shipments_bp.route("/<int:id>", methods=["GET"], endpoint="shipment_detail")
 @login_required
 def shipment_detail(id: int):
-    sh = _sa_get_or_404(
+    sh = _get_or_404(
         Shipment,
         id,
-        options=[
+        load_options=[
             joinedload(Shipment.items).joinedload(ShipmentItem.product),
             joinedload(Shipment.partners).joinedload(ShipmentPartner.partner),
             joinedload(Shipment.destination_warehouse),
@@ -1106,7 +1094,7 @@ def shipment_detail(id: int):
 @shipments_bp.route("/<int:id>/mark-arrived", methods=["POST"], endpoint="mark_arrived")
 @login_required
 def mark_arrived(id: int):
-    sh = _sa_get_or_404(Shipment, id, options=[joinedload(Shipment.items)])
+    sh = _get_or_404(Shipment, id, load_options=[joinedload(Shipment.items)])
     st = (sh.status or "").upper()
     if st == "ARRIVED":
         msg = f"📦 الشحنة {sh.shipment_number or sh.id} معلّمة بواصل مسبقاً"
@@ -1130,7 +1118,7 @@ def mark_arrived(id: int):
             _ensure_partner_warehouse(item.warehouse_id, sh)
         
         # _apply_arrival_items removed to avoid double counting (handled by listener on status change)
-        sh.status = "ARRIVED"
+        sh.status = ShipmentStatus.ARRIVED.value
         sh.actual_arrival = sh.actual_arrival or datetime.now(timezone.utc)
         
         # Create GL Entries
@@ -1157,7 +1145,7 @@ def mark_arrived(id: int):
 @shipments_bp.route("/<int:id>/cancel", methods=["POST"], endpoint="cancel_shipment")
 @login_required
 def cancel_shipment(id: int):
-    sh = _sa_get_or_404(Shipment, id, options=[joinedload(Shipment.items)])
+    sh = _get_or_404(Shipment, id, load_options=[joinedload(Shipment.items)])
     try:
         st = (sh.status or "").upper()
         if st == "DELIVERED":
@@ -1169,7 +1157,7 @@ def cancel_shipment(id: int):
                     _ensure_partner_warehouse(item.warehouse_id, sh)
             
             _reverse_arrival_items(_items_snapshot(sh))
-        sh.status = "CANCELLED"
+        sh.status = ShipmentStatus.CANCELLED.value
         
         # تحديث رصيد الشركاء عند إلغاء الشحنة (إذا كان هناك شركاء)
         if sh.partners:
@@ -1192,7 +1180,7 @@ def cancel_shipment(id: int):
 @shipments_bp.route("/<int:id>/mark-in-transit", methods=["POST"]) 
 @login_required
 def mark_in_transit(id):
-    sh = _sa_get_or_404(Shipment, id)
+    sh = _get_or_404(Shipment, id)
     if (sh.status or "").upper() == "IN_TRANSIT":
         if _wants_json():
             return jsonify({"ok": True, "message": "already_in_transit"})
@@ -1204,7 +1192,7 @@ def mark_in_transit(id):
                 if item.warehouse_id:
                     _ensure_partner_warehouse(item.warehouse_id, sh)
             
-            sh.status = "IN_TRANSIT"
+            sh.status = ShipmentStatus.IN_TRANSIT.value
             
             # تحديث رصيد الشركاء عند وضع الشحنة في الطريق (إذا كان هناك شركاء)
             if sh.partners:
@@ -1226,7 +1214,7 @@ def mark_in_transit(id):
 @shipments_bp.route("/<int:id>/mark-in-customs", methods=["POST"]) 
 @login_required
 def mark_in_customs(id):
-    sh = _sa_get_or_404(Shipment, id)
+    sh = _get_or_404(Shipment, id)
     if (sh.status or "").upper() == "IN_CUSTOMS":
         if _wants_json():
             return jsonify({"ok": True, "message": "already_in_customs"})
@@ -1238,7 +1226,7 @@ def mark_in_customs(id):
                 if item.warehouse_id:
                     _ensure_partner_warehouse(item.warehouse_id, sh)
             
-            sh.status = "IN_CUSTOMS"
+            sh.status = ShipmentStatus.IN_CUSTOMS.value
             
             # تحديث رصيد الشركاء عند وضع الشحنة في الجمارك (إذا كان هناك شركاء)
             if sh.partners:
@@ -1273,7 +1261,7 @@ def mark_delivered(id):
     """
     from models import Product
     
-    sh = _sa_get_or_404(Shipment, id)
+    sh = _get_or_404(Shipment, id)
     if (sh.status or "").upper() == "DELIVERED":
         if _wants_json():
             return jsonify({"ok": True, "message": "already_delivered"})
@@ -1369,7 +1357,7 @@ def mark_delivered(id):
                                 db.session.add(new_link)
             
             # تحديث حالة الشحنة
-            sh.status = "DELIVERED"
+            sh.status = ShipmentStatus.DELIVERED.value
             sh.delivered_date = datetime.now(timezone.utc)
             
             db.session.commit()
@@ -1395,7 +1383,7 @@ def mark_delivered(id):
 @shipments_bp.route("/<int:id>/mark-returned", methods=["POST"])
 @login_required
 def mark_returned(id):
-    sh = _sa_get_or_404(Shipment, id)
+    sh = _get_or_404(Shipment, id)
     if (sh.status or "").upper() == "RETURNED":
         if _wants_json():
             return jsonify({"ok": True, "message": "already_returned"})
@@ -1409,7 +1397,7 @@ def mark_returned(id):
             if _status_applies_stock(sh.status):
                 _reverse_arrival_items(_items_snapshot(sh))
             
-            sh.status = "RETURNED"
+            sh.status = ShipmentStatus.RETURNED.value
             
             # تحديث رصيد الشركاء عند إرجاع الشحنة (إذا كان هناك شركاء)
             if sh.partners:
@@ -1431,7 +1419,7 @@ def mark_returned(id):
 @shipments_bp.route("/<int:id>/update-delivery-attempt", methods=["POST"])
 @login_required
 def update_delivery_attempt(id):
-    sh = _sa_get_or_404(Shipment, id)
+    sh = _get_or_404(Shipment, id)
     data = request.get_json(silent=True) or {}
     
     try:

@@ -14,16 +14,9 @@ from extensions import db, limiter, mail
 from forms import LoginForm, CustomerFormOnline, CustomerPasswordResetForm, CustomerPasswordResetRequestForm
 from models import Customer, User
 import utils
-
+from utils import _get_or_404
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
-
-
-def _sa_get_or_404(model, ident):
-    obj = db.session.get(model, ident)
-    if obj is None:
-        abort(404)
-    return obj
 
 
 def _is_safe_url(target: str) -> bool:
@@ -353,7 +346,7 @@ def customer_password_reset(token: str):
     except BadSignature:
         flash("❌ الرابط غير صالح.", "danger")
         return redirect(url_for("auth.customer_password_reset_request"))
-    customer = _sa_get_or_404(Customer, customer_id)
+    customer = _get_or_404(Customer, customer_id)
     if form.validate_on_submit():
         customer.set_password(form.password.data)
         db.session.commit()

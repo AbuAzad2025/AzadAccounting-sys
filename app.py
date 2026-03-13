@@ -49,10 +49,11 @@ from models import (
     PaymentStatus, PaymentDirection, PaymentMethod, PaymentEntityType,
     SaleStatus, ShipmentStatus, ServiceStatus, WarehouseType,
     OnlinePaymentStatus, OnlineCartStatus, PreOrderStatus, CheckStatus,
-    TransferDirection, TimesheetStatus, TaskStatus
+    TransferDirection, TimesheetStatus, TaskStatus, EngineeringTaskStatus
 )
 
 from acl import attach_acl
+from permissions_config.blueprint_guards import get_blueprint_guard_config
 
 from routes.auth import auth_bp
 from routes.main import main_bp
@@ -537,6 +538,7 @@ def _register_template_support(app):
             "TransferDirection": TransferDirection,
             "TimesheetStatus": TimesheetStatus,
             "TaskStatus": TaskStatus,
+            "EngineeringTaskStatus": EngineeringTaskStatus,
         }
 
     def url_for_any(*endpoints, **values):
@@ -782,7 +784,6 @@ def _validate_system_integrity(app):
         ('/sales', ('GET',)),
         ('/reports', ('GET',)),
         ('/shipments', ('GET',)),
-        ('/api/barcode/validate', ('GET',)),
         ('/barcode/check-product', ('GET',)),
     }
     errors = []
@@ -1081,63 +1082,40 @@ def create_app(config_object=Config) -> Flask:
     from middleware.security_middleware import init_security_middleware
     init_security_middleware(app)
 
-    attach_acl(
-        shop_bp,
-        read_perm="view_shop",
-        write_perm="manage_shop",
-        public_read=True,
-        exempt_prefixes=[
-            "/shop/admin",
-            "/shop/webhook",
-            "/shop/cart",
-            "/shop/cart/add",
-            "/shop/cart/update",
-            "/shop/cart/item",
-            "/shop/cart/remove",
-            "/shop/checkout",
-            "/shop/order",
-        ]
-    )
-
-    attach_acl(users_bp, read_perm="manage_users", write_perm="manage_users")
-    attach_acl(customers_bp, read_perm="manage_customers", write_perm="manage_customers")
-    attach_acl(vendors_bp, read_perm="manage_vendors", write_perm="manage_vendors")
-    attach_acl(shipments_bp, read_perm="manage_shipments", write_perm="manage_shipments")
-    attach_acl(warehouse_bp, read_perm="view_warehouses", write_perm="manage_warehouses")
-    attach_acl(payments_bp, read_perm="manage_payments", write_perm="manage_payments")
-    attach_acl(expenses_bp, read_perm="manage_expenses", write_perm="manage_expenses")
-    attach_acl(sales_bp, read_perm="manage_sales", write_perm="manage_sales")
-    attach_acl(service_bp, read_perm="view_service", write_perm="manage_service")
-    attach_acl(
-        reports_bp,
-        read_perm="view_reports",
-        write_perm="manage_reports",
-        read_like_prefixes=[
-            "/reports/dynamic",
-            "/reports/api/dynamic",
-            "/reports/export/dynamic.csv",
-        ],
-    )
-    attach_acl(financial_reports_bp, read_perm="view_reports", write_perm="manage_reports")
-    attach_acl(roles_bp, read_perm="manage_roles", write_perm="manage_roles")
-    attach_acl(permissions_bp, read_perm="manage_permissions", write_perm="manage_permissions")
-    attach_acl(parts_bp, read_perm="view_parts", write_perm="manage_inventory")
-    attach_acl(admin_reports_bp, read_perm="view_reports", write_perm="manage_reports")
-    attach_acl(main_bp, read_perm=None, write_perm=None)
-    attach_acl(partner_settlements_bp, read_perm="manage_vendors", write_perm="manage_vendors")
-    attach_acl(supplier_settlements_bp, read_perm="manage_vendors", write_perm="manage_vendors")
-    # API endpoints تحتاج صلاحية access_api
-    # استثناء: endpoint أسعار الصرف متاح للجميع (بدون مصادقة)
-    attach_acl(api_bp, read_perm="access_api", write_perm="manage_api",
-               exempt_prefixes=["/api/exchange-rates"])
-    attach_acl(notes_bp, read_perm="view_notes", write_perm="manage_notes")
-    attach_acl(bp_barcode, read_perm="view_parts", write_perm=None)
-    attach_acl(ledger_bp, read_perm="manage_ledger", write_perm="manage_ledger")
-    attach_acl(ledger_control_bp, read_perm="manage_ledger", write_perm="manage_ledger")
-    attach_acl(currencies_bp, read_perm="manage_currencies", write_perm="manage_currencies")
-    attach_acl(barcode_scanner_bp, read_perm="view_barcode", write_perm="manage_barcode")
-    attach_acl(checks_bp, read_perm="manage_payments", write_perm="manage_payments")
-    attach_acl(balances_api_bp, read_perm="view_reports", write_perm="manage_reports")
+    # مصدر واحد للصلاحيات: permissions_config.blueprint_guards + enums.SystemPermissions
+    _blueprints_for_acl = {
+        "shop_bp": shop_bp,
+        "users_bp": users_bp,
+        "customers_bp": customers_bp,
+        "vendors_bp": vendors_bp,
+        "shipments_bp": shipments_bp,
+        "warehouse_bp": warehouse_bp,
+        "payments_bp": payments_bp,
+        "expenses_bp": expenses_bp,
+        "sales_bp": sales_bp,
+        "service_bp": service_bp,
+        "reports_bp": reports_bp,
+        "financial_reports_bp": financial_reports_bp,
+        "roles_bp": roles_bp,
+        "permissions_bp": permissions_bp,
+        "parts_bp": parts_bp,
+        "admin_reports_bp": admin_reports_bp,
+        "main_bp": main_bp,
+        "partner_settlements_bp": partner_settlements_bp,
+        "supplier_settlements_bp": supplier_settlements_bp,
+        "api_bp": api_bp,
+        "notes_bp": notes_bp,
+        "bp_barcode": bp_barcode,
+        "ledger_bp": ledger_bp,
+        "ledger_control_bp": ledger_control_bp,
+        "currencies_bp": currencies_bp,
+        "barcode_scanner_bp": barcode_scanner_bp,
+        "checks_bp": checks_bp,
+        "balances_api_bp": balances_api_bp,
+    }
+    for _name, _opts in get_blueprint_guard_config():
+        if _name in _blueprints_for_acl:
+            attach_acl(_blueprints_for_acl[_name], **_opts)
     
     _init_ai_systems(app)
     _register_blueprints(app)

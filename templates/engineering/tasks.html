@@ -84,7 +84,7 @@
                 <label class="mr-2">الحالة:</label>
                 <select name="status" class="form-control">
                     <option value="">الكل</option>
-                    {% for s in TaskStatus %}
+                    {% for s in EngineeringTaskStatus %}
                     <option value="{{ s.value }}" {% if selected_status == s.value %}selected{% endif %}>{{ s.label }}</option>
                     {% endfor %}
                 </select>
@@ -144,14 +144,23 @@
                         </span>
                     </td>
                     <td>
-                        {% if task.status.value == TaskStatus.COMPLETED.value %}
-                            <span class="badge badge-success">{{ TaskStatus.COMPLETED.label }}</span>
-                        {% elif task.status.value == TaskStatus.IN_PROGRESS.value %}
-                            <span class="badge badge-primary">{{ TaskStatus.IN_PROGRESS.label }}</span>
-                        {% elif task.status.value == TaskStatus.CANCELLED.value %}
-                            <span class="badge badge-danger">{{ TaskStatus.CANCELLED.label }}</span>
-                        {% elif task.status.value == TaskStatus.ON_HOLD.value %}
-                            <span class="badge badge-warning">{{ TaskStatus.ON_HOLD.label }}</span>
+                        {% set st = task.status or '' %}
+                        {% if st == EngineeringTaskStatus.COMPLETED.value %}
+                            <span class="badge badge-success">{{ EngineeringTaskStatus.COMPLETED.label }}</span>
+                        {% elif st == EngineeringTaskStatus.IN_PROGRESS.value %}
+                            <span class="badge badge-primary">{{ EngineeringTaskStatus.IN_PROGRESS.label }}</span>
+                        {% elif st == EngineeringTaskStatus.CANCELLED.value %}
+                            <span class="badge badge-danger">{{ EngineeringTaskStatus.CANCELLED.label }}</span>
+                        {% elif st == EngineeringTaskStatus.ON_HOLD.value %}
+                            <span class="badge badge-warning">{{ EngineeringTaskStatus.ON_HOLD.label }}</span>
+                        {% elif st == EngineeringTaskStatus.REVIEW.value %}
+                            <span class="badge badge-info">{{ EngineeringTaskStatus.REVIEW.label }}</span>
+                        {% elif st == EngineeringTaskStatus.DEFERRED.value %}
+                            <span class="badge badge-secondary">{{ EngineeringTaskStatus.DEFERRED.label }}</span>
+                        {% elif st == EngineeringTaskStatus.PENDING.value %}
+                            <span class="badge badge-secondary">{{ EngineeringTaskStatus.PENDING.label }}</span>
+                        {% elif st == EngineeringTaskStatus.ASSIGNED.value %}
+                            <span class="badge badge-info">{{ EngineeringTaskStatus.ASSIGNED.label }}</span>
                         {% else %}
                             <span class="badge badge-secondary">{{ task.status }}</span>
                         {% endif %}

@@ -1,10 +1,16 @@
 {% extends 'security/base_security.html' %}
 {% block tour_name %}permissions{% endblock %}
-{% block security_title %}Permissions Manager{% endblock %}
+{% block security_title %}مدير الصلاحيات والأدوار{% endblock %}
 {% block security_icon %}<i class="fas fa-key"></i>{% endblock %}
 {% block security_description %}إدارة شاملة للصلاحيات والأدوار{% endblock %}
-{% block security_breadcrumb %}<li class="breadcrumb-item active">Permissions</li>{% endblock %}
+{% block security_breadcrumb %}<li class="breadcrumb-item active">مدير الصلاحيات</li>{% endblock %}
 {% block security_content %}
+
+  <div class="alert alert-info border-0 shadow-sm mb-4">
+    <i class="fas fa-info-circle"></i>
+    إدارة مركزية للصلاحيات والأدوار. يُفضّل الالتزام بتسمية واضحة مثل
+    <code>module_action</code> (مثال: <code>sales_view</code>, <code>warehouse_manage</code>).
+  </div>
 
   <div class="row g-4">
     <div class="col-md-6">

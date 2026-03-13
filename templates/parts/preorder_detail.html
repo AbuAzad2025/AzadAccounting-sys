@@ -112,7 +112,7 @@
       {% if preorder.status not in ('CANCELLED', 'FULFILLED') %}
         
         {# زر تسليم المنتج المحجوز - يظهر فقط بعد دفع العربون #}
-        {% if current_user.has_permission('create_sale') and prepaid > 0 %}
+        {% if current_user.has_permission('manage_sales') and prepaid > 0 %}
         <form method="post" action="{{ url_for('warehouse_bp.preorder_convert_to_sale', preorder_id=preorder.id) }}" class="d-inline">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button class="btn btn-success" onclick="return confirm('تحويل الحجز إلى مبيعة وشحن البضاعة؟');" title="تسليم المنتج - المبلغ المتبقي: {{ '%.2f'|format(balance) }} {{ currency }}">

@@ -1646,11 +1646,14 @@ def init_extensions(app):
         pass
 
 def ensure_performance_indexes(app):
+    """إنشاء فهارس الأداء على قاعدة البيانات (PostgreSQL أو SQLite) لتسريع الاستعلامات."""
     try:
-        from sqlalchemy import text
+        from sqlalchemy import text, inspect
         with app.app_context():
             uri = app.config.get("SQLALCHEMY_DATABASE_URI", "")
-            if "postgresql" not in uri:
+            is_pg = "postgresql" in uri
+            is_sqlite = "sqlite" in uri
+            if not is_pg and not is_sqlite:
                 return
             base_stmts = [
                 "CREATE INDEX IF NOT EXISTS ix_users_is_active ON users (is_active)",
@@ -1751,30 +1754,60 @@ def ensure_performance_indexes(app):
                 "CREATE INDEX IF NOT EXISTS ix_service_received_active ON service_requests (received_at) WHERE status IN ('PENDING','IN_PROGRESS','DIAGNOSIS')",
             ]
             with db.engine.connect() as conn:
-                ac = conn.execution_options(isolation_level="AUTOCOMMIT")
+                if is_pg:
+                    ac = conn.execution_options(isolation_level="AUTOCOMMIT")
+                    def _run(s: str) -> bool:
+                        try:
+                            ac.execute(text(s))
+                            return True
+                        except Exception:
+                            return False
+                    for sql in base_stmts:
+                        _run(sql)
+                    pg_trgm_ready = _run("CREATE EXTENSION IF NOT EXISTS pg_trgm")
+                    if not pg_trgm_ready:
+                        try:
+                            pg_trgm_ready = bool(
+                                ac.execute(text("SELECT 1 FROM pg_extension WHERE extname = 'pg_trgm' LIMIT 1")).scalar()
+                            )
+                        except Exception:
+                            pg_trgm_ready = False
+                    if pg_trgm_ready:
+                        for sql in pg_trgm_stmts:
+                            _run(sql)
+                    for sql in pg_partial_stmts:
+                        _run(sql)
+                else:
+                    # SQLite: فهارس بسيطة فقط (بدون GIN/جزئية)
+                    def _run(s: str) -> bool:
+                        try:
+                            conn.execute(text(s))
+                            conn.commit()
+                            return True
+                        except Exception:
+                            try:
+                                conn.rollback()
+                            except Exception:
+                                pass
+                            return False
+                    for sql in base_stmts:
+                        _run(sql)
 
-                def _exec(sql: str) -> bool:
-                    try:
-                        ac.execute(text(sql))
-                        return True
-                    except Exception:
-                        return False
-
-                for sql in base_stmts:
-                    _exec(sql)
-
-                pg_trgm_ready = _exec("CREATE EXTENSION IF NOT EXISTS pg_trgm")
-                if not pg_trgm_ready:
-                    try:
-                        pg_trgm_ready = bool(
-                            ac.execute(text("SELECT 1 FROM pg_extension WHERE extname = 'pg_trgm' LIMIT 1")).scalar()
-                        )
-                    except Exception:
-                        pg_trgm_ready = False
-                if pg_trgm_ready:
-                    for sql in pg_trgm_stmts:
-                        _exec(sql)
-                for sql in pg_partial_stmts:
-                    _exec(sql)
+                # تغطية شاملة لكل أعمدة FK بفهرس بسيط (جدول × عمود)
+                try:
+                    inspector = inspect(db.engine)
+                    all_tables = inspector.get_table_names()
+                    for table in all_tables:
+                        fks = inspector.get_foreign_keys(table) or []
+                        for fk in fks:
+                            for col in fk.get("constrained_columns") or []:
+                                if not col:
+                                    continue
+                                idx_name = f"ix_{table}_{col}_fk_auto"
+                                fk_sql = f"CREATE INDEX IF NOT EXISTS {idx_name} ON {table} ({col})"
+                                _run(fk_sql)
+                except Exception:
+                    # في أسوأ الأحوال، إذا فشل فهرسة FK لا نعطّل التطبيق
+                    pass
     except Exception:
         pass

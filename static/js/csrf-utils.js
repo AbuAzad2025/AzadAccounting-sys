@@ -1,8 +1,10 @@
 function getCSRFToken() {
-    return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') 
-        || document.getElementById('csrf_token')?.value 
+    return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+        || document.getElementById('csrf_token')?.value
+        || document.querySelector('input[name="csrf_token"]')?.value
         || '';
 }
+if (typeof window !== 'undefined') window.getCSRFToken = getCSRFToken;
 
 (function() {
     if (window.__CSRF_UTILS_INIT__) return;

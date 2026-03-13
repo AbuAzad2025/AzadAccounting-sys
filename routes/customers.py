@@ -50,7 +50,7 @@ from models import (
     ExpenseType,
 )
 import utils
-from utils import archive_record, restore_record
+from utils import _get_or_404, archive_record, restore_record
 from utils.balance_calculator import build_customer_balance_view
 from sqlalchemy import text as sa_text
 from permissions_config.enums import SystemPermissions
@@ -76,18 +76,6 @@ def _recalculate_customer_balance(customer_id):
         current_app.logger.error(f"خطأ في إعادة حساب رصيد العميل {customer_id}: {e}")
     finally:
         session.close()
-def _get_or_404(model, ident, *options):
-    if options:
-        q = db.session.query(model)
-        for opt in options:
-            q = q.options(opt)
-        obj = q.filter_by(id=ident).first()
-    else:
-        obj = db.session.get(model, ident)
-    if obj is None:
-        abort(404)
-    return obj
-
 class CustomEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, Decimal):

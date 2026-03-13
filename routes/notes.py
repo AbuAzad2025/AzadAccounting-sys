@@ -9,6 +9,7 @@ from extensions import db
 from forms import NoteForm
 from models import Note
 import utils
+from utils import _get_or_404
 
 notes_bp = Blueprint('notes_bp', __name__, url_prefix='/notes', template_folder='templates/notes')
 
@@ -25,18 +26,6 @@ ENTITY_TYPES = [
     ('USER', 'مستخدم'),
     ('OTHER', 'أخرى')
 ]
-
-def _get_or_404(model, ident, options=None):
-    q = db.session.query(model)
-    if options:
-        for opt in options:
-            q = q.options(opt)
-        obj = q.filter_by(id=ident).first()
-    else:
-        obj = db.session.get(model, ident)
-    if obj is None:
-        abort(404)
-    return obj
 
 def _coalesce_entity(form):
     etype = None
@@ -184,7 +173,7 @@ def create_note():
 @notes_bp.route('/<int:note_id>', methods=['GET'], endpoint='note_detail')
 @login_required
 def note_detail(note_id):
-    note = _get_or_404(Note, note_id, options=[joinedload(Note.author)])
+    note = _get_or_404(Note, note_id, load_options=[joinedload(Note.author)])
     return render_template('notes/detail.html', note=note)
 
 @notes_bp.route('/<int:note_id>/edit', methods=['GET'], endpoint='edit_note')

@@ -532,17 +532,18 @@ var partnersRequestSeq = 0;
     });
   }
 
-  function stripScripts(html) {
-    var s = String(html || "");
-    return s.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "");
-  }
+  var stripScripts = window.stripScripts || function(html) {
+    return String(html || '').replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+  };
 
-  function getCsrfToken() {
-    var el = document.getElementById("csrf_token");
-    return el ? el.value : "";
-  }
+  var getCsrfToken = window.getCSRFToken || function() {
+    return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+      || document.getElementById("csrf_token")?.value
+      || document.querySelector('input[name="csrf_token"]')?.value
+      || "";
+  };
 
-  function fetchWithTimeout(url, options, timeoutMs) {
+  var fetchWithTimeout = window.fetchWithTimeout || function(url, options, timeoutMs) {
     var ms = Number(timeoutMs || 20000);
     if (!(ms > 0)) ms = 20000;
     if (typeof AbortController === "undefined") return fetch(url, options);
@@ -551,7 +552,7 @@ var partnersRequestSeq = 0;
     var opts = options ? Object.assign({}, options) : {};
     opts.signal = controller.signal;
     return fetch(url, opts).finally(function () { clearTimeout(timer); });
-  }
+  };
 
   function notify(msg, level) {
     if (typeof window.showNotification === "function") {

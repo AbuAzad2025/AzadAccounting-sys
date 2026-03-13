@@ -8,18 +8,13 @@
   const grid = document.getElementById('notesGrid');
   const btnOpenCreate = document.getElementById('btnOpenCreate');
 
-  function escapeHtml(value) {
-    return String(value ?? '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
-  }
+  var escapeHtml = window.escapeHtml || function(value) {
+    return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  };
 
-  function stripScripts(html) {
+  var stripScripts = window.stripScripts || function(html) {
     return String(html || '').replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-  }
+  };
 
   function showAlert(message, type) {
     if (!alertBox) return;

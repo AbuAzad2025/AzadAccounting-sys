@@ -40,6 +40,7 @@ from models import (
     PaymentProgress,
 )
 import utils
+from utils import _get_or_404
 
 shop_bp = Blueprint("shop", __name__, url_prefix="/shop", template_folder="templates/shop")
 
@@ -63,18 +64,6 @@ def _inject_shop_helpers():
         csrf_token=generate_csrf,
         display_name_for_shop=_display_name_for_shop
     )
-
-def _get_or_404(model, ident, options=None):
-    q = db.session.query(model)
-    if options:
-        for opt in options:
-            q = q.options(opt)
-        obj = q.filter_by(id=ident).first()
-    else:
-        obj = db.session.get(model, ident)
-    if obj is None:
-        abort(404)
-    return obj
 
 def _reserve_statuses():
     return set(current_app.config.get("SHOP_RESERVE_STATUSES") or [PreOrderStatus.PENDING.value, PreOrderStatus.CONFIRMED.value])

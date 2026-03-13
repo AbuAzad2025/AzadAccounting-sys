@@ -9,15 +9,9 @@ from models import Role, Permission, AuditLog, User
 from forms import RoleForm
 from permissions_config.permissions import PermissionsRegistry
 import utils
+from utils import _get_or_404
 
 roles_bp = Blueprint("roles", __name__, url_prefix="/roles")
-
-
-def _get_or_404(model, ident):
-    obj = db.session.get(model, ident)
-    if obj is None:
-        abort(404)
-    return obj
 
 
 def _is_protected_role_name(name: str) -> bool:

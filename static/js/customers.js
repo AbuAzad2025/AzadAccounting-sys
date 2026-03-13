@@ -7,7 +7,7 @@
   const qs = (sel, root = document) => root.querySelector(sel);
   const qsa = (sel, root = document) => Array.from(root.querySelectorAll(sel));
   const isEmail = v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
-  const stripScripts = (html) => String(html || '').replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+  var stripScripts = window.stripScripts || function(html) { return String(html || '').replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, ''); };
   const FIELD_LABELS = {
     name: 'اسم العميل',
     phone: 'رقم الهاتف',

@@ -29,7 +29,7 @@ from forms import (
     ServiceDiagnosisForm, ServicePartForm
 )
 import utils
-from utils import archive_record, restore_record  # Import from utils package
+from utils import _get_or_404, archive_record, restore_record
 from permissions_config.enums import SystemPermissions
 
 service_bp = Blueprint('service', __name__, url_prefix='/service')
@@ -58,16 +58,6 @@ PRIORITY_COLORS = {
     ServicePriority.HIGH.value: "danger",
     ServicePriority.URGENT.value: "dark"
 }
-
-def _get_or_404(model, ident, options=None):
-    q = db.session.query(model)
-    if options:
-        for opt in options: q = q.options(opt)
-        obj = q.filter_by(id=ident).first()
-    else:
-        obj = db.session.get(model, ident)
-    if obj is None: abort(404)
-    return obj
 
 def _log_service_stock_action(service, action: str, items: list[dict]) -> None:
     try:
@@ -562,7 +552,7 @@ def create_request():
 @login_required
 @utils.permission_required(SystemPermissions.VIEW_SERVICE)
 def view_request(rid):
-    service=_get_or_404(ServiceRequest, rid, options=[joinedload(ServiceRequest.customer), joinedload(ServiceRequest.parts).joinedload(ServicePart.part), joinedload(ServiceRequest.parts).joinedload(ServicePart.warehouse), joinedload(ServiceRequest.tasks)])
+    service=_get_or_404(ServiceRequest, rid, load_options=[joinedload(ServiceRequest.customer), joinedload(ServiceRequest.parts).joinedload(ServicePart.part), joinedload(ServiceRequest.parts).joinedload(ServicePart.warehouse), joinedload(ServiceRequest.tasks)])
     warehouses=Warehouse.query.order_by(Warehouse.name.asc()).all()
     
     try:
@@ -589,7 +579,7 @@ def view_request(rid):
 @service_bp.route('/<int:rid>/receipt', methods=['GET'])
 @login_required
 def view_receipt(rid):
-    service=_get_or_404(ServiceRequest, rid, options=[joinedload(ServiceRequest.customer), joinedload(ServiceRequest.parts).joinedload(ServicePart.part), joinedload(ServiceRequest.parts).joinedload(ServicePart.warehouse), joinedload(ServiceRequest.tasks)])
+    service=_get_or_404(ServiceRequest, rid, load_options=[joinedload(ServiceRequest.customer), joinedload(ServiceRequest.parts).joinedload(ServicePart.part), joinedload(ServiceRequest.parts).joinedload(ServicePart.warehouse), joinedload(ServiceRequest.tasks)])
     variant = 'simple' if (request.args.get('simple') or '').strip().lower() in ('1','true','yes') else 'pro'
     template_name = 'service/receipt_simple.html' if variant == 'simple' else 'service/receipt.html'
     return render_template(template_name, service=service, variant=variant)
@@ -597,7 +587,7 @@ def view_receipt(rid):
 @service_bp.route('/<int:rid>/receipt/download', methods=['GET'])
 @login_required
 def download_receipt(rid):
-    service=_get_or_404(ServiceRequest, rid, options=[joinedload(ServiceRequest.customer), joinedload(ServiceRequest.parts).joinedload(ServicePart.part), joinedload(ServiceRequest.parts).joinedload(ServicePart.warehouse), joinedload(ServiceRequest.tasks)])
+    service=_get_or_404(ServiceRequest, rid, load_options=[joinedload(ServiceRequest.customer), joinedload(ServiceRequest.parts).joinedload(ServicePart.part), joinedload(ServiceRequest.parts).joinedload(ServicePart.warehouse), joinedload(ServiceRequest.tasks)])
     pdf_data=generate_service_receipt_pdf(service)
     return send_file(io.BytesIO(pdf_data), as_attachment=True, download_name=f"service_receipt_{service.service_number}.pdf", mimetype='application/pdf')
 
@@ -1030,7 +1020,7 @@ def add_payment(rid):
 @service_bp.route('/<int:rid>/invoice', methods=['GET','POST'])
 @login_required
 def create_invoice(rid):
-    svc=_get_or_404(ServiceRequest, rid, options=[joinedload(ServiceRequest.parts), joinedload(ServiceRequest.tasks)])
+    svc=_get_or_404(ServiceRequest, rid, load_options=[joinedload(ServiceRequest.parts), joinedload(ServiceRequest.tasks)])
     try: amount=float(getattr(svc,'balance_due',None) or getattr(svc,'total_cost',0) or 0)
     except Exception: amount=0.0
     return redirect(url_for('payments.create_payment', entity_type='SERVICE', entity_id=rid, amount=amount))

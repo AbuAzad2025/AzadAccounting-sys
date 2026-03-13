@@ -12,9 +12,9 @@
 
   const endpoint = input.getAttribute('data-validate-url') || '/api/barcode/validate';
 
-  const getCSRFToken = () =>
+  const getCSRFToken = window.getCSRFToken || (() =>
     document.querySelector('meta[name="csrf-token"]')?.content ||
-    document.querySelector('input[name="csrf_token"]')?.value || '';
+    document.querySelector('input[name="csrf_token"]')?.value || '');
 
   const toLatinDigits = (str) =>
     str.replace(/[\u0660-\u0669\u06F0-\u06F9]/g, (ch) =>

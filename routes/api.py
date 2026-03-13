@@ -135,93 +135,49 @@ def api_operational_error(error):
         'code': 500
     }), 500
 
-def api_error_response(message, code=400, details=None):
-    response = {
-        'success': False,
-        'error': message,
-        'code': code
-    }
-    
-    if details:
-        response['details'] = details
-    
-    return jsonify(response), code
-
-def api_success_response(data=None, message=None, code=200):
-    response = {
-        'success': True,
-        'code': code
-    }
-    
-    if data is not None:
-        response['data'] = data
-    
-    if message:
-        response['message'] = message
-    
-    json_response = jsonify(response)
-    json_response.headers['X-API-Version'] = 'v1'
-    json_response.headers['X-Content-Type'] = 'application/json'
-    
-    return json_response, code
-
 @bp.route("/", methods=["GET"], endpoint="index")
+@bp.route("/docs", methods=["GET"], endpoint="docs")
 @login_required
 def api_index():
-    """صفحة API الرئيسية"""
+    """صفحة API الرئيسية وتوثيق API (نفس القالب)"""
     try:
         return render_template("api/index.html")
-    except Exception as e:
+    except Exception:
         try:
             current_app.logger.exception("API index render failed")
         except Exception:
             pass
-        return api_error_response("خطأ داخلي في الخادم", 500)
-
-@bp.route("/docs", methods=["GET"], endpoint="docs")
-@login_required
-def api_docs():
-    """صفحة توثيق API"""
-    try:
-        return render_template("api/index.html")
-    except Exception as e:
-        try:
-            current_app.logger.exception("API docs render failed")
-        except Exception:
-            pass
-        return api_error_response("خطأ داخلي في الخادم", 500)
+        return jsonify({"success": False, "error": "خطأ داخلي في الخادم", "code": 500}), 500
 
 @bp.route("/health", methods=["GET"], endpoint="health")
 def api_health():
     """فحص صحة API"""
     try:
-        # فحص قاعدة البيانات
         db.session.execute(text("SELECT 1"))
-        
-        # فحص عدد السجلات
         total_customers = Customer.query.count()
         total_suppliers = Supplier.query.count()
         total_sales = Sale.query.count()
         total_payments = Payment.query.count()
-        
-        return api_success_response({
-            'status': 'healthy',
-            'database': 'connected',
-            'timestamp': datetime.now(timezone.utc).isoformat(),
-            'stats': {
-                'customers': total_customers,
-                'suppliers': total_suppliers,
-                'sales': total_sales,
-                'payments': total_payments
+        return jsonify({
+            "success": True,
+            "data": {
+                "status": "healthy",
+                "database": "connected",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "stats": {
+                    "customers": total_customers,
+                    "suppliers": total_suppliers,
+                    "sales": total_sales,
+                    "payments": total_payments
+                }
             }
-        })
-        
-    except Exception as e:
+        }), 200
+    except Exception:
         try:
             current_app.logger.exception("API health check failed")
         except Exception:
             pass
-        return api_error_response('API غير صحي', 500)
+        return jsonify({"success": False, "error": "API غير صحي", "code": 500}), 500
 
 @bp.route("/exchange-rates", methods=["GET"], endpoint="get_exchange_rates")
 @limiter.limit("20/minute")  # حماية: فقط 20 طلب في الدقيقة لكل IP
@@ -310,9 +266,6 @@ def _limit_from_request(default: int = 20, max_: int = 100) -> int:
         return min(max(1, v), max_)
     except Exception:
         return default
-
-# Alias for backward compatibility
-_query_limit = _limit_from_request
 
 def _as_int(v, default=None, *, min_=None, max_=None):
     try:
@@ -1181,25 +1134,6 @@ def api_delete_partner(id):
         db.session.rollback()
         return jsonify({"success": False, "error": "delete_failed", "detail": str(e)}), 400
 
-@bp.get("/barcode/validate")
-@login_required
-@limiter.limit("120/minute")
-def barcode_validate():
-    code = (request.args.get("code") or "").strip()
-    r = validate_barcode(code)
-    exists = False
-    if r.get("normalized"):
-        exists = db.session.query(Product.id).filter_by(barcode=r["normalized"]).first() is not None
-    return jsonify(
-        {
-            "input": code,
-            "normalized": r.get("normalized"),
-            "valid": bool(r.get("valid")),
-            "suggested": r.get("suggested"),
-            "exists": bool(exists),
-        }
-    )
-
 @bp.get("/products", endpoint="products")
 @bp.get("/search_products", endpoint="search_products")
 @login_required
@@ -2009,7 +1943,7 @@ def shipments():
     if q:
         like = f"%{q}%"
         qry = qry.filter(or_(Shipment.shipment_number.ilike(like), Shipment.tracking_number.ilike(like)))
-    rows = qry.order_by(Shipment.id.desc()).limit(_query_limit(20, 100)).all()
+    rows = qry.order_by(Shipment.id.desc()).limit(_limit_from_request(20, 100)).all()
     return jsonify(
         [
             {
@@ -2420,7 +2354,7 @@ def transfers():
     if q:
         like = f"%{q}%"
         qry = qry.filter(or_(Transfer.reference.ilike(like),))
-    rows = qry.order_by(Transfer.id.desc()).limit(_query_limit(50, 200)).all()
+    rows = qry.order_by(Transfer.id.desc()).limit(_limit_from_request(50, 200)).all()
     return jsonify(
         [
             {
@@ -2444,7 +2378,7 @@ def preorders():
     if q:
         like = f"%{q}%"
         qry = qry.filter(or_(PreOrder.reference.ilike(like),))
-    rows = qry.order_by(PreOrder.id.desc()).limit(_query_limit(20, 100)).all()
+    rows = qry.order_by(PreOrder.id.desc()).limit(_limit_from_request(20, 100)).all()
     return jsonify(
         [
             {
@@ -2467,7 +2401,7 @@ def online_preorders():
     if q:
         like = f"%{q}%"
         qry = qry.filter(or_(OnlinePreOrder.order_number.ilike(like),))
-    rows = qry.order_by(OnlinePreOrder.id.desc()).limit(_query_limit(20, 100)).all()
+    rows = qry.order_by(OnlinePreOrder.id.desc()).limit(_limit_from_request(20, 100)).all()
     return jsonify(
         [
             {
@@ -2491,7 +2425,7 @@ def expenses():
     if q:
         like = f"%{q}%"
         qry = qry.filter(or_(Expense.tax_invoice_number.ilike(like), Expense.description.ilike(like)))
-    rows = qry.order_by(Expense.id.desc()).limit(_query_limit(20, 100)).all()
+    rows = qry.order_by(Expense.id.desc()).limit(_limit_from_request(20, 100)).all()
     return jsonify(
         [
             {
@@ -2513,7 +2447,7 @@ def loan_settlements():
     qry = SupplierLoanSettlement.query
     if q and str(q).isdigit():
         qry = qry.filter(SupplierLoanSettlement.id == int(q))
-    rows = qry.order_by(SupplierLoanSettlement.id.desc()).limit(_query_limit(50, 200)).all()
+    rows = qry.order_by(SupplierLoanSettlement.id.desc()).limit(_limit_from_request(50, 200)).all()
     return jsonify(
         [{"id": x.id, "text": f"Settlement #{x.id}", "number": f"SET-{x.id}", "amount": float(x.settled_price or 0)} for x in rows]
     )
@@ -2528,7 +2462,7 @@ def payments():
     if q:
         like = f"%{q}%"
         qry = qry.filter(or_(Payment.payment_number.ilike(like), Payment.receipt_number.ilike(like)))
-    rows = qry.order_by(Payment.id.desc()).limit(_query_limit(50, 200)).all()
+    rows = qry.order_by(Payment.id.desc()).limit(_limit_from_request(50, 200)).all()
     return jsonify(
         [
             {
@@ -2856,7 +2790,7 @@ def list_exchange_transactions():
                 ExchangeTransaction.direction.ilike(like),
             )
         )
-    rows = qry.order_by(ExchangeTransaction.id.desc()).limit(_query_limit(50, 200)).all()
+    rows = qry.order_by(ExchangeTransaction.id.desc()).limit(_limit_from_request(50, 200)).all()
     data = []
     for x in rows:
         data.append(

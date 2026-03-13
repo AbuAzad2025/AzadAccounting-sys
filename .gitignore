@@ -31,6 +31,9 @@ instance/
 .env.local
 .venv
 .venv/
+temp_env/
+Lib/
+Scripts/
 env/
 venv/
 ENV/

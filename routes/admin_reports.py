@@ -6,6 +6,7 @@ from sqlalchemy import or_, func, case
 from sqlalchemy.orm import joinedload, selectinload
 from extensions import db, limiter, csrf, cache
 from models import OnlinePayment, OnlinePreOrder, Customer, OnlinePaymentStatus, PreOrderStatus
+from permissions_config.enums import SystemPermissions
 import utils
 
 admin_reports_bp = Blueprint(
@@ -433,7 +434,7 @@ def download_backup():
 
 @admin_reports_bp.route("/logs/view", methods=["GET"])
 @login_required
-@utils.permission_required('manage_system_settings')
+@utils.permission_required(SystemPermissions.VIEW_REPORTS)
 def view_logs():
     """
     عرض سجلات النظام من الملفات مباشرة

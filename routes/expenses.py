@@ -43,7 +43,7 @@ from models import (
 )
 from models import fx_rate
 import utils
-from utils import D, q0, archive_record, restore_record
+from utils import D, q0, _get_or_404, archive_record, restore_record
 from routes.payments import _ensure_payment_number
 from routes.checks import create_check_record
 
@@ -429,18 +429,6 @@ def _render_expense_form(
         partner_service_type_id=partner_service_type_id,
     )
 
-def _get_or_404(model, ident, *options):
-    if options:
-        q = db.session.query(model)
-        for opt in options:
-            q = q.options(opt)
-        obj = q.filter_by(id=ident).first()
-    else:
-        obj = db.session.get(model, ident)
-    if obj is None:
-        abort(404)
-    return obj
-
 def _to_datetime(value):
     if isinstance(value, datetime):
         return value
@@ -792,7 +780,7 @@ def employee_statement(emp_id):
     """كشف حساب الموظف: السلف، الخصومات، الرواتب، الرصيد"""
     from models import EmployeeDeduction, EmployeeAdvanceInstallment, ExpenseType
     
-    e = _get_or_404(Employee, emp_id, joinedload(Employee.branch), joinedload(Employee.site))
+    e = _get_or_404(Employee, emp_id, load_options=[joinedload(Employee.branch), joinedload(Employee.site)])
     
     advance_type = ExpenseType.query.filter_by(code='EMPLOYEE_ADVANCE').first()
     advances = []
@@ -1131,7 +1119,7 @@ def salary_receipt(salary_exp_id):
     from models import EmployeeDeduction, EmployeeAdvanceInstallment, ExpenseType, SystemSettings
     from datetime import date
     
-    salary_expense = _get_or_404(Expense, salary_exp_id, joinedload(Expense.employee), joinedload(Expense.employee, Employee.branch))
+    salary_expense = _get_or_404(Expense, salary_exp_id, load_options=[joinedload(Expense.employee).joinedload(Employee.branch)])
     
     if not salary_expense.employee:
         flash("❌ المصروف غير مرتبط بموظف", "danger")
@@ -1765,14 +1753,15 @@ def detail(exp_id):
     exp = _get_or_404(
         Expense,
         exp_id,
-        joinedload(Expense.type),
-        joinedload(Expense.employee),
-        joinedload(Expense.customer),
-        joinedload(Expense.shipment),
-        joinedload(Expense.utility_account),
-        joinedload(Expense.stock_adjustment),
-        joinedload(Expense.payments)
-        .joinedload(Payment.splits),
+        load_options=[
+            joinedload(Expense.type),
+            joinedload(Expense.employee),
+            joinedload(Expense.customer),
+            joinedload(Expense.shipment),
+            joinedload(Expense.utility_account),
+            joinedload(Expense.stock_adjustment),
+            joinedload(Expense.payments).joinedload(Payment.splits),
+        ],
     )
 
     def _coerce_datetime(value):

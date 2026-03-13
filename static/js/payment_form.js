@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   const filterSelectors = ['#filterEntity', '#filterStatus', '#filterDirection', '#filterMethod', '#startDate', '#endDate', '#filterCurrency'];
   const ENTITY_ENUM = { customer:'CUSTOMER', supplier:'SUPPLIER', partner:'PARTNER', sale:'SALE', service:'SERVICE', expense:'EXPENSE', loan:'LOAN', preorder:'PREORDER', shipment:'SHIPMENT' };
-  const AR_STATUS = { COMPLETED:'مكتملة', PENDING:'قيد الانتظار', FAILED:'فاشلة', REFUNDED:'مُرجعة' };
+  const AR_STATUS = { COMPLETED:'مكتملة', PENDING:'قيد الانتظار', FAILED:'فاشلة', REFUNDED:'مُرجعة', CANCELLED:'ملغية' };
 
   function inferEntityContext() {
     const path = location.pathname.replace(/\/+$/, '');
@@ -51,7 +51,7 @@ document.addEventListener('DOMContentLoaded', function () {
   }
   injectStatementButtons();
 
-  function debounce(fn, ms) { let t; return function () { clearTimeout(t); t = setTimeout(() => fn.apply(this, arguments), ms); }; }
+  var debounce = window.debounce || function(fn, ms) { var t; return function () { clearTimeout(t); t = setTimeout(function() { fn.apply(this, arguments); }, ms); }; };
   const debouncedReload = debounce(function () { updateUrlQuery(); loadPayments(1); }, 250);
 
   filterSelectors.forEach(function (sel) {
@@ -61,32 +61,10 @@ document.addEventListener('DOMContentLoaded', function () {
     if (el.tagName === 'INPUT') el.addEventListener('input', debouncedReload, { passive: true });
   });
 
-  function normalizeEntity(val) {
-    if (!val) return '';
-    const k = val.toString().toLowerCase();
-    return ENTITY_ENUM[k] || val.toString().toUpperCase();
-  }
-
-  function normalizeMethod(v) {
-    v = String(v || '').trim();
-    if (!v) return '';
-    return v.replace(/\s+/g,'_').replace(/-/g,'_').toUpperCase();
-  }
-
-  function normDir(v) {
-    v = (v || '').toUpperCase();
-    if (v === 'IN') return 'INCOMING';
-    if (v === 'OUT') return 'OUTGOING';
-    return v;
-  }
-
-  function validDates(start, end) {
-    if (!start || !end) return { start, end };
-    const s = new Date(start), e = new Date(end);
-    if (isNaN(s) || isNaN(e)) return { start, end };
-    if (s.getTime() > e.getTime()) return { start: end, end: start };
-    return { start, end };
-  }
+  var normalizeEntity = window.normalizeEntity || function(val) { if (!val) return ''; var k = String(val).toLowerCase(); return ENTITY_ENUM[k] || String(val).toUpperCase(); };
+  var normalizeMethod = window.normalizeMethod || function(v) { v = String(v || '').trim(); return v ? v.replace(/\s+/g,'_').replace(/-/g,'_').toUpperCase() : ''; };
+  var normDir = window.normDir || function(v) { v = (v || '').toUpperCase(); if (v === 'IN') return 'INCOMING'; if (v === 'OUT') return 'OUTGOING'; return v; };
+  var validDates = window.validDates || function(start, end) { if (!start || !end) return { start: start, end: end }; var s = new Date(start), e = new Date(end); if (isNaN(s) || isNaN(e)) return { start: start, end: end }; if (s.getTime() > e.getTime()) return { start: end, end: start }; return { start: start, end: end }; };
 
   function currentFilters(page = 1) {
     const raw = {
@@ -187,34 +165,20 @@ document.addEventListener('DOMContentLoaded', function () {
     return span;
   }
 
-  function toNumber(s) {
-    s = String(s || '')
-      .replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))
-      .replace(/[٬،\s]/g, '')
-      .replace(',', '.');
-    const n = parseFloat(s);
+  var toNumber = window.toNumber || function(s) {
+    s = String(s || '').replace(/[٠-٩]/g, function(d) { return '٠١٢٣٤٥٦٧٨٩'.indexOf(d); }).replace(/[٬،\s]/g, '').replace(',', '.');
+    var n = parseFloat(s);
     return isNaN(n) ? 0 : n;
-  }
+  };
 
   function fmtAmount(v) { return toNumber(v).toFixed(2); }
 
-  function deriveEntityLabel(p) {
-    if (p.entity_display) return p.entity_display;
-    const map = [
-      ['customer_id', 'عميل'],
-      ['supplier_id', 'مورد'],
-      ['partner_id', 'شريك'],
-      ['sale_id', 'بيع'],
-      ['invoice_id', 'فاتورة'],
-      ['service_id', 'صيانة'],
-      ['shipment_id', 'شحنة'],
-      ['expense_id', 'مصروف'],
-      ['preorder_id', 'حجز'],
-      ['loan_settlement_id', 'تسوية']
-    ];
-    for (const [key, label] of map) if (p[key]) return label + ' #' + p[key];
-    return p.entity_type || '';
-  }
+  var deriveEntityLabel = window.deriveEntityLabel || function(p) {
+    if (p && p.entity_display) return p.entity_display;
+    var map = [['customer_id','عميل'],['supplier_id','مورد'],['partner_id','شريك'],['sale_id','بيع'],['invoice_id','فاتورة'],['service_id','صيانة'],['shipment_id','شحنة'],['expense_id','مصروف'],['preorder_id','حجز'],['loan_settlement_id','تسوية']];
+    if (p) for (var i = 0; i < map.length; i++) if (p[map[i][0]]) return map[i][1] + ' #' + p[map[i][0]];
+    return (p && p.entity_type) || '';
+  };
 
   function renderPaymentsTable(list) {
     _lastList = list.slice();

@@ -16205,6 +16205,31 @@ class EmployeeSkill(db.Model, TimestampMixin, AuditMixin):
         return f"<EmployeeSkill Employee#{self.employee_id} Skill#{self.skill_id}>"
 
 
+class EngineeringTaskStatus(str, enum.Enum):
+    """حالات مهمة الهندسة — يجب أن تطابق قيم عمود eng_task_status."""
+    PENDING = "PENDING"
+    ASSIGNED = "ASSIGNED"
+    IN_PROGRESS = "IN_PROGRESS"
+    ON_HOLD = "ON_HOLD"
+    REVIEW = "REVIEW"
+    COMPLETED = "COMPLETED"
+    CANCELLED = "CANCELLED"
+    DEFERRED = "DEFERRED"
+
+    @property
+    def label(self):
+        return {
+            "PENDING": "قيد الانتظار",
+            "ASSIGNED": "تم التعيين",
+            "IN_PROGRESS": "قيد التنفيذ",
+            "ON_HOLD": "معلق",
+            "REVIEW": "مراجعة",
+            "COMPLETED": "مكتمل",
+            "CANCELLED": "ملغي",
+            "DEFERRED": "مؤجل",
+        }[self.value]
+
+
 class EngineeringTask(db.Model, TimestampMixin, AuditMixin):
     __tablename__ = 'engineering_tasks'
     

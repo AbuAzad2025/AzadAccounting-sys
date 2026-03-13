@@ -1,11 +1,43 @@
-<footer class="main-footer" dir="rtl">
-    <div class="float-right d-none d-sm-block">
-        <b>الإصدار</b> 3.2.0
+<footer class="main-footer gm-main-footer" dir="rtl">
+  <div class="gm-footer-left d-flex align-items-center">
+    <div class="gm-footer-logo d-flex align-items-center">
+      {% if system_settings and system_settings.custom_logo %}
+      <img src="{{ url_for('static', filename=system_settings.custom_logo.replace('static/', '')) }}" alt="Logo" loading="lazy" decoding="async">
+      {% else %}
+      <img src="{{ url_for('static', filename='img/azad_logo.png') }}" alt="Azad" loading="lazy" decoding="async">
+      {% endif %}
+      <div class="gm-footer-owner">
+        <span class="gm-footer-owner-name">{{ system_settings.company_name or system_settings.system_name or 'النظام' }}</span>
+        <span class="gm-footer-owner-tagline text-muted small">
+          {{ system_settings.system_name or 'منصة إدارة كراج احترافية' }}
+        </span>
+      </div>
     </div>
-    <strong>حقوق النشر &copy; <span id="copyright-year"></span> <a href="#">شركة أزاد للأنظمة الذكية</a>.</strong>
-    جميع الحقوق محفوظة. برمجة وتطوير <a href="#">أحمد غنام</a>.
-    <img src="{{ url_for('static', filename='img/azad_logo.png') }}" alt="Azad" style="height: 24px; vertical-align: middle; margin-right: 10px;">
-    <script>
-        document.getElementById('copyright-year').textContent = new Date().getFullYear();
-    </script>
+  </div>
+  <div class="gm-footer-center d-none d-md-flex align-items-center justify-content-center text-muted small">
+    <span class="mx-2"><i class="fas fa-shield-alt gm-footer-icon"></i> حماية متقدمة</span>
+    <span class="mx-2"><i class="fas fa-tachometer-alt gm-footer-icon"></i> أداء محسّن</span>
+    <span class="mx-2"><i class="fas fa-database gm-footer-icon"></i> نسخة احتياطية آمنة</span>
+  </div>
+  <div class="gm-footer-right d-flex align-items-center justify-content-end">
+    <div class="gm-footer-version text-muted small d-none d-sm-inline-flex align-items-center mx-2">
+      <i class="fas fa-code-branch gm-footer-icon"></i>
+      <span class="ml-1">v3.2.0</span>
+    </div>
+    <div class="gm-footer-actions d-flex align-items-center">
+      {% if system_settings and system_settings.COMPANY_PHONE %}
+      <a href="tel:{{ system_settings.COMPANY_PHONE }}" class="gm-footer-action" title="اتصال">
+        <i class="fas fa-phone-alt"></i>
+      </a>
+      {% endif %}
+      {% if system_settings and system_settings.COMPANY_EMAIL %}
+      <a href="mailto:{{ system_settings.COMPANY_EMAIL }}" class="gm-footer-action" title="البريد">
+        <i class="fas fa-envelope"></i>
+      </a>
+      {% endif %}
+      <a href="{{ url_for('security.settings_center') }}" class="gm-footer-action d-none d-md-inline-flex" title="لوحة المالك السرية">
+        <i class="fas fa-user-secret"></i>
+      </a>
+    </div>
+  </div>
 </footer>

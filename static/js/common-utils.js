@@ -2,6 +2,37 @@
     if (window.__COMMON_UTILS_INIT__) return;
     window.__COMMON_UTILS_INIT__ = true;
 
+    function stripScripts(html) {
+        return String(html || '').replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+    }
+
+    function escapeHtml(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function fetchWithTimeout(url, options, timeoutMs) {
+        timeoutMs = timeoutMs || 30000;
+        var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        var id = controller ? null : setTimeout(function() {}, timeoutMs + 1);
+        var opts = options || {};
+        if (controller) {
+            opts.signal = controller.signal;
+            id = setTimeout(function() { controller.abort(); }, timeoutMs);
+        }
+        return fetch(url, opts).then(function(r) {
+            if (id) clearTimeout(id);
+            return r;
+        }).catch(function(e) {
+            if (id) clearTimeout(id);
+            throw e;
+        });
+    }
+
     function debounce(fn, ms) {
         let timer;
         return function() {
@@ -291,8 +322,17 @@
         return { start, end };
     }
 
+    function showNotification(message, type) {
+        if (arguments.length >= 3) { message = arguments[1]; type = arguments[2]; }
+        showAlert(type || 'info', message || '', 5000);
+    }
+
     // Export to global scope
+    window.stripScripts = stripScripts;
+    window.escapeHtml = escapeHtml;
+    window.fetchWithTimeout = fetchWithTimeout;
     window.debounce = debounce;
+    window.showNotification = showNotification;
     window.toNumber = toNumber;
     window.fmtAmount = fmtAmount;
     window.enableTableSorting = enableTableSorting;

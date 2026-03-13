@@ -604,22 +604,15 @@
     }
   }
 
-  function showNotification(message, type = 'info') {
-    // Disabled: notifications can cause performance issues
-    return;
-  }
-
-  function debounce(func, wait) {
-    let timeout;
-    return function executedFunction(...args) {
-      const later = () => {
-        clearTimeout(timeout);
-        func(...args);
-      };
+  var showNotification = window.showNotification || function() {};
+  var debounce = window.debounce || function(func, wait) {
+    var timeout;
+    return function() {
+      var self = this, args = arguments;
       clearTimeout(timeout);
-      timeout = setTimeout(later, wait);
+      timeout = setTimeout(function() { func.apply(self, args); }, wait || 300);
     };
-  }
+  };
 
   // نظام الإشعارات الفورية
   let socketNotificationsInitialized = false;

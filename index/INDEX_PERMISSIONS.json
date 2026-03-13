@@ -1,0 +1,354 @@
+{
+  "permissions": [
+    {
+      "name": "ACCESS_DASHBOARD",
+      "value": "access_dashboard"
+    },
+    {
+      "name": "BACKUP_DATABASE",
+      "value": "backup_database"
+    },
+    {
+      "name": "RESTORE_DATABASE",
+      "value": "restore_database"
+    },
+    {
+      "name": "HARD_DELETE",
+      "value": "hard_delete"
+    },
+    {
+      "name": "VIEW_AUDIT_LOGS",
+      "value": "view_audit_logs"
+    },
+    {
+      "name": "MANAGE_TENANTS",
+      "value": "manage_tenants"
+    },
+    {
+      "name": "MANAGE_SYSTEM_CONFIG",
+      "value": "manage_system_config"
+    },
+    {
+      "name": "MANAGE_SYSTEM_HEALTH",
+      "value": "manage_system_health"
+    },
+    {
+      "name": "MANAGE_MOBILE_APP",
+      "value": "manage_mobile_app"
+    },
+    {
+      "name": "ACCESS_OWNER_DASHBOARD",
+      "value": "access_owner_dashboard"
+    },
+    {
+      "name": "MANAGE_ADVANCED_ACCOUNTING",
+      "value": "manage_advanced_accounting"
+    },
+    {
+      "name": "MANAGE_ANY_USER_PERMISSIONS",
+      "value": "manage_any_user_permissions"
+    },
+    {
+      "name": "MANAGE_AI",
+      "value": "manage_ai"
+    },
+    {
+      "name": "ACCESS_AI_ASSISTANT",
+      "value": "access_ai_assistant"
+    },
+    {
+      "name": "TRAIN_AI",
+      "value": "train_ai"
+    },
+    {
+      "name": "MANAGE_USERS",
+      "value": "manage_users"
+    },
+    {
+      "name": "MANAGE_ROLES",
+      "value": "manage_roles"
+    },
+    {
+      "name": "MANAGE_PERMISSIONS",
+      "value": "manage_permissions"
+    },
+    {
+      "name": "MANAGE_CUSTOMERS",
+      "value": "manage_customers"
+    },
+    {
+      "name": "ADD_CUSTOMER",
+      "value": "add_customer"
+    },
+    {
+      "name": "VIEW_CUSTOMERS",
+      "value": "view_customers"
+    },
+    {
+      "name": "MANAGE_SALES",
+      "value": "manage_sales"
+    },
+    {
+      "name": "ARCHIVE_SALE",
+      "value": "archive_sale"
+    },
+    {
+      "name": "VIEW_SALES",
+      "value": "view_sales"
+    },
+    {
+      "name": "MANAGE_SERVICE",
+      "value": "manage_service"
+    },
+    {
+      "name": "VIEW_SERVICE",
+      "value": "view_service"
+    },
+    {
+      "name": "MANAGE_WAREHOUSES",
+      "value": "manage_warehouses"
+    },
+    {
+      "name": "VIEW_WAREHOUSES",
+      "value": "view_warehouses"
+    },
+    {
+      "name": "MANAGE_INVENTORY",
+      "value": "manage_inventory"
+    },
+    {
+      "name": "VIEW_INVENTORY",
+      "value": "view_inventory"
+    },
+    {
+      "name": "WAREHOUSE_TRANSFER",
+      "value": "warehouse_transfer"
+    },
+    {
+      "name": "VIEW_PARTS",
+      "value": "view_parts"
+    },
+    {
+      "name": "MANAGE_VENDORS",
+      "value": "manage_vendors"
+    },
+    {
+      "name": "ADD_SUPPLIER",
+      "value": "add_supplier"
+    },
+    {
+      "name": "ADD_PARTNER",
+      "value": "add_partner"
+    },
+    {
+      "name": "MANAGE_ACCOUNTING_DOCS",
+      "value": "manage_accounting_docs"
+    },
+    {
+      "name": "VALIDATE_ACCOUNTING",
+      "value": "validate_accounting"
+    },
+    {
+      "name": "MANAGE_LEDGER",
+      "value": "manage_ledger"
+    },
+    {
+      "name": "VIEW_LEDGER",
+      "value": "view_ledger"
+    },
+    {
+      "name": "MANAGE_PAYMENTS",
+      "value": "manage_payments"
+    },
+    {
+      "name": "VIEW_PAYMENTS",
+      "value": "view_payments"
+    },
+    {
+      "name": "MANAGE_EXPENSES",
+      "value": "manage_expenses"
+    },
+    {
+      "name": "VIEW_REPORTS",
+      "value": "view_reports"
+    },
+    {
+      "name": "MANAGE_REPORTS",
+      "value": "manage_reports"
+    },
+    {
+      "name": "EXPORT_DATA",
+      "value": "export_data"
+    },
+    {
+      "name": "MANAGE_EXCHANGE",
+      "value": "manage_exchange"
+    },
+    {
+      "name": "MANAGE_CURRENCIES",
+      "value": "manage_currencies"
+    },
+    {
+      "name": "MANAGE_SHIPMENTS",
+      "value": "manage_shipments"
+    },
+    {
+      "name": "MANAGE_BRANCHES",
+      "value": "manage_branches"
+    },
+    {
+      "name": "MANAGE_SAAS",
+      "value": "manage_saas"
+    },
+    {
+      "name": "VIEW_SHOP",
+      "value": "view_shop"
+    },
+    {
+      "name": "BROWSE_PRODUCTS",
+      "value": "browse_products"
+    },
+    {
+      "name": "MANAGE_SHOP",
+      "value": "manage_shop"
+    },
+    {
+      "name": "PLACE_ONLINE_ORDER",
+      "value": "place_online_order"
+    },
+    {
+      "name": "VIEW_PREORDERS",
+      "value": "view_preorders"
+    },
+    {
+      "name": "ADD_PREORDER",
+      "value": "add_preorder"
+    },
+    {
+      "name": "EDIT_PREORDER",
+      "value": "edit_preorder"
+    },
+    {
+      "name": "DELETE_PREORDER",
+      "value": "delete_preorder"
+    },
+    {
+      "name": "ACCESS_API",
+      "value": "access_api"
+    },
+    {
+      "name": "MANAGE_API",
+      "value": "manage_api"
+    },
+    {
+      "name": "VIEW_NOTES",
+      "value": "view_notes"
+    },
+    {
+      "name": "MANAGE_NOTES",
+      "value": "manage_notes"
+    },
+    {
+      "name": "VIEW_BARCODE",
+      "value": "view_barcode"
+    },
+    {
+      "name": "MANAGE_BARCODE",
+      "value": "manage_barcode"
+    },
+    {
+      "name": "USE_SCANNER",
+      "value": "use_scanner"
+    },
+    {
+      "name": "VIEW_OWN_ORDERS",
+      "value": "view_own_orders"
+    },
+    {
+      "name": "VIEW_OWN_ACCOUNT",
+      "value": "view_own_account"
+    },
+    {
+      "name": "MANAGE_BANK",
+      "value": "manage_bank"
+    },
+    {
+      "name": "VIEW_BANK",
+      "value": "view_bank"
+    },
+    {
+      "name": "ADD_BANK_TRANSACTION",
+      "value": "add_bank_transaction"
+    },
+    {
+      "name": "MANAGE_PROJECTS",
+      "value": "manage_projects"
+    },
+    {
+      "name": "VIEW_PROJECTS",
+      "value": "view_projects"
+    },
+    {
+      "name": "MANAGE_WORKFLOWS",
+      "value": "manage_workflows"
+    },
+    {
+      "name": "VIEW_WORKFLOWS",
+      "value": "view_workflows"
+    },
+    {
+      "name": "RESTORE_ARCHIVE",
+      "value": "restore_archive"
+    },
+    {
+      "name": "MANAGE_ENGINEERING",
+      "value": "manage_engineering"
+    },
+    {
+      "name": "MANAGE_COST_CENTERS",
+      "value": "manage_cost_centers"
+    }
+  ],
+  "roles": [
+    {
+      "name": "OWNER",
+      "value": "owner"
+    },
+    {
+      "name": "DEVELOPER",
+      "value": "developer"
+    },
+    {
+      "name": "SUPER_ADMIN",
+      "value": "super_admin"
+    },
+    {
+      "name": "SUPER",
+      "value": "super"
+    },
+    {
+      "name": "ADMIN",
+      "value": "admin"
+    },
+    {
+      "name": "MANAGER",
+      "value": "manager"
+    },
+    {
+      "name": "STAFF",
+      "value": "staff"
+    },
+    {
+      "name": "MECHANIC",
+      "value": "mechanic"
+    },
+    {
+      "name": "REGISTERED_CUSTOMER",
+      "value": "registered_customer"
+    },
+    {
+      "name": "GUEST",
+      "value": "guest"
+    }
+  ]
+}

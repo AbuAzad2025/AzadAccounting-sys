@@ -718,6 +718,7 @@ def _get_super_roles():
 
 _SUPER_ROLES = _get_super_roles()
 
+# مفاتيح وأسماء أساسية من SystemPermissions؛ القيم الإضافية في كل set لأسماء قديمة/مرادفة في DB (توافق رجعي).
 _PERMISSION_ALIASES = {
     "view_warehouses": {"view_warehouses", "view_inventory", "manage_inventory", "manage_warehouses"},
     "view_inventory": {"view_inventory", "manage_inventory", "manage_warehouses"},

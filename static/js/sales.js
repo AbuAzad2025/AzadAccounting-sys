@@ -8,7 +8,7 @@
   const qsa=(s,el=document)=>Array.from(el.querySelectorAll(s));
   const on=(el,ev,cb)=>el&&el.addEventListener(ev,cb,{passive:false});
   const toNum=v=>{const n=parseFloat((v??'').toString().replace(/[^\d.-]/g,''));return Number.isFinite(n)?n:0;};
-  const stripScripts = (html) => String(html || '').replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+  var stripScripts = window.stripScripts || function(html) { return String(html || '').replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, ''); };
   function loadScriptOnce(src){return new Promise(res=>{if(document.querySelector(`script[src="${src}"]`)) return res();const s=document.createElement('script');s.src=src;s.onload=res;document.head.appendChild(s);});}
   function loadCssOnce(href){if(!document.querySelector(`link[href="${href}"]`)){const l=document.createElement('link');l.rel='stylesheet';l.href=href;document.head.appendChild(l);}}
   function loadJQueryOnce(){return new Promise(res=>{if(window.jQuery) return res();const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/jquery@3.6.4/dist/jquery.min.js';s.onload=()=>res();document.head.appendChild(s);});}

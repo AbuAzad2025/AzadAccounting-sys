@@ -8,6 +8,7 @@ from extensions import db
 from forms import UserForm
 from models import Permission, Role, User, AuditLog, Customer
 import utils
+from utils import _get_or_404
 from permissions_config.enums import SystemPermissions, SystemRoles
 from permissions_config.permissions import PermissionsRegistry
 
@@ -92,18 +93,6 @@ def _selected_permissions_allowed(selected_perm_ids: list[int]) -> bool:
         return selected_keys.issubset(actor_perms)
     except Exception:
         return False
-
-def _get_or_404(model, ident, options=None):
-    q = db.session.query(model)
-    if options:
-        for opt in options:
-            q = q.options(opt)
-        obj = q.filter_by(id=ident).first()
-    else:
-        obj = db.session.get(model, ident)
-    if obj is None:
-        abort(404)
-    return obj
 
 def _is_super_admin_user(user: User) -> bool:
     try:
@@ -343,7 +332,7 @@ def registered_customers():
 @login_required
 @utils.permission_required(SystemPermissions.MANAGE_USERS)
 def user_detail(user_id):
-    user = _get_or_404(User, user_id, options=[joinedload(User.role)])
+    user = _get_or_404(User, user_id, load_options=[joinedload(User.role)])
     if getattr(user, 'is_system_account', False) or getattr(user, 'username', '') == '__OWNER__':
         abort(404)
     try:

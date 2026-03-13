@@ -2,7 +2,7 @@
   if (window.__WAREHOUSES_INIT__) return;
   window.__WAREHOUSES_INIT__ = true;
 
-  function showNotification(message, type) {
+  var showNotification = window.showNotification || function(message, type) {
     type = type || 'info';
     var c = document.getElementById('notification-container');
     if (!c) {
@@ -34,10 +34,9 @@
       el.classList.remove('show');
       setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 300);
     }, 5000);
-  }
-  window.showNotification = showNotification;
+  };
 
-  function fetchWithTimeout(url, options, timeoutMs) {
+  var fetchWithTimeout = window.fetchWithTimeout || function(url, options, timeoutMs) {
     var ms = Number(timeoutMs || 20000);
     if (!(ms > 0)) ms = 20000;
     if (typeof AbortController === 'undefined') return fetch(url, options);
@@ -46,7 +45,7 @@
     var opts = options ? Object.assign({}, options) : {};
     opts.signal = controller.signal;
     return fetch(url, opts).finally(function () { clearTimeout(timer); });
-  }
+  };
 
   function postJSON(url, payload) {
     return fetchWithTimeout(url, {

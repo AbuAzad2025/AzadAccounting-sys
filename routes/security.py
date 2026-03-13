@@ -19,8 +19,40 @@ from AI.engine.ai_service import (
     search_database_for_query,
     gather_system_context,
     build_system_message,
-    get_system_setting
+    get_system_setting,
 )
+
+ALLOWED_DIRECT_SETTINGS_KEYS: set[str] = {
+    # General flags
+    "maintenance_mode",
+    "registration_enabled",
+    "api_enabled",
+    # Advanced config (string/integer values)
+    "SESSION_TIMEOUT",
+    "MAX_LOGIN_ATTEMPTS",
+    "PASSWORD_MIN_LENGTH",
+    "AUTO_BACKUP_ENABLED",
+    "BACKUP_INTERVAL_HOURS",
+    "ENABLE_EMAIL_NOTIFICATIONS",
+    "ENABLE_SMS_NOTIFICATIONS",
+    # Company info
+    "COMPANY_ADDRESS",
+    "COMPANY_PHONE",
+    "COMPANY_EMAIL",
+    "TAX_NUMBER",
+    "CURRENCY_SYMBOL",
+    "TIMEZONE",
+    # Branding & theme
+    "system_name",
+    "company_name",
+    "login_title",
+    "login_subtitle",
+    "footer_text",
+    "primary_color",
+    "secondary_color",
+    "sidebar_bg",
+    "sidebar_text",
+}
 
 security_bp = Blueprint('security', __name__, url_prefix='/security')
 
@@ -947,33 +979,29 @@ def system_cleanup():
         pass
 
     if request.method == 'POST':
-        action = request.form.get('action')
-        confirm = request.form.get('confirm', '').strip()
+        action = (request.form.get('action') or "").strip()
+        confirm = (request.form.get('confirm') or "").strip()
         tables = request.form.getlist('tables')
-        
-        # 1. Handle Maintenance Actions
-        if action == 'clear_cache':
-            try:
-                cache.clear()
-                flash('تم مسح ذاكرة التخزين المؤقت بنجاح.', 'success')
-            except Exception as e:
-                flash(f'فشل مسح الكاش: {e}', 'danger')
-            return redirect(url_for('security.system_cleanup', tab='maintenance'))
-            
-        elif action == 'cleanup_temp':
-            flash('تم تنظيف الملفات المؤقتة (محاكاة).', 'success')
-            return redirect(url_for('security.system_cleanup', tab='maintenance'))
-            
-        elif action == 'purge_logs':
-            flash('تم حذف السجلات القديمة (محاكاة).', 'success')
-            return redirect(url_for('security.system_cleanup', tab='maintenance'))
-            
-        elif action == 'optimize_db':
-            flash('تم تحسين قاعدة البيانات (محاكاة).', 'success')
+
+        # 1. Handle Maintenance Actions (آمنة – بدون حذف بيانات أعمال)
+        if action in {'clear_cache', 'cleanup_temp', 'purge_logs', 'optimize_db'}:
+            if action == 'clear_cache':
+                try:
+                    cache.clear()
+                    flash('تم مسح ذاكرة التخزين المؤقت بنجاح.', 'success')
+                except Exception as e:
+                    flash(f'فشل مسح الكاش: {e}', 'danger')
+            elif action == 'cleanup_temp':
+                flash('تم تنظيف الملفات المؤقتة (محاكاة).', 'success')
+            elif action == 'purge_logs':
+                flash('تم حذف السجلات القديمة (محاكاة).', 'success')
+            elif action == 'optimize_db':
+                flash('تم تحسين قاعدة البيانات (محاكاة).', 'success')
+
             return redirect(url_for('security.system_cleanup', tab='maintenance'))
 
-        # 2. Handle Data Reset (Format) Actions
-        elif confirm or tables:
+        # 2. Handle Data Reset (Format) Actions – أخطر جزء
+        if confirm or tables:
             if confirm != 'FORMAT_SYSTEM':
                 flash('❌ يجب كتابة "FORMAT_SYSTEM" للتأكيد', 'danger')
             elif not tables:
@@ -981,43 +1009,33 @@ def system_cleanup():
             else:
                 try:
                     result = _cleanup_tables(tables)
-                    
-                    # إذا تم تحديد جميع الجداول (تصفير شامل)، نقوم بتشغيل سكريبتات التهيئة
+
+                    # إذا تم تحديد جميع الجداول (تصفير شامل)، لا نقوم بأي drop_all داخل سيرفر التشغيل
                     is_full_reset = len(tables) >= 50 or 'users' in tables or 'users_except_first_super' in tables
-                    
+
                     if is_full_reset:
                         try:
-                            # استدعاء دالة التهيئة وإعادة البذر (Seed)
-                            from post_reset_scripts.clean_and_seed import clean_and_seed
-                            # ملاحظة: clean_and_seed تقوم بحذف الجداول وإنشائها من جديد، 
-                            # ولكن بما أننا قمنا للتو بتنظيف الجداول يدوياً عبر _cleanup_tables،
-                            # قد نحتاج فقط لتشغيل الـ seeds.
-                            # ومع ذلك، لضمان نظافة كاملة، يمكننا الاعتماد على clean_and_seed إذا كان الهدف هو تصفير شامل.
-                            
-                            # ولكن clean_and_seed مصممة للعمل كسكربت مستقل يقوم بـ drop_all.
-                            # هنا نحن داخل تطبيق Flask قيد التشغيل، لذا drop_all قد تسبب مشاكل.
-                            # الأفضل هو تشغيل الـ seeding logic فقط.
-                            
+                            # فقط إعادة تهيئة البيانات الأساسية داخل التطبيق بشكل آمن
                             from app import bootstrap_database
                             bootstrap_database()
-                            
-                            # تشغيل السكريبتات الموجودة في post_reset_scripts
+
+                            # تشغيل سكربتات post_reset الآمنة (seed / run فقط)
                             import glob
                             import importlib.util
-                            
+
                             post_reset_dir = os.path.join(current_app.root_path, 'post_reset_scripts')
                             if os.path.exists(post_reset_dir):
                                 script_files = glob.glob(os.path.join(post_reset_dir, '*.py'))
                                 for script_file in sorted(script_files):
                                     script_name = os.path.basename(script_file)
-                                    if script_name.startswith('__') or script_name == 'clean_and_seed.py': 
+                                    if script_name.startswith('__') or script_name == 'clean_and_seed.py':
                                         continue
-                                        
+
                                     try:
                                         spec = importlib.util.spec_from_file_location(f"post_reset_{script_name[:-3]}", script_file)
                                         module = importlib.util.module_from_spec(spec)
                                         spec.loader.exec_module(module)
-                                        
+
                                         if hasattr(module, 'seed_permissions'):
                                             module.seed_permissions(current_app)
                                         elif hasattr(module, 'seed_accounts'):
@@ -1028,16 +1046,17 @@ def system_cleanup():
                                             module.run(current_app)
                                     except Exception as seed_err:
                                         current_app.logger.error(f"Seed error {script_name}: {seed_err}")
-                                        
-                            flash(f'✅ تم تنظيف {result["cleaned"]} جدول وإعادة تهيئة النظام بنجاح', 'success')
+
+                            flash(f'✅ تم تنظيف {result.get("cleaned", 0)} جدول وإعادة تهيئة النظام بنجاح', 'success')
                         except Exception as e:
                             current_app.logger.error(f"Reset Error: {e}")
                             flash(f'✅ تم التنظيف ولكن حدث خطأ في التهيئة: {e}', 'warning')
                     else:
-                        flash(f'✅ تم تنظيف {result["cleaned"]} جدول', 'success')
-                        
+                        flash(f'✅ تم تنظيف {result.get("cleaned", 0)} جدول', 'success')
+
                 except Exception as e:
                     flash(f'❌ حدث خطأ أثناء التنظيف: {e}', 'danger')
+
             return redirect(url_for('security.system_cleanup', tab='reset'))
     
     # قائمة الجداول القابلة للتنظيف
@@ -1478,6 +1497,11 @@ def database_manager():
         allow_sql_write = str(os.environ.get("ENABLE_SQL_WRITE_CONSOLE", "") or "").strip().lower() in {"1", "true", "yes", "y", "on"}
         if (is_production and not allow_sql_console) or (not utils.is_super()):
             flash('⚠️ غير مصرح - وحدة SQL معطلة', 'danger')
+            _log_owner_action(
+                'db_sql_denied',
+                target='database_manager',
+                meta={'env': app_env}
+            )
             return redirect(url_for('security.database_manager', tab='browse'))
         sql_query = request.form.get('sql_query', '').strip()
         if not sql_query:
@@ -1491,6 +1515,11 @@ def database_manager():
         readonly_tokens = {"SELECT", "WITH", "EXPLAIN", "SHOW"}
         if (first_token not in readonly_tokens) and (not allow_sql_write):
             flash('⛔ مسموح فقط باستعلامات القراءة (SELECT/WITH/EXPLAIN/SHOW)', 'danger')
+            _log_owner_action(
+                'db_sql_blocked_write',
+                target='database_manager',
+                meta={'statement': statements[0][:200]}
+            )
             return redirect(url_for('security.database_manager', tab='sql'))
         try:
             result_proxy = db.session.execute(text(statements[0]))
@@ -1502,12 +1531,27 @@ def database_manager():
                     'rows': [list(row) for row in rows],
                     'count': len(rows)
                 }
+                _log_owner_action(
+                    'db_sql_executed',
+                    target='database_manager',
+                    meta={'statement': statements[0][:200], 'rows': len(rows)}
+                )
             except Exception:
                 db.session.commit()
                 sql_result = {'message': 'تم تنفيذ الاستعلام بنجاح'}
+                _log_owner_action(
+                    'db_sql_executed_write',
+                    target='database_manager',
+                    meta={'statement': statements[0][:200]}
+                )
         except Exception as e:
             sql_error = str(e)
             db.session.rollback()
+            _log_owner_action(
+                'db_sql_error',
+                target='database_manager',
+                meta={'error': str(e)[:200]}
+            )
     
     # === 5) Python Console ===
     if tab == 'python' and request.method == 'POST':
@@ -1516,6 +1560,11 @@ def database_manager():
         allow_python_console = str(os.environ.get("ENABLE_PYTHON_CONSOLE", "") or "").strip().lower() in {"1", "true", "yes", "y", "on"}
         if (is_production and not allow_python_console) or (not utils.is_super()):
             flash('⚠️ غير مصرح - وحدة Python معطلة', 'danger')
+            _log_owner_action(
+                'db_python_denied',
+                target='database_manager',
+                meta={'env': app_env}
+            )
             return redirect(url_for('security.database_manager', tab='browse'))
         
         python_code = request.form.get('python_code', '').strip()
@@ -1527,6 +1576,11 @@ def database_manager():
         if any(keyword in python_code for keyword in dangerous_keywords):
             flash('⛔ كود خطر - يحتوي على عمليات محظورة', 'danger')
             python_error = 'كود خطر محظور'
+            _log_owner_action(
+                'db_python_blocked',
+                target='database_manager',
+                meta={'snippet': python_code[:200]}
+            )
         else:
             try:
                 safe_builtins = {
@@ -1554,8 +1608,18 @@ def database_manager():
                 python_result = local_vars.get('output', 'تم التنفيذ بنجاح')
                 
                 utils.log_audit('PYTHON_EXEC', None, 'EXECUTED', details=f'Executed: {python_code[:100]}...')
+                _log_owner_action(
+                    'db_python_executed',
+                    target='database_manager',
+                    meta={'snippet': python_code[:200]}
+                )
             except Exception as e:
                 python_error = str(e)
+                _log_owner_action(
+                    'db_python_error',
+                    target='database_manager',
+                    meta={'error': str(e)[:200]}
+                )
     
     # === 6) Tools (Error Tracker) ===
     if tab == 'tools':
@@ -1663,7 +1727,7 @@ def users_center():
         'total': User.query.count(),
         'active': User.query.filter_by(is_active=True).count(),
         'blocked': User.query.filter_by(is_active=False).count(),
-        'online': User.query.filter(User.last_seen >= datetime.now(timezone.utc) - timedelta(minutes=30)).count()
+        'online': User.query.filter(User.last_seen >= datetime.now(timezone.utc) - timedelta(minutes=30)).count(),
     }
     
     users_list = User.query.order_by(User.created_at.desc()).limit(20).all()
@@ -1681,15 +1745,18 @@ def users_center():
     permissions_list = Permission.query.order_by(Permission.module, Permission.name).all()
     
     stats = get_cached_security_stats()
-    return render_template('security/users_center.html', 
-                          active_tab=tab, 
-                          stats=stats,
-                          users_data=users_data,
-                          users_list=users_list,
-                          roles_data=roles_data,
-                          permissions_data=permissions_data,
-                          roles_list=roles_list,
-                          permissions_list=permissions_list)
+    return render_template(
+        'security/users_center.html',
+        active_tab=tab,
+        stats=stats,
+        users_data=users_data,
+        users_list=users_list,
+        roles_data=roles_data,
+        permissions_data=permissions_data,
+        roles_list=roles_list,
+        permissions_list=permissions_list,
+        total_users=users_data.get('total', 0),
+    )
 
 
 @security_bp.route('/settings-center', methods=['GET', 'POST'])
@@ -1710,40 +1777,51 @@ def settings_center():
         action = request.form.get('action')
         active_tab = request.form.get('active_tab')
         
-        # 1. Handle explicit actions
+        # 1. Handle explicit, quick inline updates
         if action == 'update_setting':
-            key = request.form.get('key')
+            key = (request.form.get('key') or "").strip()
             value = request.form.get('value')
-            if key:
+            if key in ALLOWED_DIRECT_SETTINGS_KEYS:
                 SystemSettings.set_setting(key, value)
                 flash(f'✅ تم تحديث {key} بنجاح', 'success')
+            else:
+                flash('⚠️ هذا الإعداد غير مسموح بتعديله مباشرة من هذه الشاشة.', 'warning')
                 
         elif action == 'update_branding':
-            # 1. System Identity
-            system_name = request.form.get('system_name')
-            company_name = request.form.get('company_name')
-            login_title = request.form.get('login_title')
-            login_subtitle = request.form.get('login_subtitle')
-            footer_text = request.form.get('footer_text')
+            # 1. System Identity (Appearance Panel / System Branding)
+            system_name = (request.form.get('system_name') or "").strip()
+            company_name = (request.form.get('company_name') or "").strip()
+            login_title = (request.form.get('login_title') or "").strip()
+            login_subtitle = (request.form.get('login_subtitle') or "").strip()
+            footer_text = (request.form.get('footer_text') or "").strip()
 
-            if system_name: SystemSettings.set_setting('system_name', system_name)
-            if company_name: SystemSettings.set_setting('company_name', company_name)
-            if login_title: SystemSettings.set_setting('login_title', login_title)
-            if login_subtitle: SystemSettings.set_setting('login_subtitle', login_subtitle)
-            if footer_text: SystemSettings.set_setting('footer_text', footer_text)
+            if system_name:
+                SystemSettings.set_setting('system_name', system_name)
+            if company_name:
+                SystemSettings.set_setting('company_name', company_name)
+            if login_title:
+                SystemSettings.set_setting('login_title', login_title)
+            if login_subtitle:
+                SystemSettings.set_setting('login_subtitle', login_subtitle)
+            if footer_text:
+                SystemSettings.set_setting('footer_text', footer_text)
 
-            # 2. Theme & Colors
-            primary_color = request.form.get('primary_color')
-            secondary_color = request.form.get('secondary_color')
-            sidebar_bg = request.form.get('sidebar_bg')
-            sidebar_text = request.form.get('sidebar_text')
+            # 2. Theme & Colors (safe keys only)
+            primary_color = (request.form.get('primary_color') or "").strip()
+            secondary_color = (request.form.get('secondary_color') or "").strip()
+            sidebar_bg = (request.form.get('sidebar_bg') or "").strip()
+            sidebar_text = (request.form.get('sidebar_text') or "").strip()
 
-            if primary_color: SystemSettings.set_setting('primary_color', primary_color)
-            if secondary_color: SystemSettings.set_setting('secondary_color', secondary_color)
-            if sidebar_bg: SystemSettings.set_setting('sidebar_bg', sidebar_bg)
-            if sidebar_text: SystemSettings.set_setting('sidebar_text', sidebar_text)
+            if primary_color:
+                SystemSettings.set_setting('primary_color', primary_color)
+            if secondary_color:
+                SystemSettings.set_setting('secondary_color', secondary_color)
+            if sidebar_bg:
+                SystemSettings.set_setting('sidebar_bg', sidebar_bg)
+            if sidebar_text:
+                SystemSettings.set_setting('sidebar_text', sidebar_text)
 
-            flash('✅ تم تحديث العلامة التجارية وهوبة النظام بنجاح', 'success')
+            flash('✅ تم تحديث مظهر وهوية النظام بنجاح', 'success')
 
         # 2. Handle tab-based bulk updates (from system_settings.html)
         elif active_tab == 'general':
@@ -2340,10 +2418,23 @@ def permissions_manager():
         action = request.form.get('action')
         
         if action == 'create_permission':
-            code = request.form.get('code')
-            name = request.form.get('name')
+            code = (request.form.get('code') or "").strip()
+            name = (request.form.get('name') or "").strip()
+
+            if not code or not name:
+                flash('⚠️ يجب إدخال كود واسم للصلاحية.', 'warning')
+                return redirect(url_for('security.permissions_manager'))
+
+            # تطبيع الكود: حروف صغيرة + شرطات سفلية
+            normalized_code = code.strip().lower().replace(" ", "_")
+
+            # منع التكرار
+            existing = Permission.query.filter_by(code=normalized_code).first()
+            if existing:
+                flash('⚠️ توجد صلاحية بنفس الكود بالفعل، يرجى اختيار كود مختلف.', 'warning')
+                return redirect(url_for('security.permissions_manager'))
             
-            perm = Permission(code=code, name=name)
+            perm = Permission(code=normalized_code, name=name)
             db.session.add(perm)
             db.session.commit()
             flash(f'✅ تم إنشاء صلاحية: {name}', 'success')

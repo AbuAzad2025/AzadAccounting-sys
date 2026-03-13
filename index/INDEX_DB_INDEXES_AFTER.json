@@ -1,0 +1,993 @@
+{
+  "accounts": [
+    {
+      "name": "uq_accounts_code",
+      "columns": [
+        "code"
+      ],
+      "unique": true
+    }
+  ],
+  "alembic_version": [],
+  "archives": [],
+  "asset_depreciations": [],
+  "asset_maintenance": [],
+  "audit_logs": [],
+  "auth_audit": [],
+  "bank_accounts": [],
+  "bank_reconciliations": [],
+  "bank_statements": [],
+  "bank_transactions": [],
+  "blocked_countries": [
+    {
+      "name": "idx_fk_blocked_countries_blocked_by",
+      "columns": [
+        "blocked_by"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_blocked_countries_country_code",
+      "columns": [
+        "country_code"
+      ],
+      "unique": true
+    }
+  ],
+  "blocked_ips": [
+    {
+      "name": "idx_fk_blocked_ips_blocked_by",
+      "columns": [
+        "blocked_by"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_blocked_ips_ip",
+      "columns": [
+        "ip"
+      ],
+      "unique": true
+    }
+  ],
+  "branches": [],
+  "budget_commitments": [],
+  "budgets": [],
+  "checks": [
+    {
+      "name": "gin_checks_check_number_trgm",
+      "columns": [
+        "check_number"
+      ],
+      "unique": false
+    },
+    {
+      "name": "idx_checks_customer_date",
+      "columns": [
+        "customer_id",
+        "check_date"
+      ],
+      "unique": false
+    },
+    {
+      "name": "idx_checks_payment",
+      "columns": [
+        "payment_id"
+      ],
+      "unique": false
+    },
+    {
+      "name": "idx_checks_ref",
+      "columns": [
+        "reference_number"
+      ],
+      "unique": false
+    },
+    {
+      "name": "idx_checks_status",
+      "columns": [
+        "status"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_checks_check_date",
+      "columns": [
+        "check_date"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_checks_check_date_status",
+      "columns": [
+        "check_date",
+        "status"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_checks_customer_id_date",
+      "columns": [
+        "customer_id",
+        "check_date"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_checks_date_pending",
+      "columns": [
+        "check_date"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_checks_direction",
+      "columns": [
+        "direction"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_checks_is_archived_status",
+      "columns": [
+        "is_archived",
+        "status"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_checks_partner_id_date",
+      "columns": [
+        "partner_id",
+        "check_date"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_checks_payment_id",
+      "columns": [
+        "payment_id"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_checks_payment_id_status",
+      "columns": [
+        "payment_id",
+        "status"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_checks_status",
+      "columns": [
+        "status"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_checks_status_due_date_direction",
+      "columns": [
+        "status",
+        "check_due_date",
+        "direction"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_checks_supplier_id_date",
+      "columns": [
+        "supplier_id",
+        "check_date"
+      ],
+      "unique": false
+    }
+  ],
+  "cost_allocation_execution_lines": [],
+  "cost_allocation_executions": [],
+  "cost_allocation_lines": [],
+  "cost_allocation_rules": [],
+  "cost_center_alert_logs": [],
+  "cost_center_alerts": [],
+  "cost_center_allocations": [],
+  "cost_centers": [],
+  "currencies": [],
+  "customer_loyalty": [],
+  "customer_loyalty_points": [],
+  "customers": [
+    {
+      "name": "gin_customers_name_trgm",
+      "columns": [
+        "name"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_customers_category",
+      "columns": [
+        "category"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_customers_created_at",
+      "columns": [
+        "created_at"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_customers_current_balance",
+      "columns": [
+        "current_balance"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_customers_is_active",
+      "columns": [
+        "is_active"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_customers_is_archived",
+      "columns": [
+        "is_archived"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_customers_is_online",
+      "columns": [
+        "is_online"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_customers_lower_email",
+      "columns": [
+        null
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_customers_name",
+      "columns": [
+        "name"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_customers_phone",
+      "columns": [
+        "phone"
+      ],
+      "unique": false
+    },
+    {
+      "name": "uq_customers_phone",
+      "columns": [
+        "phone"
+      ],
+      "unique": true
+    }
+  ],
+  "deletion_logs": [],
+  "employee_advance_installments": [],
+  "employee_advances": [],
+  "employee_deductions": [],
+  "employee_skills": [],
+  "employees": [],
+  "engineering_skills": [],
+  "engineering_tasks": [],
+  "engineering_team_members": [],
+  "engineering_teams": [],
+  "engineering_timesheets": [],
+  "equipment_types": [],
+  "exchange_rates": [],
+  "exchange_transactions": [],
+  "expense_types": [],
+  "expenses": [
+    {
+      "name": "idx_expenses_customer_date",
+      "columns": [
+        "customer_id",
+        "date"
+      ],
+      "unique": false
+    }
+  ],
+  "fixed_asset_categories": [],
+  "fixed_assets": [],
+  "gl_batches": [
+    {
+      "name": "ix_gl_batches_posted_at",
+      "columns": [
+        "posted_at"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_gl_batches_status",
+      "columns": [
+        "status"
+      ],
+      "unique": false
+    }
+  ],
+  "gl_entries": [],
+  "import_runs": [],
+  "invoice_lines": [],
+  "invoices": [
+    {
+      "name": "idx_invoices_customer_date",
+      "columns": [
+        "customer_id",
+        "invoice_date"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_invoices_customer_date",
+      "columns": [
+        "customer_id",
+        "invoice_date"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_invoices_customer_id",
+      "columns": [
+        "customer_id"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_invoices_invoice_date",
+      "columns": [
+        "invoice_date"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_invoices_invoice_number",
+      "columns": [
+        "invoice_number"
+      ],
+      "unique": false
+    }
+  ],
+  "notes": [],
+  "notification_logs": [],
+  "notifications": [
+    {
+      "name": "idx_fk_notifications_user_id",
+      "columns": [
+        "user_id"
+      ],
+      "unique": false
+    }
+  ],
+  "online_cart_items": [],
+  "online_carts": [],
+  "online_payments": [],
+  "online_preorder_items": [],
+  "online_preorders": [],
+  "partner_settlement_lines": [],
+  "partner_settlements": [],
+  "partners": [
+    {
+      "name": "gin_partners_name_trgm",
+      "columns": [
+        "name"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_partners_currency_balance",
+      "columns": [
+        "currency",
+        "current_balance"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_partners_customer_id",
+      "columns": [
+        "customer_id"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_partners_is_archived_balance",
+      "columns": [
+        "is_archived",
+        "current_balance"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_partners_name_phone",
+      "columns": [
+        "name",
+        "phone_number"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_partners_share_percentage",
+      "columns": [
+        "share_percentage"
+      ],
+      "unique": false
+    }
+  ],
+  "payment_splits": [],
+  "payments": [
+    {
+      "name": "gin_payments_notes_trgm",
+      "columns": [
+        "notes"
+      ],
+      "unique": false
+    },
+    {
+      "name": "gin_payments_reference_trgm",
+      "columns": [
+        "reference"
+      ],
+      "unique": false
+    },
+    {
+      "name": "idx_payments_customer_date",
+      "columns": [
+        "customer_id",
+        "payment_date"
+      ],
+      "unique": false
+    },
+    {
+      "name": "idx_payments_status",
+      "columns": [
+        "status"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_payments_currency",
+      "columns": [
+        "currency"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_payments_customer_date",
+      "columns": [
+        "customer_id",
+        "payment_date"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_payments_customer_date_completed",
+      "columns": [
+        "customer_id",
+        "payment_date"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_payments_customer_id",
+      "columns": [
+        "customer_id"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_payments_date",
+      "columns": [
+        "payment_date"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_payments_date_active",
+      "columns": [
+        "payment_date"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_payments_direction",
+      "columns": [
+        "direction"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_payments_entity_type",
+      "columns": [
+        "entity_type"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_payments_invoice_id",
+      "columns": [
+        "invoice_id"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_payments_is_archived",
+      "columns": [
+        "is_archived"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_payments_method",
+      "columns": [
+        "method"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_payments_partner_date",
+      "columns": [
+        "partner_id",
+        "payment_date"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_payments_partner_id",
+      "columns": [
+        "partner_id"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_payments_payment_number",
+      "columns": [
+        "payment_number"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_payments_receipt_number",
+      "columns": [
+        "receipt_number"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_payments_sale_id",
+      "columns": [
+        "sale_id"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_payments_service_id",
+      "columns": [
+        "service_id"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_payments_status",
+      "columns": [
+        "status"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_payments_supplier_date",
+      "columns": [
+        "supplier_id",
+        "payment_date"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_payments_supplier_id",
+      "columns": [
+        "supplier_id"
+      ],
+      "unique": false
+    }
+  ],
+  "permissions": [],
+  "preorders": [],
+  "product_categories": [],
+  "product_partners": [],
+  "product_rating_helpful": [],
+  "product_ratings": [],
+  "product_supplier_loans": [],
+  "products": [
+    {
+      "name": "ix_products_brand",
+      "columns": [
+        "brand"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_products_name",
+      "columns": [
+        "name"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_products_part_number",
+      "columns": [
+        "part_number"
+      ],
+      "unique": false
+    }
+  ],
+  "project_change_orders": [],
+  "project_costs": [],
+  "project_issues": [],
+  "project_milestones": [],
+  "project_phases": [],
+  "project_resources": [],
+  "project_revenues": [],
+  "project_risks": [],
+  "project_tasks": [],
+  "projects": [],
+  "recurring_invoice_schedules": [],
+  "recurring_invoice_templates": [],
+  "resource_time_logs": [],
+  "role_permissions": [],
+  "roles": [],
+  "saas_invoices": [],
+  "saas_plans": [],
+  "saas_subscriptions": [],
+  "sale_lines": [],
+  "sale_return_lines": [],
+  "sale_returns": [
+    {
+      "name": "idx_sale_returns_customer",
+      "columns": [
+        "customer_id"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_sale_returns_return_date",
+      "columns": [
+        "return_date"
+      ],
+      "unique": false
+    }
+  ],
+  "sales": [
+    {
+      "name": "idx_sales_customer_date",
+      "columns": [
+        "customer_id",
+        "sale_date"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_sales_customer_date",
+      "columns": [
+        "customer_id",
+        "sale_date"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_sales_customer_id",
+      "columns": [
+        "customer_id"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_sales_date",
+      "columns": [
+        "sale_date"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_sales_status",
+      "columns": [
+        "status"
+      ],
+      "unique": false
+    }
+  ],
+  "service_parts": [],
+  "service_requests": [
+    {
+      "name": "idx_services_customer_date",
+      "columns": [
+        "customer_id",
+        "completed_at"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_service_received_active",
+      "columns": [
+        "received_at"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_service_requests_customer_date",
+      "columns": [
+        "customer_id",
+        "received_at"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_service_requests_customer_id",
+      "columns": [
+        "customer_id"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_service_requests_customer_status_date",
+      "columns": [
+        "customer_id",
+        "status",
+        "received_at"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_service_requests_mechanic_id",
+      "columns": [
+        "mechanic_id"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_service_requests_mechanic_status",
+      "columns": [
+        "mechanic_id",
+        "status"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_service_requests_priority",
+      "columns": [
+        "priority"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_service_requests_received_at",
+      "columns": [
+        "received_at"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_service_requests_received_status",
+      "columns": [
+        "received_at",
+        "status"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_service_requests_status",
+      "columns": [
+        "status"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_service_requests_status_created_at",
+      "columns": [
+        "status",
+        "created_at"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_service_requests_status_priority",
+      "columns": [
+        "status",
+        "priority"
+      ],
+      "unique": false
+    }
+  ],
+  "service_tasks": [],
+  "shipment_items": [],
+  "shipment_partners": [],
+  "shipments": [],
+  "sites": [],
+  "stock_adjustment_items": [],
+  "stock_adjustments": [],
+  "stock_levels": [
+    {
+      "name": "ix_stock_levels_prod",
+      "columns": [
+        "product_id"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_stock_levels_wh",
+      "columns": [
+        "warehouse_id"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_stock_levels_wh_prod",
+      "columns": [
+        "warehouse_id",
+        "product_id"
+      ],
+      "unique": false
+    }
+  ],
+  "stock_movements": [
+    {
+      "name": "idx_fk_stock_movements_created_by",
+      "columns": [
+        "created_by"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_stock_movements_created_at",
+      "columns": [
+        "created_at"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_stock_movements_movement_type",
+      "columns": [
+        "movement_type"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_stock_movements_product_id",
+      "columns": [
+        "product_id"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_stock_movements_updated_at",
+      "columns": [
+        "updated_at"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_stock_movements_warehouse_id",
+      "columns": [
+        "warehouse_id"
+      ],
+      "unique": false
+    }
+  ],
+  "supplier_loan_settlements": [],
+  "supplier_settlement_lines": [],
+  "supplier_settlements": [],
+  "suppliers": [
+    {
+      "name": "gin_suppliers_name_trgm",
+      "columns": [
+        "name"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_suppliers_currency",
+      "columns": [
+        "currency"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_suppliers_current_balance",
+      "columns": [
+        "current_balance"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_suppliers_is_archived",
+      "columns": [
+        "is_archived"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_suppliers_lower_email",
+      "columns": [
+        null
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_suppliers_name",
+      "columns": [
+        "name"
+      ],
+      "unique": false
+    }
+  ],
+  "system_settings": [],
+  "tax_entries": [],
+  "transfers": [],
+  "user_branches": [],
+  "user_permissions": [],
+  "users": [
+    {
+      "name": "ix_users_is_active",
+      "columns": [
+        "is_active"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_users_last_login",
+      "columns": [
+        "last_login"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_users_last_seen",
+      "columns": [
+        "last_seen"
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_users_lower_email",
+      "columns": [
+        null
+      ],
+      "unique": false
+    },
+    {
+      "name": "ix_users_lower_username",
+      "columns": [
+        null
+      ],
+      "unique": false
+    },
+    {
+      "name": "uq_users_email",
+      "columns": [
+        "email"
+      ],
+      "unique": true
+    },
+    {
+      "name": "uq_users_username",
+      "columns": [
+        "username"
+      ],
+      "unique": true
+    }
+  ],
+  "utility_accounts": [],
+  "warehouse_partner_shares": [],
+  "warehouses": [],
+  "workflow_actions": [],
+  "workflow_definitions": [],
+  "workflow_instances": []
+}

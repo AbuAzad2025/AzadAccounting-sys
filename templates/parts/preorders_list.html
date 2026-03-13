@@ -142,7 +142,7 @@
               {% set balance = total - prepaid %}
               
               {# زر تسليم المنتج - يظهر فقط بعد دفع عربون #}
-              {% if current_user.has_permission('create_sale') and prepaid > 0 %}
+              {% if current_user.has_permission('manage_sales') and prepaid > 0 %}
               <form method="post" 
                     action="{{ url_for('warehouse_bp.preorder_convert_to_sale', preorder_id=p.id) }}" 
                     class="d-inline"

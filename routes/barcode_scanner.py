@@ -10,20 +10,13 @@ from sqlalchemy import or_, and_, func
 from extensions import db
 from models import Product, ProductCategory, Supplier, Warehouse, StockLevel, ProductCondition
 import utils
-from utils import permission_required
+from utils import _get_or_404, permission_required
 from permissions_config.enums import SystemPermissions
 from barcodes import normalize_barcode, generate_barcode_image
 from datetime import datetime, timezone
 import json
 
 barcode_scanner_bp = Blueprint("barcode_scanner", __name__, url_prefix="/barcode")
-
-def _get_or_404(model, ident):
-    """Helper to get object or return 404"""
-    obj = db.session.get(model, ident)
-    if obj is None:
-        abort(404)
-    return obj
 
 
 def generate_unique_barcode():

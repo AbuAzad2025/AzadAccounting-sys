@@ -13,7 +13,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   const $one = (sel, ctx) => (ctx || document).querySelector(sel);
   const $all = (sel, ctx) => Array.from((ctx || document).querySelectorAll(sel));
-  const stripScripts = (html) => String(html || '').replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+  var stripScripts = window.stripScripts || function(html) { return String(html || '').replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, ''); };
   let expensesAjaxSeq = 0;
 
   function setDisabled(el, disabled) {

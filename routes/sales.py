@@ -19,7 +19,7 @@ def _utc_now_naive() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
 from forms import SaleForm
 import utils
-from utils import D, line_total_decimal, money_fmt, archive_record, restore_record  # Import from utils package
+from utils import D, _get_or_404, line_total_decimal, money_fmt, archive_record, restore_record
 from decimal import Decimal, ROUND_HALF_UP
 from permissions_config.enums import SystemPermissions
 
@@ -1423,7 +1423,7 @@ def change_status(id: int, status: str):
 @sales_bp.route("/<int:id>/receipt", methods=["GET"], endpoint="sale_receipt")
 @login_required
 def generate_invoice(id: int):
-    sale = _get_or_404(Sale, id, options=[
+    sale = _get_or_404(Sale, id, load_options=[
         joinedload(Sale.customer), joinedload(Sale.seller), joinedload(Sale.seller_employee),
         joinedload(Sale.lines).joinedload(SaleLine.product),
         joinedload(Sale.lines).joinedload(SaleLine.warehouse),

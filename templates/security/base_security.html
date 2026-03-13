@@ -1,40 +1,36 @@
 {% extends 'base.html' %}
 {% block body_class %}security-body sidebar-hidden{% endblock %}
 {% block styles %}
-<!-- Fonts -->
-<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@200;300;400;600;700;900&family=Tajawal:wght@200;300;400;500;700;800&family=Fira+Code:wght@300;400;500&display=swap" rel="stylesheet">
+<!-- Fonts: نستخدم نفس خط النظام (Tajawal) فقط لتوحيد المظهر -->
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
 
 <style>
     :root {
-        /* Vibrant Artistic Theme (Inspired by provided image) */
-        /* We use a fixed background, so these are overlay colors */
-        --sec-bg-gradient: linear-gradient(135deg, #0060aa 0%, #5d2b7d 25%, #d92d4b 50%, #f7941d 75%, #fcd206 100%);
-        
-        /* Enhanced Sidebar Background - Deep Glass with Vibrant Tint */
+        /* نستخدم ألوان النظام العامة قدر الإمكان لتفادي ثيم مختلف للأمان */
         --sec-sidebar-bg: {{ system_settings.sidebar_bg or '#111827' }};
         --sec-sidebar-border: rgba(255, 255, 255, 0.1);
         
-        --sec-text-main: {{ system_settings.sidebar_text or '#ffffff' }};
+        --sec-text-main: {{ system_settings.sidebar_text or '#f9fafb' }};
         --sec-text-muted: #cbd5e1;
         
-        /* Extracted Palette */
-        --sec-primary: {{ system_settings.primary_color or '#00e5ff' }}; /* Hyper Bright Cyan */
-        --sec-primary-hover: #29b6f6;
-        --sec-accent: {{ system_settings.secondary_color or '#f50057' }}; /* Deep Pink */
+        /* مشتقات من primary/secondary العامة للنظام */
+        --sec-primary: {{ system_settings.primary_color or '#06b6d4' }};
+        --sec-primary-hover: #22d3ee;
+        --sec-accent: {{ system_settings.secondary_color or '#ec4899' }};
         
-        --sec-danger: #ff3366; /* Red/Pink from image */
-        --sec-success: #00ff9d; /* Contrast Green */
-        --sec-warning: #ffcc00; /* Yellow from top right */
+        --sec-danger: #ef4444;
+        --sec-success: #22c55e;
+        --sec-warning: #eab308;
         
-        --sec-card-bg: rgba(30, 41, 59, 0.7); /* Semi-transparent dark slate */
-        --sec-card-border: rgba(255, 255, 255, 0.1);
+        --sec-card-bg: rgba(17, 24, 39, 0.98);
+        --sec-card-border: rgba(148, 163, 184, 0.35);
         
         --sidebar-width: 260px; /* Unified width */
         --header-height: 64px;
-        --main-navbar-height: 57px;
+        --main-navbar_height: 57px;
         
-        --font-main: 'Cairo', sans-serif;
+        --font-main: 'Tajawal', sans-serif;
         --font-mono: 'Fira Code', monospace;
         
         --glass-shadow: 0 4px 12px 0 rgba(0, 0, 0, 0.2);
@@ -43,34 +39,30 @@
 
     /* Global Overrides */
     body.security-body {
-        /* Simplified Background for Performance */
-        background-color: #111827;
-        background-image: linear-gradient(135deg, #111827 0%, #1f2937 100%);
-        background-attachment: scroll; /* Performance: fixed attachment causes lag */
+        background-color: #7f1d1d; /* red background for owner console */
+        background-image: none;
+        background-attachment: scroll;
         background-size: auto;
-        
         font-family: var(--font-main);
-        color: var(--sec-text-main);
+        color: #ffffff;
         overflow-x: hidden;
-        padding-top: var(--main-navbar-height);
+        padding-top: var(--main-navbar_height);
         min-height: 100vh;
     }
 
     /* Sidebar Styling - Glassmorphism Optimized */
     .security-sidebar {
         position: fixed;
-        top: var(--main-navbar-height);
+        top: var(--main-navbar_height);
         right: 0;
         width: var(--sidebar-width);
-        height: calc(100vh - var(--main-navbar-height));
-        
-        background: #111827; /* Solid color instead of complex gradient/glass */
-        border-left: 1px solid var(--sec-sidebar-border);
-        
+        height: calc(100vh - var(--main-navbar_height));
+        background: #991b1b; /* solid dark red */
+        border-left: 1px solid var(--border-glass);
         z-index: 1040;
         transition: transform 0.3s ease-in-out;
-        box-shadow: -2px 0 10px rgba(0,0,0,0.2);
-        color: #fff;
+        box-shadow: -5px 0 18px rgba(0,0,0,0.55);
+        color: var(--sec-text-main);
     }
     
     .security-sidebar.collapsed {
@@ -120,9 +112,9 @@
         text-transform: uppercase;
         letter-spacing: 1px;
         font-weight: 700;
-        color: rgba(255,255,255,0.6);
+        color: #fef2f2;
         font-family: 'Tajawal', sans-serif;
-        border-bottom: 1px solid rgba(255,255,255,0.05);
+        border-bottom: 1px solid rgba(248,113,113,0.4);
         margin-bottom: 0.5rem;
     }
 
@@ -130,7 +122,7 @@
         display: flex;
         align-items: center;
         padding: 0.85rem 1rem;
-        color: rgba(255,255,255,0.75);
+        color: #e5e7eb;
         border-radius: 8px;
         margin-bottom: 6px;
         transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -141,24 +133,24 @@
     }
 
     .nav-link:hover {
-        background: linear-gradient(90deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.02) 100%);
-        color: #fff;
+        background: rgba(239,68,68,0.15);
+        color: #ffffff;
         transform: translateX(4px);
-        border-color: rgba(255,255,255,0.1);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        border-color: rgba(248,113,113,0.7);
+        box-shadow: 0 4px 14px rgba(127,29,29,0.8);
     }
-
+    
     .nav-link.active {
-        background: linear-gradient(90deg, rgba(0, 229, 255, 0.15) 0%, rgba(0, 229, 255, 0.05) 100%);
-        color: #fff;
-        border: 1px solid rgba(0, 229, 255, 0.4);
-        box-shadow: 0 0 15px rgba(0, 229, 255, 0.15), inset 0 0 10px rgba(0, 229, 255, 0.05);
+        background: linear-gradient(90deg, rgba(248,113,113,0.85) 0%, rgba(127,29,29,0.95) 100%);
+        color: #ffffff;
+        border: 1px solid rgba(248,113,113,0.95);
+        box-shadow: 0 0 20px rgba(239,68,68,0.5);
         font-weight: 600;
     }
 
     .nav-link.active i {
-        color: var(--sec-primary);
-        filter: drop-shadow(0 0 5px var(--sec-primary));
+        color: #fecaca;
+        filter: drop-shadow(0 0 4px rgba(254,202,202,0.9));
     }
 
     .nav-link i {
@@ -170,17 +162,17 @@
     
     /* Danger Zone Links */
     .nav-link.danger-link {
-        color: #ff99aa;
+        color: #fecaca;
     }
     .nav-link.danger-link:hover {
-        background: rgba(255, 51, 102, 0.15);
-        color: #ff3366;
+        background: rgba(248,113,113,0.2);
+        color: #fee2e2;
     }
     .nav-link.danger-link.active {
-        background: linear-gradient(90deg, rgba(255, 51, 102, 0.2) 0%, rgba(255, 0, 0, 0.1) 100%);
-        color: #ff3366;
-        border-color: rgba(255, 51, 102, 0.3);
-        box-shadow: 0 0 15px rgba(255, 51, 102, 0.2);
+        background: linear-gradient(90deg, rgba(127,29,29,1) 0%, rgba(185,28,28,0.95) 100%);
+        color: #fee2e2;
+        border-color: rgba(248,113,113,0.9);
+        box-shadow: 0 0 18px rgba(248,113,113,0.6);
     }
 
     /* Main Content Area */
@@ -200,15 +192,13 @@
     /* Header - Glassmorphism */
     .security-header {
         height: var(--header-height);
-        background: rgba(15, 23, 42, 0.6); /* Semi-transparent */
-        backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
-        border-bottom: 1px solid var(--sec-sidebar-border);
+        background: #b91c1c; /* red header */
+        border-bottom: 2px solid #fecaca;
         display: flex;
         align-items: center;
-        padding: 0 2rem;
+        padding: 0 1.5rem;
         position: sticky;
-        top: var(--main-navbar-height);
+        top: var(--main-navbar_height);
         z-index: 1030;
     }
 
@@ -249,20 +239,23 @@
     /* Typography & Utilities */
     h1, h2, h3, h4, h5, h6 {
         font-family: 'Tajawal', sans-serif;
-        color: #fff;
-        text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        color: var(--text-main, #f9fafb);
+        text-shadow: none;
     }
     
     .btn-glass {
-        background: rgba(255, 255, 255, 0.1);
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        color: #fff;
-        transition: all 0.3s;
+        background: rgba(15, 23, 42, 0.9);
+        border: 1px solid rgba(148, 163, 184, 0.5);
+        color: var(--text-main, #f9fafb);
+        transition: all 0.2s ease;
+        border-radius: 999px;
     }
     .btn-glass:hover {
-        background: rgba(255, 255, 255, 0.2);
+        background: var(--primary-cyan, #06b6d4);
+        border-color: var(--primary-cyan, #06b6d4);
         color: #fff;
-        transform: translateY(-2px);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 10px rgba(6, 182, 212, 0.35);
     }
 
     /* Scrollbar */
@@ -337,7 +330,7 @@
             <!-- الإدارة -->
             <div class="security-nav-header">الإدارة العليا</div>
             <a href="{{ url_for('security.user_control') }}" class="nav-link {% if 'user_control' in request.endpoint %}active{% endif %}">
-                <i class="fas fa-users-cog"></i> <span>المستخدمين (God Mode)</span>
+                <i class="fas fa-users-cog"></i> <span>المستخدمين المتقدم (Users Control)</span>
             </a>
             <a href="{{ url_for('security.system_settings') }}" class="nav-link {% if 'system_settings' in request.endpoint %}active{% endif %}">
                 <i class="fas fa-cogs"></i> <span>الإعدادات المتقدمة</span>

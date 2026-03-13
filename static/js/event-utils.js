@@ -53,18 +53,17 @@
   
   const listenerManager = new ListenerManager();
 
-  function debounce(func, wait = 300) {
-    let timeout;
-    return function executedFunction(...args) {
-      const later = () => {
-        clearTimeout(timeout);
-        func(...args);
-      };
+  var debounce = window.debounce || function(func, wait) {
+    wait = wait || 300;
+    var timeout;
+    return function() {
+      var args = arguments, self = this;
       clearTimeout(timeout);
-      timeout = setTimeout(later, wait);
+      timeout = setTimeout(function() { func.apply(self, args); }, wait);
     };
-  }
-  
+  };
+  if (typeof window !== 'undefined') window.debounce = window.debounce || debounce;
+
   function throttle(func, limit = 100) {
     let inThrottle;
     return function(...args) {

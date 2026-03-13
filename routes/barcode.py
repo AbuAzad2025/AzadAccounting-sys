@@ -20,5 +20,6 @@ def barcode_validate():
         "input": code,
         "normalized": r.get("normalized"),
         "valid": bool(r.get("valid")),
+        "suggested": r.get("suggested"),
         "exists": bool(exists),
     })

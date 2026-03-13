@@ -1,0 +1,482 @@
+[
+  {
+    "table": "accounts",
+    "class": "Account"
+  },
+  {
+    "table": "archives",
+    "class": "Archive"
+  },
+  {
+    "table": "asset_depreciations",
+    "class": "AssetDepreciation"
+  },
+  {
+    "table": "asset_maintenance",
+    "class": "AssetMaintenance"
+  },
+  {
+    "table": "audit_logs",
+    "class": "AuditLog"
+  },
+  {
+    "table": "auth_audit",
+    "class": "AuthAudit"
+  },
+  {
+    "table": "bank_accounts",
+    "class": "BankAccount"
+  },
+  {
+    "table": "bank_reconciliations",
+    "class": "BankReconciliation"
+  },
+  {
+    "table": "bank_statements",
+    "class": "BankStatement"
+  },
+  {
+    "table": "bank_transactions",
+    "class": "BankTransaction"
+  },
+  {
+    "table": "blocked_countries",
+    "class": "BlockedCountry"
+  },
+  {
+    "table": "blocked_ips",
+    "class": "BlockedIP"
+  },
+  {
+    "table": "branches",
+    "class": "Branch"
+  },
+  {
+    "table": "budget_commitments",
+    "class": "BudgetCommitment"
+  },
+  {
+    "table": "budgets",
+    "class": "Budget"
+  },
+  {
+    "table": "checks",
+    "class": "Check"
+  },
+  {
+    "table": "cost_allocation_execution_lines",
+    "class": "CostAllocationExecutionLine"
+  },
+  {
+    "table": "cost_allocation_executions",
+    "class": "CostAllocationExecution"
+  },
+  {
+    "table": "cost_allocation_lines",
+    "class": "CostAllocationLine"
+  },
+  {
+    "table": "cost_allocation_rules",
+    "class": "CostAllocationRule"
+  },
+  {
+    "table": "cost_center_alert_logs",
+    "class": "CostCenterAlertLog"
+  },
+  {
+    "table": "cost_center_alerts",
+    "class": "CostCenterAlert"
+  },
+  {
+    "table": "cost_center_allocations",
+    "class": "CostCenterAllocation"
+  },
+  {
+    "table": "cost_centers",
+    "class": "CostCenter"
+  },
+  {
+    "table": "currencies",
+    "class": "Currency"
+  },
+  {
+    "table": "customer_loyalty",
+    "class": "CustomerLoyalty"
+  },
+  {
+    "table": "customer_loyalty_points",
+    "class": "CustomerLoyaltyPoints"
+  },
+  {
+    "table": "customers",
+    "class": "Customer"
+  },
+  {
+    "table": "deletion_logs",
+    "class": "DeletionLog"
+  },
+  {
+    "table": "employee_advance_installments",
+    "class": "EmployeeAdvanceInstallment"
+  },
+  {
+    "table": "employee_advances",
+    "class": "EmployeeAdvance"
+  },
+  {
+    "table": "employee_deductions",
+    "class": "EmployeeDeduction"
+  },
+  {
+    "table": "employee_skills",
+    "class": "EmployeeSkill"
+  },
+  {
+    "table": "employees",
+    "class": "Employee"
+  },
+  {
+    "table": "engineering_skills",
+    "class": "EngineeringSkill"
+  },
+  {
+    "table": "engineering_tasks",
+    "class": "EngineeringTask"
+  },
+  {
+    "table": "engineering_team_members",
+    "class": "EngineeringTeamMember"
+  },
+  {
+    "table": "engineering_teams",
+    "class": "EngineeringTeam"
+  },
+  {
+    "table": "engineering_timesheets",
+    "class": "EngineeringTimesheet"
+  },
+  {
+    "table": "equipment_types",
+    "class": "EquipmentType"
+  },
+  {
+    "table": "exchange_rates",
+    "class": "ExchangeRate"
+  },
+  {
+    "table": "exchange_transactions",
+    "class": "ExchangeTransaction"
+  },
+  {
+    "table": "expense_types",
+    "class": "ExpenseType"
+  },
+  {
+    "table": "expenses",
+    "class": "Expense"
+  },
+  {
+    "table": "fixed_asset_categories",
+    "class": "FixedAssetCategory"
+  },
+  {
+    "table": "fixed_assets",
+    "class": "FixedAsset"
+  },
+  {
+    "table": "gl_batches",
+    "class": "GLBatch"
+  },
+  {
+    "table": "gl_entries",
+    "class": "GLEntry"
+  },
+  {
+    "table": "import_runs",
+    "class": "ImportRun"
+  },
+  {
+    "table": "invoice_lines",
+    "class": "InvoiceLine"
+  },
+  {
+    "table": "invoices",
+    "class": "Invoice"
+  },
+  {
+    "table": "notes",
+    "class": "Note"
+  },
+  {
+    "table": "notification_logs",
+    "class": "NotificationLog"
+  },
+  {
+    "table": "notifications",
+    "class": "Notification"
+  },
+  {
+    "table": "online_cart_items",
+    "class": "OnlineCartItem"
+  },
+  {
+    "table": "online_carts",
+    "class": "OnlineCart"
+  },
+  {
+    "table": "online_payments",
+    "class": "OnlinePayment"
+  },
+  {
+    "table": "online_preorder_items",
+    "class": "OnlinePreOrderItem"
+  },
+  {
+    "table": "online_preorders",
+    "class": "OnlinePreOrder"
+  },
+  {
+    "table": "partner_settlement_lines",
+    "class": "PartnerSettlementLine"
+  },
+  {
+    "table": "partner_settlements",
+    "class": "PartnerSettlement"
+  },
+  {
+    "table": "partners",
+    "class": "Partner"
+  },
+  {
+    "table": "payment_splits",
+    "class": "PaymentSplit"
+  },
+  {
+    "table": "payments",
+    "class": "Payment"
+  },
+  {
+    "table": "permissions",
+    "class": "Permission"
+  },
+  {
+    "table": "preorders",
+    "class": "PreOrder"
+  },
+  {
+    "table": "product_categories",
+    "class": "ProductCategory"
+  },
+  {
+    "table": "product_partner_share",
+    "class": "ProductPartnerShare"
+  },
+  {
+    "table": "product_partners",
+    "class": "ProductPartner"
+  },
+  {
+    "table": "product_rating_helpful",
+    "class": "ProductRatingHelpful"
+  },
+  {
+    "table": "product_ratings",
+    "class": "ProductRating"
+  },
+  {
+    "table": "product_supplier_loans",
+    "class": "ProductSupplierLoan"
+  },
+  {
+    "table": "products",
+    "class": "Product"
+  },
+  {
+    "table": "project_change_orders",
+    "class": "ProjectChangeOrder"
+  },
+  {
+    "table": "project_costs",
+    "class": "ProjectCost"
+  },
+  {
+    "table": "project_issues",
+    "class": "ProjectIssue"
+  },
+  {
+    "table": "project_milestones",
+    "class": "ProjectMilestone"
+  },
+  {
+    "table": "project_phases",
+    "class": "ProjectPhase"
+  },
+  {
+    "table": "project_resources",
+    "class": "ProjectResource"
+  },
+  {
+    "table": "project_revenues",
+    "class": "ProjectRevenue"
+  },
+  {
+    "table": "project_risks",
+    "class": "ProjectRisk"
+  },
+  {
+    "table": "project_tasks",
+    "class": "ProjectTask"
+  },
+  {
+    "table": "projects",
+    "class": "Project"
+  },
+  {
+    "table": "recurring_invoice_schedules",
+    "class": "RecurringInvoiceSchedule"
+  },
+  {
+    "table": "recurring_invoice_templates",
+    "class": "RecurringInvoiceTemplate"
+  },
+  {
+    "table": "resource_time_logs",
+    "class": "ResourceTimeLog"
+  },
+  {
+    "table": "roles",
+    "class": "Role"
+  },
+  {
+    "table": "saas_invoices",
+    "class": "SaaSInvoice"
+  },
+  {
+    "table": "saas_plans",
+    "class": "SaaSPlan"
+  },
+  {
+    "table": "saas_subscriptions",
+    "class": "SaaSSubscription"
+  },
+  {
+    "table": "sale_lines",
+    "class": "SaleLine"
+  },
+  {
+    "table": "sale_return_lines",
+    "class": "SaleReturnLine"
+  },
+  {
+    "table": "sale_returns",
+    "class": "SaleReturn"
+  },
+  {
+    "table": "sales",
+    "class": "Sale"
+  },
+  {
+    "table": "service_parts",
+    "class": "ServicePart"
+  },
+  {
+    "table": "service_requests",
+    "class": "ServiceRequest"
+  },
+  {
+    "table": "service_tasks",
+    "class": "ServiceTask"
+  },
+  {
+    "table": "shipment_items",
+    "class": "ShipmentItem"
+  },
+  {
+    "table": "shipment_partners",
+    "class": "ShipmentPartner"
+  },
+  {
+    "table": "shipments",
+    "class": "Shipment"
+  },
+  {
+    "table": "sites",
+    "class": "Site"
+  },
+  {
+    "table": "stock_adjustment_items",
+    "class": "StockAdjustmentItem"
+  },
+  {
+    "table": "stock_adjustments",
+    "class": "StockAdjustment"
+  },
+  {
+    "table": "stock_levels",
+    "class": "StockLevel"
+  },
+  {
+    "table": "stock_movements",
+    "class": "StockMovement"
+  },
+  {
+    "table": "supplier_loan_settlements",
+    "class": "SupplierLoanSettlement"
+  },
+  {
+    "table": "supplier_settlement_lines",
+    "class": "SupplierSettlementLine"
+  },
+  {
+    "table": "supplier_settlements",
+    "class": "SupplierSettlement"
+  },
+  {
+    "table": "suppliers",
+    "class": "Supplier"
+  },
+  {
+    "table": "system_settings",
+    "class": "SystemSettings"
+  },
+  {
+    "table": "tax_entries",
+    "class": "TaxEntry"
+  },
+  {
+    "table": "transfers",
+    "class": "Transfer"
+  },
+  {
+    "table": "user_branches",
+    "class": "UserBranch"
+  },
+  {
+    "table": "users",
+    "class": "User"
+  },
+  {
+    "table": "utility_accounts",
+    "class": "UtilityAccount"
+  },
+  {
+    "table": "warehouse_partner_shares",
+    "class": "WarehousePartnerShare"
+  },
+  {
+    "table": "warehouses",
+    "class": "Warehouse"
+  },
+  {
+    "table": "workflow_actions",
+    "class": "WorkflowAction"
+  },
+  {
+    "table": "workflow_definitions",
+    "class": "WorkflowDefinition"
+  },
+  {
+    "table": "workflow_instances",
+    "class": "WorkflowInstance"
+  }
+]

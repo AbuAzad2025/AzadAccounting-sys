@@ -1,0 +1,338 @@
+[
+  {
+    "name": "accounting_docs",
+    "url_prefix": "/docs/accounting",
+    "read_perm": null,
+    "write_perm": null
+  },
+  {
+    "name": "accounting_validation",
+    "url_prefix": "/validation/accounting",
+    "read_perm": null,
+    "write_perm": null
+  },
+  {
+    "name": "admin_reports",
+    "url_prefix": "/admin/reports",
+    "read_perm": null,
+    "write_perm": null
+  },
+  {
+    "name": "advanced",
+    "url_prefix": "/advanced",
+    "read_perm": null,
+    "write_perm": null
+  },
+  {
+    "name": "ai",
+    "url_prefix": "/ai",
+    "read_perm": null,
+    "write_perm": null
+  },
+  {
+    "name": "ai_admin",
+    "url_prefix": "/ai-admin",
+    "read_perm": null,
+    "write_perm": null
+  },
+  {
+    "name": "api",
+    "url_prefix": "/api",
+    "read_perm": null,
+    "write_perm": null
+  },
+  {
+    "name": "archive",
+    "url_prefix": "/archive",
+    "read_perm": null,
+    "write_perm": null
+  },
+  {
+    "name": "archive_routes",
+    "url_prefix": "",
+    "read_perm": null,
+    "write_perm": null
+  },
+  {
+    "name": "assets",
+    "url_prefix": "/assets",
+    "read_perm": null,
+    "write_perm": null
+  },
+  {
+    "name": "auth",
+    "url_prefix": "/auth",
+    "read_perm": null,
+    "write_perm": null
+  },
+  {
+    "name": "balances_api",
+    "url_prefix": "/api/balances",
+    "read_perm": null,
+    "write_perm": null
+  },
+  {
+    "name": "bank",
+    "url_prefix": "/bank",
+    "read_perm": null,
+    "write_perm": null
+  },
+  {
+    "name": "barcode_scanner",
+    "url_prefix": "/barcode",
+    "read_perm": null,
+    "write_perm": null
+  },
+  {
+    "name": "bp_barcode",
+    "url_prefix": "/api",
+    "read_perm": "view_parts",
+    "write_perm": null
+  },
+  {
+    "name": "branches_bp",
+    "url_prefix": "/branches",
+    "read_perm": null,
+    "write_perm": null
+  },
+  {
+    "name": "budgets",
+    "url_prefix": "/budgets",
+    "read_perm": null,
+    "write_perm": null
+  },
+  {
+    "name": "checks",
+    "url_prefix": "/checks",
+    "read_perm": null,
+    "write_perm": null
+  },
+  {
+    "name": "cost_centers",
+    "url_prefix": "/cost-centers",
+    "read_perm": null,
+    "write_perm": null
+  },
+  {
+    "name": "cost_centers_advanced",
+    "url_prefix": "/cost-centers",
+    "read_perm": null,
+    "write_perm": null
+  },
+  {
+    "name": "currencies",
+    "url_prefix": "/currencies",
+    "read_perm": null,
+    "write_perm": null
+  },
+  {
+    "name": "customers_bp",
+    "url_prefix": "/customers",
+    "read_perm": "manage_customers",
+    "write_perm": "manage_customers"
+  },
+  {
+    "name": "engineering",
+    "url_prefix": "/engineering",
+    "read_perm": null,
+    "write_perm": null
+  },
+  {
+    "name": "expenses_bp",
+    "url_prefix": "/expenses",
+    "read_perm": "manage_expenses",
+    "write_perm": "manage_expenses"
+  },
+  {
+    "name": "financial_reports",
+    "url_prefix": "/reports/financial",
+    "read_perm": null,
+    "write_perm": null
+  },
+  {
+    "name": "health",
+    "url_prefix": "/health",
+    "read_perm": null,
+    "write_perm": null
+  },
+  {
+    "name": "ledger",
+    "url_prefix": "/ledger",
+    "read_perm": null,
+    "write_perm": null
+  },
+  {
+    "name": "ledger_control",
+    "url_prefix": "/security/ledger-control",
+    "read_perm": null,
+    "write_perm": null
+  },
+  {
+    "name": "main",
+    "url_prefix": "",
+    "read_perm": null,
+    "write_perm": null
+  },
+  {
+    "name": "notes_bp",
+    "url_prefix": "/notes",
+    "read_perm": "view_notes",
+    "write_perm": "manage_notes"
+  },
+  {
+    "name": "other_systems",
+    "url_prefix": "/other-systems",
+    "read_perm": null,
+    "write_perm": null
+  },
+  {
+    "name": "partner_settlements_bp",
+    "url_prefix": "/partners",
+    "read_perm": "manage_vendors",
+    "write_perm": "manage_vendors"
+  },
+  {
+    "name": "parts_bp",
+    "url_prefix": "/parts",
+    "read_perm": "view_parts",
+    "write_perm": "manage_inventory"
+  },
+  {
+    "name": "payments",
+    "url_prefix": "/payments",
+    "read_perm": null,
+    "write_perm": null
+  },
+  {
+    "name": "performance_bp",
+    "url_prefix": "/system/performance",
+    "read_perm": null,
+    "write_perm": null
+  },
+  {
+    "name": "permissions",
+    "url_prefix": "/permissions",
+    "read_perm": null,
+    "write_perm": null
+  },
+  {
+    "name": "pricing",
+    "url_prefix": "/pricing",
+    "read_perm": null,
+    "write_perm": null
+  },
+  {
+    "name": "project_advanced",
+    "url_prefix": "/projects",
+    "read_perm": null,
+    "write_perm": null
+  },
+  {
+    "name": "projects",
+    "url_prefix": "/projects",
+    "read_perm": null,
+    "write_perm": null
+  },
+  {
+    "name": "recurring",
+    "url_prefix": "/recurring",
+    "read_perm": null,
+    "write_perm": null
+  },
+  {
+    "name": "reports_bp",
+    "url_prefix": "/reports",
+    "read_perm": "view_reports",
+    "write_perm": "manage_reports"
+  },
+  {
+    "name": "returns",
+    "url_prefix": "/returns",
+    "read_perm": null,
+    "write_perm": null
+  },
+  {
+    "name": "roles",
+    "url_prefix": "/roles",
+    "read_perm": null,
+    "write_perm": null
+  },
+  {
+    "name": "sales_bp",
+    "url_prefix": "/sales",
+    "read_perm": "manage_sales",
+    "write_perm": "manage_sales"
+  },
+  {
+    "name": "security",
+    "url_prefix": "/security",
+    "read_perm": null,
+    "write_perm": null
+  },
+  {
+    "name": "security_control",
+    "url_prefix": "/advanced",
+    "read_perm": null,
+    "write_perm": null
+  },
+  {
+    "name": "security_expenses",
+    "url_prefix": "/security/expenses-control",
+    "read_perm": null,
+    "write_perm": null
+  },
+  {
+    "name": "service",
+    "url_prefix": "/service",
+    "read_perm": null,
+    "write_perm": null
+  },
+  {
+    "name": "shipments_bp",
+    "url_prefix": "/shipments",
+    "read_perm": "manage_shipments",
+    "write_perm": "manage_shipments"
+  },
+  {
+    "name": "shop",
+    "url_prefix": "/shop",
+    "read_perm": null,
+    "write_perm": null
+  },
+  {
+    "name": "supplier_settlements_bp",
+    "url_prefix": "/suppliers",
+    "read_perm": "manage_vendors",
+    "write_perm": "manage_vendors"
+  },
+  {
+    "name": "user_guide",
+    "url_prefix": "/user-guide",
+    "read_perm": null,
+    "write_perm": null
+  },
+  {
+    "name": "users_bp",
+    "url_prefix": "/users",
+    "read_perm": "manage_users",
+    "write_perm": "manage_users"
+  },
+  {
+    "name": "vendors_bp",
+    "url_prefix": "/vendors",
+    "read_perm": "manage_vendors",
+    "write_perm": "manage_vendors"
+  },
+  {
+    "name": "warehouse_bp",
+    "url_prefix": "/warehouses",
+    "read_perm": "view_warehouses",
+    "write_perm": "manage_warehouses"
+  },
+  {
+    "name": "workflows",
+    "url_prefix": "/workflows",
+    "read_perm": null,
+    "write_perm": null
+  }
+]

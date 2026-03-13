@@ -12,7 +12,7 @@ from sqlalchemy.orm import joinedload
 from extensions import db
 from forms import PartnerForm, SupplierForm, CURRENCY_CHOICES
 import utils
-from utils import D, q2, archive_record, restore_record, permission_required
+from utils import D, q2, _get_or_404, archive_record, restore_record, permission_required
 from models import (
     ExchangeTransaction,
     Partner,
@@ -41,18 +41,6 @@ class CSRFProtectForm(FlaskForm):
 
 vendors_bp = Blueprint("vendors_bp", __name__, url_prefix="/vendors")
 
-
-def _get_or_404(model, ident, options=None):
-    q = db.session.query(model)
-    if options:
-        for opt in options:
-            q = q.options(opt)
-        obj = q.filter_by(id=ident).first()
-    else:
-        obj = db.session.get(model, ident)
-    if obj is None:
-        abort(404)
-    return obj
 
 @vendors_bp.route("/suppliers", methods=["GET"], endpoint="suppliers_list")
 @login_required

@@ -1,0 +1,6392 @@
+[
+  {
+    "rule": "/",
+    "endpoint": "main.dashboard",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/@vite/client",
+    "endpoint": "vite_client_shim",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/admin/reports/",
+    "endpoint": "admin_reports.index",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/admin/reports/api/stats",
+    "endpoint": "admin_reports.api_stats",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/admin/reports/cards",
+    "endpoint": "admin_reports.cards",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/admin/reports/cards/<int:pid>/reveal",
+    "endpoint": "admin_reports.cards_reveal",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/admin/reports/dashboard",
+    "endpoint": "admin_reports.dashboard",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/admin/reports/download-backup",
+    "endpoint": "admin_reports.download_backup",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/admin/reports/logs/view",
+    "endpoint": "admin_reports.view_logs",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/admin/reports/preorders",
+    "endpoint": "admin_reports.preorders",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/advanced/accounting-control",
+    "endpoint": "advanced.accounting_control",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/advanced/accounting-control/export-settings",
+    "endpoint": "advanced.accounting_control_export_settings",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/advanced/accounting-control/import-settings",
+    "endpoint": "advanced.accounting_control_import_settings",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/advanced/accounting-control/manual-backup",
+    "endpoint": "advanced.accounting_control_manual_backup",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/advanced/accounting-control/report.pdf",
+    "endpoint": "advanced.accounting_control_report_pdf",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/advanced/accounting-control/system-check",
+    "endpoint": "advanced.accounting_control_system_check",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/advanced/api-generator",
+    "endpoint": "advanced.api_generator",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/advanced/api/advanced-accounting-stats",
+    "endpoint": "advanced.api_accounting_stats",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/advanced/api/check-ip/<ip>",
+    "endpoint": "security_control.api_check_ip",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/advanced/api/performance/stats",
+    "endpoint": "advanced.api_performance_stats",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/advanced/backup-manager",
+    "endpoint": "advanced.backup_manager",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/advanced/dashboard-links",
+    "endpoint": "advanced.dashboard_links",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/advanced/database-optimizer",
+    "endpoint": "advanced.database_optimizer",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/advanced/db-merger",
+    "endpoint": "advanced.db_merger",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/advanced/delete-backup/<filename>",
+    "endpoint": "advanced.delete_backup",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/advanced/download-backup/<filename>",
+    "endpoint": "advanced.download_backup",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/advanced/download-cloned-system/<clone_name>",
+    "endpoint": "advanced.download_cloned_system",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/advanced/download-mobile-app/<app_name>",
+    "endpoint": "advanced.download_mobile_app",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/advanced/feature-flags",
+    "endpoint": "advanced.feature_flags",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/advanced/financial-control",
+    "endpoint": "advanced.financial_control",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/advanced/licensing",
+    "endpoint": "advanced.licensing",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/advanced/mobile-app-generator",
+    "endpoint": "advanced.mobile_app_generator",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/advanced/module-manager",
+    "endpoint": "advanced.module_manager",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/advanced/multi-tenant",
+    "endpoint": "advanced.multi_tenant",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/advanced/owner-hub",
+    "endpoint": "advanced.owner_hub",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/advanced/owner-smoke-checklist",
+    "endpoint": "advanced.owner_smoke_checklist",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/advanced/performance-profiler",
+    "endpoint": "advanced.performance_profiler",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/advanced/restore-backup/<filename>",
+    "endpoint": "advanced.restore_backup",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/advanced/restore-json-backup/<filename>",
+    "endpoint": "advanced.restore_json_backup",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/advanced/security-control",
+    "endpoint": "security_control.security_control",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/advanced/system-cloner",
+    "endpoint": "advanced.system_cloner",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/advanced/system-health",
+    "endpoint": "advanced.system_health",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/advanced/test-db-connection",
+    "endpoint": "advanced.test_db_connection",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/advanced/toggle-auto-backup",
+    "endpoint": "advanced.toggle_auto_backup",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/advanced/version-control",
+    "endpoint": "advanced.version_control",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/ai-admin/advanced-training",
+    "endpoint": "ai_admin.advanced_training",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/ai-admin/command/<command_name>",
+    "endpoint": "ai_admin.execute_command",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/ai-admin/config",
+    "endpoint": "ai_admin.ai_config_dashboard",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/ai-admin/daily-reports",
+    "endpoint": "ai_admin.daily_reports",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/ai-admin/evolution-report",
+    "endpoint": "ai_admin.evolution_report",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/ai-admin/marathon-training",
+    "endpoint": "ai_admin.marathon_training",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/ai-admin/memory_stats",
+    "endpoint": "ai_admin.memory_stats",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/ai-admin/performance",
+    "endpoint": "ai_admin.performance_report",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/ai-admin/reset-knowledge",
+    "endpoint": "ai_admin.reset_knowledge",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/ai-admin/run-code-scan",
+    "endpoint": "ai_admin.run_code_scan",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/ai-admin/settings",
+    "endpoint": "ai_admin.ai_settings",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/ai-admin/stats-api",
+    "endpoint": "ai_admin.stats_api",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/ai-admin/system_status",
+    "endpoint": "ai_admin.system_status",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/ai-admin/toggle-visibility",
+    "endpoint": "ai_admin.toggle_visibility",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/ai-admin/train-all-packages",
+    "endpoint": "ai_admin.train_all_packages",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/ai-admin/train-package",
+    "endpoint": "ai_admin.train_package",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/ai-admin/training-log",
+    "endpoint": "ai_admin.training_log",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/ai-admin/training-status",
+    "endpoint": "ai_admin.training_status",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/ai-admin/upload_book",
+    "endpoint": "ai_admin.upload_book",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/ai/analytics/queries",
+    "endpoint": "ai.analytics_queries",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/ai/api-keys/save",
+    "endpoint": "ai.save_api_key",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/ai/api-keys/test",
+    "endpoint": "ai.test_api_key_route",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/ai/assistant",
+    "endpoint": "ai.assistant",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/ai/chat",
+    "endpoint": "ai.chat",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/ai/evolution-report",
+    "endpoint": "ai.evolution_report",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/ai/hub",
+    "endpoint": "ai.hub",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/ai/models/status",
+    "endpoint": "ai.models_status",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/ai/stats/live",
+    "endpoint": "ai.live_stats",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/ai/system-map",
+    "endpoint": "ai.system_map",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/ai/training/start",
+    "endpoint": "ai.start_training",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/ai/training/status/<training_id>",
+    "endpoint": "ai.training_status",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/",
+    "endpoint": "api.index",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/archive/<int:archive_id>",
+    "endpoint": "api.api_delete_archive",
+    "methods": [
+      "DELETE"
+    ]
+  },
+  {
+    "rule": "/api/archive/<int:archive_id>",
+    "endpoint": "api.api_get_archive",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/archive/<int:archive_id>/restore",
+    "endpoint": "api.api_restore_archive",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/api/archive/customer/<int:customer_id>",
+    "endpoint": "api.api_archive_customer",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/api/archive/expense/<int:expense_id>",
+    "endpoint": "api.api_archive_expense",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/api/archive/list",
+    "endpoint": "api.api_list_archives",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/archive/partner/<int:partner_id>",
+    "endpoint": "api.api_archive_partner",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/api/archive/payment/<int:payment_id>",
+    "endpoint": "api.api_archive_payment",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/api/archive/sale/<int:sale_id>",
+    "endpoint": "api.api_archive_sale",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/api/archive/service/<int:service_id>",
+    "endpoint": "api.api_archive_service",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/api/archive/stats",
+    "endpoint": "api.api_archive_stats",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/archive/supplier/<int:supplier_id>",
+    "endpoint": "api.api_archive_supplier",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/api/balances/clear-cache",
+    "endpoint": "balances_api.clear_balance_cache",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/api/balances/customer/<int:customer_id>",
+    "endpoint": "balances_api.get_customer_balance",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/balances/dashboard",
+    "endpoint": "balances_api.balances_dashboard",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/balances/partner/<int:partner_id>",
+    "endpoint": "balances_api.get_partner_balance",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/balances/summary",
+    "endpoint": "balances_api.get_balances_summary",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/balances/supplier/<int:supplier_id>",
+    "endpoint": "balances_api.get_supplier_balance",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/barcode/validate",
+    "endpoint": "bp_barcode.barcode_validate",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/categories",
+    "endpoint": "api.create_category",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/api/customers",
+    "endpoint": "api.create_customer_api",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/api/customers",
+    "endpoint": "api.customers",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/docs",
+    "endpoint": "api.docs",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/equipment-types/create",
+    "endpoint": "api.create_equipment_type",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/api/equipment-types/search",
+    "endpoint": "api.search_equipment_types",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/exchange-rates",
+    "endpoint": "api.get_exchange_rates",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/exchange_transactions",
+    "endpoint": "api.create_exchange_transaction",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/api/exchange_transactions",
+    "endpoint": "api.list_exchange_transactions",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/exchange_transactions/<int:id>",
+    "endpoint": "api.delete_exchange_transaction",
+    "methods": [
+      "DELETE"
+    ]
+  },
+  {
+    "rule": "/api/exchange_transactions/<int:id>",
+    "endpoint": "api.get_exchange_transaction",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/expenses",
+    "endpoint": "api.expenses",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/health",
+    "endpoint": "api.health",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/invoices",
+    "endpoint": "api.invoices",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/loan_settlements",
+    "endpoint": "api.loan_settlements",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/me",
+    "endpoint": "api.me",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/online_preorders",
+    "endpoint": "api.online_preorders",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/partners",
+    "endpoint": "api.get_partners",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/partners/<int:id>",
+    "endpoint": "api.api_delete_partner",
+    "methods": [
+      "DELETE"
+    ]
+  },
+  {
+    "rule": "/api/partners/<int:id>",
+    "endpoint": "api.api_update_partner",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "rule": "/api/partners/<int:id>",
+    "endpoint": "api.api_update_partner",
+    "methods": [
+      "PUT"
+    ]
+  },
+  {
+    "rule": "/api/payments",
+    "endpoint": "api.payments",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/permissions.csv",
+    "endpoint": "api.permissions_csv",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/permissions.json",
+    "endpoint": "api.permissions_json",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/preorders",
+    "endpoint": "api.preorders",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/products",
+    "endpoint": "api.products",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/products/<int:id>",
+    "endpoint": "api.update_product",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "rule": "/api/products/<int:pid>/info",
+    "endpoint": "api.product_info",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/products/<int:product_id>/stock",
+    "endpoint": "api.get_product_stock",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/products/barcode/<code>",
+    "endpoint": "api.product_by_barcode",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/restore/customer/<int:customer_id>",
+    "endpoint": "api.api_restore_customer",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/api/restore/expense/<int:expense_id>",
+    "endpoint": "api.api_restore_expense",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/api/restore/partner/<int:partner_id>",
+    "endpoint": "api.api_restore_partner",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/api/restore/payment/<int:payment_id>",
+    "endpoint": "api.api_restore_payment",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/api/restore/sale/<int:sale_id>",
+    "endpoint": "api.api_restore_sale",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/api/restore/service/<int:service_id>",
+    "endpoint": "api.api_restore_service",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/api/restore/supplier/<int:supplier_id>",
+    "endpoint": "api.api_restore_supplier",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/api/sales",
+    "endpoint": "api.create_sale_api",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/api/sales",
+    "endpoint": "api.sales",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/sales/<int:id>",
+    "endpoint": "api.update_sale_api",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "rule": "/api/sales/<int:id>",
+    "endpoint": "api.update_sale_api",
+    "methods": [
+      "PUT"
+    ]
+  },
+  {
+    "rule": "/api/sales/<int:id>/payments",
+    "endpoint": "api.sale_payments_api",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/sales/<int:id>/status",
+    "endpoint": "api.change_sale_status_api",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/api/sales/quick",
+    "endpoint": "api.quick_sell_api",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/api/search_categories",
+    "endpoint": "api.search_categories",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/search_customers",
+    "endpoint": "api.search_customers",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/search_employees",
+    "endpoint": "api.search_employees",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/search_partners",
+    "endpoint": "api.search_partners",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/search_payments",
+    "endpoint": "api.search_payments",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/search_products",
+    "endpoint": "api.search_products",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/search_stock_adjustments",
+    "endpoint": "api.search_stock_adjustments",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/search_supplier_loans",
+    "endpoint": "api.search_supplier_loans",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/search_suppliers",
+    "endpoint": "api.search_suppliers",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/search_utility_accounts",
+    "endpoint": "api.search_utility_accounts",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/search_warehouses",
+    "endpoint": "api.search_warehouses",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/services",
+    "endpoint": "api.services",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/shipments",
+    "endpoint": "api.create_shipment_api",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/api/shipments",
+    "endpoint": "api.shipments",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/shipments/<int:id>",
+    "endpoint": "api.delete_shipment_api",
+    "methods": [
+      "DELETE"
+    ]
+  },
+  {
+    "rule": "/api/shipments/<int:id>",
+    "endpoint": "api.get_shipment_api",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/shipments/<int:id>",
+    "endpoint": "api.update_shipment_api",
+    "methods": [
+      "PUT"
+    ]
+  },
+  {
+    "rule": "/api/shipments/<int:id>",
+    "endpoint": "api.update_shipment_api",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "rule": "/api/shipments/<int:id>/cancel",
+    "endpoint": "api.api_cancel_shipment",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/api/shipments/<int:id>/mark-arrived",
+    "endpoint": "api.api_mark_arrived",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/api/stock_adjustments/<int:id>/total",
+    "endpoint": "api.stock_adjustment_total",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/suppliers",
+    "endpoint": "api.create_supplier",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/api/suppliers",
+    "endpoint": "api.get_suppliers",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/suppliers/<int:id>",
+    "endpoint": "api.delete_supplier",
+    "methods": [
+      "DELETE"
+    ]
+  },
+  {
+    "rule": "/api/suppliers/<int:id>",
+    "endpoint": "api.get_supplier",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/suppliers/<int:id>",
+    "endpoint": "api.update_supplier",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "rule": "/api/suppliers/<int:id>",
+    "endpoint": "api.update_supplier",
+    "methods": [
+      "PUT"
+    ]
+  },
+  {
+    "rule": "/api/transfers",
+    "endpoint": "api.transfers",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/users",
+    "endpoint": "api.users",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/warehouses",
+    "endpoint": "api.warehouses",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/warehouses/<int:id>",
+    "endpoint": "api.api_delete_warehouse",
+    "methods": [
+      "DELETE"
+    ]
+  },
+  {
+    "rule": "/api/warehouses/<int:id>",
+    "endpoint": "api.api_update_warehouse",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "rule": "/api/warehouses/<int:id>",
+    "endpoint": "api.api_update_warehouse",
+    "methods": [
+      "PUT"
+    ]
+  },
+  {
+    "rule": "/api/warehouses/<int:id>/products/stocked",
+    "endpoint": "api.api_warehouse_products_stocked",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/warehouses/<int:warehouse_id>/info",
+    "endpoint": "api.get_warehouse_info",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/warehouses/<int:warehouse_id>/partner_shares",
+    "endpoint": "api.get_partner_shares",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/warehouses/<int:warehouse_id>/partner_shares",
+    "endpoint": "api.update_partner_shares",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/api/warehouses/<int:warehouse_id>/stock",
+    "endpoint": "api.update_stock",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/api/warehouses/<int:warehouse_id>/transfer",
+    "endpoint": "api.transfer_between_warehouses",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/api/warehouses/<int:wid>/products",
+    "endpoint": "api.api_products_by_warehouse",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/api/warehouses/inventory",
+    "endpoint": "api.api_inventory_summary",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/archive/",
+    "endpoint": "archive.index",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/archive/bulk-archive",
+    "endpoint": "archive.bulk_archive",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/archive/delete/<int:archive_id>",
+    "endpoint": "archive.delete_archive",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/archive/export",
+    "endpoint": "archive.export_archives",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/archive/restore/<int:archive_id>",
+    "endpoint": "archive.restore_archive",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/archive/search",
+    "endpoint": "archive.search",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/archive/view/<int:archive_id>",
+    "endpoint": "archive.view_archive",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/assets/",
+    "endpoint": "assets.index",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/assets/add",
+    "endpoint": "assets.add",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/assets/categories",
+    "endpoint": "assets.categories",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/assets/report/depreciation",
+    "endpoint": "assets.depreciation_schedule",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/assets/report/register",
+    "endpoint": "assets.asset_register",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/assets/view/<int:id>",
+    "endpoint": "assets.view",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/auth/customer_password_reset/<token>",
+    "endpoint": "auth.customer_password_reset",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/auth/customer_password_reset_request",
+    "endpoint": "auth.customer_password_reset_request",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/auth/login",
+    "endpoint": "auth.login",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/auth/logout",
+    "endpoint": "auth.logout",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/auth/register/customer",
+    "endpoint": "auth.customer_register",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/automated-backup-status",
+    "endpoint": "main.automated_backup_status",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/backup_db",
+    "endpoint": "main.backup_db",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/bank/accounts",
+    "endpoint": "bank.accounts",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/bank/accounts/<int:id>",
+    "endpoint": "bank.view_account",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/bank/accounts/add",
+    "endpoint": "bank.add_account",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/bank/accounts/edit/<int:id>",
+    "endpoint": "bank.edit_account",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/bank/api/auto-match/<int:bank_account_id>",
+    "endpoint": "bank.auto_match",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/bank/reconciliation",
+    "endpoint": "bank.reconciliations",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/bank/reconciliation/<int:id>",
+    "endpoint": "bank.view_reconciliation",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/bank/reconciliation/<int:id>/complete",
+    "endpoint": "bank.complete_reconciliation",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/bank/reconciliation/new",
+    "endpoint": "bank.new_reconciliation",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/bank/reports/aged",
+    "endpoint": "bank.report_aged",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/bank/reports/summary",
+    "endpoint": "bank.report_summary",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/bank/reports/unmatched",
+    "endpoint": "bank.report_unmatched",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/bank/statements",
+    "endpoint": "bank.statements",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/bank/statements/<int:id>",
+    "endpoint": "bank.view_statement",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/bank/statements/upload",
+    "endpoint": "bank.upload_statement",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/barcode/",
+    "endpoint": "barcode_scanner.index",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/barcode/auto-assign",
+    "endpoint": "barcode_scanner.auto_assign_barcodes",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/barcode/bulk-generate",
+    "endpoint": "barcode_scanner.bulk_generate",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/barcode/bulk-import",
+    "endpoint": "barcode_scanner.bulk_import_products",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/barcode/bulk-scan",
+    "endpoint": "barcode_scanner.bulk_scan_page",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/barcode/check-product",
+    "endpoint": "barcode_scanner.check_product",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/barcode/check-product",
+    "endpoint": "barcode_scanner.check_product_exists",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/barcode/generate",
+    "endpoint": "barcode_scanner.generate_barcode",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/barcode/inventory/update",
+    "endpoint": "barcode_scanner.inventory_update",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/barcode/print/<int:product_id>",
+    "endpoint": "barcode_scanner.print_barcode",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/barcode/scan",
+    "endpoint": "barcode_scanner.scan_barcode",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/barcode/search",
+    "endpoint": "barcode_scanner.search_products",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/barcode/stats",
+    "endpoint": "barcode_scanner.barcode_stats",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/barcode/warehouse-fields",
+    "endpoint": "barcode_scanner.get_warehouse_fields",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/barcode/warehouses",
+    "endpoint": "barcode_scanner.get_warehouses",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/branches/",
+    "endpoint": "branches_bp.list_branches",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/branches/<int:branch_id>/archive",
+    "endpoint": "branches_bp.archive_branch",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/branches/<int:branch_id>/dashboard",
+    "endpoint": "branches_bp.branch_dashboard",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/branches/<int:branch_id>/edit",
+    "endpoint": "branches_bp.edit_branch",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/branches/<int:branch_id>/report",
+    "endpoint": "branches_bp.branch_report",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/branches/<int:branch_id>/restore",
+    "endpoint": "branches_bp.restore_branch",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/branches/<int:branch_id>/sites",
+    "endpoint": "branches_bp.list_sites",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/branches/<int:branch_id>/sites/create",
+    "endpoint": "branches_bp.create_site",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/branches/api/search",
+    "endpoint": "branches_bp.api_search_branches",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/branches/api/sites/<int:branch_id>",
+    "endpoint": "branches_bp.api_branch_sites",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/branches/create",
+    "endpoint": "branches_bp.create_branch",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/branches/export",
+    "endpoint": "branches_bp.export_branches",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/branches/sites/<int:site_id>/archive",
+    "endpoint": "branches_bp.archive_site",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/branches/sites/<int:site_id>/edit",
+    "endpoint": "branches_bp.edit_site",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/budgets/",
+    "endpoint": "budgets.index",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/budgets/add",
+    "endpoint": "budgets.add",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/budgets/dashboard",
+    "endpoint": "budgets.dashboard",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/budgets/edit/<int:id>",
+    "endpoint": "budgets.edit",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/budgets/report/variance",
+    "endpoint": "budgets.variance_analysis",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/budgets/report/vs-actual",
+    "endpoint": "budgets.budget_vs_actual",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/checks/",
+    "endpoint": "checks.index",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/checks/api/alerts",
+    "endpoint": "checks.get_alerts",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/checks/api/check-lifecycle/<int:check_id>/<check_type>",
+    "endpoint": "checks.get_check_lifecycle",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/checks/api/checks",
+    "endpoint": "checks.get_checks",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/checks/api/first-incomplete",
+    "endpoint": "checks.get_first_incomplete_check",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/checks/api/get-details/<check_token>",
+    "endpoint": "checks.get_check_details",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/checks/api/mark-settled/<check_token>",
+    "endpoint": "checks.mark_check_settled",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/checks/api/statistics",
+    "endpoint": "checks.get_statistics",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/checks/api/unsettle/<check_token>",
+    "endpoint": "checks.unsettle_check",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/checks/api/update-details/<check_token>",
+    "endpoint": "checks.update_check_details",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/checks/api/update-status/<check_id>",
+    "endpoint": "checks.update_check_status",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/checks/archive/<int:check_id>",
+    "endpoint": "archive_routes.archive_check",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/checks/delete/<int:check_id>",
+    "endpoint": "checks.delete_check",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/checks/detail/<int:check_id>",
+    "endpoint": "checks.check_detail",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/checks/edit/<int:check_id>",
+    "endpoint": "checks.edit_check",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/checks/new",
+    "endpoint": "checks.add_check",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/checks/reports",
+    "endpoint": "checks.reports",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/cost-centers/",
+    "endpoint": "cost_centers.index",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/cost-centers/<int:id>",
+    "endpoint": "cost_centers.view",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/cost-centers/<int:id>/allocate",
+    "endpoint": "cost_centers.allocate",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/cost-centers/add",
+    "endpoint": "cost_centers.add",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/cost-centers/alerts",
+    "endpoint": "cost_centers_advanced.alerts_list",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/cost-centers/alerts/<int:alert_id>/toggle",
+    "endpoint": "cost_centers_advanced.toggle_alert",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/cost-centers/alerts/add",
+    "endpoint": "cost_centers_advanced.add_alert",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/cost-centers/allocation-rules",
+    "endpoint": "cost_centers_advanced.allocation_rules",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/cost-centers/allocation-rules/<int:rule_id>/execute",
+    "endpoint": "cost_centers_advanced.execute_allocation_rule",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/cost-centers/allocation-rules/add",
+    "endpoint": "cost_centers_advanced.add_allocation_rule",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/cost-centers/api/hierarchy",
+    "endpoint": "cost_centers.api_hierarchy",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/cost-centers/dashboard",
+    "endpoint": "cost_centers_advanced.dashboard",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/cost-centers/edit/<int:id>",
+    "endpoint": "cost_centers.edit",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/cost-centers/reports/budget-variance",
+    "endpoint": "cost_centers.report_budget_variance",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/cost-centers/reports/comparison",
+    "endpoint": "cost_centers.report_comparison",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/cost-centers/reports/summary",
+    "endpoint": "cost_centers.report_summary",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/cost-centers/reports/trends",
+    "endpoint": "cost_centers_advanced.report_trends",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/currencies/",
+    "endpoint": "currencies.list",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/currencies/exchange-rates",
+    "endpoint": "currencies.exchange_rates",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/currencies/exchange-rates/<int:rate_id>/delete",
+    "endpoint": "currencies.delete_exchange_rate",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/currencies/exchange-rates/<int:rate_id>/edit",
+    "endpoint": "currencies.edit_exchange_rate",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/currencies/exchange-rates/<int:rate_id>/toggle",
+    "endpoint": "currencies.toggle_exchange_rate",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/currencies/exchange-rates/new",
+    "endpoint": "currencies.new_exchange_rate",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/currencies/new",
+    "endpoint": "currencies.new_currency",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/currencies/reports",
+    "endpoint": "currencies.reports",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/currencies/settings",
+    "endpoint": "currencies.settings",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/currencies/settings/test-online",
+    "endpoint": "currencies.test_online",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/currencies/settings/toggle-online",
+    "endpoint": "currencies.toggle_online",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/currencies/settings/update-interval",
+    "endpoint": "currencies.update_interval",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/currencies/test-rate",
+    "endpoint": "currencies.test_rate",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/currencies/update-rates",
+    "endpoint": "currencies.update_rates",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/customers/",
+    "endpoint": "customers_bp.list_customers",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/customers/<int:customer_id>",
+    "endpoint": "customers_bp.customer_detail",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/customers/<int:customer_id>/account_statement",
+    "endpoint": "customers_bp.account_statement",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/customers/<int:customer_id>/analytics",
+    "endpoint": "customers_bp.customer_analytics",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/customers/<int:customer_id>/edit",
+    "endpoint": "customers_bp.edit_customer",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/customers/<int:customer_id>/export_vcf",
+    "endpoint": "customers_bp.export_customer_vcf",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/customers/<int:customer_id>/send_whatsapp",
+    "endpoint": "customers_bp.customer_whatsapp",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/customers/<int:id>/delete",
+    "endpoint": "customers_bp.delete_customer",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/customers/advanced_filter",
+    "endpoint": "customers_bp.advanced_filter",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/customers/archive/<int:customer_id>",
+    "endpoint": "customers_bp.archive_customer",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/customers/balances/recalculate",
+    "endpoint": "customers_bp.balances_recalculate",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/customers/create",
+    "endpoint": "customers_bp.create_customer",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/customers/create",
+    "endpoint": "customers_bp.create_form",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/customers/export",
+    "endpoint": "customers_bp.export_customers",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/customers/export-online-credentials",
+    "endpoint": "customers_bp.export_online_credentials",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/customers/export/contacts",
+    "endpoint": "customers_bp.export_contacts",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/customers/import",
+    "endpoint": "customers_bp.import_customers",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/customers/make-online-all",
+    "endpoint": "customers_bp.make_online_all",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/customers/reset-passwords",
+    "endpoint": "customers_bp.reset_passwords",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/customers/restore/<int:customer_id>",
+    "endpoint": "customers_bp.restore_customer",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/customers/set-default-emails",
+    "endpoint": "customers_bp.set_default_emails",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/docs/accounting/",
+    "endpoint": "accounting_docs.index",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/docs/accounting/accounting-standards",
+    "endpoint": "accounting_docs.accounting_standards",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/docs/accounting/audit-policies",
+    "endpoint": "accounting_docs.audit_policies",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/docs/accounting/chart-of-accounts",
+    "endpoint": "accounting_docs.chart_of_accounts",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/docs/accounting/correction-procedures",
+    "endpoint": "accounting_docs.correction_procedures",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/docs/accounting/gl-accounts-reference",
+    "endpoint": "accounting_docs.gl_accounts_reference",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/docs/accounting/system-health-guide",
+    "endpoint": "accounting_docs.system_health_guide",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/engineering/",
+    "endpoint": "engineering.dashboard",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/engineering/reports/productivity",
+    "endpoint": "engineering.report_productivity",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/engineering/skills",
+    "endpoint": "engineering.skills",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/engineering/tasks",
+    "endpoint": "engineering.tasks",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/engineering/tasks/add",
+    "endpoint": "engineering.add_task",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/engineering/teams",
+    "endpoint": "engineering.teams",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/engineering/teams/add",
+    "endpoint": "engineering.add_team",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/engineering/timesheets",
+    "endpoint": "engineering.timesheets",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/engineering/timesheets/add",
+    "endpoint": "engineering.add_timesheet",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/expenses/",
+    "endpoint": "expenses_bp.list_expenses",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/expenses/<int:exp_id>",
+    "endpoint": "expenses_bp.detail",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/expenses/<int:exp_id>/pay",
+    "endpoint": "expenses_bp.pay",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/expenses/add",
+    "endpoint": "expenses_bp.create_expense",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/expenses/archive/<int:expense_id>",
+    "endpoint": "expenses_bp.archive_expense",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/expenses/delete/<int:exp_id>",
+    "endpoint": "expenses_bp.delete",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/expenses/edit/<int:exp_id>",
+    "endpoint": "expenses_bp.edit",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/expenses/employees",
+    "endpoint": "expenses_bp.employees_list",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/expenses/employees/<int:emp_id>/generate-salary",
+    "endpoint": "expenses_bp.generate_salary",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/expenses/employees/<int:emp_id>/installments-due",
+    "endpoint": "expenses_bp.get_installments_due",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/expenses/employees/<int:emp_id>/statement",
+    "endpoint": "expenses_bp.employee_statement",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/expenses/employees/add",
+    "endpoint": "expenses_bp.add_employee",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/expenses/employees/delete/<int:emp_id>",
+    "endpoint": "expenses_bp.delete_employee",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/expenses/employees/edit/<int:emp_id>",
+    "endpoint": "expenses_bp.edit_employee",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/expenses/export",
+    "endpoint": "expenses_bp.export",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/expenses/payroll/generate-all",
+    "endpoint": "expenses_bp.generate_all_salaries",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/expenses/payroll/monthly",
+    "endpoint": "expenses_bp.payroll_monthly",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/expenses/payroll/summary",
+    "endpoint": "expenses_bp.payroll_summary",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/expenses/print",
+    "endpoint": "expenses_bp.print_list",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/expenses/quick-partner-service",
+    "endpoint": "expenses_bp.quick_partner_service",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/expenses/quick-partner-service/pay",
+    "endpoint": "expenses_bp.quick_partner_service_pay",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/expenses/quick-supplier-service",
+    "endpoint": "expenses_bp.quick_supplier_service",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/expenses/quick-supplier-service/pay",
+    "endpoint": "expenses_bp.quick_supplier_service_pay",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/expenses/restore/<int:expense_id>",
+    "endpoint": "expenses_bp.restore_expense",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/expenses/salary-receipt/<int:salary_exp_id>",
+    "endpoint": "expenses_bp.salary_receipt",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/expenses/sync-to-ledger",
+    "endpoint": "expenses_bp.sync_expenses_to_ledger",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/expenses/types",
+    "endpoint": "expenses_bp.types_list",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/expenses/types/add",
+    "endpoint": "expenses_bp.add_type",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/expenses/types/delete/<int:type_id>",
+    "endpoint": "expenses_bp.delete_type",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/expenses/types/edit/<int:type_id>",
+    "endpoint": "expenses_bp.edit_type",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/favicon.ico",
+    "endpoint": "main.favicon",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/health/",
+    "endpoint": "health.health_check",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/health/live",
+    "endpoint": "health.liveness",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/health/metrics",
+    "endpoint": "health.metrics",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/health/ping",
+    "endpoint": "health.ping",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/health/ready",
+    "endpoint": "health.readiness",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/health/status",
+    "endpoint": "health.health_check",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/ledger/",
+    "endpoint": "ledger.index",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/ledger/account/<account>",
+    "endpoint": "ledger.account_ledger",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/ledger/accounts",
+    "endpoint": "ledger.get_accounts",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/ledger/accounts-summary",
+    "endpoint": "ledger.get_accounts_summary",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/ledger/api/ar_ap_summary",
+    "endpoint": "ledger.get_ar_ap_summary",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/ledger/api/inventory_breakdown",
+    "endpoint": "ledger.get_inventory_breakdown",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/ledger/batch/<int:batch_id>",
+    "endpoint": "ledger.get_batch_details",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/ledger/chart-of-accounts",
+    "endpoint": "ledger.chart_of_accounts",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/ledger/cogs-audit",
+    "endpoint": "ledger.cogs_audit_report",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/ledger/data",
+    "endpoint": "ledger.get_ledger_data",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/ledger/entity",
+    "endpoint": "ledger.entity_ledger",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/ledger/entity-balance-audit",
+    "endpoint": "ledger.entity_balance_audit",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/ledger/entity-balance-audit/auto-fix",
+    "endpoint": "ledger.auto_fix_entity_balance_audit",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/ledger/entity-balance-audit/fix-gl-entities",
+    "endpoint": "ledger.fix_gl_entities_for_entity_audit",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/ledger/entity-balance-audit/recalculate-entities",
+    "endpoint": "ledger.recalculate_entities_for_entity_audit",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/ledger/export",
+    "endpoint": "ledger.export_ledger",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/ledger/manual-entry",
+    "endpoint": "ledger.create_manual_entry",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/ledger/receivables-detailed-summary",
+    "endpoint": "ledger.get_receivables_detailed_summary",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/ledger/receivables-summary",
+    "endpoint": "ledger.get_receivables_summary",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/ledger/statistics",
+    "endpoint": "ledger.get_ledger_statistics",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/ledger/transaction/<int:id>",
+    "endpoint": "ledger.view_transaction",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/ledger/trial-balance",
+    "endpoint": "ledger.trial_balance",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/login",
+    "endpoint": "main.login_alias",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/notes/",
+    "endpoint": "notes_bp.list_notes",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/notes/<int:note_id>",
+    "endpoint": "notes_bp.note_detail",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/notes/<int:note_id>",
+    "endpoint": "notes_bp.update_note",
+    "methods": [
+      "PATCH",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/notes/<int:note_id>/delete",
+    "endpoint": "notes_bp.delete_note",
+    "methods": [
+      "DELETE",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/notes/<int:note_id>/edit",
+    "endpoint": "notes_bp.edit_note",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/notes/<int:note_id>/toggle-pin",
+    "endpoint": "notes_bp.toggle_pin",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/notes/new",
+    "endpoint": "notes_bp.create_note",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/other-systems/",
+    "endpoint": "other_systems.index",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/partners/<int:partner_id>/inventory",
+    "endpoint": "partner_settlements_bp.partner_inventory",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/partners/<int:partner_id>/settlement",
+    "endpoint": "partner_settlements_bp.partner_settlement",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/partners/<int:partner_id>/settlement/approve",
+    "endpoint": "partner_settlements_bp.approve_settlement",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/partners/<int:partner_id>/settlements",
+    "endpoint": "partner_settlements_bp.partner_settlements_list",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/partners/<int:partner_id>/settlements/create",
+    "endpoint": "partner_settlements_bp.create",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/partners/<int:partner_id>/settlements/preview",
+    "endpoint": "partner_settlements_bp.preview",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/partners/settlements",
+    "endpoint": "partner_settlements_bp.list",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/partners/settlements/<int:settlement_id>",
+    "endpoint": "partner_settlements_bp.show",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/partners/settlements/<int:settlement_id>/confirm",
+    "endpoint": "partner_settlements_bp.confirm",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/partners/unpriced-items",
+    "endpoint": "partner_settlements_bp.check_unpriced_items",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/parts/",
+    "endpoint": "parts_bp.parts_list",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/parts/<int:id>/delete",
+    "endpoint": "parts_bp.parts_delete",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/parts/<int:id>/edit",
+    "endpoint": "parts_bp.parts_edit",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/parts/<int:id>/stock",
+    "endpoint": "parts_bp.stock_levels",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/parts/create",
+    "endpoint": "parts_bp.parts_create",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/parts/update-cost",
+    "endpoint": "parts_bp.update_part_cost",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/parts/update-multiple-costs",
+    "endpoint": "parts_bp.update_multiple_costs",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/payments/",
+    "endpoint": "payments.index",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/payments/<int:payment_id>/split/<int:split_id>",
+    "endpoint": "payments.view_payment_split",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/payments/<int:payment_id>/status",
+    "endpoint": "payments.update_payment_status",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/payments/<int:payment_id>_split_<int:split_id>",
+    "endpoint": "payments.view_payment_split_legacy",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/payments/<string:payment_id>",
+    "endpoint": "payments.view_payment",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/payments/<string:payment_id>/receipt",
+    "endpoint": "payments.payment_receipt",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/payments/<string:payment_id>/receipt/download",
+    "endpoint": "payments.download_receipt",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/payments/api/entities/<entity_type>",
+    "endpoint": "payments.get_entities",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/payments/api/fx-rate",
+    "endpoint": "payments.fx_rate_lookup",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/payments/api/related-party",
+    "endpoint": "payments.get_related_party",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/payments/archive/<int:payment_id>",
+    "endpoint": "payments.archive_payment",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/payments/create",
+    "endpoint": "payments.create_payment",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/payments/entity-fields",
+    "endpoint": "payments.entity_fields",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/payments/entity-search",
+    "endpoint": "payments.entity_search",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/payments/expense/<int:exp_id>/create",
+    "endpoint": "payments.create_expense_payment",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/payments/refund/<int:payment_id>",
+    "endpoint": "payments.refund_payment",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/payments/restore/<int:payment_id>",
+    "endpoint": "payments.restore_payment",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/payments/search-entities",
+    "endpoint": "payments.search_entities",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/payments/shop/checkout",
+    "endpoint": "payments.shop_checkout",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/payments/shop/payment-methods",
+    "endpoint": "payments.shop_payment_methods",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/payments/shop/payment-status/<int:payment_id>",
+    "endpoint": "payments.shop_payment_status",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/payments/shop/process-payment",
+    "endpoint": "payments.shop_process_payment",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/payments/shop/refund",
+    "endpoint": "payments.shop_refund",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/payments/split/<int:split_id>/delete",
+    "endpoint": "payments.delete_split",
+    "methods": [
+      "DELETE"
+    ]
+  },
+  {
+    "rule": "/payments/split/<int:split_id>/refund",
+    "endpoint": "payments.refund_split",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/permissions/",
+    "endpoint": "permissions.list",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/permissions/<int:permission_id>/delete",
+    "endpoint": "permissions.delete",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/permissions/<int:permission_id>/edit",
+    "endpoint": "permissions.edit",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/permissions/create",
+    "endpoint": "permissions.create",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/permissions/matrix",
+    "endpoint": "permissions.matrix",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/pricing/",
+    "endpoint": "pricing.index",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/projects/",
+    "endpoint": "projects.index",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/projects/<int:id>",
+    "endpoint": "projects.view_project",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/projects/<int:id>/add-cost",
+    "endpoint": "projects.add_cost",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/projects/<int:id>/add-phase",
+    "endpoint": "projects.add_phase",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/projects/<int:id>/add-revenue",
+    "endpoint": "projects.add_revenue",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/projects/<int:project_id>/change-orders",
+    "endpoint": "project_advanced.change_orders",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/projects/<int:project_id>/change-orders/<int:co_id>/approve",
+    "endpoint": "project_advanced.approve_change_order",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/projects/<int:project_id>/change-orders/add",
+    "endpoint": "project_advanced.add_change_order",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/projects/<int:project_id>/dashboard",
+    "endpoint": "project_advanced.dashboard",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/projects/<int:project_id>/evm",
+    "endpoint": "project_advanced.earned_value_analysis",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/projects/<int:project_id>/milestones",
+    "endpoint": "project_advanced.milestones",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/projects/<int:project_id>/milestones/<int:milestone_id>/complete",
+    "endpoint": "project_advanced.complete_milestone",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/projects/<int:project_id>/milestones/add",
+    "endpoint": "project_advanced.add_milestone",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/projects/<int:project_id>/resources",
+    "endpoint": "project_advanced.resources",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/projects/<int:project_id>/resources/add",
+    "endpoint": "project_advanced.add_resource",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/projects/<int:project_id>/risks",
+    "endpoint": "project_advanced.risks",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/projects/<int:project_id>/risks/add",
+    "endpoint": "project_advanced.add_risk",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/projects/<int:project_id>/tasks",
+    "endpoint": "project_advanced.tasks",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/projects/<int:project_id>/tasks/add",
+    "endpoint": "project_advanced.add_task",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/projects/add",
+    "endpoint": "projects.add_project",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/projects/api/dashboard-stats",
+    "endpoint": "projects.api_dashboard_stats",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/projects/dashboard",
+    "endpoint": "project_advanced.advanced_dashboard",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/projects/edit/<int:id>",
+    "endpoint": "projects.edit_project",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/projects/reports/budget-tracking",
+    "endpoint": "projects.report_budget_tracking",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/projects/reports/pnl",
+    "endpoint": "projects.report_pnl",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/projects/reports/profitability",
+    "endpoint": "projects.report_profitability",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/projects/reports/variance",
+    "endpoint": "projects.report_variance",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/recurring/",
+    "endpoint": "recurring.index",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/recurring/add",
+    "endpoint": "recurring.add_template",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/recurring/delete/<int:template_id>",
+    "endpoint": "recurring.delete_template",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/recurring/edit/<int:template_id>",
+    "endpoint": "recurring.edit_template",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/recurring/generate-now/<int:template_id>",
+    "endpoint": "recurring.generate_now",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/recurring/schedules/<int:template_id>",
+    "endpoint": "recurring.view_schedules",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/recurring/toggle/<int:template_id>",
+    "endpoint": "recurring.toggle_template",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/reports",
+    "endpoint": "reports_bp.index",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/reports/",
+    "endpoint": "reports_bp.universal",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/reports/ap-aging",
+    "endpoint": "reports_bp.ap_aging",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/reports/api/dynamic",
+    "endpoint": "reports_bp.api_dynamic",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/reports/api/model_fields",
+    "endpoint": "reports_bp.model_fields",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/reports/ar-aging",
+    "endpoint": "reports_bp.ar_aging",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/reports/below_min_stock",
+    "endpoint": "reports_bp.below_min_stock_report",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/reports/cash-flow",
+    "endpoint": "reports_bp.cash_flow_report",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/reports/customer-detail/<int:customer_id>",
+    "endpoint": "reports_bp.customer_detail_report",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/reports/customers",
+    "endpoint": "reports_bp.customers_report",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/reports/customers/advanced",
+    "endpoint": "reports_bp.customers_advanced_report",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/reports/dynamic",
+    "endpoint": "reports_bp.dynamic_report",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/reports/expenses",
+    "endpoint": "reports_bp.expenses_report",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/reports/export/ap_aging.csv",
+    "endpoint": "reports_bp.export_ap_aging_csv",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/reports/export/ar_aging.csv",
+    "endpoint": "reports_bp.export_ar_aging_csv",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/reports/export/dynamic.csv",
+    "endpoint": "reports_bp.export_dynamic_csv",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/reports/financial/",
+    "endpoint": "financial_reports.index",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/reports/financial/accrue-income-tax",
+    "endpoint": "financial_reports.accrue_income_tax",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/reports/financial/aging-report",
+    "endpoint": "financial_reports.aging_report",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/reports/financial/balance-sheet",
+    "endpoint": "financial_reports.balance_sheet",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/reports/financial/balances-summary",
+    "endpoint": "financial_reports.balances_summary",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/reports/financial/cash-flow",
+    "endpoint": "financial_reports.cash_flow",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/reports/financial/expense-breakdown",
+    "endpoint": "financial_reports.expense_breakdown",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/reports/financial/income-statement",
+    "endpoint": "financial_reports.income_statement",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/reports/financial/profit-trends",
+    "endpoint": "financial_reports.profit_trends",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/reports/financial/receivables-payables",
+    "endpoint": "financial_reports.receivables_payables",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/reports/financial/revenue-by-source",
+    "endpoint": "financial_reports.revenue_by_source",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/reports/financial/trial-balance",
+    "endpoint": "financial_reports.trial_balance",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/reports/financial/validation",
+    "endpoint": "financial_reports.validation_report",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/reports/inventory",
+    "endpoint": "reports_bp.inventory",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/reports/invoices",
+    "endpoint": "reports_bp.invoices_report",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/reports/online",
+    "endpoint": "reports_bp.online",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/reports/partner-detail/<int:partner_id>",
+    "endpoint": "reports_bp.partner_detail_report",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/reports/partners",
+    "endpoint": "reports_bp.partners_report",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/reports/payments-summary",
+    "endpoint": "reports_bp.payments_summary",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/reports/payments-summary-old",
+    "endpoint": "reports_bp.payments_summary_old",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/reports/payments/advanced",
+    "endpoint": "reports_bp.payments_advanced_report",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/reports/preorders",
+    "endpoint": "reports_bp.preorders_report",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/reports/profit-loss",
+    "endpoint": "reports_bp.profit_loss_report",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/reports/sales",
+    "endpoint": "reports_bp.sales",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/reports/sales/advanced",
+    "endpoint": "reports_bp.sales_advanced_report",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/reports/service-reports",
+    "endpoint": "reports_bp.service_reports",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/reports/shipments",
+    "endpoint": "reports_bp.shipments",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/reports/supplier-detail/<int:supplier_id>",
+    "endpoint": "reports_bp.supplier_detail_report",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/reports/suppliers",
+    "endpoint": "reports_bp.suppliers_report",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/reports/top-products",
+    "endpoint": "reports_bp.top_products",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/restore_db",
+    "endpoint": "main.restore_db",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/returns/",
+    "endpoint": "returns.list_returns",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/returns/<int:return_id>",
+    "endpoint": "returns.view_return",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/returns/<int:return_id>/cancel",
+    "endpoint": "returns.cancel_return",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/returns/<int:return_id>/confirm",
+    "endpoint": "returns.confirm_return",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/returns/<int:return_id>/delete",
+    "endpoint": "returns.delete_return",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/returns/<int:return_id>/edit",
+    "endpoint": "returns.edit_return",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/returns/api/customer/<int:customer_id>/sales",
+    "endpoint": "returns.get_customer_sales",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/returns/api/sale/<int:sale_id>/items",
+    "endpoint": "returns.get_sale_items",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/returns/create",
+    "endpoint": "returns.create_return",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/returns/create/<int:sale_id>",
+    "endpoint": "returns.create_return",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/roles/",
+    "endpoint": "roles.list_roles",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/roles/<int:role_id>/delete",
+    "endpoint": "roles.delete_role",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/roles/<int:role_id>/edit",
+    "endpoint": "roles.edit_role",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/roles/create",
+    "endpoint": "roles.create_role",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/sales/",
+    "endpoint": "sales_bp.index",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/sales/",
+    "endpoint": "sales_bp.list_sales",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/sales/<int:id>",
+    "endpoint": "sales_bp.sale_detail",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/sales/<int:id>/archive",
+    "endpoint": "sales_bp.archive_sale",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/sales/<int:id>/edit",
+    "endpoint": "sales_bp.edit_sale",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/sales/<int:id>/invoice",
+    "endpoint": "sales_bp.generate_invoice",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/sales/<int:id>/payments",
+    "endpoint": "sales_bp.sale_payments",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/sales/<int:id>/receipt",
+    "endpoint": "sales_bp.sale_receipt",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/sales/<int:id>/restore",
+    "endpoint": "sales_bp.restore_sale",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/sales/<int:id>/status/<status>",
+    "endpoint": "sales_bp.change_status",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/sales/dashboard",
+    "endpoint": "sales_bp.dashboard",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/sales/new",
+    "endpoint": "sales_bp.create_sale",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/sales/quick",
+    "endpoint": "sales_bp.quick_sell",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/",
+    "endpoint": "security.index",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/advanced-analytics",
+    "endpoint": "security.advanced_analytics",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/advanced-check-linking",
+    "endpoint": "security.advanced_check_linking",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/api/customers",
+    "endpoint": "security.api_get_customers",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/api/indexes/analyze-table",
+    "endpoint": "security.api_analyze_table",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/api/indexes/auto-optimize",
+    "endpoint": "security.api_auto_optimize_indexes",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/api/indexes/batch-create",
+    "endpoint": "security.api_batch_create_indexes",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/api/indexes/clean-and-rebuild",
+    "endpoint": "security.api_clean_rebuild_indexes",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/api/indexes/create",
+    "endpoint": "security.api_create_index",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/api/indexes/drop",
+    "endpoint": "security.api_drop_index",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/api/live-metrics",
+    "endpoint": "security.api_live_metrics",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/api/maintenance/analyze",
+    "endpoint": "security.api_maintenance_analyze",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/api/maintenance/checkpoint",
+    "endpoint": "security.api_maintenance_checkpoint",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/api/maintenance/db-info",
+    "endpoint": "security.api_maintenance_db_info",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/api/maintenance/vacuum",
+    "endpoint": "security.api_maintenance_vacuum",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/api/saas/invoices",
+    "endpoint": "security.api_saas_create_invoice",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/api/saas/invoices/<int:invoice_id>/mark-paid",
+    "endpoint": "security.api_saas_mark_paid",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/api/saas/invoices/<int:invoice_id>/pdf",
+    "endpoint": "security.api_saas_invoice_pdf",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/api/saas/invoices/<int:invoice_id>/send-reminder",
+    "endpoint": "security.api_saas_send_reminder",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/api/saas/plans",
+    "endpoint": "security.api_saas_create_plan",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/api/saas/plans/<int:plan_id>",
+    "endpoint": "security.api_saas_update_plan",
+    "methods": [
+      "PUT"
+    ]
+  },
+  {
+    "rule": "/security/api/saas/subscriptions",
+    "endpoint": "security.api_saas_create_subscription",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/api/saas/subscriptions/<int:sub_id>",
+    "endpoint": "security.api_saas_get_subscription",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/api/saas/subscriptions/<int:sub_id>",
+    "endpoint": "security.api_saas_update_subscription",
+    "methods": [
+      "PUT"
+    ]
+  },
+  {
+    "rule": "/security/api/saas/subscriptions/<int:sub_id>/cancel",
+    "endpoint": "security.api_saas_cancel_subscription",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/api/saas/subscriptions/<int:sub_id>/renew",
+    "endpoint": "security.api_saas_renew_subscription",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/api/security-audit/stats",
+    "endpoint": "security.api_security_audit_stats",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/api/system-accounts/change-password",
+    "endpoint": "security.api_system_account_change_password",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/api/system-constants",
+    "endpoint": "security.api_system_constants",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/api/users/<int:user_id>/activity-history",
+    "endpoint": "security.api_user_activity_history",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/api/users/<int:user_id>/details",
+    "endpoint": "security.api_user_details",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/api/users/bulk-operation",
+    "endpoint": "security.api_users_bulk_operation",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/audit-log",
+    "endpoint": "security.audit_log_viewer",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/audit-log/<int:log_id>",
+    "endpoint": "security.audit_log_detail",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/block-country",
+    "endpoint": "security.block_country",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/block-ip",
+    "endpoint": "security.block_ip",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/block-user/<int:user_id>",
+    "endpoint": "security.block_user",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/blocked-countries",
+    "endpoint": "security.blocked_countries",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/blocked-ips",
+    "endpoint": "security.blocked_ips",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/card-vault",
+    "endpoint": "security.card_vault",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/code-editor",
+    "endpoint": "security.theme_editor",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/create-user",
+    "endpoint": "security.create_user",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/dark-mode-settings",
+    "endpoint": "security.dark_mode_settings",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/data-export",
+    "endpoint": "security.data_export",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/data-quality-center",
+    "endpoint": "security.data_quality_center",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/database-manager",
+    "endpoint": "security.database_manager",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/db-editor/add-column/<table_name>",
+    "endpoint": "security.db_add_column",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/db-editor/add-row/<table_name>",
+    "endpoint": "security.db_add_row",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/db-editor/bulk-update/<table_name>",
+    "endpoint": "security.db_bulk_update",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/db-editor/delete-column/<table_name>",
+    "endpoint": "security.db_delete_column",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/db-editor/delete-row/<table_name>/<row_id>",
+    "endpoint": "security.db_delete_row",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/db-editor/edit-row/<table_name>/<int:row_id>",
+    "endpoint": "security.db_edit_row",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/db-editor/fill-missing/<table_name>",
+    "endpoint": "security.db_fill_missing",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/db-editor/schema/<table_name>",
+    "endpoint": "security.db_schema_editor",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/db-editor/update-cell/<table_name>",
+    "endpoint": "security.db_update_cell",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/delete-user/<int:user_id>",
+    "endpoint": "security.delete_user",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/email-manager",
+    "endpoint": "security.email_manager",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/emergency-tools",
+    "endpoint": "security.emergency_tools",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/emergency/clear-cache",
+    "endpoint": "security.clear_system_cache",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/emergency/kill-sessions",
+    "endpoint": "security.kill_all_sessions",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/emergency/maintenance-mode",
+    "endpoint": "security.toggle_maintenance_mode",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/expenses-control/",
+    "endpoint": "security_expenses.control_panel",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/expenses-control/library",
+    "endpoint": "security_expenses.api_field_library",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/expenses-control/library/custom",
+    "endpoint": "security_expenses.api_add_custom_field",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/expenses-control/templates",
+    "endpoint": "security_expenses.api_create_template",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/expenses-control/templates/<string:template_id>",
+    "endpoint": "security_expenses.api_delete_template",
+    "methods": [
+      "DELETE"
+    ]
+  },
+  {
+    "rule": "/security/expenses-control/templates/<string:template_id>/apply",
+    "endpoint": "security_expenses.api_apply_template",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/expenses-control/types/<int:type_id>/bulk",
+    "endpoint": "security_expenses.api_bulk_update",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/expenses-control/types/<int:type_id>/fields",
+    "endpoint": "security_expenses.api_update_field_status",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/expenses-control/types/<int:type_id>/ledger",
+    "endpoint": "security_expenses.api_update_ledger",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/export-table/<table_name>",
+    "endpoint": "security.export_table_csv",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/force-reset-password/<int:user_id>",
+    "endpoint": "security.force_reset_password",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/grafana-setup",
+    "endpoint": "security.grafana_setup",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/help",
+    "endpoint": "security.help_page",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/impersonate/<int:user_id>",
+    "endpoint": "security.impersonate_user",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/index-old",
+    "endpoint": "security.index_old",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/integration-stats",
+    "endpoint": "security.integration_stats",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/integrations",
+    "endpoint": "security.integrations",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/invoice-designer",
+    "endpoint": "security.invoice_designer",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/ledger-control/",
+    "endpoint": "ledger_control.index",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/ledger-control/accounts",
+    "endpoint": "ledger_control.accounts_management",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/ledger-control/accounts/<int:account_id>/delete",
+    "endpoint": "ledger_control.delete_account",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/ledger-control/accounts/<int:account_id>/update",
+    "endpoint": "ledger_control.update_account",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/ledger-control/accounts/create",
+    "endpoint": "ledger_control.create_account",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/ledger-control/api/account-balance/<account_code>",
+    "endpoint": "ledger_control.get_account_balance",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/ledger-control/backup",
+    "endpoint": "ledger_control.backup_ledger",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/ledger-control/backup-old",
+    "endpoint": "ledger_control.backup_ledger_old",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/ledger-control/batches/<int:batch_id>",
+    "endpoint": "ledger_control.get_batch_by_id",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/ledger-control/batches/<int:batch_id>/update",
+    "endpoint": "ledger_control.update_batch",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/ledger-control/batches/all",
+    "endpoint": "ledger_control.get_all_batches",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/ledger-control/cleanup",
+    "endpoint": "ledger_control.cleanup_old_entries",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/ledger-control/entries",
+    "endpoint": "ledger_control.entries_management",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/ledger-control/entries/<int:entry_id>/void",
+    "endpoint": "ledger_control.void_entry",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/ledger-control/fix-cashed-checks-balance",
+    "endpoint": "ledger_control.fix_cashed_checks_balance",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/ledger-control/health-check",
+    "endpoint": "ledger_control.health_check",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/ledger-control/operations/approve-batch/<int:batch_id>",
+    "endpoint": "ledger_control.approve_batch",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/ledger-control/operations/batch/<int:batch_id>/edit",
+    "endpoint": "ledger_control.get_batch_for_edit",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/ledger-control/operations/batch/<int:batch_id>/link-entity",
+    "endpoint": "ledger_control.link_batch_to_entity",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/ledger-control/operations/batch/<int:batch_id>/update-full",
+    "endpoint": "ledger_control.update_batch_full",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/ledger-control/operations/closing-entries/generate",
+    "endpoint": "ledger_control.generate_closing_entries",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/ledger-control/operations/closing-entries/post",
+    "endpoint": "ledger_control.post_closing_entries",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/ledger-control/operations/entities/search",
+    "endpoint": "ledger_control.search_entities",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/ledger-control/operations/fiscal-periods/api",
+    "endpoint": "ledger_control.get_fiscal_periods",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/ledger-control/operations/reject-batch/<int:batch_id>",
+    "endpoint": "ledger_control.reject_batch",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/ledger-control/operations/reverse-entry/<int:batch_id>",
+    "endpoint": "ledger_control.reverse_entry",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/ledger-control/operations/review-queue",
+    "endpoint": "ledger_control.review_queue",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/ledger-control/recalculate-balances",
+    "endpoint": "ledger_control.recalculate_all_balances",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/ledger-control/reports",
+    "endpoint": "ledger_control.reports_management",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/ledger-control/settings",
+    "endpoint": "ledger_control.settings_management",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/ledger-control/settings/update",
+    "endpoint": "ledger_control.update_settings",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/ledger-control/statistics",
+    "endpoint": "ledger_control.get_advanced_statistics",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/ledger-control/sync-checks",
+    "endpoint": "ledger_control.sync_payments_checks",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/ledger-control/validate",
+    "endpoint": "ledger_control.validate_entries",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/ledger-control/verify-customer-balances",
+    "endpoint": "ledger_control.verify_customer_balances",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/live-monitoring",
+    "endpoint": "security.live_monitoring",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/logo-manager",
+    "endpoint": "security.logo_manager",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/monitoring-dashboard",
+    "endpoint": "security.monitoring_dashboard",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/notifications",
+    "endpoint": "security.notifications_log",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/notifications/test",
+    "endpoint": "security.test_notification",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/performance-monitor",
+    "endpoint": "security.performance_monitor",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/permissions-manager",
+    "endpoint": "security.permissions_manager",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/prometheus-metrics",
+    "endpoint": "security.prometheus_metrics",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/reports-center",
+    "endpoint": "security.reports_center",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/saas-manager",
+    "endpoint": "security.saas_manager",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/save-integration",
+    "endpoint": "security.save_integration",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/security-audit-report",
+    "endpoint": "security.security_audit_report",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/security-center",
+    "endpoint": "security.security_center",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/send-test-message/<integration_type>",
+    "endpoint": "security.send_test_message",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/settings",
+    "endpoint": "security.system_settings",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/settings-center",
+    "endpoint": "security.settings_center",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/sitemap",
+    "endpoint": "security.sitemap",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/stop-impersonate",
+    "endpoint": "security.stop_impersonate",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/system-branding",
+    "endpoint": "security.system_branding",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/system-cleanup",
+    "endpoint": "security.system_cleanup",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/system-settings",
+    "endpoint": "security.system_settings",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/tax-reports",
+    "endpoint": "security.tax_reports",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/tax-reports/export/<period>",
+    "endpoint": "security.export_tax_report",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/tax-reports/reconcile/<period>",
+    "endpoint": "security.reconcile_tax_report",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/test-integration/<integration_type>",
+    "endpoint": "security.test_integration",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/theme-editor",
+    "endpoint": "security.theme_editor",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/toggle-user/<int:user_id>",
+    "endpoint": "security.toggle_user_status",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/toggle_user_status/<int:user_id>",
+    "endpoint": "security.toggle_user_status",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/tools-center",
+    "endpoint": "security.tools_center",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/ultimate-control",
+    "endpoint": "security.ultimate_control",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/unblock-ip/<ip>",
+    "endpoint": "security.unblock_ip",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/update-user-permissions/<int:user_id>",
+    "endpoint": "security.update_user_extra_permissions",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/update-user-role/<int:user_id>",
+    "endpoint": "security.update_user_role",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/security/user-control",
+    "endpoint": "security.user_control",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/security/users-center",
+    "endpoint": "security.users_center",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/service/",
+    "endpoint": "service.list_requests",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/service/<int:rid>",
+    "endpoint": "service.view_request",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/service/<int:rid>/<action>",
+    "endpoint": "service.toggle_service",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/service/<int:rid>/delete",
+    "endpoint": "service.delete_request",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/service/<int:rid>/diagnosis",
+    "endpoint": "service.update_diagnosis",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/service/<int:rid>/discount_tax",
+    "endpoint": "service.update_discount_tax",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/service/<int:rid>/invoice",
+    "endpoint": "service.create_invoice",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/service/<int:rid>/parts/add",
+    "endpoint": "service.add_part",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/service/<int:rid>/payments/add",
+    "endpoint": "service.add_payment",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/service/<int:rid>/pdf",
+    "endpoint": "service.export_pdf",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/service/<int:rid>/receipt",
+    "endpoint": "service.view_receipt",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/service/<int:rid>/receipt/download",
+    "endpoint": "service.download_receipt",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/service/<int:rid>/report",
+    "endpoint": "service.service_report",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/service/<int:rid>/tasks/add",
+    "endpoint": "service.add_task",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/service/analytics",
+    "endpoint": "service.analytics",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/service/api/options",
+    "endpoint": "service.api_service_options",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/service/api/priorities",
+    "endpoint": "service.api_service_priorities",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/service/api/requests",
+    "endpoint": "service.api_service_requests",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/service/api/statuses",
+    "endpoint": "service.api_service_statuses",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/service/archive/<int:id>",
+    "endpoint": "service.archive_service",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/service/dashboard",
+    "endpoint": "service.dashboard",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/service/export/csv",
+    "endpoint": "service.export_requests_csv",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/service/list",
+    "endpoint": "service.list_requests",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/service/new",
+    "endpoint": "service.create_request",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/service/parts/<int:pid>/delete",
+    "endpoint": "service.delete_part",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/service/restore/<int:id>",
+    "endpoint": "service.restore_service",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/service/search",
+    "endpoint": "service.search_requests",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/service/tasks/<int:tid>/delete",
+    "endpoint": "service.delete_task",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/shipments/",
+    "endpoint": "shipments_bp.list_shipments",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/shipments/",
+    "endpoint": "shipments_bp.shipments",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/shipments/<int:id>",
+    "endpoint": "shipments_bp.shipment_detail",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/shipments/<int:id>/cancel",
+    "endpoint": "shipments_bp.cancel_shipment",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/shipments/<int:id>/delete",
+    "endpoint": "shipments_bp.delete_shipment",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/shipments/<int:id>/edit",
+    "endpoint": "shipments_bp.edit_shipment",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/shipments/<int:id>/mark-arrived",
+    "endpoint": "shipments_bp.mark_arrived",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/shipments/<int:id>/mark-delivered",
+    "endpoint": "shipments_bp.mark_delivered",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/shipments/<int:id>/mark-in-customs",
+    "endpoint": "shipments_bp.mark_in_customs",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/shipments/<int:id>/mark-in-transit",
+    "endpoint": "shipments_bp.mark_in_transit",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/shipments/<int:id>/mark-returned",
+    "endpoint": "shipments_bp.mark_returned",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/shipments/<int:id>/update-delivery-attempt",
+    "endpoint": "shipments_bp.update_delivery_attempt",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/shipments/archive/<int:shipment_id>",
+    "endpoint": "archive_routes.archive_shipment",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/shipments/create",
+    "endpoint": "shipments_bp.create_shipment",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/shipments/data",
+    "endpoint": "shipments_bp.shipments_data",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/shop/",
+    "endpoint": "shop.catalog",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/shop/admin/categories/quick_create",
+    "endpoint": "shop.admin_categories_quick_create",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/shop/admin/preorders",
+    "endpoint": "shop.admin_preorders",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/shop/admin/products",
+    "endpoint": "shop.admin_products",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/shop/admin/products/<int:pid>/delete",
+    "endpoint": "shop.admin_product_delete",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/shop/admin/products/<int:pid>/edit",
+    "endpoint": "shop.admin_product_edit",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/shop/admin/products/<int:pid>/toggle_active",
+    "endpoint": "shop.admin_product_toggle_active",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/shop/admin/products/<int:pid>/update_fields",
+    "endpoint": "shop.admin_product_update_fields",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/shop/admin/products/new",
+    "endpoint": "shop.admin_product_new",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/shop/api/product/<int:pid>",
+    "endpoint": "shop.api_product_detail",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/shop/api/products",
+    "endpoint": "shop.api_products",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/shop/archive-preorder/<int:preorder_id>",
+    "endpoint": "shop.archive_preorder",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/shop/cart",
+    "endpoint": "shop.cart",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/shop/cart/add/<int:product_id>",
+    "endpoint": "shop.add_to_cart",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/shop/cart/remove/<int:item_id>",
+    "endpoint": "shop.remove_from_cart",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/shop/cart/update/<int:item_id>",
+    "endpoint": "shop.update_cart_item",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/shop/checkout",
+    "endpoint": "shop.checkout",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/shop/order",
+    "endpoint": "shop.place_order",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/shop/payments/<int:op_id>/refund",
+    "endpoint": "shop.refund_payment",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/shop/preorder/<int:preorder_id>/cancel",
+    "endpoint": "shop.cancel_preorder",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/shop/preorder/<int:preorder_id>/receipt",
+    "endpoint": "shop.preorder_receipt",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/shop/preorders",
+    "endpoint": "shop.preorder_list",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/shop/product/<int:product_id>",
+    "endpoint": "shop.product_detail",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/shop/products",
+    "endpoint": "shop.products",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/shop/webhook/<gateway>",
+    "endpoint": "shop.gateway_webhook",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/suppliers/<int:supplier_id>/inventory",
+    "endpoint": "supplier_settlements_bp.supplier_inventory",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/suppliers/<int:supplier_id>/settlement",
+    "endpoint": "supplier_settlements_bp.supplier_settlement",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/suppliers/<int:supplier_id>/settlement/approve",
+    "endpoint": "supplier_settlements_bp.approve_settlement",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/suppliers/<int:supplier_id>/settlements/create",
+    "endpoint": "supplier_settlements_bp.create",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/suppliers/<int:supplier_id>/settlements/preview",
+    "endpoint": "supplier_settlements_bp.preview",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/suppliers/exchange-transaction/<int:tx_id>/update-price",
+    "endpoint": "supplier_settlements_bp.update_exchange_transaction_price",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/suppliers/settlements",
+    "endpoint": "supplier_settlements_bp.list",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/suppliers/settlements/<int:settlement_id>",
+    "endpoint": "supplier_settlements_bp.show",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/suppliers/settlements/<int:settlement_id>/confirm",
+    "endpoint": "supplier_settlements_bp.confirm",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/suppliers/settlements/<int:settlement_id>/show",
+    "endpoint": "supplier_settlements_bp.show_settlement",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/suppliers/settlements/<int:settlement_id>/void",
+    "endpoint": "supplier_settlements_bp.void",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/suppliers/settlements/approved",
+    "endpoint": "supplier_settlements_bp.approved_settlements_list",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/suppliers/unpriced-items",
+    "endpoint": "supplier_settlements_bp.check_unpriced_items",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/system/performance/",
+    "endpoint": "performance_bp.index",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/system/performance/data",
+    "endpoint": "performance_bp.data",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/system/performance/snapshot",
+    "endpoint": "performance_bp.snapshot",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/toggle-automated-backup",
+    "endpoint": "main.toggle_automated_backup",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/user-guide/",
+    "endpoint": "user_guide.index",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/users/",
+    "endpoint": "users_bp.list_users",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/users/<int:user_id>",
+    "endpoint": "users_bp.user_detail",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/users/<int:user_id>/delete",
+    "endpoint": "users_bp.delete_user",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/users/<int:user_id>/edit",
+    "endpoint": "users_bp.edit_user",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/users/api",
+    "endpoint": "users_bp.api_users",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/users/change-password",
+    "endpoint": "users_bp.change_password",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/users/create",
+    "endpoint": "users_bp.create_user",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/users/edit-profile",
+    "endpoint": "users_bp.edit_profile",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/users/profile",
+    "endpoint": "users_bp.profile",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/users/registered-customers",
+    "endpoint": "users_bp.registered_customers",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/validation/accounting/",
+    "endpoint": "accounting_validation.index",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/validation/accounting/account-consistency",
+    "endpoint": "accounting_validation.account_consistency",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/validation/accounting/balance-check",
+    "endpoint": "accounting_validation.balance_check",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/validation/accounting/entity-balance-verification",
+    "endpoint": "accounting_validation.entity_balance_verification",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/validation/accounting/fix-unbalanced-batches",
+    "endpoint": "accounting_validation.fix_unbalanced_batches",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/validation/accounting/periodic-audit",
+    "endpoint": "accounting_validation.periodic_audit",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/validation/accounting/transaction-integrity",
+    "endpoint": "accounting_validation.transaction_integrity",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/vendors/partners",
+    "endpoint": "vendors_bp.partners_list",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/vendors/partners/<int:id>/delete",
+    "endpoint": "vendors_bp.partners_delete",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/vendors/partners/<int:id>/edit",
+    "endpoint": "vendors_bp.partners_edit",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/vendors/partners/<int:partner_id>/smart-settlement",
+    "endpoint": "vendors_bp.partner_smart_settlement",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/vendors/partners/<int:partner_id>/statement",
+    "endpoint": "vendors_bp.partners_statement",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/vendors/partners/archive/<int:partner_id>",
+    "endpoint": "vendors_bp.archive_partner",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/vendors/partners/balances/recalculate",
+    "endpoint": "vendors_bp.partners_recalculate_balances",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/vendors/partners/new",
+    "endpoint": "vendors_bp.partners_create",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/vendors/partners/restore/<int:partner_id>",
+    "endpoint": "vendors_bp.restore_partner",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/vendors/suppliers",
+    "endpoint": "vendors_bp.suppliers_list",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/vendors/suppliers/<int:id>/delete",
+    "endpoint": "vendors_bp.suppliers_delete",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/vendors/suppliers/<int:id>/edit",
+    "endpoint": "vendors_bp.suppliers_edit",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/vendors/suppliers/<int:supplier_id>/smart-settlement",
+    "endpoint": "vendors_bp.supplier_smart_settlement",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/vendors/suppliers/<int:supplier_id>/statement",
+    "endpoint": "vendors_bp.suppliers_statement",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/vendors/suppliers/archive/<int:supplier_id>",
+    "endpoint": "vendors_bp.archive_supplier",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/vendors/suppliers/balances/recalculate",
+    "endpoint": "vendors_bp.suppliers_recalculate_balances",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/vendors/suppliers/new",
+    "endpoint": "vendors_bp.suppliers_create",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/vendors/suppliers/restore/<int:supplier_id>",
+    "endpoint": "vendors_bp.restore_supplier",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/warehouses/",
+    "endpoint": "warehouse_bp.list",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/warehouses/<int:id>/add-product",
+    "endpoint": "warehouse_bp.add_product",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/warehouses/<int:id>/import",
+    "endpoint": "warehouse_bp.import_products",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/warehouses/<int:id>/import/commit",
+    "endpoint": "warehouse_bp.import_commit",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/warehouses/<int:id>/import/preview",
+    "endpoint": "warehouse_bp.import_preview",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/warehouses/<int:id>/imports",
+    "endpoint": "warehouse_bp.import_runs",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/warehouses/<int:id>/products",
+    "endpoint": "warehouse_bp.products",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/warehouses/<int:id>/shipments/create",
+    "endpoint": "warehouse_bp.create_warehouse_shipment",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/warehouses/<int:id>/transfer",
+    "endpoint": "warehouse_bp.transfer_inline",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/warehouses/<int:id>/transfers",
+    "endpoint": "warehouse_bp.transfers",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/warehouses/<int:id>/transfers/create",
+    "endpoint": "warehouse_bp.create_transfer",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/warehouses/<int:warehouse_id>",
+    "endpoint": "warehouse_bp.detail",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/warehouses/<int:warehouse_id>/delete",
+    "endpoint": "warehouse_bp.delete",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/warehouses/<int:warehouse_id>/edit",
+    "endpoint": "warehouse_bp.edit",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/warehouses/<int:warehouse_id>/exchange",
+    "endpoint": "warehouse_bp.ajax_exchange",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/warehouses/<int:warehouse_id>/partner-shares",
+    "endpoint": "warehouse_bp.partner_shares",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/warehouses/<int:warehouse_id>/pay",
+    "endpoint": "warehouse_bp.pay_warehouse",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/warehouses/<int:warehouse_id>/preview",
+    "endpoint": "warehouse_bp.preview_inventory",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/warehouses/<int:warehouse_id>/preview/update",
+    "endpoint": "warehouse_bp.preview_update",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/warehouses/<int:warehouse_id>/products/<int:product_id>",
+    "endpoint": "warehouse_bp.update_product_inline",
+    "methods": [
+      "PATCH",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/warehouses/<int:warehouse_id>/stock",
+    "endpoint": "warehouse_bp.ajax_update_stock",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/warehouses/<int:warehouse_id>/transfer",
+    "endpoint": "warehouse_bp.ajax_transfer",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/warehouses/api/add_customer",
+    "endpoint": "warehouse_bp.api_add_customer",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/warehouses/api/add_partner",
+    "endpoint": "warehouse_bp.api_add_partner",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/warehouses/api/add_supplier",
+    "endpoint": "warehouse_bp.api_add_supplier",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/warehouses/api/apply_online_defaults",
+    "endpoint": "warehouse_bp.api_apply_online_defaults",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/warehouses/api/partners/list",
+    "endpoint": "warehouse_bp.api_partners_list",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/warehouses/api/prepare_online_fields",
+    "endpoint": "warehouse_bp.api_prepare_online_fields",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/warehouses/api/products/<int:product_id>/partners",
+    "endpoint": "warehouse_bp.api_product_partners_add",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/warehouses/api/products/<int:product_id>/partners",
+    "endpoint": "warehouse_bp.api_product_partners_list",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/warehouses/api/products/<int:product_id>/partners/<int:share_id>",
+    "endpoint": "warehouse_bp.api_product_partners_delete",
+    "methods": [
+      "DELETE"
+    ]
+  },
+  {
+    "rule": "/warehouses/api/products/<int:product_id>/partners/<int:share_id>",
+    "endpoint": "warehouse_bp.api_product_partners_update",
+    "methods": [
+      "PUT"
+    ]
+  },
+  {
+    "rule": "/warehouses/api/products/<int:product_id>/suppliers",
+    "endpoint": "warehouse_bp.api_product_suppliers_list",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/warehouses/api/products/<int:product_id>/suppliers",
+    "endpoint": "warehouse_bp.api_product_suppliers_update",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/warehouses/api/suppliers/list",
+    "endpoint": "warehouse_bp.api_suppliers_list",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/warehouses/api/upload_product_image",
+    "endpoint": "warehouse_bp.api_upload_product_image",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/warehouses/api/warehouse-info",
+    "endpoint": "warehouse_bp.api_warehouse_info",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/warehouses/create",
+    "endpoint": "warehouse_bp.create",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/warehouses/goto/product-card",
+    "endpoint": "warehouse_bp.goto_product_card",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/warehouses/goto/warehouse-products",
+    "endpoint": "warehouse_bp.goto_warehouse_products",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/warehouses/imports/<int:run_id>/download",
+    "endpoint": "warehouse_bp.import_run_download",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/warehouses/inventory",
+    "endpoint": "warehouse_bp.inventory_summary",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/warehouses/parts/<int:product_id>",
+    "endpoint": "warehouse_bp.product_card",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/warehouses/preorders",
+    "endpoint": "warehouse_bp.preorders_list",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/warehouses/preorders/<int:preorder_id>",
+    "endpoint": "warehouse_bp.preorder_detail",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/warehouses/preorders/<int:preorder_id>/cancel",
+    "endpoint": "warehouse_bp.preorder_cancel",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/warehouses/preorders/<int:preorder_id>/convert-to-sale",
+    "endpoint": "warehouse_bp.preorder_convert_to_sale",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/warehouses/preorders/<int:preorder_id>/fulfill",
+    "endpoint": "warehouse_bp.preorder_fulfill",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/warehouses/preorders/<int:preorder_id>/mark-fulfilled",
+    "endpoint": "warehouse_bp.preorder_mark_fulfilled",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/warehouses/preorders/create",
+    "endpoint": "warehouse_bp.preorder_create",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/warehouses/transaction/<int:id>",
+    "endpoint": "warehouse_bp.transaction_detail",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/workflows/",
+    "endpoint": "workflows.index",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/workflows/api/start",
+    "endpoint": "workflows.api_start_workflow",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/workflows/definitions",
+    "endpoint": "workflows.definitions",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/workflows/definitions/<int:id>/edit",
+    "endpoint": "workflows.edit_definition",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/workflows/definitions/<int:id>/toggle",
+    "endpoint": "workflows.toggle_definition",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/workflows/definitions/add",
+    "endpoint": "workflows.add_definition",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "rule": "/workflows/instances",
+    "endpoint": "workflows.instances",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/workflows/instances/<int:id>",
+    "endpoint": "workflows.view_instance",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/workflows/instances/<int:id>/cancel",
+    "endpoint": "workflows.cancel_instance",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/workflows/instances/<int:id>/execute",
+    "endpoint": "workflows.execute_action",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "rule": "/workflows/my-pending",
+    "endpoint": "workflows.my_pending",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/workflows/reports/cost-center-analysis",
+    "endpoint": "workflows.report_cost_center_analysis",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/workflows/reports/performance",
+    "endpoint": "workflows.report_performance",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "rule": "/workflows/reports/summary",
+    "endpoint": "workflows.report_summary",
+    "methods": [
+      "GET"
+    ]
+  }
+]

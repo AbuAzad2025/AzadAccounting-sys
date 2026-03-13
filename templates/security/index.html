@@ -94,10 +94,10 @@
     </div>
   </div>
 
-  <!-- الإحصائيات -->
+  <!-- الإحصائيات (شريط أخبار المالك) -->
   <div class="row mb-4">
     <div class="col-lg-3 col-md-6 mb-3">
-      <div class="small-box bg-info" data-total-users="{{ stats.total_users }}">
+      <div class="small-box security-summary-box security-summary-box--blue" data-total-users="{{ stats.total_users }}">
         <div class="inner">
           <h3>{{ stats.total_users }}</h3>
           <p>إجمالي المستخدمين</p>
@@ -111,7 +111,7 @@
     </div>
     
     <div class="col-lg-3 col-md-6 mb-3">
-      <div class="small-box bg-success" data-active-users="{{ stats.active_users }}">
+      <div class="small-box security-summary-box security-summary-box--green" data-active-users="{{ stats.active_users }}">
         <div class="inner">
           <h3>{{ stats.active_users }}</h3>
           <p>مستخدمين نشطين</p>
@@ -125,7 +125,7 @@
     </div>
     
     <div class="col-lg-3 col-md-6 mb-3">
-      <div class="small-box bg-danger" data-blocked-users="{{ stats.blocked_users }}">
+      <div class="small-box security-summary-box security-summary-box--red" data-blocked-users="{{ stats.blocked_users }}">
         <div class="inner">
           <h3>{{ stats.blocked_users }}</h3>
           <p>مستخدمين محظورين</p>
@@ -139,7 +139,7 @@
     </div>
     
     <div class="col-lg-3 col-md-6 mb-3">
-      <div class="small-box bg-warning">
+      <div class="small-box security-summary-box security-summary-box--amber">
         <div class="inner">
           <h3>{{ stats.failed_logins_24h }}</h3>
           <p>محاولات فاشلة (24 ساعة)</p>

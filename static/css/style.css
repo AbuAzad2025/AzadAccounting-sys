@@ -41,6 +41,135 @@
     --header-height: 60px;
     --radius-main: 12px;
     --radius-sm: 8px;
+
+    /* Owner Console (Al Jazeera style) */
+    --channel-gold: #c38b2e;
+    --channel-gold-soft: rgba(195, 139, 46, 0.18);
+    --channel-gold-border: rgba(195, 139, 46, 0.65);
+    --channel-header-bg: linear-gradient(90deg, #020617 0%, #0f172a 40%, #020617 100%);
+}
+
+/* Security Owner Console - Al Jazeera inspired cards */
+.card-security-module {
+    background: radial-gradient(circle at top, rgba(15,23,42,0.96) 0%, rgba(15,23,42,0.98) 40%, rgba(15,23,42,0.99) 100%);
+    border-radius: 16px;
+    border: 1px solid rgba(30,64,175,0.6);
+    box-shadow: 0 18px 40px rgba(15,23,42,0.9);
+    overflow: hidden;
+    position: relative;
+    transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+}
+
+.card-security-module::before {
+    content: "";
+    position: absolute;
+    inset-inline-start: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: linear-gradient(to bottom, var(--channel-gold), transparent 60%);
+    opacity: 0.8;
+}
+
+.card-security-module .icon-wrapper {
+    width: 74px;
+    height: 74px;
+    border-radius: 999px;
+    margin: 0 auto 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(circle at 30% 0%, rgba(249,250,251,0.2), transparent 60%);
+    border: 1px solid rgba(148,163,184,0.5);
+    box-shadow: 0 0 0 1px rgba(15,23,42,0.9), 0 10px 25px rgba(0,0,0,0.7);
+}
+
+.card-security-module .icon-wrapper i {
+    font-size: 2.1rem;
+    color: var(--channel-gold);
+    text-shadow: 0 0 18px rgba(195, 139, 46, 0.7);
+}
+
+.card-security-module h5 {
+    color: #e5e7eb;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+}
+
+.card-security-module p.small {
+    color: rgba(148,163,184,0.9);
+}
+
+.card-security-module .btn.btn-primary {
+    background: var(--channel-gold);
+    border-color: var(--channel-gold-border);
+    color: #0b1120;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+}
+
+.card-security-module .btn.btn-primary:hover {
+    background: #e0a744;
+    border-color: #facc15;
+    box-shadow: 0 0 18px rgba(234,179,8,0.55);
+}
+
+.card-security-module:hover {
+    transform: translateY(-6px);
+    border-color: var(--channel-gold-border);
+    box-shadow: 0 28px 60px rgba(15,23,42,1);
+}
+
+/* Security Owner Console - Top metrics (news style strip) */
+.security-summary-box {
+    background: #0b1120 !important;
+    border-radius: 16px;
+    border: 1px solid rgba(248,113,113,0.5);
+    box-shadow: 0 16px 35px rgba(15,23,42,0.9);
+    position: relative;
+    overflow: hidden;
+    color: #f9fafb;
+}
+
+.security-summary-box::before {
+    content: "";
+    position: absolute;
+    inset-inline-start: 0;
+    top: 0;
+    height: 4px;
+    width: 100%;
+    background: linear-gradient(to right, rgba(248,113,113,0.95), rgba(254,202,202,0.9));
+}
+
+.security-summary-box .inner h3 {
+    font-weight: 800;
+    font-size: 2.2rem;
+}
+
+.security-summary-box .inner p {
+    font-weight: 600;
+    letter-spacing: 0.4px;
+}
+
+.security-summary-box .icon {
+    color: #fecaca;
+    opacity: 0.95;
+}
+
+.security-summary-box--blue {
+    border-color: rgba(59,130,246,0.7);
+}
+
+.security-summary-box--green {
+    border-color: rgba(34,197,94,0.7);
+}
+
+.security-summary-box--red {
+    border-color: rgba(248,113,113,0.95);
+}
+
+.security-summary-box--amber {
+    border-color: rgba(234,179,8,0.8);
 }
 
 /* --- RTL Layout Fixes for AdminLTE (Robust) --- */
@@ -406,6 +535,79 @@ h1, h2, h3, h4, h5, h6 {
 .page-transition-overlay.active {
     opacity: 1;
     pointer-events: all;
+}
+
+/* --- Global Footer Styling (Always visible, owner-focused) --- */
+.gm-main-footer {
+    background: #7f1d1d; /* red footer for all pages */
+    border-top: 2px solid rgba(254,202,202,0.9);
+    color: var(--text-muted, #d1d5db);
+    padding: 0.35rem 1.25rem;
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    position: sticky;
+    bottom: 0;
+    z-index: 1030;
+}
+
+.gm-main-footer .gm-footer-logo img {
+    height: 22px;
+    max-width: 96px;
+    object-fit: contain;
+    margin-inline-end: 0.5rem;
+}
+
+.gm-main-footer .gm-footer-owner-name {
+    font-weight: 700;
+    color: var(--text-main, #f9fafb);
+    display: block;
+    line-height: 1.2;
+}
+
+.gm-main-footer .gm-footer-owner-tagline {
+    font-size: 0.7rem;
+}
+
+.gm-main-footer .gm-footer-icon {
+    color: #fecaca;
+}
+
+.gm-main-footer .gm-footer-actions .gm-footer-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    background: rgba(15,23,42,0.9);
+    border: 1px solid rgba(248,113,113,0.55);
+    color: var(--text-main, #f9fafb);
+    margin-inline-start: 0.25rem;
+    transition: all 0.15s ease;
+    text-decoration: none;
+    font-size: 0.8rem;
+}
+
+.gm-main-footer .gm-footer-actions .gm-footer-action:hover {
+    background: rgba(248,113,113,0.95);
+    border-color: rgba(248,113,113,1);
+    color: #fff;
+    transform: translateY(-1px);
+    box-shadow: 0 3px 10px rgba(248,113,113,0.45);
+}
+
+@media (max-width: 767.98px) {
+    .gm-main-footer {
+        flex-direction: column;
+        align-items: flex-start;
+        padding-inline: 0.75rem;
+    }
+    .gm-main-footer .gm-footer-center {
+        display: none !important;
+    }
 }
 
 /* Hover Effects */
