@@ -403,15 +403,27 @@ def ensure_currency(cur):
         return _ensure_ccy(cur)
     return (cur or "ILS").strip().upper()
 
-def _render_payment_receipt_pdf(payment: Payment) -> bytes:
-    from weasyprint import HTML, CSS
+def _render_payment_receipt_pdf(payment: Payment) -> bytes | None:
+    """Render payment receipt as PDF. Returns None if WeasyPrint is unavailable (e.g. GTK missing on Windows)."""
+    try:
+        from weasyprint import HTML, CSS
+    except (ImportError, OSError) as e:
+        current_app.logger.warning(
+            "weasyprint_unavailable: %s (PDF download disabled; use HTML receipt + print)",
+            str(e),
+            extra={"payment_id": getattr(payment, "id", None)},
+        )
+        return None
     html = render_template("payments/receipt.html", payment=payment, now=_utc_now_naive())
     css_inline = "@page { size: A4; margin: 14mm; } html, body { direction: rtl; font-family: 'Cairo','Noto Naskh Arabic',Arial,sans-serif; font-size: 12px; } h1,h2,h3 { margin: 0 0 8px 0; } table { width: 100%; border-collapse: collapse; } th, td { padding: 6px 8px; border-bottom: 1px solid #ddd; } .muted { color: #666; }"
     try:
         return HTML(string=html, base_url=request.url_root).write_pdf(stylesheets=[CSS(string=css_inline)])
     except Exception:
         current_app.logger.exception("payment.receipt_pdf_failed", extra={"payment_id": getattr(payment, "id", None)})
-        return HTML(string=html, base_url=request.url_root).write_pdf()
+        try:
+            return HTML(string=html, base_url=request.url_root).write_pdf()
+        except Exception:
+            return None
 
 MAX_SEARCH_LIMIT = 25
 
@@ -2166,8 +2178,9 @@ def download_receipt(payment_id: str):
         pdf_bytes = _render_payment_receipt_pdf(payment)
         if not pdf_bytes:
             if _wants_json():
-                return jsonify(error="render_error", message="تعذّر توليد PDF"), 500
-            return make_response("<!doctype html><meta charset='utf-8'><div style='padding:24px;font-family:system-ui,Arial,sans-serif'>تعذّر توليد PDF</div>", 500)
+                return jsonify(error="render_error", message="تنزيل PDF غير متاح على هذا الخادم. استخدم صفحة الإيصال وطباعة المتصفح."), 503
+            flash("تنزيل PDF غير متاح على هذا الخادم (يتطلب تثبيت مكتبات الطباعة). يمكنك طباعة الإيصال من صفحة العرض باستخدام طباعة المتصفح (Ctrl+P).", "info")
+            return redirect(url_for("payments.payment_receipt", payment_id=payment.id))
     except Exception as e:
         current_app.logger.exception("receipt.pdf_error", extra={"payment_id": payment_id})
         if _wants_json():
@@ -3113,10 +3126,19 @@ def shop_payment_status(payment_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@payments_bp.route("/archive/<int:payment_id>", methods=["POST"])
+@payments_bp.route("/archive/<payment_id>", methods=["POST"])
 @login_required
 def archive_payment(payment_id):
-    
+    # دعم معرّف من نوع 309_split_233 (عرض split) → نؤرشف الدفعة الأم 309
+    try:
+        raw = str(payment_id).strip()
+        if "_split_" in raw:
+            raw = raw.split("_split_")[0]
+        real_id = int(raw)
+    except (ValueError, TypeError):
+        flash("رقم الدفعة غير صالح", "error")
+        return redirect(url_for("payments.index"))
+    payment_id = real_id
     try:
         from models import Archive
         
@@ -3133,11 +3155,20 @@ def archive_payment(payment_id):
         flash(f'خطأ في أرشفة الدفعة: {str(e)}', 'error')
         return redirect(url_for('payments.index'))
 
-@payments_bp.route("/restore/<int:payment_id>", methods=["POST"])
+@payments_bp.route("/restore/<payment_id>", methods=["POST"])
 @login_required
 def restore_payment(payment_id):
     """استعادة دفعة"""
-    
+    # دعم معرّف من نوع 309_split_233 → نستعيد الدفعة الأم 309
+    try:
+        raw = str(payment_id).strip()
+        if "_split_" in raw:
+            raw = raw.split("_split_")[0]
+        real_id = int(raw)
+    except (ValueError, TypeError):
+        flash("رقم الدفعة غير صالح", "error")
+        return redirect(url_for("payments.index"))
+    payment_id = real_id
     try:
         payment = db.get_or_404(Payment, payment_id)
         
@@ -3555,7 +3586,7 @@ def view_payment_split(payment_id: int, split_id: int):
         if _wants_json():
             return jsonify(error="not_found", message="السند غير موجود"), 404
         flash("السند غير موجود", "error")
-        return redirect(url_for("payments_bp.index"))
+        return redirect(url_for("payments.index"))
     try:
         split = next((s for s in list(getattr(payment, "splits", []) or []) if getattr(s, "id", None) == split_id), None)
     except Exception:
@@ -3564,7 +3595,7 @@ def view_payment_split(payment_id: int, split_id: int):
         if _wants_json():
             return jsonify(error="not_found", message="جزء الدفعة غير موجود"), 404
         flash("جزء الدفعة غير موجود", "error")
-        return redirect(url_for("payments_bp.view_payment", payment_id=payment_id))
+        return redirect(url_for("payments.view_payment", payment_id=payment_id))
     return render_template("payments/view.html", payment=payment, active_split=split)
 
 @payments_bp.route("/<int:payment_id>_split_<int:split_id>", methods=["GET"], endpoint="view_payment_split_legacy")

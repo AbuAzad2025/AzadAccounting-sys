@@ -18,8 +18,9 @@
                 <span class="badge badge-soft-primary">Live Preview</span>
             </div>
             <div class="sec-card-body">
-                <form method="POST" action="{{ url_for('security.update_appearance') }}">
+                <form method="POST" action="{{ url_for('security.settings_center', tab='branding') }}">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="action" value="update_branding">
                     <input type="hidden" name="section" value="colors">
                     
                     <div class="row g-4">

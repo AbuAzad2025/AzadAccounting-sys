@@ -5,8 +5,8 @@
 <div class="container-fluid px-4">
     <h1 class="mt-4">مخزون الشريك: {{ partner.name }}</h1>
     <ol class="breadcrumb mb-4">
-        <li class="breadcrumb-item"><a href="{{ url_for('index') }}">الرئيسية</a></li>
-        <li class="breadcrumb-item"><a href="{{ url_for('vendors.partners_list') }}">الشركاء</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">الرئيسية</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('vendors_bp.partners_list') }}">الشركاء</a></li>
         <li class="breadcrumb-item active">تقرير المخزون</li>
     </ol>
 

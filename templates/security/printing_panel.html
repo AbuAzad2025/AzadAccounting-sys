@@ -52,7 +52,7 @@
 
     <!-- منطقة الإعدادات -->
     <div class="col-md-8">
-        <form method="POST" action="{{ url_for('security.update_printing_settings') }}">
+        <form method="POST" action="{{ url_for('security.settings_center', tab='config') }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             
             <!-- قسم: إعدادات الفواتير العامة -->
