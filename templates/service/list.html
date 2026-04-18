@@ -6,6 +6,168 @@
 {% block head_extra %}
   {{ super() }}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/service.css') }}">
+  <style>
+    /* تحسينات الوضوح والتباين */
+    .service-table thead th {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+      color: white !important;
+      font-weight: 600;
+      border: none;
+      white-space: nowrap;
+    }
+    
+    .service-table tbody tr:hover {
+      background-color: #f8f9fa;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .service-table td {
+      vertical-align: middle;
+      border-bottom: 1px solid #e9ecef;
+    }
+    
+    /* تحسين الـ Badges */
+    .badge-priority {
+      font-weight: 600;
+      padding: 0.5em 0.8em;
+      font-size: 0.85rem;
+    }
+    
+    .badge-status {
+      font-weight: 600;
+      padding: 0.5em 0.8em;
+      font-size: 0.85rem;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    /* ألوان محسنة للأولوية */
+    .priority-urgent { background: #dc3545; color: white; }
+    .priority-high { background: #fd7e14; color: white; }
+    .priority-medium { background: #ffc107; color: #212529; }
+    .priority-low { background: #6c757d; color: white; }
+    
+    /* ألوان محسنة للحالة */
+    .status-pending { background: #6c757d; color: white; }
+    .status-diagnosis { background: #17a2b8; color: white; }
+    .status-in-progress { background: #007bff; color: white; }
+    .status-completed { background: #28a745; color: white; }
+    .status-cancelled { background: #dc3545; color: white; }
+    .status-on-hold { background: #ffc107; color: #212529; }
+    
+    /* تحسين التواريخ */
+    .date-cell {
+      font-family: 'Segoe UI', Tahoma, monospace;
+      font-size: 0.9rem;
+    }
+    
+    .date-received {
+      color: #495057;
+      font-weight: 500;
+    }
+    
+    .date-completed {
+      color: #28a745;
+      font-weight: 600;
+    }
+    
+    /* تحسين الأرقام المالية */
+    .amount-cell {
+      font-family: 'Segoe UI', Tahoma, monospace;
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+    
+    /* تحسين الأزرار */
+    .action-buttons .btn {
+      padding: 0.4rem 0.7rem;
+      font-size: 0.85rem;
+    }
+    
+    /* تحسين الفلاتر */
+    .filter-card {
+      background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+      border: 1px solid #dee2e6;
+    }
+    
+    .filter-label {
+      font-weight: 600;
+      color: #495057;
+      font-size: 0.85rem;
+    }
+    
+    /* CSS للطباعة */
+    @media print {
+      .no-print, .no-print * {
+        display: none !important;
+      }
+      
+      .print-only {
+        display: block !important;
+      }
+      
+      .service-table {
+        font-size: 12pt;
+        width: 100%;
+      }
+      
+      .service-table thead th {
+        background: #333 !important;
+        color: white !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      
+      .badge-priority, .badge-status {
+        border: 1px solid #333;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      
+      .card {
+        border: none;
+        box-shadow: none;
+      }
+      
+      .card-header {
+        background: #f8f9fa !important;
+        border-bottom: 2px solid #333;
+      }
+      
+      body {
+        font-size: 11pt;
+      }
+      
+      a {
+        text-decoration: none;
+        color: #000;
+      }
+      
+      .text-primary {
+        color: #000 !important;
+      }
+    }
+    
+    /* إخفاء/إظهار عناصر الطباعة */
+    .print-only {
+      display: none;
+    }
+    
+    @media print {
+      .print-only {
+        display: block;
+      }
+    }
+    
+    /* تحسين الإحصائيات */
+    .stat-card {
+      transition: transform 0.2s;
+      border: none;
+    }
+    
+    .stat-card:hover {
+      transform: translateY(-3px);
+    }
+  </style>
 {% endblock %}
 
 {% block breadcrumb %}
@@ -20,6 +182,13 @@
 {% block content %}
 <div class="content">
 
+  <!-- عنوان للطباعة -->
+  <div class="print-only mb-4">
+    <h2 class="text-center">قائمة طلبات الصيانة</h2>
+    <p class="text-center text-muted">تاريخ الطباعة: {{ now().strftime('%Y-%m-%d %H:%M') }}</p>
+    <hr>
+  </div>
+
   {% set PRIORITY_LABELS = {
     'LOW':'منخفضة','MEDIUM':'متوسطة','HIGH':'عالية','URGENT':'عاجلة'
   } %}
@@ -27,16 +196,9 @@
     'PENDING':'معلّق','DIAGNOSIS':'تشخيص','IN_PROGRESS':'قيد التنفيذ',
     'COMPLETED':'مكتمل','CANCELLED':'ملغي','ON_HOLD':'مؤجّل'
   } %}
-  {% set PRIORITY_COLORS = {
-    'LOW':'info','MEDIUM':'warning','HIGH':'danger','URGENT':'dark'
-  } %}
-  {% set STATUS_COLORS = {
-    'PENDING':'secondary','DIAGNOSIS':'info','IN_PROGRESS':'primary',
-    'COMPLETED':'success','CANCELLED':'danger','ON_HOLD':'warning'
-  } %}
 
   {% if current_user.has_permission('manage_service') %}
-  <div class="card border-0 shadow-lg mb-4" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+  <div class="card border-0 shadow-lg mb-4 no-print" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
     <div class="card-body text-white">
       <div class="d-flex flex-wrap gap-3 align-items-center">
         <div class="d-flex gap-2">
@@ -51,16 +213,20 @@
           <button id="exportCsv" class="btn btn-outline-light">
             <i class="fas fa-file-csv"></i> تصدير CSV
           </button>
+          <button onclick="window.print()" class="btn btn-outline-light">
+            <i class="fas fa-print"></i> طباعة
+          </button>
+        </div>
       </div>
     </div>
   </div>
   {% endif %}
 
   {% if stats %}
-  <!-- إحصائيات سريعة محسّنة -->
-  <div class="row g-3 mb-4">
+  <!-- إحصائيات سريعة -->
+  <div class="row g-3 mb-4 no-print">
     <div class="col-lg-3 col-md-6">
-      <div class="card border-0 shadow-sm h-100 text-white" style="background: linear-gradient(135deg, #f09819 0%, #edde5d 100%);">
+      <div class="card stat-card text-white" style="background: linear-gradient(135deg, #f09819 0%, #edde5d 100%);">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center">
             <div>
@@ -76,7 +242,7 @@
     </div>
     
     <div class="col-lg-3 col-md-6">
-      <div class="card border-0 shadow-sm h-100 text-white" style="background: linear-gradient(135deg, #ff9966 0%, #ff5e62 100%);">
+      <div class="card stat-card text-white" style="background: linear-gradient(135deg, #ff9966 0%, #ff5e62 100%);">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center">
             <div>
@@ -92,7 +258,7 @@
     </div>
     
     <div class="col-lg-3 col-md-6">
-      <div class="card border-0 shadow-sm h-100 text-white" style="background: linear-gradient(135deg, #4e54c8 0%, #8f94fb 100%);">
+      <div class="card stat-card text-white" style="background: linear-gradient(135deg, #4e54c8 0%, #8f94fb 100%);">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center">
             <div>
@@ -108,7 +274,7 @@
     </div>
     
     <div class="col-lg-3 col-md-6">
-      <div class="card border-0 shadow-sm h-100 text-white" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);">
+      <div class="card stat-card text-white" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center">
             <div>
@@ -125,30 +291,45 @@
   </div>
   {% endif %}
 
-  <div class="card border-0 shadow-sm mb-4">
-    <div class="card-header bg-white border-bottom-0 py-3" data-toggle="collapse" href="#filterCollapse" role="button" aria-expanded="true" aria-controls="filterCollapse" style="cursor: pointer;">
+  <!-- فلاتر محسنة -->
+  <div class="card filter-card shadow-sm mb-4 no-print">
+    <div class="card-header bg-transparent border-bottom-0 py-3" data-toggle="collapse" href="#filterCollapse" role="button" aria-expanded="true" aria-controls="filterCollapse" style="cursor: pointer;">
       <div class="d-flex justify-content-between align-items-center">
-        <h5 class="card-title mb-0 fw-bold text-secondary"><i class="fas fa-filter me-2"></i> تصفية وبحث متقدم</h5>
-        <i class="fas fa-chevron-down text-muted"></i>
+        <h5 class="card-title mb-0 fw-bold text-dark">
+          <i class="fas fa-filter me-2 text-primary"></i> تصفية وبحث متقدم
+        </h5>
+        <div class="d-flex align-items-center gap-2">
+          <span class="badge bg-secondary">{{ pagination.total }} نتيجة</span>
+          <i class="fas fa-chevron-down text-muted"></i>
+        </div>
       </div>
     </div>
 
     <div class="collapse show" id="filterCollapse">
       <div class="card-body pt-0">
-        <form class="row g-3 align-items-end" method="get" action="{{ url_for('service.list_requests') }}">
+        <form class="row g-3" method="get" action="{{ url_for('service.list_requests') }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
 
+          <!-- الصف الأول من الفلاتر -->
           <div class="col-md-3 col-sm-6">
-            <label for="customer" class="form-label small text-muted fw-bold">العميل</label>
+            <label class="filter-label"><i class="fas fa-user me-1"></i> العميل</label>
             <div class="input-group input-group-sm">
-              <span class="input-group-text bg-light border-end-0"><i class="fas fa-user text-muted"></i></span>
-              <input id="customer" name="customer" class="form-control border-start-0" value="{{ filter_values.customer or '' }}" placeholder="اسم العميل أو رقم الجوال">
+              <span class="input-group-text bg-white border-end-0"><i class="fas fa-search text-muted"></i></span>
+              <input name="customer" class="form-control border-start-0" value="{{ filter_values.customer or '' }}" placeholder="اسم أو رقم جوال">
             </div>
           </div>
 
           <div class="col-md-2 col-sm-6">
-            <label for="mechanic" class="form-label small text-muted fw-bold">الميكانيكي</label>
-            <select id="mechanic" name="mechanic" class="form-select form-select-sm">
+            <label class="filter-label"><i class="fas fa-car me-1"></i> المركبة</label>
+            <div class="input-group input-group-sm">
+              <span class="input-group-text bg-white border-end-0"><i class="fas fa-hashtag text-muted"></i></span>
+              <input name="vrn" class="form-control border-start-0" value="{{ filter_values.vrn or '' }}" placeholder="رقم اللوحة">
+            </div>
+          </div>
+
+          <div class="col-md-2 col-sm-6">
+            <label class="filter-label"><i class="fas fa-wrench me-1"></i> الميكانيكي</label>
+            <select name="mechanic" class="form-select form-select-sm">
               <option value="">الكل</option>
               {% for m in mechanics %}
                 <option value="{{ m.username }}" {% if filter_values.mechanic==m.username %}selected{% endif %}>{{ m.username }}</option>
@@ -157,49 +338,75 @@
           </div>
 
           <div class="col-md-2 col-sm-6">
-            <label for="vrn" class="form-label small text-muted fw-bold">لوحة المركبة</label>
+            <label class="filter-label"><i class="fas fa-flag me-1"></i> الأولوية</label>
+            <select name="priority" class="form-select form-select-sm">
+              <option value="">الكل</option>
+              <option value="URGENT" {% if filter_values.priority=='URGENT' %}selected{% endif %}>عاجلة</option>
+              <option value="HIGH" {% if filter_values.priority=='HIGH' %}selected{% endif %}>عالية</option>
+              <option value="MEDIUM" {% if filter_values.priority=='MEDIUM' %}selected{% endif %}>متوسطة</option>
+              <option value="LOW" {% if filter_values.priority=='LOW' %}selected{% endif %}>منخفضة</option>
+            </select>
+          </div>
+
+          <div class="col-md-3 col-sm-6">
+            <label class="filter-label"><i class="fas fa-info-circle me-1"></i> الحالة</label>
+            <select name="status" class="form-select form-select-sm">
+              <option value="">الكل</option>
+              <option value="PENDING" {% if filter_values.status=='PENDING' %}selected{% endif %}>معلق</option>
+              <option value="DIAGNOSIS" {% if filter_values.status=='DIAGNOSIS' %}selected{% endif %}>تشخيص</option>
+              <option value="IN_PROGRESS" {% if filter_values.status=='IN_PROGRESS' %}selected{% endif %}>قيد التنفيذ</option>
+              <option value="COMPLETED" {% if filter_values.status=='COMPLETED' %}selected{% endif %}>مكتمل</option>
+              <option value="CANCELLED" {% if filter_values.status=='CANCELLED' %}selected{% endif %}>ملغي</option>
+              <option value="ON_HOLD" {% if filter_values.status=='ON_HOLD' %}selected{% endif %}>مؤجل</option>
+            </select>
+          </div>
+
+          <!-- الصف الثاني من الفلاتر -->
+          <div class="col-md-3 col-sm-6">
+            <label class="filter-label"><i class="fas fa-calendar me-1"></i> تاريخ الاستلام</label>
             <div class="input-group input-group-sm">
-              <span class="input-group-text bg-light border-end-0"><i class="fas fa-car text-muted"></i></span>
-              <input id="vrn" name="vrn" class="form-control border-start-0" value="{{ filter_values.vrn or '' }}" placeholder="VRN">
+              <input type="date" name="date_from" class="form-control" value="{{ filter_values.date_from or '' }}" placeholder="من">
+              <input type="date" name="date_to" class="form-control" value="{{ filter_values.date_to or '' }}" placeholder="إلى">
             </div>
           </div>
 
           <div class="col-md-2 col-sm-6">
-            <label for="date" class="form-label small text-muted fw-bold">الزمن</label>
-            <select id="date" name="date" class="form-select form-select-sm">
+            <label class="filter-label"><i class="fas fa-clock me-1"></i> الفترة</label>
+            <select name="date" class="form-select form-select-sm">
               <option value="">الكل</option>
               <option value="today" {% if filter_values.date=='today' %}selected{% endif %}>اليوم</option>
-              <option value="week"  {% if filter_values.date=='week' %}selected{% endif %}>هذا الأسبوع</option>
+              <option value="week" {% if filter_values.date=='week' %}selected{% endif %}>هذا الأسبوع</option>
               <option value="month" {% if filter_values.date=='month' %}selected{% endif %}>هذا الشهر</option>
             </select>
           </div>
 
-          <div class="col-md-3 col-sm-12 d-flex gap-2">
-            <div class="flex-grow-1">
-               <label for="sort" class="form-label small text-muted fw-bold">الترتيب</label>
-               <select id="sort" name="sort" class="form-select form-select-sm">
-                 <option value="balance_due" {% if filter_values.sort=='balance_due' or not filter_values.sort %}selected{% endif %}>المتبقي</option>
-                 <option value="received_at" {% if filter_values.sort=='received_at' %}selected{% endif %}>تاريخ الاستلام</option>
-                 <option value="priority" {% if filter_values.sort=='priority' %}selected{% endif %}>الأولوية</option>
-                 <option value="status" {% if filter_values.sort=='status' %}selected{% endif %}>الحالة</option>
-               </select>
-            </div>
-            <div style="width: 80px;">
-               <label for="order" class="form-label small text-muted fw-bold">الاتجاه</label>
-               <select id="order" name="order" class="form-select form-select-sm">
-                 <option value="desc" {% if filter_values.order=='desc' or not filter_values.order %}selected{% endif %}>تنازلي</option>
-                 <option value="asc" {% if filter_values.order=='asc' %}selected{% endif %}>تصاعدي</option>
-               </select>
+          <div class="col-md-3 col-sm-6">
+            <label class="filter-label"><i class="fas fa-sort me-1"></i> الترتيب</label>
+            <div class="input-group input-group-sm">
+              <select name="sort" class="form-select">
+                <option value="received_at" {% if filter_values.sort=='received_at' or not filter_values.sort %}selected{% endif %}>تاريخ الاستلام</option>
+                <option value="balance_due" {% if filter_values.sort=='balance_due' %}selected{% endif %}>المتبقي</option>
+                <option value="priority" {% if filter_values.sort=='priority' %}selected{% endif %}>الأولوية</option>
+                <option value="status" {% if filter_values.sort=='status' %}selected{% endif %}>الحالة</option>
+                <option value="completed_at" {% if filter_values.sort=='completed_at' %}selected{% endif %}>تاريخ الإكمال</option>
+              </select>
+              <select name="order" class="form-select" style="max-width: 90px;">
+                <option value="desc" {% if filter_values.order=='desc' or not filter_values.order %}selected{% endif %}>تنازلي</option>
+                <option value="asc" {% if filter_values.order=='asc' %}selected{% endif %}>تصاعدي</option>
+              </select>
             </div>
           </div>
 
-          <div class="col-12 text-end mt-3">
-            <a href="{{ url_for('service.list_requests') }}" class="btn btn-light btn-sm me-2">
-              <i class="fas fa-times"></i> مسح
-            </a>
-            <button type="submit" class="btn btn-primary btn-sm px-4 shadow-sm">
-              <i class="fas fa-search"></i> تصفية النتائج
-            </button>
+          <div class="col-md-4 col-sm-12 text-end">
+            <label class="filter-label d-block">&nbsp;</label>
+            <div class="d-flex gap-2 justify-content-end">
+              <a href="{{ url_for('service.list_requests') }}" class="btn btn-light btn-sm">
+                <i class="fas fa-undo"></i> إعادة تعيين
+              </a>
+              <button type="submit" class="btn btn-primary btn-sm px-4">
+                <i class="fas fa-search"></i> تصفية
+              </button>
+            </div>
           </div>
 
         </form>
@@ -207,36 +414,40 @@
     </div>
   </div>
 
+  <!-- جدول الطلبات -->
   <div class="card border-0 shadow-sm">
     <div class="card-header bg-white border-bottom-0 py-3 d-flex justify-content-between align-items-center">
-      <h5 class="card-title mb-0 fw-bold text-primary">
-        <i class="fas fa-list me-2"></i> قائمة الطلبات
+      <h5 class="card-title mb-0 fw-bold text-dark">
+        <i class="fas fa-list me-2 text-primary"></i> قائمة الطلبات
       </h5>
-      <span class="badge bg-primary rounded-pill px-3">{{ pagination.total }} طلب</span>
+      <div class="d-flex align-items-center gap-2">
+        <span class="badge bg-primary rounded-pill px-3">{{ pagination.total }} طلب</span>
+        <span class="print-only">تاريخ: {{ now().strftime('%Y-%m-%d') }}</span>
+      </div>
     </div>
     <div class="card-body p-0">
       <div class="table-responsive">
-        <table id="servicesTable" class="table table-hover align-middle mb-0">
-          <thead class="bg-light">
+        <table id="servicesTable" class="table service-table table-hover align-middle mb-0">
+          <thead>
             <tr>
-              <th class="py-3 ps-3 border-bottom-0">رقم الطلب</th>
-              <th class="py-3 border-bottom-0">العميل</th>
-              <th class="py-3 border-bottom-0">المركبة</th>
-              <th class="py-3 border-bottom-0">تاريخ الاستلام</th>
-              <th class="py-3 border-bottom-0">تاريخ الإكمال</th>
-              <th class="py-3 border-bottom-0">إجمالي السند</th>
-              <th class="py-3 border-bottom-0">المتبقي</th>
-              <th class="py-3 border-bottom-0">الأولوية</th>
-              <th class="py-3 border-bottom-0">الحالة</th>
-              <th class="py-3 pe-3 border-bottom-0 text-end" style="min-width: 150px;">الإجراءات</th>
+              <th class="py-3 ps-3">رقم الطلب</th>
+              <th class="py-3">العميل</th>
+              <th class="py-3">المركبة</th>
+              <th class="py-3">تاريخ الاستلام</th>
+              <th class="py-3">تاريخ الإكمال</th>
+              <th class="py-3">الإجمالي</th>
+              <th class="py-3">المتبقي</th>
+              <th class="py-3 text-center">الأولوية</th>
+              <th class="py-3 text-center">الحالة</th>
+              <th class="py-3 pe-3 text-end no-print" style="min-width: 150px;">الإجراءات</th>
             </tr>
           </thead>
           <tbody>
             {% if requests %}
               {% for s in requests %}
               <tr>
-                <td class="ps-3 fw-bold text-primary">
-                  <a href="{{ url_for('service.view_request', rid=s.id) }}" class="text-decoration-none">
+                <td class="ps-3">
+                  <a href="{{ url_for('service.view_request', rid=s.id) }}" class="text-decoration-none fw-bold text-primary">
                     {{ s.service_number }}
                   </a>
                 </td>
@@ -255,67 +466,63 @@
                     <span class="text-muted small">—</span>
                   {% endif %}
                 </td>
-                <td>
-                  <span class="small text-muted">
-                    {% if s.received_at %}
-                      {{ s.received_at.strftime('%Y-%m-%d') }}
-                    {% else %}
-                      —
-                    {% endif %}
-                  </span>
+                <td class="date-cell">
+                  {% if s.received_at %}
+                    <span class="date-received">{{ s.received_at.strftime('%Y-%m-%d') }}</span>
+                    <small class="text-muted d-block">{{ s.received_at.strftime('%H:%M') }}</small>
+                  {% else %}
+                    <span class="text-muted">—</span>
+                  {% endif %}
                 </td>
-                <td>
-                  <span class="small {% if s.completed_at %}text-success{% else %}text-muted{% endif %}">
-                    {% if s.completed_at %}
-                      {{ s.completed_at.strftime('%Y-%m-%d') }}
-                    {% else %}
-                      —
-                    {% endif %}
-                  </span>
+                <td class="date-cell">
+                  {% if s.completed_at %}
+                    <span class="date-completed">{{ s.completed_at.strftime('%Y-%m-%d') }}</span>
+                    <small class="text-success d-block">{{ s.completed_at.strftime('%H:%M') }}</small>
+                  {% else %}
+                    <span class="text-muted">—</span>
+                  {% endif %}
                 </td>
-                <td>
-                  <span class="fw-bold text-dark">
-                    {{ '%.2f'|format(s.total or 0.0) }} ₪
-                  </span>
+                <td class="amount-cell">
+                  <span class="text-dark">{{ '%.2f'|format(s.total or 0.0) }} ₪</span>
                 </td>
                 <td>
                   {% set balance_value = s.balance_due or 0.0 %}
                   {% if balance_value|float <= 0 %}
-                    <span class="badge bg-success bg-opacity-10 text-success rounded-pill">
+                    <span class="badge bg-success rounded-pill">
                       <i class="fas fa-check me-1"></i> مدفوع
                     </span>
                   {% else %}
-                    <span class="badge bg-danger bg-opacity-10 text-danger rounded-pill">
+                    <span class="badge bg-danger rounded-pill amount-cell">
                       {{ '%.2f'|format(balance_value) }} ₪
                     </span>
                   {% endif %}
                 </td>
-                <td>
+                <td class="text-center">
                   {% set p = (s.priority.value if s.priority is not string else s.priority)|upper %}
-                  <span class="badge bg-{{ priority_colors.get(p, 'secondary') }} bg-opacity-75 rounded-pill shadow-sm">
-                    {{ priority_labels.get(p, p) }}
+                  <span class="badge badge-priority priority-{{ p|lower }}">
+                    {{ PRIORITY_LABELS.get(p, p) }}
                   </span>
                 </td>
-                <td>
+                <td class="text-center">
                   {% set st = (s.status.value if s.status is not string else s.status)|upper %}
-                  <span class="badge bg-{{ STATUS_COLORS.get(st,'secondary') }} rounded-pill">
-                    {{ status_labels.get(st, st) }}
+                  <span class="badge badge-status status-{{ st|lower }}">
+                    {{ STATUS_LABELS.get(st, st) }}
                   </span>
                 </td>
-                <td class="pe-3 text-end">
-                  <div class="btn-group shadow-sm rounded-pill" role="group">
-                    <a href="{{ url_for('service.view_request', rid=s.id) }}" class="btn btn-sm btn-outline-primary border-end-0" title="عرض التفاصيل">
+                <td class="pe-3 text-end no-print action-buttons">
+                  <div class="btn-group" role="group">
+                    <a href="{{ url_for('service.view_request', rid=s.id) }}" class="btn btn-sm btn-outline-primary" title="عرض التفاصيل">
                       <i class="fas fa-eye"></i>
                     </a>
-                    <a href="{{ url_for('service.view_receipt', rid=s.id) }}" class="btn btn-sm btn-outline-primary border-start-0 border-end-0" target="_blank" title="طباعة الإيصال">
+                    <a href="{{ url_for('service.view_receipt', rid=s.id) }}" class="btn btn-sm btn-outline-info" target="_blank" title="طباعة الإيصال">
                       <i class="fas fa-print"></i>
                     </a>
                     {% if s.is_archived %}
-                    <button type="button" class="btn btn-sm btn-outline-success border-start-0" title="استعادة" onclick="restoreService({{ s.id }})">
+                    <button type="button" class="btn btn-sm btn-outline-success" title="استعادة" onclick="restoreService({{ s.id }})">
                       <i class="fas fa-undo"></i>
                     </button>
                     {% else %}
-                    <button type="button" class="btn btn-sm btn-outline-danger border-start-0" title="أرشفة" onclick="archiveService({{ s.id }})">
+                    <button type="button" class="btn btn-sm btn-outline-danger" title="أرشفة" onclick="archiveService({{ s.id }})">
                       <i class="fas fa-archive"></i>
                     </button>
                     {% endif %}
@@ -325,7 +532,7 @@
               {% endfor %}
             {% else %}
               <tr>
-                <td colspan="8" class="text-center text-muted py-5">
+                <td colspan="10" class="text-center text-muted py-5">
                   <div class="d-flex flex-column align-items-center">
                     <div class="bg-light rounded-circle p-4 mb-3">
                       <i class="fas fa-inbox fa-3x text-secondary opacity-50"></i>
@@ -342,7 +549,7 @@
     </div>
     
     {% if pagination and pagination.pages > 1 %}
-    <div class="card-footer">
+    <div class="card-footer no-print">
       <nav aria-label="تنقل الصفحات">
         <ul class="pagination justify-content-center mb-0">
           <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">

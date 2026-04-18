@@ -372,6 +372,25 @@ def list_requests():
             start_month = today.replace(day=1)
             query = query.filter(col >= start_month)
     
+    # فلترة حسب نطاق تاريخ محدد
+    date_from = request.args.get('date_from', '')
+    date_to = request.args.get('date_to', '')
+    if date_from or date_to:
+        col = _col('received_at')
+        if date_from:
+            try:
+                from_date = datetime.strptime(date_from, '%Y-%m-%d')
+                query = query.filter(col >= from_date)
+            except ValueError:
+                pass
+        if date_to:
+            try:
+                to_date = datetime.strptime(date_to, '%Y-%m-%d')
+                to_date = to_date.replace(hour=23, minute=59, second=59)
+                query = query.filter(col <= to_date)
+            except ValueError:
+                pass
+    
     # الترتيب
     sort_by = request.args.get('sort', 'balance_due')
     sort_order = request.args.get('order', 'desc')
@@ -424,6 +443,8 @@ def list_requests():
         'mechanic': mechanic_filter,
         'vrn': vrn_filter,
         'date': date_filter,
+        'date_from': date_from,
+        'date_to': date_to,
         'sort': sort_by,
         'order': sort_order
     }
