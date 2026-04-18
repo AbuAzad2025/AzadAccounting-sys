@@ -281,7 +281,7 @@
         {% if company_info.tax_number %}<br>الرقم الضريبي: {{ company_info.tax_number }}{% endif %}
         <br>
       {% endif %}
-      رقم الإيصال: {{ salary_expense.id }} | التاريخ: {{ salary_expense.date.strftime('%d/%m/%Y') if salary_expense.date else '—' }}
+      رقم الإيصال: {{ salary_expense.id }} | التاريخ: {{ salary_expense.date.strftime('%Y-%m-%d') if salary_expense.date else '—' }}
     </div>
   </div>
   
@@ -414,7 +414,7 @@
   <div class="footer">
     تم الإصدار بواسطة: {{ current_user.username if current_user else '—' }}
     {% if salary_expense.date %}
-    | تاريخ الإصدار: {{ salary_expense.date.strftime('%d/%m/%Y') }}
+    | تاريخ الإصدار: {{ salary_expense.date.strftime('%Y-%m-%d') }}
     {% endif %}
   </div>
 

@@ -75,12 +75,12 @@
                 </tr>
                 <tr>
                   <th>تاريخ الشيك:</th>
-                  <td>{{ check.check_date.strftime('%d/%m/%Y') }}</td>
+                  <td>{{ check.check_date.strftime('%Y-%m-%d') }}</td>
                 </tr>
                 <tr>
                   <th>تاريخ الاستحقاق:</th>
                   <td>
-                    {{ check.check_due_date.strftime('%d/%m/%Y') }}
+                    {{ check.check_due_date.strftime('%Y-%m-%d') }}
                     {% if check.is_overdue %}
                       <span class="badge badge-danger">متأخر {{ -check.days_until_due }} يوم</span>
                     {% elif check.is_due_soon %}
