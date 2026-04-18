@@ -222,6 +222,8 @@
               <th class="py-3 ps-3 border-bottom-0">رقم الطلب</th>
               <th class="py-3 border-bottom-0">العميل</th>
               <th class="py-3 border-bottom-0">المركبة</th>
+              <th class="py-3 border-bottom-0">تاريخ الاستلام</th>
+              <th class="py-3 border-bottom-0">تاريخ الإكمال</th>
               <th class="py-3 border-bottom-0">إجمالي السند</th>
               <th class="py-3 border-bottom-0">المتبقي</th>
               <th class="py-3 border-bottom-0">الأولوية</th>
@@ -252,6 +254,24 @@
                   {% else %}
                     <span class="text-muted small">—</span>
                   {% endif %}
+                </td>
+                <td>
+                  <span class="small text-muted">
+                    {% if s.received_at %}
+                      {{ s.received_at.strftime('%Y-%m-%d') }}
+                    {% else %}
+                      —
+                    {% endif %}
+                  </span>
+                </td>
+                <td>
+                  <span class="small {% if s.completed_at %}text-success{% else %}text-muted{% endif %}">
+                    {% if s.completed_at %}
+                      {{ s.completed_at.strftime('%Y-%m-%d') }}
+                    {% else %}
+                      —
+                    {% endif %}
+                  </span>
                 </td>
                 <td>
                   <span class="fw-bold text-dark">
