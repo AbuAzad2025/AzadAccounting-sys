@@ -248,16 +248,16 @@ def _release_service_stock_once(service) -> bool:
     """إرجاع المخزون مرة واحدة فقط - تحقق من عدم التكرار"""
     if not _service_consumes_stock(service): return False
     
-    # التحقق مما إذا كان قد تم إرجاع المخزون بالفعل
-    existing_release = db.session.query(AuditLog).filter(
+    # التحقق من آخر عملية مخزون - يجب أن تكون استهلاك (CONSUME) لإرجاع المخزون
+    last_log = db.session.query(AuditLog).filter(
         AuditLog.model_name == "ServiceRequest",
         AuditLog.record_id == service.id,
-        AuditLog.action == "STOCK_RELEASE"
-    ).first()
+        AuditLog.action.in_(["STOCK_CONSUME", "STOCK_CONSUME_PART", "STOCK_RELEASE"])
+    ).order_by(AuditLog.id.desc()).first()
     
-    if existing_release:
-        # تم إرجاع المخزون بالفعل
-        current_app.logger.info(f"service.stock_release.skipped service_id={service.id} - already released")
+    # نُرجع المخزون فقط إذا كانت آخر عملية هي استهلاك (وليست إعادة)
+    if not last_log or last_log.action not in ["STOCK_CONSUME", "STOCK_CONSUME_PART"]:
+        current_app.logger.info(f"service.stock_release.skipped service_id={service.id} - last_action={last_log.action if last_log else 'none'}")
         return False
     
     currents=_service_stock_movements(service)
@@ -904,13 +904,23 @@ def delete_part(pid):
         return redirect(url_for('service.view_request', rid=rid))
     stock_release_ok = True
     try:
+        # التحقق مما إذا كانت القطعة قد خُصمت فعلياً - نتحقق من حركات المخزون
+        current_stock_consumed = 0
         if _service_consumes_stock(service):
+            currents = _service_stock_movements(service)
+            key = (part.part_id, part.warehouse_id)
+            current_stock_consumed = currents.get(key, 0)  # قيمة سالبة = مخصوم
+        
+        # نُرجع المخزون فقط إذا كانت القطعة قد خُصمت فعلياً (current_stock_consumed < 0)
+        if current_stock_consumed < 0:
             try:
                 with db.session.begin_nested():
                     _ensure_partner_warehouse(part.warehouse_id)
-                    new_qty=utils._apply_stock_delta(part.part_id, part.warehouse_id, +int(part.quantity or 0))
-                    _log_service_stock_action(service,"STOCK_RELEASE_PART",[{"part_id":part.part_id,"warehouse_id":part.warehouse_id,"qty":+int(part.quantity or 0),"stock_after":int(new_qty)}])
-                    current_app.logger.info("service.part_delete",extra={"event":"service.part.delete","service_id":service.id,"part_id":part.part_id,"warehouse_id":part.warehouse_id,"qty":+int(part.quantity or 0)})
+                    qty_to_return = min(int(part.quantity or 0), abs(current_stock_consumed))
+                    if qty_to_return > 0:
+                        new_qty=utils._apply_stock_delta(part.part_id, part.warehouse_id, +qty_to_return)
+                        _log_service_stock_action(service,"STOCK_RELEASE_PART",[{"part_id":part.part_id,"warehouse_id":part.warehouse_id,"qty":+qty_to_return,"stock_after":int(new_qty)}])
+                        current_app.logger.info("service.part_delete",extra={"event":"service.part.delete","service_id":service.id,"part_id":part.part_id,"warehouse_id":part.warehouse_id,"qty":+qty_to_return})
             except Exception:
                 stock_release_ok = False
                 current_app.logger.exception("service.part_delete.stock_release_failed service_id=%s part_id=%s", service.id, part.id)
@@ -996,16 +1006,22 @@ def edit_part(rid, pid):
                 with db.session.begin_nested():
                     _ensure_partner_warehouse(part.warehouse_id)
                     
-                    # الخطوة 1: إرجاع الكمية القديمة للمستودع
-                    if old_qty > 0:
-                        returned_stock = utils._apply_stock_delta(part.part_id, part.warehouse_id, old_qty)
+                    # التحقق من المخزون الحالي للقطعة
+                    currents = _service_stock_movements(service)
+                    key = (part.part_id, part.warehouse_id)
+                    current_consumed = currents.get(key, 0)  # سالب = مخصوم
+                    
+                    # الخطوة 1: إرجاع الكمية الفعلية المخصومة (وليس old_qty بالكامل)
+                    actual_consumed = abs(min(current_consumed, 0))  # نأخذ القيمة السالبة فقط
+                    if actual_consumed > 0:
+                        returned_stock = utils._apply_stock_delta(part.part_id, part.warehouse_id, actual_consumed)
                         _log_service_stock_action(
                             service,
                             "STOCK_RELEASE_PART",
                             [{
                                 "part_id": part.part_id,
                                 "warehouse_id": part.warehouse_id,
-                                "qty": old_qty,
+                                "qty": actual_consumed,
                                 "reason": "edit_return_old",
                                 "stock_after": int(returned_stock)
                             }]
