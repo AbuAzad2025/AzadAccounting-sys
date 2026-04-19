@@ -175,7 +175,7 @@ def _service_stock_targets(service):
     return totals
 
 def _service_stock_movements(service):
-    actions=("STOCK_CONSUME","STOCK_RELEASE","STOCK_CONSUME_PART","STOCK_RELEASE_PART")
+    actions=("STOCK_CONSUME","STOCK_RELEASE","STOCK_CONSUME_PART","STOCK_RELEASE_PART","STOCK_ADJUST_PART")
     rows=db.session.query(AuditLog).filter(AuditLog.model_name=="ServiceRequest",AuditLog.record_id==service.id,AuditLog.action.in_(actions)).all()
     totals={}
     for row in rows:
