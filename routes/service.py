@@ -15,6 +15,11 @@ from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.orm import joinedload
 
 from extensions import db, cache
+from stock_audit_system import (
+    StockTransactionType, StockAuditLogger,
+    log_service_part_add, log_service_part_remove,
+    log_service_complete, log_service_reopen
+)
 from models import (
     ServiceRequest, ServicePart, ServiceTask, Customer, Product,
     run_service_gl_sync_after_commit,
@@ -239,7 +244,12 @@ def _consume_service_stock_once(service) -> bool:
             items.append({"part_id":key[0],"warehouse_id":key[1],"qty":delta,"stock_after":int(new_qty)})
     if not items:
         return False
-    _log_service_stock_action(service,"STOCK_CONSUME",items)
+    # استخدام النظام المحسّن للتوثيق
+    log_service_complete(
+        service=service,
+        items=items,
+        reason="إكمال الصيانة - خصم المخزون النهائي"
+    )
     db.session.flush()  # ✅ تأكد من كتابة AuditLog قبل أي استدعاء لاحق
     current_app.logger.info("service.stock_consume",extra={"event":"service.stock.consume","service_id":service.id,"items":[{"part_id":i["part_id"],"warehouse_id":i["warehouse_id"],"qty":i["qty"]} for i in items]})
     return True
@@ -270,7 +280,12 @@ def _release_service_stock_once(service) -> bool:
         new_qty=utils._apply_stock_delta(key[0],key[1],delta)
         items.append({"part_id":key[0],"warehouse_id":key[1],"qty":delta,"stock_after":int(new_qty)})
     if not items: return False
-    _log_service_stock_action(service,"STOCK_RELEASE",items)
+    # استخدام النظام المحسّن للتوثيق
+    log_service_reopen(
+        service=service,
+        items=items,
+        reason="إعادة فتح الصيانة - إرجاع المخزون"
+    )
     db.session.flush()  # ✅ تأكد من كتابة AuditLog قبل أي استدعاء لاحق
     current_app.logger.info("service.stock_release",extra={"event":"service.stock.release","service_id":service.id,"items":[{"part_id":i["part_id"],"warehouse_id":i["warehouse_id"],"qty":i["qty"]} for i in items]})
     return True
@@ -844,6 +859,22 @@ def add_part(rid):
             _flash_error('نسبة الضريبة يجب أن تكون بين 0 و 100')
             return redirect(url_for('service.view_request', rid=rid))
         
+        # ⚠️ التحقق من توفر المخزون BEFORE إضافة القطعة
+        if _service_consumes_stock(service):
+            from models import StockLevel, Product
+            stock = StockLevel.query.filter_by(
+                product_id=product_id,
+                warehouse_id=warehouse_id
+            ).first()
+            available = stock.quantity if stock else 0
+            
+            if available < quantity:
+                product = Product.query.get(product_id)
+                product_name = product.name if product else f'#{product_id}'
+                flash(f'❌ المخزون غير كافٍ للمنتج "{product_name}". '
+                      f'المتوفر: {available}، المطلوب: {quantity}', 'error')
+                return redirect(url_for('service.view_request', rid=rid))
+        
         part=ServicePart(
             request=service, 
             service_id=rid, 
@@ -864,7 +895,15 @@ def add_part(rid):
         if _service_consumes_stock(service):
             _ensure_partner_warehouse(warehouse_id)
             new_qty=utils._apply_stock_delta(product_id, warehouse_id, -quantity)
-            _log_service_stock_action(service,"STOCK_CONSUME_PART",[{"part_id":product_id,"warehouse_id":warehouse_id,"qty":-quantity,"stock_after":int(new_qty)}])
+            # استخدام النظام المحسّن للتوثيق
+            log_service_part_add(
+                service=service,
+                part_id=product_id,
+                warehouse_id=warehouse_id,
+                qty=quantity,
+                stock_after=int(new_qty),
+                reason=f"إضافة قطعة: {product.name if 'product' in locals() else product_id}"
+            )
             current_app.logger.info("service.part_add",extra={"event":"service.part.add","service_id":service.id,"part_id":product_id,"warehouse_id":warehouse_id,"qty":-quantity})
         
         _update_service_totals(service)
@@ -878,7 +917,13 @@ def add_part(rid):
         
     except ValueError as ve:
         db.session.rollback()
-        _flash_error(_friendly_error(ve, "القيم المدخلة غير صالحة."))
+        error_msg = str(ve).lower()
+        if 'insufficient stock' in error_msg:
+            flash('❌ المخزون غير كافٍ لهذه القطعة.', 'error')
+        elif 'partner warehouse' in error_msg or 'warehouse' in error_msg:
+            flash('❌ المستودع المحدد غير صالح أو غير نشط.', 'error')
+        else:
+            _flash_error(_friendly_error(ve, "القيم المدخلة غير صالحة."))
     except SQLAlchemyError as e:
         db.session.rollback()
         _log_and_flash("service.add_part", e, "تعذر حفظ القطعة، يرجى المحاولة لاحقاً.")
@@ -914,13 +959,20 @@ def delete_part(pid):
         # نُرجع المخزون فقط إذا كانت القطعة قد خُصمت فعلياً (current_stock_consumed < 0)
         if current_stock_consumed < 0:
             try:
-                with db.session.begin_nested():
-                    _ensure_partner_warehouse(part.warehouse_id)
-                    qty_to_return = min(int(part.quantity or 0), abs(current_stock_consumed))
-                    if qty_to_return > 0:
-                        new_qty=utils._apply_stock_delta(part.part_id, part.warehouse_id, +qty_to_return)
-                        _log_service_stock_action(service,"STOCK_RELEASE_PART",[{"part_id":part.part_id,"warehouse_id":part.warehouse_id,"qty":+qty_to_return,"stock_after":int(new_qty)}])
-                        current_app.logger.info("service.part_delete",extra={"event":"service.part.delete","service_id":service.id,"part_id":part.part_id,"warehouse_id":part.warehouse_id,"qty":+qty_to_return})
+                _ensure_partner_warehouse(part.warehouse_id)
+                qty_to_return = min(int(part.quantity or 0), abs(current_stock_consumed))
+                if qty_to_return > 0:
+                    new_qty=utils._apply_stock_delta(part.part_id, part.warehouse_id, +qty_to_return)
+                    # استخدام النظام المحسّن للتوثيق
+                    log_service_part_remove(
+                        service=service,
+                        part_id=part.part_id,
+                        warehouse_id=part.warehouse_id,
+                        qty=qty_to_return,
+                        stock_after=int(new_qty),
+                        reason=f"حذف قطعة من الصيانة"
+                    )
+                    current_app.logger.info("service.part_delete",extra={"event":"service.part.delete","service_id":service.id,"part_id":part.part_id,"warehouse_id":part.warehouse_id,"qty":+qty_to_return})
             except Exception:
                 stock_release_ok = False
                 current_app.logger.exception("service.part_delete.stock_release_failed service_id=%s part_id=%s", service.id, part.id)
@@ -993,58 +1045,104 @@ def edit_part(rid, pid):
             _flash_error(f'الخصم ({new_discount:.2f} ₪) لا يمكن أن يتجاوز إجمالي البند ({gross_amount:.2f} ₪)')
             return redirect(url_for('service.view_request', rid=rid))
         
-        # تحديث البيانات
+        # ⚠️ التحقق من المخزون BEFORE تحديث البيانات
+        actual_consumed = 0  # تعريف المتغير هنا للاستخدام لاحقاً
+        if _service_consumes_stock(service):
+            from models import StockLevel, Product
+            
+            # حساب الكمية المطلوبة فعلياً
+            currents = _service_stock_movements(service)
+            key = (part.part_id, part.warehouse_id)
+            current_consumed = currents.get(key, 0)  # سالب = مخصوم
+            actual_consumed = abs(min(current_consumed, 0))
+            
+            # الكمية التي ستُخصم = الجديدة - المخصومة فعلياً
+            qty_to_consume = new_quantity - actual_consumed
+            
+            if qty_to_consume > 0:
+                # التحقق من توفر المخزون
+                stock = StockLevel.query.filter_by(
+                    product_id=part.part_id,
+                    warehouse_id=part.warehouse_id
+                ).first()
+                available = stock.quantity if stock else 0
+                
+                if available < qty_to_consume:
+                    product = Product.query.get(part.part_id)
+                    product_name = product.name if product else f'#{part.part_id}'
+                    flash(f'❌ المخزون غير كافٍ للمنتج "{product_name}". '
+                          f'المتوفر: {available}، المطلوب: {qty_to_consume}', 'error')
+                    return redirect(url_for('service.view_request', rid=rid))
+        
+        # ✅ الآن يمكن تحديث البيانات بعد التحقق من المخزون
         part.quantity = new_quantity
         part.unit_price = new_unit_price
         part.discount = new_discount
         # لا حاجة لحساب line_total يدوياً -它是 hybrid_property ويُحسّب تلقائياً
         
         # تحديث المخزون: إرجاع القديم وخصم الجديد
-        # هذا يضمن تطابق المخزون مع حالة القطعة الحالية
+        stock_adjusted = False
         if _service_consumes_stock(service):
             try:
-                with db.session.begin_nested():
-                    _ensure_partner_warehouse(part.warehouse_id)
+                _ensure_partner_warehouse(part.warehouse_id)
+                
+                # إرجاع الكمية القديمة إذا كانت مخصومة
+                if actual_consumed > 0:
+                    returned_stock = utils._apply_stock_delta(part.part_id, part.warehouse_id, actual_consumed)
+                    _log_service_stock_action(
+                        service,
+                        "STOCK_RELEASE_PART",
+                        [{
+                            "part_id": part.part_id,
+                            "warehouse_id": part.warehouse_id,
+                            "qty": actual_consumed,
+                            "reason": "edit_return_old",
+                            "stock_after": int(returned_stock)
+                        }]
+                    )
+                
+                # خصم الكمية الجديدة
+                if new_quantity > 0:
+                    consumed_stock = utils._apply_stock_delta(part.part_id, part.warehouse_id, -new_quantity)
+                    _log_service_stock_action(
+                        service,
+                        "STOCK_CONSUME_PART",
+                        [{
+                            "part_id": part.part_id,
+                            "warehouse_id": part.warehouse_id,
+                            "qty": new_quantity,
+                            "reason": "edit_consume_new",
+                            "stock_after": int(consumed_stock)
+                        }]
+                    )
+                
+                stock_adjusted = True
+                
+            except ValueError as ve:
+                # التحقق من نوع خطأ المخزون
+                error_msg = str(ve).lower()
+                if 'insufficient stock' in error_msg or 'stock' in error_msg:
+                    from models import StockLevel, Product
+                    stock = StockLevel.query.filter_by(
+                        product_id=part.part_id, 
+                        warehouse_id=part.warehouse_id
+                    ).first()
+                    available = stock.quantity if stock else 0
+                    product = Product.query.get(part.part_id)
+                    product_name = product.name if product else f'#{part.part_id}'
                     
-                    # التحقق من المخزون الحالي للقطعة
-                    currents = _service_stock_movements(service)
-                    key = (part.part_id, part.warehouse_id)
-                    current_consumed = currents.get(key, 0)  # سالب = مخصوم
-                    
-                    # الخطوة 1: إرجاع الكمية الفعلية المخصومة (وليس old_qty بالكامل)
-                    actual_consumed = abs(min(current_consumed, 0))  # نأخذ القيمة السالبة فقط
-                    if actual_consumed > 0:
-                        returned_stock = utils._apply_stock_delta(part.part_id, part.warehouse_id, actual_consumed)
-                        _log_service_stock_action(
-                            service,
-                            "STOCK_RELEASE_PART",
-                            [{
-                                "part_id": part.part_id,
-                                "warehouse_id": part.warehouse_id,
-                                "qty": actual_consumed,
-                                "reason": "edit_return_old",
-                                "stock_after": int(returned_stock)
-                            }]
-                        )
-                    
-                    # الخطوة 2: خصم الكمية الجديدة من المستودع
-                    if new_quantity > 0:
-                        consumed_stock = utils._apply_stock_delta(part.part_id, part.warehouse_id, -new_quantity)
-                        _log_service_stock_action(
-                            service,
-                            "STOCK_CONSUME_PART",
-                            [{
-                                "part_id": part.part_id,
-                                "warehouse_id": part.warehouse_id,
-                                "qty": new_quantity,
-                                "reason": "edit_consume_new",
-                                "stock_after": int(consumed_stock)
-                            }]
-                        )
-                    
+                    flash(f'❌ المخزون غير كافٍ للمنتج "{product_name}". '
+                          f'المتوفر: {available}، المطلوب: {new_quantity}', 'error')
+                else:
+                    flash(f'❌ خطأ: {ve}', 'error')
+                db.session.rollback()
+                return redirect(url_for('service.view_request', rid=rid))
             except Exception as stock_e:
                 current_app.logger.exception("service.part_edit.stock_adjust_failed")
                 flash('⚠️ تم تعديل القطعة، لكن تعذر تحديث المخزون تلقائياً.', 'warning')
+        else:
+            # المخزون لا يُخصم في هذه الحالة، لا مشكلة
+            stock_adjusted = True
         
         # تحديث إجماليات الطلب
         _update_service_totals(service)
@@ -1063,10 +1161,17 @@ def edit_part(rid, pid):
         
     except ValueError as ve:
         db.session.rollback()
-        _flash_error(_friendly_error(ve, "بيانات غير صالحة."))
+        error_msg = str(ve).lower()
+        if 'insufficient stock' in error_msg:
+            flash('❌ المخزون غير كافٍ لهذه القطعة.', 'error')
+        else:
+            _flash_error(_friendly_error(ve, "بيانات غير صالحة."))
+        return redirect(url_for('service.view_request', rid=rid))
     except SQLAlchemyError as e:
         db.session.rollback()
-        _log_and_flash("service.edit_part", e, "تعذر تعديل القطعة حالياً.")
+        current_app.logger.exception("service.edit_part.failed")
+        flash('❌ تعذر حفظ القطعة، يرجى المحاولة لاحقاً.', 'error')
+        return redirect(url_for('service.view_request', rid=rid))
     
     return redirect(url_for('service.view_request', rid=rid))
 

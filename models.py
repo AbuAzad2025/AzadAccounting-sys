@@ -10443,6 +10443,13 @@ def _compute_service_totals(mapper, connection, target: ServiceRequest):
 
 @event.listens_for(ServiceRequest, "before_update")
 def _srv_enforce_transitions(mapper, connection, target: ServiceRequest):
+    """
+    التحقق من صحة انتقالات حالة طلب الصيانة.
+    
+    يمنع الانتقالات غير المسموح بها مثل:
+    - COMPLETED → PENDING (يجب استخدام "إعادة للصيانة")
+    - CANCELLED → أي حالة أخرى
+    """
     from sqlalchemy.orm.attributes import get_history
     h = get_history(target, "status")
     oldv = (h.deleted[0] if h.deleted else getattr(target, "status", None))
@@ -10452,12 +10459,42 @@ def _srv_enforce_transitions(mapper, connection, target: ServiceRequest):
     if o != n:
         allowed = _ALLOWED_SERVICE_TRANSITIONS.get(o, set())
         if n not in allowed:
-            raise ValueError("service.invalid_status_transition")
+            # ترجمة الحالات للعربية للرسالة
+            status_names = {
+                "PENDING": "قيد الانتظار",
+                "DIAGNOSIS": "التشخيص",
+                "IN_PROGRESS": "قيد التنفيذ",
+                "ON_HOLD": "معلق",
+                "COMPLETED": "مكتمل",
+                "CANCELLED": "ملغي",
+                "CLOSED": "مغلق"
+            }
+            old_name = status_names.get(o, o)
+            new_name = status_names.get(n, n)
+            allowed_names = [status_names.get(s, s) for s in allowed]
+            raise ValueError(
+                f"❌ لا يمكن تغيير حالة الصيانة من '{old_name}' إلى '{new_name}'. "
+                f"الحالات المسموح بها: {', '.join(allowed_names)}"
+            )
 
 @event.listens_for(ServiceRequest, "before_insert")
 def _ensure_service_number(mapper, connection, target: ServiceRequest):
+    """
+    توليد رقم صيانة فريد تلقائياً إذا لم يتم تحديده.
+    
+    صيغة الرقم: SRVYYYYMMDD-XXXX
+    مثال: SRV20240422-0001
+    """
     if getattr(target, "service_number", None):
+        # التحقق من عدم تكرار الرقم
+        existing = connection.execute(
+            sa_text("SELECT id FROM service_requests WHERE service_number = :sn"),
+            {"sn": target.service_number}
+        ).fetchone()
+        if existing:
+            raise ValueError(f"❌ رقم الصيانة '{target.service_number}' مستخدم بالفعل في طلب آخر")
         return
+    
     prefix = datetime.now(timezone.utc).strftime("SRV%Y%m%d")
     cnt = connection.execute(
         sa_text("SELECT COUNT(*) FROM service_requests WHERE service_number LIKE :pfx"),
@@ -11055,11 +11092,16 @@ def _deduct_stock_on_complete(mapper, connection, target):
 
 @event.listens_for(ServicePart, "after_insert")
 def _sp_after_insert(mapper, connection, target: ServicePart):
+    """
+    بعد إضافة قطعة جديدة لطلب الصيانة:
+    1. إعادة حساب إجماليات الطلب
+    2. تحديث قيد المحاسبة (GL)
+    3. تحديث رصيد الشريك إن وجد
+    """
     sid = int(getattr(target, "service_id", 0) or 0)
     session = object_session(target)
     if sid and session:
         _recalc_service_totals_orm_safe(session, sid)
-        # _service_gl_batch_upsert_sql(connection, sid)
     elif sid:
         _recalc_service_request_totals_sql(connection, sid)
         _service_gl_batch_upsert_sql(connection, sid)
@@ -11068,6 +11110,15 @@ def _sp_after_insert(mapper, connection, target: ServicePart):
 
 @event.listens_for(ServicePart, "after_update")
 def _sp_after_update(mapper, connection, target: ServicePart):
+    """
+    بعد تعديل قطعة في طلب الصيانة:
+    1. إعادة حساب إجماليات الطلب
+    2. تحديث قيد المحاسبة (GL)
+    3. تحديث رصيد الشريك إن وجد
+    
+    ملاحظة: تحديث المخزون يتم في routes/service.edit_part وليس هنا
+    لتجنب تكرار الخصم (double deduction)
+    """
     sid = int(getattr(target, "service_id", 0) or 0)
     session = object_session(target)
     if sid and session:
@@ -11081,6 +11132,14 @@ def _sp_after_update(mapper, connection, target: ServicePart):
 
 @event.listens_for(ServicePart, "after_delete")
 def _sp_after_delete(mapper, connection, target: ServicePart):
+    """
+    بعد حذف قطعة من طلب الصيانة:
+    1. إعادة حساب إجماليات الطلب
+    2. تحديث قيد المحاسبة (GL)
+    3. تحديث رصيد الشريك إن وجد
+    
+    ملاحظة: إرجاع المخزون يتم في routes/service.delete_part وليس هنا
+    """
     sid = int(getattr(target, "service_id", 0) or 0)
     session = object_session(target)
     if sid and session:
