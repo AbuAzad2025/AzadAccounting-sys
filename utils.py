@@ -53,6 +53,36 @@ def naive_utc_for_delta(dt):
     return dt.astimezone(timezone.utc).replace(tzinfo=None)
 
 
+def classify_entity_balance(balance: Any) -> Dict[str, Any]:
+    """
+    Unified sign convention for entity balances:
+    - negative => entity owes company (owed_to_us)
+    - positive => company owes entity (owed_by_us)
+    """
+    bal = float(balance or 0)
+    abs_bal = abs(bal)
+    owed_to_us = abs_bal if bal < 0 else 0.0
+    owed_by_us = abs_bal if bal > 0 else 0.0
+    if bal < 0:
+        status = "debtor_to_company"
+        status_ar = "مدين لنا (عليه للشركة)"
+    elif bal > 0:
+        status = "creditor_on_company"
+        status_ar = "دائن علينا (للجهة على الشركة)"
+    else:
+        status = "settled"
+        status_ar = "متوازن"
+    return {
+        "balance": bal,
+        "abs_balance": abs_bal,
+        "owed_to_us": owed_to_us,
+        "owed_by_us": owed_by_us,
+        "status": status,
+        "status_ar": status_ar,
+        "is_settled": abs_bal < 0.01,
+    }
+
+
 def _get_models():
     from models import Customer, Supplier, Partner
     return Customer, Supplier, Partner

@@ -12,7 +12,7 @@ from sqlalchemy.orm import joinedload
 from extensions import db
 from forms import PartnerForm, SupplierForm, CURRENCY_CHOICES
 import utils
-from utils import D, q2, _get_or_404, archive_record, restore_record, permission_required
+from utils import D, q2, _get_or_404, archive_record, restore_record, permission_required, classify_entity_balance
 from models import (
     ExchangeTransaction,
     Partner,
@@ -3832,24 +3832,25 @@ def _calculate_payments_from_partner(partner_id: int, date_from: datetime, date_
 
 def _get_settlement_recommendation(balance: float, currency: str):
     """اقتراح التسوية"""
-    if abs(balance) < 0.01:  # متوازن
+    balance_view = classify_entity_balance(balance)
+    if balance_view["is_settled"]:
         return {
             "action": "متوازن",
             "message": "لا توجد تسوية مطلوبة",
             "amount": 0
         }
-    elif balance > 0:  # الباقي له
+    elif balance_view["balance"] > 0:  # الباقي له
         return {
             "action": "دفع",
-            "message": f"يجب دفع {abs(balance):.2f} {currency} للمورد/الشريك",
-            "amount": abs(balance),
+            "message": f"يجب دفع {balance_view['owed_by_us']:.2f} {currency} للمورد/الشريك",
+            "amount": balance_view["owed_by_us"],
             "direction": "OUTGOING"
         }
     else:  # الباقي عليه
         return {
             "action": "قبض",
-            "message": f"يجب قبض {abs(balance):.2f} {currency} من المورد/الشريك",
-            "amount": abs(balance),
+            "message": f"يجب قبض {balance_view['owed_to_us']:.2f} {currency} من المورد/الشريك",
+            "amount": balance_view["owed_to_us"],
             "direction": "INCOMING"
         }
 

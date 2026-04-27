@@ -6,6 +6,7 @@ from extensions import cache, db
 from utils.balance_calculator import build_customer_balance_view
 from utils.supplier_balance_updater import build_supplier_balance_view
 from utils.partner_balance_updater import build_partner_balance_view
+from utils import classify_entity_balance
 balances_api_bp = Blueprint('balances_api', __name__, url_prefix='/api/balances')
 
 @balances_api_bp.route('/dashboard', methods=['GET'])
@@ -26,24 +27,34 @@ def balances_dashboard():
     partners_total = sum(float(p.current_balance or 0) for p in partners)
     customers_total = sum(float(c.current_balance or 0) for c in customers)
     
+    supplier_views = [classify_entity_balance(s.current_balance) for s in suppliers]
+    partner_views = [classify_entity_balance(p.current_balance) for p in partners]
+    customer_views = [classify_entity_balance(c.current_balance) for c in customers]
+
     summary = {
         'suppliers': {
             'count': len(suppliers),
             'total_balance': suppliers_total,
-            'positive': len([s for s in suppliers if float(s.current_balance or 0) > 0]),
-            'negative': len([s for s in suppliers if float(s.current_balance or 0) < 0])
+            'positive': len([v for v in supplier_views if v['balance'] > 0]),
+            'negative': len([v for v in supplier_views if v['balance'] < 0]),
+            'owed_to_us_total': sum(v['owed_to_us'] for v in supplier_views),
+            'owed_by_us_total': sum(v['owed_by_us'] for v in supplier_views),
         },
         'partners': {
             'count': len(partners),
             'total_balance': partners_total,
-            'positive': len([p for p in partners if float(p.current_balance or 0) > 0]),
-            'negative': len([p for p in partners if float(p.current_balance or 0) < 0])
+            'positive': len([v for v in partner_views if v['balance'] > 0]),
+            'negative': len([v for v in partner_views if v['balance'] < 0]),
+            'owed_to_us_total': sum(v['owed_to_us'] for v in partner_views),
+            'owed_by_us_total': sum(v['owed_by_us'] for v in partner_views),
         },
         'customers': {
             'count': len(customers),
             'total_balance': customers_total,
-            'positive': len([c for c in customers if float(c.current_balance or 0) > 0]),
-            'negative': len([c for c in customers if float(c.current_balance or 0) < 0])
+            'positive': len([v for v in customer_views if v['balance'] > 0]),
+            'negative': len([v for v in customer_views if v['balance'] < 0]),
+            'owed_to_us_total': sum(v['owed_to_us'] for v in customer_views),
+            'owed_by_us_total': sum(v['owed_by_us'] for v in customer_views),
         }
     }
     
@@ -84,6 +95,7 @@ def get_supplier_balance(supplier_id):
         'currency': supplier.currency,
         'opening_balance': float(supplier.opening_balance or 0)
     }
+    response.update(classify_entity_balance(supplier.current_balance))
     if breakdown and breakdown.get('success'):
         response['rights'] = breakdown.get('rights')
         response['obligations'] = breakdown.get('obligations')
@@ -114,6 +126,7 @@ def get_partner_balance(partner_id):
         'opening_balance': float(partner.opening_balance or 0),
         'share_percentage': float(partner.share_percentage or 0)
     }
+    response.update(classify_entity_balance(partner.current_balance))
     if breakdown and breakdown.get('success'):
         response['rights'] = breakdown.get('rights')
         response['obligations'] = breakdown.get('obligations')
@@ -143,6 +156,7 @@ def get_customer_balance(customer_id):
         'opening_balance': float(customer.opening_balance or 0),
         'credit_limit': float(customer.credit_limit or 0)
     }
+    response.update(classify_entity_balance(customer.current_balance))
     if breakdown and breakdown.get('success'):
         response['rights'] = breakdown.get('rights')
         response['obligations'] = breakdown.get('obligations')
@@ -174,26 +188,36 @@ def get_balances_summary():
     partners_total = sum(float(p.current_balance or 0) for p in partners)
     customers_total = sum(float(c.current_balance or 0) for c in customers)
     
+    supplier_views = [classify_entity_balance(s.current_balance) for s in suppliers]
+    partner_views = [classify_entity_balance(p.current_balance) for p in partners]
+    customer_views = [classify_entity_balance(c.current_balance) for c in customers]
+
     summary = {
         'success': True,
         'timestamp': datetime.now(timezone.utc).isoformat(),
         'suppliers': {
             'count': len(suppliers),
             'total_balance': suppliers_total,
-            'positive': len([s for s in suppliers if float(s.current_balance or 0) > 0]),
-            'negative': len([s for s in suppliers if float(s.current_balance or 0) < 0])
+            'positive': len([v for v in supplier_views if v['balance'] > 0]),
+            'negative': len([v for v in supplier_views if v['balance'] < 0]),
+            'owed_to_us_total': sum(v['owed_to_us'] for v in supplier_views),
+            'owed_by_us_total': sum(v['owed_by_us'] for v in supplier_views),
         },
         'partners': {
             'count': len(partners),
             'total_balance': partners_total,
-            'positive': len([p for p in partners if float(p.current_balance or 0) > 0]),
-            'negative': len([p for p in partners if float(p.current_balance or 0) < 0])
+            'positive': len([v for v in partner_views if v['balance'] > 0]),
+            'negative': len([v for v in partner_views if v['balance'] < 0]),
+            'owed_to_us_total': sum(v['owed_to_us'] for v in partner_views),
+            'owed_by_us_total': sum(v['owed_by_us'] for v in partner_views),
         },
         'customers': {
             'count': len(customers),
             'total_balance': customers_total,
-            'positive': len([c for c in customers if float(c.current_balance or 0) > 0]),
-            'negative': len([c for c in customers if float(c.current_balance or 0) < 0])
+            'positive': len([v for v in customer_views if v['balance'] > 0]),
+            'negative': len([v for v in customer_views if v['balance'] < 0]),
+            'owed_to_us_total': sum(v['owed_to_us'] for v in customer_views),
+            'owed_by_us_total': sum(v['owed_by_us'] for v in customer_views),
         },
         'net_position': customers_total - suppliers_total - partners_total
     }

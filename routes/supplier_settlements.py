@@ -915,6 +915,9 @@ def _calculate_smart_supplier_balance(supplier_id: int, date_from: datetime, dat
         # التسويات السابقة
         previous_settlements = _get_previous_supplier_settlements(supplier_id, date_from)
         
+        opening_view = utils.classify_entity_balance(opening_balance)
+        balance_view = utils.classify_entity_balance(balance)
+
         return {
             "success": True,
             "supplier": {
@@ -930,7 +933,7 @@ def _calculate_smart_supplier_balance(supplier_id: int, date_from: datetime, dat
             "opening_balance": {
                 "amount": float(opening_balance),
                 "currency": "ILS",
-                "direction": "له علينا" if opening_balance > 0 else "عليه لنا" if opening_balance < 0 else "متوازن"
+                "direction": "له علينا" if opening_view["balance"] > 0 else "عليه لنا" if opening_view["balance"] < 0 else "متوازن"
             },
             "rights": {
                 "exchange_items": exchange_items,
@@ -974,10 +977,13 @@ def _calculate_smart_supplier_balance(supplier_id: int, date_from: datetime, dat
             "balance": {
                 "gross": float(net_before_payments),
                 "net": float(balance),
-                "amount": float(balance),
-                "direction": "له علينا" if balance > 0 else "عليه لنا" if balance < 0 else "متوازن",
-                "payment_direction": "OUT" if balance > 0 else "IN" if balance < 0 else None,
-                "action": "ندفع له" if balance > 0 else "يدفع لنا" if balance < 0 else "لا شيء",
+                "amount": balance_view["abs_balance"],
+                "raw_amount": float(balance),
+                "owed_to_us": balance_view["owed_to_us"],
+                "owed_by_us": balance_view["owed_by_us"],
+                "direction": "له علينا" if balance_view["balance"] > 0 else "عليه لنا" if balance_view["balance"] < 0 else "متوازن",
+                "payment_direction": "OUT" if balance_view["balance"] > 0 else "IN" if balance_view["balance"] < 0 else None,
+                "action": "ندفع له" if balance_view["balance"] > 0 else "يدفع لنا" if balance_view["balance"] < 0 else "لا شيء",
                 "currency": "ILS",
                 "formula": f"({float(opening_balance):.2f} + {float(supplier_rights):.2f} - {float(supplier_obligations):.2f} - {float(paid_to_supplier):.2f} + {float(received_from_supplier):.2f} - {float(preorders_prepaid_total):.2f} - {float(returns_value):.2f} - {float(returned_checks_in_total):.2f} + {float(returned_checks_out_total):.2f}) = {float(balance):.2f}"
             },
@@ -1226,26 +1232,27 @@ def _get_supplier_operations_details(supplier_id: int, date_from: datetime, date
 
 def _get_settlement_recommendation(balance: float, currency: str):
     """اقتراح التسوية مع التحقق من القطع غير المسعرة"""
-    if abs(balance) < 0.01:  # متوازن
+    balance_view = utils.classify_entity_balance(balance)
+    if balance_view["is_settled"]:
         return {
             "action": "متوازن",
             "message": "لا توجد تسوية مطلوبة",
             "amount": 0,
             "warnings": []
         }
-    elif balance > 0:  # الباقي له
+    elif balance_view["balance"] > 0:  # الباقي له
         return {
             "action": "دفع",
-            "message": f"يجب دفع {abs(balance):.2f} {currency} للمورد",
-            "amount": abs(balance),
+            "message": f"يجب دفع {balance_view['owed_by_us']:.2f} {currency} للمورد",
+            "amount": balance_view["owed_by_us"],
             "direction": "OUT",
             "warnings": []
         }
     else:  # الباقي عليه
         return {
             "action": "قبض",
-            "message": f"يجب قبض {abs(balance):.2f} {currency} من المورد",
-            "amount": abs(balance),
+            "message": f"يجب قبض {balance_view['owed_to_us']:.2f} {currency} من المورد",
+            "amount": balance_view["owed_to_us"],
             "direction": "IN",
             "warnings": []
         }

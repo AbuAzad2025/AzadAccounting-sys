@@ -820,6 +820,9 @@ def _calculate_smart_partner_balance(partner_id: int, date_from: datetime, date_
         returned_checks_out_total = Decimal(str(returned_checks_out.get("total_ils", 0)))
         balance = opening_balance + net_before_payments - paid_to_partner + received_from_partner - Decimal(str(expenses_deducted or 0)) + partner_service_total - returned_checks_in_total + returned_checks_out_total
         
+        opening_view = utils.classify_entity_balance(opening_balance)
+        balance_view = utils.classify_entity_balance(balance)
+
         return {
             "success": True,
             "partner": {
@@ -835,7 +838,7 @@ def _calculate_smart_partner_balance(partner_id: int, date_from: datetime, date_
             "opening_balance": {
                 "amount": float(opening_balance),
                 "currency": "ILS",
-                "direction": "له علينا" if opening_balance > 0 else "عليه لنا" if opening_balance < 0 else "متوازن"
+                "direction": "له علينا" if opening_view["balance"] > 0 else "عليه لنا" if opening_view["balance"] < 0 else "متوازن"
             },
             "rights": {
                 "inventory": inventory,
@@ -874,10 +877,13 @@ def _calculate_smart_partner_balance(partner_id: int, date_from: datetime, date_
             "balance": {
                 "gross": float(net_before_payments),
                 "net": float(balance),
-                "amount": float(balance),
-                "direction": "له علينا" if balance > 0 else "عليه لنا" if balance < 0 else "متوازن",
-                "payment_direction": "OUT" if balance > 0 else "IN" if balance < 0 else None,
-                "action": "ندفع له" if balance > 0 else "يدفع لنا" if balance < 0 else "لا شيء",
+                "amount": balance_view["abs_balance"],
+                "raw_amount": float(balance),
+                "owed_to_us": balance_view["owed_to_us"],
+                "owed_by_us": balance_view["owed_by_us"],
+                "direction": "له علينا" if balance_view["balance"] > 0 else "عليه لنا" if balance_view["balance"] < 0 else "متوازن",
+                "payment_direction": "OUT" if balance_view["balance"] > 0 else "IN" if balance_view["balance"] < 0 else None,
+                "action": "ندفع له" if balance_view["balance"] > 0 else "يدفع لنا" if balance_view["balance"] < 0 else "لا شيء",
                 "currency": "ILS",
                 "formula": f"({float(opening_balance):.2f} + {float(partner_rights):.2f} - {float(partner_obligations):.2f} - {float(paid_to_partner):.2f} + {float(received_from_partner):.2f} - {float(expenses_deducted or 0):.2f} + {float(partner_service_total):.2f} - {float(returned_checks_in_total):.2f} + {float(returned_checks_out_total):.2f}) = {float(balance):.2f}"
             },
@@ -1109,26 +1115,27 @@ def _get_partner_operations_details(partner_id: int, date_from: datetime, date_t
 
 def _get_settlement_recommendation(balance: float, currency: str):
     """اقتراح التسوية مع التحقق من القطع غير المسعرة"""
-    if abs(balance) < 0.01:  # متوازن
+    balance_view = utils.classify_entity_balance(balance)
+    if balance_view["is_settled"]:
         return {
             "action": "متوازن",
             "message": "لا توجد تسوية مطلوبة",
             "amount": 0,
             "warnings": []
         }
-    elif balance > 0:  # الباقي له
+    elif balance_view["balance"] > 0:  # الباقي له
         return {
             "action": "دفع",
-            "message": f"يجب دفع {abs(balance):.2f} {currency} للشريك",
-            "amount": abs(balance),
+            "message": f"يجب دفع {balance_view['owed_by_us']:.2f} {currency} للشريك",
+            "amount": balance_view["owed_by_us"],
             "direction": "OUT",
             "warnings": []
         }
     else:  # الباقي عليه
         return {
             "action": "قبض",
-            "message": f"يجب قبض {abs(balance):.2f} {currency} من الشريك",
-            "amount": abs(balance),
+            "message": f"يجب قبض {balance_view['owed_to_us']:.2f} {currency} من الشريك",
+            "amount": balance_view["owed_to_us"],
             "direction": "IN",
             "warnings": []
         }

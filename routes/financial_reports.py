@@ -10,7 +10,7 @@ from models import (
     Sale, Payment, Expense, Invoice, ServiceRequest,
     GL_ACCOUNTS, _gl_upsert_batch_and_entries, _ensure_account_exists,
 )
-from utils import permission_required, get_income_tax_rate
+from utils import permission_required, get_income_tax_rate, classify_entity_balance
 from permissions_config.enums import SystemPermissions
 
 # إنشاء Blueprint
@@ -190,19 +190,13 @@ def income_statement():
         
         total_revenue = float(revenue_query)
         total_cogs = float(cogs_query)
-        if total_cogs < 0:
-            total_cogs = abs(total_cogs)
         gross_profit = total_revenue - total_cogs
         
         # المصاريف التشغيلية يجب أن تستثني الضرائب المحسوبة منفصلاً لتجنب الازدواجية
         operating_expenses = float(expenses_query) - float(taxes_query)
-        if operating_expenses < 0:
-            operating_expenses = abs(operating_expenses)
         operating_profit = gross_profit - operating_expenses
         
         total_taxes = float(taxes_query)
-        if total_taxes < 0:
-            total_taxes = abs(total_taxes)
         net_profit = operating_profit - total_taxes
         
         revenue_details = db.session.query(
@@ -826,7 +820,7 @@ def trial_balance():
                 'description': account_descriptions.get(acc_type, ''),
                 'debit': debit,
                 'credit': credit,
-                'net': abs(net),
+                'net': net,
                 'side': 'DR' if net > 0 else 'CR',
                 'normal_side': normal_side,
                 'is_normal': (net > 0 and normal_side == 'DR') or (net < 0 and normal_side == 'CR')
@@ -1328,20 +1322,20 @@ def receivables_payables():
                         Account.code == '1100_AR'
                     ).scalar() or 0
                     
-                    is_owed_to_us = balance < 0
+                    balance_view = classify_entity_balance(balance)
                     
                     data.append({
                         'id': customer.id,
                         'name': customer.name,
                         'phone': customer.phone or '',
                         'currency': customer.currency or 'ILS',
-                        'balance': balance,
+                        'balance': balance_view['balance'],
                         'gl_balance': float(gl_balance),
-                        'balance_display': f"{abs(balance):,.2f}",
-                        'owed_to_us': abs(balance) if is_owed_to_us else 0,
-                        'owed_by_us': abs(balance) if not is_owed_to_us else 0,
-                        'status': 'debtor' if balance < 0 else 'creditor',
-                        'status_ar': 'مدين (لنا - عليه يدفع)' if balance < 0 else 'دائن (علينا - له علينا)',
+                        'balance_display': f"{balance_view['abs_balance']:,.2f}",
+                        'owed_to_us': balance_view['owed_to_us'],
+                        'owed_by_us': balance_view['owed_by_us'],
+                        'status': balance_view['status'],
+                        'status_ar': balance_view['status_ar'],
                         'type': 'customer'
                     })
                     total_balance += balance
@@ -1361,20 +1355,20 @@ def receivables_payables():
                         Account.code == '2000_AP'
                     ).scalar() or 0
                     
-                    is_owed_by_us = balance > 0
+                    balance_view = classify_entity_balance(balance)
                     
                     data.append({
                         'id': supplier.id,
                         'name': supplier.name,
                         'phone': supplier.phone or '',
                         'currency': supplier.currency or 'ILS',
-                        'balance': balance,
+                        'balance': balance_view['balance'],
                         'gl_balance': float(gl_balance),
-                        'balance_display': f"{abs(balance):,.2f}",
-                        'owed_to_us': abs(balance) if not is_owed_by_us else 0,
-                        'owed_by_us': abs(balance) if is_owed_by_us else 0,
-                        'status': 'creditor' if balance > 0 else 'debtor',
-                        'status_ar': 'دائن (علينا - له علينا)' if balance > 0 else 'مدين (عليه لنا)',
+                        'balance_display': f"{balance_view['abs_balance']:,.2f}",
+                        'owed_to_us': balance_view['owed_to_us'],
+                        'owed_by_us': balance_view['owed_by_us'],
+                        'status': balance_view['status'],
+                        'status_ar': balance_view['status_ar'],
                         'type': 'supplier'
                     })
                     total_balance += balance
@@ -1407,20 +1401,20 @@ def receivables_payables():
                             ).scalar() or 0
                         gl_balance = float(gl_balance) - float(ar_balance)
                         
-                        is_owed_by_us = balance > 0
+                        balance_view = classify_entity_balance(balance)
                         
                         data.append({
                             'id': partner.id,
                             'name': partner.name,
                             'phone': partner.phone_number or '',
                             'currency': partner.currency or 'ILS',
-                            'balance': balance,
+                            'balance': balance_view['balance'],
                             'gl_balance': float(gl_balance),
-                            'balance_display': f"{abs(balance):,.2f}",
-                            'owed_to_us': abs(balance) if not is_owed_by_us else 0,
-                            'owed_by_us': abs(balance) if is_owed_by_us else 0,
-                            'status': 'creditor' if balance > 0 else 'debtor',
-                            'status_ar': 'دائن (علينا - له علينا)' if balance > 0 else 'مدين (عليه لنا)',
+                            'balance_display': f"{balance_view['abs_balance']:,.2f}",
+                            'owed_to_us': balance_view['owed_to_us'],
+                            'owed_by_us': balance_view['owed_by_us'],
+                            'status': balance_view['status'],
+                            'status_ar': balance_view['status_ar'],
                             'type': 'partner',
                             'share_percentage': float(partner.share_percentage or 0)
                         })
