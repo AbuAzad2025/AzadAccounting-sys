@@ -1,0 +1,16 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Start AzadAccounting local",
+      "type": "shell",
+      "command": "source .venv/bin/activate && export APP_ENV=local && export FLASK_APP=app:create_app && flask db upgrade && python run_local.py",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
+    }
+  ]
+}
