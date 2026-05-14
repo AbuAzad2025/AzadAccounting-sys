@@ -1,1330 +1,618 @@
-"""
-⚡ AI Action Executor - محرك تنفيذ العمليات
-════════════════════════════════════════════════════════════════════
+"""AI Action Executor.
 
-وظيفة هذا الملف:
-- تنفيذ العمليات التي يطلبها المستخدم في المحادثة
-- إضافة عميل، فاتورة، منتج، دفعة، إلخ
-- التفاعل مع قاعدة البيانات مباشرة
-- التحقق من الصلاحيات
-- تسجيل العمليات (Audit)
-
-Created: 2025-11-01
-Version: 1.0
+Safe executor for AI-assisted write operations. Destructive actions are not
+exposed here; they are blocked by ai_permissions and intentionally omitted from
+the action map. Constructors are built using actual SQLAlchemy column names so
+minor model differences do not crash the AI path.
 """
 
-from typing import Dict, List, Any, Optional, Tuple
+from __future__ import annotations
+
+import re
 from datetime import datetime, timezone
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
+from typing import Any, Dict, Optional, Tuple
+
 from extensions import db
 from models import AuditLog
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# 🎯 ACTION EXECUTOR - محرك التنفيذ الرئيسي
-# ═══════════════════════════════════════════════════════════════════════════
+SAFE_ACTION_ALIASES = {
+    "create_customer": "add_customer",
+    "create_supplier": "add_supplier",
+    "create_product": "add_product",
+    "create_warehouse": "add_warehouse",
+}
+
 
 class ActionExecutor:
-    """
-    محرك تنفيذ العمليات الذكي
-    
-    يستطيع تنفيذ أي عملية في النظام بناءً على طلب المستخدم
-    """
-    
+    """Execute explicitly allowed, non-destructive AI actions."""
+
     def __init__(self, user_id: int = None):
-        """
-        Args:
-            user_id: معرف المستخدم الذي يطلب العملية
-        """
         self.user_id = user_id
         self.last_action = None
         self.errors = []
-    
+
     def execute_action(self, action_type: str, params: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        تنفيذ عملية
-        
-        Args:
-            action_type: نوع العملية (add_customer, create_invoice, etc.)
-            params: معاملات العملية
-        
-        Returns:
-            {
-                'success': True/False,
-                'message': 'رسالة النتيجة',
-                'data': البيانات المُنشأة,
-                'id': معرف السجل الجديد
-            }
-        """
         try:
-            # تحديد العملية المطلوبة
+            normalized_action = SAFE_ACTION_ALIASES.get(str(action_type or "").strip().lower(), str(action_type or "").strip().lower())
             action_map = {
-                'add_customer': self.add_customer,
-                'add_supplier': self.add_supplier,
-                'add_product': self.add_product,
-                'create_sale': self.create_sale,
-                'create_invoice': self.create_invoice,
-                'create_payment': self.create_payment,
-                'create_expense': self.create_expense,
-                'create_service': self.create_service,
-                'add_warehouse': self.add_warehouse,
-                'transfer_stock': self.transfer_stock,
-                'adjust_stock': self.adjust_stock,
-                'delete_payment': self.delete_payment,
-                'delete_split': self.delete_split,
-                'delete_split_ref': self.delete_split_ref,
-                'delete_check': self.delete_check,
-                'delete_expense': self.delete_expense,
-                'delete_sale': self.delete_sale,
-                'archive_sale': self.archive_sale,
-                'archive_check': self.archive_check,
-                'archive_expense': self.archive_expense,
-                'void_gl_batch': self.void_gl_batch,
-                'reverse_gl_batch': self.reverse_gl_batch,
-                'fix_unbalanced_batches': self.fix_unbalanced_batches
+                "add_customer": self.add_customer,
+                "add_supplier": self.add_supplier,
+                "add_product": self.add_product,
+                "create_sale": self.create_sale,
+                "create_invoice": self.create_invoice,
+                "create_payment": self.create_payment,
+                "create_expense": self.create_expense,
+                "create_service": self.create_service,
+                "add_warehouse": self.add_warehouse,
+                "transfer_stock": self.transfer_stock,
+                "adjust_stock": self.adjust_stock,
             }
-            
-            action_func = action_map.get(action_type)
-            
+
+            action_func = action_map.get(normalized_action)
             if not action_func:
                 return {
-                    'success': False,
-                    'message': f'❌ العملية "{action_type}" غير معروفة',
-                    'available_actions': list(action_map.keys())
+                    "success": False,
+                    "message": f"❌ العملية '{action_type}' غير مسموحة أو غير معروفة للمساعد الذكي",
+                    "available_actions": sorted(action_map.keys()),
                 }
-            
+
             from AI.engine.ai_permissions import can_ai_execute_action
-            if not can_ai_execute_action(action_type, ''):
-                return {
-                    'success': False,
-                    'message': '❌ ليس لديك صلاحية لتنفيذ هذا الإجراء'
-                }
-            
-            # تنفيذ العملية
-            result = action_func(params)
-            
-            # تسجيل في Audit Log
-            if result['success']:
-                self._log_action(action_type, params, result)
-            
+
+            if not can_ai_execute_action(normalized_action, ""):
+                return {"success": False, "message": "❌ لا يملك المساعد صلاحية تنفيذ هذا الإجراء"}
+
+            result = action_func(params or {})
+            if result.get("success"):
+                self._log_action(normalized_action, params or {}, result)
+
             self.last_action = {
-                'type': action_type,
-                'params': params,
-                'result': result,
-                'timestamp': datetime.now(timezone.utc).isoformat()
+                "type": normalized_action,
+                "params": params or {},
+                "result": result,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
-            
             return result
-            
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            
-            return {
-                'success': False,
-                'message': f'❌ خطأ في التنفيذ: {str(e)}',
-                'error': str(e)
-            }
-    
-    # ═══════════════════════════════════════════════════════════════════════
-    # 👥 CUSTOMER ACTIONS - عمليات العملاء
-    # ═══════════════════════════════════════════════════════════════════════
-    
+        except Exception as exc:
+            db.session.rollback()
+            return {"success": False, "message": f"❌ خطأ في التنفيذ: {exc}", "error": str(exc)}
+
+    # ─────────────────────────────────────────────────────────────────────
+    # Generic model helpers
+    # ─────────────────────────────────────────────────────────────────────
+
+    def _columns(self, model) -> set[str]:
+        return {column.name for column in getattr(model, "__table__", []).columns} if hasattr(model, "__table__") else set()
+
+    def _new_model(self, model, values: Dict[str, Any]):
+        columns = self._columns(model)
+        filtered = {key: value for key, value in values.items() if key in columns}
+        return model(**filtered)
+
+    def _set_if_exists(self, obj, **values) -> None:
+        columns = self._columns(obj.__class__)
+        for key, value in values.items():
+            if key in columns:
+                setattr(obj, key, value)
+
+    def _decimal(self, value: Any, default: str = "0") -> Decimal:
+        try:
+            return Decimal(str(value if value not in (None, "") else default))
+        except (InvalidOperation, ValueError, TypeError):
+            return Decimal(default)
+
+    def _int(self, value: Any, default: int = 0) -> int:
+        try:
+            return int(value if value not in (None, "") else default)
+        except (ValueError, TypeError):
+            return default
+
+    def _clean(self, value: Any) -> Optional[str]:
+        if value is None:
+            return None
+        text = str(value).strip()
+        return text or None
+
+    def _amount_value(self, obj) -> Decimal:
+        for name in ("amount", "total_amount", "sale_total", "total"):
+            if hasattr(obj, name):
+                return self._decimal(getattr(obj, name))
+        return Decimal("0")
+
+    # ─────────────────────────────────────────────────────────────────────
+    # Customers / suppliers / products
+    # ─────────────────────────────────────────────────────────────────────
+
     def add_customer(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        إضافة عميل جديد
-        
-        Required params:
-            - name: اسم العميل (required)
-            - phone: رقم الهاتف (required)
-        
-        Optional params:
-            - email: البريد الإلكتروني
-            - address: العنوان
-            - city: المدينة
-            - tax_id: الرقم الضريبي
-            - opening_balance: الرصيد الافتتاحي
-            - notes: ملاحظات
-        """
         try:
             from models import Customer
-            
-            # التحقق من البيانات المطلوبة
-            if not params.get('name'):
-                return {'success': False, 'message': '❌ الاسم مطلوب'}
-            
-            if not params.get('phone'):
-                return {'success': False, 'message': '❌ رقم الهاتف مطلوب'}
-            
-            # التحقق من عدم التكرار
-            existing = Customer.query.filter_by(phone=params['phone']).first()
+
+            name = self._clean(params.get("name"))
+            phone = self._clean(params.get("phone"))
+            if not name:
+                return {"success": False, "message": "❌ الاسم مطلوب"}
+            if not phone:
+                return {"success": False, "message": "❌ رقم الهاتف مطلوب"}
+
+            existing = Customer.query.filter_by(phone=phone).first()
             if existing:
-                return {
-                    'success': False,
-                    'message': f'❌ العميل موجود مسبقاً (ID: {existing.id})',
-                    'existing_customer': {
-                        'id': existing.id,
-                        'name': existing.name,
-                        'phone': existing.phone
-                    }
-                }
-            
-            # إنشاء العميل
-            customer = Customer(
-                name=params['name'].strip(),
-                phone=params['phone'].strip(),
-                email=params.get('email', '').strip() if params.get('email') else None,
-                address=params.get('address', '').strip() if params.get('address') else None,
-                city=params.get('city', '').strip() if params.get('city') else None,
-                tax_id=params.get('tax_id', '').strip() if params.get('tax_id') else None,
-                opening_balance=Decimal(str(params.get('opening_balance', 0))),
-                notes=params.get('notes', '').strip() if params.get('notes') else None,
-                is_active=True,
-                created_by_id=self.user_id
+                return {"success": False, "message": f"❌ العميل موجود مسبقاً (ID: {existing.id})", "existing_customer": {"id": existing.id, "name": existing.name, "phone": existing.phone}}
+
+            customer = self._new_model(
+                Customer,
+                {
+                    "name": name,
+                    "phone": phone,
+                    "email": self._clean(params.get("email")),
+                    "address": self._clean(params.get("address")),
+                    "city": self._clean(params.get("city")),
+                    "tax_id": self._clean(params.get("tax_id")),
+                    "opening_balance": self._decimal(params.get("opening_balance")),
+                    "notes": self._clean(params.get("notes")),
+                    "is_active": True,
+                    "created_by_id": self.user_id,
+                    "created_by": self.user_id,
+                },
             )
-            
             db.session.add(customer)
             db.session.commit()
-            
-            return {
-                'success': True,
-                'message': f'✅ تم إضافة العميل "{customer.name}" بنجاح',
-                'customer_id': customer.id,
-                'data': {
-                    'id': customer.id,
-                    'name': customer.name,
-                    'phone': customer.phone,
-                    'email': customer.email,
-                    'address': customer.address,
-                    'opening_balance': float(customer.opening_balance)
-                }
-            }
-            
-        except Exception as e:
+            return {"success": True, "message": f"✅ تم إضافة العميل '{customer.name}' بنجاح", "customer_id": customer.id, "data": {"id": customer.id, "name": customer.name, "phone": customer.phone}}
+        except Exception as exc:
             db.session.rollback()
-            return {
-                'success': False,
-                'message': f'❌ فشل إضافة العميل: {str(e)}',
-                'error': str(e)
-            }
-    
+            return {"success": False, "message": f"❌ فشل إضافة العميل: {exc}", "error": str(exc)}
+
     def add_supplier(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        إضافة مورد جديد
-        
-        Required params:
-            - name: اسم المورد
-            - phone: رقم الهاتف
-        
-        Optional params:
-            - email, address, city, tax_id, opening_balance, notes
-        """
         try:
             from models import Supplier
-            
-            if not params.get('name'):
-                return {'success': False, 'message': '❌ الاسم مطلوب'}
-            
-            if not params.get('phone'):
-                return {'success': False, 'message': '❌ رقم الهاتف مطلوب'}
-            
-            # التحقق من التكرار
-            existing = Supplier.query.filter_by(phone=params['phone']).first()
+
+            name = self._clean(params.get("name"))
+            phone = self._clean(params.get("phone"))
+            if not name:
+                return {"success": False, "message": "❌ الاسم مطلوب"}
+            if not phone:
+                return {"success": False, "message": "❌ رقم الهاتف مطلوب"}
+
+            existing = Supplier.query.filter_by(phone=phone).first()
             if existing:
-                return {
-                    'success': False,
-                    'message': f'❌ المورد موجود مسبقاً (ID: {existing.id})'
-                }
-            
-            supplier = Supplier(
-                name=params['name'].strip(),
-                phone=params['phone'].strip(),
-                email=params.get('email', '').strip() if params.get('email') else None,
-                address=params.get('address', '').strip() if params.get('address') else None,
-                city=params.get('city', '').strip() if params.get('city') else None,
-                tax_id=params.get('tax_id', '').strip() if params.get('tax_id') else None,
-                opening_balance=Decimal(str(params.get('opening_balance', 0))),
-                notes=params.get('notes', '').strip() if params.get('notes') else None,
-                is_active=True,
-                created_by_id=self.user_id
+                return {"success": False, "message": f"❌ المورد موجود مسبقاً (ID: {existing.id})"}
+
+            supplier = self._new_model(
+                Supplier,
+                {
+                    "name": name,
+                    "phone": phone,
+                    "email": self._clean(params.get("email")),
+                    "address": self._clean(params.get("address")),
+                    "city": self._clean(params.get("city")),
+                    "tax_id": self._clean(params.get("tax_id")),
+                    "opening_balance": self._decimal(params.get("opening_balance")),
+                    "notes": self._clean(params.get("notes")),
+                    "is_active": True,
+                    "created_by_id": self.user_id,
+                    "created_by": self.user_id,
+                },
             )
-            
             db.session.add(supplier)
             db.session.commit()
-            
-            return {
-                'success': True,
-                'message': f'✅ تم إضافة المورد "{supplier.name}" بنجاح',
-                'supplier_id': supplier.id,
-                'data': {
-                    'id': supplier.id,
-                    'name': supplier.name,
-                    'phone': supplier.phone
-                }
-            }
-            
-        except Exception as e:
+            return {"success": True, "message": f"✅ تم إضافة المورد '{supplier.name}' بنجاح", "supplier_id": supplier.id, "data": {"id": supplier.id, "name": supplier.name, "phone": supplier.phone}}
+        except Exception as exc:
             db.session.rollback()
-            return {'success': False, 'message': f'❌ خطأ: {str(e)}'}
-    
-    # ═══════════════════════════════════════════════════════════════════════
-    # 📦 PRODUCT ACTIONS - عمليات المنتجات
-    # ═══════════════════════════════════════════════════════════════════════
-    
+            return {"success": False, "message": f"❌ فشل إضافة المورد: {exc}", "error": str(exc)}
+
     def add_product(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        إضافة منتج جديد
-        
-        Required params:
-            - name: اسم المنتج
-            - sku: رمز المنتج
-            - price: السعر
-        
-        Optional params:
-            - barcode: الباركود
-            - cost: التكلفة
-            - category: الفئة
-            - description: الوصف
-            - min_stock: الحد الأدنى للمخزون
-            - max_stock: الحد الأقصى
-        """
         try:
             from models import Product
-            
-            if not params.get('name'):
-                return {'success': False, 'message': '❌ اسم المنتج مطلوب'}
-            
-            if not params.get('sku'):
-                return {'success': False, 'message': '❌ رمز المنتج (SKU) مطلوب'}
-            
-            if not params.get('price'):
-                return {'success': False, 'message': '❌ السعر مطلوب'}
-            
-            # التحقق من التكرار
-            existing_sku = Product.query.filter_by(sku=params['sku']).first()
-            if existing_sku:
-                return {
-                    'success': False,
-                    'message': f'❌ رمز المنتج موجود مسبقاً (ID: {existing_sku.id})'
-                }
-            
-            product = Product(
-                name=params['name'].strip(),
-                sku=params['sku'].strip(),
-                barcode=params.get('barcode', '').strip() if params.get('barcode') else None,
-                price=Decimal(str(params['price'])),
-                cost=Decimal(str(params.get('cost', 0))),
-                category=params.get('category', '').strip() if params.get('category') else None,
-                description=params.get('description', '').strip() if params.get('description') else None,
-                min_stock=int(params.get('min_stock', 0)),
-                max_stock=int(params.get('max_stock', 0)),
-                is_active=True,
-                created_by_id=self.user_id
+
+            name = self._clean(params.get("name"))
+            sku = self._clean(params.get("sku"))
+            price = params.get("price", params.get("selling_price"))
+            if not name:
+                return {"success": False, "message": "❌ اسم المنتج مطلوب"}
+            if not sku:
+                return {"success": False, "message": "❌ رمز المنتج SKU مطلوب"}
+            if price in (None, ""):
+                return {"success": False, "message": "❌ السعر مطلوب"}
+
+            existing = Product.query.filter_by(sku=sku).first()
+            if existing:
+                return {"success": False, "message": f"❌ رمز المنتج موجود مسبقاً (ID: {existing.id})"}
+
+            product = self._new_model(
+                Product,
+                {
+                    "name": name,
+                    "sku": sku,
+                    "barcode": self._clean(params.get("barcode")),
+                    "price": self._decimal(price),
+                    "selling_price": self._decimal(price),
+                    "cost": self._decimal(params.get("cost", params.get("cost_price"))),
+                    "cost_price": self._decimal(params.get("cost", params.get("cost_price"))),
+                    "category": self._clean(params.get("category")),
+                    "description": self._clean(params.get("description")),
+                    "min_stock": self._int(params.get("min_stock")),
+                    "max_stock": self._int(params.get("max_stock")),
+                    "is_active": True,
+                    "created_by_id": self.user_id,
+                    "created_by": self.user_id,
+                },
             )
-            
             db.session.add(product)
             db.session.commit()
-            
-            return {
-                'success': True,
-                'message': f'✅ تم إضافة المنتج "{product.name}" بنجاح',
-                'product_id': product.id,
-                'data': {
-                    'id': product.id,
-                    'name': product.name,
-                    'sku': product.sku,
-                    'price': float(product.price)
-                }
-            }
-            
-        except Exception as e:
+            return {"success": True, "message": f"✅ تم إضافة المنتج '{product.name}' بنجاح", "product_id": product.id, "data": {"id": product.id, "name": product.name, "sku": getattr(product, "sku", None), "price": float(self._amount_value(product))}}
+        except Exception as exc:
             db.session.rollback()
-            return {'success': False, 'message': f'❌ خطأ: {str(e)}'}
-    
-    # ═══════════════════════════════════════════════════════════════════════
-    # 💰 PAYMENT ACTIONS - عمليات الدفعات
-    # ═══════════════════════════════════════════════════════════════════════
-    
+            return {"success": False, "message": f"❌ فشل إضافة المنتج: {exc}", "error": str(exc)}
+
+    # ─────────────────────────────────────────────────────────────────────
+    # Payments / invoices / sales / expenses / service
+    # ─────────────────────────────────────────────────────────────────────
+
     def create_payment(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        إنشاء دفعة
-        
-        Required params:
-            - amount: المبلغ
-            - direction: الاتجاه (IN/OUT)
-            - payment_method: طريقة الدفع (CASH/BANK/CARD/CHECK)
-        
-        Optional params:
-            - customer_id: معرف العميل
-            - supplier_id: معرف المورد
-            - partner_id: معرف الشريك
-            - notes: ملاحظات
-            - reference: المرجع
-        """
         try:
             from models import Payment
-            
-            if not params.get('amount'):
-                return {'success': False, 'message': '❌ المبلغ مطلوب'}
-            
-            if not params.get('direction'):
-                return {'success': False, 'message': '❌ الاتجاه مطلوب (IN أو OUT)'}
-            
-            if params['direction'] not in ['IN', 'OUT']:
-                return {'success': False, 'message': '❌ الاتجاه يجب أن يكون IN أو OUT'}
-            
-            if not params.get('payment_method'):
-                return {'success': False, 'message': '❌ طريقة الدفع مطلوبة'}
-            
-            # التحقق من وجود كيان واحد على الأقل
-            if not any([params.get('customer_id'), params.get('supplier_id'), params.get('partner_id')]):
-                return {'success': False, 'message': '❌ يجب تحديد عميل أو مورد أو شريك'}
-            
-            payment = Payment(
-                total_amount=Decimal(str(params['amount'])),
-                direction=params['direction'],
-                method=params['payment_method'],
-                customer_id=params.get('customer_id'),
-                supplier_id=params.get('supplier_id'),
-                partner_id=params.get('partner_id'),
-                notes=params.get('notes', '').strip() if params.get('notes') else None,
-                reference=params.get('reference', '').strip() if params.get('reference') else None,
-                payment_date=datetime.now(timezone.utc),
-                status='COMPLETED',
-                created_by=self.user_id,
-                entity_type='CUSTOMER' if params.get('customer_id') else 'SUPPLIER' if params.get('supplier_id') else 'PARTNER'
+
+            amount = params.get("amount", params.get("total_amount"))
+            direction = self._clean(params.get("direction"))
+            payment_method = self._clean(params.get("payment_method", params.get("method")))
+            if amount in (None, ""):
+                return {"success": False, "message": "❌ المبلغ مطلوب"}
+            if direction not in {"IN", "OUT"}:
+                return {"success": False, "message": "❌ الاتجاه يجب أن يكون IN أو OUT"}
+            if not payment_method:
+                return {"success": False, "message": "❌ طريقة الدفع مطلوبة"}
+            if not any(params.get(k) for k in ("customer_id", "supplier_id", "partner_id")):
+                return {"success": False, "message": "❌ يجب تحديد عميل أو مورد أو شريك"}
+
+            entity_type = "CUSTOMER" if params.get("customer_id") else "SUPPLIER" if params.get("supplier_id") else "PARTNER"
+            payment = self._new_model(
+                Payment,
+                {
+                    "amount": self._decimal(amount),
+                    "total_amount": self._decimal(amount),
+                    "direction": direction,
+                    "method": payment_method,
+                    "payment_method": payment_method,
+                    "customer_id": params.get("customer_id"),
+                    "supplier_id": params.get("supplier_id"),
+                    "partner_id": params.get("partner_id"),
+                    "notes": self._clean(params.get("notes")),
+                    "reference": self._clean(params.get("reference")),
+                    "payment_date": datetime.now(timezone.utc),
+                    "status": "COMPLETED",
+                    "created_by": self.user_id,
+                    "created_by_id": self.user_id,
+                    "entity_type": entity_type,
+                },
             )
-            
             db.session.add(payment)
             db.session.commit()
-            
-            return {
-                'success': True,
-                'message': f'✅ تم تسجيل الدفعة بمبلغ {float(payment.amount)} ₪',
-                'payment_id': payment.id,
-                'data': {
-                    'id': payment.id,
-                    'amount': float(payment.amount),
-                    'direction': payment.direction,
-                    'method': payment.payment_method
-                }
-            }
-            
-        except Exception as e:
+            saved_amount = self._amount_value(payment)
+            return {"success": True, "message": f"✅ تم تسجيل الدفعة بمبلغ {float(saved_amount)} ₪", "payment_id": payment.id, "data": {"id": payment.id, "amount": float(saved_amount), "direction": getattr(payment, "direction", direction), "method": getattr(payment, "method", payment_method)}}
+        except Exception as exc:
             db.session.rollback()
-            return {'success': False, 'message': f'❌ خطأ: {str(e)}'}
-    
-    def delete_split_ref(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        try:
-            raw_refs = (params.get('raw_refs') or '').strip()
-            if not raw_refs:
-                return {'success': False, 'message': '❌ مرجع السبليت مطلوب'}
-            from سكريبتات.purge_deleted_payments_expenses import cleanup_specific_splits
-            result = cleanup_specific_splits(raw_refs=raw_refs, dry_run=False)
-            deleted = result.get('deleted', {}) or {}
-            found = result.get('found_splits', []) or []
-            missing = result.get('missing_splits', []) or []
-            deleted_splits = int(deleted.get('splits', 0) or 0)
-            deleted_payments = int(deleted.get('payments', 0) or 0)
-            deleted_checks = int(deleted.get('checks', 0) or 0)
-            deleted_gl = int(deleted.get('gl_batches', 0) or 0)
-            msg = f'✅ تم حذف {deleted_splits} سبليت'
-            if deleted_payments:
-                msg += f'، وحذف {deleted_payments} دفعة فارغة'
-            if deleted_checks:
-                msg += f'، وحذف {deleted_checks} شيك مرتبط'
-            if deleted_gl:
-                msg += f'، وحذف {deleted_gl} قيد محاسبي'
-            if missing:
-                msg += f'، غير موجود: {len(missing)}'
-            success = deleted_splits > 0 or len(found) > 0
-            return {
-                'success': success,
-                'message': msg,
-                'data': result
-            }
-        except Exception as e:
-            return {'success': False, 'message': f'❌ خطأ في حذف السبليت: {str(e)}'}
-    
-    def delete_split(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        try:
-            split_id = params.get('split_id')
-            if not split_id:
-                return {'success': False, 'message': '❌ رقم السبليت مطلوب'}
-            from models import PaymentSplit
-            split = db.session.get(PaymentSplit, int(split_id))
-            if not split:
-                return {'success': False, 'message': '❌ السبليت غير موجود'}
-            if not getattr(split, 'payment_id', None):
-                return {'success': False, 'message': '❌ السبليت بدون دفعة مرتبطة'}
-            raw_ref = f"SPLIT-{int(split.id)}-PMT-{int(split.payment_id)}"
-            return self.delete_split_ref({'raw_refs': raw_ref})
-        except Exception as e:
-            return {'success': False, 'message': f'❌ خطأ في حذف السبليت: {str(e)}'}
-    
-    def delete_payment(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        try:
-            payment_id = params.get('payment_id') or params.get('id')
-            if not payment_id:
-                return {'success': False, 'message': '❌ رقم الدفعة مطلوب'}
-            from models import Payment, Check
-            from sqlalchemy import or_
-            from سكريبتات.purge_deleted_payments_expenses import _delete_split_gl_batches, _delete_payment_gl_batches, _collect_split_checks
-            from utils import update_entity_balance
-            payment = db.session.get(Payment, int(payment_id))
-            if not payment:
-                return {'success': False, 'message': '❌ الدفعة غير موجودة'}
-            customer_id = getattr(payment, 'customer_id', None)
-            supplier_id = getattr(payment, 'supplier_id', None)
-            partner_id = getattr(payment, 'partner_id', None)
-            split_ids = [int(s.id) for s in (payment.splits or []) if getattr(s, 'id', None)]
-            checks = []
-            if split_ids:
-                checks.extend(_collect_split_checks(split_ids))
-            payment_ref = f"PMT-{int(payment.id)}"
-            payment_checks = Check.query.filter(
-                or_(
-                    Check.reference_number == payment_ref,
-                    Check.reference_number.like(f"{payment_ref}-%")
-                )
-            ).all()
-            checks.extend(payment_checks)
-            unique_checks = {int(c.id): c for c in checks if getattr(c, 'id', None)}
-            for chk in unique_checks.values():
-                try:
-                    chk._skip_gl_reversal = True
-                except Exception:
-                    pass
-                db.session.delete(chk)
-            if split_ids:
-                _delete_split_gl_batches(split_ids)
-                for s in list(payment.splits or []):
-                    db.session.delete(s)
-            db.session.delete(payment)
-            _delete_payment_gl_batches([int(payment.id)])
-            db.session.commit()
-            try:
-                if customer_id:
-                    update_entity_balance('CUSTOMER', int(customer_id))
-                if supplier_id:
-                    update_entity_balance('SUPPLIER', int(supplier_id))
-                if partner_id:
-                    update_entity_balance('PARTNER', int(partner_id))
-            except Exception:
-                pass
-            return {
-                'success': True,
-                'message': f'✅ تم حذف الدفعة #{payment_id} بنجاح',
-                'payment_id': int(payment_id)
-            }
-        except Exception as e:
-            db.session.rollback()
-            return {'success': False, 'message': f'❌ خطأ في حذف الدفعة: {str(e)}'}
-    
-    def delete_check(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        try:
-            check_id = params.get('check_id')
-            if not check_id:
-                return {'success': False, 'message': '❌ رقم الشيك مطلوب'}
-            from models import Check
-            check = db.session.get(Check, int(check_id))
-            if not check:
-                return {'success': False, 'message': '❌ الشيك غير موجود'}
-            check_number = getattr(check, 'check_number', None)
-            db.session.delete(check)
-            db.session.commit()
-            return {
-                'success': True,
-                'message': f'✅ تم حذف الشيك رقم {check_number or check_id}',
-                'check_id': int(check_id)
-            }
-        except Exception as e:
-            db.session.rollback()
-            return {'success': False, 'message': f'❌ خطأ في حذف الشيك: {str(e)}'}
-    
-    def delete_expense(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        try:
-            expense_id = params.get('expense_id')
-            if not expense_id:
-                return {'success': False, 'message': '❌ رقم المصروف مطلوب'}
-            from models import Expense
-            from routes.expenses import build_expense_reversal_snapshot, run_expense_gl_reversal_after_delete, _expense_related_entity_pairs, _refresh_entity_balances
-            exp = db.session.get(Expense, int(expense_id))
-            if not exp:
-                return {'success': False, 'message': '❌ المصروف غير موجود'}
-            before_pairs = _expense_related_entity_pairs(exp)
-            reversal_snapshot = build_expense_reversal_snapshot(exp)
-            db.session.delete(exp)
-            db.session.commit()
-            try:
-                run_expense_gl_reversal_after_delete(reversal_snapshot)
-            except Exception:
-                pass
-            try:
-                _refresh_entity_balances(before_pairs)
-            except Exception:
-                pass
-            return {
-                'success': True,
-                'message': f'✅ تم حذف المصروف #{expense_id} بنجاح',
-                'expense_id': int(expense_id)
-            }
-        except Exception as e:
-            db.session.rollback()
-            return {'success': False, 'message': f'❌ خطأ في حذف المصروف: {str(e)}'}
+            return {"success": False, "message": f"❌ فشل تسجيل الدفعة: {exc}", "error": str(exc)}
 
-    def delete_sale(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        try:
-            sale_id = params.get('sale_id') or params.get('id')
-            if not sale_id:
-                return {'success': False, 'message': '❌ رقم المبيعة مطلوب'}
-            from models import Sale, GLBatch, GLEntry, TaxEntry
-            from sqlalchemy import delete as sa_delete
-            from utils import _apply_stock_delta
-            sale = db.session.get(Sale, int(sale_id))
-            if not sale:
-                return {'success': False, 'message': '❌ المبيعة غير موجودة'}
-            payment_ids = [int(p.id) for p in (sale.payments or []) if getattr(p, 'id', None)]
-            if payment_ids:
-                for pid in payment_ids:
-                    res = self.delete_payment({'payment_id': int(pid)})
-                    if not res.get('success'):
-                        return {'success': False, 'message': f'❌ تعذر حذف الدفعة المرتبطة #{pid}: {res.get("message")}'}
-            sale = db.session.get(Sale, int(sale_id))
-            if not sale:
-                return {'success': False, 'message': '❌ المبيعة غير موجودة'}
-            status = (getattr(sale, 'status', '') or '').upper()
-            if status == 'CONFIRMED':
-                for ln in (sale.lines or []):
-                    pid = int(getattr(ln, 'product_id', 0) or 0)
-                    wid = int(getattr(ln, 'warehouse_id', 0) or 0)
-                    qty = int(getattr(ln, 'quantity', 0) or 0)
-                    if pid and wid and qty > 0:
-                        _apply_stock_delta(pid, wid, qty)
-            batch_ids = [int(b.id) for b in (sale.gl_batches or []) if getattr(b, 'id', None)]
-            if not batch_ids:
-                rows = db.session.query(GLBatch.id).filter(
-                    GLBatch.source_type == 'SALE',
-                    GLBatch.source_id == int(sale_id)
-                ).all()
-                batch_ids = [int(r[0]) for r in rows]
-            if batch_ids:
-                db.session.execute(sa_delete(GLEntry).where(GLEntry.batch_id.in_(batch_ids)))
-                db.session.execute(sa_delete(GLBatch).where(GLBatch.id.in_(batch_ids)))
-            db.session.execute(sa_delete(TaxEntry).where(
-                TaxEntry.transaction_type == 'SALE',
-                TaxEntry.transaction_id == int(sale_id)
-            ))
-            customer_id = getattr(sale, 'customer_id', None)
-            db.session.delete(sale)
-            db.session.commit()
-            try:
-                from utils.customer_balance_updater import update_customer_balance_components
-                if customer_id:
-                    update_customer_balance_components(int(customer_id))
-            except Exception:
-                pass
-            return {
-                'success': True,
-                'message': f'✅ تم حذف المبيعة #{sale_id} بنجاح',
-                'sale_id': int(sale_id)
-            }
-        except Exception as e:
-            db.session.rollback()
-            return {'success': False, 'message': f'❌ خطأ في حذف المبيعة: {str(e)}'}
-
-    def archive_sale(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        try:
-            sale_id = params.get('sale_id') or params.get('id')
-            if not sale_id:
-                return {'success': False, 'message': '❌ رقم المبيعة مطلوب'}
-            from models import Sale
-            from utils import archive_record
-            sale = db.session.get(Sale, int(sale_id))
-            if not sale:
-                return {'success': False, 'message': '❌ المبيعة غير موجودة'}
-            if getattr(sale, 'is_archived', False):
-                return {'success': False, 'message': '❌ المبيعة مؤرشفة مسبقاً'}
-            reason = params.get('reason')
-            archive_record(sale, reason=reason, user_id=self.user_id)
-            return {
-                'success': True,
-                'message': f'✅ تم أرشفة المبيعة #{sale_id} بنجاح',
-                'sale_id': int(sale_id)
-            }
-        except Exception as e:
-            db.session.rollback()
-            return {'success': False, 'message': f'❌ خطأ في أرشفة المبيعة: {str(e)}'}
-
-    def archive_check(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        try:
-            check_id = params.get('check_id')
-            if not check_id:
-                return {'success': False, 'message': '❌ رقم الشيك مطلوب'}
-            from models import Check, CheckStatus
-            from utils import archive_record
-            check = db.session.get(Check, int(check_id))
-            if not check:
-                return {'success': False, 'message': '❌ الشيك غير موجود'}
-            if getattr(check, 'is_archived', False):
-                return {'success': False, 'message': '❌ الشيك مؤرشف مسبقاً'}
-            reason = params.get('reason')
-            archive_record(check, reason=reason, user_id=self.user_id)
-            try:
-                check.status = CheckStatus.ARCHIVED
-            except Exception:
-                check.status = CheckStatus.ARCHIVED.value
-            db.session.commit()
-            return {
-                'success': True,
-                'message': f'✅ تم أرشفة الشيك #{check_id} بنجاح',
-                'check_id': int(check_id)
-            }
-        except Exception as e:
-            db.session.rollback()
-            return {'success': False, 'message': f'❌ خطأ في أرشفة الشيك: {str(e)}'}
-
-    def archive_expense(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        try:
-            expense_id = params.get('expense_id')
-            if not expense_id:
-                return {'success': False, 'message': '❌ رقم المصروف مطلوب'}
-            from models import Expense
-            from utils import archive_record
-            expense = db.session.get(Expense, int(expense_id))
-            if not expense:
-                return {'success': False, 'message': '❌ المصروف غير موجود'}
-            if getattr(expense, 'is_archived', False):
-                return {'success': False, 'message': '❌ المصروف مؤرشف مسبقاً'}
-            reason = params.get('reason')
-            archive_record(expense, reason=reason, user_id=self.user_id)
-            return {
-                'success': True,
-                'message': f'✅ تم أرشفة المصروف #{expense_id} بنجاح',
-                'expense_id': int(expense_id)
-            }
-        except Exception as e:
-            db.session.rollback()
-            return {'success': False, 'message': f'❌ خطأ في أرشفة المصروف: {str(e)}'}
-
-    def void_gl_batch(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        try:
-            batch_id = params.get('batch_id')
-            if not batch_id:
-                return {'success': False, 'message': '❌ رقم القيد مطلوب'}
-            from models import GLBatch
-            batch = db.session.get(GLBatch, int(batch_id))
-            if not batch:
-                return {'success': False, 'message': '❌ القيد غير موجود'}
-            if (getattr(batch, 'status', '') or '').upper() == 'VOID':
-                return {'success': False, 'message': '❌ القيد ملغي مسبقاً'}
-            batch.status = 'VOID'
-            db.session.commit()
-            return {
-                'success': True,
-                'message': f'✅ تم إلغاء القيد #{batch_id} بنجاح',
-                'batch_id': int(batch_id)
-            }
-        except Exception as e:
-            db.session.rollback()
-            return {'success': False, 'message': f'❌ خطأ في إلغاء القيد: {str(e)}'}
-
-    def reverse_gl_batch(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        try:
-            batch_id = params.get('batch_id')
-            if not batch_id:
-                return {'success': False, 'message': '❌ رقم القيد مطلوب'}
-            from models import GLBatch, GLEntry
-            original_batch = db.session.get(GLBatch, int(batch_id))
-            if not original_batch:
-                return {'success': False, 'message': '❌ القيد غير موجود'}
-            existing_reversal = GLBatch.query.filter_by(
-                source_type='REVERSAL',
-                source_id=original_batch.id
-            ).first()
-            if existing_reversal:
-                return {
-                    'success': False,
-                    'message': '❌ يوجد قيد عكسي لهذا القيد بالفعل',
-                    'reversal_batch_id': existing_reversal.id
-                }
-            reversal_batch = GLBatch(
-                code=f"REV-{original_batch.code}",
-                source_type='REVERSAL',
-                source_id=original_batch.id,
-                purpose=f"عكس: {original_batch.purpose}",
-                memo=f"قيد عكسي للقيد #{batch_id} - {original_batch.memo}",
-                currency=original_batch.currency,
-                status='POSTED',
-                posted_at=datetime.now()
-            )
-            db.session.add(reversal_batch)
-            db.session.flush()
-            for original_entry in original_batch.entries:
-                reversal_entry = GLEntry(
-                    batch_id=reversal_batch.id,
-                    account=original_entry.account,
-                    debit=original_entry.credit,
-                    credit=original_entry.debit,
-                    ref=f"REV-{original_entry.ref}",
-                    currency=original_entry.currency
-                )
-                db.session.add(reversal_entry)
-            db.session.commit()
-            return {
-                'success': True,
-                'message': '✅ تم إنشاء القيد العكسي بنجاح',
-                'original_batch_id': int(batch_id),
-                'reversal_batch_id': reversal_batch.id
-            }
-        except Exception as e:
-            db.session.rollback()
-            return {'success': False, 'message': f'❌ خطأ في إنشاء القيد العكسي: {str(e)}'}
-
-    def fix_unbalanced_batches(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        try:
-            from models import GLBatch, GLEntry, Account
-            batches = db.session.query(GLBatch).filter(
-                GLBatch.status == 'POSTED'
-            ).all()
-            fixed_batches = []
-            unfixable_batches = []
-            for batch in batches:
-                total_debit = sum(float(entry.debit) for entry in batch.entries)
-                total_credit = sum(float(entry.credit) for entry in batch.entries)
-                difference = total_debit - total_credit
-                if abs(difference) > 0.01:
-                    if len(batch.entries) >= 2:
-                        correction_account = '9999_CORRECTION'
-                        correction_acc = Account.query.filter_by(code=correction_account).first()
-                        if not correction_acc:
-                            correction_acc = Account(
-                                code=correction_account,
-                                name='حساب التصحيح',
-                                type='EXPENSE',
-                                is_active=True
-                            )
-                            db.session.add(correction_acc)
-                        if difference > 0:
-                            correction_entry = GLEntry(
-                                batch_id=batch.id,
-                                account=correction_account,
-                                debit=0,
-                                credit=abs(difference),
-                                currency='ILS',
-                                ref=f'تصحيح توازن {batch.code}'
-                            )
-                        else:
-                            correction_entry = GLEntry(
-                                batch_id=batch.id,
-                                account=correction_account,
-                                debit=abs(difference),
-                                credit=0,
-                                currency='ILS',
-                                ref=f'تصحيح توازن {batch.code}'
-                            )
-                        db.session.add(correction_entry)
-                        fixed_batches.append({
-                            'batch_id': batch.id,
-                            'batch_code': batch.code,
-                            'difference': difference,
-                            'correction_amount': abs(difference)
-                        })
-                    else:
-                        unfixable_batches.append({
-                            'batch_id': batch.id,
-                            'batch_code': batch.code,
-                            'difference': difference,
-                            'reason': 'عدد القيود أقل من 2'
-                        })
-            db.session.commit()
-            return {
-                'success': True,
-                'message': '✅ تم إصلاح القيود غير المتوازنة',
-                'summary': {
-                    'fixed_batches': len(fixed_batches),
-                    'unfixable_batches': len(unfixable_batches)
-                },
-                'fixed_batches': fixed_batches,
-                'unfixable_batches': unfixable_batches
-            }
-        except Exception as e:
-            db.session.rollback()
-            return {'success': False, 'message': f'❌ خطأ في إصلاح القيود غير المتوازنة: {str(e)}'}
-    
-    # ═══════════════════════════════════════════════════════════════════════
-    # 🧾 INVOICE & SALE ACTIONS - عمليات الفواتير والمبيعات
-    # ═══════════════════════════════════════════════════════════════════════
-    
-    def create_sale(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        إنشاء عملية بيع
-        
-        Required params:
-            - customer_id: معرف العميل
-            - warehouse_id: معرف المستودع
-            - items: قائمة المنتجات [{'product_id': 1, 'quantity': 2, 'price': 100}]
-        
-        Optional params:
-            - discount: الخصم
-            - notes: ملاحظات
-            - vat_enabled: تفعيل الضريبة (True/False)
-        """
-        try:
-            from models import Sale, SaleLine, Product, StockLevel
-            
-            if not params.get('customer_id'):
-                return {'success': False, 'message': '❌ معرف العميل مطلوب'}
-            
-            if not params.get('warehouse_id'):
-                return {'success': False, 'message': '❌ معرف المستودع مطلوب'}
-            
-            if not params.get('items') or len(params['items']) == 0:
-                return {'success': False, 'message': '❌ يجب إضافة منتج واحد على الأقل'}
-            
-            # حساب الإجمالي
-            subtotal = Decimal('0')
-            lines_data = []
-            
-            for item in params['items']:
-                if not all(k in item for k in ['product_id', 'quantity', 'price']):
-                    return {'success': False, 'message': '❌ بيانات المنتج غير كاملة'}
-                
-                quantity = Decimal(str(item['quantity']))
-                price = Decimal(str(item['price']))
-                discount = Decimal(str(item.get('discount', 0)))
-                
-                line_total = (quantity * price) - discount
-                subtotal += line_total
-                
-                lines_data.append({
-                    'product_id': item['product_id'],
-                    'quantity': quantity,
-                    'price': price,
-                    'discount': discount,
-                    'total': line_total
-                })
-            
-            # الخصم العام
-            general_discount = Decimal(str(params.get('discount', 0)))
-            subtotal_after_discount = subtotal - general_discount
-            
-            # الضريبة
-            vat_rate = Decimal('0.16')  # 16%
-            vat_amount = Decimal('0')
-            
-            if params.get('vat_enabled', True):
-                vat_amount = subtotal_after_discount * vat_rate
-            
-            total = subtotal_after_discount + vat_amount
-            
-            # إنشاء البيع
-            sale = Sale(
-                customer_id=params['customer_id'],
-                warehouse_id=params['warehouse_id'],
-                sale_date=datetime.now(timezone.utc),
-                subtotal=subtotal,
-                discount=general_discount,
-                vat_amount=vat_amount,
-                sale_total=total,
-                notes=params.get('notes', '').strip() if params.get('notes') else None,
-                status='CONFIRMED',
-                created_by_id=self.user_id
-            )
-            
-            db.session.add(sale)
-            db.session.flush()  # للحصول على sale.id
-            
-            # إضافة السطور
-            for line_data in lines_data:
-                sale_line = SaleLine(
-                    sale_id=sale.id,
-                    product_id=line_data['product_id'],
-                    quantity=line_data['quantity'],
-                    price=line_data['price'],
-                    discount=line_data['discount'],
-                    total=line_data['total']
-                )
-                db.session.add(sale_line)
-            
-            db.session.commit()
-            
-            return {
-                'success': True,
-                'message': f'✅ تم إنشاء عملية البيع بمبلغ {float(total)} ₪',
-                'sale_id': sale.id,
-                'data': {
-                    'id': sale.id,
-                    'customer_id': sale.customer_id,
-                    'subtotal': float(subtotal),
-                    'discount': float(general_discount),
-                    'vat': float(vat_amount),
-                    'total': float(total),
-                    'items_count': len(lines_data)
-                }
-            }
-            
-        except Exception as e:
-            db.session.rollback()
-            import traceback
-            traceback.print_exc()
-            return {'success': False, 'message': f'❌ خطأ: {str(e)}'}
-    
     def create_invoice(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        إنشاء فاتورة
-        
-        Required params:
-            - customer_id أو supplier_id
-            - invoice_type: 'CUSTOMER' أو 'SUPPLIER'
-            - items: قائمة المنتجات
-            - total: الإجمالي
-        """
         try:
             from models import Invoice, InvoiceSource
-            from models import run_invoice_gl_sync_after_commit
-            
-            if not params.get('invoice_type'):
-                return {'success': False, 'message': '❌ نوع الفاتورة مطلوب'}
-            
-            if not params.get('total'):
-                return {'success': False, 'message': '❌ الإجمالي مطلوب'}
-            
-            # نموذج Invoice يتطلب invoice_number؛ إن لم يُمرَّر نولّد مؤقتاً
-            inv_num = params.get('invoice_number') or f"AI-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
-            customer_id = params.get('customer_id')
-            if not customer_id and not params.get('supplier_id'):
-                return {'success': False, 'message': '❌ customer_id أو supplier_id مطلوب'}
-            invoice = Invoice(
-                invoice_number=inv_num,
-                invoice_date=datetime.now(timezone.utc),
-                customer_id=customer_id or 1,
-                supplier_id=params.get('supplier_id'),
-                total_amount=Decimal(str(params['total'])),
-                notes=params.get('notes', '').strip() if params.get('notes') else None,
-                source=InvoiceSource.MANUAL.value,
+
+            invoice_type = self._clean(params.get("invoice_type"))
+            total = params.get("total", params.get("total_amount"))
+            if not invoice_type:
+                return {"success": False, "message": "❌ نوع الفاتورة مطلوب"}
+            if total in (None, ""):
+                return {"success": False, "message": "❌ الإجمالي مطلوب"}
+            if not params.get("customer_id") and not params.get("supplier_id"):
+                return {"success": False, "message": "❌ customer_id أو supplier_id مطلوب"}
+
+            source_value = getattr(InvoiceSource.MANUAL, "value", InvoiceSource.MANUAL) if hasattr(InvoiceSource, "MANUAL") else "MANUAL"
+            invoice = self._new_model(
+                Invoice,
+                {
+                    "invoice_number": params.get("invoice_number") or f"AI-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
+                    "invoice_date": datetime.now(timezone.utc),
+                    "customer_id": params.get("customer_id"),
+                    "supplier_id": params.get("supplier_id"),
+                    "total_amount": self._decimal(total),
+                    "amount": self._decimal(total),
+                    "notes": self._clean(params.get("notes")),
+                    "source": source_value,
+                    "created_by_id": self.user_id,
+                    "created_by": self.user_id,
+                },
             )
-            
             db.session.add(invoice)
             db.session.commit()
-            
+
             try:
+                from models import run_invoice_gl_sync_after_commit
                 run_invoice_gl_sync_after_commit(invoice.id)
             except Exception:
                 pass
-            
-            return {
-                'success': True,
-                'message': f'✅ تم إنشاء الفاتورة بمبلغ {float(invoice.total_amount)} ₪',
-                'invoice_id': invoice.id
-            }
-            
-        except Exception as e:
+
+            return {"success": True, "message": f"✅ تم إنشاء الفاتورة بمبلغ {float(self._amount_value(invoice))} ₪", "invoice_id": invoice.id}
+        except Exception as exc:
             db.session.rollback()
-            return {'success': False, 'message': f'❌ خطأ: {str(e)}'}
-    
+            return {"success": False, "message": f"❌ فشل إنشاء الفاتورة: {exc}", "error": str(exc)}
+
+    def create_sale(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        try:
+            from models import Sale, SaleLine
+
+            if not params.get("customer_id"):
+                return {"success": False, "message": "❌ معرف العميل مطلوب"}
+            if not params.get("warehouse_id"):
+                return {"success": False, "message": "❌ معرف المستودع مطلوب"}
+            items = params.get("items") or []
+            if not items:
+                return {"success": False, "message": "❌ يجب إضافة منتج واحد على الأقل"}
+
+            subtotal = Decimal("0")
+            lines_data = []
+            for item in items:
+                if not all(k in item for k in ("product_id", "quantity", "price")):
+                    return {"success": False, "message": "❌ بيانات المنتج غير كاملة"}
+                quantity = self._decimal(item["quantity"])
+                price = self._decimal(item["price"])
+                discount = self._decimal(item.get("discount"))
+                line_total = (quantity * price) - discount
+                subtotal += line_total
+                lines_data.append({"product_id": item["product_id"], "quantity": quantity, "price": price, "discount": discount, "total": line_total})
+
+            general_discount = self._decimal(params.get("discount"))
+            subtotal_after_discount = subtotal - general_discount
+            vat_amount = subtotal_after_discount * Decimal("0.16") if params.get("vat_enabled", True) else Decimal("0")
+            total = subtotal_after_discount + vat_amount
+
+            sale = self._new_model(
+                Sale,
+                {
+                    "customer_id": params["customer_id"],
+                    "warehouse_id": params["warehouse_id"],
+                    "sale_date": datetime.now(timezone.utc),
+                    "subtotal": subtotal,
+                    "discount": general_discount,
+                    "vat_amount": vat_amount,
+                    "sale_total": total,
+                    "total_amount": total,
+                    "total": total,
+                    "notes": self._clean(params.get("notes")),
+                    "status": "CONFIRMED",
+                    "created_by_id": self.user_id,
+                    "created_by": self.user_id,
+                },
+            )
+            db.session.add(sale)
+            db.session.flush()
+
+            for line_data in lines_data:
+                sale_line = self._new_model(
+                    SaleLine,
+                    {
+                        "sale_id": sale.id,
+                        "product_id": line_data["product_id"],
+                        "quantity": line_data["quantity"],
+                        "price": line_data["price"],
+                        "unit_price": line_data["price"],
+                        "discount": line_data["discount"],
+                        "total": line_data["total"],
+                        "line_total": line_data["total"],
+                    },
+                )
+                db.session.add(sale_line)
+            db.session.commit()
+            return {"success": True, "message": f"✅ تم إنشاء عملية البيع بمبلغ {float(total)} ₪", "sale_id": sale.id, "data": {"id": sale.id, "customer_id": getattr(sale, "customer_id", None), "subtotal": float(subtotal), "discount": float(general_discount), "vat": float(vat_amount), "total": float(total), "items_count": len(lines_data)}}
+        except Exception as exc:
+            db.session.rollback()
+            return {"success": False, "message": f"❌ فشل إنشاء البيع: {exc}", "error": str(exc)}
+
     def create_expense(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        إنشاء مصروف
-        
-        Required params:
-            - amount: المبلغ
-            - description: الوصف
-        
-        Optional params:
-            - expense_type: نوع المصروف
-            - payment_method: طريقة الدفع
-        """
         try:
             from models import Expense
-            
-            if not params.get('amount'):
-                return {'success': False, 'message': '❌ المبلغ مطلوب'}
-            
-            if not params.get('description'):
-                return {'success': False, 'message': '❌ الوصف مطلوب'}
-            
-            expense = Expense(
-                amount=Decimal(str(params['amount'])),
-                description=params['description'].strip(),
-                expense_type=params.get('expense_type', 'OTHER'),
-                payment_method=params.get('payment_method', 'CASH'),
-                date=datetime.now(timezone.utc),
-                created_by_id=self.user_id
+
+            amount = params.get("amount", params.get("total_amount"))
+            description = self._clean(params.get("description", params.get("notes")))
+            if amount in (None, ""):
+                return {"success": False, "message": "❌ المبلغ مطلوب"}
+            if not description:
+                return {"success": False, "message": "❌ الوصف مطلوب"}
+
+            expense = self._new_model(
+                Expense,
+                {
+                    "amount": self._decimal(amount),
+                    "total_amount": self._decimal(amount),
+                    "description": description,
+                    "expense_type": params.get("expense_type", "OTHER"),
+                    "payment_method": params.get("payment_method", "CASH"),
+                    "method": params.get("payment_method", "CASH"),
+                    "date": datetime.now(timezone.utc),
+                    "created_at": datetime.now(timezone.utc),
+                    "created_by_id": self.user_id,
+                    "created_by": self.user_id,
+                },
             )
-            
             db.session.add(expense)
-            db.session.flush()
-            
             db.session.commit()
-            
-            return {
-                'success': True,
-                'message': f'✅ تم تسجيل المصروف بمبلغ {float(expense.amount)} ₪',
-                'expense_id': expense.id
-            }
-            
-        except Exception as e:
+            return {"success": True, "message": f"✅ تم تسجيل المصروف بمبلغ {float(self._amount_value(expense))} ₪", "expense_id": expense.id}
+        except Exception as exc:
             db.session.rollback()
-            return {'success': False, 'message': f'❌ خطأ: {str(e)}'}
-    
+            return {"success": False, "message": f"❌ فشل تسجيل المصروف: {exc}", "error": str(exc)}
+
     def create_service(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        إنشاء طلب صيانة
-        
-        Required params:
-            - customer_id: معرف العميل
-            - issue_description: وصف العطل
-        
-        Optional params:
-            - vehicle_model: موديل السيارة
-            - vehicle_plate: رقم اللوحة
-        """
         try:
             from models import ServiceRequest
-            
-            if not params.get('customer_id'):
-                return {'success': False, 'message': '❌ معرف العميل مطلوب'}
-            
-            if not params.get('issue_description'):
-                return {'success': False, 'message': '❌ وصف العطل مطلوب'}
-            
-            service = ServiceRequest(
-                customer_id=params['customer_id'],
-                issue_description=params['issue_description'].strip(),
-                vehicle_model=params.get('vehicle_model', '').strip() if params.get('vehicle_model') else None,
-                vehicle_plate=params.get('vehicle_plate', '').strip() if params.get('vehicle_plate') else None,
-                status='pending',
-                created_by_id=self.user_id
+
+            if not params.get("customer_id"):
+                return {"success": False, "message": "❌ معرف العميل مطلوب"}
+            issue_description = self._clean(params.get("issue_description", params.get("description")))
+            if not issue_description:
+                return {"success": False, "message": "❌ وصف العطل مطلوب"}
+
+            service = self._new_model(
+                ServiceRequest,
+                {
+                    "customer_id": params["customer_id"],
+                    "issue_description": issue_description,
+                    "description": issue_description,
+                    "vehicle_model": self._clean(params.get("vehicle_model")),
+                    "vehicle_plate": self._clean(params.get("vehicle_plate")),
+                    "status": "pending",
+                    "created_by_id": self.user_id,
+                    "created_by": self.user_id,
+                },
             )
-            
             db.session.add(service)
             db.session.commit()
-            
-            return {
-                'success': True,
-                'message': f'✅ تم إنشاء طلب الصيانة رقم {service.id}',
-                'service_id': service.id
-            }
-            
-        except Exception as e:
+            return {"success": True, "message": f"✅ تم إنشاء طلب الصيانة رقم {service.id}", "service_id": service.id}
+        except Exception as exc:
             db.session.rollback()
-            return {'success': False, 'message': f'❌ خطأ: {str(e)}'}
-    
+            return {"success": False, "message": f"❌ فشل إنشاء طلب الصيانة: {exc}", "error": str(exc)}
+
+    # ─────────────────────────────────────────────────────────────────────
+    # Warehouse / stock
+    # ─────────────────────────────────────────────────────────────────────
+
     def add_warehouse(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        إضافة مستودع
-        
-        Required params:
-            - name: اسم المستودع
-            - warehouse_type: MAIN/ONLINE/PARTNER/INVENTORY/EXCHANGE
-        """
         try:
             from models import Warehouse
-            
-            if not params.get('name'):
-                return {'success': False, 'message': '❌ اسم المستودع مطلوب'}
-            
-            if not params.get('warehouse_type'):
-                return {'success': False, 'message': '❌ نوع المستودع مطلوب'}
-            
-            warehouse = Warehouse(
-                name=params['name'].strip(),
-                warehouse_type=params['warehouse_type'],
-                partner_id=params.get('partner_id'),
-                supplier_id=params.get('supplier_id'),
-                is_active=True,
-                created_by_id=self.user_id
+
+            name = self._clean(params.get("name"))
+            warehouse_type = self._clean(params.get("warehouse_type", params.get("type")))
+            if not name:
+                return {"success": False, "message": "❌ اسم المستودع مطلوب"}
+            if not warehouse_type:
+                return {"success": False, "message": "❌ نوع المستودع مطلوب"}
+
+            warehouse = self._new_model(
+                Warehouse,
+                {
+                    "name": name,
+                    "warehouse_type": warehouse_type,
+                    "type": warehouse_type,
+                    "partner_id": params.get("partner_id"),
+                    "supplier_id": params.get("supplier_id"),
+                    "is_active": True,
+                    "created_by_id": self.user_id,
+                    "created_by": self.user_id,
+                },
             )
-            
             db.session.add(warehouse)
             db.session.commit()
-            
-            return {
-                'success': True,
-                'message': f'✅ تم إضافة المستودع "{warehouse.name}"',
-                'warehouse_id': warehouse.id
-            }
-            
-        except Exception as e:
+            return {"success": True, "message": f"✅ تم إضافة المستودع '{warehouse.name}'", "warehouse_id": warehouse.id}
+        except Exception as exc:
             db.session.rollback()
-            return {'success': False, 'message': f'❌ خطأ: {str(e)}'}
-    
+            return {"success": False, "message": f"❌ فشل إضافة المستودع: {exc}", "error": str(exc)}
+
     def transfer_stock(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        تحويل مخزون بين مستودعات
-        
-        Required params:
-            - product_id: معرف المنتج
-            - from_warehouse_id: من مستودع
-            - to_warehouse_id: إلى مستودع
-            - quantity: الكمية
-        """
         try:
             from models import StockTransfer
-            
-            if not all(k in params for k in ['product_id', 'from_warehouse_id', 'to_warehouse_id', 'quantity']):
-                return {'success': False, 'message': '❌ بيانات ناقصة'}
-            
-            transfer = StockTransfer(
-                product_id=params['product_id'],
-                from_warehouse_id=params['from_warehouse_id'],
-                to_warehouse_id=params['to_warehouse_id'],
-                quantity=int(params['quantity']),
-                notes=params.get('notes', '').strip() if params.get('notes') else None,
-                status='PENDING',
-                created_by_id=self.user_id
+
+            required = ["product_id", "from_warehouse_id", "to_warehouse_id", "quantity"]
+            if not all(params.get(k) for k in required):
+                return {"success": False, "message": "❌ بيانات التحويل ناقصة"}
+
+            transfer = self._new_model(
+                StockTransfer,
+                {
+                    "product_id": params["product_id"],
+                    "from_warehouse_id": params["from_warehouse_id"],
+                    "to_warehouse_id": params["to_warehouse_id"],
+                    "quantity": self._int(params["quantity"]),
+                    "notes": self._clean(params.get("notes")),
+                    "status": "PENDING",
+                    "created_by_id": self.user_id,
+                    "created_by": self.user_id,
+                },
             )
-            
             db.session.add(transfer)
             db.session.commit()
-            
-            return {
-                'success': True,
-                'message': f'✅ تم إنشاء طلب التحويل',
-                'transfer_id': transfer.id
-            }
-            
-        except Exception as e:
+            return {"success": True, "message": "✅ تم إنشاء طلب التحويل", "transfer_id": transfer.id}
+        except Exception as exc:
             db.session.rollback()
-            return {'success': False, 'message': f'❌ خطأ: {str(e)}'}
-    
+            return {"success": False, "message": f"❌ فشل تحويل المخزون: {exc}", "error": str(exc)}
+
     def adjust_stock(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        تعديل مخزون (جرد)
-        
-        Required params:
-            - product_id: معرف المنتج
-            - warehouse_id: معرف المستودع
-            - new_quantity: الكمية الجديدة
-            - reason: السبب
-        """
         try:
-            from models import StockLevel, StockAdjustment
-            
-            if not all(k in params for k in ['product_id', 'warehouse_id', 'new_quantity', 'reason']):
-                return {'success': False, 'message': '❌ بيانات ناقصة'}
-            
-            # الحصول على المخزون الحالي
-            stock = StockLevel.query.filter_by(
-                product_id=params['product_id'],
-                warehouse_id=params['warehouse_id']
-            ).first()
-            
-            old_quantity = stock.quantity if stock else 0
-            new_quantity = int(params['new_quantity'])
+            from models import StockAdjustment, StockLevel
+
+            required = ["product_id", "warehouse_id", "new_quantity", "reason"]
+            if not all(params.get(k) for k in required):
+                return {"success": False, "message": "❌ بيانات الجرد ناقصة"}
+
+            stock = StockLevel.query.filter_by(product_id=params["product_id"], warehouse_id=params["warehouse_id"]).first()
+            old_quantity = self._int(getattr(stock, "quantity", 0)) if stock else 0
+            new_quantity = self._int(params["new_quantity"])
             difference = new_quantity - old_quantity
-            
-            # إنشاء سجل التعديل
-            adjustment = StockAdjustment(
-                product_id=params['product_id'],
-                warehouse_id=params['warehouse_id'],
-                old_quantity=old_quantity,
-                new_quantity=new_quantity,
-                difference=difference,
-                reason=params['reason'].strip(),
-                notes=params.get('notes', '').strip() if params.get('notes') else None,
-                created_by_id=self.user_id
+
+            adjustment = self._new_model(
+                StockAdjustment,
+                {
+                    "product_id": params["product_id"],
+                    "warehouse_id": params["warehouse_id"],
+                    "old_quantity": old_quantity,
+                    "new_quantity": new_quantity,
+                    "difference": difference,
+                    "reason": self._clean(params.get("reason")),
+                    "notes": self._clean(params.get("notes")),
+                    "created_by_id": self.user_id,
+                    "created_by": self.user_id,
+                },
             )
-            
             db.session.add(adjustment)
-            
-            # تحديث المخزون
+
             if stock:
-                stock.quantity = new_quantity
+                self._set_if_exists(stock, quantity=new_quantity)
             else:
-                stock = StockLevel(
-                    product_id=params['product_id'],
-                    warehouse_id=params['warehouse_id'],
-                    quantity=new_quantity
-                )
+                stock = self._new_model(StockLevel, {"product_id": params["product_id"], "warehouse_id": params["warehouse_id"], "quantity": new_quantity})
                 db.session.add(stock)
-            
+
             db.session.commit()
-            
-            return {
-                'success': True,
-                'message': f'✅ تم تعديل المخزون من {old_quantity} إلى {new_quantity}',
-                'adjustment_id': adjustment.id,
-                'difference': difference
-            }
-            
-        except Exception as e:
+            return {"success": True, "message": f"✅ تم تعديل المخزون من {old_quantity} إلى {new_quantity}", "adjustment_id": adjustment.id, "difference": difference}
+        except Exception as exc:
             db.session.rollback()
-            return {'success': False, 'message': f'❌ خطأ: {str(e)}'}
-    
-    # ═══════════════════════════════════════════════════════════════════════
-    # 📝 AUDIT & LOGGING - التسجيل والمراجعة
-    # ═══════════════════════════════════════════════════════════════════════
-    
-    def _log_action(self, action_type: str, params: Dict, result: Dict):
-        """تسجيل العملية في Audit Log"""
+            return {"success": False, "message": f"❌ فشل تعديل المخزون: {exc}", "error": str(exc)}
+
+    # ─────────────────────────────────────────────────────────────────────
+    # Audit
+    # ─────────────────────────────────────────────────────────────────────
+
+    def _log_action(self, action_type: str, params: Dict, result: Dict) -> None:
         try:
-            entity_id = (
-                result.get('customer_id') or result.get('product_id') or result.get('sale_id') or
-                result.get('payment_id') or result.get('expense_id') or result.get('check_id') or
-                result.get('split_id') or result.get('id')
-            )
-            log = AuditLog(
-                user_id=self.user_id,
-                action=f'ai_action_{action_type}',
-                entity_type=action_type.replace('add_', '').replace('create_', ''),
-                entity_id=entity_id,
-                details=f"AI executed: {action_type}",
-                ip_address='AI_SYSTEM',
-                user_agent='AI Assistant v5.0'
+            entity_id = result.get("customer_id") or result.get("supplier_id") or result.get("product_id") or result.get("sale_id") or result.get("invoice_id") or result.get("payment_id") or result.get("expense_id") or result.get("service_id") or result.get("warehouse_id") or result.get("transfer_id") or result.get("adjustment_id") or result.get("id")
+            log = self._new_model(
+                AuditLog,
+                {
+                    "user_id": self.user_id,
+                    "action": f"ai_action_{action_type}",
+                    "entity_type": action_type.replace("add_", "").replace("create_", ""),
+                    "entity_id": entity_id,
+                    "details": f"AI executed: {action_type}",
+                    "ip_address": "AI_SYSTEM",
+                    "user_agent": "AI Assistant",
+                },
             )
             db.session.add(log)
             db.session.commit()
         except Exception:
-            pass  # لا نريد أن يفشل التنفيذ بسبب الـ logging
+            db.session.rollback()
 
-
-# ═══════════════════════════════════════════════════════════════════════════
-# 🎯 HELPER FUNCTIONS - دوال مساعدة
-# ═══════════════════════════════════════════════════════════════════════════
 
 def parse_user_request(message: str) -> Optional[Tuple[str, Dict[str, Any]]]:
-    """
-    تحليل طلب المستخدم واستخراج العملية والمعاملات
-    
-    Args:
-        message: رسالة المستخدم
-    
-    Returns:
-        (action_type, params) أو None
-    
-    Examples:
-        "أضف عميل اسمه أحمد هاتفه 0599123456"
-        → ('add_customer', {'name': 'أحمد', 'phone': '0599123456'})
-    """
+    message = str(message or "")
     message_lower = message.lower()
-    
-    # استخدام Regex لاستخراج المعلومات من النص الطبيعي
-    
-    if any(word in message_lower for word in ['أضف عميل', 'إضافة عميل', 'add customer']):
-        # محاولة استخراج الاسم والهاتف
-        params = {}
-        
-        # استخراج الاسم
-        import re
-        name_match = re.search(r'اسمه?\s+([^\s]+)', message)
+    if any(word in message_lower for word in ["أضف عميل", "اضف عميل", "إضافة عميل", "add customer"]):
+        params: Dict[str, Any] = {}
+        name_match = re.search(r"اسمه?\s+([^\s،,]+)", message)
         if name_match:
-            params['name'] = name_match.group(1)
-        
-        # استخراج الهاتف
-        phone_match = re.search(r'(?:هاتفه?|موبايل|phone)\s+([\d\-]+)', message)
+            params["name"] = name_match.group(1)
+        phone_match = re.search(r"(?:هاتفه?|موبايل|phone|رقمه?)\s*[:：]?\s*([\d\-+]+)", message)
         if phone_match:
-            params['phone'] = phone_match.group(1)
-        
+            params["phone"] = phone_match.group(1)
         if params:
-            return ('add_customer', params)
-    
+            return "add_customer", params
     return None
 
 
-__all__ = [
-    'ActionExecutor',
-    'parse_user_request'
-]
-
+__all__ = ["ActionExecutor", "parse_user_request", "SAFE_ACTION_ALIASES"]
