@@ -1,536 +1,251 @@
+"""Finance and tax knowledge helpers for the AI assistant.
 
+The information here is operational guidance, not legal advice. Tax and currency
+values can change, so calculations prefer live system settings and clearly mark
+fallback defaults when they are used.
+"""
+
+from __future__ import annotations
+
+import json
+from decimal import Decimal, InvalidOperation
+from typing import Any, Dict, List, Optional
+
+
+FALLBACK_RATES = {
+    "palestine_vat": Decimal("16"),
+    "israel_vat": Decimal("17"),
+}
+
+FALLBACK_PALESTINE_INCOME_BRACKETS = [
+    {"from": 0, "to": 75000, "rate": 5},
+    {"from": 75000, "to": 150000, "rate": 10},
+    {"from": 150000, "to": 300000, "rate": 15},
+    {"from": 300000, "to": None, "rate": 20},
+]
 
 FINANCE_KNOWLEDGE = {
     "accounting_principles": {
-        "استحقاق": "الإيرادات تُسجّل عند تحققها لا عند قبضها",
-        "مطابقة": "تُطابق المصروفات مع الإيرادات المرتبطة بها",
-        "وحدة_محاسبية": "الكيان المالي منفصل عن مالكه",
-        "استمرارية": "المنشأة مستمرة ما لم يثبت العكس",
-        "حيطة_حذر": "عدم المبالغة في تقدير الأصول والإيرادات"
+        "استحقاق": "الإيرادات تُسجّل عند تحققها لا عند قبضها فقط.",
+        "مطابقة": "تُطابق المصروفات مع الإيرادات المرتبطة بها.",
+        "وحدة_محاسبية": "الكيان المالي منفصل عن مالكه.",
+        "استمرارية": "المنشأة مستمرة ما لم يثبت العكس.",
+        "حيطة_حذر": "عدم المبالغة في تقدير الأصول والإيرادات.",
     },
-    
-    "tax_palestine": {
-        "name": "فلسطين - Palestine",
-        "vat_rate": 16,
-        "vat_name": "ضريبة القيمة المضافة",
-        "vat_law": "قانون رقم 6 لسنة 2005 المعدل",
-        "income_tax_personal": [
-            {"من": 0, "إلى": 75000, "نسبة": 5},
-            {"من": 75001, "إلى": 150000, "نسبة": 10},
-            {"من": 150001, "إلى": 300000, "نسبة": 15},
-            {"من": 300001, "إلى": None, "نسبة": 20}
-        ],
-        "income_tax_corporate": 15,
-        "notes": [
-            "ضريبة القيمة المضافة 16% على معظم السلع والخدمات",
-            "بعض السلع الأساسية معفاة (خبز، حليب، أدوية أساسية)",
-            "ضريبة الدخل على الشركات 15%",
-            "إعفاء للمشاريع الصغيرة التي دخلها أقل من 50,000 ₪"
-        ]
+    "tax_policy": {
+        "warning": "النسب والشرائح الضريبية تتغير. استخدم إعدادات النظام أو مصدرًا رسميًا حديثًا قبل اعتماد أي رقم.",
+        "vat": "تحسب من إعدادات النظام عند توفرها، وإلا يستعمل النظام fallback مع تحذير.",
+        "income_tax": "يفضل ضبط الشرائح في SystemSettings بدل تثبيتها في الكود.",
     },
-    
-    "tax_israel": {
-        "name": "إسرائيل - Israel",
-        "vat_rate": 17,
-        "vat_name": "מע\"מ - VAT",
-        "income_tax_personal_max": 47,
-        "income_tax_corporate": 23,
-        "capital_gains_tax": 25,
-        "notes": [
-            "ضريبة القيمة المضافة 17%",
-            "ضريبة الشركات 23%",
-            "ضريبة الدخل الشخصي تصاعدية حتى 47%",
-            "إعفاءات للتصدير (Zero-rated exports)"
-        ]
-    },
-    
     "customs_codes": {
-        "8703": {
-            "description": "سيارات ركاب وعربات أخرى",
-            "tax_rate_palestine": "varies",
-            "tax_rate_israel": 83,
-            "notes": "الرسوم تعتمد على سعة المحرك ونوع الوقود"
-        },
-        "8704": {
-            "description": "شاحنات نقل البضائع",
-            "tax_rate_palestine": "varies",
-            "tax_rate_israel": 12,
-            "notes": "المركبات التجارية رسومها أقل"
-        },
-        "8708": {
-            "description": "قطع غيار للسيارات",
-            "tax_rate_palestine": 0,
-            "tax_rate_israel": 0,
-            "notes": "قطع الغيار عادة معفاة أو بنسب منخفضة"
-        },
-        "8507": {
-            "description": "بطاريات كهربائية",
-            "tax_rate_palestine": 5,
-            "tax_rate_israel": 12,
-            "notes": "البطاريات خاضعة لرسوم بيئية إضافية"
-        }
+        "8703": {"description": "سيارات ركاب وعربات أخرى", "rate": "varies", "notes": "الرسوم تعتمد على النوع والسنة والسعة والوقود ومصدر الاستيراد."},
+        "8704": {"description": "شاحنات نقل البضائع", "rate": "varies", "notes": "المركبات التجارية لها معاملة مختلفة حسب التصنيف."},
+        "8708": {"description": "قطع غيار للسيارات", "rate": "varies", "notes": "راجع التعرفة الجمركية الرسمية قبل الاحتساب."},
+        "8507": {"description": "بطاريات كهربائية", "rate": "varies", "notes": "قد تخضع لرسوم بيئية أو تنظيمية إضافية."},
     },
-    
-    "excise_taxes": {
-        "وقود_بنزين": {
-            "palestine": "حسب السعر العالمي + ضريبة محلية",
-            "israel": "63% excise + 17% VAT",
-            "notes": "تخضع للتقلبات الشهرية"
-        },
-        "سجائر": {
-            "palestine": "95%",
-            "israel": "500% تقريباً",
-            "notes": "من أعلى النسب عالمياً"
-        },
-        "مشروبات_غازية": {
-            "palestine": "50%",
-            "israel": "varies",
-            "notes": "حسب نسبة السكر"
-        },
-        "كحول": {
-            "palestine": "ممنوع / غير مطبق",
-            "israel": "100%+",
-            "notes": "خاضع لرقابة صارمة"
-        }
-    },
-    
     "financial_formulas": {
         "gross_profit": "الربح الإجمالي = الإيرادات - تكلفة البضاعة المباعة",
         "net_profit": "صافي الربح = الربح الإجمالي - المصروفات التشغيلية - الضرائب",
         "vat_calculation": "VAT = المبلغ الأساسي × (نسبة الضريبة / 100)",
-        "gross_up": "المبلغ الإجمالي = المبلغ الصافي / (1 - نسبة الضريبة)",
-        "roi": "العائد على الاستثمار = (الربح / رأس المال) × 100"
+        "gross_up": "إذا كان السعر شامل الضريبة: الصافي = الإجمالي / (1 + النسبة)",
+        "roi": "العائد على الاستثمار = (الربح / رأس المال) × 100",
     },
-    
     "accounting_terms": {
-        "دائن": "Creditor - من له حق على المنشأة",
-        "مدين": "Debtor - من عليه دين للمنشأة",
-        "أصول": "Assets - ممتلكات المنشأة",
-        "خصوم": "Liabilities - التزامات المنشأة",
-        "حقوق_ملكية": "Equity - صافي قيمة المنشأة",
-        "إيرادات": "Revenue - الدخل من النشاط",
-        "مصروفات": "Expenses - التكاليف التشغيلية",
-        "قيود_يومية": "Journal Entries - تسجيل العمليات المحاسبية",
-        "ميزان_مراجعة": "Trial Balance - للتحقق من التوازن"
+        "دائن": "Creditor/Credit - حسب السياق: طرف دائن أو حساب يزيد بالدائن.",
+        "مدين": "Debtor/Debit - حسب السياق: طرف مدين أو حساب يزيد بالمدين.",
+        "أصول": "Assets - ممتلكات المنشأة وحقوقها.",
+        "خصوم": "Liabilities - التزامات المنشأة.",
+        "حقوق_ملكية": "Equity - صافي حق المالك/الشركاء.",
+        "إيرادات": "Revenue - الدخل من النشاط.",
+        "مصروفات": "Expenses - التكاليف التشغيلية.",
+        "قيود_يومية": "Journal Entries - تسجيل العمليات المحاسبية.",
+        "ميزان_مراجعة": "Trial Balance - للتحقق من التوازن.",
     },
-    
     "currency_exchange": {
-        "ILS": {"name": "شيقل إسرائيلي", "symbol": "₪", "base": True},
-        "USD": {"name": "دولار أمريكي", "symbol": "$", "typical_rate_vs_ILS": 3.7},
-        "JOD": {"name": "دينار أردني", "symbol": "د.أ", "typical_rate_vs_ILS": 5.2},
-        "EUR": {"name": "يورو", "symbol": "€", "typical_rate_vs_ILS": 4.0},
-        "notes": [
-            "الأسعار تتقلب يومياً - استخدم آخر سعر مسجل في النظام",
-            "العملة الأساسية في النظام: ILS (شيقل)",
-            "التحويل يتم عبر جدول ExchangeTransaction"
-        ]
-    }
+        "ILS": {"name": "شيقل", "symbol": "₪", "base": True},
+        "USD": {"name": "دولار أمريكي", "symbol": "$"},
+        "JOD": {"name": "دينار أردني", "symbol": "د.أ"},
+        "EUR": {"name": "يورو", "symbol": "€"},
+        "notes": ["أسعار الصرف تتغير؛ استخدم آخر سعر مسجل في ExchangeTransaction أو إعدادات النظام.", "لا توجد أسعار صرف ثابتة داخل هذا الملف."],
+    },
 }
 
-
-def get_finance_knowledge():
-    """الحصول على المعرفة المالية الكاملة"""
-    return FINANCE_KNOWLEDGE
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# 🎓 ADVANCED TAX KNOWLEDGE - المعرفة الضريبية المتقدمة
-# ═══════════════════════════════════════════════════════════════════════════
-
 TAX_KNOWLEDGE_PALESTINE = {
-    "country": "فلسطين - Palestine",
-    "system": "نظام ضريبي حديث يتبع المعايير الدولية",
-    
-    "vat": {
-        "name": "ضريبة القيمة المضافة - VAT",
-        "rate": 16,
-        "law": "قانون رقم 6 لسنة 2005 المعدل بالقرار رقم 11 لسنة 2010",
-        "authority": "دائرة ضريبة القيمة المضافة - وزارة المالية",
-        
-        "registration": {
-            "mandatory": "إلزامي للمنشآت التي يتجاوز دخلها السنوي 75,000 ₪",
-            "voluntary": "اختياري للمنشآت بين 50,000-75,000 ₪",
-            "exempt": "معفى إذا كان الدخل أقل من 50,000 ₪"
-        },
-        
-        "calculation": {
-            "inclusive": "إذا كان السعر شامل الضريبة: الصافي = الإجمالي ÷ 1.16",
-            "exclusive": "إذا كان السعر بدون ضريبة: الضريبة = الصافي × 0.16",
-            "formula": "الضريبة = المبلغ الخاضع للضريبة × 16%",
-            "examples": [
-                {"price_exclusive": 1000, "vat": 160, "total": 1160},
-                {"price_inclusive": 1160, "net": 1000, "vat": 160}
-            ]
-        },
-        
-        "exempt_items": [
-            "الخبز الطازج",
-            "الحليب الطازج",
-            "البيض",
-            "الأدوية الأساسية المسجلة",
-            "الكتب والمطبوعات التعليمية",
-            "الخدمات المالية (بنوك وتأمين)",
-            "خدمات التعليم",
-            "الخدمات الصحية الأساسية"
-        ],
-        
-        "zero_rated": [
-            "الصادرات (Exports) - 0%",
-            "بيع سلع للمناطق الحرة - 0%"
-        ],
-        
-        "filing": {
-            "frequency": "شهري للمنشآت الكبيرة، ربع سنوي للصغيرة",
-            "deadline": "اليوم الـ15 من الشهر التالي",
-            "form": "نموذج VAT-101",
-            "penalty": "غرامة 2% شهرياً على التأخير (حد أقصى 50%)"
-        },
-        
-        "input_output": {
-            "output_vat": "ضريبة المخرجات = الضريبة المحصلة من المبيعات",
-            "input_vat": "ضريبة المدخلات = الضريبة المدفوعة على المشتريات",
-            "net_vat": "الضريبة المستحقة = ضريبة المخرجات - ضريبة المدخلات",
-            "refund": "إذا كانت المدخلات > المخرجات → يحق استرداد الفرق"
-        }
-    },
-    
-    "income_tax": {
-        "name": "ضريبة الدخل",
-        "law": "قانون ضريبة الدخل رقم 8 لسنة 2011",
-        "authority": "دائرة ضريبة الدخل",
-        
-        "personal": {
-            "name": "ضريبة الدخل على الأشخاص الطبيعيين",
-            "brackets": [
-                {"from": 0, "to": 75000, "rate": 5, "description": "شريحة أولى"},
-                {"from": 75001, "to": 150000, "rate": 10, "description": "شريحة ثانية"},
-                {"from": 150001, "to": 300000, "rate": 15, "description": "شريحة ثالثة"},
-                {"from": 300001, "to": None, "rate": 20, "description": "شريحة رابعة"}
-            ],
-            "exemptions": {
-                "personal": 36000,
-                "married": 48000,
-                "per_child": 6000,
-                "max_children": 5
-            },
-            "example": {
-                "salary": 120000,
-                "personal_exemption": 36000,
-                "married_exemption": 12000,
-                "children_exemption": 12000,
-                "taxable": 60000,
-                "tax": 5250,
-                "calculation": "0-75000: 5% × 60000 = 3000 ₪"
-            }
-        },
-        
-        "corporate": {
-            "name": "ضريبة الدخل على الشركات",
-            "rate": 15,
-            "description": "نسبة موحدة 15% على صافي الربح",
-            "calculation": "الضريبة = صافي الربح × 15%",
-            "deductions": [
-                "المصروفات التشغيلية الفعلية",
-                "الإهلاك حسب الجداول المعتمدة",
-                "الديون المعدومة المثبتة",
-                "التبرعات (حد أقصى 10% من الدخل)"
-            ],
-            "non_deductible": [
-                "المصروفات الشخصية للمالك",
-                "الغرامات والعقوبات",
-                "الضرائب المدفوعة",
-                "المبالغ المدفوعة للمساهمين كتوزيعات"
-            ],
-            "example": {
-                "revenue": 500000,
-                "expenses": 350000,
-                "net_profit": 150000,
-                "tax_15": 22500
-            }
-        },
-        
-        "withholding_tax": {
-            "name": "ضريبة الاستقطاع",
-            "description": "تُقتطع من المصدر عند الدفع",
-            "rates": {
-                "professionals": 5,
-                "contractors": 2,
-                "rent": 5,
-                "dividends": 10,
-                "interest": 10
-            },
-            "filing": "شهري - نموذج 9"
-        }
-    },
-    
-    "customs_duties": {
-        "name": "الرسوم الجمركية",
-        "authority": "الجمارك الفلسطينية",
-        "description": "تُفرض على البضائع المستوردة",
-        
-        "rates": {
-            "raw_materials": "0-5%",
-            "semi_finished": "5-12%",
-            "finished_goods": "12-20%",
-            "luxury_items": "30-50%"
-        },
-        
-        "calculation": {
-            "base": "القيمة CIF (التكلفة + التأمين + الشحن)",
-            "formula": "الرسوم = القيمة CIF × نسبة الرسوم",
-            "total_cost": "التكلفة الإجمالية = CIF + الرسوم + VAT"
-        },
-        
-        "automotive": {
-            "passenger_cars": {
-                "description": "سيارات الركاب (HS 8703)",
-                "factors": ["سعة المحرك", "نوع الوقود", "سنة الصنع"],
-                "rates": "متغيرة - تخضع لاتفاقيات باريس الاقتصادية"
-            },
-            "commercial_vehicles": {
-                "description": "المركبات التجارية (HS 8704)",
-                "rate": "رسوم مخفضة مقارنة بسيارات الركاب"
-            }
-        }
-    },
-    
-    "property_tax": {
-        "name": "ضريبة الأملاك",
-        "description": "تُفرض على العقارات",
-        "rate": "10-20% من القيمة الإيجارية السنوية"
-    },
-    
-    "penalties": {
-        "late_filing": "غرامة 500-2000 ₪ حسب نوع الضريبة",
-        "late_payment": "غرامة 2% شهرياً (حد أقصى 50%)",
-        "tax_evasion": "غرامة تصل إلى 3 أضعاف الضريبة + السجن"
-    }
+    "country": "فلسطين",
+    "warning": "تحقق من وزارة المالية/الإعدادات قبل اعتماد النسب.",
+    "vat": {"name": "ضريبة القيمة المضافة", "rate_source": "SystemSettings/utils.get_vat_rate أو fallback مع تحذير"},
+    "income_tax": {"name": "ضريبة الدخل", "brackets_source": "SystemSettings أو fallback مع تحذير"},
+    "customs_duties": {"description": "تختلف حسب كود HS والاتفاقيات والتصنيف."},
 }
 
 TAX_KNOWLEDGE_ISRAEL = {
-    "country": "إسرائيل - Israel - ישראל",
-    "system": "نظام ضريبي متطور ومعقد",
-    
-    "vat": {
-        "name": "מע\"מ - VAT - ضريبة القيمة المضافة",
-        "rate": 17,
-        "law": "חוק מס ערך מוסף",
-        "authority": "רשות המסים - سلطة الضرائب",
-        
-        "registration": {
-            "threshold": "إلزامي عند تجاوز 101,584 ₪ سنوياً (2024)",
-            "licensed": "معفى لأصحاب الرخص (עוסק פטור)"
-        },
-        
-        "calculation": {
-            "inclusive": "السعر شامل: الصافي = الإجمالي ÷ 1.17",
-            "exclusive": "السعر بدون: الضريبة = الصافي × 0.17",
-            "examples": [
-                {"price_exclusive": 1000, "vat": 170, "total": 1170},
-                {"price_inclusive": 1170, "net": 1000, "vat": 170}
-            ]
-        },
-        
-        "exempt_items": [
-            "الفواكه والخضروات الطازجة",
-            "معظم المواد الغذائية الأساسية",
-            "الخدمات المالية",
-            "الخدمات الصحية",
-            "التعليم"
-        ],
-        
-        "zero_rated": [
-            "الصادرات - 0%",
-            "السياحة الوافدة - 0%",
-            "الخدمات للسياح - 0%"
-        ],
-        
-        "filing": {
-            "frequency_small": "كل شهرين (עוסק קטן)",
-            "frequency_large": "شهري",
-            "deadline": "اليوم الـ15 من الشهر التالي",
-            "online": "إلزامي عبر האינטרנט"
-        }
-    },
-    
-    "income_tax": {
-        "name": "מס הכנסה - ضريبة الدخل",
-        "authority": "רשות המסים",
-        
-        "personal": {
-            "name": "ضريبة الدخل الشخصية",
-            "progressive": "تصاعدية من 10% حتى 50%",
-            "brackets_2024": [
-                {"from": 0, "to": 83040, "rate": 10},
-                {"from": 83041, "to": 119280, "rate": 14},
-                {"from": 119281, "to": 191560, "rate": 20},
-                {"from": 191561, "to": 266480, "rate": 31},
-                {"from": 266481, "to": 560280, "rate": 35},
-                {"from": 560281, "to": 721560, "rate": 47},
-                {"from": 721561, "to": None, "rate": 50}
-            ],
-            "credits": {
-                "basic": 2820,
-                "married": 2820,
-                "per_child": 1680
-            }
-        },
-        
-        "corporate": {
-            "name": "ضريبة الشركات - מס חברות",
-            "rate": 23,
-            "description": "نسبة موحدة 23% على الأرباح",
-            "small_business": "شركات صغيرة قد تخضع لـ 17% على الـ 500,000 ₪ الأولى"
-        },
-        
-        "capital_gains": {
-            "name": "ضريبة أرباح رأس المال - מס רווח הון",
-            "rate": 25,
-            "description": "على الأرباح من بيع الأصول"
-        },
-        
-        "national_insurance": {
-            "name": "التأمين الوطني - ביטוח לאומי",
-            "employee": "7% تقريباً",
-            "employer": "7.6% تقريباً",
-            "self_employed": "17.83% تقريباً"
-        }
-    },
-    
-    "purchase_tax": {
-        "name": "מס קנייה - ضريبة الشراء",
-        "vehicles": {
-            "rate": "83-100% حسب نوع السيارة",
-            "electric": "خصم كبير للسيارات الكهربائية",
-            "hybrid": "خصم متوسط للسيارات الهجينة"
-        },
-        "real_estate": {
-            "rate": "0-10% حسب قيمة العقار وعدد الشقق"
-        }
-    },
-    
-    "land_appreciation_tax": {
-        "name": "מס שבח - ضريبة تحسين الأراضي",
-        "rate": "25% على أرباح بيع العقارات",
-        "exemptions": "معفى على الشقة الأولى في حدود معينة"
-    }
+    "country": "إسرائيل",
+    "warning": "تحقق من سلطة الضرائب/الإعدادات قبل اعتماد النسب.",
+    "vat": {"name": "VAT", "rate_source": "SystemSettings أو fallback مع تحذير"},
+    "income_tax": {"name": "Income Tax", "brackets_source": "مصدر رسمي حديث أو إعدادات النظام"},
 }
 
 
+def _decimal(value: Any, default: Decimal = Decimal("0")) -> Decimal:
+    try:
+        return Decimal(str(value if value not in (None, "") else default))
+    except (InvalidOperation, ValueError, TypeError):
+        return default
+
+
+def _get_setting_value(*keys: str) -> Optional[str]:
+    try:
+        from models import SystemSettings
+
+        for key in keys:
+            setting = SystemSettings.query.filter_by(key=key).first()
+            if setting and setting.value not in (None, ""):
+                return setting.value
+    except Exception:
+        return None
+    return None
+
+
+def _get_json_setting(*keys: str) -> Optional[Any]:
+    value = _get_setting_value(*keys)
+    if not value:
+        return None
+    try:
+        return json.loads(value)
+    except Exception:
+        return None
+
+
+def _get_vat_rate(country: str) -> tuple[Decimal, str, str]:
+    country = str(country or "palestine").lower()
+    if country == "palestine":
+        try:
+            from utils import get_vat_rate, is_vat_enabled
+
+            if not is_vat_enabled():
+                return Decimal("0"), "system_settings", "VAT disabled in system settings"
+            return _decimal(get_vat_rate()), "system_settings", "VAT read from system settings"
+        except Exception:
+            setting_rate = _get_setting_value("vat_rate", "VAT_RATE", "palestine_vat_rate")
+            if setting_rate is not None:
+                return _decimal(setting_rate), "system_settings", "VAT read from SystemSettings"
+            return FALLBACK_RATES["palestine_vat"], "fallback_default", "Fallback VAT rate used; verify with official/current settings"
+
+    setting_rate = _get_setting_value(f"{country}_vat_rate", "vat_rate")
+    if setting_rate is not None:
+        return _decimal(setting_rate), "system_settings", "VAT read from SystemSettings"
+    fallback_key = f"{country}_vat"
+    if fallback_key in FALLBACK_RATES:
+        return FALLBACK_RATES[fallback_key], "fallback_default", "Fallback VAT rate used; verify with official/current settings"
+    return Decimal("0"), "not_configured", "VAT rate not configured"
+
+
+def get_finance_knowledge():
+    return FINANCE_KNOWLEDGE
+
+
 def get_tax_knowledge_detailed():
-    """الحصول على المعرفة الضريبية الشاملة"""
     return {
         "palestine": TAX_KNOWLEDGE_PALESTINE,
         "israel": TAX_KNOWLEDGE_ISRAEL,
-        
         "comparison": {
-            "vat": {
-                "palestine": "16%",
-                "israel": "17%",
-                "difference": "فرق بسيط 1%"
-            },
-            "corporate_tax": {
-                "palestine": "15%",
-                "israel": "23%",
-                "difference": "فلسطين أقل بـ 8%"
-            },
-            "personal_tax": {
-                "palestine": "تصاعدية 5-20%",
-                "israel": "تصاعدية 10-50%",
-                "difference": "إسرائيل أعلى بكثير"
-            }
+            "vat": "اقرأ من الإعدادات أو مصدر رسمي حديث.",
+            "corporate_tax": "اقرأ من الإعدادات أو مصدر رسمي حديث.",
+            "personal_tax": "اقرأ من الإعدادات أو مصدر رسمي حديث.",
         },
-        
-        "tax_planning_tips": [
-            "الاستفادة من الإعفاءات القانونية",
-            "توثيق جميع المصروفات القابلة للخصم",
-            "الالتزام بالمواعيد النهائية لتجنب الغرامات",
-            "الاحتفاظ بسجلات محاسبية منظمة",
-            "استشارة محاسب قانوني عند الحاجة"
-        ]
+        "tax_planning_tips": ["وثق المصروفات", "التزم بالمواعيد", "احتفظ بسجلات منظمة", "استشر محاسبًا قانونيًا عند الحاجة"],
+        "warning": "هذه معرفة تشغيلية عامة وليست فتوى ضريبية أو قانونية.",
     }
 
 
+def _normalise_brackets(raw_brackets: Any) -> List[Dict[str, Any]]:
+    if not isinstance(raw_brackets, list):
+        return []
+    brackets = []
+    for item in raw_brackets:
+        if not isinstance(item, dict):
+            continue
+        start = item.get("from", item.get("من", 0))
+        end = item.get("to", item.get("إلى"))
+        rate = item.get("rate", item.get("نسبة"))
+        if rate is None:
+            continue
+        brackets.append({"from": _decimal(start), "to": None if end in (None, "") else _decimal(end), "rate": _decimal(rate)})
+    return brackets
+
+
 def calculate_palestine_income_tax(income):
-    """حساب ضريبة الدخل الفلسطينية"""
-    if income <= 0:
-        return 0
-    
-    brackets = FINANCE_KNOWLEDGE['tax_palestine']['income_tax_personal']
-    total_tax = 0
-    remaining = income
-    
-    for i, bracket in enumerate(brackets):
-        from_amount = bracket['من']
-        to_amount = bracket['إلى']
-        rate = bracket['نسبة']
-        
-        if to_amount is None:
-            taxable = remaining
-        else:
-            taxable = min(remaining, to_amount - from_amount)
-        
+    """Calculate Palestine income tax using configured brackets when possible.
+
+    Return value stays numeric for backward compatibility. If no configured
+    brackets exist, fallback brackets are used and callers should treat the result
+    as an estimate requiring verification.
+    """
+    income_dec = _decimal(income)
+    if income_dec <= 0:
+        return 0.0
+
+    configured = _get_json_setting("palestine_income_tax_brackets", "income_tax_brackets_palestine")
+    brackets = _normalise_brackets(configured) or _normalise_brackets(FALLBACK_PALESTINE_INCOME_BRACKETS)
+
+    total_tax = Decimal("0")
+    for bracket in brackets:
+        start = bracket["from"]
+        end = bracket["to"]
+        rate = bracket["rate"]
+        if income_dec <= start:
+            continue
+        taxable = (income_dec - start) if end is None else min(income_dec, end) - start
         if taxable > 0:
-            total_tax += taxable * (rate / 100)
-            remaining -= taxable
-        
-        if remaining <= 0:
-            break
-    
-    return total_tax
+            total_tax += taxable * (rate / Decimal("100"))
+    return float(total_tax)
 
 
-def calculate_vat(amount, country='palestine'):
-    """
-    حساب ضريبة القيمة المضافة
-    
-    ملاحظة: يستخدم الثوابت من SystemSettings للدولة الافتراضية (فلسطين)
-    """
-    # استخدام الثوابت من SystemSettings للدولة الافتراضية
-    if country.lower() == 'palestine':
-        try:
-            from utils import get_vat_rate, is_vat_enabled
-            if not is_vat_enabled():
-                rate = 0
-            else:
-                rate = get_vat_rate()
-        except Exception:
-            # Fallback للقيمة المحفوظة
-            rate = FINANCE_KNOWLEDGE['tax_palestine']['vat_rate']
-    elif country.lower() == 'israel':
-        rate = FINANCE_KNOWLEDGE['tax_israel']['vat_rate']
-    else:
-        rate = 0
-    
-    vat_amount = amount * (rate / 100)
-    total_with_vat = amount + vat_amount
-    
+def calculate_vat(amount, country="palestine"):
+    amount_dec = _decimal(amount)
+    rate, source, warning = _get_vat_rate(country)
+    vat_amount = amount_dec * (rate / Decimal("100"))
+    total_with_vat = amount_dec + vat_amount
     return {
-        'base_amount': amount,
-        'vat_rate': rate,
-        'vat_amount': vat_amount,
-        'total_with_vat': total_with_vat
+        "base_amount": float(amount_dec),
+        "vat_rate": float(rate),
+        "vat_amount": float(vat_amount),
+        "total_with_vat": float(total_with_vat),
+        "rate_source": source,
+        "warning": warning,
     }
 
 
 def get_customs_info(hs_code):
-    """معلومات الجمارك حسب الكود"""
-    return FINANCE_KNOWLEDGE['customs_codes'].get(hs_code, None)
+    return FINANCE_KNOWLEDGE["customs_codes"].get(str(hs_code), None)
 
 
 def get_all_system_modules():
-    """معلومات كل وحدات النظام"""
+    """Fallback module map. Prefer ai_auto_discovery when current routes are needed."""
     return {
-        'auth': {'name': 'المصادقة', 'route': '/auth'},
-        'customers': {'name': 'العملاء', 'route': '/customers'},
-        'service': {'name': 'الصيانة', 'route': '/service'},
-        'sales': {'name': 'المبيعات', 'route': '/sales'},
-        'shop': {'name': 'المتجر', 'route': '/shop'},
-        'warehouses': {'name': 'المستودعات', 'route': '/warehouses'},
-        'expenses': {'name': 'النفقات', 'route': '/expenses'},
-        'payments': {'name': 'المدفوعات', 'route': '/payments'},
-        'vendors': {'name': 'الموردين', 'route': '/vendors'},
-        'ledger': {'name': 'دفتر الأستاذ', 'route': '/ledger'},
-        'security': {'name': 'الأمان', 'route': '/security'},
+        "auth": {"name": "المصادقة", "route_hint": "/auth"},
+        "customers": {"name": "العملاء", "route_hint": "/customers"},
+        "service": {"name": "الصيانة", "route_hint": "/service أو /services حسب التسجيل الفعلي"},
+        "sales": {"name": "المبيعات", "route_hint": "/sales"},
+        "shop": {"name": "المتجر", "route_hint": "/shop"},
+        "warehouses": {"name": "المستودعات", "route_hint": "/warehouses"},
+        "expenses": {"name": "النفقات", "route_hint": "/expenses"},
+        "payments": {"name": "المدفوعات", "route_hint": "/payments"},
+        "vendors": {"name": "الموردين", "route_hint": "/vendors أو /suppliers حسب التسجيل الفعلي"},
+        "ledger": {"name": "دفتر الأستاذ", "route_hint": "/gl أو /ledger حسب التسجيل الفعلي"},
+        "security": {"name": "الأمان", "route_hint": "/security"},
+        "note": "هذه خريطة fallback؛ خريطة المسارات الفعلية تأتي من ai_auto_discovery.",
     }
 
+
+__all__ = [
+    "FINANCE_KNOWLEDGE",
+    "TAX_KNOWLEDGE_PALESTINE",
+    "TAX_KNOWLEDGE_ISRAEL",
+    "get_finance_knowledge",
+    "get_tax_knowledge_detailed",
+    "calculate_palestine_income_tax",
+    "calculate_vat",
+    "get_customs_info",
+    "get_all_system_modules",
+]
