@@ -1,330 +1,161 @@
-from typing import Dict, List, Any, Optional
+from __future__ import annotations
+
 from datetime import datetime
-import re
+from typing import Any, Dict, List, Optional
+
+
+def _route_for_keyword(keyword: str) -> Optional[str]:
+    try:
+        from AI.engine.ai_auto_discovery import find_route_by_keyword
+        info = find_route_by_keyword(keyword)
+        if info and info.get("matches"):
+            match = info["matches"][0]
+            return match.get("url") or match.get("path") or match.get("rule")
+    except Exception:
+        pass
+    return None
 
 
 class ComprehensionEngine:
-    
     def __init__(self):
-        self.understanding_levels = {
-            'surface': 0,
-            'shallow': 1,
-            'moderate': 2,
-            'deep': 3,
-            'expert': 4,
-            'mastery': 5
-        }
-        
-        self.comprehension_map = {}
-        self.learning_paths = {}
-    
+        self.understanding_levels = {"surface": 0, "shallow": 1, "moderate": 2, "deep": 3, "expert": 4, "mastery": 5}
+        self.comprehension_map: Dict[str, Dict[str, Any]] = {}
+        self.learning_paths: Dict[str, Any] = {}
+
     def understand_concept(self, concept: str, context: Dict = None) -> Dict[str, Any]:
-        if context is None:
-            context = {}
-        
-        understanding = {
-            'concept': concept,
-            'timestamp': datetime.now().isoformat(),
-            'level': 'surface',
-            'what': '',
-            'why': '',
-            'how': '',
-            'when': '',
-            'where': '',
-            'examples': [],
-            'counterexamples': [],
-            'relationships': [],
-            'implications': [],
-            'mistakes_to_avoid': []
-        }
-        
-        understanding['what'] = self._explain_what(concept, context)
-        understanding['why'] = self._explain_why(concept, context)
-        understanding['how'] = self._explain_how(concept, context)
-        understanding['when'] = self._explain_when(concept, context)
-        understanding['where'] = self._explain_where(concept, context)
-        
-        understanding['examples'] = self._generate_examples(concept, context)
-        understanding['counterexamples'] = self._generate_counterexamples(concept, context)
-        understanding['relationships'] = self._find_relationships(concept, context)
-        understanding['implications'] = self._analyze_implications(concept, context)
-        understanding['mistakes_to_avoid'] = self._identify_common_mistakes(concept, context)
-        
-        understanding['level'] = self._assess_understanding_level(understanding)
-        
+        context = context or {}
+        concept = str(concept or "").strip()
+        understanding = {"concept": concept, "timestamp": datetime.now().isoformat(), "level": "surface", "what": "", "why": "", "how": "", "when": "", "where": "", "examples": [], "counterexamples": [], "relationships": [], "implications": [], "mistakes_to_avoid": []}
+        understanding["what"] = self._explain_what(concept, context)
+        understanding["why"] = self._explain_why(concept, context)
+        understanding["how"] = self._explain_how(concept, context)
+        understanding["when"] = self._explain_when(concept, context)
+        understanding["where"] = self._explain_where(concept, context)
+        understanding["examples"] = self._generate_examples(concept, context)
+        understanding["counterexamples"] = self._generate_counterexamples(concept, context)
+        understanding["relationships"] = self._find_relationships(concept, context)
+        understanding["implications"] = self._analyze_implications(concept, context)
+        understanding["mistakes_to_avoid"] = self._identify_common_mistakes(concept, context)
+        understanding["level"] = self._assess_understanding_level(understanding)
         self.comprehension_map[concept] = understanding
-        
         return understanding
-    
+
     def _explain_what(self, concept: str, context: Dict) -> str:
-        concept_lower = concept.lower()
-        
+        key = concept.lower()
         definitions = {
-            'عميل': 'شخص أو جهة تشتري منتجات أو خدمات من الشركة',
-            'customer': 'شخص أو جهة تشتري منتجات أو خدمات من الشركة',
-            'مورد': 'شخص أو شركة توفر المنتجات أو المواد الخام للشركة',
-            'supplier': 'شخص أو شركة توفر المنتجات أو المواد الخام للشركة',
-            'بيع': 'عملية تسليم منتج أو خدمة للعميل مقابل مبلغ مالي',
-            'sale': 'عملية تسليم منتج أو خدمة للعميل مقابل مبلغ مالي',
-            'قيد محاسبي': 'تسجيل عملية مالية في دفاتر الشركة يوضح الحسابات المدينة والدائنة',
-            'gl entry': 'تسجيل عملية مالية في دفاتر الشركة يوضح الحسابات المدينة والدائنة',
-            'رصيد': 'المبلغ المالي المستحق لشخص أو على شخص في لحظة معينة',
-            'balance': 'المبلغ المالي المستحق لشخص أو على شخص في لحظة معينة',
-            'vat': 'ضريبة القيمة المضافة - ضريبة تفرض على المبيعات والمشتريات',
-            'مخزون': 'كمية المنتجات المتوفرة في المستودع',
-            'stock': 'كمية المنتجات المتوفرة في المستودع'
+            "عميل": "شخص أو جهة تتعامل مع المنشأة كمشترٍ أو طالب خدمة، وتظهر بياناته وأرصده حسب موديل Customer.",
+            "customer": "جهة تتعامل مع المنشأة كمشترٍ أو طالب خدمة، وتظهر بياناتها وأرصدةها حسب موديل Customer.",
+            "مورد": "شخص أو شركة توفر منتجات أو خدمات للمنشأة، وتظهر بياناته وأرصده حسب موديل Supplier.",
+            "supplier": "جهة توفر منتجات أو خدمات للمنشأة، وتظهر بياناتها وأرصدةها حسب موديل Supplier.",
+            "بيع": "عملية تسجيل بيع منتجات أو خدمات لعميل، وتفاصيلها النهائية يجب أن تُقرأ من موديل Sale وبنوده.",
+            "sale": "عملية بيع منتجات أو خدمات لعميل، وتفاصيلها النهائية يجب أن تُقرأ من موديل Sale وبنوده.",
+            "قيد محاسبي": "تسجيل مالي يوضح الحسابات المدينة والدائنة ويجب أن يكون متوازنًا.",
+            "gl entry": "تسجيل مالي يوضح الحسابات المدينة والدائنة ويجب أن يكون متوازنًا.",
+            "رصيد": "قيمة مالية مسجلة أو محسوبة من حركات النظام، ويجب تفسير إشارتها حسب سياسة كل شاشة/موديل.",
+            "balance": "قيمة مالية مسجلة أو محسوبة من حركات النظام، وتفسير الإشارة يعتمد على سياسة كل شاشة/موديل.",
+            "vat": "ضريبة القيمة المضافة؛ نسبتها تُقرأ من إعدادات النظام أو مصدر رسمي حديث، ولا تُفترض كنسبة ثابتة.",
+            "مخزون": "كميات المنتجات المسجلة في المستودعات عبر StockLevel وحركات المخزون.",
+            "stock": "كميات المنتجات المسجلة في المستودعات عبر StockLevel وحركات المخزون.",
         }
-        
-        return definitions.get(concept_lower, f'{concept} هو مفهوم يحتاج لمزيد من الدراسة')
-    
+        return definitions.get(key, f"{concept} مفهوم يحتاج ربطه ببيانات النظام أو سياق السؤال.")
+
     def _explain_why(self, concept: str, context: Dict) -> str:
-        concept_lower = concept.lower()
-        
+        key = concept.lower()
         reasons = {
-            'عميل': 'لأن الشركة تحتاج لمن يشتري منتجاتها لتحقيق الإيرادات والاستمرار',
-            'customer': 'لأن الشركة تحتاج لمن يشتري منتجاتها لتحقيق الإيرادات والاستمرار',
-            'قيد محاسبي': 'لتوثيق كل عملية مالية وضمان دقة السجلات المالية والامتثال القانوني',
-            'gl entry': 'لتوثيق كل عملية مالية وضمان دقة السجلات المالية والامتثال القانوني',
-            'vat': 'لتحصيل ضريبة لصالح الحكومة على كل معاملة تجارية',
-            'مخزون': 'لمعرفة المنتجات المتاحة للبيع وتجنب نفاذها أو تكدسها'
+            "عميل": "لربط المبيعات والخدمات والدفعات بجهة واضحة قابلة للتتبع.",
+            "customer": "لربط المبيعات والخدمات والدفعات بجهة واضحة قابلة للتتبع.",
+            "قيد محاسبي": "لتوثيق الأثر المالي للعمليات وتحقيق توازن المدين والدائن.",
+            "gl entry": "لتوثيق الأثر المالي للعمليات وتحقيق توازن المدين والدائن.",
+            "vat": "لأن بعض العمليات قد تخضع لضريبة يجب احتسابها وتسجيلها حسب الإعدادات والقانون الساري.",
+            "مخزون": "لمعرفة الكميات المتاحة وتجنب البيع بلا رصيد أو تراكم بضاعة غير مطلوبة.",
+            "رصيد": "لإظهار موقف الجهة المالي بناءً على الحركات المسجلة.",
         }
-        
-        return reasons.get(concept_lower, f'لأن {concept} جزء أساسي من العمليات التجارية')
-    
+        return reasons.get(key, f"لأن {concept} يؤثر على منطق العمل أو التقارير أو تتبع البيانات داخل النظام.")
+
     def _explain_how(self, concept: str, context: Dict) -> str:
-        concept_lower = concept.lower()
-        
+        key = concept.lower()
+        customers_route = _route_for_keyword("customers create") or _route_for_keyword("customers") or "غير مفهرس حالياً"
         methods = {
-            'عميل': 'يتم إضافته عبر صفحة /customers/create بإدخال الاسم والهاتف والبيانات الأساسية',
-            'customer': 'يتم إضافته عبر صفحة /customers/create بإدخال الاسم والهاتف والبيانات الأساسية',
-            'قيد محاسبي': 'ينشأ تلقائياً عند أي عملية (بيع، دفع، مشتريات) مع تحديد الحسابات المدينة والدائنة',
-            'gl entry': 'ينشأ تلقائياً عند أي عملية (بيع، دفع، مشتريات) مع تحديد الحسابات المدينة والدائنة',
-            'vat': 'يُحسب تلقائياً كنسبة مئوية من صافي المبلغ (16% فلسطين، 17% إسرائيل)',
-            'رصيد': 'يُحسب بجمع كل العمليات: الرصيد = (الدفعات الواردة) - (المبيعات والفواتير)'
+            "عميل": f"يُدار من صفحة العملاء حسب خريطة النظام: {customers_route}. الحقول الفعلية تُقرأ من موديل Customer والنماذج المرتبطة.",
+            "customer": f"يُدار من صفحة العملاء حسب خريطة النظام: {customers_route}. الحقول الفعلية تُقرأ من موديل Customer والنماذج المرتبطة.",
+            "قيد محاسبي": "ينشأ حسب نوع العملية وإعدادات دفتر الأستاذ ودليل الحسابات، ويجب أن يتوازن المدين والدائن.",
+            "gl entry": "ينشأ حسب نوع العملية وإعدادات دفتر الأستاذ ودليل الحسابات، ويجب أن يتوازن المدين والدائن.",
+            "vat": "يُحسب من نسبة ضريبة مقروءة من إعدادات النظام أو مصدر رسمي حديث، ثم يضاف للصافي حسب نوع الفاتورة.",
+            "رصيد": "يُقرأ من الحقل/الدالة المعتمدة في النظام أو يُعاد احتسابه من الحركات إذا كانت كل البيانات متاحة.",
         }
-        
-        return methods.get(concept_lower, f'{concept} يعمل ضمن آليات النظام')
-    
+        return methods.get(key, f"{concept} يعمل ضمن آليات النظام ويحتاج قراءة الموديل/المسار الفعلي قبل الجزم بالتفاصيل.")
+
     def _explain_when(self, concept: str, context: Dict) -> str:
-        concept_lower = concept.lower()
-        
-        timing = {
-            'عميل': 'عند وجود عميل جديد يريد الشراء أو التعامل مع الشركة',
-            'قيد محاسبي': 'فوراً عند حدوث أي عملية مالية (بيع، دفع، مشتريات، مصروف)',
-            'vat': 'مع كل فاتورة بيع أو شراء تخضع للضريبة',
-            'رصيد': 'يتحدث مع كل عملية جديدة (بيع، دفع، فاتورة)'
-        }
-        
-        return timing.get(concept_lower, f'يُستخدم {concept} عند الحاجة إليه في سياق العمل')
-    
+        key = concept.lower()
+        timing = {"عميل": "عند إنشاء علاقة بيع أو خدمة أو ذمة مع جهة جديدة.", "قيد محاسبي": "عند تسجيل عملية مالية تؤثر على الحسابات.", "vat": "عند عملية خاضعة للضريبة حسب إعدادات النظام والقانون.", "رصيد": "يتغير عند تسجيل أو تعديل عملية تؤثر على الذمة أو الحساب."}
+        return timing.get(key, f"يُستخدم {concept} عندما يحتاج سير العمل أو التقرير لهذه المعلومة.")
+
     def _explain_where(self, concept: str, context: Dict) -> str:
-        concept_lower = concept.lower()
-        
-        locations = {
-            'عميل': 'في جدول customers في قاعدة البيانات، ويُعرض في /customers',
-            'قيد محاسبي': 'في جداول gl_batches و gl_entries، ويُعرض في /gl_dashboard',
-            'vat': 'في حقل vat_amount في جدول sales وفي القيود المحاسبية',
-            'رصيد': 'في حقل balance في جدول customers/suppliers'
-        }
-        
-        return locations.get(concept_lower, f'{concept} موجود في النظام')
-    
+        key = concept.lower()
+        locations = {"عميل": "في موديل/جدول customers وعبر مسارات العملاء المكتشفة.", "قيد محاسبي": "في جداول/موديلات GLBatch و GLEntry إذا كانت مفعلة في النظام.", "vat": "في حقول الضريبة وإعدادات النظام المرتبطة بالفواتير والمبيعات.", "رصيد": "في حقول الرصيد أو دوال الحساب داخل موديلات العملاء/الموردين/الشركاء."}
+        return locations.get(key, f"مكان {concept} يجب تحديده من خريطة النظام أو موديلات قاعدة البيانات.")
+
     def _generate_examples(self, concept: str, context: Dict) -> List[str]:
-        concept_lower = concept.lower()
-        
-        examples_map = {
-            'عميل': [
-                'عميل اسمه "أحمد" يشتري قطع غيار بقيمة 500 ₪',
-                'عميل "محمد" له رصيد مدين 1000 ₪ (عليه يدفع)',
-                'عميل "فاطمة" دفعت 200 ₪ من رصيدها'
-            ],
-            'قيد محاسبي': [
-                'قيد بيع: مدين 1300 (ذمم) 1000 ₪، دائن 4000 (مبيعات) 862 ₪، دائن 2100 (VAT) 138 ₪',
-                'قيد دفع: مدين 1100 (صندوق) 500 ₪، دائن 1300 (ذمم) 500 ₪',
-                'قيد مشتريات: مدين 5100 (مشتريات) 1000 ₪، دائن 2300 (ذمم موردين) 1000 ₪'
-            ],
-            'رصيد': [
-                'رصيد موجب +500 ₪ = العميل عليه (مدين)',
-                'رصيد سالب -300 ₪ = العميل له (دائن - دفع زيادة)',
-                'رصيد صفر 0 ₪ = الحساب متعادل'
-            ]
+        key = concept.lower()
+        examples = {
+            "عميل": ["عميل له مبيعات ودفعات مسجلة يمكن عرضها في كشف حسابه.", "عميل جديد يُضاف قبل إنشاء فاتورة أو طلب خدمة."],
+            "قيد محاسبي": ["قيد بيع يربط الذمم والإيراد والضريبة حسب إعدادات الحسابات.", "قيد دفع يربط وسيلة الدفع بالذمة أو الجهة المستفيدة."],
+            "رصيد": ["رصيد جهة يُقرأ من النظام ثم يُفسّر حسب سياسة الشاشة.", "فرق بين مجموع الحركات والرصيد المخزن قد يعني حاجة لمزامنة/إعادة احتساب."],
+            "vat": ["فاتورة ذات نسبة ضريبة مأخوذة من الإعدادات.", "فاتورة بلا ضريبة إذا كانت الضريبة معطلة أو غير مهيأة."],
         }
-        
-        return examples_map.get(concept_lower, [f'مثال على {concept}'])
-    
+        return examples.get(key, [f"مثال {concept} يجب بناؤه من بيانات حقيقية عند توفرها."])
+
     def _generate_counterexamples(self, concept: str, context: Dict) -> List[str]:
-        concept_lower = concept.lower()
-        
-        counter_map = {
-            'عميل': [
-                'المورد ليس عميل - هو من نشتري منه',
-                'الموظف ليس عميل - هو يعمل في الشركة'
-            ],
-            'قيد محاسبي': [
-                'قيد غير متوازن (مدين ≠ دائن) - خطأ محاسبي',
-                'قيد بدون حسابات - ليس قيد صحيح'
-            ],
-            'رصيد': [
-                'الرصيد الموجب ليس معناه العميل له - بل عليه',
-                'الرصيد السالب ليس ديناً - بل رصيد دائن للعميل'
-            ]
-        }
-        
-        return counter_map.get(concept_lower, [])
-    
+        key = concept.lower()
+        counter = {"عميل": ["المورد ليس عميلًا إلا إذا كان النظام يربطه صراحة بعميل."], "قيد محاسبي": ["قيد غير متوازن ليس قيدًا صحيحًا."], "رصيد": ["لا يجوز تفسير الموجب/السالب كقاعدة عامة دون معرفة سياسة النظام."], "vat": ["لا يجوز استخدام نسبة ضريبة ثابتة إذا لم تكن مضبوطة في النظام أو موثقة بمصدر رسمي حديث."]}
+        return counter.get(key, [])
+
     def _find_relationships(self, concept: str, context: Dict) -> List[str]:
-        concept_lower = concept.lower()
-        
-        relationships_map = {
-            'عميل': [
-                'له علاقة بـ: المبيعات، الدفعات، السيارات، الفواتير',
-                'يؤثر على: حساب ذمم العملاء (1300)، الإيرادات',
-                'يرتبط بـ: جدول customers، sales، payments، vehicles'
-            ],
-            'قيد محاسبي': [
-                'يرتبط بـ: دليل الحسابات، الميزانية، قائمة الدخل',
-                'يتأثر بـ: كل عملية مالية في النظام',
-                'يؤثر على: أرصدة الحسابات، التقارير المالية'
-            ],
-            'vat': [
-                'يرتبط بـ: المبيعات، المشتريات، الفواتير',
-                'يؤثر على: حساب ضريبة القيمة المضافة (2100)',
-                'يتأثر بـ: نسبة الضريبة (16% أو 17%)'
-            ]
-        }
-        
-        return relationships_map.get(concept_lower, [])
-    
+        key = concept.lower()
+        relationships = {"عميل": ["يرتبط بالمبيعات والخدمات والدفعات والفواتير حسب العلاقات الفعلية في models.py."], "قيد محاسبي": ["يرتبط بدليل الحسابات والدفعات والمبيعات والمصروفات حسب إعدادات GL."], "vat": ["يرتبط بالفواتير والمبيعات والمشتريات والإعدادات الضريبية."], "رصيد": ["يرتبط بالحركات المالية والدفعات والفواتير وربما قيود GL."]}
+        return relationships.get(key, [])
+
     def _analyze_implications(self, concept: str, context: Dict) -> List[str]:
-        concept_lower = concept.lower()
-        
-        implications_map = {
-            'عميل': [
-                'إضافة عميل جديد = إمكانية مبيعات جديدة',
-                'عميل برصيد كبير = خطر عدم التحصيل',
-                'عميل نشط = إيرادات متكررة'
-            ],
-            'قيد محاسبي': [
-                'قيد خاطئ = تقارير مالية خاطئة',
-                'قيد غير متوازن = مشاكل في المراجعة',
-                'قيود منتظمة = نظام محاسبي سليم'
-            ],
-            'رصيد': [
-                'رصيد موجب كبير = ذمم مدينة عالية',
-                'رصيد سالب = سيولة زائدة من العميل',
-                'أرصدة متوازنة = صحة مالية'
-            ]
-        }
-        
-        return implications_map.get(concept_lower, [])
-    
+        key = concept.lower()
+        implications = {"عميل": ["بيانات عميل غير دقيقة تؤثر على التحصيل والتواصل."], "قيد محاسبي": ["قيد خاطئ ينتج تقارير مالية خاطئة."], "رصيد": ["رصيد غير محدث قد يضلل قرارات التحصيل أو السداد."], "vat": ["نسبة ضريبة غير صحيحة تؤثر على الفاتورة والالتزام الضريبي."]}
+        return implications.get(key, [])
+
     def _identify_common_mistakes(self, concept: str, context: Dict) -> List[str]:
-        concept_lower = concept.lower()
-        
-        mistakes_map = {
-            'عميل': [
-                'رقم هاتف مكرر - يسبب خطأ في النظام',
-                'عدم إدخال البيانات كاملة - صعوبة التواصل',
-                'الخلط بين العميل والمورد'
-            ],
-            'قيد محاسبي': [
-                'عدم التوازن بين المدين والدائن',
-                'اختيار حساب خاطئ',
-                'نسيان VAT في القيد',
-                'قيد مكرر'
-            ],
-            'رصيد': [
-                'قراءة الرصيد بالعكس (موجب = له، خطأ!)',
-                'عدم احتساب VAT',
-                'نسيان دفعات سابقة'
-            ]
-        }
-        
-        return mistakes_map.get(concept_lower, [])
-    
+        key = concept.lower()
+        mistakes = {"عميل": ["إدخال رقم هاتف مكرر إن كان النظام يمنع ذلك.", "إدخال رصيد افتتاحي دون سند."], "قيد محاسبي": ["عدم توازن المدين والدائن.", "اختيار حساب خاطئ."], "رصيد": ["تفسير الإشارة بالعكس دون الرجوع لسياسة النظام.", "تجاهل دفعات أو استردادات."], "vat": ["افتراض نسبة ثابتة بدل قراءة الإعدادات.", "تطبيق الضريبة على عملية غير خاضعة."]}
+        return mistakes.get(key, [])
+
     def _assess_understanding_level(self, understanding: Dict) -> str:
         score = 0
-        
-        if understanding['what']:
+        for key in ["what", "why", "how"]:
+            if understanding.get(key):
+                score += 1
+        if len(understanding.get("examples", [])) >= 2:
             score += 1
-        if understanding['why']:
+        if len(understanding.get("relationships", [])) >= 1:
             score += 1
-        if understanding['how']:
+        if len(understanding.get("implications", [])) >= 1:
             score += 1
-        if len(understanding['examples']) >= 2:
-            score += 1
-        if len(understanding['relationships']) >= 2:
-            score += 1
-        if len(understanding['implications']) >= 2:
-            score += 1
-        
-        level_map = {
-            0: 'surface',
-            1: 'surface',
-            2: 'shallow',
-            3: 'moderate',
-            4: 'deep',
-            5: 'expert',
-            6: 'mastery'
-        }
-        
-        return level_map.get(score, 'surface')
-    
+        return {0: "surface", 1: "surface", 2: "shallow", 3: "moderate", 4: "deep", 5: "expert", 6: "mastery"}.get(score, "surface")
+
     def explain_fully(self, concept: str, context: Dict = None) -> str:
-        understanding = self.understand_concept(concept, context)
-        
-        parts = []
-        parts.append(f"📚 فهم عميق لـ: {concept}")
-        parts.append(f"مستوى الفهم: {understanding['level'].upper()}\n")
-        
-        if understanding['what']:
-            parts.append(f"❓ ما هو؟\n{understanding['what']}\n")
-        
-        if understanding['why']:
-            parts.append(f"💡 لماذا؟\n{understanding['why']}\n")
-        
-        if understanding['how']:
-            parts.append(f"⚙️ كيف؟\n{understanding['how']}\n")
-        
-        if understanding['when']:
-            parts.append(f"⏰ متى؟\n{understanding['when']}\n")
-        
-        if understanding['where']:
-            parts.append(f"📍 أين؟\n{understanding['where']}\n")
-        
-        if understanding['examples']:
-            parts.append("✅ أمثلة:")
-            for i, ex in enumerate(understanding['examples'], 1):
-                parts.append(f"{i}. {ex}")
-            parts.append("")
-        
-        if understanding['counterexamples']:
-            parts.append("❌ ليس:")
-            for ce in understanding['counterexamples']:
-                parts.append(f"  - {ce}")
-            parts.append("")
-        
-        if understanding['relationships']:
-            parts.append("🔗 العلاقات:")
-            for rel in understanding['relationships']:
-                parts.append(f"  - {rel}")
-            parts.append("")
-        
-        if understanding['implications']:
-            parts.append("⚡ التأثيرات:")
-            for imp in understanding['implications']:
-                parts.append(f"  - {imp}")
-            parts.append("")
-        
-        if understanding['mistakes_to_avoid']:
-            parts.append("⚠️ أخطاء شائعة:")
-            for mistake in understanding['mistakes_to_avoid']:
-                parts.append(f"  - {mistake}")
-        
-        return '\n'.join(parts)
+        u = self.understand_concept(concept, context)
+        parts = [f"📚 فهم لـ: {concept}", f"مستوى الفهم: {u['level'].upper()}\n"]
+        labels = [("what", "❓ ما هو؟"), ("why", "💡 لماذا؟"), ("how", "⚙️ كيف؟"), ("when", "⏰ متى؟"), ("where", "📍 أين؟")]
+        for key, label in labels:
+            if u.get(key):
+                parts.append(f"{label}\n{u[key]}\n")
+        for key, label in [("examples", "✅ أمثلة:"), ("counterexamples", "❌ ليس:"), ("relationships", "🔗 العلاقات:"), ("implications", "⚡ التأثيرات:"), ("mistakes_to_avoid", "⚠️ أخطاء شائعة:")]:
+            values = u.get(key) or []
+            if values:
+                parts.append(label)
+                parts.extend([f"  - {value}" for value in values])
+                parts.append("")
+        return "\n".join(parts)
 
 
 _comprehension_engine = None
+
 
 def get_comprehension_engine():
     global _comprehension_engine
@@ -333,5 +164,4 @@ def get_comprehension_engine():
     return _comprehension_engine
 
 
-__all__ = ['ComprehensionEngine', 'get_comprehension_engine']
-
+__all__ = ["ComprehensionEngine", "get_comprehension_engine"]
