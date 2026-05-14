@@ -16,8 +16,6 @@ from models import SystemSettings
 from permissions_config.enums import SystemPermissions
 
 
-# Capability map is descriptive. Actual execution is controlled by
-# can_ai_execute_action(), which denies unknown and dangerous actions by default.
 AI_CAPABILITIES: Dict[str, Dict[str, bool]] = {
     "data_access": {
         "read_customers": True,
@@ -35,13 +33,17 @@ AI_CAPABILITIES: Dict[str, Dict[str, bool]] = {
         "read_audit": True,
     },
     "data_write": {
+        "add_customer": True,
         "create_customer": True,
+        "add_supplier": True,
         "create_supplier": True,
+        "add_product": True,
         "create_product": True,
         "create_sale": True,
         "create_payment": True,
         "create_expense": True,
         "create_service": True,
+        "add_warehouse": True,
         "create_warehouse": True,
         "adjust_stock": True,
         "transfer_stock": True,
@@ -69,8 +71,6 @@ AI_CAPABILITIES: Dict[str, Dict[str, bool]] = {
 }
 
 
-# One canonical map for AI actions. Keep all actions here instead of scattering
-# permission strings across AI engines.
 ACTION_PERMISSIONS: Dict[str, str] = {
     # Customers
     "add_customer": "add_customer",
@@ -79,16 +79,19 @@ ACTION_PERMISSIONS: Dict[str, str] = {
     "read_customers": "view_customers",
 
     # Suppliers / partners
+    "add_supplier": "add_supplier",
     "create_supplier": "add_supplier",
     "update_supplier": "manage_vendors",
     "read_suppliers": "manage_vendors",
 
     # Products / inventory
+    "add_product": "manage_inventory",
     "create_product": "manage_inventory",
     "update_product": "manage_inventory",
     "read_products": "view_parts",
     "adjust_stock": "manage_inventory",
     "transfer_stock": "warehouse_transfer",
+    "add_warehouse": "manage_warehouses",
     "create_warehouse": "manage_warehouses",
 
     # Sales / invoices
@@ -120,8 +123,6 @@ ACTION_PERMISSIONS: Dict[str, str] = {
 }
 
 
-# Operations that the AI should never execute directly. They may be suggested as
-# a manual workflow, but not performed by AI automation.
 AI_NEVER_EXECUTE = {
     "delete_any",
     "delete_payment",
@@ -164,7 +165,6 @@ def _setting_to_python(value: Any, dtype: str | None, default: Any) -> Any:
 
 
 def get_ai_permission_setting(key: str, default: Any = None) -> Any:
-    """Return an AI permission setting from SystemSettings."""
     try:
         setting = SystemSettings.query.filter_by(key=key).first()
         if not setting:
@@ -175,7 +175,6 @@ def get_ai_permission_setting(key: str, default: Any = None) -> Any:
 
 
 def is_ai_enabled() -> bool:
-    """Return whether the AI assistant is globally enabled."""
     return bool(get_ai_permission_setting("ai_enabled", True))
 
 
@@ -188,13 +187,13 @@ def _has_permission(user: Any, permission: Any) -> bool:
     if not callable(checker):
         return False
     perm_value = getattr(permission, "value", permission)
-    try:
-        return bool(checker(perm_value))
-    except Exception:
+    for candidate in (perm_value, str(perm_value)):
         try:
-            return bool(checker(str(perm_value)))
+            if checker(candidate):
+                return True
         except Exception:
-            return False
+            continue
+    return False
 
 
 def _is_owner_like(user: Any) -> bool:
@@ -207,7 +206,6 @@ def _is_owner_like(user: Any) -> bool:
 
 
 def is_ai_visible_to_role(role_name: str) -> bool:
-    """Compatibility wrapper: visibility is permission-based, not role-name based."""
     if not _is_authenticated_user():
         return False
     if _is_owner_like(current_user):
@@ -216,12 +214,6 @@ def is_ai_visible_to_role(role_name: str) -> bool:
 
 
 def can_ai_execute_action(action_type: str, user_role: str | None = None) -> bool:
-    """Return whether AI may execute a specific action for the current user.
-
-    Unknown actions and destructive actions are denied by default. Write actions
-    should still require explicit user confirmation in the caller before being
-    executed.
-    """
     if not _is_authenticated_user():
         return False
 
@@ -237,7 +229,6 @@ def can_ai_execute_action(action_type: str, user_role: str | None = None) -> boo
 
 
 def get_ai_access_level(user: Any) -> str:
-    """Return one of: full, limited, readonly, none."""
     if not user or not getattr(user, "is_authenticated", False):
         return "none"
 
