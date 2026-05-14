@@ -6,7 +6,6 @@ answer navigation questions. Public function names are kept stable.
 
 from __future__ import annotations
 
-import json
 import os
 from datetime import datetime
 from pathlib import Path
@@ -14,8 +13,10 @@ from typing import Any, Dict, List, Optional
 
 from flask import current_app
 
-SYSTEM_MAP_FILE = "AI/data/ai_system_map.json"
-DISCOVERY_LOG_FILE = "AI/data/ai_discovery_log.json"
+from AI.engine.ai_storage import append_json_list, read_json, sync_training_manifest, write_json
+
+SYSTEM_MAP_FILE = "ai_system_map.json"
+DISCOVERY_LOG_FILE = "ai_discovery_log.json"
 DISCOVERY_MAX_AGE_HOURS = 24
 
 ROUTE_SYNONYMS = {
@@ -47,28 +48,6 @@ ROUTE_SYNONYMS = {
     "شحن": ["shipments", "shipment"],
     "شريك": ["partners", "partner"],
 }
-
-
-def _ensure_data_dir() -> None:
-    os.makedirs("AI/data", exist_ok=True)
-
-
-def _read_json(path: str, default: Any) -> Any:
-    try:
-        if not os.path.exists(path):
-            return default
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return default
-
-
-def _write_json(path: str, data: Any) -> None:
-    _ensure_data_dir()
-    tmp_path = f"{path}.tmp"
-    with open(tmp_path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-    os.replace(tmp_path, path)
 
 
 def discover_all_routes() -> List[Dict[str, Any]]:
@@ -178,6 +157,7 @@ def build_system_map() -> Dict[str, Any]:
     }
     save_system_map(system_map)
     log_discovery_event("auto_build", len(routes), len(templates))
+    sync_training_manifest()
     return system_map
 
 
@@ -198,28 +178,28 @@ def extract_modules(templates: List[Dict[str, Any]]) -> List[str]:
 
 def save_system_map(system_map: Dict[str, Any]) -> None:
     try:
-        _write_json(SYSTEM_MAP_FILE, system_map)
+        write_json(SYSTEM_MAP_FILE, system_map)
     except Exception:
         pass
 
 
 def load_system_map() -> Optional[Dict[str, Any]]:
-    data = _read_json(SYSTEM_MAP_FILE, None)
+    data = read_json(SYSTEM_MAP_FILE, None)
     return data if isinstance(data, dict) else None
 
 
 def log_discovery_event(event_type: str, routes_count: int, templates_count: int) -> None:
     try:
-        logs = _read_json(DISCOVERY_LOG_FILE, [])
-        if not isinstance(logs, list):
-            logs = []
-        logs.append({
-            "timestamp": datetime.now().isoformat(),
-            "event": event_type,
-            "routes_discovered": routes_count,
-            "templates_discovered": templates_count,
-        })
-        _write_json(DISCOVERY_LOG_FILE, logs[-50:])
+        append_json_list(
+            DISCOVERY_LOG_FILE,
+            {
+                "timestamp": datetime.now().isoformat(),
+                "event": event_type,
+                "routes_discovered": routes_count,
+                "templates_discovered": templates_count,
+            },
+            max_items=50,
+        )
     except Exception:
         pass
 
@@ -292,10 +272,10 @@ def get_route_suggestions(user_query: str) -> Optional[Dict[str, Any]]:
 
 
 def auto_discover_if_needed() -> Optional[Dict[str, Any]]:
-    if not os.path.exists(SYSTEM_MAP_FILE):
+    if not os.path.exists(os.path.join("AI/data", SYSTEM_MAP_FILE)):
         return build_system_map()
     try:
-        age_hours = (datetime.now().timestamp() - os.path.getmtime(SYSTEM_MAP_FILE)) / 3600
+        age_hours = (datetime.now().timestamp() - os.path.getmtime(os.path.join("AI/data", SYSTEM_MAP_FILE))) / 3600
         if age_hours > DISCOVERY_MAX_AGE_HOURS:
             return build_system_map()
     except Exception:
