@@ -1,648 +1,169 @@
-"""
-📚 AI User Guide Master - حافظ دليل المستخدم عن ظهر قلب
-════════════════════════════════════════════════════════════════════
+"""User guide knowledge for the AI assistant.
 
-وظيفة هذا الملف:
-- حفظ دليل المستخدم كاملاً
-- الإجابة على أي سؤال عن النظام
-- شرح كل ميزة بالتفصيل
-- إرشاد المستخدمين خطوة بخطوة
-- معرفة كل زر وكل حقل
-
-Created: 2025-11-01
-Version: User Guide Master 1.0 - COMPLETE KNOWLEDGE
+The guide is intentionally concise and conservative. It should help users find
+pages and understand workflows without hard-coding tax rates, inflated version
+claims, or balance-sign assumptions that may differ by installation.
 """
 
-from typing import Dict, List, Any, Optional
+from __future__ import annotations
+
+from typing import Any, Dict
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# 📚 COMPLETE USER GUIDE
-# ═══════════════════════════════════════════════════════════════════════════
-
-COMPLETE_USER_GUIDE = {
-    "system_name": "نظام إدارة كراجات السيارات - Azad Garage Manager Pro",
-    "version": "5.0 Ultimate Edition",
-    
-    # ══════════════════════════════════════════════════════════════════════
-    # 1. العملاء (Customers)
-    # ══════════════════════════════════════════════════════════════════════
+COMPLETE_USER_GUIDE: Dict[str, Any] = {
+    "system_name": "نظام أزاد لإدارة الكراج والمحاسبة",
+    "version": "غير محدد - اقرأ الإصدار من إعدادات النظام عند الحاجة",
     "customers": {
-        "description": "إدارة شاملة لعملاء الكراج",
+        "description": "إدارة العملاء وأرصدة العملاء وكشوف الحساب.",
         "main_route": "/customers",
         "features": {
             "add_customer": {
                 "route": "/customers/create",
-                "fields": {
-                    "name": "اسم العميل (إجباري)",
-                    "phone": "رقم الهاتف (إجباري، فريد)",
-                    "email": "البريد الإلكتروني (اختياري)",
-                    "address": "العنوان (اختياري)",
-                    "id_number": "رقم الهوية (اختياري)",
-                    "opening_balance": "الرصيد الافتتاحي (افتراضي: 0)",
-                    "notes": "ملاحظات (اختياري)"
-                },
-                "steps": [
-                    "1. انتقل إلى 'العملاء' من القائمة الرئيسية",
-                    "2. اضغط 'إضافة عميل جديد'",
-                    "3. املأ البيانات المطلوبة (الاسم والهاتف إجباريان)",
-                    "4. أدخل الرصيد الافتتاحي إذا كان العميل له رصيد سابق",
-                    "5. اضغط 'حفظ'",
-                    "6. سيتم إنشاء قيد محاسبي تلقائياً للرصيد الافتتاحي"
-                ],
-                "tips": [
-                    "رقم الهاتف يجب أن يكون فريداً",
-                    "الرصيد الافتتاحي الموجب = العميل له رصيد (دائن)",
-                    "الرصيد الافتتاحي السالب = العميل عليه رصيد (مدين)"
-                ],
-                "gl_effect": "يتم إنشاء قيد محاسبي تلقائياً: مدين: ذمم عملاء، دائن: رأس المال"
+                "fields": {"name": "اسم العميل", "phone": "رقم الهاتف", "email": "البريد الإلكتروني", "address": "العنوان", "opening_balance": "الرصيد الافتتاحي", "notes": "ملاحظات"},
+                "steps": ["افتح صفحة العملاء", "اضغط إضافة عميل", "أدخل الاسم والهاتف", "راجع الرصيد الافتتاحي إن وجد", "اضغط حفظ"],
+                "tips": ["تفسير موجب/سالب الرصيد يعتمد على سياسة النظام", "رقم الهاتف يفضل أن يكون فريدًا", "راجع الرصيد الافتتاحي قبل الحفظ"],
+                "gl_effect": "قد ينشأ قيد افتتاحي حسب إعدادات النظام.",
             },
-            "view_customers": {
-                "route": "/customers",
-                "features": [
-                    "عرض جميع العملاء في جدول",
-                    "البحث بالاسم أو الهاتف",
-                    "ترتيب حسب الرصيد أو التاريخ",
-                    "عرض الرصيد الحالي لكل عميل",
-                    "ألوان الرصيد: أحمر (عليه)، أخضر (له)"
-                ]
-            },
-            "customer_statement": {
-                "route": "/customers/<id>/statement",
-                "description": "كشف حساب تفصيلي للعميل",
-                "shows": [
-                    "الرصيد الافتتاحي",
-                    "جميع المبيعات (مدين)",
-                    "جميع الدفعات (دائن)",
-                    "الفواتير",
-                    "الخدمات",
-                    "الرصيد النهائي"
-                ],
-                "filters": [
-                    "حسب التاريخ (من - إلى)",
-                    "حسب نوع المعاملة"
-                ]
-            },
-            "edit_customer": {
-                "route": "/customers/<id>/edit",
-                "note": "يمكن تعديل كل البيانات ما عدا الرصيد الافتتاحي (يتطلب صلاحيات خاصة)"
-            },
-            "delete_customer": {
-                "route": "/customers/<id>/delete",
-                "note": "حذف منطقي فقط - لا يتم حذف البيانات من قاعدة البيانات",
-                "conditions": [
-                    "لا توجد معاملات مالية للعميل",
-                    "الرصيد = 0"
-                ]
-            }
-        }
+            "customer_statement": {"route": "/customers/<id>/statement", "description": "كشف حساب العميل", "shows": ["الرصيد الافتتاحي", "المبيعات/الفواتير", "الدفعات", "الرصيد النهائي"], "filters": ["من تاريخ", "إلى تاريخ", "نوع المعاملة"]},
+        },
     },
-    
-    # ══════════════════════════════════════════════════════════════════════
-    # 2. الموردين (Suppliers)
-    # ══════════════════════════════════════════════════════════════════════
     "suppliers": {
-        "description": "إدارة موردي قطع الغيار والمنتجات",
+        "description": "إدارة الموردين وكشوف حساباتهم.",
         "main_route": "/suppliers",
-        "features": {
-            "add_supplier": {
-                "route": "/suppliers/create",
-                "fields": {
-                    "name": "اسم المورد (إجباري)",
-                    "phone": "رقم الهاتف (إجباري، فريد)",
-                    "email": "البريد الإلكتروني (اختياري)",
-                    "address": "العنوان (اختياري)",
-                    "company": "اسم الشركة (اختياري)",
-                    "opening_balance": "الرصيد الافتتاحي",
-                    "notes": "ملاحظات"
-                },
-                "gl_effect": "قيد افتتاحي: مدين: رأس المال، دائن: ذمم موردين"
-            },
-            "supplier_statement": {
-                "description": "كشف حساب المورد",
-                "shows": [
-                    "المشتريات (دائن - ما ندين له)",
-                    "الدفعات (مدين - ما دفعنا له)",
-                    "الرصيد (سالب = ندين له، موجب = دائن لنا)"
-                ]
-            }
-        }
+        "features": {"add_supplier": {"route": "/suppliers/create", "fields": {"name": "اسم المورد", "phone": "رقم الهاتف", "email": "البريد الإلكتروني", "address": "العنوان", "opening_balance": "الرصيد الافتتاحي", "notes": "ملاحظات"}, "gl_effect": "قد ينشأ قيد افتتاحي حسب إعدادات النظام."}},
     },
-    
-    # ══════════════════════════════════════════════════════════════════════
-    # 3. المنتجات (Products)
-    # ══════════════════════════════════════════════════════════════════════
     "products": {
-        "description": "إدارة قطع الغيار والمنتجات",
+        "description": "إدارة المنتجات وقطع الغيار والأسعار والمخزون.",
         "main_route": "/products",
-        "features": {
-            "add_product": {
-                "route": "/products/create",
-                "fields": {
-                    "name": "اسم المنتج (إجباري)",
-                    "barcode": "الباركود (اختياري، فريد)",
-                    "category": "التصنيف (قطع غيار، زيوت، إطارات، إلخ)",
-                    "cost_price": "سعر التكلفة",
-                    "selling_price": "سعر البيع",
-                    "min_quantity": "الحد الأدنى للمخزون",
-                    "reorder_level": "نقطة إعادة الطلب",
-                    "notes": "ملاحظات"
-                },
-                "features": [
-                    "تنبيه تلقائي عند وصول المخزون للحد الأدنى",
-                    "حساب هامش الربح تلقائياً",
-                    "دعم الباركود"
-                ]
-            },
-            "stock_levels": {
-                "description": "مستويات المخزون في كل مستودع",
-                "features": [
-                    "عرض الكمية في كل مستودع",
-                    "المخزون الكلي",
-                    "تنبيهات المخزون المنخفض"
-                ]
-            }
-        }
+        "features": {"add_product": {"route": "/products/create", "fields": {"name": "اسم المنتج", "sku": "رمز المنتج", "barcode": "الباركود", "cost_price": "سعر التكلفة", "selling_price": "سعر البيع", "min_quantity": "الحد الأدنى"}, "features": ["دعم الباركود", "ربط المنتج بالمخزون", "متابعة الحد الأدنى"]}},
     },
-    
-    # ══════════════════════════════════════════════════════════════════════
-    # 4. المبيعات (Sales)
-    # ══════════════════════════════════════════════════════════════════════
     "sales": {
-        "description": "إدارة مبيعات قطع الغيار",
+        "description": "إدارة المبيعات وفواتير البيع وتأثيرها على المخزون والذمم.",
         "main_route": "/sales",
         "features": {
             "create_sale": {
                 "route": "/sales/create",
-                "steps": [
-                    "1. اختر العميل (أو نقدي/كاش)",
-                    "2. اختر المستودع",
-                    "3. أضف المنتجات (ابحث بالاسم أو امسح الباركود)",
-                    "4. حدد الكمية والسعر لكل منتج",
-                    "5. أضف خصم إذا لزم (نسبة مئوية أو قيمة ثابتة)",
-                    "6. النظام يحسب الـ VAT تلقائياً (16%)",
-                    "7. اضغط 'حفظ'",
-                    "8. يمكنك طباعة الفاتورة"
-                ],
-                "calculations": {
-                    "subtotal": "مجموع المنتجات (قبل الخصم)",
-                    "discount": "الخصم (نسبة أو قيمة)",
-                    "net": "الصافي بعد الخصم",
-                    "vat": "ضريبة القيمة المضافة (16% من الصافي)",
-                    "total": "الإجمالي النهائي (الصافي + VAT)"
-                },
-                "gl_entries": {
-                    "debit": [
-                        {"account": "ذمم عملاء (1300)", "amount": "الإجمالي"}
-                    ],
-                    "credit": [
-                        {"account": "مبيعات (4000)", "amount": "الصافي"},
-                        {"account": "ضريبة القيمة المضافة (2100)", "amount": "VAT"}
-                    ]
-                },
-                "stock_effect": "يتم خصم الكمية من المستودع المختار تلقائياً",
-                "partner_warehouse": {
-                    "note": "إذا كان المستودع من نوع 'شريك'، يتم إنشاء ذمة للشريك تلقائياً"
-                }
+                "steps": ["اختر العميل", "اختر المستودع", "أضف المنتجات والكميات", "راجع الخصم والضريبة من إعدادات النظام", "احفظ الفاتورة", "اطبعها عند الحاجة"],
+                "calculations": {"subtotal": "مجموع البنود", "discount": "الخصم", "net": "الصافي", "vat": "ضريبة حسب إعدادات النظام", "total": "الإجمالي النهائي"},
+                "gl_entries": {"note": "تُنشأ القيود حسب إعدادات دفتر الأستاذ ودليل الحسابات."},
+                "stock_effect": "عادة يتم خصم الكمية من المستودع المختار عند تأكيد البيع.",
             },
-            "view_sales": {
-                "route": "/sales",
-                "features": [
-                    "عرض جميع المبيعات",
-                    "فلترة حسب التاريخ",
-                    "فلترة حسب العميل",
-                    "فلترة حسب المستودع",
-                    "البحث برقم الفاتورة",
-                    "عرض الإجمالي والربح"
-                ]
-            },
-            "sale_details": {
-                "route": "/sales/<id>",
-                "shows": [
-                    "تفاصيل البيع كاملة",
-                    "المنتجات المباعة",
-                    "القيود المحاسبية المرتبطة",
-                    "الدفعات المرتبطة",
-                    "إمكانية الطباعة"
-                ]
-            }
-        }
+            "view_sales": {"route": "/sales", "features": ["عرض المبيعات", "فلترة بالتاريخ", "البحث برقم الفاتورة أو العميل", "عرض الإجماليات حسب الصلاحيات"]},
+        },
     },
-    
-    # ══════════════════════════════════════════════════════════════════════
-    # 5. الدفعات (Payments)
-    # ══════════════════════════════════════════════════════════════════════
     "payments": {
-        "description": "إدارة الدفعات الواردة والصادرة",
+        "description": "إدارة الدفعات الواردة والصادرة.",
         "main_route": "/payments",
-        "types": {
-            "incoming": {
-                "description": "دفعة واردة (من العميل إلينا)",
-                "direction": "IN",
-                "gl_entry": {
-                    "debit": "الصندوق/البنك",
-                    "credit": "ذمم عملاء"
-                }
-            },
-            "outgoing": {
-                "description": "دفعة صادرة (منا للمورد/شريك)",
-                "direction": "OUT",
-                "gl_entry": {
-                    "debit": "ذمم موردين/شركاء",
-                    "credit": "الصندوق/البنك"
-                }
-            }
-        },
-        "payment_methods": {
-            "CASH": "نقدي (يؤثر على الصندوق)",
-            "BANK": "بنكي (يؤثر على البنك)",
-            "CARD": "بطاقة ائتمان",
-            "CHECK": "شيك (يتطلب رقم شيك)"
-        },
-        "features": {
-            "create_payment": {
-                "route": "/payments/create",
-                "fields": {
-                    "direction": "IN (وارد) أو OUT (صادر)",
-                    "method": "طريقة الدفع",
-                    "entity_type": "نوع الجهة (عميل/مورد/شريك)",
-                    "entity_id": "الجهة المحددة",
-                    "amount": "المبلغ",
-                    "reference": "المرجع (رقم شيك، رقم حوالة، إلخ)",
-                    "notes": "ملاحظات"
-                }
-            },
-            "link_to_sale": {
-                "description": "ربط الدفعة بفاتورة محددة",
-                "benefit": "لتتبع دفعات الفواتير"
-            }
-        }
+        "types": {"incoming": {"direction": "IN", "description": "دفعة واردة"}, "outgoing": {"direction": "OUT", "description": "دفعة صادرة"}},
+        "payment_methods": {"CASH": "نقدي", "BANK": "بنكي", "CARD": "بطاقة", "CHECK": "شيك"},
+        "features": {"create_payment": {"route": "/payments/create", "fields": {"direction": "IN أو OUT", "method": "طريقة الدفع", "entity_type": "نوع الجهة", "entity_id": "الجهة", "amount": "المبلغ", "reference": "مرجع", "notes": "ملاحظات"}}},
     },
-    
-    # ══════════════════════════════════════════════════════════════════════
-    # 6. المخازن (Warehouses)
-    # ══════════════════════════════════════════════════════════════════════
     "warehouses": {
-        "description": "إدارة المستودعات",
+        "description": "إدارة المستودعات وحركة المخزون.",
         "main_route": "/warehouses",
-        "types": {
-            "MAIN": "المستودع الرئيسي",
-            "ONLINE": "المتجر الإلكتروني",
-            "PARTNER": "مستودع شريك",
-            "INVENTORY": "جرد",
-            "EXCHANGE": "استبدال"
-        },
-        "features": {
-            "stock_transfer": {
-                "route": "/warehouses/transfer",
-                "description": "نقل بضاعة بين مستودعين",
-                "gl_effect": "لا يوجد قيد محاسبي (نقل داخلي فقط)"
-            },
-            "stock_adjustment": {
-                "route": "/warehouses/adjust",
-                "description": "تعديل المخزون (جرد، تالف، مفقود)",
-                "gl_effect": "حسب نوع التعديل"
-            }
-        }
+        "types": {"MAIN": "رئيسي", "ONLINE": "متجر إلكتروني", "PARTNER": "شريك", "INVENTORY": "جرد", "EXCHANGE": "تبادل"},
+        "features": {"stock_transfer": {"route": "/warehouses/transfer", "description": "نقل بضاعة بين مستودعات"}, "stock_adjustment": {"route": "/warehouses/adjust", "description": "تعديل مخزون بسبب جرد أو تلف أو فرق"}},
     },
-    
-    # ══════════════════════════════════════════════════════════════════════
-    # 7. المصروفات (Expenses)
-    # ══════════════════════════════════════════════════════════════════════
     "expenses": {
-        "description": "تسجيل مصروفات الكراج",
+        "description": "تسجيل ومتابعة المصروفات.",
         "main_route": "/expenses",
-        "categories": [
-            "رواتب",
-            "إيجار",
-            "كهرباء ومياه",
-            "صيانة",
-            "مواصلات",
-            "قرطاسية",
-            "أخرى"
-        ],
-        "features": {
-            "create_expense": {
-                "route": "/expenses/create",
-                "fields": {
-                    "category": "التصنيف",
-                    "amount": "المبلغ",
-                    "description": "الوصف",
-                    "date": "التاريخ",
-                    "payment_method": "طريقة الدفع",
-                    "reference": "المرجع"
-                },
-                "gl_effect": "مدين: مصروفات، دائن: الصندوق/البنك"
-            }
-        }
+        "categories": ["رواتب", "إيجار", "كهرباء ومياه", "صيانة", "مواصلات", "قرطاسية", "أخرى"],
+        "features": {"create_expense": {"route": "/expenses/create", "fields": {"category": "التصنيف", "amount": "المبلغ", "description": "الوصف", "date": "التاريخ", "payment_method": "طريقة الدفع", "reference": "المرجع"}, "gl_effect": "حسب إعدادات المصروف ووسيلة الدفع."}},
     },
-    
-    # ══════════════════════════════════════════════════════════════════════
-    # 8. الصيانة (Services)
-    # ══════════════════════════════════════════════════════════════════════
     "services": {
-        "description": "إدارة طلبات الصيانة",
+        "description": "إدارة طلبات الصيانة ومراحل العمل وقطع الغيار.",
         "main_route": "/services",
-        "workflow": {
-            "1_create": "إنشاء طلب صيانة",
-            "2_assign": "تعيين ميكانيكي",
-            "3_start": "بدء العمل",
-            "4_complete": "إكمال الصيانة",
-            "5_invoice": "إنشاء فاتورة"
-        },
-        "statuses": {
-            "pending": "معلق",
-            "in_progress": "جاري العمل",
-            "completed": "مكتمل",
-            "cancelled": "ملغي"
-        },
-        "features": {
-            "create_service": {
-                "route": "/services/create",
-                "fields": {
-                    "customer_id": "العميل",
-                    "car_info": "معلومات السيارة (نوع، موديل، رقم)",
-                    "description": "وصف العطل",
-                    "mechanic_id": "الميكانيكي المسؤول",
-                    "estimated_cost": "التكلفة المتوقعة",
-                    "estimated_time": "الوقت المتوقع"
-                }
-            },
-            "service_parts": {
-                "description": "إضافة قطع غيار مستخدمة في الصيانة",
-                "effect": "يتم خصمها من المخزون"
-            },
-            "complete_service": {
-                "description": "إكمال الصيانة",
-                "creates": "فاتورة تلقائية (قطع الغيار + أجرة العمل)"
-            }
-        }
+        "workflow": {"1_create": "إنشاء طلب", "2_assign": "تعيين مسؤول", "3_start": "بدء العمل", "4_complete": "إكمال", "5_invoice": "فوترة عند الحاجة"},
+        "statuses": {"pending": "معلق", "in_progress": "جاري العمل", "completed": "مكتمل", "cancelled": "ملغي"},
+        "features": {"create_service": {"route": "/services/create", "fields": {"customer_id": "العميل", "car_info": "معلومات السيارة", "description": "وصف العطل", "mechanic_id": "المسؤول", "estimated_cost": "التكلفة المتوقعة"}}},
     },
-    
-    # ══════════════════════════════════════════════════════════════════════
-    # 9. التقارير (Reports)
-    # ══════════════════════════════════════════════════════════════════════
     "reports": {
-        "description": "تقارير شاملة",
-        "types": {
-            "financial": {
-                "balance_sheet": {
-                    "route": "/reports/balance-sheet",
-                    "description": "الميزانية العمومية",
-                    "shows": ["الأصول", "الخصوم", "حقوق الملكية"]
-                },
-                "income_statement": {
-                    "route": "/reports/income-statement",
-                    "description": "قائمة الدخل",
-                    "shows": ["الإيرادات", "المصروفات", "صافي الربح"]
-                },
-                "trial_balance": {
-                    "route": "/reports/trial-balance",
-                    "description": "ميزان المراجعة",
-                    "shows": ["كل الحسابات مع المدين والدائن"]
-                },
-                "cash_flow": {
-                    "route": "/reports/cash-flow",
-                    "description": "التدفقات النقدية"
-                }
-            },
-            "sales": {
-                "sales_report": "تقرير المبيعات (يومي، شهري، سنوي)",
-                "top_customers": "أفضل العملاء",
-                "top_products": "أكثر المنتجات مبيعاً"
-            },
-            "inventory": {
-                "stock_report": "تقرير المخزون الحالي",
-                "stock_movements": "حركة المخزون",
-                "low_stock": "منتجات منخفضة المخزون"
-            }
-        }
+        "description": "تقارير مالية وتشغيلية حسب الصلاحيات.",
+        "main_route": "/reports",
+        "types": {"financial": ["ميزان المراجعة", "قائمة الدخل", "الميزانية", "التدفقات النقدية"], "sales": ["تقرير المبيعات", "أفضل العملاء", "أفضل المنتجات"], "inventory": ["تقرير المخزون", "حركة المخزون", "المخزون المنخفض"]},
     },
-    
-    # ══════════════════════════════════════════════════════════════════════
-    # 10. دفتر الأستاذ (General Ledger)
-    # ══════════════════════════════════════════════════════════════════════
     "general_ledger": {
-        "description": "النظام المحاسبي الكامل",
+        "description": "دفتر الأستاذ والقيود المحاسبية.",
         "main_route": "/gl",
-        "concepts": {
-            "chart_of_accounts": {
-                "description": "دليل الحسابات - 87 حساب",
-                "categories": {
-                    "1000": "الأصول (Assets)",
-                    "2000": "الخصوم (Liabilities)",
-                    "3000": "حقوق الملكية (Equity)",
-                    "4000": "الإيرادات (Revenue)",
-                    "5000": "المصروفات (Expenses)"
-                }
-            },
-            "gl_entries": {
-                "description": "القيود المحاسبية",
-                "rule": "المدين = الدائن (دائماً)",
-                "auto_creation": "يتم إنشاء القيود تلقائياً لكل معاملة"
-            },
-            "gl_batch": {
-                "description": "دفعة قيود (مجموعة قيود لمعاملة واحدة)",
-                "contains": "قيد أو أكثر، مرتبطة بمعاملة محددة"
-            }
-        },
-        "features": {
-            "view_gl": {
-                "route": "/gl",
-                "shows": "كل القيود المحاسبية مع إمكانية الفلترة"
-            },
-            "account_ledger": {
-                "route": "/gl/account/<account_code>",
-                "shows": "دفتر الأستاذ لحساب محدد"
-            }
-        }
-    }
+        "concepts": {"chart_of_accounts": {"description": "دليل الحسابات الفعلي يجب قراءته من النظام"}, "gl_entries": {"description": "القيود المحاسبية", "rule": "المدين = الدائن"}, "gl_batch": {"description": "مجموعة قيود مرتبطة بمعاملة"}},
+        "features": {"view_gl": {"route": "/gl", "shows": "القيود المحاسبية"}, "account_ledger": {"route": "/gl/account/<account_code>", "shows": "حركة حساب محدد"}},
+    },
 }
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# 🎓 USER GUIDE MASTER
-# ═══════════════════════════════════════════════════════════════════════════
+GUIDE_MODULE_KEYS = ["customers", "suppliers", "products", "sales", "payments", "warehouses", "expenses", "services", "reports", "general_ledger"]
+
 
 class UserGuideMaster:
-    """
-    حافظ دليل المستخدم - يعرف كل شيء
-    
-    القدرات:
-    1. الإجابة على أي سؤال عن النظام
-    2. شرح أي ميزة بالتفصيل
-    3. إرشاد خطوة بخطوة
-    4. معرفة كل زر وكل حقل
-    """
-    
     def __init__(self):
         self.guide = COMPLETE_USER_GUIDE
         self.shortcuts = self._build_shortcuts()
-    
+
     def answer_question(self, question: str) -> Dict[str, Any]:
-        """
-        الإجابة على سؤال عن النظام
-        
-        Args:
-            question: السؤال
-        
-        Returns:
-            إجابة شاملة مع خطوات
-        """
+        question = str(question or "")
         question_lower = question.lower()
-        
-        # اكتشاف الموضوع
-        if any(word in question_lower for word in ['عميل', 'customer', 'زبون']):
+        if any(word in question_lower for word in ["عميل", "customer", "زبون"]):
             return self._explain_customers(question)
-        
-        elif any(word in question_lower for word in ['مورد', 'supplier']):
-            return self._explain_suppliers(question)
-        
-        elif any(word in question_lower for word in ['منتج', 'product', 'قطعة', 'بضاعة']):
-            return self._explain_products(question)
-        
-        elif any(word in question_lower for word in ['بيع', 'مبيعات', 'sale', 'فاتورة']):
+        if any(word in question_lower for word in ["مورد", "supplier"]):
+            return self._module_response("suppliers", "الموردين")
+        if any(word in question_lower for word in ["منتج", "product", "قطعة", "بضاعة"]):
+            return self._module_response("products", "المنتجات")
+        if any(word in question_lower for word in ["بيع", "مبيعات", "sale", "فاتورة"]):
             return self._explain_sales(question)
-        
-        elif any(word in question_lower for word in ['دفعة', 'payment', 'دفع']):
-            return self._explain_payments(question)
-        
-        elif any(word in question_lower for word in ['مخزن', 'warehouse', 'مستودع']):
-            return self._explain_warehouses(question)
-        
-        elif any(word in question_lower for word in ['مصروف', 'expense']):
-            return self._explain_expenses(question)
-        
-        elif any(word in question_lower for word in ['صيانة', 'service', 'ورشة']):
-            return self._explain_services(question)
-        
-        elif any(word in question_lower for word in ['تقرير', 'report']):
-            return self._explain_reports(question)
-        
-        elif any(word in question_lower for word in ['محاسب', 'قيد', 'gl', 'ledger']):
+        if any(word in question_lower for word in ["دفعة", "payment", "دفع"]):
+            return self._module_response("payments", "الدفعات")
+        if any(word in question_lower for word in ["مخزن", "warehouse", "مستودع"]):
+            return self._module_response("warehouses", "المخازن")
+        if any(word in question_lower for word in ["مصروف", "expense"]):
+            return self._module_response("expenses", "المصروفات")
+        if any(word in question_lower for word in ["صيانة", "service", "ورشة"]):
+            return self._module_response("services", "الصيانة")
+        if any(word in question_lower for word in ["تقرير", "report"]):
+            return self._module_response("reports", "التقارير")
+        if any(word in question_lower for word in ["محاسب", "قيد", "gl", "ledger"]):
             return self._explain_gl(question)
-        
-        else:
-            return self._general_help()
-    
-    def _explain_customers(self, question: str) -> Dict:
-        """شرح إدارة العملاء"""
-        customers = self.guide['customers']
-        
-        if 'إضافة' in question or 'add' in question.lower():
-            feature = customers['features']['add_customer']
-            return {
-                'topic': 'إضافة عميل جديد',
-                'route': feature['route'],
-                'steps': feature['steps'],
-                'fields': feature['fields'],
-                'tips': feature['tips'],
-                'gl_effect': feature['gl_effect']
-            }
-        
-        elif 'كشف' in question or 'statement' in question.lower():
-            feature = customers['features']['customer_statement']
-            return {
-                'topic': 'كشف حساب العميل',
-                'description': feature['description'],
-                'route': feature['route'],
-                'shows': feature['shows'],
-                'filters': feature['filters']
-            }
-        
-        else:
-            return {
-                'topic': 'إدارة العملاء',
-                'description': customers['description'],
-                'route': customers['main_route'],
-                'features': list(customers['features'].keys())
-            }
-    
-    def _explain_sales(self, question: str) -> Dict:
-        """شرح المبيعات"""
-        sales = self.guide['sales']
-        
-        if 'إنشاء' in question or 'create' in question.lower() or 'add' in question.lower():
-            feature = sales['features']['create_sale']
-            return {
-                'topic': 'إنشاء فاتورة بيع',
-                'route': feature['route'],
-                'steps': feature['steps'],
-                'calculations': feature['calculations'],
-                'gl_entries': feature['gl_entries'],
-                'stock_effect': feature['stock_effect']
-            }
-        
-        else:
-            return {
-                'topic': 'المبيعات',
-                'description': sales['description'],
-                'route': sales['main_route'],
-                'features': list(sales['features'].keys())
-            }
-    
-    def _explain_gl(self, question: str) -> Dict:
-        """شرح دفتر الأستاذ"""
-        gl = self.guide['general_ledger']
-        
-        return {
-            'topic': 'دفتر الأستاذ العام',
-            'description': gl['description'],
-            'route': gl['main_route'],
-            'concepts': gl['concepts'],
-            'features': gl['features']
-        }
-    
-    def _build_shortcuts(self) -> Dict:
-        """بناء اختصارات سريعة"""
-        return {
-            'add_customer': '/customers/create',
-            'add_supplier': '/suppliers/create',
-            'add_product': '/products/create',
-            'create_sale': '/sales/create',
-            'create_payment': '/payments/create',
-            'view_reports': '/reports',
-            'balance_sheet': '/reports/balance-sheet',
-            'income_statement': '/reports/income-statement'
-        }
-    
-    def _explain_suppliers(self, q): return {'topic': 'الموردين', 'guide': self.guide['suppliers']}
-    def _explain_products(self, q): return {'topic': 'المنتجات', 'guide': self.guide['products']}
-    def _explain_payments(self, q): return {'topic': 'الدفعات', 'guide': self.guide['payments']}
-    def _explain_warehouses(self, q): return {'topic': 'المخازن', 'guide': self.guide['warehouses']}
-    def _explain_expenses(self, q): return {'topic': 'المصروفات', 'guide': self.guide['expenses']}
-    def _explain_services(self, q): return {'topic': 'الصيانة', 'guide': self.guide['services']}
-    def _explain_reports(self, q): return {'topic': 'التقارير', 'guide': self.guide['reports']}
-    
-    def _general_help(self) -> Dict:
-        """مساعدة عامة"""
-        return {
-            'system_name': self.guide['system_name'],
-            'version': self.guide['version'],
-            'modules': list(self.guide.keys()),
-            'message': 'أنا أعرف كل شيء عن النظام! اسألني أي سؤال محدد.'
-        }
+        return self._general_help()
 
+    def _explain_customers(self, question: str) -> Dict[str, Any]:
+        customers = self.guide["customers"]
+        if any(word in question for word in ["إضافة", "اضافة", "أضف", "اضف"]) or "add" in question.lower():
+            feature = customers["features"]["add_customer"]
+            return {"topic": "إضافة عميل جديد", "route": feature["route"], "steps": feature["steps"], "fields": feature["fields"], "tips": feature["tips"], "gl_effect": feature["gl_effect"]}
+        if "كشف" in question or "statement" in question.lower():
+            feature = customers["features"]["customer_statement"]
+            return {"topic": "كشف حساب العميل", "description": feature["description"], "route": feature["route"], "shows": feature["shows"], "filters": feature["filters"]}
+        return {"topic": "إدارة العملاء", "description": customers["description"], "route": customers["main_route"], "features": list(customers["features"].keys())}
 
-# ═══════════════════════════════════════════════════════════════════════════
-# 🎯 SINGLETON
-# ═══════════════════════════════════════════════════════════════════════════
+    def _explain_sales(self, question: str) -> Dict[str, Any]:
+        sales = self.guide["sales"]
+        if any(word in question for word in ["إنشاء", "انشاء", "إضافة", "اضافة"]) or any(word in question.lower() for word in ["create", "add"]):
+            feature = sales["features"]["create_sale"]
+            return {"topic": "إنشاء فاتورة بيع", "route": feature["route"], "steps": feature["steps"], "calculations": feature["calculations"], "gl_entries": feature["gl_entries"], "stock_effect": feature["stock_effect"]}
+        return {"topic": "المبيعات", "description": sales["description"], "route": sales["main_route"], "features": list(sales["features"].keys())}
+
+    def _explain_gl(self, question: str) -> Dict[str, Any]:
+        gl = self.guide["general_ledger"]
+        return {"topic": "دفتر الأستاذ العام", "description": gl["description"], "route": gl["main_route"], "concepts": gl["concepts"], "features": gl["features"]}
+
+    def _module_response(self, key: str, topic: str) -> Dict[str, Any]:
+        module = self.guide[key]
+        return {"topic": topic, "description": module.get("description"), "route": module.get("main_route"), "features": list((module.get("features") or {}).keys()), "summary": {k: v for k, v in module.items() if k not in {"features"} and k in {"types", "workflow", "statuses", "categories"}}}
+
+    def _build_shortcuts(self) -> Dict[str, str]:
+        return {"add_customer": "/customers/create", "add_supplier": "/suppliers/create", "add_product": "/products/create", "create_sale": "/sales/create", "create_payment": "/payments/create", "view_reports": "/reports", "view_gl": "/gl"}
+
+    def _general_help(self) -> Dict[str, Any]:
+        return {"system_name": self.guide["system_name"], "version": self.guide["version"], "modules": GUIDE_MODULE_KEYS, "message": "اسألني عن العملاء، الموردين، المنتجات، المبيعات، الدفعات، المخازن، المصروفات، الصيانة، التقارير، أو دفتر الأستاذ."}
+
 
 _guide_master = None
 
+
 def get_user_guide_master() -> UserGuideMaster:
-    """الحصول على حافظ الدليل (Singleton)"""
     global _guide_master
-    
     if _guide_master is None:
         _guide_master = UserGuideMaster()
-    
     return _guide_master
 
 
-__all__ = [
-    'UserGuideMaster',
-    'get_user_guide_master',
-    'COMPLETE_USER_GUIDE'
-]
-
+__all__ = ["UserGuideMaster", "get_user_guide_master", "COMPLETE_USER_GUIDE", "GUIDE_MODULE_KEYS"]
