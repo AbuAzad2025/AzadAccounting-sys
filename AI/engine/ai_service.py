@@ -1,9 +1,8 @@
-"""AI service facade.
+"""AI service facade for Azad Accounting/Garage system.
 
-Stable public facade for the Azad Accounting/Garage AI assistant.
-It keeps the old public function names, removes broken prompt construction,
-uses guarded database reads, and keeps local mode available when external APIs
-are unavailable.
+All answers and context use live database/schema data where possible. This file
+keeps the public API stable while avoiding fabricated totals, fixed tax rates,
+and wrong model fields.
 """
 
 from __future__ import annotations
@@ -15,8 +14,7 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any, Dict, List, Optional, Tuple
 
-import psutil
-from sqlalchemy import func, text
+from sqlalchemy import func, or_, text
 
 from extensions import cache, db
 from models import SystemSettings
@@ -37,7 +35,7 @@ _system_state = "LOCAL_ONLY"
 LOCAL_MODE_LOG_FILE = "ai_local_mode_log.json"
 MAX_MEMORY_MESSAGES = 50
 
-COMPANY_PROFILE = {
+DEFAULT_COMPANY_PROFILE = {
     "company_name": "Azad company",
     "system_name": "نظام أزاد لإدارة الكراج والمحاسبة",
     "owner_name": "Ahmad ghannam",
@@ -45,10 +43,8 @@ COMPANY_PROFILE = {
     "phone": "0562150193",
 }
 
+COMPANY_PROFILE = dict(DEFAULT_COMPANY_PROFILE)
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Safe helpers
-# ─────────────────────────────────────────────────────────────────────────────
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
@@ -105,6 +101,29 @@ def _sum_column(model, names: List[str], filters: Optional[List[Any]] = None) ->
         return Decimal("0")
 
 
+def _enum_value(value: Any) -> Any:
+    return getattr(value, "value", value)
+
+
+def _ilike(model, *fields: str, value: str):
+    clauses = []
+    for field in fields:
+        col = getattr(model, field, None)
+        if col is not None:
+            clauses.append(col.ilike(f"%{value}%"))
+    return or_(*clauses) if clauses else None
+
+
+def _setting(key: str, default: str = "") -> str:
+    try:
+        setting = SystemSettings.query.filter_by(key=key).first()
+        if setting and setting.value not in (None, ""):
+            return str(setting.value)
+    except Exception:
+        pass
+    return default
+
+
 def _knowledge_structure() -> Dict[str, Any]:
     try:
         kb = get_knowledge_base()
@@ -126,43 +145,57 @@ def _knowledge_structure() -> Dict[str, Any]:
 
 
 def get_company_profile() -> Dict[str, str]:
-    return dict(COMPANY_PROFILE)
+    profile = dict(DEFAULT_COMPANY_PROFILE)
+    keys = {
+        "company_name": ["company_name", "COMPANY_NAME", "business_name"],
+        "system_name": ["system_name", "SYSTEM_NAME", "app_name"],
+        "owner_name": ["owner_name", "OWNER_NAME", "developer_name"],
+        "owner_display_name": ["owner_display_name", "OWNER_DISPLAY_NAME", "developer_display_name"],
+        "phone": ["company_phone", "phone", "COMPANY_PHONE", "owner_phone"],
+    }
+    for out_key, setting_keys in keys.items():
+        for setting_key in setting_keys:
+            value = _setting(setting_key, "")
+            if value:
+                profile[out_key] = value
+                break
+    return profile
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Settings and live context
-# ─────────────────────────────────────────────────────────────────────────────
 
 def get_system_setting(key, default=""):
+    return _setting(str(key), default)
+
+
+def _latest_usd_ils_rate() -> str:
     try:
-        setting = SystemSettings.query.filter_by(key=key).first()
-        return setting.value if setting else default
+        from models import ExchangeRate
+        row = ExchangeRate.query.filter_by(base_code="USD", quote_code="ILS", is_active=True).order_by(ExchangeRate.valid_from.desc()).first()
+        if row:
+            valid_from = row.valid_from.strftime("%Y-%m-%d") if getattr(row, "valid_from", None) else "غير مؤرخ"
+            return f"{float(row.rate):.4f} ({valid_from}, {row.source or 'system'})"
     except Exception:
-        return default
+        pass
+    return "غير متوفر"
 
 
 def gather_system_context():
-    """Collect live system context without fabricated totals."""
     try:
-        from models import AuditLog, Customer, Expense, ExchangeTransaction, Note, Payment, Product, Role, ServiceRequest, Shipment, StockLevel, Supplier, User, Warehouse
+        import psutil
+        from models import AuditLog, Customer, Expense, Note, Payment, Product, Role, ServiceRequest, ServiceStatus, Shipment, StockLevel, Supplier, User, Warehouse
 
+        company = get_company_profile()
         cpu_usage = psutil.cpu_percent(interval=0.1)
         memory = psutil.virtual_memory()
         today = _now().date()
+        pending_status = ServiceStatus.PENDING.value
+        completed_status = ServiceStatus.COMPLETED.value
 
         db_size = "غير معروف"
-        db_health = "نشط"
         try:
             result = db.session.execute(text("SELECT pg_database_size(current_database())")).scalar()
             db_size = f"{float(result or 0) / (1024 ** 2):.2f} MB"
         except Exception:
             pass
-
-        try:
-            latest_fx = ExchangeTransaction.query.filter_by(from_currency="USD", to_currency="ILS").order_by(ExchangeTransaction.created_at.desc()).first()
-            context_fx_rate = f"{float(latest_fx.rate):.4f} ({latest_fx.created_at.strftime('%Y-%m-%d')})" if latest_fx else "غير متوفر"
-        except Exception:
-            context_fx_rate = "غير متوفر"
 
         total_users = _cached_count(User, "total_users")
         active_users = _cached_count(User, "active_users", lambda: User.query.filter_by(is_active=True).count())
@@ -189,16 +222,15 @@ def gather_system_context():
         )
 
         return {
-            **COMPANY_PROFILE,
-            "system_name": COMPANY_PROFILE["system_name"],
-            "version": get_system_setting("SYSTEM_VERSION", "غير محدد"),
+            **company,
+            "version": _setting("SYSTEM_VERSION", "غير محدد"),
             "roles_count": _cached_count(Role, "roles_count"),
             "roles": roles,
             "total_users": total_users,
             "active_users": active_users,
             "total_services": total_services,
-            "pending_services": _cached_count(ServiceRequest, "pending_services", lambda: ServiceRequest.query.filter_by(status="pending").count()),
-            "completed_services": _cached_count(ServiceRequest, "completed_services", lambda: ServiceRequest.query.filter_by(status="completed").count()),
+            "pending_services": _cached_count(ServiceRequest, "pending_services", lambda: ServiceRequest.query.filter_by(status=pending_status).count()),
+            "completed_services": _cached_count(ServiceRequest, "completed_services", lambda: ServiceRequest.query.filter_by(status=completed_status).count()),
             "total_products": total_products,
             "products_in_stock": products_in_stock,
             "total_customers": total_customers,
@@ -214,29 +246,23 @@ def gather_system_context():
             "failed_logins": _safe_count(AuditLog, lambda: AuditLog.query.filter(AuditLog.action == "login_failed", AuditLog.created_at >= _now().replace(hour=0, minute=0, second=0, microsecond=0)).count()),
             "total_audit_logs": _cached_count(AuditLog, "total_audit_logs"),
             "recent_actions": _safe_count(AuditLog, lambda: AuditLog.query.order_by(AuditLog.created_at.desc()).limit(5).count()),
-            "total_exchange_transactions": _cached_count(ExchangeTransaction, "total_exchange_transactions"),
-            "latest_usd_ils_rate": context_fx_rate,
+            "latest_usd_ils_rate": _latest_usd_ils_rate(),
             "cpu_usage": round(cpu_usage, 1),
             "memory_usage": round(memory.percent, 1),
             "db_size": db_size,
-            "db_health": db_health,
+            "db_health": "نشط",
             "current_stats": current_stats,
         }
     except Exception as exc:
-        return {**COMPANY_PROFILE, "system_name": COMPANY_PROFILE["system_name"], "version": "غير محدد", "roles_count": 0, "roles": [], "current_stats": f"خطأ في جمع الإحصائيات: {exc}"}
+        company = get_company_profile()
+        return {**company, "version": "غير محدد", "roles_count": 0, "roles": [], "current_stats": f"خطأ في جمع الإحصائيات: {exc}"}
 
 
 def get_system_navigation_context():
     try:
         system_map = auto_discover_if_needed()
         if system_map:
-            return {
-                "total_routes": system_map.get("statistics", {}).get("total_routes", 0),
-                "total_templates": system_map.get("statistics", {}).get("total_templates", 0),
-                "blueprints": system_map.get("blueprints", []),
-                "modules": system_map.get("modules", []),
-                "categories": {k: len(v) for k, v in system_map.get("routes", {}).get("by_category", {}).items()},
-            }
+            return {"total_routes": system_map.get("statistics", {}).get("total_routes", 0), "total_templates": system_map.get("statistics", {}).get("total_templates", 0), "blueprints": system_map.get("blueprints", []), "modules": system_map.get("modules", []), "categories": {k: len(v) for k, v in system_map.get("routes", {}).get("by_category", {}).items()}}
     except Exception:
         pass
     return {}
@@ -246,81 +272,55 @@ def get_data_awareness_context():
     try:
         schema = auto_build_if_needed()
         if schema:
-            return {
-                "total_models": schema.get("statistics", {}).get("total_tables", 0),
-                "total_columns": schema.get("statistics", {}).get("total_columns", 0),
-                "total_relationships": schema.get("statistics", {}).get("total_relationships", 0),
-                "functional_modules": list((schema.get("functional_mapping") or {}).keys()),
-                "available_models": list((schema.get("models") or {}).keys()),
-            }
+            return {"total_models": schema.get("statistics", {}).get("total_tables", 0), "total_columns": schema.get("statistics", {}).get("total_columns", 0), "total_relationships": schema.get("statistics", {}).get("total_relationships", 0), "functional_modules": list((schema.get("functional_mapping") or {}).keys()), "available_models": list((schema.get("models") or {}).keys())}
     except Exception:
         pass
     return {}
 
 
 def analyze_question_intent(question):
-    question_lower = str(question or "").lower()
+    q = str(question or "").lower()
     intent = {"type": "general", "entities": [], "time_scope": None, "action": "query", "currency": None, "accounting": False, "executable": False, "navigation": False}
-
-    if any(word in question_lower for word in ["أنشئ", "انشئ", "create", "add", "أضف", "اضف", "سجل"]):
+    if any(w in q for w in ["أنشئ", "انشئ", "create", "add", "أضف", "اضف", "سجل"]):
         intent.update(type="command", action="create", executable=True)
-    elif any(word in question_lower for word in ["احذف", "delete", "remove", "أزل", "ازل"]):
+    elif any(w in q for w in ["احذف", "delete", "remove", "أزل", "ازل"]):
         intent.update(type="command", action="delete", executable=True)
-    elif any(word in question_lower for word in ["عدّل", "عدل", "update", "modify", "غيّر", "غير"]):
+    elif any(w in q for w in ["عدّل", "عدل", "update", "modify", "غيّر", "غير"]):
         intent.update(type="command", action="update", executable=True)
-    elif any(word in question_lower for word in ["كم", "عدد", "count", "how many"]):
+    elif any(w in q for w in ["كم", "عدد", "count", "how many"]):
         intent["type"] = "count"
-    elif any(word in question_lower for word in ["كيف", "how", "why", "لماذا", "شرح"]):
+    elif any(w in q for w in ["كيف", "how", "why", "لماذا", "شرح"]):
         intent["type"] = "explanation"
-    elif any(word in question_lower for word in ["تقرير", "report", "تحليل", "analysis", "حلل"]):
+    elif any(w in q for w in ["تقرير", "report", "تحليل", "analysis", "حلل"]):
         intent["type"] = "report"
-    elif any(word in question_lower for word in ["خطأ", "error", "مشكلة", "problem", "bug"]):
+    elif any(w in q for w in ["خطأ", "error", "مشكلة", "problem", "bug"]):
         intent["type"] = "troubleshooting"
-
-    if any(word in question_lower for word in ["اذهب", "افتح", "صفحة", "وين", "أين", "اين", "رابط", "عرض", "دلني", "وصلني"]):
+    if any(w in q for w in ["اذهب", "افتح", "صفحة", "وين", "أين", "اين", "رابط", "عرض", "دلني", "وصلني"]):
         intent.update(type="navigation", navigation=True)
-
-    if any(word in question_lower for word in ["شيقل", "ils", "₪"]):
+    if any(w in q for w in ["شيقل", "ils", "₪"]):
         intent.update(currency="ILS", accounting=True)
-    elif any(word in question_lower for word in ["دولار", "usd", "$"]):
+    elif any(w in q for w in ["دولار", "usd", "$"]):
         intent.update(currency="USD", accounting=True)
-    elif any(word in question_lower for word in ["دينار", "jod"]):
+    elif any(w in q for w in ["دينار", "jod"]):
         intent.update(currency="JOD", accounting=True)
-    elif any(word in question_lower for word in ["يورو", "eur", "€"]):
+    elif any(w in q for w in ["يورو", "eur", "€"]):
         intent.update(currency="EUR", accounting=True)
-
-    if any(word in question_lower for word in ["ربح", "خسارة", "دخل", "profit", "loss", "revenue", "مالي", "محاسب", "رصيد", "دفتر", "قيد", "vat", "ضريبة"]):
+    if any(w in q for w in ["ربح", "خسارة", "دخل", "profit", "loss", "revenue", "مالي", "محاسب", "رصيد", "دفتر", "قيد", "vat", "ضريبة"]):
         intent["accounting"] = True
-
-    if any(word in question_lower for word in ["اليوم", "today", "الآن", "الان", "now"]):
+    if any(w in q for w in ["اليوم", "today", "الآن", "الان", "now"]):
         intent["time_scope"] = "today"
-    elif any(word in question_lower for word in ["الأسبوع", "الاسبوع", "week", "أسبوع", "اسبوع"]):
+    elif any(w in q for w in ["الأسبوع", "الاسبوع", "week", "أسبوع", "اسبوع"]):
         intent["time_scope"] = "week"
-    elif any(word in question_lower for word in ["الشهر", "month", "شهر"]):
+    elif any(w in q for w in ["الشهر", "month", "شهر"]):
         intent["time_scope"] = "month"
-    elif any(word in question_lower for word in ["السنة", "year", "سنة", "عام"]):
+    elif any(w in q for w in ["السنة", "year", "سنة", "عام"]):
         intent["time_scope"] = "year"
-
-    entity_map = {
-        "Customer": ["عميل", "عملاء", "زبون", "customer", "client"],
-        "ServiceRequest": ["صيانة", "service", "تشخيص", "عطل", "إصلاح", "اصلاح"],
-        "Product": ["منتج", "منتجات", "product", "قطع", "قطعة"],
-        "Warehouse": ["مخزن", "مخازن", "warehouse", "مستودع", "مخزون"],
-        "Invoice": ["فاتورة", "فواتير", "invoice"],
-        "Payment": ["دفع", "دفعة", "مدفوعات", "payment"],
-        "Expense": ["مصروف", "مصاريف", "نفقات", "نفقة", "expense"],
-        "Supplier": ["مورد", "موردين", "supplier", "vendor"],
-        "Sale": ["بيع", "مبيعات", "sale", "sales"],
-    }
+    entity_map = {"Customer": ["عميل", "عملاء", "زبون", "customer", "client"], "ServiceRequest": ["صيانة", "service", "تشخيص", "عطل", "إصلاح", "اصلاح"], "Product": ["منتج", "منتجات", "product", "قطع", "قطعة"], "Warehouse": ["مخزن", "مخازن", "warehouse", "مستودع", "مخزون"], "Invoice": ["فاتورة", "فواتير", "invoice"], "Payment": ["دفع", "دفعة", "مدفوعات", "payment"], "Expense": ["مصروف", "مصاريف", "نفقات", "نفقة", "expense"], "Supplier": ["مورد", "موردين", "supplier", "vendor"], "Sale": ["بيع", "مبيعات", "sale", "sales"]}
     for entity, keywords in entity_map.items():
-        if any(k in question_lower for k in keywords):
+        if any(k in q for k in keywords):
             intent["entities"].append(entity)
     return intent
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Conversation memory
-# ─────────────────────────────────────────────────────────────────────────────
 
 def get_or_create_session_memory(session_id):
     session_id = str(session_id or "default")
@@ -345,82 +345,56 @@ def add_to_memory(session_id, role, content, context=None):
 
 def get_conversation_context(session_id):
     memory = get_or_create_session_memory(session_id)
-    return {
-        "message_count": len(memory["messages"]),
-        "duration": (_now() - memory["created_at"]).total_seconds(),
-        "most_mentioned_entities": sorted(memory["entities_mentioned"].items(), key=lambda x: x[1], reverse=True)[:5],
-        "last_intent": memory.get("last_intent"),
-        "recent_topics": memory.get("topics", [])[-5:],
-    }
+    return {"message_count": len(memory["messages"]), "duration": (_now() - memory["created_at"]).total_seconds(), "most_mentioned_entities": sorted(memory["entities_mentioned"].items(), key=lambda x: x[1], reverse=True)[:5], "last_intent": memory.get("last_intent"), "recent_topics": memory.get("topics", [])[-5:]}
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Reporting and analysis
-# ─────────────────────────────────────────────────────────────────────────────
 
 def _time_range(scope: Optional[str]) -> Tuple[datetime, datetime]:
-    end_date = _now()
+    end = _now()
     if scope == "today":
-        start_date = end_date.replace(hour=0, minute=0, second=0, microsecond=0)
+        start = end.replace(hour=0, minute=0, second=0, microsecond=0)
     elif scope == "week":
-        start_date = end_date - timedelta(days=7)
+        start = end - timedelta(days=7)
     elif scope == "month":
-        start_date = end_date - timedelta(days=30)
+        start = end - timedelta(days=30)
     elif scope == "year":
-        start_date = end_date - timedelta(days=365)
+        start = end - timedelta(days=365)
     else:
-        start_date = end_date - timedelta(days=90)
-    return start_date, end_date
+        start = end - timedelta(days=90)
+    return start, end
 
 
 def deep_data_analysis(query, context):
-    from models import Customer, Expense, Invoice
-
-    analysis_result = {"success": True, "insights": [], "warnings": [], "recommendations": [], "data_summary": {}}
+    result = {"success": True, "insights": [], "warnings": [], "recommendations": [], "data_summary": {}}
     try:
-        entities = context.get("entities", []) or []
-        normalized_entities = {e.lower() for e in entities}
-        start_date, end_date = _time_range(context.get("time_scope"))
-
-        if "customer" in normalized_entities or "Customer" in entities:
-            total_customers = Customer.query.count()
-            active_customers = db.session.query(func.count(func.distinct(Invoice.customer_id))).filter(Invoice.created_at >= start_date).scalar() or 0
-            activity_rate = (active_customers / total_customers * 100) if total_customers else 0
-            analysis_result["data_summary"]["customers"] = {"total": total_customers, "active": active_customers, "activity_rate": round(activity_rate, 1)}
-            if total_customers and activity_rate < 30:
-                analysis_result["warnings"].append(f"نشاط العملاء منخفض: {activity_rate:.1f}% ضمن الفترة المحددة")
-
-        if "invoice" in normalized_entities or "sale" in normalized_entities or "sales" in str(query).lower() or "مبيعات" in str(query):
-            current_sales = _sum_column(Invoice, ["total_amount"], [Invoice.created_at >= start_date])
-            prev_start = start_date - (end_date - start_date)
-            prev_sales = _sum_column(Invoice, ["total_amount"], [Invoice.created_at >= prev_start, Invoice.created_at < start_date])
-            change = float(current_sales - prev_sales)
-            change_percent = (change / float(prev_sales) * 100) if prev_sales else 0
-            analysis_result["data_summary"]["sales"] = {"current": float(current_sales), "previous": float(prev_sales), "change": change, "change_percent": round(change_percent, 1)}
-            if change_percent > 20:
-                analysis_result["insights"].append(f"المبيعات ارتفعت بنسبة {change_percent:.1f}% مقارنة بالفترة السابقة")
-            elif change_percent < -10:
-                analysis_result["warnings"].append(f"المبيعات انخفضت بنسبة {abs(change_percent):.1f}% مقارنة بالفترة السابقة")
-
-        if "expense" in normalized_entities or "مصروف" in str(query) or "نفقات" in str(query):
+        from models import Customer, Expense, Invoice
+        entities = set(context.get("entities", []) or [])
+        start, end = _time_range(context.get("time_scope"))
+        if "Customer" in entities:
+            total = Customer.query.count()
+            active = db.session.query(func.count(func.distinct(Invoice.customer_id))).filter(Invoice.invoice_date >= start).scalar() or 0
+            rate = (active / total * 100) if total else 0
+            result["data_summary"]["customers"] = {"total": total, "active": active, "activity_rate": round(rate, 1)}
+            if total and rate < 30:
+                result["warnings"].append(f"نشاط العملاء منخفض: {rate:.1f}% ضمن الفترة المحددة")
+        if "Invoice" in entities or "Sale" in entities or "مبيعات" in str(query):
+            current_sales = _sum_column(Invoice, ["total_amount"], [Invoice.invoice_date >= start, Invoice.invoice_date <= end])
+            previous_start = start - (end - start)
+            previous_sales = _sum_column(Invoice, ["total_amount"], [Invoice.invoice_date >= previous_start, Invoice.invoice_date < start])
+            change = float(current_sales - previous_sales)
+            pct = (change / float(previous_sales) * 100) if previous_sales else 0
+            result["data_summary"]["sales"] = {"current": float(current_sales), "previous": float(previous_sales), "change": change, "change_percent": round(pct, 1)}
+        if "Expense" in entities or "مصروف" in str(query) or "نفقات" in str(query):
             date_col = _first_attr(Expense, ["date", "created_at"])
-            filters = [date_col >= start_date] if date_col is not None else []
-            total_expenses = _sum_column(Expense, ["amount", "total_amount"], filters)
-            analysis_result["data_summary"]["expenses"] = {"total": float(total_expenses)}
-            sales = analysis_result["data_summary"].get("sales", {}).get("current", 0)
-            if sales:
-                expense_ratio = float(total_expenses) / sales * 100
-                if expense_ratio > 70:
-                    analysis_result["warnings"].append(f"النفقات مرتفعة: {expense_ratio:.1f}% من المبيعات")
+            total_expenses = _sum_column(Expense, ["amount", "total_amount"], [date_col >= start] if date_col is not None else [])
+            result["data_summary"]["expenses"] = {"total": float(total_expenses)}
     except Exception as exc:
-        analysis_result.update(success=False, error=str(exc))
-    return analysis_result
+        result.update(success=False, error=str(exc))
+    return result
 
 
 def analyze_accounting_data(currency=None):
     try:
         from models import Expense, Invoice
-
         analysis = {"total_revenue": 0.0, "total_expenses": 0.0, "net_profit": 0.0, "by_currency": {}}
         for inv in Invoice.query.limit(10000).all():
             curr = getattr(inv, "currency", None) or "ILS"
@@ -438,7 +412,7 @@ def analyze_accounting_data(currency=None):
             analysis["by_currency"].setdefault(curr, {"revenue": 0.0, "expenses": 0.0, "profit": 0.0})
             analysis["by_currency"][curr]["expenses"] += amount
             analysis["total_expenses"] += amount
-        for curr, values in analysis["by_currency"].items():
+        for values in analysis["by_currency"].values():
             values["profit"] = values["revenue"] - values["expenses"]
         analysis["net_profit"] = analysis["total_revenue"] - analysis["total_expenses"]
         return analysis
@@ -448,20 +422,18 @@ def analyze_accounting_data(currency=None):
 
 def generate_smart_report(intent):
     try:
-        from models import Customer, Expense, Invoice, Payment, Product, ServiceRequest, Supplier, Warehouse
-
+        from models import Customer, Expense, Invoice, Payment, Product, ServiceRequest, ServiceStatus, Supplier, Warehouse
         if intent.get("accounting"):
             return {"type": "accounting_report", "data": analyze_accounting_data(intent.get("currency")), "generated_at": _now().strftime("%Y-%m-%d %H:%M")}
-
         report = {"title": "تقرير مختصر", "generated_at": _now().strftime("%Y-%m-%d %H:%M"), "sections": []}
         today = _now().date()
         if intent.get("time_scope") == "today":
             report["title"] = "تقرير اليوم"
-            report["sections"].append({"name": "الصيانة اليوم", "data": {"total": _safe_count(ServiceRequest, lambda: ServiceRequest.query.filter(func.date(ServiceRequest.created_at) == today).count()), "completed": _safe_count(ServiceRequest, lambda: ServiceRequest.query.filter(func.date(ServiceRequest.created_at) == today, ServiceRequest.status == "completed").count()), "pending": _safe_count(ServiceRequest, lambda: ServiceRequest.query.filter(func.date(ServiceRequest.created_at) == today, ServiceRequest.status == "pending").count())}})
-            report["sections"].append({"name": "المدفوعات اليوم", "data": {"count": _safe_count(Payment, lambda: Payment.query.filter(func.date(Payment.payment_date) == today).count()), "total": float(_sum_column(Payment, ["total_amount", "amount"], [func.date(Payment.payment_date) == today]))}})
-        entity_models = {"Customer": Customer, "ServiceRequest": ServiceRequest, "Product": Product, "Supplier": Supplier, "Warehouse": Warehouse, "Expense": Expense, "Invoice": Invoice}
+            report["sections"].append({"name": "الصيانة اليوم", "data": {"total": _safe_count(ServiceRequest, lambda: ServiceRequest.query.filter(func.date(ServiceRequest.created_at) == today).count()), "completed": _safe_count(ServiceRequest, lambda: ServiceRequest.query.filter(func.date(ServiceRequest.created_at) == today, ServiceRequest.status == ServiceStatus.COMPLETED.value).count()), "pending": _safe_count(ServiceRequest, lambda: ServiceRequest.query.filter(func.date(ServiceRequest.created_at) == today, ServiceRequest.status == ServiceStatus.PENDING.value).count())}})
+            report["sections"].append({"name": "المدفوعات اليوم", "data": {"count": _safe_count(Payment, lambda: Payment.query.filter(func.date(Payment.payment_date) == today).count()), "total": float(_sum_column(Payment, ["total_amount"], [func.date(Payment.payment_date) == today]))}})
+        models = {"Customer": Customer, "ServiceRequest": ServiceRequest, "Product": Product, "Supplier": Supplier, "Warehouse": Warehouse, "Expense": Expense, "Invoice": Invoice}
         for entity in intent.get("entities", []) or []:
-            model = entity_models.get(entity)
+            model = models.get(entity)
             if model:
                 report["sections"].append({"name": f"إحصائيات {entity}", "data": {"total": _safe_count(model)}})
         return report
@@ -469,44 +441,35 @@ def generate_smart_report(intent):
         return {"error": str(exc)}
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Prompt, accounting and search
-# ─────────────────────────────────────────────────────────────────────────────
-
 def build_system_message(system_context):
     identity = get_system_identity()
+    company = get_company_profile()
     structure = _knowledge_structure()
     nav_context = get_system_navigation_context()
     data_context = get_data_awareness_context()
     gl_knowledge = get_gl_knowledge_for_ai()
-
-    modules_hint = []
-    if nav_context.get("modules"):
-        modules_hint = nav_context.get("modules", [])[:15]
-    elif data_context.get("functional_modules"):
-        modules_hint = data_context.get("functional_modules", [])[:15]
-
-    return f"""أنت {identity['name']} داخل {COMPANY_PROFILE['system_name']}.
+    modules_hint = (nav_context.get("modules") or data_context.get("functional_modules") or [])[:15]
+    return f"""أنت {identity['name']} داخل {company['system_name']}.
 
 هوية النظام والشركة:
-- الشركة: {COMPANY_PROFILE['company_name']}
-- المالك/المطور: {COMPANY_PROFILE['owner_display_name']} ({COMPANY_PROFILE['owner_name']})
-- هاتف التواصل: {COMPANY_PROFILE['phone']}
+- الشركة: {company['company_name']}
+- المالك/المطور: {company['owner_display_name']} ({company['owner_name']})
+- هاتف التواصل: {company['phone']}
 
 وضع التشغيل: {identity['mode']}
 Groq API: {identity['status']['groq_api']}
 
 قواعد الإجابة:
-- استخدم البيانات الفعلية المرفقة في السؤال أو من قاعدة البيانات فقط.
+- استخدم البيانات الفعلية من قاعدة البيانات أو من نص السؤال فقط.
 - لا تخترع أرقامًا أو أسماء صفحات أو نسبًا.
-- إن كانت البيانات غير كافية، قل ذلك بوضوح واقترح أين يبحث المستخدم داخل النظام.
-- لا تنفذ أي عملية حذف/تعديل/إنشاء إلا إذا مرّت من طبقة الصلاحيات والتنفيذ.
-- للأسئلة القانونية/الضريبية المتغيرة، اذكر أن القيم تحتاج تحققًا من الإعدادات أو مصدر رسمي حديث.
+- إن كانت البيانات غير كافية، قل ذلك بوضوح.
+- لا تنفذ حذف/تعديل/إنشاء إلا عبر طبقة الصلاحيات والتنفيذ.
+- القيم الضريبية والقانونية المتغيرة يجب قراءتها من الإعدادات أو مصدر رسمي حديث.
 
 ملخص حي من النظام:
 {system_context.get('current_stats', 'غير متوفر')}
 
-فهرسة النظام المتاحة:
+فهرسة النظام:
 - الموديلات: {structure.get('models_count', 0)}
 - المسارات: {structure.get('routes_count', 0)}
 - القوالب: {structure.get('templates_count', 0)}
@@ -516,7 +479,7 @@ Groq API: {identity['status']['groq_api']}
 وحدات معروفة:
 {', '.join(modules_hint) if modules_hint else 'غير متوفرة'}
 
-معرفة GL المتاحة:
+معرفة GL:
 {', '.join(gl_knowledge.get('capabilities', [])[:6])}
 
 آخر سعر USD/ILS من النظام: {system_context.get('latest_usd_ils_rate', 'غير متوفر')}
@@ -528,31 +491,25 @@ def query_accounting_data(query_type, filters=None):
     filters = filters or {}
     try:
         from models import Account, Customer, Expense, GLBatch, GLEntry, Payment, Sale, Supplier
-
         if query_type == "customer_balance":
-            customer_id = filters.get("customer_id")
-            customer = db.session.get(Customer, int(customer_id)) if customer_id else None
+            customer = db.session.get(Customer, int(filters.get("customer_id"))) if filters.get("customer_id") else None
             if customer:
                 results["customer"] = {"id": customer.id, "name": customer.name, "balance": _safe_float(getattr(customer, "balance", 0))}
-
         elif query_type == "supplier_balance":
-            supplier_id = filters.get("supplier_id")
-            supplier = db.session.get(Supplier, int(supplier_id)) if supplier_id else None
+            supplier = db.session.get(Supplier, int(filters.get("supplier_id"))) if filters.get("supplier_id") else None
             if supplier:
                 results["supplier"] = {"id": supplier.id, "name": supplier.name, "balance": _safe_float(getattr(supplier, "balance", 0))}
-
         elif query_type in {"gl_account_summary", "account_balance"}:
             account_code = filters.get("account_code")
             account_col = _first_attr(GLEntry, ["account_code", "account"])
             debit_col = _first_attr(GLEntry, ["debit_amount", "debit"])
             credit_col = _first_attr(GLEntry, ["credit_amount", "credit"])
-            batch_fk = _first_attr(GLEntry, ["batch_id", "gl_batch_id"])
-            batch_pk = getattr(GLBatch, "id", None)
             if account_col is None or debit_col is None or credit_col is None:
                 return {"error": "GLEntry columns are not compatible"}
             q = db.session.query(account_col.label("account"), func.sum(debit_col).label("total_debit"), func.sum(credit_col).label("total_credit"))
-            if batch_fk is not None and batch_pk is not None:
-                q = q.join(GLBatch, batch_fk == batch_pk)
+            batch_fk = _first_attr(GLEntry, ["batch_id", "gl_batch_id"])
+            if batch_fk is not None:
+                q = q.join(GLBatch, batch_fk == GLBatch.id)
                 date_col = _first_attr(GLBatch, ["batch_date", "date", "created_at"])
                 if filters.get("date_from") and date_col is not None:
                     q = q.filter(date_col >= filters["date_from"])
@@ -563,33 +520,25 @@ def query_accounting_data(query_type, filters=None):
             rows = q.group_by(account_col).all()
             results["gl_summary"] = [{"account": row.account, "total_debit": _safe_float(row.total_debit), "total_credit": _safe_float(row.total_credit), "balance": _safe_float(row.total_debit) - _safe_float(row.total_credit)} for row in rows]
             if query_type == "account_balance" and account_code and results["gl_summary"]:
-                account = None
-                try:
-                    account = Account.query.filter_by(code=account_code).first()
-                except Exception:
-                    pass
+                account = Account.query.filter_by(code=account_code).first() if hasattr(Account, "code") else None
                 results["account_balance"] = {**results["gl_summary"][0], "account_name": getattr(account, "name", account_code), "account_code": account_code}
-
         elif query_type == "financial_summary":
-            date_from = filters.get("date_from", _now() - timedelta(days=30))
-            date_to = filters.get("date_to", _now())
-            sale_date = _first_attr(Sale, ["created_at", "sale_date"])
-            sale_filters = [sale_date >= date_from, sale_date <= date_to] if sale_date is not None else []
+            start = filters.get("date_from", _now() - timedelta(days=30))
+            end = filters.get("date_to", _now())
+            sale_date = _first_attr(Sale, ["sale_date", "created_at"])
             expense_date = _first_attr(Expense, ["date", "created_at"])
-            expense_filters = [expense_date >= date_from, expense_date <= date_to] if expense_date is not None else []
             payment_date = _first_attr(Payment, ["payment_date", "created_at"])
-            payment_filters_base = [payment_date >= date_from, payment_date <= date_to] if payment_date is not None else []
-            total_sales = _sum_column(Sale, ["total_amount", "sale_total", "total"], sale_filters)
+            sale_filters = [sale_date >= start, sale_date <= end] if sale_date is not None else []
+            expense_filters = [expense_date >= start, expense_date <= end] if expense_date is not None else []
+            payment_filters = [payment_date >= start, payment_date <= end] if payment_date is not None else []
+            total_sales = _sum_column(Sale, ["total_amount"], sale_filters)
             total_expenses = _sum_column(Expense, ["amount", "total_amount"], expense_filters)
             direction_col = getattr(Payment, "direction", None)
-            payments_in_filters = list(payment_filters_base)
-            payments_out_filters = list(payment_filters_base)
-            if direction_col is not None:
-                payments_in_filters.append(direction_col == "IN")
-                payments_out_filters.append(direction_col == "OUT")
-            payments_in = _sum_column(Payment, ["total_amount", "amount"], payments_in_filters)
-            payments_out = _sum_column(Payment, ["total_amount", "amount"], payments_out_filters)
-            results["financial_summary"] = {"period": {"from": date_from.isoformat(), "to": date_to.isoformat()}, "total_sales": float(total_sales), "total_expenses": float(total_expenses), "payments_in": float(payments_in), "payments_out": float(payments_out), "net_cash_flow": float(payments_in - payments_out), "net_profit": float(total_sales - total_expenses)}
+            in_filters = list(payment_filters) + ([direction_col == "IN"] if direction_col is not None else [])
+            out_filters = list(payment_filters) + ([direction_col == "OUT"] if direction_col is not None else [])
+            payments_in = _sum_column(Payment, ["total_amount"], in_filters)
+            payments_out = _sum_column(Payment, ["total_amount"], out_filters)
+            results["financial_summary"] = {"period": {"from": start.isoformat(), "to": end.isoformat()}, "total_sales": float(total_sales), "total_expenses": float(total_expenses), "payments_in": float(payments_in), "payments_out": float(payments_out), "net_cash_flow": float(payments_in - payments_out), "net_profit": float(total_sales - total_expenses)}
     except Exception as exc:
         results["error"] = str(exc)
     return results
@@ -598,10 +547,9 @@ def query_accounting_data(query_type, filters=None):
 def search_database_for_query(query):
     results: Dict[str, Any] = {}
     query = str(query or "")
-    query_lower = query.lower()
+    q = query.lower()
     intent = analyze_question_intent(query)
     results["intent"] = intent
-
     try:
         from AI.engine.ai_database_search import search_database_for_query as external_search
         ext = external_search(query)
@@ -610,87 +558,76 @@ def search_database_for_query(query):
             results["intent"] = intent
     except Exception:
         pass
-
     try:
+        from models import Customer, Product, Supplier
+        if "Customer" in intent.get("entities", []):
+            clause = _ilike(Customer, "name", "phone", value=query)
+            if clause is not None:
+                results["customers"] = [c.to_dict() if hasattr(c, "to_dict") else {"id": c.id, "name": c.name} for c in Customer.query.filter(clause).limit(10).all()]
+        if "Supplier" in intent.get("entities", []):
+            clause = _ilike(Supplier, "name", "phone", "contact", value=query)
+            if clause is not None:
+                results["suppliers"] = [s.to_dict() if hasattr(s, "to_dict") else {"id": s.id, "name": s.name} for s in Supplier.query.filter(clause).limit(10).all()]
+        if "Product" in intent.get("entities", []):
+            clause = _ilike(Product, "name", "sku", "barcode", "part_number", "brand", value=query)
+            if clause is not None:
+                results["products"] = [{"id": p.id, "name": p.name, "sku": p.sku, "price": _safe_float(getattr(p, "price", 0)), "selling_price": _safe_float(getattr(p, "selling_price", 0))} for p in Product.query.filter(clause).limit(10).all()]
         if intent.get("accounting"):
             results["accounting_knowledge"] = get_gl_knowledge_for_ai()
-            if "رصيد" in query_lower and "عميل" in query_lower:
-                from models import Customer
-                name = query.split("عميل", 1)[-1].strip() if "عميل" in query else ""
+            if "رصيد" in q and "عميل" in q:
+                name = query.split("عميل", 1)[-1].strip()
                 if name:
                     customer = Customer.query.filter(Customer.name.ilike(f"%{name}%")).first()
                     if customer:
                         results.update(query_accounting_data("customer_balance", {"customer_id": customer.id}))
-            if "رصيد" in query_lower and "مورد" in query_lower:
-                from models import Supplier
-                name = query.split("مورد", 1)[-1].strip() if "مورد" in query else ""
+            if "رصيد" in q and "مورد" in q:
+                name = query.split("مورد", 1)[-1].strip()
                 if name:
                     supplier = Supplier.query.filter(Supplier.name.ilike(f"%{name}%")).first()
                     if supplier:
                         results.update(query_accounting_data("supplier_balance", {"supplier_id": supplier.id}))
-            account_code_match = re.search(r"(\d{4}_[A-Z0-9_]+)", query.upper())
-            if account_code_match:
-                results.update(query_accounting_data("account_balance", {"account_code": account_code_match.group(1)}))
-            if "ملخص" in query_lower and ("مالي" in query_lower or "محاسبي" in query_lower):
-                results.update(query_accounting_data("financial_summary"))
-
+            account_match = re.search(r"(\d{4}_[A-Z0-9_]+)", query.upper())
+            if account_match:
+                results.update(query_accounting_data("account_balance", {"account_code": account_match.group(1)}))
         if intent.get("type") == "report" or intent.get("accounting"):
             results["report_data"] = generate_smart_report(intent)
-
         numbers = re.findall(r"\d+(?:,\d{3})*(?:\.\d+)?", query)
-        if numbers and any(word in query_lower for word in ["ضريبة", "tax", "vat"]):
+        if numbers and any(word in q for word in ["ضريبة", "tax", "vat"]):
             amount = float(numbers[0].replace(",", ""))
-            if "دخل" in query_lower or "income" in query_lower:
+            if "دخل" in q or "income" in q:
                 tax = calculate_palestine_income_tax(amount)
-                results["tax_calculation"] = {"type": "ضريبة دخل فلسطين", "income": amount, "tax": tax, "net": amount - tax, "effective_rate": round((tax / amount) * 100, 2) if amount else 0}
+                results["tax_calculation"] = {"type": "ضريبة دخل تقديرية", "income": amount, "tax": tax, "net": amount - tax, "warning": "يجب التحقق من الشرائح من إعدادات النظام أو مصدر رسمي حديث"}
             else:
-                country = "israel" if "إسرائيل" in query or "israel" in query_lower else "palestine"
-                vat_info = calculate_vat(amount, country)
-                vat_info["country"] = country
-                results["vat_calculation"] = vat_info
+                country = "israel" if "إسرائيل" in query or "israel" in q else "palestine"
+                vat = calculate_vat(amount, country)
+                vat["country"] = country
+                results["vat_calculation"] = vat
     except Exception as exc:
         results["error"] = str(exc)
     return results
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Health, identity and local fallback
-# ─────────────────────────────────────────────────────────────────────────────
-
 def check_groq_health():
     global _groq_failures, _local_fallback_mode, _system_state
-    current_time = _now()
-    _groq_failures = [f for f in _groq_failures if (current_time - f).total_seconds() < 86400]
+    current = _now()
+    _groq_failures = [f for f in _groq_failures if (current - f).total_seconds() < 86400]
     if len(_groq_failures) >= 3:
         _local_fallback_mode = True
         _system_state = "LOCAL_ONLY"
         return False
-    if len(_groq_failures) > 0:
-        _system_state = "HYBRID"
-    elif _local_fallback_mode:
-        _system_state = "LOCAL_ONLY"
-    else:
-        _system_state = "API_ONLY"
+    _system_state = "HYBRID" if _groq_failures else ("LOCAL_ONLY" if _local_fallback_mode else "API_ONLY")
     return not _local_fallback_mode
 
 
 def get_system_identity():
-    return {
-        "name": "المساعد الذكي في نظام Garage Manager",
-        "version": "AI Service Stable",
-        "mode": _system_state,
-        "company": get_company_profile(),
-        "capabilities": {"local_analysis": True, "database_access": True, "knowledge_base": True, "finance_calculations": True, "auto_discovery": True, "self_training": True},
-        "status": {"groq_api": "offline" if _local_fallback_mode else "online", "groq_failures_24h": len(_groq_failures), "local_mode_active": _local_fallback_mode},
-        "data_sources": ["AI/data عبر ai_storage", "قاعدة البيانات المحلية SQLAlchemy", "خريطة النظام عند توفرها"],
-    }
+    company = get_company_profile()
+    return {"name": "المساعد الذكي في نظام أزاد", "version": _setting("AI_SERVICE_VERSION", "stable"), "mode": _system_state, "company": company, "capabilities": {"local_analysis": True, "database_access": True, "knowledge_base": True, "finance_calculations": True, "auto_discovery": True, "self_training": True}, "status": {"groq_api": "offline" if _local_fallback_mode else "online", "groq_failures_24h": len(_groq_failures), "local_mode_active": _local_fallback_mode}, "data_sources": ["AI/data عبر ai_storage", "قاعدة البيانات المحلية SQLAlchemy", "خريطة النظام عند توفرها"]}
 
 
 def log_local_mode_usage():
     try:
         logs = read_json(LOCAL_MODE_LOG_FILE, [])
-        if not isinstance(logs, list):
-            logs = []
+        logs = logs if isinstance(logs, list) else []
         logs.append({"timestamp": _now().isoformat(), "mode": "LOCAL_ONLY", "groq_failures": len(_groq_failures)})
         write_json(LOCAL_MODE_LOG_FILE, logs[-100:])
         sync_training_manifest(extra_files=[LOCAL_MODE_LOG_FILE])
@@ -700,8 +637,9 @@ def log_local_mode_usage():
 
 def get_local_fallback_response(message, search_results):
     try:
-        response = f"🤖 أعمل الآن بالوضع المحلي داخل {COMPANY_PROFILE['system_name']}.\n"
-        response += f"🏢 الشركة: {COMPANY_PROFILE['company_name']} | المطور: {COMPANY_PROFILE['owner_display_name']} | الهاتف: {COMPANY_PROFILE['phone']}\n\n"
+        company = get_company_profile()
+        response = f"🤖 أعمل الآن بالوضع المحلي داخل {company['system_name']}.\n"
+        response += f"🏢 الشركة: {company['company_name']} | المطور: {company['owner_display_name']} | الهاتف: {company['phone']}\n\n"
         if search_results and any(k for k in search_results if k not in {"intent", "error"} and search_results.get(k)):
             response += "📊 البيانات المتوفرة من قاعدة البيانات:\n"
             for key, value in list(search_results.items())[:12]:
@@ -721,12 +659,8 @@ def get_local_fallback_response(message, search_results):
         return f"⚠️ خطأ في الوضع المحلي: {exc}"
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# AI response pipeline
-# ─────────────────────────────────────────────────────────────────────────────
-
 def ai_chat_response(message, search_results=None, session_id="default"):
-    keys_json = get_system_setting("AI_API_KEYS", "[]")
+    keys_json = _setting("AI_API_KEYS", "[]")
     try:
         keys = json.loads(keys_json) if keys_json else []
     except Exception:
@@ -734,47 +668,29 @@ def ai_chat_response(message, search_results=None, session_id="default"):
     active_key = next((k for k in keys if k.get("is_active")), None)
     if not active_key:
         return get_local_fallback_response(message, search_results or {})
-
-    system_context = gather_system_context()
     try:
         import requests
-
-        api_key = active_key.get("key")
-        provider = active_key.get("provider", "groq")
-        if "groq" not in str(provider).lower():
+        if "groq" not in str(active_key.get("provider", "groq")).lower():
             return get_local_fallback_response(message, search_results or {})
-
-        messages = [{"role": "system", "content": build_system_message(system_context)}]
+        messages = [{"role": "system", "content": build_system_message(gather_system_context())}]
         memory = get_or_create_session_memory(session_id)
         for msg in memory["messages"][-10:]:
             messages.append({"role": msg["role"], "content": msg["content"]})
-
-        enhanced_message = str(message or "")
+        enhanced = str(message or "")
         if search_results:
-            enhanced_message += "\n\nنتائج البحث من قاعدة البيانات:\n"
-            enhanced_message += json.dumps(search_results, ensure_ascii=False, default=str)[:12000]
-        messages.append({"role": "user", "content": enhanced_message})
-
-        response = requests.post(
-            "https://api.groq.com/openai/v1/chat/completions",
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json={"model": active_key.get("model", "llama-3.3-70b-versatile"), "messages": messages, "temperature": 0.2, "max_tokens": 2000, "top_p": 0.9},
-            timeout=30,
-        )
+            enhanced += "\n\nنتائج البحث من قاعدة البيانات:\n" + json.dumps(search_results, ensure_ascii=False, default=str)[:12000]
+        messages.append({"role": "user", "content": enhanced})
+        response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers={"Authorization": f"Bearer {active_key.get('key')}", "Content-Type": "application/json"}, json={"model": active_key.get("model", "llama-3.3-70b-versatile"), "messages": messages, "temperature": 0.2, "max_tokens": 2000, "top_p": 0.9}, timeout=30)
         if response.status_code == 200:
-            result = response.json()
-            ai_response = result["choices"][0]["message"]["content"]
+            answer = response.json()["choices"][0]["message"]["content"]
             add_to_memory(session_id, "user", message)
-            add_to_memory(session_id, "assistant", ai_response)
-            return ai_response
-
-        _groq_failures.append(_now())
-        check_groq_health()
-        return get_local_fallback_response(message, search_results or {})
+            add_to_memory(session_id, "assistant", answer)
+            return answer
     except Exception:
-        _groq_failures.append(_now())
-        check_groq_health()
-        return get_local_fallback_response(message, search_results or {})
+        pass
+    _groq_failures.append(_now())
+    check_groq_health()
+    return get_local_fallback_response(message, search_results or {})
 
 
 def handle_error_question(error_text):
@@ -809,8 +725,6 @@ def calculate_confidence_score(search_results, validation):
     score = int(validation.get("confidence", 0) or 0)
     if search_results.get("error"):
         score -= 30
-    if search_results.get("today_error"):
-        score -= 20
     if validation.get("data_quality") == "excellent":
         score = min(95, score + 5)
     return max(0, min(100, score))
@@ -839,12 +753,10 @@ def handle_navigation_request(message):
 def enhanced_context_understanding(message):
     try:
         from AI.engine.ai_nlp_engine import understand_text
-
-        nlp_result = understand_text(message)
-        return {"message": message, "normalized": str(message or "").lower(), "intent": nlp_result["intent"]["primary_intent"], "subintent": (nlp_result["intent"].get("secondary_intents") or [None])[0], "entities": list(nlp_result["sentence_structure"].get("entities", {}).keys()), "context_type": nlp_result["sentence_structure"].get("intent") or "question", "sentiment": nlp_result["sentence_structure"].get("sentiment", "neutral"), "priority": "urgent" if nlp_result["sentence_structure"].get("is_urgent") else "normal", "confidence": nlp_result["intent"].get("confidence", 0.5), "keywords": [], "time_scope": None, "requires_data": bool(nlp_result["sentence_structure"].get("entities")), "requires_action": nlp_result["intent"].get("primary_intent") == "executable_command"}
+        nlp = understand_text(message)
+        return {"message": message, "normalized": str(message or "").lower(), "intent": nlp["intent"]["primary_intent"], "subintent": (nlp["intent"].get("secondary_intents") or [None])[0], "entities": list(nlp["sentence_structure"].get("entities", {}).keys()), "context_type": nlp["sentence_structure"].get("intent") or "question", "sentiment": nlp["sentence_structure"].get("sentiment", "neutral"), "priority": "urgent" if nlp["sentence_structure"].get("is_urgent") else "normal", "confidence": nlp["intent"].get("confidence", 0.5), "keywords": [], "time_scope": None, "requires_data": bool(nlp["sentence_structure"].get("entities")), "requires_action": nlp["intent"].get("primary_intent") == "executable_command"}
     except Exception:
         pass
-
     text = str(message or "")
     normalized = re.sub(r"[\u0617-\u061A\u064B-\u0652]", "", text.lower())
     normalized = re.sub("[إأٱآا]", "ا", normalized).replace("ى", "ي").replace("ة", "ه")
@@ -859,84 +771,64 @@ def enhanced_context_understanding(message):
 
 def local_intelligent_response(message, session_id=None):
     message = str(message or "")
-    message_lower = message.lower()
+    q = message.lower()
     context = enhanced_context_understanding(message)
-
     try:
         from AI.engine.ai_conversation import match_local_response
-        rich_response = match_local_response(message, session_id=session_id)
-        if rich_response:
-            return rich_response
+        rich = match_local_response(message, session_id=session_id)
+        if rich:
+            return rich
     except Exception:
         pass
-
-    if context.get("context_type") == "greeting" or any(w in message_lower for w in ["من انت", "من أنت", "الشركة", "المطور", "رقم الهاتف", "تواصل"]):
+    company = get_company_profile()
+    if context.get("context_type") == "greeting" or any(w in q for w in ["من انت", "من أنت", "الشركة", "المطور", "رقم الهاتف", "تواصل"]):
         stats = gather_system_context()
-        return (
-            f"👋 أهلاً. أنا المساعد الذكي داخل {COMPANY_PROFILE['system_name']}.\n"
-            f"🏢 الشركة: {COMPANY_PROFILE['company_name']}\n"
-            f"👤 المالك/المطور: {COMPANY_PROFILE['owner_display_name']} ({COMPANY_PROFILE['owner_name']})\n"
-            f"☎️ الهاتف: {COMPANY_PROFILE['phone']}\n\n"
-            f"📊 حالة مختصرة:\n{stats.get('current_stats', 'غير متوفر')}"
-        )
-
-    if context.get("intent") == "navigation" or any(w in message_lower for w in ["وين", "اين", "أين", "افتح", "رابط", "صفحة"]):
+        return f"👋 أهلاً. أنا المساعد الذكي داخل {company['system_name']}.\n🏢 الشركة: {company['company_name']}\n👤 المالك/المطور: {company['owner_display_name']} ({company['owner_name']})\n☎️ الهاتف: {company['phone']}\n\n📊 حالة مختصرة:\n{stats.get('current_stats', 'غير متوفر')}"
+    if context.get("intent") == "navigation" or any(w in q for w in ["وين", "اين", "أين", "افتح", "رابط", "صفحة"]):
         return handle_navigation_request(message)
-
-    faq = get_local_faq_responses()
-    for key, response in faq.items():
-        if key.lower() in message_lower:
+    for key, response in get_local_faq_responses().items():
+        if key.lower() in q:
             return response
-
-    quick_rules = get_local_quick_rules()
-    model_map = {}
     try:
         from models import Customer, Expense, Product, ServiceRequest, Supplier
         model_map = {"Customer": Customer, "ServiceRequest": ServiceRequest, "Expense": Expense, "Product": Product, "Supplier": Supplier}
+        for rule in get_local_quick_rules().values():
+            for pattern in rule.get("patterns", []):
+                if pattern.lower() in q:
+                    model = model_map.get(rule.get("model"))
+                    if model:
+                        return rule["response_template"].format(count=_safe_count(model))
     except Exception:
-        model_map = {}
-    for rule in quick_rules.values():
-        for pattern in rule.get("patterns", []):
-            if pattern.lower() in message_lower:
-                model = model_map.get(rule.get("model"))
-                if model:
-                    return rule["response_template"].format(count=_safe_count(model))
-
-    if any(word in message_lower for word in ["vat", "ضريبة القيمة المضافة", "ضريبة مضافة", "ضريبه"]):
+        pass
+    if any(word in q for word in ["vat", "ضريبة القيمة المضافة", "ضريبة مضافة", "ضريبه"]):
         numbers = re.findall(r"\d+(?:\.\d+)?", message)
         if numbers:
             amount = float(numbers[0])
-            country = "israel" if "israel" in message_lower or "إسرائيل" in message else "palestine"
+            country = "israel" if "israel" in q or "إسرائيل" in message else "palestine"
             vat = calculate_vat(amount, country)
-            return f"💰 حساب VAT:\n• المبلغ: {amount:,.2f}\n• النسبة: {vat['vat_rate']}%\n• الضريبة: {vat['vat_amount']:,.2f}\n• الإجمالي: {vat['total_with_vat']:,.2f}"
-
-    if any(word in message_lower for word in ["خطأ", "error", "traceback", "exception"]):
+            warning = f"\n⚠️ {vat.get('warning')}" if vat.get("warning") else ""
+            return f"💰 حساب VAT:\n• المبلغ: {amount:,.2f}\n• النسبة: {vat['vat_rate']}%\n• الضريبة: {vat['vat_amount']:,.2f}\n• الإجمالي: {vat['total_with_vat']:,.2f}{warning}"
+    if any(word in q for word in ["خطأ", "error", "traceback", "exception"]):
         return handle_error_question(message).get("formatted_response")
-
     search_results = search_database_for_query(message)
     validation = validate_search_results(message, search_results)
     if validation.get("has_data"):
         return get_local_fallback_response(message, search_results)
-
     return "لم أجد بيانات مباشرة كافية. اسألني عن العملاء، الصيانة، المنتجات، النفقات، المدفوعات، المخزون، الصفحات، أو VAT."
 
 
 def ai_chat_with_search(user_id: int = None, query: str = None, message: str = None, session_id: str = "default", context: Dict = None):
-    global _last_audit_time
     if message and not query:
         query = message
     if not query:
         return {"response": "لم يتم تقديم سؤال", "confidence": 0}
-
-    start_time = time.time()
+    start = time.time()
     context = context or {}
     context["user_id"] = user_id
     context["search_results"] = search_database_for_query(query)
-
     try:
         from AI.engine.ai_master_controller import get_master_controller
-        controller = get_master_controller()
-        result = controller.process_intelligent_query(query, context)
+        result = get_master_controller().process_intelligent_query(query, context)
         answer = result.get("answer", "")
         confidence = float(result.get("confidence", 0.7) or 0.7)
         if not answer:
@@ -945,16 +837,15 @@ def ai_chat_with_search(user_id: int = None, query: str = None, message: str = N
         answer = _ai_chat_original(query, session_id)
         confidence = 0.65
         result = {"answer": answer, "confidence": confidence, "sources": ["local_fallback"], "tips": []}
-
-    execution_time = time.time() - start_time
+    elapsed = time.time() - start
     try:
         from AI.engine.ai_self_evolution import get_evolution_engine
-        get_evolution_engine().record_interaction(query=query, response=result, success=bool(answer), confidence=confidence, execution_time=execution_time)
+        get_evolution_engine().record_interaction(query=query, response=result, success=bool(answer), confidence=confidence, execution_time=elapsed)
     except Exception:
         pass
     try:
         from AI.engine.ai_performance_tracker import get_performance_tracker
-        get_performance_tracker().record_query(query, result, execution_time)
+        get_performance_tracker().record_query(query, result, elapsed)
     except Exception:
         pass
     try:
@@ -963,7 +854,6 @@ def ai_chat_with_search(user_id: int = None, query: str = None, message: str = N
         log_interaction(query, answer, int(confidence * 100) if confidence <= 1 else int(confidence), context.get("search_results", {}))
     except Exception:
         pass
-
     return {"response": answer, "confidence": confidence, "sources": result.get("sources", []), "tips": result.get("tips", [])}
 
 
@@ -979,18 +869,15 @@ def _ai_chat_original(message, session_id="default"):
         search_results = search_database_for_query(message)
         validation = validate_search_results(message, search_results)
         confidence = calculate_confidence_score(search_results, validation)
-        if validation.get("has_data"):
-            response = ai_chat_response(message, search_results, session_id)
-        else:
-            response = local_intelligent_response(message, session_id=session_id)
+        response = ai_chat_response(message, search_results, session_id) if validation.get("has_data") else local_intelligent_response(message, session_id=session_id)
         if confidence < 70 and "درجة الثقة" not in response:
             response += f"\n\n⚠️ درجة الثقة التقريبية: {confidence}%"
     add_to_memory(session_id, "assistant", response)
-    current_time = _now()
-    if _last_audit_time is None or (current_time - _last_audit_time) > timedelta(hours=1):
+    current = _now()
+    if _last_audit_time is None or (current - _last_audit_time) > timedelta(hours=1):
         try:
             generate_self_audit_report()
-            _last_audit_time = current_time
+            _last_audit_time = current
         except Exception:
             pass
     return response
@@ -998,13 +885,14 @@ def _ai_chat_original(message, session_id="default"):
 
 def explain_system_structure():
     try:
+        company = get_company_profile()
         structure = _knowledge_structure()
         models = structure.get("models", [])[:15]
         return f"""🏗️ هيكل نظام أزاد
 
-الشركة: {COMPANY_PROFILE['company_name']}
-المطور: {COMPANY_PROFILE['owner_display_name']}
-الهاتف: {COMPANY_PROFILE['phone']}
+الشركة: {company['company_name']}
+المطور: {company['owner_display_name']}
+الهاتف: {company['phone']}
 
 📊 قاعدة البيانات:
 • {structure.get('models_count', 0)} موديل/جدول مفهرس
@@ -1019,33 +907,4 @@ def explain_system_structure():
         return f"⚠️ خطأ في شرح الهيكل: {exc}"
 
 
-__all__ = [
-    "get_company_profile",
-    "get_system_setting",
-    "gather_system_context",
-    "get_system_navigation_context",
-    "get_data_awareness_context",
-    "analyze_question_intent",
-    "get_or_create_session_memory",
-    "add_to_memory",
-    "get_conversation_context",
-    "deep_data_analysis",
-    "analyze_accounting_data",
-    "generate_smart_report",
-    "build_system_message",
-    "query_accounting_data",
-    "search_database_for_query",
-    "check_groq_health",
-    "get_system_identity",
-    "get_local_fallback_response",
-    "log_local_mode_usage",
-    "ai_chat_response",
-    "handle_error_question",
-    "validate_search_results",
-    "calculate_confidence_score",
-    "handle_navigation_request",
-    "enhanced_context_understanding",
-    "local_intelligent_response",
-    "ai_chat_with_search",
-    "explain_system_structure",
-]
+__all__ = ["get_company_profile", "get_system_setting", "gather_system_context", "get_system_navigation_context", "get_data_awareness_context", "analyze_question_intent", "get_or_create_session_memory", "add_to_memory", "get_conversation_context", "deep_data_analysis", "analyze_accounting_data", "generate_smart_report", "build_system_message", "query_accounting_data", "search_database_for_query", "check_groq_health", "get_system_identity", "get_local_fallback_response", "log_local_mode_usage", "ai_chat_response", "handle_error_question", "validate_search_results", "calculate_confidence_score", "handle_navigation_request", "enhanced_context_understanding", "local_intelligent_response", "ai_chat_with_search", "explain_system_structure"]
