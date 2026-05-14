@@ -42,6 +42,11 @@ def prepare_local_database():
     with application.app_context():
         print('Preparing local SQLite database with db.create_all()...')
         db.create_all()
+        try:
+            from services.system_initializer import SystemInitializer
+            SystemInitializer(application).ensure_integrity()
+        except Exception as exc:
+            print(f'WARNING: local initializer failed: {exc}')
         print('Local database is ready.')
 
 
