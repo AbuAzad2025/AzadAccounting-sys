@@ -1,216 +1,217 @@
-"""
-AI Security Module - حماية المعلومات السرية
-يتحكم في ما يمكن للمساعد الذكي مشاركته حسب دور المستخدم
+"""AI security helpers.
+
+This module protects secrets and sensitive operational information in AI replies.
+It is intentionally permission-based and keeps the public function names stable
+because the local AI response engine imports them directly.
 """
 
-from permissions_config.enums import SystemPermissions
-from flask_login import current_user
-from typing import Dict, Any, List
+from __future__ import annotations
+
+import json
+import os
 import re
 from datetime import datetime, timezone
+from typing import Any, Dict
 
-# المعلومات السرية التي يجب حمايتها
+from flask_login import current_user
+
+from permissions_config.enums import SystemPermissions
+
+
 SENSITIVE_KEYWORDS = {
-    'passwords': ['password', 'passwd', 'pwd', 'كلمة مرور', 'كلمة السر', 'رمز سري'],
-    'api_keys': ['api_key', 'api key', 'secret_key', 'token', 'مفتاح', 'api'],
-    'database': ['database_url', 'db_uri', 'connection_string', 'قاعدة البيانات'],
-    'security': ['csrf', 'session_key', 'encryption', 'hash', 'salt'],
-    'financial_details': ['balance_details', 'رصيد تفصيلي', 'حساب بنكي', 'bank account'],
-    'user_data': ['email', 'phone', 'address', 'بريد', 'هاتف', 'عنوان'],
+    "passwords": ["password", "passwd", "pwd", "كلمة مرور", "كلمة السر", "رمز سري"],
+    "api_keys": ["api key", "api_key", "secret_key", "secret key", "token", "مفتاح api", "مفتاح واجهة"],
+    "database": ["database_url", "db_uri", "connection_string", "رابط قاعدة البيانات", "اتصال قاعدة البيانات"],
+    "security": ["csrf", "session_key", "encryption key", "hash", "salt", "مفتاح التشفير"],
+    "financial_details": ["balance_details", "رصيد تفصيلي", "حساب بنكي", "bank account", "iban"],
+    "user_data": ["email", "phone", "address", "بريد", "هاتف", "عنوان"],
 }
 
-# مواضيع حساسة - للمالك فقط
-OWNER_ONLY_TOPICS = [
-    'api_keys',
-    'database',
-    'security',
-    'system_configuration',
-    'backup_locations',
-    'encryption_keys',
-    'secret_key',
-    'groq_api',
-]
+OWNER_ONLY_TOPICS = {
+    "api_keys",
+    "api key",
+    "database_url",
+    "connection_string",
+    "system_configuration",
+    "backup_locations",
+    "encryption_keys",
+    "secret_key",
+    "groq_api",
+    "master key",
+    "ماستر كي",
+}
 
-# معلومات يمكن للمدراء رؤيتها
-MANAGER_ALLOWED_TOPICS = [
-    'statistics',
-    'reports',
-    'customers',
-    'services',
-    'products',
-    'invoices',
-    'navigation',
-    'workflows',
-]
+
+def _is_authenticated_user() -> bool:
+    return bool(getattr(current_user, "is_authenticated", False))
+
+
+def _has_permission(permission: Any) -> bool:
+    checker = getattr(current_user, "has_permission", None)
+    if not callable(checker):
+        return False
+    perm_value = getattr(permission, "value", permission)
+    for candidate in (perm_value, str(perm_value)):
+        try:
+            if checker(candidate):
+                return True
+        except Exception:
+            continue
+    return False
+
 
 def is_owner() -> bool:
-    """التحقق من أن المستخدم هو المالك"""
-    try:
-        if not hasattr(current_user, 'is_authenticated') or not current_user.is_authenticated:
-            return False
-        
-        # PBAC: التحقق من الصلاحية بدلاً من الدور
-        if hasattr(current_user, 'has_permission'):
-            return current_user.has_permission(SystemPermissions.ACCESS_OWNER_DASHBOARD)
-            
-        # Fallback for system accounts
-        if hasattr(current_user, 'is_system_account') and current_user.is_system_account:
-            return True
-            
+    """Return whether the current user has owner-level privileges."""
+    if not _is_authenticated_user():
         return False
+    try:
+        return bool(
+            getattr(current_user, "is_system_account", False)
+            or getattr(current_user, "is_system", False)
+            or getattr(current_user, "username", None) == "__OWNER__"
+            or _has_permission(SystemPermissions.ACCESS_OWNER_DASHBOARD)
+        )
     except Exception:
         return False
+
 
 def is_super_admin() -> bool:
-    """التحقق من أن المستخدم لديه صلاحيات عليا"""
     return is_owner()
 
+
 def is_manager() -> bool:
-    """التحقق من أن المستخدم مدير"""
-    try:
-        if is_owner():
-            return True
-        
-        if not hasattr(current_user, 'is_authenticated') or not current_user.is_authenticated:
-            return False
-            
-        # PBAC: التحقق من صلاحيات إدارية عامة
-        if hasattr(current_user, 'has_permission'):
-            return (current_user.has_permission(SystemPermissions.VIEW_REPORTS) or 
-                    current_user.has_permission(SystemPermissions.MANAGE_SALES) or
-                    current_user.has_permission(SystemPermissions.MANAGE_USERS))
-        
+    """Return whether the current user has administrative reporting/management access."""
+    if is_owner():
+        return True
+    if not _is_authenticated_user():
         return False
-    except Exception:
-        return False
+    return any(
+        _has_permission(perm)
+        for perm in (
+            SystemPermissions.VIEW_REPORTS,
+            SystemPermissions.MANAGE_SALES,
+            SystemPermissions.MANAGE_USERS,
+            SystemPermissions.MANAGE_AI,
+        )
+    )
+
 
 def get_user_role_name() -> str:
-    """الحصول على توصيف مبسط لمستوى المستخدم"""
-    try:
-        if is_owner():
-            return "Owner"
-        if is_manager():
-            return "Admin"
+    if is_owner():
+        return "Owner"
+    if is_manager():
+        return "Admin"
+    if _is_authenticated_user():
         return "User"
-    except Exception:
-        return "Guest"
+    return "Guest"
+
 
 def is_sensitive_query(message: str) -> Dict[str, Any]:
-    """فحص إذا كان السؤال يطلب معلومات حساسة"""
-    message_lower = message.lower()
-    
+    """Detect whether a query asks for sensitive data."""
+    text = (message or "").lower()
     sensitive_found = []
+
     for category, keywords in SENSITIVE_KEYWORDS.items():
         for keyword in keywords:
-            if keyword in message_lower:
-                sensitive_found.append({
-                    'category': category,
-                    'keyword': keyword
-                })
-    
-    is_sensitive = len(sensitive_found) > 0
-    
-    # فحص المواضيع المحظورة
-    is_owner_only = False
-    for topic in OWNER_ONLY_TOPICS:
-        if topic.lower().replace('_', ' ') in message_lower:
-            is_owner_only = True
-            break
-    
+            if keyword.lower() in text:
+                sensitive_found.append({"category": category, "keyword": keyword})
+
+    owner_only = any(topic.lower().replace("_", " ") in text for topic in OWNER_ONLY_TOPICS)
+
     return {
-        'is_sensitive': is_sensitive,
-        'is_owner_only': is_owner_only,
-        'found': sensitive_found,
-        'requires_owner': is_owner_only,
-        'requires_manager': is_sensitive and not is_owner_only
+        "is_sensitive": bool(sensitive_found),
+        "is_owner_only": owner_only,
+        "found": sensitive_found,
+        "requires_owner": owner_only,
+        "requires_manager": bool(sensitive_found) and not owner_only,
     }
 
-def filter_sensitive_data(data: Dict[str, Any], user_role: str) -> Dict[str, Any]:
-    """تصفية البيانات الحساسة حسب دور المستخدم"""
-    if is_owner():
-        return data  # المالك يرى كل شيء
-    
-    filtered = {}
+
+def filter_sensitive_data(data: Dict[str, Any], user_role: str = "") -> Dict[str, Any]:
+    """Mask sensitive values from dictionaries unless the current user is owner."""
+    if is_owner() or not isinstance(data, dict):
+        return data
+
+    filtered: Dict[str, Any] = {}
     for key, value in data.items():
-        key_lower = key.lower()
-        
-        # حجب المعلومات الحساسة
-        is_blocked = False
-        for category, keywords in SENSITIVE_KEYWORDS.items():
-            if any(k in key_lower for k in keywords):
-                is_blocked = True
-                break
-        
-        if is_blocked:
-            filtered[key] = "***HIDDEN***"
-        else:
-            filtered[key] = value
-    
+        key_text = str(key).lower()
+        blocked = any(keyword.lower() in key_text for keywords in SENSITIVE_KEYWORDS.values() for keyword in keywords)
+        filtered[key] = "***HIDDEN***" if blocked else value
     return filtered
 
+
 def get_security_response(message: str, sensitivity: Dict[str, Any]) -> str:
-    """رد أمني عند طلب معلومات حساسة"""
-    user_role = get_user_role_name()
-    
-    if sensitivity['requires_owner'] and not is_owner():
-        return f"""🔒 **معلومات محمية**
+    """Return a safe refusal/explanation for sensitive requests when needed."""
+    role = get_user_role_name()
 
-⚠️ هذه المعلومات متاحة للمالك فقط.
+    if sensitivity.get("requires_owner") and not is_owner():
+        return (
+            "🔒 **معلومات محمية**\n\n"
+            "⚠️ هذه المعلومات متاحة للمالك فقط.\n\n"
+            f"**دورك الحالي:** {role}\n"
+            "**المطلوب:** access_owner_dashboard\n\n"
+            "💡 إذا كنت بحاجة لهذه المعلومات، تواصل مع مالك النظام."
+        )
 
-**دورك الحالي:** {user_role}
-**المطلوب:** access_owner_dashboard
+    if sensitivity.get("is_sensitive") and not is_manager():
+        return (
+            "🔒 **معلومات حساسة**\n\n"
+            "⚠️ هذه المعلومات تتطلب صلاحيات إدارية مناسبة.\n\n"
+            f"**دورك الحالي:** {role}\n"
+            "**المطلوب:** صلاحيات إدارية مثل view_reports أو manage_users."
+        )
 
-💡 إذا كنت بحاجة لهذه المعلومات، تواصل مع مالك النظام."""
-    
-    if sensitivity['is_sensitive'] and not is_manager():
-        return f"""🔒 **معلومات حساسة**
-
-⚠️ هذه المعلومات تتطلب صلاحيات إدارية.
-
-**دورك الحالي:** {user_role}
-**المطلوب:** صلاحيات إدارية مناسبة (مثل view_reports / manage_users)
-
-💡 لمزيد من المعلومات، تواصل مع المدير."""
-    
     return ""
 
-def log_security_event(message: str, sensitivity: Dict[str, Any], response_type: str):
-    """تسجيل حدث أمني"""
-    try:
-        from AI.engine.ai_self_review import log_interaction
-        
-        log_data = {
-            'user': current_user.username if hasattr(current_user, 'username') else 'anonymous',
-            'role': get_user_role_name(),
-            'query': message[:200],  # أول 200 حرف فقط
-            'sensitivity': sensitivity,
-            'response_type': response_type,
-            'timestamp': datetime.now(timezone.utc).isoformat()
-        }
-        
-        # يمكن حفظها في ملف أو قاعدة بيانات
 
-    except Exception as e:
-        pass  # خطأ محتمل
+def log_security_event(message: str, sensitivity: Dict[str, Any], response_type: str) -> None:
+    """Append a compact AI security event to a local JSONL log."""
+    try:
+        os.makedirs("AI/data", exist_ok=True)
+        event = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "user": getattr(current_user, "username", "anonymous"),
+            "role": get_user_role_name(),
+            "query": (message or "")[:200],
+            "sensitivity": sensitivity,
+            "response_type": response_type,
+        }
+        with open("AI/data/ai_security_events.jsonl", "a", encoding="utf-8") as f:
+            f.write(json.dumps(event, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
+
 
 def sanitize_response(response: str) -> str:
-    """تنظيف الرد من أي معلومات حساسة قد تكون تسربت"""
+    """Remove obvious secret patterns from AI responses for non-owner users."""
+    text = str(response or "")
     if is_owner():
-        return response  # المالك يرى كل شيء
-    
-    # نماذج معلومات حساسة
+        return text
+
     patterns = [
-        (r'password[:\s]*[^\s]+', 'password: ***'),
-        (r'api[_\s]?key[:\s]*[^\s]+', 'api_key: ***'),
-        (r'secret[_\s]?key[:\s]*[^\s]+', 'secret_key: ***'),
-        (r'token[:\s]*[^\s]+', 'token: ***'),
-        (r'sk-[a-zA-Z0-9]+', 'sk-***'),  # OpenAI/Groq keys
-        (r'[a-zA-Z0-9]{32,}', '***'),  # hashes طويلة
+        (r"password[:=\s]+[^\s,;]+", "password: ***"),
+        (r"api[_\s-]?key[:=\s]+[^\s,;]+", "api_key: ***"),
+        (r"secret[_\s-]?key[:=\s]+[^\s,;]+", "secret_key: ***"),
+        (r"token[:=\s]+[^\s,;]+", "token: ***"),
+        (r"sk-[A-Za-z0-9_\-]{10,}", "sk-***"),
+        (r"postgres(?:ql)?://[^\s]+", "postgresql://***"),
+        (r"mysql://[^\s]+", "mysql://***"),
     ]
-    
-    sanitized = response
+
+    sanitized = text
     for pattern, replacement in patterns:
         sanitized = re.sub(pattern, replacement, sanitized, flags=re.IGNORECASE)
-    
     return sanitized
 
+
+__all__ = [
+    "is_owner",
+    "is_super_admin",
+    "is_manager",
+    "get_user_role_name",
+    "is_sensitive_query",
+    "filter_sensitive_data",
+    "get_security_response",
+    "log_security_event",
+    "sanitize_response",
+]
