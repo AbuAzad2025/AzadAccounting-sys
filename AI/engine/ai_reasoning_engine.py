@@ -21,7 +21,6 @@ class ReasoningEngine:
         steps: List[str] = []
         understanding = self._understand_query(query)
         steps.append(f"فهمت: {understanding['intent']}")
-
         if understanding["intent"] == "query_balance":
             return self._reason_balance_query(query, available_data or {}, steps)
         if understanding["intent"] == "explain_gl":
@@ -48,44 +47,40 @@ class ReasoningEngine:
         steps.append("استنتجت: سؤال عن رصيد")
         entity_name = self._extract_entity_name(query)
         steps.append(f"استخرجت الاسم: {entity_name if entity_name else 'غير محدد'}")
-
         if not entity_name:
-            return {"answer": "لم أفهم اسم العميل المطلوب. من فضلك حدد الاسم.", "confidence": 0.5, "reasoning_steps": steps}
-
+            return {"answer": "لم أفهم اسم العميل المطلوب. حدد اسم العميل حتى أقرأ رصيده من النظام.", "confidence": 0.5, "reasoning_steps": steps}
         customer_data = self._find_in_database("Customer", "name", entity_name)
         if not customer_data:
             steps.append("لم أجد العميل في قاعدة البيانات")
-            return {"answer": f"لم أجد عميلاً باسم '{entity_name}' في قاعدة البيانات.\n\nتحقق من الإملاء أو افتح قائمة العملاء: /customers", "confidence": 0.7, "reasoning_steps": steps}
-
+            route = self._route_for_keyword("customers") or "/customers"
+            return {"answer": f"لم أجد عميلاً باسم '{entity_name}' في قاعدة البيانات.\n\nتحقق من الإملاء أو افتح قائمة العملاء: {route}", "confidence": 0.7, "reasoning_steps": steps}
         steps.append(f"وجدت العميل في قاعدة البيانات: ID={customer_data['id']}")
         sales = self._get_customer_sales(customer_data["id"])
         payments = self._get_customer_payments(customer_data["id"])
         steps.append(f"جلبت {len(sales)} عملية بيع/فاتورة")
         steps.append(f"جلبت {len(payments)} دفعة")
-
         total_sales = sum(Decimal(str(s.get("total", 0))) for s in sales)
-        total_payments = sum(Decimal(str(p.get("amount", 0))) for p in payments)
+        payments_in = sum(Decimal(str(p.get("amount", 0))) for p in payments if str(p.get("direction", "IN")).upper() == "IN")
+        payments_out = sum(Decimal(str(p.get("amount", 0))) for p in payments if str(p.get("direction", "")).upper() == "OUT")
         stored_balance = customer_data.get("balance")
-        calculated_balance = total_sales - total_payments
+        calculated_balance = total_sales - payments_in + payments_out
         balance = Decimal(str(stored_balance)) if stored_balance is not None else calculated_balance
-        steps.append(f"حسبت من الحركات: {total_sales} - {total_payments} = {calculated_balance}")
+        steps.append(f"حسبت من الحركات المقروءة: {total_sales} - قبض {payments_in} + صرف/استرداد {payments_out} = {calculated_balance}")
         if stored_balance is not None:
             steps.append(f"استخدمت الرصيد المخزن على العميل: {balance}")
-
         answer_parts = [
             f"🔍 بحثت عن: {entity_name}",
             f"✅ وجدته: عميل #{customer_data['id']}",
             "",
-            "📊 تحليل الرصيد:",
-            f"  • إجمالي المبيعات/الفواتير المقروءة: {float(total_sales):.2f} ₪",
-            f"  • إجمالي الدفعات المقروءة: {float(total_payments):.2f} ₪",
-            f"  • الرصيد الحالي: {float(balance):.2f} ₪",
+            "📊 تحليل الرصيد من البيانات المتاحة:",
+            f"  • إجمالي المبيعات/الفواتير المقروءة: {float(total_sales):.2f}",
+            f"  • الدفعات الواردة المقروءة: {float(payments_in):.2f}",
+            f"  • الدفعات الصادرة/الاستردادات المقروءة: {float(payments_out):.2f}",
+            f"  • الرصيد المسجل/المعتمد: {float(balance):.2f}",
             "",
-            f"💼 الحالة: {'عليه' if balance > 0 else 'له' if balance < 0 else 'متعادل'}",
-            "",
-            "ملاحظة: إذا كان النظام يعتمد حقول رصيد مركبة أو قيود GL، فالرقم المعتمد هو الرصيد المخزن/المحدث في النظام.",
+            "لا أفسر إشارة الرصيد تلقائيًا كـ عليه/له إلا حسب سياسة شاشة العميل أو دالة تحديث الرصيد في النظام.",
         ]
-        return {"answer": "\n".join(answer_parts), "confidence": 0.9, "reasoning_steps": steps, "data_used": {"customer": customer_data, "sales_count": len(sales), "payments_count": len(payments)}}
+        return {"answer": "\n".join(answer_parts), "confidence": 0.88, "reasoning_steps": steps, "data_used": {"customer": customer_data, "sales_count": len(sales), "payments_count": len(payments)}}
 
     def _reason_gl_explanation(self, query: str, data: Dict, steps: List[str]) -> Dict[str, Any]:
         steps.append("استنتجت: سؤال عن قيود محاسبية")
@@ -100,18 +95,13 @@ class ReasoningEngine:
 دائن: ضريبة القيمة المضافة إذا كانت مفعلة
 
 المنطق:
-1. العميل صار عليه دين.
+1. العميل صار عليه ذمة حسب سياسة النظام.
 2. الإيراد زاد.
 3. الضريبة التزام مستحق إن كانت مطبقة.
 
-ملاحظة: أرقام الحسابات والنسبة الضريبية يجب قراءتها من إعدادات نظامك/دليلك المحاسبي، وليست افتراضًا ثابتًا من المساعد."""
+ملاحظة: أرقام الحسابات ونسبة الضريبة يجب قراءتها من إعدادات نظامك/دليلك المحاسبي، وليست افتراضًا ثابتًا من المساعد."""
             return {"answer": answer, "confidence": 0.9, "reasoning_steps": steps}
-
-        return {
-            "answer": "القيود المحاسبية تُنشأ حسب نوع المعاملة وإعدادات دليل الحسابات. القاعدة العامة: كل قيد يجب أن يكون متوازنًا، مجموع المدين = مجموع الدائن.",
-            "confidence": 0.8,
-            "reasoning_steps": steps,
-        }
+        return {"answer": "القيود المحاسبية تُنشأ حسب نوع المعاملة وإعدادات دليل الحسابات. القاعدة العامة: كل قيد يجب أن يكون متوازنًا، مجموع المدين = مجموع الدائن.", "confidence": 0.8, "reasoning_steps": steps}
 
     def _reason_calculation(self, query: str, data: Dict, steps: List[str]) -> Dict[str, Any]:
         steps.append("استنتجت: سؤال عن حساب")
@@ -139,42 +129,48 @@ VAT = الصافي بعد الخصم × نسبة الضريبة
         q_lower = str(query or "").lower()
         if "عميل" in q_lower and any(w in q_lower for w in ["أضيف", "اضيف", "add", "إنشاء", "انشاء"]):
             steps.append("الموضوع المطلوب: كيفية إضافة عميل جديد")
-            answer = """📝 كيف تضيف عميل:
+            route = self._route_for_keyword("customers create") or self._route_for_keyword("customers") or "صفحة العملاء غير مفهرسة حالياً"
+            answer = f"""📝 كيف تضيف عميل:
 
-المسار المتوقع: /customers/create
+المسار حسب خريطة النظام: {route}
 
 الخطوات:
 1. افتح صفحة العملاء.
-2. اضغط إضافة عميل جديد.
+2. اضغط إضافة عميل جديد إن كان الزر متاحًا حسب صلاحيتك.
 3. أدخل الاسم ورقم الهاتف.
-4. أدخل البيانات الاختيارية مثل العنوان والرقم الضريبي والملاحظات.
+4. أدخل البيانات الاختيارية مثل العنوان والملاحظات.
 5. راجع الرصيد الافتتاحي قبل الحفظ.
 6. اضغط حفظ.
 
 محاسبيًا: الرصيد الافتتاحي يؤثر على الذمم حسب سياسة النظام، لذلك لا تدخله إلا بعد التأكد."""
-            return {"answer": answer, "confidence": 0.9, "reasoning_steps": steps}
+            return {"answer": answer, "confidence": 0.85, "reasoning_steps": steps}
         return {"answer": "", "confidence": 0, "reasoning_steps": steps}
 
     def _reason_general(self, query: str, data: Dict, steps: List[str]) -> Dict[str, Any]:
         return {"answer": "", "confidence": 0, "reasoning_steps": steps}
 
     def _extract_entity_name(self, query: str) -> Optional[str]:
-        patterns = [
-            r"رصيد\s+(?:العميل\s+)?([^\s،.؟?]+)",
-            r"balance\s+of\s+(\w+)",
-            r"customer\s+(\w+)",
-            r"العميل\s+([^\s،.؟?]+)",
-        ]
+        patterns = [r"رصيد\s+(?:العميل\s+)?([^\s،.؟?]+)", r"balance\s+of\s+(\w+)", r"customer\s+(\w+)", r"العميل\s+([^\s،.؟?]+)"]
         for pattern in patterns:
             match = re.search(pattern, str(query or ""), re.IGNORECASE)
             if match:
                 return match.group(1).strip()
         return None
 
+    def _route_for_keyword(self, keyword: str) -> Optional[str]:
+        try:
+            from AI.engine.ai_auto_discovery import find_route_by_keyword
+            info = find_route_by_keyword(keyword)
+            if info and info.get("matches"):
+                route = info["matches"][0]
+                return route.get("url") or route.get("path") or route.get("rule")
+        except Exception:
+            pass
+        return None
+
     def _find_in_database(self, model_name: str, field: str, value: Any) -> Optional[Dict[str, Any]]:
         try:
             from models import Customer, Product, Supplier
-
             model_map = {"Customer": Customer, "Supplier": Supplier, "Product": Product}
             model = model_map.get(model_name)
             if not model or not hasattr(model, field):
@@ -182,22 +178,20 @@ VAT = الصافي بعد الخصم × نسبة الضريبة
             entity = model.query.filter(getattr(model, field).ilike(f"%{value}%")).first()
             if entity:
                 return {"id": entity.id, "name": getattr(entity, "name", ""), "balance": float(getattr(entity, "balance", 0) or 0)}
-        except Exception as exc:
-            print(f"Database search error: {exc}")
+        except Exception:
+            pass
         return None
 
     def _get_customer_sales(self, customer_id: int) -> List[Dict[str, Any]]:
         try:
-            from models import Sale
-
-            sales = Sale.query.filter_by(customer_id=customer_id).limit(500).all()
+            from models import Sale, SaleStatus
+            query = Sale.query.filter_by(customer_id=customer_id)
+            if hasattr(Sale, "status") and hasattr(SaleStatus, "CANCELLED"):
+                query = query.filter(Sale.status != SaleStatus.CANCELLED.value)
+            sales = query.limit(500).all()
             output = []
             for sale in sales:
                 amount = getattr(sale, "total_amount", None)
-                if amount is None:
-                    amount = getattr(sale, "sale_total", None)
-                if amount is None:
-                    amount = getattr(sale, "total", 0)
                 date = getattr(sale, "sale_date", None) or getattr(sale, "created_at", None)
                 output.append({"id": sale.id, "date": date.isoformat() if date else None, "total": float(amount or 0)})
             return output
@@ -206,32 +200,25 @@ VAT = الصافي بعد الخصم × نسبة الضريبة
 
     def _get_customer_payments(self, customer_id: int) -> List[Dict[str, Any]]:
         try:
-            from models import Payment
-
-            query = Payment.query
-            if hasattr(Payment, "customer_id"):
-                query = query.filter_by(customer_id=customer_id)
-            elif hasattr(Payment, "entity_type") and hasattr(Payment, "entity_id"):
-                query = query.filter(Payment.entity_type.in_(["CUSTOMER", "customer"]), Payment.entity_id == customer_id)
-            else:
+            from models import Payment, PaymentStatus
+            query = Payment.query.filter_by(customer_id=customer_id) if hasattr(Payment, "customer_id") else None
+            if query is None:
                 return []
+            if hasattr(Payment, "status") and hasattr(PaymentStatus, "FAILED"):
+                query = query.filter(Payment.status != PaymentStatus.FAILED.value)
             payments = query.limit(500).all()
             output = []
             for payment in payments:
-                amount = getattr(payment, "amount", None)
-                if amount is None:
-                    amount = getattr(payment, "total_amount", 0)
+                amount = getattr(payment, "total_amount", 0)
                 date = getattr(payment, "payment_date", None) or getattr(payment, "created_at", None)
-                output.append({"id": payment.id, "date": date.isoformat() if date else None, "amount": float(amount or 0)})
+                direction = getattr(payment, "direction", "IN")
+                output.append({"id": payment.id, "date": date.isoformat() if date else None, "amount": float(amount or 0), "direction": getattr(direction, "value", direction)})
             return output
         except Exception:
             return []
 
     def _load_inference_rules(self) -> None:
-        self.inference_rules = [
-            {"if": "query_about_balance", "then": ["find_entity", "get_transactions", "calculate", "explain"]},
-            {"if": "query_about_gl", "then": ["identify_transaction_type", "explain_accounts", "show_example"]},
-        ]
+        self.inference_rules = [{"if": "query_about_balance", "then": ["find_entity", "get_transactions", "calculate", "explain"]}, {"if": "query_about_gl", "then": ["identify_transaction_type", "explain_accounts", "show_example"]}]
 
 
 _reasoning_engine = None
