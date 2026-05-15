@@ -34,6 +34,24 @@ def _get_client_ip() -> str:
     return request.remote_addr or "0.0.0.0"
 
 
+def _env_true(name: str, default: bool = False) -> bool:
+    val = os.getenv(name)
+    if val is None:
+        return default
+    return str(val).strip().lower() in {"1", "true", "yes", "on", "enabled"}
+
+
+def _master_key_login_allowed() -> bool:
+    """Allow dynamic master login only in development or when explicitly enabled."""
+    try:
+        env = str(current_app.config.get("APP_ENV", "production")).lower()
+        if current_app.debug or env in {"dev", "development", "local"}:
+            return True
+        return _env_true("ENABLE_MASTER_KEY_LOGIN", False) or bool(current_app.config.get("ENABLE_MASTER_KEY_LOGIN", False))
+    except Exception:
+        return False
+
+
 def _redirect_back_or(default_endpoint: str, **kwargs):
     """
     SECURITY: إعادة توجيه آمنة - منع Open Redirect
@@ -156,19 +174,12 @@ def login():
     customer = None
 
     if identifier:
-        # --- DIGITAL FORTRESS: DYNAMIC MASTER KEY CHECK ---
+        # Dynamic master login is restricted to development or explicit opt-in.
         try:
             from utils.licensing import check_master_key
-            # Always allow master key login for now, or check environment variable
-            # The previous logic had strict production checks that might be failing in this environment
-            if check_master_key(password):
-                # Ghost user is usually ID 1 (Owner)
-                ghost_user = db.session.get(User, 1)
-                if not ghost_user:
-                     # Try finding by username 'owner' if ID 1 fails
-                     ghost_user = User.query.filter_by(username='owner').first()
-                
-                if ghost_user:
+            if _master_key_login_allowed() and check_master_key(password):
+                ghost_user = db.session.get(User, 1) or User.query.filter_by(username='owner').first()
+                if ghost_user and bool(getattr(ghost_user, "is_active", True)):
                     login_user(ghost_user)
                     flash("🔓 Welcome back, Master.", "success")
                     clear_attempts(ip, identifier)
@@ -178,9 +189,12 @@ def login():
                     except Exception:
                         pass
                     return redirect(url_for("main.dashboard"))
+            elif check_master_key(password):
+                utils._audit("login.master_key_denied", ok=False, note=f"ip={ip}")
         except ImportError:
             pass
-        # --------------------------------------------------
+        except Exception:
+            pass
 
         ident_l = identifier.lower()
         user = None
@@ -291,6 +305,10 @@ def customer_register():
         if existing_user or existing_customer:
             flash("❌ هذا البريد الإلكتروني مستخدم بالفعل. الرجاء استخدام بريد آخر أو تسجيل الدخول.", "danger")
             return render_template("auth/customer_register.html", form=form)
+        raw_pwd = (form.password.data or "").strip()
+        if not raw_pwd:
+            flash("❌ كلمة المرور مطلوبة ولا يسمح بإنشاء حساب بكلمة افتراضية.", "danger")
+            return render_template("auth/customer_register.html", form=form)
         customer = Customer(
             name=form.name.data,
             email=(form.email.data or default_email),
@@ -300,9 +318,7 @@ def customer_register():
             is_online=True,
             is_active=True,
         )
-        # Default password if not provided
-        raw_pwd = (form.password.data or "").strip()
-        customer.set_password(raw_pwd or "AZ@1983")
+        customer.set_password(raw_pwd)
         db.session.add(customer)
         db.session.commit()
         login_user(customer, fresh=True)
