@@ -140,7 +140,7 @@
 | الجزء | التصنيف | الحالة | الملاحظة |
 |---|---|---|---|
 | نهاية `_validate_system_integrity()` | LOW | DONE | يرفع RuntimeError إذا فشل الفحص، ويسجل نجاح الفحص بعدد routes/models/forms. جيد لكن فشله يمنع التشغيل. |
-| `_register_cors()` | HIGH | TODO | CORS مخصص لـ `/api/*` فقط. يجب التأكد من إعداد `CORS_ORIGINS` وعدم استخدام wildcard مع credentials في الإنتاج. |
+| `_register_cors()` | HIGH | DONE | تم تحسينه في فرع `review/app-safe-hardening`: إذا كانت origins تساوي `*` مع credentials يتم تعطيل credentials تلقائيًا مع تسجيل warning. |
 | security headers | MEDIUM | TODO | يضيف headers جيدة، لكن CSP تسمح بـ `unsafe-inline` و `unsafe-eval` لأسباب توافق. تحتاج مراجعة مستقبلية. |
 | `X-XSS-Protection` | LOW | TODO | مستخدم بقيمة قديمة `1; mode=block`. المتصفحات الحديثة لا تعتمد عليه كثيرًا. ليس أولوية. |
 | no-store لـ `/auth/` و `/api/` | LOW | DONE | جيد لمنع كاش بيانات حساسة. |
@@ -155,7 +155,7 @@
 | logging filters | LOW | DONE | تخفف ضجيج السجلات من SQLAlchemy/SocketIO/PIL/WeasyPrint وغيرها. |
 | override `app.url_for` عند `SERVER_NAME` | REVIEW | TODO | يحول روابط خارجية إلى نسبية إذا ليست `_external`. يحتاج اختبار إذا تم استخدام SERVER_NAME. |
 | `init_security_middleware(app)` | HIGH | TODO | يحتاج دراسة `middleware/security_middleware.py` لأن له أثرًا عامًا على الطلبات. |
-| attach ACL على Blueprints | HIGH | TODO | مصدر مهم للصلاحيات. يجب دراسة `permissions_config.blueprint_guards.py` و `acl.py`. |
+| attach ACL على Blueprints | HIGH | TODO | مصدر مهم للصلاحيات. يجب دراسة `permissions_config/blueprint_guards.py` و `acl.py`. |
 | تحميل إعدادات البريد والتكاملات من DB | MEDIUM | TODO | يسمح للوحة التحكم بتجاوز env. جيد، لكنه يعني أن أسرار integrations قد تكون في DB وتحتاج حماية. |
 | `_touch_last_seen` | LOW | IN_REVIEW | يبدأ بعد هذا المقطع، ويحتاج متابعة في الجزء التالي. |
 
@@ -165,16 +165,16 @@
 |---|---|---|---|
 | `_touch_last_seen` | LOW | DONE | يحدث `last_seen` مرة تقريبًا كل ساعة لكل مستخدم/عميل عبر cache، وهذا جيد لتقليل ضغط الكتابة على قاعدة البيانات. |
 | `_mark_request_start` | LOW | DONE | يضع وقت بداية الطلب في `g` لحساب زمن الطلب. جيد للأداء والمراقبة. |
-| `_attach_request_id` و `_emit_request_id` | LOW | DONE | يضيف Request ID لكل طلب. جيد لتتبع الأخطاء. |
+| `_attach_request_id` و `_emit_request_id` | LOW | DONE | تم تحسين `X-Request-Id` في فرع `review/app-safe-hardening`: يتم قبول القيم النظيفة فقط بحد أقصى 64 حرفًا، وإلا يتم توليد UUID آمن. |
 | `_serve_microcache` | MEDIUM | REVIEW | microcache لصفحات GET HTML حسب المستخدم والمسار. جيد للأداء، لكنه يحتاج مراقبة حتى لا يخزن صفحات فيها Set-Cookie أو محتوى ديناميكي حساس. |
 | `_store_microcache` | MEDIUM | REVIEW | لا يخزن إلا status 200 وHTML وبدون Set-Cookie. تصميم جيد، لكن أي صفحة حساسة لا يجب أن تعتمد على GET فقط بدون تغيير user_key. |
 | `_access_log` | LOW | DONE | يسجل الطلبات البطيئة أو ذات status >= 400، ويتجنب static. جيد للتشخيص. |
-| error handlers 400/401/429/500/502/503 | MEDIUM | TODO | جيدة عمومًا، لكن handler 500 يرجع traceback كامل في الرد، وهذا خطر في الإنتاج ويجب مراجعته لاحقًا. |
+| error handlers 400/401/429/500/502/503 | MEDIUM | DONE | تم تحسين handler 500 في فرع `review/app-safe-hardening`: لا يكشف traceback في الإنتاج، ويرجع JSON/قالب عام مع `request_id`، ويبقي traceback في التطوير فقط. |
 | `_memory_error` | LOW | DONE | يحول MemoryError إلى 413 مع رسالة أو قالب. جيد. |
 | `restrict_customer_from_admin` | HIGH | TODO | يمنع دور customer من دخول الإدارة ويسمح فقط `/shop`, `/static`, `/auth/logout`. جيد، لكن يجب التأكد أن عملاء بدون role slug customer محميون كذلك. |
 | فحص `CRITICAL_ENDPOINTS` | MEDIUM | TODO | يسجل endpoints مفقودة عند startup. مفيد، لكنه لا يفشل التشغيل. يجب مراجعة القائمة حسب أسماء endpoints الحالية. |
-| `inject_system_settings` | HIGH | TODO | يستدعي `SystemSettings.query` مباشرة داخل context processor لكل قالب، وبشكل متكرر لكل key. قد يكون مكلفًا ويحتاج cache. |
-| `inject_system_settings` و custom logo | MEDIUM | TODO | يبني رابط الشعار من `custom_logo`. يحتاج التأكد من عدم قبول مسارات غير متوقعة أو أسماء خارج static. |
+| `inject_system_settings` | HIGH | DONE | تم تحسينه في فرع `review/app-safe-hardening`: يقرأ مفاتيح القوالب دفعة واحدة ويخزنها في cache لمدة 120 ثانية بدل استعلام لكل مفتاح داخل كل قالب. |
+| `inject_system_settings` و custom logo | MEDIUM | DONE | تم تحسين مسار الشعار في فرع `review/app-safe-hardening`: يمنع الروابط الخارجية و`..` ويعيد أي مسار غير آمن إلى `img/azad_logo.png`. |
 | `check_maintenance_mode` | MEDIUM | TODO | وضع الصيانة يتخطى owner/admin بالـ id أو username. يحتاج توحيد مع صلاحيات النظام بدل hard-code فقط. |
 | تسجيل `register_cli(app)` مرة ثانية | LOW | REVIEW | تم تسجيل CLI سابقًا داخل `_init_extensions_stack` ثم هنا مرة أخرى. غالبًا لا يضر، لكن يحتاج معرفة إن كان يكرر الأوامر أو لا. |
 | إضافة العملات الافتراضية داخل `create_app` | MEDIUM | TODO | يضيف العملات إذا الجدول فارغ. مفيد، لكنه seed داخل startup ومكرر جزئيًا مع SystemInitializer. |
@@ -192,8 +192,8 @@
 | التصنيف | الحالة | الملاحظة |
 |---|---|---|
 | REVIEW | DONE | `app.py` مدروس من أوله لآخره على مراحل. |
-| HIGH | TODO | أكثر نقطة أمنية تحتاج مراجعة لاحقة: traceback في handler 500، CSRF exemption للـ ledger، CORS origins، session_protection، وأسرار integrations من DB. |
-| MEDIUM | TODO | أكثر نقطة أداء تحتاج مراجعة لاحقة: `inject_system_settings` لأنه يعمل direct DB queries داخل context processor. |
+| HIGH | DONE | تم إنجاز تحسينات آمنة في فرع `review/app-safe-hardening`: handler 500، CORS wildcard/credentials، X-Request-Id، cache لإعدادات القوالب، وتنظيف custom logo. |
+| HIGH | TODO | نقاط أمنية متبقية تحتاج دراسة ملفات تابعة قبل تعديلها: CSRF exemption للـ ledger، session_protection، وأسرار integrations من DB. |
 | MEDIUM | TODO | أكثر نقطة تنظيمية: وجود seed/init logic في أكثر من مكان: `SystemInitializer`, إضافة العملات, إضافة الأدوار, `bootstrap_database`. |
 | LOW | DONE | توجد نقاط أداء جيدة: microcache، request id، access log، static cache، كاش last_seen، وكاش module flags. |
 
@@ -358,6 +358,7 @@
 - يوجد performance monitor.
 - يوجد تقليل لتحديث `last_seen` المتكرر.
 - يوجد request id وaccess log للطلبات البطيئة أو ذات الأخطاء.
+- تم تقليل استعلامات إعدادات القوالب في `app.py` على فرع `review/app-safe-hardening`.
 
 ## نقاط تحتاج متابعة
 
@@ -366,7 +367,6 @@
 | `/system/performance` | REVIEW | TODO | يجب استخدامه لتحديد أبطأ endpoints بدل التخمين. |
 | query counts | MEDIUM | TODO | مراقبة N+1 في صفحات الشيكات والدفعات والمخزون. |
 | صفحات القوائم | MEDIUM | TODO | مراجعة pagination وحجم الجلب. |
-| `inject_system_settings` | HIGH | TODO | مرشح قوي لتحسين الأداء لأنه يعمل direct DB queries داخل كل قالب. |
 
 ---
 
@@ -413,9 +413,11 @@
 | CSRF exemptions | HIGH | TODO | يجب توثيق أي إعفاء ولماذا موجود، خصوصًا `ledger_bp`. |
 | master key | HIGH | IN_REVIEW | يبقى يعمل، مع audit وحماية جلسة. |
 | حذف مالي مباشر | HIGH | TODO | الحذف في الملفات المالية يجب مراجعته، والأفضل الأرشفة أو القيود العكسية. |
-| handler 500 | HIGH | TODO | لا يجب كشف traceback كامل للمستخدم في الإنتاج. |
+| handler 500 | HIGH | DONE | تم منع كشف traceback كامل للمستخدم في الإنتاج، مع إرجاع رسالة عامة و`request_id`، وبقاء التفاصيل في logs وفي التطوير فقط. |
 | أسرار integrations في DB | HIGH | TODO | يجب معرفة من يستطيع رؤيتها وهل تُخفى أو تُشفر. |
-| CORS مع credentials | HIGH | TODO | يجب التأكد من أن `CORS_ORIGINS` ليست wildcard في الإنتاج. |
+| CORS مع credentials | HIGH | DONE | تم منع الجمع غير الآمن بين `CORS_ORIGINS=*` و credentials على `/api/*`. |
+| X-Request-Id | MEDIUM | DONE | تم تنظيف قيمة `X-Request-Id` لمنع قيم طويلة أو غير نظيفة داخل logs/headers. |
+| custom logo path | MEDIUM | DONE | تم منع روابط خارجية أو مسارات تحتوي `..` في شعار النظام، مع fallback آمن. |
 
 ---
 
@@ -445,7 +447,7 @@
 
 | الترتيب | الملف/الوحدة | الهدف | الحالة |
 |---|---|---|---|
-| 1 | `app.py` | إنهاء دراسة ملف التشغيل المركزي | DONE |
+| 1 | `app.py` | إنهاء دراسة ملف التشغيل المركزي وتحسيناته الآمنة | IN_REVIEW |
 | 2 | `models.py` | خريطة الجداول والعلاقات | TODO |
 | 3 | `extensions.py` | فهم db/cache/csrf/limiter/socketio/logging | TODO |
 | 4 | `middleware/security_middleware.py` | فهم الحماية العامة | TODO |

@@ -173,6 +173,14 @@ def _env_bool(name: str, default: bool = False) -> bool:
     return default
 
 
+def _safe_request_id(value) -> str:
+    raw = str(value or "").strip()
+    allowed = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.:")
+    if not raw or len(raw) > 64 or any(ch not in allowed for ch in raw):
+        return uuid.uuid4().hex
+    return raw
+
+
 def _configure_app(app: Flask, config_object):
     app.config.from_object(config_object)
     app.config.setdefault("JSON_AS_ASCII", False)
@@ -846,12 +854,18 @@ def _validate_system_integrity(app):
 
 def _register_cors(app):
     if CORS is not None:
+        origins = app.config.get("CORS_ORIGINS", ["http://localhost:5000"])
+        supports_credentials = app.config.get("CORS_SUPPORTS_CREDENTIALS", True)
+        has_wildcard = origins == "*" or (isinstance(origins, (list, tuple, set)) and "*" in origins)
+        if supports_credentials and has_wildcard:
+            app.logger.warning("CORS wildcard origin cannot be used safely with credentials; disabling CORS credentials for /api/*")
+            supports_credentials = False
         CORS(
             app,
             resources={
                 r"/api/*": {
-                    "origins": app.config.get("CORS_ORIGINS", ["http://localhost:5000"]),
-                    "supports_credentials": app.config.get("CORS_SUPPORTS_CREDENTIALS", True),
+                    "origins": origins,
+                    "supports_credentials": supports_credentials,
                     "allow_headers": ["Content-Type", "Authorization", "X-CSRF-TOKEN"],
                     "methods": ["GET", "POST", "PUT", "DELETE", "PATCH"],
                     "max_age": 3600,
@@ -1203,7 +1217,7 @@ def create_app(config_object=Config) -> Flask:
 
     @app.before_request
     def _attach_request_id():
-        g.request_id = request.headers.get("X-Request-Id") or uuid.uuid4().hex
+        g.request_id = _safe_request_id(request.headers.get("X-Request-Id"))
 
     @app.before_request
     def _serve_microcache():
@@ -1353,8 +1367,21 @@ def create_app(config_object=Config) -> Flask:
         except Exception:
             pass
         app.logger.exception("unhandled", extra={"event": "app.error", "path": request.path})
-        import traceback
-        return f"500 Internal Server Error: {str(e)}\n\n{traceback.format_exc()}", 500
+        is_dev = bool(app.config.get("DEBUG")) or str(app.config.get("APP_ENV", "production")).lower() in {"dev", "development", "local"}
+        if is_dev:
+            import traceback
+            return f"500 Internal Server Error: {str(e)}\n\n{traceback.format_exc()}", 500
+        request_id = getattr(g, "request_id", None)
+        if request.path.startswith("/api/") or request.accept_mimetypes.best == "application/json":
+            return {
+                "error": "Internal Server Error",
+                "message": "حدث خطأ داخلي في الخادم. تم تسجيل الخطأ للمراجعة.",
+                "request_id": request_id,
+            }, 500
+        try:
+            return render_template("errors/500.html", path=request.path, request_id=request_id), 500
+        except Exception:
+            return ("500 Internal Server Error", 500)
 
     @app.errorhandler(502)
     def _bad_gateway(e):
@@ -1405,56 +1432,65 @@ def create_app(config_object=Config) -> Flask:
 
     @app.context_processor
     def inject_system_settings():
-        # print("DEBUG: inject_system_settings called")
-        # Helper to get setting from DB or cache (preferred way)
-        def _get(key, default=None):
+        setting_keys = {
+            'system_name', 'SystemName', 'company_name', 'CompanyName',
+            'login_title', 'login_subtitle', 'footer_text',
+            'custom_logo', 'custom_favicon',
+            'primary_color', 'secondary_color', 'sidebar_bg', 'sidebar_text',
+            'COMPANY_ADDRESS', 'COMPANY_PHONE', 'COMPANY_EMAIL', 'TAX_NUMBER',
+            'CURRENCY_SYMBOL', 'TIMEZONE',
+            'MARKETING_MODULES', 'MARKETING_APIS', 'MARKETING_INDEXES',
+            'MARKETING_OTHER_SYSTEMS', 'MARKETING_PRICE_FROM_USD',
+        }
+        lookup_keys = set(setting_keys)
+        lookup_keys.update(k.upper() for k in setting_keys)
+        cache_key = 'system_settings:template_settings:v1'
+        raw_settings = cache.get(cache_key)
+        if not isinstance(raw_settings, dict):
             try:
-                # Force direct DB query to bypass potential cache issues
-                setting = SystemSettings.query.filter_by(key=key).first()
-                if not setting:
-                    setting = SystemSettings.query.filter_by(key=key.upper()).first()
-                
-                val = setting.value if setting else None
-                
-                if val is None:
-                    return default
-                    
-                s = str(val).strip()
-                low = s.lower()
-                if low in ['true', '1', 'yes']:
-                    return True
-                if low in ['false', '0', 'no']:
-                    return False
-                return s
+                rows = SystemSettings.query.filter(SystemSettings.key.in_(list(lookup_keys))).all()
+                raw_settings = {row.key: row.value for row in rows}
+                cache.set(cache_key, raw_settings, timeout=120)
             except Exception:
-                # Silently fail and return default
+                raw_settings = {}
+
+        def _coerce(val, default=None):
+            if val is None:
                 return default
+            s = str(val).strip()
+            low = s.lower()
+            if low in ['true', '1', 'yes']:
+                return True
+            if low in ['false', '0', 'no']:
+                return False
+            return s
 
-        # Get values with fallbacks
-        val1 = _get('system_name')
-        val2 = _get('SystemName')
-        
-        system_name_val = val1 or val2
-        if not system_name_val:
-            system_name_val = 'أزاد لإدارة الكراج'
+        def _get(key, default=None):
+            return _coerce(raw_settings.get(key, raw_settings.get(str(key).upper())), default)
 
+        def _safe_static_path(value, default='img/azad_logo.png'):
+            s = str(value or '').strip().replace('\\', '/')
+            if not s:
+                return default
+            lowered = s.lower()
+            if lowered.startswith(('http://', 'https://', '//')):
+                return default
+            s = s.lstrip('/')
+            if s.startswith('static/'):
+                s = s[len('static/'):]
+            if '/' not in s:
+                s = f'img/{s}'
+            parts = [p for p in s.split('/') if p]
+            if not parts or any(p in {'.', '..'} for p in parts):
+                return default
+            return '/'.join(parts)
+
+        system_name_val = _get('system_name') or _get('SystemName') or 'أزاد لإدارة الكراج'
         company_name_val = _get('company_name') or _get('CompanyName') or 'شركة أزاد للأنظمة الذكية'
 
-        # Prepare Logo URL helper
         custom_logo = _get('custom_logo')
-        if custom_logo:
-            # Handle both full paths and relative paths
-            if custom_logo.startswith('static/'):
-                logo_filename = custom_logo.replace('static/', '')
-            elif '/' not in custom_logo:
-                # If just a filename, assume it is in img/
-                logo_filename = f'img/{custom_logo}'
-            else:
-                logo_filename = custom_logo
-            
-            logo_url = url_for('static', filename=logo_filename)
-        else:
-            logo_url = url_for('static', filename='img/azad_logo.png')
+        logo_filename = _safe_static_path(custom_logo)
+        logo_url = url_for('static', filename=logo_filename)
 
         settings = {
             'system_name': system_name_val,
@@ -1462,7 +1498,7 @@ def create_app(config_object=Config) -> Flask:
             'login_title': _get('login_title', 'مرحباً بك'),
             'login_subtitle': _get('login_subtitle', 'سجل دخولك للمتابعة'),
             'footer_text': _get('footer_text', 'جميع الحقوق محفوظة'),
-            'custom_logo': _get('custom_logo', ''),
+            'custom_logo': custom_logo or '',
             'custom_logo_url': logo_url,
             'custom_favicon': _get('custom_favicon', ''),
             'primary_color': _get('primary_color', '#007bff'),
@@ -1482,7 +1518,7 @@ def create_app(config_object=Config) -> Flask:
             'marketing_price_from_usd': _get('MARKETING_PRICE_FROM_USD', '500'),
         }
 
-        system_appearance = {} # Fix: Define system_appearance to prevent NameError
+        system_appearance = {}
         return dict(system_settings=settings, system_appearance=system_appearance)
     
     @app.before_request
