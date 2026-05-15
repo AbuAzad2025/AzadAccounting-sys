@@ -1,6 +1,22 @@
-from flask import request, abort, jsonify
-from models import SystemSettings
+from __future__ import annotations
+
 import json
+import re
+from typing import Any, Dict
+
+from flask import abort, jsonify, request
+from models import SystemSettings
+
+DANGEROUS_METHODS = {"TRACE", "TRACK"}
+MAX_FIELD_LEN = 10000
+SUSPICIOUS_PATTERNS = (
+    re.compile(r"(?is)<\s*script\b"),
+    re.compile(r"(?is)javascript\s*:"),
+    re.compile(r"(?is)on\w+\s*="),
+    re.compile(r"(?is)\bunion\s+select\b"),
+    re.compile(r"(?is)\b(drop|truncate|alter)\s+(table|database)\b"),
+    re.compile(r"(?is)\.\./"),
+)
 
 
 def get_client_ip():
@@ -11,6 +27,80 @@ def get_client_ip():
     else:
         ip = request.remote_addr
     return ip
+
+
+def _log_security_event(event: str, data: Dict[str, Any] = None) -> None:
+    try:
+        from utils.security import log_security_event
+        log_security_event(event, data or {})
+    except Exception:
+        try:
+            from AI.engine.ai_storage import append_json_list, utc_now
+            append_json_list("security_middleware_events.json", {"timestamp": utc_now(), "event": event, "data": data or {}, "ip": get_client_ip(), "path": request.path}, max_items=1000)
+        except Exception:
+            pass
+
+
+def _setting_bool(key: str, default: bool = False) -> bool:
+    try:
+        return str(SystemSettings.get_setting(key, default)).strip().lower() in {"1", "true", "yes", "on", "enabled"}
+    except Exception:
+        return default
+
+
+def _is_suspicious_value(value: Any) -> bool:
+    text = str(value or "")
+    if len(text) > MAX_FIELD_LEN:
+        return True
+    if not text:
+        return False
+    return any(pattern.search(text) for pattern in SUSPICIOUS_PATTERNS)
+
+
+def _iter_request_values():
+    for key, value in request.args.items():
+        yield f"query:{key}", value
+    if request.form:
+        for key, value in request.form.items():
+            yield f"form:{key}", value
+    if request.is_json:
+        try:
+            payload = request.get_json(silent=True)
+        except Exception:
+            payload = None
+        stack = [("json", payload)]
+        while stack:
+            prefix, current = stack.pop()
+            if isinstance(current, dict):
+                for key, value in current.items():
+                    stack.append((f"{prefix}.{key}", value))
+            elif isinstance(current, list):
+                for idx, value in enumerate(current[:50]):
+                    stack.append((f"{prefix}[{idx}]", value))
+            else:
+                yield prefix, current
+
+
+def request_safety_middleware():
+    if request.method in DANGEROUS_METHODS:
+        _log_security_event("dangerous_http_method", {"method": request.method})
+        abort(405)
+
+    if request.endpoint and request.endpoint.startswith("static"):
+        return None
+
+    # Keep uploads and rich text pages usable unless strict mode is enabled.
+    strict = _setting_bool("enable_strict_request_filter", False)
+    if not strict and request.method in {"POST", "PUT", "PATCH"}:
+        return None
+
+    for key, value in _iter_request_values():
+        if _is_suspicious_value(value):
+            _log_security_event("suspicious_request_value", {"field": key, "sample": str(value)[:200]})
+            if request.is_json or request.path.startswith('/api/'):
+                return jsonify({"success": False, "error": "طلب غير آمن أو يحتوي بيانات غير مقبولة"}), 400
+            abort(400)
+    return None
 
 
 def check_ip_allowed(ip):
@@ -108,8 +198,31 @@ def ip_security_middleware():
     return None
 
 
+def apply_security_headers(response):
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    response.headers.setdefault("X-XSS-Protection", "0")
+    if request.is_secure:
+        response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+    return response
+
+
 def init_security_middleware(app):
+    if getattr(app, "_azad_security_middleware_enabled", False):
+        return
+
+    @app.before_request
+    def check_request_safety():
+        return request_safety_middleware()
+
     @app.before_request
     def check_ip_security():
         return ip_security_middleware()
 
+    @app.after_request
+    def add_security_headers(response):
+        return apply_security_headers(response)
+
+    app._azad_security_middleware_enabled = True
