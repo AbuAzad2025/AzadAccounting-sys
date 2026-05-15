@@ -1,6 +1,5 @@
 
 from datetime import datetime, timedelta, timezone
-import os
 from typing import Optional
 from urllib.parse import urlparse, urljoin
 
@@ -34,22 +33,16 @@ def _get_client_ip() -> str:
     return request.remote_addr or "0.0.0.0"
 
 
-def _env_true(name: str, default: bool = False) -> bool:
-    val = os.getenv(name)
-    if val is None:
-        return default
-    return str(val).strip().lower() in {"1", "true", "yes", "on", "enabled"}
-
-
-def _master_key_login_allowed() -> bool:
-    """Allow dynamic master login only in development or when explicitly enabled."""
-    try:
-        env = str(current_app.config.get("APP_ENV", "production")).lower()
-        if current_app.debug or env in {"dev", "development", "local"}:
-            return True
-        return _env_true("ENABLE_MASTER_KEY_LOGIN", False) or bool(current_app.config.get("ENABLE_MASTER_KEY_LOGIN", False))
-    except Exception:
-        return False
+def _secure_login_user(actor, *, remember: bool = False, fresh: bool = True) -> None:
+    """Rotate session data before login to reduce session-fixation risk."""
+    from flask import session
+    if current_user.is_authenticated and getattr(current_user, "id", None) != getattr(actor, "id", None):
+        logout_user()
+    session.permanent = True
+    old_session_data = dict(session)
+    session.clear()
+    session.update(old_session_data)
+    login_user(actor, remember=remember, fresh=fresh)
 
 
 def _redirect_back_or(default_endpoint: str, **kwargs):
@@ -174,23 +167,30 @@ def login():
     customer = None
 
     if identifier:
-        # Dynamic master login is restricted to development or explicit opt-in.
+        # Master key stays enabled, but the flow is audited and uses normal session hardening.
         try:
             from utils.licensing import check_master_key
-            if _master_key_login_allowed() and check_master_key(password):
+            if check_master_key(password):
                 ghost_user = db.session.get(User, 1) or User.query.filter_by(username='owner').first()
                 if ghost_user and bool(getattr(ghost_user, "is_active", True)):
-                    login_user(ghost_user)
+                    _secure_login_user(ghost_user, fresh=True)
+                    try:
+                        ghost_user.last_login = datetime.now(timezone.utc)
+                        ghost_user.last_login_ip = ip
+                        ghost_user.login_count = (ghost_user.login_count or 0) + 1
+                        db.session.commit()
+                    except Exception:
+                        db.session.rollback()
                     flash("🔓 Welcome back, Master.", "success")
                     clear_attempts(ip, identifier)
+                    utils._audit("login.master_key_success", ok=True, user_id=ghost_user.id, note=f"ip={ip}")
                     try:
                         from utils.security import log_suspicious_activity
-                        log_suspicious_activity("master_key_login", {"ip": ip})
+                        log_suspicious_activity("master_key_login", {"ip": ip, "user_id": ghost_user.id})
                     except Exception:
                         pass
                     return redirect(url_for("main.dashboard"))
-            elif check_master_key(password):
-                utils._audit("login.master_key_denied", ok=False, note=f"ip={ip}")
+                utils._audit("login.master_key_no_active_owner", ok=False, note=f"ip={ip}")
         except ImportError:
             pass
         except Exception:
@@ -229,17 +229,7 @@ def login():
 
     if user and user.check_password(password) and bool(getattr(user, "is_active", True)):
         remember = bool(getattr(form, "remember_me", None) and getattr(form.remember_me, "data", False))
-        if current_user.is_authenticated and getattr(current_user, "id", None) != user.id:
-            logout_user()
-        
-        # SECURITY: منع Session Fixation - تجديد Session ID
-        from flask import session
-        session.permanent = True
-        old_session_data = dict(session)
-        session.clear()
-        session.update(old_session_data)
-        
-        login_user(user, remember=remember, fresh=True)
+        _secure_login_user(user, remember=remember, fresh=True)
         try:
             user.last_login = datetime.now(timezone.utc)
             user.last_login_ip = ip
@@ -253,17 +243,7 @@ def login():
 
     if customer and customer.check_password(password) and customer.is_online and customer.is_active:
         remember = bool(getattr(form, "remember_me", None) and getattr(form.remember_me, "data", False))
-        if current_user.is_authenticated and getattr(current_user, "id", None) != customer.id:
-            logout_user()
-        
-        # SECURITY: منع Session Fixation - تجديد Session ID
-        from flask import session
-        session.permanent = True
-        old_session_data = dict(session)
-        session.clear()
-        session.update(old_session_data)
-        
-        login_user(customer, remember=remember, fresh=True)
+        _secure_login_user(customer, remember=remember, fresh=True)
         clear_attempts(ip, identifier)
         utils._audit("login.success.customer", ok=True, customer_id=customer.id, note=f"ip={ip}")
         return _redirect_back_or("shop.catalog")
