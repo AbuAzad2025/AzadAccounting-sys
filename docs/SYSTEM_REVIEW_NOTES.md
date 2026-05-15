@@ -450,7 +450,7 @@
 | الترتيب | الملف/الوحدة | الهدف | الحالة |
 |---|---|---|---|
 | 1 | `app.py` | إنهاء دراسة ملف التشغيل المركزي وتحسيناته الآمنة | DONE |
-| 2 | `models.py` | خريطة الجداول والعلاقات | TODO |
+| 2 | `models.py` | خريطة الجداول والعلاقات | IN_REVIEW |
 | 3 | `extensions.py` | فهم db/cache/csrf/limiter/socketio/logging | TODO |
 | 4 | `middleware/security_middleware.py` | فهم الحماية العامة | TODO |
 | 5 | `permissions_config/blueprint_guards.py` و `acl.py` | فهم الصلاحيات المركزية | TODO |
@@ -523,6 +523,60 @@ models.py
 - تحديد أماكن الأرصدة والقيود والدفعات والشيكات.
 - معرفة كيف تُخزن إعدادات النظام والأسرار.
 - تجهيز دراسة routes المالية لاحقًا بدون تخمين.
+
+---
+
+# 16. مراجعة `models.py`
+
+## 16.1 نطاق المراجعة المنجز حتى الآن
+
+| الجولة | نطاق الأسطر | الحالة | ملاحظات |
+|---|---:|---|---|
+| 1 | 1–1580 تقريبًا | IN_REVIEW | بداية الملف، event listeners، Archive، الجداول الوسيطة للصلاحيات، enums، SystemSettings، العملات وأسعار الصرف. |
+| 2 | 1581–2700 تقريبًا | IN_REVIEW | سياسات الدفعات، Audit/Auth، User/Role/Permission، Customer، GL للرصيد الافتتاحي، بداية Supplier. |
+
+## 16.2 ملاحظات الجولة الأولى
+
+| التصنيف | الحالة | المجال | الملاحظة |
+|---|---|---|---|
+| REVIEW | TODO | SQLAlchemy listeners | يوجد استبدال عام لـ `event.listen` بهدف تتبع وتغليف listeners. مفيد للتشخيص لكنه حساس لأنه يؤثر على كل listeners في الشيكات والدفعات ودفتر الأستاذ. |
+| HIGH | TODO | Archive | `Archive.archive_record()` قد يفشل خارج سياق مستخدم إذا لم يتم تمرير `user_id` لأن `archived_by` غير قابل لـ NULL. |
+| HIGH | READY | SystemSettings | `set_setting()` يمسح `system_setting_{key}` و`system_settings:bundle:v2` فقط، ولا يمسح كاشات `app.py` الجديدة: `system_settings:template_settings:v1` و`system_settings:module_flags:v1`. |
+| MEDIUM | TODO | PaymentMethod | يحتوي قيم lowercase وuppercase للتوافق، ويحتاج تدقيق استعماله في `payments/checks/expenses` لتجنب تضارب `cheque/CHEQUE`. |
+| HIGH | TODO | FX | منطق أسعار الصرف داخل `models.py` يجري اتصالات خارجية ويحتوي API key placeholders وخدمات بعضها عبر HTTP. يحتاج فصل أو ضبط واضح قبل الإنتاج. |
+| MEDIUM | TODO | FX cache | `_get_rate_cached` يستخدم `lru_cache` يومي، وقد يعطي سعرًا قديمًا بعد إدخال سعر يدوي جديد ما لم يوجد تفريغ للكاش. |
+| MEDIUM | TODO | FX auto update | `auto_update_missing_rates()` يقارن `valid_from == today` مع أن `valid_from` DateTime؛ قد لا يكتشف أسعار اليوم بشكل صحيح. |
+
+## 16.3 ملاحظات الجولة الثانية
+
+| التصنيف | الحالة | المجال | الملاحظة |
+|---|---|---|---|
+| HIGH | TODO | سياسات الدفعات | `validate_payment_policies()` يتحقق من المبلغ ومنع دخل EXPENSE فقط، ثم يترك باقي القيود مفتوحة. هذا يعطي مرونة لكنه يحتاج توافق مع الشيكات والدفعات حتى لا تمر حركات غير منطقية. |
+| MEDIUM | TODO | Refund/Receivable | `refundable_amount_for()` و`receivable_amount_for()` يعتمدان على `Payment.total_amount` وحالة الدفعة واتجاهها. يجب تدقيقها مع split payments والشيكات المؤجلة/الراجعة. |
+| REVIEW | TODO | AuditMixin | `AuditMixin` يلتقط الحالة السابقة قبل التعديل ويضعها في `_previous_state`. يحتاج تتبع أين تُستخدم هذه القيمة فعليًا وهل تغطي الحقول الحساسة ماليًا. |
+| HIGH | TODO | AuthAudit | `_auth_log()` يضيف سجل audit للجلسة لكنه لا يعمل commit بنفسه، وهذا جيد داخل transactions لكنه قد لا يُحفظ إذا فشل الطلب لاحقًا أو حصل rollback. يحتاج قرار: هل audit الأمني يجب أن يلتزم بالمعاملة أم يُحفظ مستقلًا. |
+| HIGH | TODO | User / master access | `User.has_permission()` يعطي صلاحيات كاملة لـ `is_system`, super roles, owner, developer. هذا مرتبط مباشرة بالماستر/المالك ويجب مطابقته مع `routes/auth.py`, `utils.is_super`, و`permissions_config`. |
+| MEDIUM | TODO | Customer login | `Customer.get_id()` يرجع `c:{id}` وهذا متوافق مع `load_user()` في `app.py`. جيد ويجب الحفاظ عليه عند أي تعديل. |
+| MEDIUM | TODO | Customer password | `Customer.password` setter يقبل أي قيمة ويولد hash حتى لو فارغة. يجب تدقيق مسار إنشاء العملاء لمنع كلمات مرور فارغة/افتراضية. |
+| HIGH | TODO | Customer balances | `Customer` يحتوي أعمدة أرصدة كثيرة محفوظة مثل `current_balance`, `sales_balance`, `payments_in_balance`, `checks_in_balance`. هذه تحتاج مطابقة مع دوال إعادة الحساب حتى لا تصبح الأرصدة المخزنة مختلفة عن الواقع. |
+| HIGH | TODO | Customer hybrid totals | `total_invoiced` و`total_paid` تنفذ استعلامات وتحويل عملة داخل properties، وقد تكون ثقيلة في القوائم وتسبب N+1. |
+| HIGH | TODO | Customer opening balance GL | listener `_customer_opening_balance_gl` ينشئ/يحذف قيود GL للرصيد الافتتاحي عند insert/update. حساس جدًا لأنه يلمس دفتر الأستاذ من داخل model event. لا يُعدل قبل فحص GL helpers. |
+| MEDIUM | TODO | Customer normalize | يوجد validation للهاتف ويوجد listener normalize أيضًا. يجب التأكد من عدم تضارب السلوكين، خصوصًا أن validation قد يرفض أرقامًا بينما listener ينظفها. |
+| REVIEW | TODO | Auto customer for counterparty | `_ensure_customer_for_counterparty()` ينشئ عميلًا تلقائيًا للجهات المقابلة ويستخدم fallback phone من timestamp عند غياب الهاتف. عملي، لكنه قد ينشئ بيانات غير حقيقية تحتاج تمييز واضح في الواجهة. |
+| HIGH | TODO | Supplier link to customer | بداية `Supplier` تحتوي `customer_id` لربط تلقائي مع العملاء. يحتاج فهم كامل لأنه قد يؤثر على الأرصدة المشتركة بين supplier/customer. |
+
+## 16.4 تحسينات مرشحة بعد إكمال `models.py`
+
+لا يتم تنفيذها الآن قبل إنهاء الملف:
+
+1. مسح كاشات `system_settings:template_settings:v1` و`system_settings:module_flags:v1` داخل `SystemSettings.set_setting()`.
+2. مراجعة وحصر منطق FX الخارجي وإخراج API placeholders من الكود التشغيلي أو ربطها بإعدادات آمنة.
+3. إضافة آلية تفريغ `_get_rate_cached` عند إدخال أو تعديل سعر يدوي.
+4. مراجعة سياسات `validate_payment_policies()` مقابل الشيكات والدفعات والمصاريف.
+5. فحص listeners التي تكتب GL من داخل models قبل أي تعديل.
+6. مراجعة أداء properties الثقيلة في Customer/Supplier قبل القوائم والتقارير.
+7. فحص سجل AuthAudit وهل يجب أن يحفظ مستقلًا عن معاملات الطلب.
+8. مراجعة ربط supplier/customer التلقائي والبيانات الافتراضية الناتجة عنه.
 
 ---
 
