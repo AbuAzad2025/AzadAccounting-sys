@@ -1,11 +1,9 @@
 """AI Master Controller.
 
 Central coordinator for the AI subsystems. The controller keeps the existing
-public API stable while making subsystem startup resilient: a failure in one
-engine must not disable the whole AI stack. If no expert engine can produce a
-real answer, the controller returns an empty answer so the service facade can
-fall back to live local database/context handling instead of showing a fake
-low-quality response.
+public API stable while making subsystem startup resilient. It also exposes a
+safe control-audit command so the assistant can act as a financial,
+administrative, and operational auditor without making accusations.
 """
 
 from __future__ import annotations
@@ -40,6 +38,8 @@ class MasterController:
     SAFE_COMMANDS = {
         "scan_system",
         "audit_accounting",
+        "audit_controls",
+        "audit_user_activity",
         "optimize_performance",
         "self_diagnose",
         "start_learning_session",
@@ -47,6 +47,13 @@ class MasterController:
         "comprehend_concept",
         "consolidate_memory",
     }
+
+    CONTROL_AUDIT_TERMS = (
+        "اختلاس", "سرقة", "سرقه", "تلاعب", "تزوير", "فساد", "مدقق", "تدقيق",
+        "رقابة", "رقابه", "حركات المستخدم", "حركات مستخدم", "تصرفات المستخدم",
+        "حذف", "إلغاء", "الغاء", "صلاحيات", "مصاريف مشبوه", "دفعات مشبوه",
+        "fraud", "theft", "embezzlement", "control audit", "user activity", "suspicious",
+    )
 
     def __init__(self):
         self.subsystems: Dict[str, Any] = {}
@@ -58,7 +65,6 @@ class MasterController:
     def _initialize_subsystems(self) -> None:
         self.subsystems.clear()
         self.subsystem_errors.clear()
-
         for name, module_path, factory_name in self.SUBSYSTEM_FACTORIES:
             self.system_state[name] = False
             try:
@@ -71,7 +77,6 @@ class MasterController:
                 self.subsystems[name] = None
                 self.subsystem_errors[name] = str(exc)
                 print(f"Subsystem init error [{name}]: {exc}")
-
         self.system_state["experts"] = {
             "python": bool(self.subsystems.get("python_expert")),
             "database": bool(self.subsystems.get("database_expert")),
@@ -82,24 +87,22 @@ class MasterController:
     def process_intelligent_query(self, query: str, context: Optional[Dict] = None) -> Dict[str, Any]:
         context = context or {}
         operation = self._new_operation(query)
-
         try:
+            result = self._try_control_audit(query, context, operation)
+            if result:
+                return result
             result = self._try_reasoning(query, context, operation)
             if result:
                 return result
-
             result = self._try_python_expert(query, context, operation)
             if result:
                 return result
-
             result = self._try_database_expert(query, operation)
             if result:
                 return result
-
             result = self._try_user_guide(query, operation)
             if result:
                 return result
-
             fallback = {"answer": "", "confidence": 0.0, "sources": [], "defer_to_service": True}
             operation["result"] = fallback
             self._track_operation(operation)
@@ -110,15 +113,38 @@ class MasterController:
             raise
 
     def _new_operation(self, query: str) -> Dict[str, Any]:
-        return {
-            "id": datetime.now().strftime("%Y%m%d%H%M%S%f"),
-            "query": query,
-            "start_time": datetime.now(),
-            "subsystems_used": [],
-            "reasoning_steps": [],
-            "confidence_breakdown": {},
-            "result": None,
-        }
+        return {"id": datetime.now().strftime("%Y%m%d%H%M%S%f"), "query": query, "start_time": datetime.now(), "subsystems_used": [], "reasoning_steps": [], "confidence_breakdown": {}, "result": None}
+
+    def _try_control_audit(self, query: str, context: Dict, operation: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        text = str(query or "").lower()
+        if not any(term.lower() in text for term in self.CONTROL_AUDIT_TERMS):
+            return None
+        auditor = self.subsystems.get("auditor")
+        if not auditor or not hasattr(auditor, "run_control_audit"):
+            return None
+        operation["subsystems_used"].append("auditor")
+        days = self._extract_days(text) or 7
+        user_id = self._extract_user_id(text)
+        report = auditor.run_control_audit(days=days, user_id=user_id)
+        operation["result"] = report
+        self._track_operation(operation)
+        return {"answer": self._format_control_audit_report(report), "confidence": 0.92, "sources": ["Control Auditor"], "data_used": ["AuthAudit", "AuditLog", "Archive", "Payment", "Expense", "Sale", "Invoice", "StockLevel", "Product", "User"]}
+
+    def _extract_days(self, text: str) -> Optional[int]:
+        import re
+        m = re.search(r"(?:آخر|اخر|last)\s*(\d+)\s*(?:يوم|ايام|أيام|day|days)", text)
+        if m:
+            return max(1, min(365, int(m.group(1))))
+        if "اليوم" in text or "today" in text:
+            return 1
+        if "شهر" in text or "month" in text:
+            return 30
+        return None
+
+    def _extract_user_id(self, text: str) -> Optional[int]:
+        import re
+        m = re.search(r"(?:user|مستخدم)\s*#?\s*(\d+)", text)
+        return int(m.group(1)) if m else None
 
     def _try_reasoning(self, query: str, context: Dict, operation: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         engine = self.subsystems.get("reasoning")
@@ -162,7 +188,6 @@ class MasterController:
         if not expert:
             return None
         operation["subsystems_used"].append("database_expert")
-        result = None
         if "select" in text or "sql" in text:
             result = expert.analyze_query(query)
             answer = self._format_sql_analysis(result)
@@ -186,6 +211,27 @@ class MasterController:
             self._track_operation(operation)
             return {"answer": self._format_guide_answer(result), "confidence": 0.9, "sources": ["Expert User Guide"]}
         return None
+
+    def _format_control_audit_report(self, report: Dict[str, Any]) -> str:
+        parts = ["🛡️ تقرير التدقيق الرقابي الذكي", f"الفترة: آخر {report.get('lookback_days')} أيام", f"مستوى الخطر: {report.get('risk_level')} | الحالة: {report.get('status')}", f"درجة الخطر: {report.get('risk_score', 0)}", "\nتنبيه مهني: هذه مؤشرات رقابية وليست اتهاماً. القرار النهائي يحتاج مراجعة بشرية وسندات."]
+        summary = report.get("summary", {}) or {}
+        parts.append(f"\n📊 عدد الملاحظات: {summary.get('total_findings', 0)}")
+        if summary.get("severity_counts"):
+            parts.append("درجات الخطورة:")
+            for k, v in summary["severity_counts"].items():
+                parts.append(f"  • {k}: {v}")
+        findings = report.get("findings", []) or []
+        if findings:
+            parts.append("\n🚩 أهم الملاحظات:")
+            for f in findings[:12]:
+                user = f" | مستخدم: {f.get('user_id')}" if f.get("user_id") else ""
+                rec = f.get("recommendation") or "مراجعة بشرية."
+                parts.append(f"  • [{f.get('severity')}] {f.get('title')}{user}\n    {f.get('message')}\n    التوصية: {rec}")
+        if report.get("recommendations"):
+            parts.append("\n✅ توصيات رقابية:")
+            for rec in report.get("recommendations", [])[:10]:
+                parts.append(f"  • {rec}")
+        return "\n".join(parts)
 
     def _format_python_error_answer(self, result: Dict) -> str:
         parts = [f"🐍 نوع الخطأ: {result.get('error_type', 'غير محدد')}", f"\n📌 السبب: {result.get('cause', '')}"]
@@ -276,25 +322,21 @@ class MasterController:
             self.active_operations = self.active_operations[-100:]
 
     def get_system_status(self) -> Dict:
-        return {
-            "state": self.system_state,
-            "subsystem_errors": self.subsystem_errors,
-            "active_operations": len(self.active_operations),
-            "recent_operations": self.active_operations[-10:] if self.active_operations else [],
-            "subsystems_count": len([s for s in self.subsystems.values() if s]),
-            "all_operational": all(bool(v) for k, v in self.system_state.items() if k != "experts"),
-        }
+        return {"state": self.system_state, "subsystem_errors": self.subsystem_errors, "active_operations": len(self.active_operations), "recent_operations": self.active_operations[-10:] if self.active_operations else [], "subsystems_count": len([s for s in self.subsystems.values() if s]), "all_operational": all(bool(v) for k, v in self.system_state.items() if k != "experts")}
 
     def execute_system_command(self, command: str, params: Optional[Dict] = None) -> Dict:
         params = params or {}
         command = (command or "").strip()
         if command not in self.SAFE_COMMANDS:
             return {"success": False, "error": "Unknown or unsafe command"}
-
         if command == "scan_system":
             return self._scan_all_systems()
         if command == "audit_accounting":
             return self._run_accounting_audit()
+        if command == "audit_controls":
+            return self._run_control_audit(params)
+        if command == "audit_user_activity":
+            return self._run_control_audit(params)
         if command == "optimize_performance":
             return self._optimize_all_systems()
         if command == "self_diagnose":
@@ -317,6 +359,13 @@ class MasterController:
         if not auditor:
             return {"success": False, "error": "Auditor not available"}
         return {"success": True, "audit_summary": auditor.get_audit_summary()}
+
+    def _run_control_audit(self, params: Dict) -> Dict:
+        auditor = self.subsystems.get("auditor")
+        if not auditor or not hasattr(auditor, "run_control_audit"):
+            return {"success": False, "error": "Control auditor not available"}
+        report = auditor.run_control_audit(days=params.get("days"), user_id=params.get("user_id"))
+        return {"success": True, "report": report, "summary": report.get("summary", {}), "risk_level": report.get("risk_level"), "status": report.get("status")}
 
     def _optimize_all_systems(self) -> Dict:
         optimizations: List[str] = []
