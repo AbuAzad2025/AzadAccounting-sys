@@ -1353,8 +1353,21 @@ def create_app(config_object=Config) -> Flask:
         except Exception:
             pass
         app.logger.exception("unhandled", extra={"event": "app.error", "path": request.path})
-        import traceback
-        return f"500 Internal Server Error: {str(e)}\n\n{traceback.format_exc()}", 500
+        is_dev = bool(app.config.get("DEBUG")) or str(app.config.get("APP_ENV", "production")).lower() in {"dev", "development", "local"}
+        if is_dev:
+            import traceback
+            return f"500 Internal Server Error: {str(e)}\n\n{traceback.format_exc()}", 500
+        request_id = getattr(g, "request_id", None)
+        if request.path.startswith("/api/") or request.accept_mimetypes.best == "application/json":
+            return {
+                "error": "Internal Server Error",
+                "message": "حدث خطأ داخلي في الخادم. تم تسجيل الخطأ للمراجعة.",
+                "request_id": request_id,
+            }, 500
+        try:
+            return render_template("errors/500.html", path=request.path, request_id=request_id), 500
+        except Exception:
+            return ("500 Internal Server Error", 500)
 
     @app.errorhandler(502)
     def _bad_gateway(e):
