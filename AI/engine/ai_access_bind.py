@@ -1,4 +1,4 @@
-"""Bind AI service outputs to the access filter."""
+"""Bind AI service outputs to access and safety filters."""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ def bind_ai_service_access() -> bool:
 
     import AI.engine.ai_service as svc
     from AI.engine import ai_access_filter as af
+    from AI.engine import ai_input_filter as sf
 
     base_search = svc.search_database_for_query
     base_context = svc.gather_system_context
@@ -23,44 +24,71 @@ def bind_ai_service_access() -> bool:
     base_query_accounting = svc.query_accounting_data
     base_deep = svc.deep_data_analysis
 
+    def _safe_message(value):
+        check = sf.inspect_text(value)
+        if not check.get("allowed"):
+            return None, sf.deny(check.get("issues"))
+        return sf.clean_text(value), None
+
     def search_database_for_query(query):
-        return af.filter_results(base_search(query))
+        safe_query, denied = _safe_message(query)
+        if denied:
+            return denied
+        return sf.clean_data(af.filter_results(base_search(safe_query)))
 
     def gather_system_context():
-        return af.filter_context(base_context())
+        return sf.clean_data(af.filter_context(base_context()))
 
     def get_local_fallback_response(message, search_results):
-        return base_fallback(message, af.filter_results(search_results or {}))
+        safe_message, denied = _safe_message(message)
+        if denied:
+            return denied.get("response")
+        clean_results = sf.clean_data(af.filter_results(search_results or {}))
+        return sf.clean_text(base_fallback(safe_message, clean_results))
 
     def ai_chat_response(message, search_results=None, session_id="default"):
-        return base_response(message, af.filter_results(search_results or {}), session_id)
+        safe_message, denied = _safe_message(message)
+        if denied:
+            return denied.get("response")
+        clean_results = sf.clean_data(af.filter_results(search_results or {}))
+        return sf.clean_text(base_response(safe_message, clean_results, session_id))
 
     def ai_chat_with_search(user_id=None, query=None, message=None, session_id="default", context=None):
         access = af.current_access()
         denied = af.check_ai_entry(access)
         if denied:
             return denied
+        incoming = query if query is not None else message
+        safe_message, blocked = _safe_message(incoming)
+        if blocked:
+            return blocked
         context = dict(context or {})
         context["permission_context"] = access
-        return base_entry(user_id=user_id or access.get("user_id"), query=query, message=message, session_id=session_id, context=context)
+        context["input_safety"] = "checked"
+        if query is not None:
+            return sf.clean_data(base_entry(user_id=user_id or access.get("user_id"), query=safe_message, message=None, session_id=session_id, context=context))
+        return sf.clean_data(base_entry(user_id=user_id or access.get("user_id"), query=None, message=safe_message, session_id=session_id, context=context))
 
     def generate_smart_report(intent):
-        return af.filter_results(base_report(af.filter_entities(intent or {})))
+        return sf.clean_data(af.filter_results(base_report(af.filter_entities(intent or {}))))
 
     def analyze_accounting_data(currency=None):
         denied = af.check_reports_entry()
         if denied:
             return denied
-        return af.filter_results(base_accounting(currency))
+        return sf.clean_data(af.filter_results(base_accounting(currency)))
 
     def query_accounting_data(query_type, filters=None):
         denied = af.check_query_type(query_type)
         if denied:
             return denied
-        return af.filter_results(base_query_accounting(query_type, filters))
+        return sf.clean_data(af.filter_results(base_query_accounting(query_type, filters)))
 
     def deep_data_analysis(query, context):
-        return af.filter_results(base_deep(query, af.filter_entities(context or {})))
+        safe_query, denied = _safe_message(query)
+        if denied:
+            return denied
+        return sf.clean_data(af.filter_results(base_deep(safe_query, af.filter_entities(context or {}))))
 
     svc.search_database_for_query = search_database_for_query
     svc.gather_system_context = gather_system_context
