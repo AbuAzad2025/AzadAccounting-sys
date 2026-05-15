@@ -1,8 +1,9 @@
-"""AI service facade for Azad Accounting/Garage system.
+"""Unified AI service facade.
 
-All answers and context use live database/schema data where possible. This file
-keeps the public API stable while avoiding fabricated totals, fixed tax rates,
-and wrong model fields.
+Public API is kept stable for routes and other engines. The service reads live
+schema/database data where possible, uses discovered routes, uses encrypted API
+provider keys from ai_management, and never fabricates tax rates, page links, or
+model metrics.
 """
 
 from __future__ import annotations
@@ -43,8 +44,6 @@ DEFAULT_COMPANY_PROFILE = {
     "phone": "0562150193",
 }
 
-COMPANY_PROFILE = dict(DEFAULT_COMPANY_PROFILE)
-
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
@@ -72,12 +71,12 @@ def _cached_count(model, key_suffix: str, query_func=None, ttl: int = 300) -> in
             return int(cached)
     except Exception:
         pass
-    count = _safe_count(model, query_func)
+    value = _safe_count(model, query_func)
     try:
-        cache.set(cache_key, count, timeout=ttl)
+        cache.set(cache_key, value, timeout=ttl)
     except Exception:
         pass
-    return count
+    return value
 
 
 def _first_attr(model_or_obj, names: List[str]):
@@ -99,10 +98,6 @@ def _sum_column(model, names: List[str], filters: Optional[List[Any]] = None) ->
         return Decimal(str(query.scalar() or 0))
     except Exception:
         return Decimal("0")
-
-
-def _enum_value(value: Any) -> Any:
-    return getattr(value, "value", value)
 
 
 def _ilike(model, *fields: str, value: str):
@@ -130,7 +125,7 @@ def _knowledge_structure() -> Dict[str, Any]:
         if hasattr(kb, "get_system_structure"):
             return kb.get_system_structure()
         knowledge = getattr(kb, "knowledge", {}) or {}
-        templates = knowledge.get("templates", {})
+        templates = knowledge.get("templates", {}) or {}
         return {
             "models_count": len(knowledge.get("models", {})),
             "routes_count": len(knowledge.get("routes", {})),
@@ -142,6 +137,15 @@ def _knowledge_structure() -> Dict[str, Any]:
         }
     except Exception:
         return {"models_count": 0, "routes_count": 0, "templates_count": 0, "relationships_count": 0, "business_rules_count": 0, "models": [], "routes": {}}
+
+
+def _format_nullable_amount(value: Any) -> str:
+    if value is None:
+        return "غير محسوب"
+    try:
+        return f"{float(value):,.2f}"
+    except Exception:
+        return str(value)
 
 
 def get_company_profile() -> Dict[str, str]:
@@ -182,21 +186,18 @@ def gather_system_context():
     try:
         import psutil
         from models import AuditLog, Customer, Expense, Note, Payment, Product, Role, ServiceRequest, ServiceStatus, Shipment, StockLevel, Supplier, User, Warehouse
-
         company = get_company_profile()
         cpu_usage = psutil.cpu_percent(interval=0.1)
         memory = psutil.virtual_memory()
         today = _now().date()
         pending_status = ServiceStatus.PENDING.value
         completed_status = ServiceStatus.COMPLETED.value
-
         db_size = "غير معروف"
         try:
             result = db.session.execute(text("SELECT pg_database_size(current_database())")).scalar()
             db_size = f"{float(result or 0) / (1024 ** 2):.2f} MB"
         except Exception:
             pass
-
         total_users = _cached_count(User, "total_users")
         active_users = _cached_count(User, "active_users", lambda: User.query.filter_by(is_active=True).count())
         total_services = _cached_count(ServiceRequest, "total_services")
@@ -205,13 +206,11 @@ def gather_system_context():
         total_products = _cached_count(Product, "total_products")
         total_warehouses = _cached_count(Warehouse, "total_warehouses")
         products_in_stock = _cached_count(StockLevel, "products_in_stock", lambda: db.session.query(func.count(func.distinct(StockLevel.product_id))).scalar() or 0)
-
         roles = []
         try:
             roles = [r.name for r in Role.query.limit(10).all()]
         except Exception:
             pass
-
         current_stats = (
             f"المستخدمين: {total_users} | النشطين: {active_users}\n"
             f"الصيانة: {total_services} طلب\n"
@@ -220,7 +219,6 @@ def gather_system_context():
             f"المخازن: {total_warehouses}\n"
             f"CPU: {cpu_usage:.1f}% | RAM: {memory.percent:.1f}%"
         )
-
         return {
             **company,
             "version": _setting("SYSTEM_VERSION", "غير محدد"),
@@ -332,14 +330,14 @@ def get_or_create_session_memory(session_id):
 
 def add_to_memory(session_id, role, content, context=None):
     memory = get_or_create_session_memory(session_id)
-    message_entry = {"role": role, "content": str(content or "")[:8000], "timestamp": _now().isoformat()}
+    entry = {"role": role, "content": str(content or "")[:8000], "timestamp": _now().isoformat()}
     if context:
-        message_entry["context"] = {"intent": context.get("intent"), "entities": context.get("entities"), "sentiment": context.get("sentiment")}
+        entry["context"] = {"intent": context.get("intent"), "entities": context.get("entities"), "sentiment": context.get("sentiment")}
         for entity in context.get("entities", []) or []:
             memory["entities_mentioned"][entity] = memory["entities_mentioned"].get(entity, 0) + 1
         if context.get("intent"):
             memory["last_intent"] = context["intent"]
-    memory["messages"].append(message_entry)
+    memory["messages"].append(entry)
     memory["messages"] = memory["messages"][-MAX_MEMORY_MESSAGES:]
 
 
@@ -351,16 +349,14 @@ def get_conversation_context(session_id):
 def _time_range(scope: Optional[str]) -> Tuple[datetime, datetime]:
     end = _now()
     if scope == "today":
-        start = end.replace(hour=0, minute=0, second=0, microsecond=0)
-    elif scope == "week":
-        start = end - timedelta(days=7)
-    elif scope == "month":
-        start = end - timedelta(days=30)
-    elif scope == "year":
-        start = end - timedelta(days=365)
-    else:
-        start = end - timedelta(days=90)
-    return start, end
+        return end.replace(hour=0, minute=0, second=0, microsecond=0), end
+    if scope == "week":
+        return end - timedelta(days=7), end
+    if scope == "month":
+        return end - timedelta(days=30), end
+    if scope == "year":
+        return end - timedelta(days=365), end
+    return end - timedelta(days=90), end
 
 
 def deep_data_analysis(query, context):
@@ -374,19 +370,13 @@ def deep_data_analysis(query, context):
             active = db.session.query(func.count(func.distinct(Invoice.customer_id))).filter(Invoice.invoice_date >= start).scalar() or 0
             rate = (active / total * 100) if total else 0
             result["data_summary"]["customers"] = {"total": total, "active": active, "activity_rate": round(rate, 1)}
-            if total and rate < 30:
-                result["warnings"].append(f"نشاط العملاء منخفض: {rate:.1f}% ضمن الفترة المحددة")
         if "Invoice" in entities or "Sale" in entities or "مبيعات" in str(query):
             current_sales = _sum_column(Invoice, ["total_amount"], [Invoice.invoice_date >= start, Invoice.invoice_date <= end])
-            previous_start = start - (end - start)
-            previous_sales = _sum_column(Invoice, ["total_amount"], [Invoice.invoice_date >= previous_start, Invoice.invoice_date < start])
-            change = float(current_sales - previous_sales)
-            pct = (change / float(previous_sales) * 100) if previous_sales else 0
-            result["data_summary"]["sales"] = {"current": float(current_sales), "previous": float(previous_sales), "change": change, "change_percent": round(pct, 1)}
+            result["data_summary"]["sales"] = {"current": float(current_sales)}
         if "Expense" in entities or "مصروف" in str(query) or "نفقات" in str(query):
             date_col = _first_attr(Expense, ["date", "created_at"])
-            total_expenses = _sum_column(Expense, ["amount", "total_amount"], [date_col >= start] if date_col is not None else [])
-            result["data_summary"]["expenses"] = {"total": float(total_expenses)}
+            filters = [date_col >= start] if date_col is not None else []
+            result["data_summary"]["expenses"] = {"total": float(_sum_column(Expense, ["amount", "total_amount"], filters))}
     except Exception as exc:
         result.update(success=False, error=str(exc))
     return result
@@ -574,29 +564,15 @@ def search_database_for_query(query):
                 results["products"] = [{"id": p.id, "name": p.name, "sku": p.sku, "price": _safe_float(getattr(p, "price", 0)), "selling_price": _safe_float(getattr(p, "selling_price", 0))} for p in Product.query.filter(clause).limit(10).all()]
         if intent.get("accounting"):
             results["accounting_knowledge"] = get_gl_knowledge_for_ai()
-            if "رصيد" in q and "عميل" in q:
-                name = query.split("عميل", 1)[-1].strip()
-                if name:
-                    customer = Customer.query.filter(Customer.name.ilike(f"%{name}%")).first()
-                    if customer:
-                        results.update(query_accounting_data("customer_balance", {"customer_id": customer.id}))
-            if "رصيد" in q and "مورد" in q:
-                name = query.split("مورد", 1)[-1].strip()
-                if name:
-                    supplier = Supplier.query.filter(Supplier.name.ilike(f"%{name}%")).first()
-                    if supplier:
-                        results.update(query_accounting_data("supplier_balance", {"supplier_id": supplier.id}))
-            account_match = re.search(r"(\d{4}_[A-Z0-9_]+)", query.upper())
-            if account_match:
-                results.update(query_accounting_data("account_balance", {"account_code": account_match.group(1)}))
-        if intent.get("type") == "report" or intent.get("accounting"):
-            results["report_data"] = generate_smart_report(intent)
         numbers = re.findall(r"\d+(?:,\d{3})*(?:\.\d+)?", query)
         if numbers and any(word in q for word in ["ضريبة", "tax", "vat"]):
             amount = float(numbers[0].replace(",", ""))
             if "دخل" in q or "income" in q:
                 tax = calculate_palestine_income_tax(amount)
-                results["tax_calculation"] = {"type": "ضريبة دخل تقديرية", "income": amount, "tax": tax, "net": amount - tax, "warning": "يجب التحقق من الشرائح من إعدادات النظام أو مصدر رسمي حديث"}
+                if tax is None:
+                    results["tax_calculation"] = {"type": "ضريبة دخل", "income": amount, "tax": None, "net": None, "warning": "شرائح ضريبة الدخل غير مهيأة في إعدادات النظام"}
+                else:
+                    results["tax_calculation"] = {"type": "ضريبة دخل", "income": amount, "tax": tax, "net": amount - float(tax), "warning": "تحقق من الإعدادات أو مصدر رسمي قبل اعتماد الرقم"}
             else:
                 country = "israel" if "إسرائيل" in query or "israel" in q else "palestine"
                 vat = calculate_vat(amount, country)
@@ -659,18 +635,32 @@ def get_local_fallback_response(message, search_results):
         return f"⚠️ خطأ في الوضع المحلي: {exc}"
 
 
-def ai_chat_response(message, search_results=None, session_id="default"):
+def _active_llm_config() -> Optional[Dict[str, Any]]:
+    try:
+        from AI.engine.ai_management import get_api_key_decrypted
+        key = get_api_key_decrypted("groq")
+        if key:
+            return {"provider": "groq", "key": key, "model": _setting("GROQ_MODEL", "llama-3.3-70b-versatile")}
+    except Exception:
+        pass
     keys_json = _setting("AI_API_KEYS", "[]")
     try:
         keys = json.loads(keys_json) if keys_json else []
+        active = next((k for k in keys if k.get("is_active") and k.get("key")), None)
+        if active:
+            return active
     except Exception:
-        keys = []
-    active_key = next((k for k in keys if k.get("is_active")), None)
-    if not active_key:
+        pass
+    return None
+
+
+def ai_chat_response(message, search_results=None, session_id="default"):
+    config = _active_llm_config()
+    if not config:
         return get_local_fallback_response(message, search_results or {})
     try:
         import requests
-        if "groq" not in str(active_key.get("provider", "groq")).lower():
+        if "groq" not in str(config.get("provider", "groq")).lower():
             return get_local_fallback_response(message, search_results or {})
         messages = [{"role": "system", "content": build_system_message(gather_system_context())}]
         memory = get_or_create_session_memory(session_id)
@@ -680,11 +670,14 @@ def ai_chat_response(message, search_results=None, session_id="default"):
         if search_results:
             enhanced += "\n\nنتائج البحث من قاعدة البيانات:\n" + json.dumps(search_results, ensure_ascii=False, default=str)[:12000]
         messages.append({"role": "user", "content": enhanced})
-        response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers={"Authorization": f"Bearer {active_key.get('key')}", "Content-Type": "application/json"}, json={"model": active_key.get("model", "llama-3.3-70b-versatile"), "messages": messages, "temperature": 0.2, "max_tokens": 2000, "top_p": 0.9}, timeout=30)
+        response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers={"Authorization": f"Bearer {config.get('key')}", "Content-Type": "application/json"}, json={"model": config.get("model", "llama-3.3-70b-versatile"), "messages": messages, "temperature": 0.2, "max_tokens": 2000, "top_p": 0.9}, timeout=30)
         if response.status_code == 200:
             answer = response.json()["choices"][0]["message"]["content"]
             add_to_memory(session_id, "user", message)
             add_to_memory(session_id, "assistant", answer)
+            global _local_fallback_mode, _system_state
+            _local_fallback_mode = False
+            _system_state = "HYBRID"
             return answer
     except Exception:
         pass
@@ -769,6 +762,13 @@ def enhanced_context_understanding(message):
     return {"message": message, "normalized": normalized, "intent": intent["type"], "subintent": None, "entities": intent.get("entities", []), "context_type": context_type, "sentiment": "negative" if context_type == "complaint" else "neutral", "priority": "high" if context_type == "complaint" else "normal", "confidence": 0.7, "keywords": [w for w in normalized.split() if len(w) > 2], "time_scope": intent.get("time_scope"), "requires_data": bool(intent.get("entities")), "requires_action": intent.get("executable", False)}
 
 
+def _format_vat_response(amount: float, vat: Dict[str, Any]) -> str:
+    warning = f"\n⚠️ {vat.get('warning')}" if vat.get("warning") else ""
+    if vat.get("vat_rate") is None or vat.get("vat_amount") is None or vat.get("total_with_vat") is None:
+        return f"💰 حساب VAT:\n• المبلغ: {amount:,.2f}\n• النسبة: غير مهيأة في النظام\n• الضريبة: غير محسوبة\n• الإجمالي: غير محسوب{warning}"
+    return f"💰 حساب VAT:\n• المبلغ: {amount:,.2f}\n• النسبة: {vat['vat_rate']}%\n• الضريبة: {_format_nullable_amount(vat['vat_amount'])}\n• الإجمالي: {_format_nullable_amount(vat['total_with_vat'])}{warning}"
+
+
 def local_intelligent_response(message, session_id=None):
     message = str(message or "")
     q = message.lower()
@@ -805,9 +805,7 @@ def local_intelligent_response(message, session_id=None):
         if numbers:
             amount = float(numbers[0])
             country = "israel" if "israel" in q or "إسرائيل" in message else "palestine"
-            vat = calculate_vat(amount, country)
-            warning = f"\n⚠️ {vat.get('warning')}" if vat.get("warning") else ""
-            return f"💰 حساب VAT:\n• المبلغ: {amount:,.2f}\n• النسبة: {vat['vat_rate']}%\n• الضريبة: {vat['vat_amount']:,.2f}\n• الإجمالي: {vat['total_with_vat']:,.2f}{warning}"
+            return _format_vat_response(amount, calculate_vat(amount, country))
     if any(word in q for word in ["خطأ", "error", "traceback", "exception"]):
         return handle_error_question(message).get("formatted_response")
     search_results = search_database_for_query(message)
