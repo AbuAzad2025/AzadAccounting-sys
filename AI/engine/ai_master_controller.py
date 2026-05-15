@@ -2,7 +2,10 @@
 
 Central coordinator for the AI subsystems. The controller keeps the existing
 public API stable while making subsystem startup resilient: a failure in one
-engine must not disable the whole AI stack.
+engine must not disable the whole AI stack. If no expert engine can produce a
+real answer, the controller returns an empty answer so the service facade can
+fall back to live local database/context handling instead of showing a fake
+low-quality response.
 """
 
 from __future__ import annotations
@@ -93,7 +96,7 @@ class MasterController:
             if result:
                 return result
 
-            fallback = {"answer": "لم أتمكن من الإجابة بدقة من المحركات المتاحة.", "confidence": 0.3, "sources": []}
+            fallback = {"answer": "", "confidence": 0.0, "sources": [], "defer_to_service": True}
             operation["result"] = fallback
             self._track_operation(operation)
             return fallback
@@ -120,6 +123,9 @@ class MasterController:
         operation["subsystems_used"].append("reasoning")
         result = engine.reason_through_problem(query, context)
         if isinstance(result, dict) and result.get("answer"):
+            confidence = float(result.get("confidence", 0) or 0)
+            if confidence < 0.45 and not result.get("data_used"):
+                return None
             operation["result"] = result
             operation["reasoning_steps"] = result.get("reasoning_steps", [])
             operation["confidence_breakdown"]["reasoning"] = result.get("confidence", 0)
@@ -151,6 +157,9 @@ class MasterController:
         operation["subsystems_used"].append("guide_master")
         result = guide.answer_question(query)
         if result and isinstance(result, dict) and result.get("steps"):
+            route_source = result.get("route_source")
+            if result.get("route") == "غير مفهرس حالياً" and route_source == "not_found":
+                return None
             operation["result"] = result
             self._track_operation(operation)
             return {"answer": self._format_guide_answer(result), "confidence": 0.85, "sources": ["User Guide"]}
