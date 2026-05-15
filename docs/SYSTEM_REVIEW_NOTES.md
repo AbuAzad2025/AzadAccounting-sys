@@ -173,7 +173,7 @@
 | `_memory_error` | LOW | DONE | يحول MemoryError إلى 413 مع رسالة أو قالب. جيد. |
 | `restrict_customer_from_admin` | HIGH | TODO | يمنع دور customer من دخول الإدارة ويسمح فقط `/shop`, `/static`, `/auth/logout`. جيد، لكن يجب التأكد أن عملاء بدون role slug customer محميون كذلك. |
 | فحص `CRITICAL_ENDPOINTS` | MEDIUM | TODO | يسجل endpoints مفقودة عند startup. مفيد، لكنه لا يفشل التشغيل. يجب مراجعة القائمة حسب أسماء endpoints الحالية. |
-| `inject_system_settings` | HIGH | DONE | تم تحسينه في فرع `review/app-safe-hardening`: يقرأ مفاتيح القوالب دفعة واحدة ويخزنها في cache لمدة 120 ثانية بدل استعلام لكل مفتاح داخل كل قالب. |
+| `inject_system_settings` | HIGH | DONE | تم تحسينه في فرع `review/app-safe-hardening`: يقرأ مفاتيح القوالب دفعة واحدة ويخزنها في cache لمدة 120 ثانية بدل استعلام لكل مفتاح داخل كل قالب. تم إصلاح ملاحظة qodo لاحقًا بحيث فشل `cache.set()` لا يمسح نتائج قاعدة البيانات. |
 | `inject_system_settings` و custom logo | MEDIUM | DONE | تم تحسين مسار الشعار في فرع `review/app-safe-hardening`: يمنع الروابط الخارجية و`..` ويعيد أي مسار غير آمن إلى `img/azad_logo.png`. |
 | `check_maintenance_mode` | MEDIUM | TODO | وضع الصيانة يتخطى owner/admin بالـ id أو username. يحتاج توحيد مع صلاحيات النظام بدل hard-code فقط. |
 | تسجيل `register_cli(app)` مرة ثانية | LOW | REVIEW | تم تسجيل CLI سابقًا داخل `_init_extensions_stack` ثم هنا مرة أخرى. غالبًا لا يضر، لكن يحتاج معرفة إن كان يكرر الأوامر أو لا. |
@@ -193,6 +193,7 @@
 |---|---|---|
 | REVIEW | DONE | `app.py` مدروس من أوله لآخره على مراحل. |
 | HIGH | DONE | تم إنجاز تحسينات آمنة في فرع `review/app-safe-hardening`: handler 500، CORS wildcard/credentials، X-Request-Id، cache لإعدادات القوالب، وتنظيف custom logo. |
+| HIGH | DONE | تم إصلاح ملاحظة qodo على `inject_system_settings`: فشل كتابة الكاش لم يعد يلغي القيم المقروءة من قاعدة البيانات. |
 | HIGH | TODO | نقاط أمنية متبقية تحتاج دراسة ملفات تابعة قبل تعديلها: CSRF exemption للـ ledger، session_protection، وأسرار integrations من DB. |
 | MEDIUM | TODO | أكثر نقطة تنظيمية: وجود seed/init logic في أكثر من مكان: `SystemInitializer`, إضافة العملات, إضافة الأدوار, `bootstrap_database`. |
 | LOW | DONE | توجد نقاط أداء جيدة: microcache، request id، access log، static cache، كاش last_seen، وكاش module flags. |
@@ -418,6 +419,7 @@
 | CORS مع credentials | HIGH | DONE | تم منع الجمع غير الآمن بين `CORS_ORIGINS=*` و credentials على `/api/*`. |
 | X-Request-Id | MEDIUM | DONE | تم تنظيف قيمة `X-Request-Id` لمنع قيم طويلة أو غير نظيفة داخل logs/headers. |
 | custom logo path | MEDIUM | DONE | تم منع روابط خارجية أو مسارات تحتوي `..` في شعار النظام، مع fallback آمن. |
+| template settings cache fallback | MEDIUM | DONE | تم إصلاح فشل `cache.set()` بحيث لا يمسح نتائج قاعدة البيانات ولا يعيد القوالب لقيم افتراضية غير لازمة. |
 
 ---
 
@@ -447,7 +449,7 @@
 
 | الترتيب | الملف/الوحدة | الهدف | الحالة |
 |---|---|---|---|
-| 1 | `app.py` | إنهاء دراسة ملف التشغيل المركزي وتحسيناته الآمنة | IN_REVIEW |
+| 1 | `app.py` | إنهاء دراسة ملف التشغيل المركزي وتحسيناته الآمنة | DONE |
 | 2 | `models.py` | خريطة الجداول والعلاقات | TODO |
 | 3 | `extensions.py` | فهم db/cache/csrf/limiter/socketio/logging | TODO |
 | 4 | `middleware/security_middleware.py` | فهم الحماية العامة | TODO |
@@ -468,6 +470,59 @@
 - الريبو الحالي هو الإنتاجي، لذلك أي تعديل مستقبلي يجب أن يكون محسوبًا.
 - إذا أمكن لاحقًا إنشاء نسخة منفصلة أو فرع عمل مستقر، يكون أفضل.
 - إلى حين ذلك، هذا الملف هو مرجع الدراسة والتخطيط.
+
+---
+
+# 15. سجل الإنجاز والعودة لاحقًا
+
+## 15.1 ما تم إنجازه ودمجه
+
+| التاريخ | الملف | الإنجاز | الحالة |
+|---|---|---|---|
+| 2026-05-15 | `app.py` | دراسة الملف من البداية إلى النهاية على مراحل وتوثيق الملاحظات. | DONE |
+| 2026-05-15 | `app.py` | دمج PR #1: تحسين handler 500، CORS، Request ID، إعدادات القوالب، ومسار الشعار. | DONE |
+| 2026-05-15 | `app.py` | إصلاح ملاحظة `qodo-code-review[bot]`: فشل `cache.set()` في `inject_system_settings` لا يلغي نتائج قاعدة البيانات. | DONE |
+| 2026-05-15 | `docs/SYSTEM_REVIEW_NOTES.md` | تحديث التقرير التراكمي بما تم وما بقي وما سنعود له. | DONE |
+
+## 15.2 ما بقي مؤجلًا من `app.py`
+
+هذه البنود لا يتم تعديلها مباشرة من `app.py` قبل دراسة ملفاتها التابعة:
+
+| البند | السبب | الملف المطلوب دراسته أولًا | الحالة |
+|---|---|---|---|
+| `csrf.exempt(ledger_bp)` | مرتبط بدفتر الأستاذ وقد يكسر عمليات مالية إذا عُدّل عشوائيًا. | `routes/ledger_blueprint.py` | TODO |
+| `login_manager.session_protection = None` | قد يكون بسبب proxy/PythonAnywhere أو جلسات العملاء. | `routes/auth.py`, إعدادات الجلسات, بيئة التشغيل | TODO |
+| أسرار التكاملات المحملة من DB | يجب معرفة من يستطيع رؤيتها وتعديلها وهل تُخفى أو تُشفّر. | شاشات الإعدادات/الأمن، `SystemSettings` | TODO |
+| تكرار seed/init logic | يوجد أكثر من مصدر تهيئة وقد يؤدي التوحيد العشوائي لكسر أول تشغيل. | `services/system_initializer.py`, `bootstrap_database`, الأدوار والعملات | TODO |
+| ACL والصلاحيات المركزية | حماية routes لا تُفهم من `app.py` فقط. | `acl.py`, `permissions_config/blueprint_guards.py` | TODO |
+| middleware الأمن العام | يؤثر على كل الطلبات. | `middleware/security_middleware.py` | TODO |
+
+## 15.3 ما سنعود له لاحقًا
+
+بعد دراسة `models.py` والملفات التابعة، نعود إلى:
+
+1. فحص CSRF للـ ledger وإما توثيق سبب الإعفاء أو استبداله بحماية بديلة.
+2. فحص session protection وربطه ببيئة التشغيل والصلاحيات.
+3. فحص إدارة أسرار integrations في DB وعرضها في الواجهة.
+4. توحيد أو ترتيب seed/init بدون كسر التشغيل الأولي.
+5. مراجعة ACL والصلاحيات المالية على routes الحساسة.
+6. فحص أداء القوالب والصفحات الثقيلة بعد فهم العلاقات في `models.py`.
+
+## 15.4 الخطوة التالية المباشرة
+
+الخطوة التالية هي دراسة:
+
+```text
+models.py
+```
+
+والهدف منها:
+
+- رسم خريطة الجداول والعلاقات.
+- معرفة النماذج المالية الحساسة.
+- تحديد أماكن الأرصدة والقيود والدفعات والشيكات.
+- معرفة كيف تُخزن إعدادات النظام والأسرار.
+- تجهيز دراسة routes المالية لاحقًا بدون تخمين.
 
 ---
 
