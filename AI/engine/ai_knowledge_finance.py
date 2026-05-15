@@ -138,7 +138,7 @@ def calculate_palestine_income_tax(income):
         return 0.0
     brackets = _normalise_brackets(_get_json_setting("palestine_income_tax_brackets", "income_tax_brackets_palestine"))
     if not brackets:
-        return 0.0
+        return None
     total_tax = Decimal("0")
     for bracket in brackets:
         start = bracket["from"]
