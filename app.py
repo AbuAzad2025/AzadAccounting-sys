@@ -173,6 +173,14 @@ def _env_bool(name: str, default: bool = False) -> bool:
     return default
 
 
+def _safe_request_id(value) -> str:
+    raw = str(value or "").strip()
+    allowed = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.:")
+    if not raw or len(raw) > 64 or any(ch not in allowed for ch in raw):
+        return uuid.uuid4().hex
+    return raw
+
+
 def _configure_app(app: Flask, config_object):
     app.config.from_object(config_object)
     app.config.setdefault("JSON_AS_ASCII", False)
@@ -846,12 +854,18 @@ def _validate_system_integrity(app):
 
 def _register_cors(app):
     if CORS is not None:
+        origins = app.config.get("CORS_ORIGINS", ["http://localhost:5000"])
+        supports_credentials = app.config.get("CORS_SUPPORTS_CREDENTIALS", True)
+        has_wildcard = origins == "*" or (isinstance(origins, (list, tuple, set)) and "*" in origins)
+        if supports_credentials and has_wildcard:
+            app.logger.warning("CORS wildcard origin cannot be used safely with credentials; disabling CORS credentials for /api/*")
+            supports_credentials = False
         CORS(
             app,
             resources={
                 r"/api/*": {
-                    "origins": app.config.get("CORS_ORIGINS", ["http://localhost:5000"]),
-                    "supports_credentials": app.config.get("CORS_SUPPORTS_CREDENTIALS", True),
+                    "origins": origins,
+                    "supports_credentials": supports_credentials,
                     "allow_headers": ["Content-Type", "Authorization", "X-CSRF-TOKEN"],
                     "methods": ["GET", "POST", "PUT", "DELETE", "PATCH"],
                     "max_age": 3600,
@@ -1203,7 +1217,7 @@ def create_app(config_object=Config) -> Flask:
 
     @app.before_request
     def _attach_request_id():
-        g.request_id = request.headers.get("X-Request-Id") or uuid.uuid4().hex
+        g.request_id = _safe_request_id(request.headers.get("X-Request-Id"))
 
     @app.before_request
     def _serve_microcache():
