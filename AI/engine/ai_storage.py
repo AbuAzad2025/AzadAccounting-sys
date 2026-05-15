@@ -1,8 +1,7 @@
 """Shared storage helpers for AI runtime data.
 
-All generated AI JSON/JSONL files should go through this module. It gives the
-AI layer one consistent place for paths, atomic JSON writes, bounded logs, and a
-small manifest that describes the state of training/discovery files.
+All generated AI JSON/JSONL files go through this module. Paths are constrained
+to AI_DATA_DIR so runtime helpers cannot read or write arbitrary files.
 """
 
 from __future__ import annotations
@@ -17,7 +16,6 @@ AI_DATA_DIR = os.environ.get("AI_DATA_DIR", "AI/data")
 TRAINING_MANIFEST_FILE = "ai_training_manifest.json"
 
 KNOWN_AI_DATA_FILES = (
-    "api_keys.enc.json",
     "training_jobs.json",
     "model_training_status.json",
     "ai_training_manifest.json",
@@ -32,6 +30,7 @@ KNOWN_AI_DATA_FILES = (
     "ai_knowledge_cache.json",
     "ai_local_mode_log.json",
     "ai_security_events.jsonl",
+    "api_provider_status.json",
 )
 
 
@@ -40,26 +39,35 @@ def utc_now() -> str:
 
 
 def ensure_data_dir() -> Path:
-    path = Path(AI_DATA_DIR)
+    path = Path(AI_DATA_DIR).resolve()
     path.mkdir(parents=True, exist_ok=True)
     return path
 
 
 def data_path(filename: str | Path) -> Path:
+    base = ensure_data_dir()
     raw = Path(filename)
-    if raw.is_absolute():
-        return raw
     normalized = str(raw).replace("\\", "/")
     default_prefix = "AI/data/"
-    configured_prefix = str(Path(AI_DATA_DIR)).replace("\\", "/").rstrip("/") + "/"
-    if normalized.startswith(default_prefix) or normalized.startswith(configured_prefix):
-        return raw
-    return ensure_data_dir() / raw
+    configured_prefix = str(base).replace("\\", "/").rstrip("/") + "/"
+
+    if raw.is_absolute():
+        candidate = raw.resolve()
+    elif normalized.startswith(default_prefix):
+        candidate = (base / normalized[len(default_prefix):]).resolve()
+    elif normalized.startswith(configured_prefix):
+        candidate = Path(normalized).resolve()
+    else:
+        candidate = (base / raw).resolve()
+
+    if candidate != base and base not in candidate.parents:
+        raise ValueError("AI storage path traversal is not allowed")
+    return candidate
 
 
 def read_json(filename: str | Path, default: Any = None) -> Any:
-    path = data_path(filename)
     try:
+        path = data_path(filename)
         if not path.exists():
             return default
         with path.open("r", encoding="utf-8") as f:
@@ -96,16 +104,14 @@ def append_jsonl(filename: str | Path, item: Any) -> None:
 
 
 def file_metadata(filename: str | Path) -> Dict[str, Any]:
-    path = data_path(filename)
+    try:
+        path = data_path(filename)
+    except Exception:
+        return {"file": str(filename), "exists": False, "error": "invalid_ai_data_path"}
     if not path.exists():
         return {"file": path.name, "exists": False}
     stat = path.stat()
-    return {
-        "file": path.name,
-        "exists": True,
-        "size_bytes": stat.st_size,
-        "modified_at": datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat(),
-    }
+    return {"file": path.name, "exists": True, "size_bytes": stat.st_size, "modified_at": datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat()}
 
 
 def build_training_manifest(extra_files: Optional[Iterable[str]] = None) -> Dict[str, Any]:
@@ -114,18 +120,7 @@ def build_training_manifest(extra_files: Optional[Iterable[str]] = None) -> Dict
         for filename in extra_files:
             if filename not in files:
                 files.append(filename)
-
-    manifest = {
-        "generated_at": utc_now(),
-        "data_dir": str(ensure_data_dir()),
-        "files": {name: file_metadata(name) for name in files},
-        "summary": {
-            "known_files": len(files),
-            "existing_files": 0,
-            "missing_files": 0,
-            "total_size_bytes": 0,
-        },
-    }
+    manifest = {"generated_at": utc_now(), "data_dir": str(ensure_data_dir()), "files": {name: file_metadata(name) for name in files}, "summary": {"known_files": len(files), "existing_files": 0, "missing_files": 0, "total_size_bytes": 0}}
     existing = [meta for meta in manifest["files"].values() if meta.get("exists")]
     manifest["summary"]["existing_files"] = len(existing)
     manifest["summary"]["missing_files"] = len(files) - len(existing)
@@ -139,18 +134,4 @@ def sync_training_manifest(extra_files: Optional[Iterable[str]] = None) -> Dict[
     return manifest
 
 
-__all__ = [
-    "AI_DATA_DIR",
-    "TRAINING_MANIFEST_FILE",
-    "KNOWN_AI_DATA_FILES",
-    "utc_now",
-    "ensure_data_dir",
-    "data_path",
-    "read_json",
-    "write_json",
-    "append_json_list",
-    "append_jsonl",
-    "file_metadata",
-    "build_training_manifest",
-    "sync_training_manifest",
-]
+__all__ = ["AI_DATA_DIR", "TRAINING_MANIFEST_FILE", "KNOWN_AI_DATA_FILES", "utc_now", "ensure_data_dir", "data_path", "read_json", "write_json", "append_json_list", "append_jsonl", "file_metadata", "build_training_manifest", "sync_training_manifest"]
