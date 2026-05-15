@@ -1,7 +1,8 @@
 """AI management utilities.
 
-Training lifecycle, model status, health, and statistics helpers. This module
-avoids fabricated model accuracy or fixed performance numbers.
+Training lifecycle, model status, provider-key handling, health, and statistics
+helpers. Metrics are read from real logs/results; no fabricated accuracy or
+fixed performance numbers are returned.
 """
 
 from __future__ import annotations
@@ -12,12 +13,15 @@ import threading
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
+from cryptography.fernet import Fernet
+
 from AI.engine.ai_storage import file_metadata, read_json, sync_training_manifest, utc_now, write_json
 
 TRAINING_JOBS_FILE = "training_jobs.json"
 MODEL_STATUS_FILE = "model_training_status.json"
 INTERACTIONS_FILE = "ai_interactions.json"
-API_PROVIDER_STATUS_FILE = "api_provider_status.json"
+PROVIDER_KEYRING_FILE = "ai_provider_keyring.json"
+PROVIDER_KEY_MATERIAL_FILE = "ai_provider_key_material.json"
 
 DEFAULT_MODELS = {
     "نموذج التنبؤ بالمبيعات": {"status": "pending", "accuracy": None, "last_update": None, "last_trained": None, "training_jobs": [], "metric_source": None},
@@ -32,41 +36,95 @@ AVAILABLE_MODELS = [
 ]
 
 
+def _normal_provider(api_name: str) -> str:
+    return (api_name or "").strip().lower()
+
+
+def _env_key(provider: str) -> Optional[str]:
+    provider = _normal_provider(provider).upper()
+    return os.environ.get(f"{provider}_API_KEY") if provider else None
+
+
+def _get_or_create_key_material() -> bytes:
+    env_key = os.environ.get("AI_PROVIDER_KEY_MATERIAL")
+    if env_key:
+        return env_key.encode()
+    data = read_json(PROVIDER_KEY_MATERIAL_FILE, {})
+    if isinstance(data, dict) and data.get("key"):
+        return str(data["key"]).encode()
+    key = Fernet.generate_key().decode()
+    write_json(PROVIDER_KEY_MATERIAL_FILE, {"key": key, "created_at": utc_now(), "purpose": "encrypt_local_provider_keys"})
+    sync_training_manifest(extra_files=[PROVIDER_KEY_MATERIAL_FILE])
+    return key.encode()
+
+
 def save_api_key_encrypted(api_name: str, api_key: str) -> bool:
-    """Keep public API stable; secret storage is intentionally not handled here."""
-    provider = (api_name or "").strip().lower()
-    if not provider or not (api_key or "").strip():
+    provider = _normal_provider(api_name)
+    raw_key = (api_key or "").strip()
+    if not provider or not raw_key:
         return False
-    data = read_json(API_PROVIDER_STATUS_FILE, {})
-    data = data if isinstance(data, dict) else {}
-    data[provider] = {"configured": True, "updated_at": utc_now(), "storage": "external_or_runtime"}
-    write_json(API_PROVIDER_STATUS_FILE, data)
-    sync_training_manifest(extra_files=[API_PROVIDER_STATUS_FILE])
-    return True
+    try:
+        fernet = Fernet(_get_or_create_key_material())
+        keyring = read_json(PROVIDER_KEYRING_FILE, {})
+        keyring = keyring if isinstance(keyring, dict) else {}
+        keyring[provider] = {"encrypted_key": fernet.encrypt(raw_key.encode()).decode(), "updated_at": utc_now(), "status": "configured"}
+        write_json(PROVIDER_KEYRING_FILE, keyring)
+        sync_training_manifest(extra_files=[PROVIDER_KEYRING_FILE, PROVIDER_KEY_MATERIAL_FILE])
+        return True
+    except Exception:
+        return False
 
 
 def get_api_key_decrypted(api_name: str) -> Optional[str]:
-    provider = (api_name or "").strip().upper()
+    provider = _normal_provider(api_name)
     if not provider:
         return None
-    return os.environ.get(f"{provider}_API_KEY")
+    env_value = _env_key(provider)
+    if env_value:
+        return env_value
+    try:
+        keyring = read_json(PROVIDER_KEYRING_FILE, {})
+        item = keyring.get(provider) if isinstance(keyring, dict) else None
+        if not item or not item.get("encrypted_key"):
+            return None
+        return Fernet(_get_or_create_key_material()).decrypt(item["encrypted_key"].encode()).decode()
+    except Exception:
+        return None
 
 
 def test_api_key(api_name: str) -> dict:
-    provider = (api_name or "").strip().lower()
-    configured = bool(get_api_key_decrypted(provider))
-    if not configured:
-        return {"success": False, "message": "المفتاح غير موجود في متغيرات البيئة"}
-    return {"success": True, "message": "المفتاح موجود في متغيرات البيئة", "provider": provider}
+    provider = _normal_provider(api_name)
+    api_key = get_api_key_decrypted(provider)
+    if not api_key:
+        return {"success": False, "message": "المفتاح غير موجود"}
+    if provider == "groq":
+        return _test_groq_key(api_key)
+    return {"success": True, "message": "المفتاح موجود ومقروء", "provider": provider}
+
+
+def _test_groq_key(api_key: str) -> dict:
+    try:
+        import requests
+        response = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={"model": "llama-3.3-70b-versatile", "messages": [{"role": "user", "content": "test"}], "max_tokens": 10},
+            timeout=10,
+        )
+        if response.status_code == 200:
+            return {"success": True, "message": "المفتاح يعمل بشكل صحيح", "model": "llama-3.3-70b-versatile", "latency": f"{response.elapsed.total_seconds():.2f}s"}
+        return {"success": False, "message": f"فشل الاتصال: {response.status_code}"}
+    except Exception as exc:
+        return {"success": False, "message": str(exc)}
 
 
 def list_configured_apis() -> list:
-    data = read_json(API_PROVIDER_STATUS_FILE, {})
     rows = []
-    if isinstance(data, dict):
-        for name, item in data.items():
+    keyring = read_json(PROVIDER_KEYRING_FILE, {})
+    if isinstance(keyring, dict):
+        for name, item in keyring.items():
             if isinstance(item, dict):
-                rows.append({"name": name, "status": "configured" if item.get("configured") else "unknown", "created_at": item.get("updated_at", "unknown")})
+                rows.append({"name": name, "status": item.get("status", "configured"), "created_at": item.get("updated_at", "unknown")})
     for key, value in os.environ.items():
         if key.endswith("_API_KEY") and value:
             provider = key[:-8].lower()
