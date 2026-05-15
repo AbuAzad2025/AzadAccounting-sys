@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 _BOUND_APPS = set()
+_SIGNAL_BOUND = False
 
 
 def bind_ai_flask_feedback(app) -> bool:
@@ -42,4 +43,27 @@ def bind_ai_flask_feedback(app) -> bool:
     return True
 
 
-__all__ = ["bind_ai_flask_feedback"]
+def install_ai_flask_feedback_signal() -> bool:
+    global _SIGNAL_BOUND
+    if _SIGNAL_BOUND:
+        return False
+    try:
+        from flask import appcontext_pushed
+    except Exception:
+        return False
+
+    def _on_app_context(sender, **extra):
+        try:
+            bind_ai_flask_feedback(sender)
+        except Exception:
+            pass
+
+    try:
+        appcontext_pushed.connect(_on_app_context)
+        _SIGNAL_BOUND = True
+        return True
+    except Exception:
+        return False
+
+
+__all__ = ["bind_ai_flask_feedback", "install_ai_flask_feedback_signal"]
