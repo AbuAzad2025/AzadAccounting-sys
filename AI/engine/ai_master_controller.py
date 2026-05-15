@@ -162,7 +162,7 @@ class MasterController:
                 return None
             operation["result"] = result
             self._track_operation(operation)
-            return {"answer": self._format_guide_answer(result), "confidence": 0.85, "sources": ["User Guide"]}
+            return {"answer": self._format_guide_answer(result), "confidence": 0.9, "sources": ["Expert User Guide"]}
         return None
 
     def _format_python_error_answer(self, result: Dict) -> str:
@@ -179,28 +179,46 @@ class MasterController:
                 parts.append(f"  - {tip}")
         return "\n".join(parts)
 
+    def _add_list_section(self, parts: List[str], title: str, values, limit: int = 8) -> None:
+        if not values:
+            return
+        parts.append(f"\n{title}:")
+        for value in list(values)[:limit]:
+            parts.append(f"  • {value}")
+
     def _format_guide_answer(self, result: Dict) -> str:
         parts: List[str] = []
         if result.get("topic"):
             parts.append(f"📍 {result['topic']}")
         if result.get("description"):
             parts.append(f"\n{result['description']}")
+        if result.get("professional_hint"):
+            parts.append(f"\n🧠 خبرة عملية:\n  {result['professional_hint']}")
         if result.get("route"):
             parts.append(f"\n🔗 المسار: {result['route']}")
         if result.get("steps"):
-            parts.append("\n📋 الخطوات:")
-            for step in result["steps"]:
-                parts.append(f"  {step}")
+            parts.append("\n📋 خطوات العمل:")
+            for i, step in enumerate(result["steps"], 1):
+                parts.append(f"  {i}. {step}")
         if result.get("fields"):
-            parts.append("\n📝 الحقول:")
-            for field, desc in list(result["fields"].items())[:8]:
+            parts.append("\n📝 أهم الحقول:")
+            for field, desc in list(result["fields"].items())[:10]:
                 parts.append(f"  • {field}: {desc}")
-        if result.get("gl_effect"):
-            parts.append(f"\n💼 التأثير المحاسبي:\n  {result['gl_effect']}")
-        if result.get("tips"):
-            parts.append("\n💡 نصائح:")
-            for tip in result["tips"]:
-                parts.append(f"  - {tip}")
+        self._add_list_section(parts, "✅ فحص المستخدم المتمرس قبل الحفظ", result.get("expert_checks"), 8)
+        self._add_list_section(parts, "🔎 ماذا تراجع بعد الحفظ", result.get("after_save"), 8)
+        self._add_list_section(parts, "⚠️ أخطاء شائعة", result.get("common_mistakes"), 8)
+        if result.get("calculations"):
+            parts.append("\n🧮 الحسابات المرتبطة:")
+            for key, desc in result["calculations"].items():
+                parts.append(f"  • {key}: {desc}")
+        if result.get("stock_effect"):
+            parts.append(f"\n📦 أثر المخزون:\n  {result['stock_effect']}")
+        if result.get("concepts"):
+            parts.append("\n📚 مفاهيم مرتبطة:")
+            for key, desc in list(result["concepts"].items())[:8]:
+                parts.append(f"  • {key}: {desc}")
+        self._add_list_section(parts, "🔗 وحدات مرتبطة", result.get("related_modules"), 8)
+        self._add_list_section(parts, "💡 ملاحظات ذكية", result.get("tips"), 8)
         return "\n".join(parts)
 
     def _track_operation(self, operation: Dict) -> None:
