@@ -2,6 +2,7 @@
 
 Runs lightweight checks before database flush. Default mode is monitor-only.
 Set SystemSettings key ai_erp_guard_block_critical=true to block critical risks.
+Every finding also includes user-facing guidance for smart inline messages.
 """
 
 from __future__ import annotations
@@ -57,7 +58,13 @@ def _user_snapshot() -> Dict[str, Any]:
 
 
 def _finding(code: str, severity: str, obj: Any, message: str, advice: str = "راجع الحركة قبل الاعتماد.") -> Dict[str, Any]:
-    return {"code": code, "severity": severity, "message": message, "advice": advice, **_obj_id(obj)}
+    item = {"code": code, "severity": severity, "message": message, "advice": advice, **_obj_id(obj)}
+    try:
+        from AI.engine.ai_transaction_copilot import guidance_for_finding
+        item["user_guidance"] = guidance_for_finding(item)
+    except Exception:
+        pass
+    return item
 
 
 def inspect_object(obj: Any, state: str) -> List[Dict[str, Any]]:
@@ -110,7 +117,12 @@ def _log_findings(findings: Iterable[Dict[str, Any]]) -> None:
     if not items:
         return
     try:
-        append_json_list(GUARD_LOG_FILE, {"timestamp": utc_now(), "findings": items, **_user_snapshot()}, max_items=1000)
+        from AI.engine.ai_transaction_copilot import compact_user_message
+        user_message = compact_user_message(items)
+    except Exception:
+        user_message = ""
+    try:
+        append_json_list(GUARD_LOG_FILE, {"timestamp": utc_now(), "findings": items, "user_message": user_message, **_user_snapshot()}, max_items=1000)
     except Exception:
         pass
 
@@ -144,7 +156,12 @@ def bind_erp_transaction_guard() -> bool:
         if _setting_bool(_CRITICAL_MODE_KEY, False):
             critical = [f for f in findings if f.get("severity") == "CRITICAL"]
             if critical:
-                raise ValueError("AI ERP Guard blocked a critical-risk transaction. Review ai_erp_guard_events.json.")
+                try:
+                    from AI.engine.ai_transaction_copilot import compact_user_message
+                    message = compact_user_message(critical)
+                except Exception:
+                    message = "AI ERP Guard blocked a critical-risk transaction."
+                raise ValueError(message or "AI ERP Guard blocked a critical-risk transaction.")
 
     try:
         event.listen(Session, "before_flush", before_flush, retval=False)
