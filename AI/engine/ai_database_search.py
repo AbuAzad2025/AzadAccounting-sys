@@ -1,17 +1,20 @@
 """Read-only database search helpers for AI.
 
-Uses actual SQLAlchemy model fields and avoids fabricated/static data.
+Uses actual SQLAlchemy model fields and avoids fabricated/static data. All
+results are filtered through ai_permission_guard so the assistant cannot expose
+modules outside the current user's permissions.
 """
 
 from __future__ import annotations
 
 import re
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Iterable, List
+from typing import Any, Dict, Iterable, List, Optional
 
 from sqlalchemy import func, or_
 
 from extensions import db
+from AI.engine.ai_permission_guard import can_access_module, filter_search_results, get_permission_context
 
 
 def _query_text(query: str) -> str:
@@ -57,34 +60,39 @@ def _or_ilike(model, fields: Iterable[str], terms: List[str]):
     return or_(*clauses) if clauses else None
 
 
-def search_database_for_query(query: str) -> Dict[str, Any]:
+def _allow(module: str, permission_context: Optional[Dict[str, Any]]) -> bool:
+    return can_access_module(module, permission_context or get_permission_context())
+
+
+def search_database_for_query(query: str, permission_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     try:
+        permission_context = permission_context or get_permission_context()
         results = {"intent": None}
         query_lower = _query_text(query)
         intent = analyze_query_intent(query_lower)
         results["intent"] = intent
         entities = intent.get("entities", [])
 
-        if "customer" in entities or any(word in query_lower for word in ["عميل", "زبون", "customer"]):
+        if ("customer" in entities or any(word in query_lower for word in ["عميل", "زبون", "customer"])) and _allow("customers", permission_context):
             results.update(search_customers(query_lower))
-        if "supplier" in entities or any(word in query_lower for word in ["مورد", "vendor", "supplier"]):
+        if ("supplier" in entities or any(word in query_lower for word in ["مورد", "vendor", "supplier"])) and _allow("suppliers", permission_context):
             results.update(search_suppliers(query_lower))
-        if "product" in entities or any(word in query_lower for word in ["منتج", "قطعة", "product", "part"]):
+        if ("product" in entities or any(word in query_lower for word in ["منتج", "قطعة", "product", "part"])) and _allow("products", permission_context):
             results.update(search_products(query_lower))
-        if "service" in entities or any(word in query_lower for word in ["صيانة", "service", "repair"]):
+        if ("service" in entities or any(word in query_lower for word in ["صيانة", "service", "repair"])) and _allow("services", permission_context):
             results.update(search_services(query_lower))
-        if "sale" in entities or any(word in query_lower for word in ["مبيعات", "بيع", "sales", "sell"]):
+        if ("sale" in entities or any(word in query_lower for word in ["مبيعات", "بيع", "sales", "sell"])) and _allow("sales", permission_context):
             results.update(search_sales(query_lower))
-        if "payment" in entities or any(word in query_lower for word in ["دفع", "payment", "pay", "دفعة"]):
+        if ("payment" in entities or any(word in query_lower for word in ["دفع", "payment", "pay", "دفعة"])) and _allow("payments", permission_context):
             results.update(search_payments(query_lower))
-        if "expense" in entities or any(word in query_lower for word in ["مصروف", "expense", "نفقة"]):
+        if ("expense" in entities or any(word in query_lower for word in ["مصروف", "expense", "نفقة"])) and _allow("expenses", permission_context):
             results.update(search_expenses(query_lower))
-        if "inventory" in entities or any(word in query_lower for word in ["مخزون", "inventory", "stock"]):
+        if ("inventory" in entities or any(word in query_lower for word in ["مخزون", "inventory", "stock"])) and _allow("inventory", permission_context):
             results.update(search_inventory(query_lower))
 
         if len(results) <= 1:
-            results.update(get_general_statistics())
-        return results
+            results.update(get_general_statistics(permission_context=permission_context))
+        return filter_search_results(results, permission_context)
     except Exception as exc:
         return {"error": str(exc), "intent": None}
 
@@ -240,16 +248,36 @@ def search_inventory(query: str) -> Dict[str, Any]:
         return {"inventory_error": str(exc)}
 
 
-def get_general_statistics() -> Dict[str, Any]:
+def get_general_statistics(permission_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     try:
         from models import Customer, Expense, Product, Sale, ServiceRequest, Supplier, User, Warehouse
-        return {"general_customers": Customer.query.count(), "general_suppliers": Supplier.query.count(), "general_products": Product.query.count(), "general_services": ServiceRequest.query.count(), "general_users": User.query.count(), "general_warehouses": Warehouse.query.count(), "general_sales": Sale.query.count(), "general_expenses": Expense.query.count()}
+        permission_context = permission_context or get_permission_context()
+        stats = {}
+        if _allow("customers", permission_context):
+            stats["general_customers"] = Customer.query.count()
+        if _allow("suppliers", permission_context):
+            stats["general_suppliers"] = Supplier.query.count()
+        if _allow("products", permission_context):
+            stats["general_products"] = Product.query.count()
+        if _allow("services", permission_context):
+            stats["general_services"] = ServiceRequest.query.count()
+        if _allow("users", permission_context):
+            stats["general_users"] = User.query.count()
+        if _allow("warehouses", permission_context):
+            stats["general_warehouses"] = Warehouse.query.count()
+        if _allow("sales", permission_context):
+            stats["general_sales"] = Sale.query.count()
+        if _allow("expenses", permission_context):
+            stats["general_expenses"] = Expense.query.count()
+        if not stats:
+            stats["permission_note"] = "لا توجد إحصائيات عامة متاحة ضمن صلاحيات المستخدم الحالي."
+        return stats
     except Exception as exc:
         return {"general_error": str(exc)}
 
 
-def search_in_database(query: str) -> Dict[str, Any]:
-    return search_database_for_query(query)
+def search_in_database(query: str, permission_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    return search_database_for_query(query, permission_context=permission_context)
 
 
 __all__ = ["search_database_for_query", "search_in_database", "analyze_query_intent", "get_time_range"]
