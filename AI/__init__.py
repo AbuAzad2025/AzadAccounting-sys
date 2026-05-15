@@ -24,3 +24,9 @@ try:
     bind_ai_controller_security()
 except Exception:
     pass
+
+try:
+    from AI.engine.ai_management_security_bind import bind_ai_management_security
+    bind_ai_management_security()
+except Exception:
+    pass
