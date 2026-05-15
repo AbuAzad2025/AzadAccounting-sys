@@ -18,3 +18,9 @@ try:
     bind_ai_service_access()
 except Exception:
     pass
+
+try:
+    from AI.engine.ai_controller_security_bind import bind_ai_controller_security
+    bind_ai_controller_security()
+except Exception:
+    pass
