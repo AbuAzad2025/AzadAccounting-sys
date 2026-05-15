@@ -30,3 +30,9 @@ try:
     bind_ai_management_security()
 except Exception:
     pass
+
+try:
+    from AI.engine.ai_erp_transaction_guard import bind_erp_transaction_guard
+    bind_erp_transaction_guard()
+except Exception:
+    pass
