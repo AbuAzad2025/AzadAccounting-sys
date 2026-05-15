@@ -1432,56 +1432,65 @@ def create_app(config_object=Config) -> Flask:
 
     @app.context_processor
     def inject_system_settings():
-        # print("DEBUG: inject_system_settings called")
-        # Helper to get setting from DB or cache (preferred way)
-        def _get(key, default=None):
+        setting_keys = {
+            'system_name', 'SystemName', 'company_name', 'CompanyName',
+            'login_title', 'login_subtitle', 'footer_text',
+            'custom_logo', 'custom_favicon',
+            'primary_color', 'secondary_color', 'sidebar_bg', 'sidebar_text',
+            'COMPANY_ADDRESS', 'COMPANY_PHONE', 'COMPANY_EMAIL', 'TAX_NUMBER',
+            'CURRENCY_SYMBOL', 'TIMEZONE',
+            'MARKETING_MODULES', 'MARKETING_APIS', 'MARKETING_INDEXES',
+            'MARKETING_OTHER_SYSTEMS', 'MARKETING_PRICE_FROM_USD',
+        }
+        lookup_keys = set(setting_keys)
+        lookup_keys.update(k.upper() for k in setting_keys)
+        cache_key = 'system_settings:template_settings:v1'
+        raw_settings = cache.get(cache_key)
+        if not isinstance(raw_settings, dict):
             try:
-                # Force direct DB query to bypass potential cache issues
-                setting = SystemSettings.query.filter_by(key=key).first()
-                if not setting:
-                    setting = SystemSettings.query.filter_by(key=key.upper()).first()
-                
-                val = setting.value if setting else None
-                
-                if val is None:
-                    return default
-                    
-                s = str(val).strip()
-                low = s.lower()
-                if low in ['true', '1', 'yes']:
-                    return True
-                if low in ['false', '0', 'no']:
-                    return False
-                return s
+                rows = SystemSettings.query.filter(SystemSettings.key.in_(list(lookup_keys))).all()
+                raw_settings = {row.key: row.value for row in rows}
+                cache.set(cache_key, raw_settings, timeout=120)
             except Exception:
-                # Silently fail and return default
+                raw_settings = {}
+
+        def _coerce(val, default=None):
+            if val is None:
                 return default
+            s = str(val).strip()
+            low = s.lower()
+            if low in ['true', '1', 'yes']:
+                return True
+            if low in ['false', '0', 'no']:
+                return False
+            return s
 
-        # Get values with fallbacks
-        val1 = _get('system_name')
-        val2 = _get('SystemName')
-        
-        system_name_val = val1 or val2
-        if not system_name_val:
-            system_name_val = 'أزاد لإدارة الكراج'
+        def _get(key, default=None):
+            return _coerce(raw_settings.get(key, raw_settings.get(str(key).upper())), default)
 
+        def _safe_static_path(value, default='img/azad_logo.png'):
+            s = str(value or '').strip().replace('\\', '/')
+            if not s:
+                return default
+            lowered = s.lower()
+            if lowered.startswith(('http://', 'https://', '//')):
+                return default
+            s = s.lstrip('/')
+            if s.startswith('static/'):
+                s = s[len('static/'):]
+            if '/' not in s:
+                s = f'img/{s}'
+            parts = [p for p in s.split('/') if p]
+            if not parts or any(p in {'.', '..'} for p in parts):
+                return default
+            return '/'.join(parts)
+
+        system_name_val = _get('system_name') or _get('SystemName') or 'أزاد لإدارة الكراج'
         company_name_val = _get('company_name') or _get('CompanyName') or 'شركة أزاد للأنظمة الذكية'
 
-        # Prepare Logo URL helper
         custom_logo = _get('custom_logo')
-        if custom_logo:
-            # Handle both full paths and relative paths
-            if custom_logo.startswith('static/'):
-                logo_filename = custom_logo.replace('static/', '')
-            elif '/' not in custom_logo:
-                # If just a filename, assume it is in img/
-                logo_filename = f'img/{custom_logo}'
-            else:
-                logo_filename = custom_logo
-            
-            logo_url = url_for('static', filename=logo_filename)
-        else:
-            logo_url = url_for('static', filename='img/azad_logo.png')
+        logo_filename = _safe_static_path(custom_logo)
+        logo_url = url_for('static', filename=logo_filename)
 
         settings = {
             'system_name': system_name_val,
@@ -1489,7 +1498,7 @@ def create_app(config_object=Config) -> Flask:
             'login_title': _get('login_title', 'مرحباً بك'),
             'login_subtitle': _get('login_subtitle', 'سجل دخولك للمتابعة'),
             'footer_text': _get('footer_text', 'جميع الحقوق محفوظة'),
-            'custom_logo': _get('custom_logo', ''),
+            'custom_logo': custom_logo or '',
             'custom_logo_url': logo_url,
             'custom_favicon': _get('custom_favicon', ''),
             'primary_color': _get('primary_color', '#007bff'),
@@ -1509,7 +1518,7 @@ def create_app(config_object=Config) -> Flask:
             'marketing_price_from_usd': _get('MARKETING_PRICE_FROM_USD', '500'),
         }
 
-        system_appearance = {} # Fix: Define system_appearance to prevent NameError
+        system_appearance = {}
         return dict(system_settings=settings, system_appearance=system_appearance)
     
     @app.before_request
