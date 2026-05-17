@@ -1,5 +1,7 @@
 
 import logging
+import secrets
+import string
 from datetime import datetime, timezone
 from extensions import db
 from models import (
@@ -220,10 +222,18 @@ class SystemInitializer:
                     is_active=True,
                     is_system_account=True
                 )
-                user.set_password('admin123')
+                generated_password = ''.join(
+                    secrets.choice(string.ascii_letters + string.digits + '!@#$%^&*')
+                    for _ in range(16)
+                )
+                user.set_password(generated_password)
                 db.session.add(user)
                 db.session.commit()
-                self.logger.info("Default admin user created.")
+                self.logger.info(
+                    "Default admin user created. "
+                    "IMPORTANT: Initial password = %s  — change it immediately.",
+                    generated_password,
+                )
 
     def _get_roles_config(self, perm_lookup, all_db_perms):
         """تحديد صلاحيات الأدوار"""
