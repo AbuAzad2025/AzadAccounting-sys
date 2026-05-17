@@ -4,6 +4,8 @@ import io
 import json
 import math
 import re
+import secrets
+import string
 from datetime import datetime, timezone
 from decimal import Decimal
 from functools import wraps
@@ -2917,44 +2919,72 @@ def restore_customer(customer_id):
         return redirect(url_for('customers_bp.list_customers'))
 
 
+def _generate_smart_password(customer):
+    """Generate a unique password per customer: AZ-<phone_tail>-<random>."""
+    phone = (getattr(customer, 'phone', None) or '').strip()
+    tail = phone[-4:] if len(phone) >= 4 else str(customer.id).zfill(4)
+    rand = ''.join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(4))
+    return f"AZ-{tail}-{rand}"
+
+
 @customers_bp.route('/reset-passwords', methods=['POST'])
 @login_required
 def reset_passwords():
-    """تعيين كلمة مرور موحّدة للعملاء الذين لا يملكون كلمة مرور.
-    يستخدم حقل `password_hash` ويولّد هاش آمن لجميع العملاء القدامى الذين قيمة الحقل لديهم فارغة.
-    تسمية كلمة المرور الافتراضية يمكن تمريرها عبر النموذج باسم `default_password`.
+    """تعيين كلمة مرور فريدة عشوائية لكل عميل لا يملك كلمة مرور.
+    يولّد كلمة مرور ذكية لكل عميل على حدة ويعرض قائمة البيانات للمدير.
+    إذا مرّر المستخدم `default_password` عبر النموذج، يُستخدم لجميع العملاء بدلاً من التوليد.
     """
     try:
         from werkzeug.security import generate_password_hash
-        default_password = (request.form.get('default_password') or 'AZ@1983').strip()
-        if not default_password:
-            default_password = 'AZ@1983'
+        manual_password = (request.form.get('default_password') or '').strip()
 
-        # تحديث العملاء الذين لا يملكون كلمة مرور فقط
         updated = 0
         total_candidates = 0
+        credentials = []
         q = Customer.query.filter((Customer.password_hash.is_(None)) | (Customer.password_hash == ''))
         customers = q.all()
         total_candidates = len(customers)
         for cust in customers:
             try:
-                cust.password_hash = generate_password_hash(default_password)
+                pw = manual_password if manual_password else _generate_smart_password(cust)
+                cust.password_hash = generate_password_hash(pw)
                 cust.is_online = True
-                # Set default email AZAD@<phone> if missing and phone present, ensuring uniqueness
                 if not (cust.email and str(cust.email).strip()) and (cust.phone and str(cust.phone).strip()):
                     target_email = f"AZAD@{str(cust.phone).strip()}"
                     exists = Customer.query.filter(func.lower(Customer.email) == target_email.lower(), Customer.id != cust.id).first()
                     if not exists:
                         cust.email = target_email
+                credentials.append({
+                    'id': cust.id,
+                    'name': cust.name,
+                    'phone': (cust.phone or '').strip(),
+                    'password': pw,
+                })
                 updated += 1
             except Exception:
                 continue
 
         db.session.commit()
-        flash(f'✅ تم تعيين كلمة مرور موحّدة لعدد {updated} عميل من أصل {total_candidates}.', 'success')
+
         if total_candidates == 0:
             flash('ℹ️ لا يوجد عملاء بحاجة لتعيين كلمة مرور (الحقل موجود بالفعل).', 'info')
-        return redirect(url_for('customers_bp.list_customers'))
+            return redirect(url_for('customers_bp.list_customers'))
+
+        flash(f'✅ تم تعيين كلمة مرور فريدة لعدد {updated} عميل من أصل {total_candidates}.', 'success')
+        rows_html = ''.join(
+            f"<tr><td>{c['id']}</td><td>{c['name']}</td><td>{c['phone']}</td><td style='font-family:monospace'>{c['password']}</td></tr>"
+            for c in credentials
+        )
+        return render_template_string(
+            "<div class='container py-3'>"
+            "<h4><i class='fas fa-key'></i> كلمات المرور المولّدة</h4>"
+            "<div class='alert alert-warning'>احفظ هذه القائمة الآن — لن تظهر مرة أخرى.</div>"
+            "<table class='table table-striped table-bordered'>"
+            "<thead><tr><th>ID</th><th>الاسم</th><th>الجوال</th><th>كلمة المرور</th></tr></thead>"
+            "<tbody>" + rows_html + "</tbody></table>"
+            "<a href='{{ url_for(\"customers_bp.list_customers\") }}' class='btn btn-primary mt-2'>العودة</a>"
+            "</div>"
+        )
     except Exception as e:
         db.session.rollback()
         flash(f'خطأ في تعيين كلمات المرور: {str(e)}', 'error')
@@ -2966,8 +2996,9 @@ def reset_passwords():
 def make_online_all():
     try:
         from werkzeug.security import generate_password_hash
-        default_password = (request.form.get('default_password') or 'AZ@1983').strip() or 'AZ@1983'
+        manual_password = (request.form.get('default_password') or '').strip()
         updated = 0
+        new_passwords = []
         customers = Customer.query.all()
         for cust in customers:
             try:
@@ -2979,12 +3010,37 @@ def make_online_all():
                     if not exists:
                         cust.email = target_email
                 if not (cust.password_hash and str(cust.password_hash).strip()):
-                    cust.password_hash = generate_password_hash(default_password)
+                    pw = manual_password if manual_password else _generate_smart_password(cust)
+                    cust.password_hash = generate_password_hash(pw)
+                    new_passwords.append({
+                        'id': cust.id,
+                        'name': cust.name,
+                        'phone': (cust.phone or '').strip(),
+                        'password': pw,
+                    })
                 updated += 1
             except Exception:
                 continue
         db.session.commit()
-        flash(f'✅ تم تحويل جميع العملاء ({updated}) إلى وضع الأونلاين مع بيانات افتراضية.', 'success')
+
+        if new_passwords:
+            flash(f'✅ تم تحويل {updated} عميل للأونلاين. تم توليد كلمات مرور لـ {len(new_passwords)} عميل.', 'success')
+            rows_html = ''.join(
+                f"<tr><td>{c['id']}</td><td>{c['name']}</td><td>{c['phone']}</td><td style='font-family:monospace'>{c['password']}</td></tr>"
+                for c in new_passwords
+            )
+            return render_template_string(
+                "<div class='container py-3'>"
+                "<h4><i class='fas fa-key'></i> كلمات المرور المولّدة للعملاء الجدد</h4>"
+                "<div class='alert alert-warning'>احفظ هذه القائمة الآن — لن تظهر مرة أخرى.</div>"
+                "<table class='table table-striped table-bordered'>"
+                "<thead><tr><th>ID</th><th>الاسم</th><th>الجوال</th><th>كلمة المرور</th></tr></thead>"
+                "<tbody>" + rows_html + "</tbody></table>"
+                "<a href='{{ url_for(\"customers_bp.list_customers\") }}' class='btn btn-primary mt-2'>العودة</a>"
+                "</div>"
+            )
+
+        flash(f'✅ تم تحويل جميع العملاء ({updated}) إلى وضع الأونلاين.', 'success')
         return redirect(url_for('customers_bp.list_customers'))
     except Exception as e:
         db.session.rollback()
@@ -3028,23 +3084,24 @@ def export_online_credentials():
         phone = (getattr(c, 'phone', None) or '').strip()
         email = (getattr(c, 'email', None) or '').strip()
         login = f"AZAD@{phone}" if phone else (email or '')
-        password = 'AZ@1983' if (not getattr(c, 'password_hash', None) or c.check_password('AZ@1983')) else ''
+        has_password = bool(getattr(c, 'password_hash', None) and str(c.password_hash).strip())
         rows.append({
             'id': c.id,
             'name': c.name,
             'phone': phone,
             'login': login,
-            'password': password
+            'status': 'مُعيّنة' if has_password else 'غير مُعيّنة',
         })
     html = [
         "<div class='container py-3'>",
         "<h4><i class='fas fa-id-card'></i> حسابات دخول العملاء</h4>",
-        "<div class='alert alert-info'>كلمة المرور تظهر فقط إذا كانت الافتراضية أو غير موجودة.</div>",
+        "<div class='alert alert-info'>كلمات المرور مُشفّرة ولا يمكن عرضها. استخدم 'تعيين كلمات المرور' لتوليد جديدة.</div>",
         "<table class='table table-striped table-bordered'>",
-        "<thead><tr><th>ID</th><th>الاسم</th><th>الجوال</th><th>اسم المستخدم</th><th>كلمة المرور</th></tr></thead>",
+        "<thead><tr><th>ID</th><th>الاسم</th><th>الجوال</th><th>اسم المستخدم</th><th>حالة كلمة المرور</th></tr></thead>",
         "<tbody>"
     ]
     for r in rows:
-        html.append(f"<tr><td>{r['id']}</td><td>{r['name']}</td><td>{r['phone']}</td><td>{r['login']}</td><td>{r['password'] or '—'}</td></tr>")
+        status_class = 'text-success' if r['status'] == 'مُعيّنة' else 'text-danger'
+        html.append(f"<tr><td>{r['id']}</td><td>{r['name']}</td><td>{r['phone']}</td><td>{r['login']}</td><td class='{status_class}'>{r['status']}</td></tr>")
     html.append("</tbody></table></div>")
     return render_template_string("".join(html))
