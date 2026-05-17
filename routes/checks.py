@@ -235,11 +235,11 @@ class PaymentStatusSyncService:
                         return None
                 except (ValueError, IndexError):
                     return None
+            else:
+                if len(non_cheque_splits) > 0:
+                    return PaymentStatus.COMPLETED.value
                 else:
-                    if len(non_cheque_splits) > 0:
-                        return PaymentStatus.COMPLETED.value
-                    else:
-                        return PaymentStatus.PENDING.value
+                    return PaymentStatus.PENDING.value
 
         elif check_status == 'PENDING':
             if len(non_cheque_splits) > 0:

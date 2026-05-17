@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 from werkzeug.exceptions import BadRequest
 from flask import Blueprint, Response, flash, jsonify, render_template, request, current_app, redirect, url_for, stream_with_context
 from sqlalchemy.orm import class_mapper, joinedload, load_only
-from sqlalchemy import func, cast, Date, desc, or_, and_, case
+from sqlalchemy import func, Date, desc, or_, and_, case
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy import inspect as sa_inspect
 from extensions import db
@@ -18,7 +18,7 @@ import inspect as pyinspect
 
 from models import (
     Customer, Supplier, Partner, Product, Warehouse, StockLevel, Expense,
-    OnlinePreOrder, OnlinePayment, OnlineCart, Sale, SaleLine, SaleReturn, SaleStatus, ServiceRequest, ServiceStatus, InvoiceStatus, Invoice, Payment,
+    OnlinePreOrder, OnlinePayment, OnlineCart, Sale, SaleLine, SaleReturn, SaleStatus, ServiceRequest, ServiceStatus, Invoice, Payment,
     Shipment, PaymentDirection, PaymentStatus, PaymentSplit, PreOrder, ServicePart, ServiceTask, Employee, User, convert_amount
 )
 from utils.supplier_balance_updater import build_supplier_balance_view
@@ -28,7 +28,7 @@ reports_bp = Blueprint('reports_bp', __name__, url_prefix='/reports')
 
 from reports import (
     advanced_report, ap_aging_report, ar_aging_report,
-    payment_summary_report_ils, sales_report_ils, service_reports_report, top_products_report
+    payment_summary_report_ils, service_reports_report, top_products_report
 )
 
 def _parse_date(s: Optional[str]):

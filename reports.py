@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Dict
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import Date, and_, cast, func, desc
+from sqlalchemy import Date, and_, func, desc
 from sqlalchemy.orm import joinedload
 
 from extensions import db
@@ -13,7 +13,7 @@ from extensions import db
 from models import (
     Customer, Supplier, Product, Warehouse, SaleLine, Expense, Invoice,
     OnlinePreOrder, Payment, PaymentSplit, PaymentDirection, PaymentStatus,
-    Sale, SaleStatus, ServiceRequest, ServiceStatus, InvoiceStatus,
+    Sale, SaleStatus, ServiceRequest, ServiceStatus,
     PreOrder, PreOrderStatus,
 )
 

@@ -30,7 +30,6 @@ from wtforms.validators import (
     DataRequired,
     Email,
     EqualTo,
-    InputRequired,
     Length,
     NumberRange,
     Optional,
@@ -81,7 +80,6 @@ from models import (
     PreOrderStatus,
     Invoice,
     InvoiceSource,
-    InvoiceStatus,
     ensure_currency,
     normalize_barcode,
     SaleStatus,
@@ -3899,6 +3897,86 @@ class WarehouseForm(FlaskForm):
     notes = TextAreaField('ملاحظات', validators=[Optional(), Length(max=2000)])
     submit = SubmitField('حفظ')
 
+    def validate(self, extra_validators=None):
+        if not super().validate(extra_validators=extra_validators):
+            return False
+        wt = (self.warehouse_type.data or '').strip().upper()
+        slug = (self.online_slug.data or '').strip()
+        cur_id = to_int(self.id.data) if self.id.data else None
+        if wt == 'ONLINE':
+            if slug:
+                try:
+                    from models import Warehouse
+                    q = Warehouse.query.filter(Warehouse.warehouse_type == 'ONLINE', Warehouse.online_slug == slug)
+                    if cur_id: q = q.filter(Warehouse.id != cur_id)
+                    if q.first():
+                        self.online_slug.errors.append('المعرّف مستخدم بالفعل.')
+                        return False
+                except Exception:
+                    pass
+            if bool(self.online_is_default.data):
+                try:
+                    from models import Warehouse
+                    q = Warehouse.query.filter(Warehouse.warehouse_type == 'ONLINE', Warehouse.online_is_default.is_(True))
+                    if cur_id: q = q.filter(Warehouse.id != cur_id)
+                    if q.first():
+                        self.online_is_default.errors.append('يوجد مستودع أونلاين افتراضي واحد بالفعل.')
+                        return False
+                except Exception:
+                    pass
+        else:
+            self.online_is_default.data = False
+            if (self.online_slug.data or '').strip():
+                self.online_slug.errors.append('هذا الحقل متاح لمستودع الأونلاين فقط.')
+                return False
+        if wt == 'EXCHANGE' and not to_int(self.supplier_id.data):
+            self.supplier_id.errors.append('مستودع التبادل يجب ربطه بمورد.')
+            return False
+        if wt == 'PARTNER':
+            if not to_int(self.partner_id.data):
+                self.partner_id.errors.append('مستودع الشريك يجب ربطه بشريك.')
+                return False
+            if self.share_percent.data is not None and self.share_percent.data < 0:
+                self.share_percent.errors.append('نسبة غير صالحة.')
+                return False
+        if wt in {'INVENTORY', 'MAIN'}:
+            if to_int(self.partner_id.data): self.partner_id.data = None
+            if to_int(self.supplier_id.data): self.supplier_id.data = None
+        pid = to_int(self.parent_id.data) if self.parent_id.data else None
+        cur_id = to_int(self.id.data) if self.id.data else None
+        if pid and cur_id and pid == cur_id:
+            self.parent_id.errors.append('لا يمكن اختيار المستودع الأب نفسه.')
+            return False
+        if pid:
+            try:
+                from models import Warehouse
+                seen = set()
+                node = db.session.get(Warehouse, pid)
+                while node and node.parent_id and node.parent_id not in seen:
+                    if node.parent_id == cur_id:
+                        self.parent_id.errors.append('هذا يسبب حلقة في التسلسل الهرمي للمستودعات.')
+                        return False
+                    seen.add(node.parent_id)
+                    node = db.session.get(Warehouse, node.parent_id)
+            except Exception:
+                pass
+        return True
+
+    def apply_to(self, w):
+        w.name = (self.name.data or '').strip()
+        w.warehouse_type = (self.warehouse_type.data or '').strip().upper()
+        w.location = (self.location.data or '').strip() or None
+        w.parent_id = to_int(self.parent_id.data) if self.parent_id.data else None
+        w.partner_id = to_int(self.partner_id.data) if self.partner_id.data else None
+        w.supplier_id = to_int(self.supplier_id.data) if self.supplier_id.data else None
+        w.share_percent = self.share_percent.data or 0
+        w.capacity = self.capacity.data or None
+        w.current_occupancy = self.current_occupancy.data or None
+        w.online_slug = _slugify(self.online_slug.data) if (self.online_slug.data and w.warehouse_type=='ONLINE') else None
+        w.online_is_default = bool(self.online_is_default.data) if w.warehouse_type == 'ONLINE' else False
+        w.notes = (self.notes.data or '').strip() or None
+        w.is_active = bool(self.is_active.data)
+        return w
 
 
 class CheckForm(FlaskForm):
@@ -4067,80 +4145,6 @@ class CheckForm(FlaskForm):
         """التحقق من صحة المبلغ"""
         if field.data and field.data <= 0:
             raise ValidationError('المبلغ يجب أن يكون أكبر من صفر')
-            cur_id = to_int(self.id.data) if self.id.data else None
-            if slug:
-                try:
-                    from models import Warehouse
-                    q = Warehouse.query.filter(Warehouse.warehouse_type == 'ONLINE', Warehouse.online_slug == slug)
-                    if cur_id: q = q.filter(Warehouse.id != cur_id)
-                    if q.first():
-                        self.online_slug.errors.append('المعرّف مستخدم بالفعل.')
-                        return False
-                except Exception:
-                    pass
-            if bool(self.online_is_default.data):
-                try:
-                    from models import Warehouse
-                    q = Warehouse.query.filter(Warehouse.warehouse_type == 'ONLINE', Warehouse.online_is_default.is_(True))
-                    if cur_id: q = q.filter(Warehouse.id != cur_id)
-                    if q.first():
-                        self.online_is_default.errors.append('يوجد مستودع orنلاين افتراضي واحد بالفعل.')
-                        return False
-                except Exception:
-                    pass
-        else:
-            self.online_is_default.data = False
-            if (self.online_slug.data or '').strip():
-                self.online_slug.errors.append('هذا الحقل متاح لمستودع الorنلاين فقط.')
-                return False
-        if wt == 'EXCHANGE' and not to_int(self.supplier_id.data):
-            self.supplier_id.errors.append('مستودع التبادل يجب ربطه بمورد.')
-            return False
-        if wt == 'PARTNER':
-            if not to_int(self.partner_id.data):
-                self.partner_id.errors.append('مستودع الشريك يجب ربطه بشريك.')
-                return False
-            if self.share_percent.data is not None and self.share_percent.data < 0:
-                self.share_percent.errors.append('نسبة غير صالحة.')
-                return False
-        if wt in {'INVENTORY','MAIN'}:
-            if to_int(self.partner_id.data): self.partner_id.data = None
-            if to_int(self.supplier_id.data): self.supplier_id.data = None
-        pid = to_int(self.parent_id.data) if self.parent_id.data else None
-        cur_id = to_int(self.id.data) if self.id.data else None
-        if pid and cur_id and pid == cur_id:
-            self.parent_id.errors.append('لا يمكن اختيار المستودع الأب نفسه.')
-            return False
-        if pid:
-            try:
-                from models import Warehouse
-                seen = set()
-                node = db.session.get(Warehouse, pid)
-                while node and node.parent_id and node.parent_id not in seen:
-                    if node.parent_id == cur_id:
-                        self.parent_id.errors.append('❌ هذا يسبب حلقة في التسلسل الهرمي للمستودعات.')
-                        return False
-                    seen.add(node.parent_id)
-                    node = db.session.get(Warehouse, node.parent_id)
-            except Exception:
-                pass
-        return True
-
-    def apply_to(self, w):
-        w.name = (self.name.data or '').strip()
-        w.warehouse_type = (self.warehouse_type.data or '').strip().upper()
-        w.location = (self.location.data or '').strip() or None
-        w.parent_id = to_int(self.parent_id.data) if self.parent_id.data else None
-        w.partner_id = to_int(self.partner_id.data) if self.partner_id.data else None
-        w.supplier_id = to_int(self.supplier_id.data) if self.supplier_id.data else None
-        w.share_percent = self.share_percent.data or 0
-        w.capacity = self.capacity.data or None
-        w.current_occupancy = self.current_occupancy.data or None
-        w.online_slug = _slugify(self.online_slug.data) if (self.online_slug.data and w.warehouse_type=='ONLINE') else None
-        w.online_is_default = bool(self.online_is_default.data) if w.warehouse_type == 'ONLINE' else False
-        w.notes = (self.notes.data or '').strip() or None
-        w.is_active = bool(self.is_active.data)
-        return w
 
 
 class PartnerShareForm(FlaskForm):

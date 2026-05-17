@@ -31,7 +31,7 @@ from models import (
 )
 from forms import (
     ServiceRequestForm, CustomerForm, ServiceTaskForm,
-    ServiceDiagnosisForm, ServicePartForm
+    ServicePartForm
 )
 import utils
 from utils import _get_or_404, archive_record, restore_record

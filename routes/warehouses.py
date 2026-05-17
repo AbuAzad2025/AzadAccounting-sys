@@ -48,7 +48,6 @@ from forms import (
     ExchangeTransactionForm,
     ExchangeVendorForm,
     ImportForm,
-    PartnerShareForm,
     PreOrderForm,
     ProductForm,
     ProductPartnerShareForm,

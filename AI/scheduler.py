@@ -10,7 +10,6 @@
 Created: 2025-11-01
 """
 
-from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.triggers.cron import CronTrigger
 from datetime import datetime
 import logging
