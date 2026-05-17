@@ -1545,7 +1545,8 @@ def database_manager():
                     meta={'statement': statements[0][:200]}
                 )
         except Exception as e:
-            sql_error = str(e)
+            current_app.logger.warning("SQL console error: %s", str(e))
+            sql_error = 'حدث خطأ أثناء تنفيذ الاستعلام'
             db.session.rollback()
             _log_owner_action(
                 'db_sql_error',
@@ -1572,7 +1573,17 @@ def database_manager():
             flash('⚠️ الرجاء إدخال كود Python', 'warning')
             return redirect(url_for('security.database_manager', tab='python'))
         
-        dangerous_keywords = ['import os', 'import sys', 'import subprocess', '__import__', 'eval(', 'compile(', 'open(', 'file(', 'input(', 'execfile(']
+        dangerous_keywords = [
+            'import os', 'import sys', 'import subprocess', 'import socket',
+            'import shutil', 'import signal', 'import ctypes', 'import pickle',
+            '__import__', 'eval(', 'compile(', 'open(', 'file(', 'input(',
+            'execfile(', 'exec(', 'getattr(', 'setattr(', 'delattr(',
+            '__subclasses__', '__globals__', '__builtins__', '__code__',
+            '__class__', '__bases__', '__mro__', '__dict__',
+            'breakpoint(', 'exit(', 'quit(', 'help(',
+            'vars(', 'dir(', 'globals(', 'locals(',
+            'importlib', 'pkgutil', 'os.', 'sys.',
+        ]
         if any(keyword in python_code for keyword in dangerous_keywords):
             flash('⛔ كود خطر - يحتوي على عمليات محظورة', 'danger')
             python_error = 'كود خطر محظور'
@@ -1595,6 +1606,20 @@ def database_manager():
                     'max': max,
                     'min': min,
                     'range': range,
+                    'bool': bool,
+                    'tuple': tuple,
+                    'sorted': sorted,
+                    'round': round,
+                    'abs': abs,
+                    'enumerate': enumerate,
+                    'zip': zip,
+                    'map': map,
+                    'filter': filter,
+                    'isinstance': isinstance,
+                    'type': None,
+                    'True': True,
+                    'False': False,
+                    'None': None,
                 }
                 local_vars = {
                     'db': db,
@@ -1614,7 +1639,8 @@ def database_manager():
                     meta={'snippet': python_code[:200]}
                 )
             except Exception as e:
-                python_error = str(e)
+                current_app.logger.warning("Python console error: %s", str(e))
+                python_error = 'حدث خطأ أثناء التنفيذ'
                 _log_owner_action(
                     'db_python_error',
                     target='database_manager',

@@ -3044,7 +3044,8 @@ def export_online_credentials():
         "<thead><tr><th>ID</th><th>الاسم</th><th>الجوال</th><th>اسم المستخدم</th><th>كلمة المرور</th></tr></thead>",
         "<tbody>"
     ]
+    from markupsafe import escape as _esc
     for r in rows:
-        html.append(f"<tr><td>{r['id']}</td><td>{r['name']}</td><td>{r['phone']}</td><td>{r['login']}</td><td>{r['password'] or '—'}</td></tr>")
+        html.append(f"<tr><td>{r['id']}</td><td>{_esc(r['name'])}</td><td>{_esc(r['phone'])}</td><td>{_esc(r['login'])}</td><td>{_esc(r['password']) or '—'}</td></tr>")
     html.append("</tbody></table></div>")
     return render_template_string("".join(html))
