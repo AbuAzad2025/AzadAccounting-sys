@@ -151,25 +151,15 @@ def api_index():
 
 @bp.route("/health", methods=["GET"], endpoint="health")
 def api_health():
-    """فحص صحة API"""
+    """فحص صحة API — لا يكشف إحصائيات الأعمال للعموم"""
     try:
         db.session.execute(text("SELECT 1"))
-        total_customers = Customer.query.count()
-        total_suppliers = Supplier.query.count()
-        total_sales = Sale.query.count()
-        total_payments = Payment.query.count()
         return jsonify({
             "success": True,
             "data": {
                 "status": "healthy",
                 "database": "connected",
                 "timestamp": datetime.now(timezone.utc).isoformat(),
-                "stats": {
-                    "customers": total_customers,
-                    "suppliers": total_suppliers,
-                    "sales": total_sales,
-                    "payments": total_payments
-                }
             }
         }), 200
     except Exception:
@@ -177,7 +167,7 @@ def api_health():
             current_app.logger.exception("API health check failed")
         except Exception:
             pass
-        return jsonify({"success": False, "error": "API غير صحي", "code": 500}), 500
+        return jsonify({"success": False, "error": "API غير صحي"}), 500
 
 @bp.route("/exchange-rates", methods=["GET"], endpoint="get_exchange_rates")
 @limiter.limit("20/minute")  # حماية: فقط 20 طلب في الدقيقة لكل IP

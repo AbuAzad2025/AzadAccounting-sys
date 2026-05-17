@@ -1309,7 +1309,7 @@ def create_app(config_object=Config) -> Flask:
                         "path": path,
                         "status": resp.status_code,
                         "duration_ms": elapsed_ms,
-                        "remote_ip": request.headers.get("X-Forwarded-For", request.remote_addr),
+                        "remote_ip": request.remote_addr,
                     },
                 )
         except Exception:
@@ -1320,9 +1320,9 @@ def create_app(config_object=Config) -> Flask:
     def _bad_request(e):
         app.logger.warning("400 BAD REQUEST: %s - %s", request.path, str(e))
         if request.path.startswith("/api/") or request.accept_mimetypes.best == "application/json":
-            return {"error": "Bad Request", "message": str(e)}, 400
+            return {"error": "Bad Request", "message": "طلب غير صالح"}, 400
         try:
-            return render_template("errors/400.html", path=request.path, error=str(e)), 400
+            return render_template("errors/400.html", path=request.path, error="طلب غير صالح"), 400
         except Exception:
             return ("400 Bad Request", 400)
 
@@ -1348,7 +1348,7 @@ def create_app(config_object=Config) -> Flask:
 
     @app.errorhandler(MemoryError)
     def _memory_error(e):
-        app.logger.error("MemoryError: %s - %s", request.path, str(e))
+        app.logger.error("MemoryError: %s", request.path)
         if request.path.startswith("/api/") or request.accept_mimetypes.best == "application/json":
             return {"error": "Memory Error", "message": "حجم البيانات كبير جداً. الرجاء تقليل حجم الطلب أو تقسيم البيانات."}, 413
         try:
