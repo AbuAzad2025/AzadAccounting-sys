@@ -20,13 +20,15 @@ SUSPICIOUS_PATTERNS = (
 
 
 def get_client_ip():
-    if request.headers.getlist("X-Forwarded-For"):
-        ip = request.headers.getlist("X-Forwarded-For")[0].split(',')[0].strip()
-    elif request.headers.get("X-Real-IP"):
-        ip = request.headers.get("X-Real-IP")
-    else:
-        ip = request.remote_addr
-    return ip
+    """Return client IP using Flask's trusted proxy chain.
+
+    When running behind a reverse proxy, configure
+    ``werkzeug.middleware.proxy_fix.ProxyFix`` on the WSGI app so that
+    ``request.remote_addr`` already reflects the real client IP.
+    This avoids blindly trusting the ``X-Forwarded-For`` header which
+    can be spoofed to bypass rate-limiting and IP-based access controls.
+    """
+    return request.remote_addr or "0.0.0.0"
 
 
 def _log_security_event(event: str, data: Dict[str, Any] = None) -> None:
@@ -87,11 +89,6 @@ def request_safety_middleware():
         abort(405)
 
     if request.endpoint and request.endpoint.startswith("static"):
-        return None
-
-    # Keep uploads and rich text pages usable unless strict mode is enabled.
-    strict = _setting_bool("enable_strict_request_filter", False)
-    if not strict and request.method in {"POST", "PUT", "PATCH"}:
         return None
 
     for key, value in _iter_request_values():
@@ -199,13 +196,20 @@ def ip_security_middleware():
 
 
 def apply_security_headers(response):
-    response.headers.setdefault("X-Content-Type-Options", "nosniff")
-    response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
-    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
-    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
-    response.headers.setdefault("X-XSS-Protection", "0")
+    """Single authoritative location for security response headers.
+
+    The ``_register_app_handlers`` function in *app.py* no longer sets
+    these headers so there is no conflict or duplication.
+    """
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    # X-XSS-Protection is deprecated; "0" disables the legacy XSS auditor
+    # to avoid false-positive blocking that can itself be exploited.
+    response.headers["X-XSS-Protection"] = "0"
     if request.is_secure:
-        response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     return response
 
 

@@ -25,11 +25,12 @@ def _is_safe_url(target: str) -> bool:
 
 
 def _get_client_ip() -> str:
-    xff = request.headers.get("X-Forwarded-For", "")
-    if xff:
-        ip = xff.split(",")[0].strip()
-        if ip:
-            return ip
+    """Return client IP via request.remote_addr.
+
+    When behind a reverse proxy, use ``ProxyFix`` so that
+    ``request.remote_addr`` is already the real client IP.
+    Blindly trusting X-Forwarded-For allows IP spoofing.
+    """
     return request.remote_addr or "0.0.0.0"
 
 

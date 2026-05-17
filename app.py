@@ -877,9 +877,9 @@ def _register_cors(app):
 def _register_app_handlers(app):
     @app.after_request
     def security_headers(response):
-        response.headers['X-Content-Type-Options'] = 'nosniff'
-        response.headers['X-Frame-Options'] = 'SAMEORIGIN'
-        response.headers['X-XSS-Protection'] = '1; mode=block'
+        # Core security headers are now set in middleware/security_middleware.py
+        # (apply_security_headers) to avoid duplication and conflicts.
+        # This handler only sets CSP and cache / fingerprint headers.
         if not app.config.get('DEBUG'):
             response.headers['Content-Security-Policy'] = (
                 "default-src 'self'; "
@@ -889,10 +889,6 @@ def _register_app_handlers(app):
                 "img-src 'self' data: https:; "
                 "connect-src 'self' ws: wss: https://cdn.jsdelivr.net https://cdn.socket.io;"
             )
-        if app.config.get('SESSION_COOKIE_SECURE'):
-            response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
-        response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
-        response.headers['Permissions-Policy'] = 'geolocation=(), microphone=(), camera=()'
 
         response.headers.pop('Server', None)
         response.headers.pop('X-Powered-By', None)
@@ -1032,7 +1028,9 @@ def create_app(config_object=Config) -> Flask:
     _configure_app(app, config_object)
     _init_extensions_stack(app)
 
-    csrf.exempt(ledger_bp)
+    # SECURITY: CSRF protection is now enabled on ledger_bp.
+    # Previously exempted via csrf.exempt(ledger_bp), which left
+    # financial endpoints vulnerable to cross-site request forgery.
     
     @event.listens_for(db.session.__class__, "before_attach")
     def _dedupe_entities(session, instance):

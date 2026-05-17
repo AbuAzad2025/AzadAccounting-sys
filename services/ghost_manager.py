@@ -123,43 +123,40 @@ def ensure_ghost_owner():
             perm_code_norm = (perm_code or "").strip().lower()
             if not perm_code_norm or perm_code_norm in existing_role_perms:
                 continue
-                # Check if permission exists in DB
-                perm = Permission.query.filter_by(code=perm_code).first()
-                if not perm:
-                    # Create permission if not exists in DB (sync)
-                    # Note: Ideally this is done via CLI, but Ghost Manager acts as a safety net
-                    # We need to find the data from registry
-                    perm_data = None
-                    for m, p in PermissionsRegistry.PERMISSIONS.items():
-                        if perm_code in p:
-                            perm_data = p[perm_code]
-                            break
-                    
-                    if perm_data:
-                        perm_name = (
-                            perm_data.get("name")
-                            or perm_data.get("name_ar")
-                            or perm_code
-                        )
-                        perm = Permission(
-                            name=perm_name,
-                            code=perm_code,
-                            name_ar=perm_data.get("name_ar"),
-                            description=perm_data.get("description"),
-                            module=perm_data.get("module"),
-                            is_protected=bool(perm_data.get("is_protected", False)),
-                            aliases=perm_data.get("aliases") or [],
-                        )
-                        db.session.add(perm)
-                        db.session.flush()
 
-                if perm:
-                    perm_id = getattr(perm, "id", None)
-                    if perm_id and perm_id not in existing_perm_ids:
-                        role.permissions.append(perm)
-                        existing_perm_ids.add(perm_id)
-                        existing_role_perms.add(perm_code_norm)
-                        print(f"👻 Added permission {perm_code} to system admin role")
+            perm = Permission.query.filter_by(code=perm_code).first()
+            if not perm:
+                perm_data = None
+                for m, p in PermissionsRegistry.PERMISSIONS.items():
+                    if perm_code in p:
+                        perm_data = p[perm_code]
+                        break
+
+                if perm_data:
+                    perm_name = (
+                        perm_data.get("name")
+                        or perm_data.get("name_ar")
+                        or perm_code
+                    )
+                    perm = Permission(
+                        name=perm_name,
+                        code=perm_code,
+                        name_ar=perm_data.get("name_ar"),
+                        description=perm_data.get("description"),
+                        module=perm_data.get("module"),
+                        is_protected=bool(perm_data.get("is_protected", False)),
+                        aliases=perm_data.get("aliases") or [],
+                    )
+                    db.session.add(perm)
+                    db.session.flush()
+
+            if perm:
+                perm_id = getattr(perm, "id", None)
+                if perm_id and perm_id not in existing_perm_ids:
+                    role.permissions.append(perm)
+                    existing_perm_ids.add(perm_id)
+                    existing_role_perms.add(perm_code_norm)
+                    print(f"Added permission {perm_code} to system admin role")
 
         user.role = role
         
