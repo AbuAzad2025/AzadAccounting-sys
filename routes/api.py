@@ -16,7 +16,6 @@ import utils
 from utils import permission_required
 from permissions_config.enums import SystemPermissions
 from barcodes import validate_barcode
-from forms import EquipmentTypeForm
 
 from models import (
     Archive,

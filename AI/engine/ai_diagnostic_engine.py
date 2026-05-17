@@ -156,7 +156,7 @@ def diagnose_heavy_equipment(equipment_type: str, symptoms: str) -> str:
 def check_part_in_inventory(part_identifier: str) -> dict:
     """فحص قطعة في المخزون - بالاسم أو الرقم"""
     from models import Product, StockLevel
-    from AI.engine.ai_parts_database import search_part_by_name, search_part_by_number, explain_part_function
+    from AI.engine.ai_parts_database import search_part_by_name, search_part_by_number
     
     # البحث في قاعدة المعرفة أولاً
     knowledge_result = search_part_by_name(part_identifier)

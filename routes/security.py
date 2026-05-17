@@ -791,92 +791,6 @@ def index_old():
         - لا أحد يدخل بدون access_owner_dashboard
     """
     return redirect(url_for("security.index"))
-    from datetime import datetime, timedelta, timezone
-    
-    # إحصائيات المستخدمين
-    total_users = User.query.count()
-    active_users = User.query.filter_by(is_active=True).count()
-    blocked_users = User.query.filter_by(is_active=False).count()
-    system_accounts = User.query.filter_by(is_system_account=True).count()
-    
-    # المتصلين الآن (آخر 15 دقيقة)
-    threshold = datetime.now(timezone.utc) - timedelta(minutes=15)
-    # حساب يدوي لتجنب مشاكل timezone في SQL
-    all_users = User.query.filter(User.last_seen.isnot(None)).all()
-    online_users = sum(1 for u in all_users if make_aware(u.last_seen) >= threshold)
-    
-    # محاولات فشل الدخول (آخر 24 ساعة)
-    day_ago = datetime.now(timezone.utc) - timedelta(hours=24)
-    from models import AuthAudit, AuthEvent
-    failed_logins_24h = AuthAudit.query.filter(
-        AuthAudit.event == AuthEvent.LOGIN_FAIL.value,
-        AuthAudit.created_at >= day_ago
-    ).count()
-    
-    # Blocked IPs & Countries
-    blocked_ips = _get_blocked_ips_count() if callable(locals().get('_get_blocked_ips_count')) else 0
-    blocked_countries = _get_blocked_countries_count() if callable(locals().get('_get_blocked_countries_count')) else 0
-    
-    # أنشطة مشبوهة (محاولات فاشلة متكررة من نفس IP >= 5)
-    suspicious_activities = 0
-    try:
-        suspicious_activities = db.session.query(
-            func.count(AuthAudit.ip)
-        ).filter(
-            AuthAudit.event == AuthEvent.LOGIN_FAIL.value,
-            AuthAudit.created_at >= day_ago
-        ).group_by(AuthAudit.ip).having(
-            func.count(AuthAudit.ip) >= 5
-        ).count()
-    except Exception:
-        pass
-    
-    # حجم قاعدة البيانات
-    db_size = "N/A"
-    try:
-        size_row = db.session.execute(text("SELECT pg_size_pretty(pg_database_size(current_database()))")).fetchone()
-        db_size = size_row[0] if size_row else "N/A"
-    except Exception:
-        pass
-    
-    # صحة النظام
-    system_health = "ممتاز"
-    if failed_logins_24h > 50:
-        system_health = "تحذير"
-    elif failed_logins_24h > 100:
-        system_health = "خطر"
-    
-    stats = {
-        'total_users': total_users,
-        'active_users': active_users,
-        'blocked_users': blocked_users,
-        'system_accounts': system_accounts,
-        'online_users': online_users,
-        'blocked_ips': blocked_ips,
-        'blocked_countries': blocked_countries,
-        'failed_logins_24h': failed_logins_24h,
-        'suspicious_activities': suspicious_activities,
-        'db_size': db_size,
-        'system_health': system_health,
-        'active_sessions': online_users,
-        'total_services': 40,
-        'system_version': 'v5.0.0',
-        'total_modules': '40+',
-        'total_apis': 133,
-        'total_indexes': 115  # تحديث: كان 89، الآن 115 بعد إضافة 26
-    }
-    
-    # آخر الأنشطة المشبوهة
-    recent_suspicious = []
-    try:
-        recent_suspicious = AuthAudit.query.filter(
-            AuthAudit.event == AuthEvent.LOGIN_FAIL.value,
-            AuthAudit.created_at >= day_ago
-        ).order_by(AuthAudit.created_at.desc()).limit(10).all()
-    except Exception:
-        pass
-    
-    return render_template('security/index.html', stats=stats, recent=recent_suspicious)
 
 
 @security_bp.route('/block-ip', methods=['GET', 'POST'])
@@ -1240,54 +1154,6 @@ def security_center():
 @permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def ultimate_control():
     return render_template('security/ultimate_control.html')
-
-
-def _log_training_event(event_type, user_id, details=None):
-    """تسجيل حدث تدريب - محسّن"""
-    try:
-        from AI.engine.ai_knowledge import TRAINING_LOG_FILE
-        import os
-        
-        os.makedirs('instance', exist_ok=True)
-        
-        logs = []
-        if os.path.exists(TRAINING_LOG_FILE):
-            try:
-                with open(TRAINING_LOG_FILE, 'r', encoding='utf-8') as f:
-                    logs = json.load(f)
-            except Exception:
-                logs = []
-        
-        log_entry = {
-            'event': event_type,
-            'user_id': user_id,
-            'timestamp': datetime.now(timezone.utc).isoformat()
-        }
-        
-        if details:
-            log_entry['details'] = details
-        
-        logs.append(log_entry)
-        logs = logs[-50:]
-        
-        with open(TRAINING_LOG_FILE, 'w', encoding='utf-8') as f:
-            json.dump(logs, f, ensure_ascii=False, indent=2)
-    except Exception as e:
-        current_app.logger.warning(f"⚠️ فشل تسجيل حدث التدريب: {str(e)}")
-
-
-def _load_training_logs():
-    """تحميل سجل التدريب"""
-    try:
-        from AI.engine.ai_knowledge import TRAINING_LOG_FILE
-        import os
-        
-        if os.path.exists(TRAINING_LOG_FILE):
-            with open(TRAINING_LOG_FILE, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        return []
-    except Exception:
-        return []
 
 
 @security_bp.route('/database-manager', methods=['GET', 'POST'])
@@ -2032,79 +1898,6 @@ def tools_center():
         export_links=export_links,
         dynamic_tables=dynamic_tables,
     )
-
-
-def _unused_ai_config_function():
-    """إعدادات AI - Groq API Keys - تم دمجها في AI Hub"""
-    """تكوين AI للمساعد الذكي - دعم مفاتيح متعددة"""
-    if request.method == 'POST':
-        action = request.form.get('action', 'add')
-        
-        if action == 'add':
-            api_provider = request.form.get('api_provider', 'groq')
-            api_key = request.form.get('api_key', '').strip()
-            key_name = request.form.get('key_name', '').strip()
-            is_active = request.form.get('is_active') == 'on'
-            
-            if api_key:
-                # قراءة المفاتيح الحالية
-                keys_json = _get_system_setting('AI_API_KEYS', '[]')
-                try:
-                    keys = json.loads(keys_json)
-                except Exception:
-                    keys = []
-                
-                # إضافة مفتاح جديد
-                new_key = {
-                    'id': len(keys) + 1,
-                    'name': key_name or f'مفتاح {len(keys) + 1}',
-                    'provider': api_provider,
-                    'key': api_key,
-                    'is_active': is_active,
-                    'created_at': datetime.now(timezone.utc).isoformat()
-                }
-                keys.append(new_key)
-                
-                # حفظ
-                _set_system_setting('AI_API_KEYS', json.dumps(keys, ensure_ascii=False))
-                flash(f'✅ تم إضافة المفتاح: {new_key["name"]}', 'success')
-            else:
-                flash('⚠️ مفتاح API مطلوب', 'warning')
-        
-        elif action == 'delete':
-            key_id = int(request.form.get('key_id', 0))
-            keys_json = _get_system_setting('AI_API_KEYS', '[]')
-            try:
-                keys = json.loads(keys_json)
-                keys = [k for k in keys if k.get('id') != key_id]
-                _set_system_setting('AI_API_KEYS', json.dumps(keys, ensure_ascii=False))
-                flash('✅ تم حذف المفتاح', 'success')
-            except Exception:
-                flash('⚠️ خطأ في حذف المفتاح', 'danger')
-        
-        elif action == 'set_active':
-            key_id = int(request.form.get('key_id', 0))
-            keys_json = _get_system_setting('AI_API_KEYS', '[]')
-            try:
-                keys = json.loads(keys_json)
-                for k in keys:
-                    k['is_active'] = (k.get('id') == key_id)
-                _set_system_setting('AI_API_KEYS', json.dumps(keys, ensure_ascii=False))
-                flash('✅ تم تفعيل المفتاح', 'success')
-            except Exception:
-                flash('⚠️ خطأ في تفعيل المفتاح', 'danger')
-        
-        return redirect(url_for('security.ai_config'))
-    
-    # قراءة المفاتيح
-    keys_json = _get_system_setting('AI_API_KEYS', '[]')
-    try:
-        keys = json.loads(keys_json)
-    except Exception:
-        keys = []
-    
-    return render_template('security/ai_config.html', keys=keys)
-
 
 
 
@@ -5451,20 +5244,6 @@ def _get_failed_logins_count(hours=24):
         AuditLog.created_at >= since
     ).count()
 
-def _get_suspicious_activities_count(hours=24):
-    """عدد الأنشطة المشبوهة"""
-    since = datetime.now(timezone.utc) - timedelta(hours=hours)
-    return AuditLog.query.filter(
-        AuditLog.action.like('%suspicious%'),
-        AuditLog.created_at >= since
-    ).count()
-
-def _get_recent_suspicious_activities(limit=10):
-    """آخر الأنشطة المشبوهة"""
-    return AuditLog.query.filter(
-        AuditLog.action.like('%suspicious%')
-    ).order_by(AuditLog.created_at.desc()).limit(limit).all()
-
 def _block_ip(ip, reason, duration):
     """حظر IP"""
     blocked = cache.get('blocked_ips') or []
@@ -5790,65 +5569,6 @@ def _parse_duration(duration):
 
 
 
-def _ai_security_analysis(query):
-    """تحليل أمني بالذكاء الاصطناعي"""
-    analysis = {
-        'query': query,
-        'type': 'security_analysis',
-        'findings': [],
-        'recommendations': [],
-        'threat_level': 'low'
-    }
-    
-    query_lower = query.lower()
-    
-    # تحليل ذكي بناءً على السؤال
-    if 'ip' in query_lower or 'عنوان' in query_lower:
-        analysis['findings'].append('فحص IPs المشبوهة...')
-        analysis['findings'].append(f'عدد IPs المحظورة: {_get_blocked_ips_count()}')
-        analysis['recommendations'].append('مراقبة IPs من دول معينة')
-    
-    if 'login' in query_lower or 'دخول' in query_lower:
-        failed = _get_failed_logins_count(24)
-        analysis['findings'].append(f'محاولات فاشلة (24h): {failed}')
-        if failed > 10:
-            analysis['threat_level'] = 'medium'
-            analysis['recommendations'].append('تفعيل CAPTCHA أو تقليل rate limit')
-    
-    if 'user' in query_lower or 'مستخدم' in query_lower:
-        analysis['findings'].append(f'إجمالي المستخدمين: {User.query.count()}')
-        analysis['findings'].append(f'المستخدمين النشطين: {User.query.filter_by(is_active=True).count()}')
-    
-    return analysis
-
-
-def _get_ai_suggestions():
-    """اقتراحات ذكية من AI"""
-    suggestions = []
-    
-    # فحص محاولات فاشلة
-    failed = _get_failed_logins_count(24)
-    if failed > 10:
-        suggestions.append({
-            'type': 'warning',
-            'title': f'محاولات دخول فاشلة كثيرة ({failed})',
-            'action': 'تفعيل CAPTCHA أو حظر IPs',
-            'priority': 'high'
-        })
-    
-    # فحص مستخدمين غير نشطين
-    inactive = User.query.filter_by(is_active=False).count()
-    if inactive > 5:
-        suggestions.append({
-            'type': 'info',
-            'title': f'مستخدمين محظورين ({inactive})',
-            'action': 'مراجعة المستخدمين المحظورين',
-            'priority': 'low'
-        })
-    
-    return suggestions
-
-
 def _get_all_tables():
     """الحصول على جميع جداول قاعدة البيانات"""
     try:
@@ -5951,73 +5671,6 @@ def _decrypt_data(encrypted_data, decrypt_type):
     return result
 
 
-def _analyze_user_behavior():
-    """تحليل سلوك المستخدمين"""
-    return {
-        'most_active': _get_most_active_users(5),
-        'login_patterns': _analyze_login_patterns(),
-        'suspicious_users': _detect_suspicious_users()
-    }
-
-
-def _detect_security_patterns():
-    """كشف أنماط أمنية"""
-    return {
-        'failed_login_ips': _get_top_failed_ips(10),
-        'attack_patterns': _detect_attack_patterns(),
-        'time_patterns': _analyze_time_patterns()
-    }
-
-
-def _detect_anomalies():
-    """كشف الشذوذات"""
-    anomalies = []
-    
-    # محاولات دخول غير عادية
-    failed_count = _get_failed_logins_count(1)  # آخر ساعة
-    if failed_count > 5:
-        anomalies.append({
-            'type': 'login_spike',
-            'severity': 'high',
-            'description': f'محاولات دخول فاشلة غير عادية: {failed_count} في الساعة الأخيرة'
-        })
-    
-    return anomalies
-
-
-def _ai_recommendations():
-    """توصيات ذكية"""
-    recommendations = []
-    
-    # توصيات بناءً على التحليل
-    failed = _get_failed_logins_count(24)
-    if failed > 20:
-        recommendations.append('تفعيل 2FA للمستخدمين')
-        recommendations.append('تقليل rate limit على /login')
-    
-    return recommendations
-
-
-def _calculate_threat_level():
-    """حساب مستوى التهديد"""
-    score = 0
-    
-    # محاولات فاشلة
-    failed = _get_failed_logins_count(24)
-    score += min(failed, 50)
-    
-    # مستخدمين محظورين
-    blocked = User.query.filter_by(is_active=False).count()
-    score += blocked * 2
-    
-    if score < 10:
-        return {'level': 'low', 'color': 'success', 'label': 'منخفض'}
-    elif score < 30:
-        return {'level': 'medium', 'color': 'warning', 'label': 'متوسط'}
-    else:
-        return {'level': 'high', 'color': 'danger', 'label': 'عالي'}
-
-
 def _detect_suspicious_patterns():
     """كشف الأنماط المشبوهة"""
     patterns = []
@@ -6034,32 +5687,6 @@ def _detect_suspicious_patterns():
             })
     
     return patterns
-
-
-def _get_most_active_users(limit=5):
-    """المستخدمين الأكثر نشاطاً"""
-    return User.query.filter_by(is_active=True).order_by(
-        User.login_count.desc()
-    ).limit(limit).all()
-
-
-def _analyze_login_patterns():
-    """تحليل أنماط تسجيل الدخول"""
-    # تحليل الأوقات
-    return {'peak_hours': [9, 10, 11, 14, 15], 'off_hours': [0, 1, 2, 3, 4, 5]}
-
-
-def _detect_suspicious_users():
-    """كشف المستخدمين المشبوهين"""
-    suspicious = []
-    
-    # مستخدمين مع محاولات فاشلة كثيرة
-    users_with_fails = AuditLog.query.filter(
-        AuditLog.action == 'login.failed',
-        AuditLog.created_at >= datetime.now(timezone.utc) - timedelta(days=7)
-    ).all()
-    
-    return suspicious
 
 
 def _get_top_failed_ips(limit=10):
@@ -6080,37 +5707,12 @@ def _get_top_failed_ips(limit=10):
     return [{'ip': ip, 'count': count} for ip, count in sorted_ips[:limit]]
 
 
-def _detect_attack_patterns():
-    """كشف أنماط الهجوم"""
-    return ['brute_force', 'sql_injection_attempt', 'xss_attempt']
-
-
-def _analyze_time_patterns():
-    """تحليل أنماط الوقت"""
-    return {'suspicious_hours': [2, 3, 4], 'normal_hours': [9, 10, 11, 14, 15]}
-
-
-
 
 def _kill_all_user_sessions():
     """إنهاء جميع جلسات المستخدمين"""
     # تحديث last_seen لجميع المستخدمين
     User.query.update({'last_seen': datetime.now(timezone.utc) - timedelta(days=30)})
     db.session.commit()
-
-
-def _get_active_users():
-    """الحصول على المستخدمين النشطين"""
-    threshold = datetime.now(timezone.utc) - timedelta(minutes=5)
-    all_users = User.query.filter(User.last_seen.isnot(None)).all()
-    return [u for u in all_users if make_aware(u.last_seen) >= threshold]
-
-
-def _get_users_online():
-    """عدد المستخدمين المتصلين"""
-    threshold = datetime.now(timezone.utc) - timedelta(minutes=5)
-    all_users = User.query.filter(User.last_seen.isnot(None)).all()
-    return sum(1 for u in all_users if make_aware(u.last_seen) >= threshold)
 
 
 def _get_system_setting(key, default=None):
@@ -6167,37 +5769,11 @@ def _get_system_health():
         return "خطأ"
 
 
-def _get_active_sessions_count():
-    """عدد الجلسات النشطة"""
-    threshold = datetime.now(timezone.utc) - timedelta(hours=24)
-    all_users = User.query.filter(User.last_login.isnot(None)).all()
-    return sum(1 for u in all_users if make_aware(u.last_login) >= threshold)
-
-
 def _get_online_users_detailed():
     """تفاصيل المستخدمين المتصلين"""
     threshold = datetime.now(timezone.utc) - timedelta(minutes=5)
     all_users = User.query.filter(User.last_seen.isnot(None)).all()
     return [u for u in all_users if make_aware(u.last_seen) >= threshold]
-
-
-def _get_available_backups():
-    """قائمة النسخ الاحتياطية"""
-    import os
-    backup_dir = 'instance/backups'
-    backups = []
-    
-    if os.path.exists(backup_dir):
-        for f in os.listdir(backup_dir):
-            if f.endswith('.dump'):
-                full_path = os.path.join(backup_dir, f)
-                backups.append({
-                    'name': f,
-                    'size': f"{os.path.getsize(full_path) / (1024*1024):.2f} MB",
-                    'date': datetime.fromtimestamp(os.path.getmtime(full_path))
-                })
-    
-    return sorted(backups, key=lambda x: x['date'], reverse=True)
 
 
 def _get_slow_queries():
@@ -6221,15 +5797,6 @@ def _get_cpu_usage():
     """استخدام المعالج"""
     import psutil
     return psutil.cpu_percent(interval=1)
-
-
-def _safe_count_table(table_name):
-    """عد صفوف جدول بشكل آمن"""
-    try:
-        result = db.session.execute(text(f"SELECT COUNT(*) FROM {table_name}"))
-        return result.scalar()
-    except Exception:
-        return 0
 
 
 def _get_available_log_files():
@@ -6538,34 +6105,6 @@ def _get_error_statistics():
             pass
     
     return stats
-
-
-def _get_security_notifications():
-    """الحصول على الإشعارات الأمنية"""
-    notifications = []
-    
-    # فحص محاولات فاشلة
-    failed = _get_failed_logins_count(1)
-    if failed > 5:
-        notifications.append({
-            'severity': 'danger',
-            'icon': 'exclamation-triangle',
-            'title': 'محاولات دخول فاشلة',
-            'message': f'{failed} محاولة فاشلة في الساعة الأخيرة',
-            'timestamp': datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')
-        })
-    
-    # فحص وضع الصيانة
-    if _get_system_setting('maintenance_mode', False):
-        notifications.append({
-            'severity': 'warning',
-            'icon': 'tools',
-            'title': 'وضع الصيانة مفعل',
-            'message': 'النظام في وضع الصيانة - المستخدمون لا يمكنهم الدخول',
-            'timestamp': datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')
-        })
-    
-    return notifications
 
 
 @security_bp.route('/monitoring-dashboard')

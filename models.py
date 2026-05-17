@@ -10772,41 +10772,8 @@ def _service_gl_batch_reverse(mapper, connection, target: "ServiceRequest"):
 
 @event.listens_for(ServiceRequest, "after_update")
 def _gl_on_service_complete(mapper, connection, target: "ServiceRequest"):
-    # تم تعطيل هذا - الآن القيد يُنشأ مباشرة عند إنشاء الصيانة
+    # معطّل: القيد يُنشأ مباشرة عند إنشاء الصيانة
     return
-    parts = _D(getattr(target, "parts_total", 0) or 0)
-    labor = _D(getattr(target, "labor_total", 0) or 0)
-    discount = _D(getattr(target, "discount_total", 0) or 0)
-    tax_rate = _D(getattr(target, "tax_rate", 0) or 0)
-    currency = ensure_currency(getattr(target, "currency", None) or DEFAULT_CURRENCY)
-    subtotal = parts + labor
-    base = subtotal - discount
-    if base < 0:
-        base = Decimal("0.00")
-    tax = base * (tax_rate / Decimal("100"))
-    total = base + tax
-    if total <= 0:
-        return
-    # استخدام الدالة من models.py مباشرة
-    entries = [
-        (GL_ACCOUNTS["AR"],  float(_Q2(total)),      0.0),
-        (GL_ACCOUNTS["VAT"], 0.0,                    float(_Q2(tax))),
-        (GL_ACCOUNTS["REV"], 0.0,                    float(_Q2(total - tax))),
-    ]
-    ref = str(getattr(target, "service_number", None) or target.id)
-    memo = f"Service {ref} completed"
-    _gl_upsert_batch_and_entries(
-        connection,
-        source_type="SERVICE",
-        source_id=target.id,
-        purpose="SERVICE_COMPLETE",
-        currency=currency,
-        memo=memo,
-        entries=entries,
-        ref=ref,
-        entity_type="CUSTOMER",
-        entity_id=target.customer_id,
-    )
 
 class ServicePart(db.Model, TimestampMixin):
     __tablename__ = 'service_parts'
