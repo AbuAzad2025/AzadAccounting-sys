@@ -207,9 +207,12 @@ def _release_stock(sale: Sale) -> None:
 
 def _deduct_stock(sale: Sale) -> None:
     """
-    خصم المخزون الفعلي عند اكتمال البيع/الدفع
-    يخصم من quantity و reserved_quantity معاً
+    خصم المخزون الفعلي عند اكتمال البيع/الدفع.
+    يتحقق من stock_deducted لمنع الخصم المزدوج.
+    يخصم من quantity و reserved_quantity معاً.
     """
+    if getattr(sale, 'stock_deducted', False):
+        return
     req = _collect_requirements_from_lines(sale.lines or [])
     if not req:
         return
@@ -226,17 +229,22 @@ def _deduct_stock(sale: Sale) -> None:
         
         current_qty = int(rec.quantity or 0)
         current_reserved = int(rec.reserved_quantity or 0)
-        available = current_qty - current_reserved
         
-        if available < qty:
-            raise ValueError(f"الكمية المتاحة غير كافية للمنتج {pid} في المستودع {wid}: المتاح {available}، المطلوب {qty}")
-        
-        new_quantity = current_qty - qty
-        new_reserved = max(0, current_reserved - qty)
+        if current_reserved >= qty:
+            new_quantity = current_qty - qty
+            new_reserved = current_reserved - qty
+        else:
+            available = current_qty - current_reserved
+            if available < qty:
+                raise ValueError(f"الكمية المتاحة غير كافية للمنتج {pid} في المستودع {wid}: المتاح {available}، المطلوب {qty}")
+            new_quantity = current_qty - qty
+            new_reserved = max(0, current_reserved - qty)
         
         rec.quantity = new_quantity
         rec.reserved_quantity = new_reserved
         db.session.flush()
+    sale.stock_deducted = True
+    db.session.flush()
 
 def _resolve_lines_from_form(form: SaleForm, require_stock: bool) -> Tuple[List[Dict[str, Any]], Optional[str]]:
     lines_payload: List[Dict[str, Any]] = []
