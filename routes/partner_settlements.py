@@ -1199,7 +1199,7 @@ def _get_payment_total_ils(payment) -> Decimal:
                 try:
                     payment_total_ils += _convert_to_ils(split_amt, split_currency, payment.payment_date)
                 except Exception:
-                    pass
+                    current_app.logger.warning('currency conversion failed silently in partner_settlements.py', exc_info=True)
         return payment_total_ils
     else:
         return _convert_to_ils(Decimal(str(payment.total_amount or 0)), payment.currency, payment.payment_date)

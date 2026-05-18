@@ -1044,7 +1044,7 @@ def checkout():
                             f"✅ تم تأكيد طلبك {preorder.order_number} وإتمام الدفع بنجاح. تم دفع عربون {prepaid} {getattr(g.online_customer,'currency','ILS')}"
                         )
             except Exception:
-                pass
+                current_app.logger.warning('currency conversion failed silently in shop.py', exc_info=True)
             if request.is_json or request.args.get("format") == "json":
                 return _resp(
                     "تم إتمام الطلب والدفع بنجاح!",

@@ -908,7 +908,7 @@ def system_cleanup():
         # cleanup_stats['cache_items'] = len(cache.cache._cache) if hasattr(cache.cache, '_cache') else 0
         pass
     except Exception:
-        pass
+        current_app.logger.warning('cache operation failed silently in security.py', exc_info=True)
 
     if request.method == 'POST':
         action = (request.form.get('action') or "").strip()
@@ -2091,7 +2091,7 @@ def theme_editor():
                 elif item.endswith('.html'):
                     items.append({'type': 'file', 'name': item, 'path': rel_path})
         except Exception:
-            pass
+            current_app.logger.warning('cache operation failed silently in security.py', exc_info=True)
         return items
     
     templates_tree = get_templates_tree(templates_dir)
@@ -2179,7 +2179,7 @@ def logo_manager():
                             from extensions import cache
                             cache.delete(f"system_setting_{setting_key}")
                         except Exception:
-                            pass
+                            current_app.logger.warning('cache invalidation failed silently in security.py', exc_info=True)
 
                     flash(f'✅ تم رفع {target_name} بنجاح!', 'success')
                 except Exception as e:
@@ -2379,7 +2379,7 @@ def invoice_designer():
             for key in supported_settings:
                 cache.delete(f"system_setting_{key}")
         except Exception:
-            pass
+            current_app.logger.warning('cache invalidation failed silently in security.py', exc_info=True)
             
         flash('✅ تم حفظ تصميم الفواتير بنجاح', 'success')
         return redirect(url_for('security.invoice_designer'))
@@ -6211,7 +6211,7 @@ def _get_error_statistics():
                     elif 'WARNING' in line:
                         stats['warning_errors'] += 1
         except Exception:
-            pass
+            current_app.logger.warning('financial operation failed silently in security.py', exc_info=True)
     
     return stats
 
@@ -6787,7 +6787,7 @@ def api_maintenance_vacuum():
         try:
             db.session.rollback()
         except Exception:
-            pass
+            current_app.logger.warning('rollback after error failed silently in security.py', exc_info=True)
 
         with db.engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
             conn.execute(text("VACUUM"))
@@ -6838,7 +6838,7 @@ def api_maintenance_checkpoint():
         try:
             db.session.rollback()
         except Exception:
-            pass
+            current_app.logger.warning('rollback after error failed silently in security.py', exc_info=True)
 
         with db.engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
             conn.execute(text("CHECKPOINT"))
@@ -7001,7 +7001,7 @@ def data_quality_center():
                             payment_id = int(check.reference_number.replace('PMT-', ''))
                             payment = db.session.get(Payment, payment_id)
                         except Exception:
-                            pass
+                            current_app.logger.warning('payment processing failed silently in security.py', exc_info=True)
                 
                 if not payment and check.check_number:
                     payment = Payment.query.filter(
@@ -7123,7 +7123,7 @@ def advanced_check_linking():
                             payment_id = int(check.reference_number.replace('PMT-', ''))
                             payment = db.session.get(Payment, payment_id)
                         except Exception:
-                            pass
+                            current_app.logger.warning('payment processing failed silently in security.py', exc_info=True)
                     elif check.reference_number.startswith('SPLIT-'):
                         split_id = int(check.reference_number.replace('SPLIT-', ''))
                         split = db.session.get(PaymentSplit, split_id)
@@ -7811,7 +7811,7 @@ def reconcile_tax_report(period):
         try:
             db.session.rollback()
         except Exception:
-            pass
+            current_app.logger.warning('rollback after error failed silently in security.py', exc_info=True)
         current_app.logger.exception('internal error')
         flash('❌ فشل تصحيح VAT', 'danger')
         return redirect(url_for("security.tax_reports", period=period))

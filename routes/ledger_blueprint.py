@@ -871,7 +871,7 @@ def cogs_audit_report():
                         if rate and rate > 0:
                             line_total = float(Decimal(str(line_total)) * Decimal(str(rate)))
                     except Exception:
-                        pass
+                        current_app.logger.warning('currency conversion failed silently in ledger_blueprint.py', exc_info=True)
             
             total_sales_value += line_total
             

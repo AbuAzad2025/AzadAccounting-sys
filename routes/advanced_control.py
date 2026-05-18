@@ -337,7 +337,7 @@ def db_merger():
             tables = inspector.get_table_names()
             stats['total_tables'] = len(tables)
         except Exception:
-            pass
+            current_app.logger.warning('financial operation failed silently in advanced_control.py', exc_info=True)
         
     except Exception as e:
         current_app.logger.exception("Error in db_merger stats")
@@ -1295,7 +1295,7 @@ def _count_all_records():
                 cache.set(cache_key, approx_val, timeout=3600)
                 return approx_val
             except Exception:
-                pass
+                current_app.logger.warning('cache operation failed silently in advanced_control.py', exc_info=True)
 
         total = 0
         preparer = db.engine.dialect.identifier_preparer
@@ -4113,7 +4113,7 @@ def database_optimizer():
                 try:
                     db.session.rollback()
                 except Exception:
-                    pass
+                    current_app.logger.warning('rollback after error failed silently in advanced_control.py', exc_info=True)
                 with db.engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
                     conn.execute(text("VACUUM (ANALYZE)"))
                 flash('✅ تم تحسين قاعدة البيانات بنجاح', 'success')

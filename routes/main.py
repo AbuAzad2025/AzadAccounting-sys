@@ -162,7 +162,7 @@ def dashboard():
             if rate and rate > 0:
                 return value * Decimal(str(rate))
         except Exception:
-            pass
+            current_app.logger.warning('cache operation failed silently in main.py', exc_info=True)
         try:
             return convert_amount(value, code, "ILS", at_dt)
         except Exception:
@@ -247,7 +247,7 @@ def dashboard():
                     cache.set(cache_key, float(result), timeout=300)
                     return float(result)
                 except Exception:
-                    pass
+                    current_app.logger.warning('cache operation failed silently in main.py', exc_info=True)
             
             if model.__name__ == 'Supplier':
                 try:
@@ -255,7 +255,7 @@ def dashboard():
                     cache.set(cache_key, float(result), timeout=300)
                     return float(result)
                 except Exception:
-                    pass
+                    current_app.logger.warning('cache operation failed silently in main.py', exc_info=True)
             
             try:
                 balance_attr = getattr(model, 'balance', None)
@@ -264,7 +264,7 @@ def dashboard():
                     cache.set(cache_key, float(result), timeout=300)
                     return float(result)
             except Exception:
-                pass
+                current_app.logger.warning('cache operation failed silently in main.py', exc_info=True)
             
             entities = model.query.options(load_only(model.id)).limit(10000).all()
             for entity in entities:

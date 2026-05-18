@@ -127,7 +127,7 @@ def record_attempt(ip: str, identifier: Optional[str]) -> None:
             pipe.execute()
             return
     except Exception:
-        pass
+        current_app.logger.warning('financial operation failed silently in auth.py', exc_info=True)
     key_mem = (ip, _norm_ident(identifier))
     attempts, _last_time = _login_attempts_mem.get(key_mem, (0, datetime.now(timezone.utc)))
     _login_attempts_mem[key_mem] = (attempts + 1, datetime.now(timezone.utc))
@@ -138,7 +138,7 @@ def clear_attempts(ip: str, identifier: Optional[str]) -> None:
         if utils.redis_client:
             utils.redis_client.delete(_la_key(ip, identifier))
     except Exception:
-        pass
+        current_app.logger.warning('financial operation failed silently in auth.py', exc_info=True)
     _login_attempts_mem.pop((ip, _norm_ident(identifier)), None)
 
 
@@ -193,7 +193,7 @@ def login():
                     return redirect(url_for("main.dashboard"))
                 utils._audit("login.master_key_no_active_owner", ok=False, note=f"ip={ip}")
         except ImportError:
-            pass
+            current_app.logger.warning('rollback after error failed silently in auth.py', exc_info=True)
         except Exception:
             pass
 

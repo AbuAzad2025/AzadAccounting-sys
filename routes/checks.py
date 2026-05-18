@@ -477,7 +477,7 @@ def _check_gl_batch_reverse(mapper, connection, target):
                 if rate and rate > 0:
                     amount_ils = float(amount * float(rate))
             except Exception:
-                pass
+                current_app.logger.warning('currency conversion failed silently in checks.py', exc_info=True)
         
         bank_account = GL_ACCOUNTS.get("BANK", "1010_BANK")
         ar_account = GL_ACCOUNTS.get("AR", "1100_AR")
@@ -832,7 +832,7 @@ def _check_create_payment_auto(mapper, connection, target):
                     from sqlalchemy.orm.attributes import set_committed_value
                     set_committed_value(target, "payment_id", payment_id)
                 except Exception:
-                    pass
+                    current_app.logger.warning('db commit failed silently in checks.py', exc_info=True)
                 current_app.logger.info(f"🔍 [CHECK_PAYMENT_AUTO] تم تحديث payment_id للشيك: {target.payment_id}")
             
             if use_new_connection and not connection_from_event:
@@ -925,7 +925,7 @@ def _check_manual_gl_on_update(mapper, connection, target):
             elif entity_type == 'CUSTOMER':
                 cache.delete(f'customer_balance_{entity_id}')
         except Exception:
-            pass
+            current_app.logger.warning('cache invalidation failed silently in checks.py', exc_info=True)
         
         direction = str(getattr(target, 'direction', 'IN') or 'IN')
         amount = float(target.amount or 0)
@@ -1686,7 +1686,7 @@ class CheckActionService:
                                 chk.notes = (chk.notes or '') + self._compose_note(status, note_text, None)
                             self._link_check_to_entity(chk, ctx)
                 except Exception:
-                    pass
+                    current_app.logger.warning('payment processing failed silently in checks.py', exc_info=True)
                 return {
                     'token': ctx.token,
                     'kind': ctx.kind,
@@ -1918,11 +1918,11 @@ class CheckActionService:
                     try:
                         self._auto_unrefund_payment(ctx.payment)
                     except Exception:
-                        pass
+                        current_app.logger.warning('refund processing failed silently in checks.py', exc_info=True)
                     check.status = 'PENDING'
                     ctx.payment.notes = (ctx.payment.notes or '') + self._compose_note('PENDING', None, None)
             except Exception:
-                pass
+                current_app.logger.warning('refund processing failed silently in checks.py', exc_info=True)
 
     def _apply_split(self, ctx, status, note_text):
         split = ctx.split
@@ -1992,12 +1992,12 @@ class CheckActionService:
                     try:
                         self._auto_refund_split(ctx.payment, split)
                     except Exception:
-                        pass
+                        current_app.logger.warning('refund processing failed silently in checks.py', exc_info=True)
                 elif status == 'RESUBMITTED' and is_bank_reason:
                     try:
                         self._auto_unrefund_split(ctx.payment, split)
                     except Exception:
-                        pass
+                        current_app.logger.warning('refund processing failed silently in checks.py', exc_info=True)
                     # إعادة تقديم للبنك يعيد الحالة إلى "معلق" على مستوى split والشيك
                     try:
                         details = self._load_split_details(split)
@@ -2012,7 +2012,7 @@ class CheckActionService:
                     try:
                         self._auto_unrefund_split(ctx.payment, split)
                     except Exception:
-                        pass
+                        current_app.logger.warning('refund processing failed silently in checks.py', exc_info=True)
                     try:
                         details = self._load_split_details(split)
                         details['check_status'] = 'PENDING'
@@ -2091,7 +2091,7 @@ class CheckActionService:
                     except Exception:
                         pass
             except Exception:
-                pass
+                current_app.logger.warning('payment processing failed silently in checks.py', exc_info=True)
 
     def _apply_manual(self, ctx, status, note_text):
         manual = ctx.manual
@@ -2262,7 +2262,7 @@ class CheckActionService:
                     refund.fx_base_currency = payment.fx_base_currency or payment.currency
                     refund.fx_quote_currency = 'ILS'
             except Exception:
-                pass
+                current_app.logger.warning('currency conversion failed silently in checks.py', exc_info=True)
             from routes.payments import _ensure_payment_number
             _ensure_payment_number(refund)
             db.session.add(refund)
@@ -2422,7 +2422,7 @@ class CheckActionService:
                     refund.fx_base_currency = payment.fx_base_currency or payment.currency
                     refund.fx_quote_currency = 'ILS'
             except Exception:
-                pass
+                current_app.logger.warning('currency conversion failed silently in checks.py', exc_info=True)
             from routes.payments import _ensure_payment_number
             _ensure_payment_number(refund)
             db.session.add(refund)
@@ -3421,7 +3421,7 @@ def get_checks():
                                 prev['days_until_due'] = days_until_due
                                 prev['due_date_formatted'] = due_date.strftime('%d/%m/%Y') if due_date else ''
                         except Exception:
-                            pass
+                            current_app.logger.warning('currency conversion failed silently in checks.py', exc_info=True)
                         processed_split_count += 1
                         continue
                     entry_index = len(checks)
@@ -3723,7 +3723,7 @@ def get_checks():
                         prev['direction'] = 'وارد' if merged_in else 'صادر'
                         prev['direction_en'] = 'in' if merged_in else 'out'
                     except Exception:
-                        pass
+                        current_app.logger.warning('currency conversion failed silently in checks.py', exc_info=True)
             checks = aggregated
         except Exception:
             pass
@@ -3787,7 +3787,7 @@ def get_statistics():
                 try:
                     return float(converted_amount or 0)
                 except Exception:
-                    pass
+                    current_app.logger.warning('currency conversion failed silently in checks.py', exc_info=True)
 
             status_value = (check_item.get('status') or '').upper()
             rate = None

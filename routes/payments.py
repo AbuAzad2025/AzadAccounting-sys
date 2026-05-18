@@ -311,7 +311,7 @@ def _serialize_payment_min(p, *, full=False):
             d["payment_id"] = int(getattr(p, 'payment_id'))
             d["split_id"] = int(getattr(p, 'split_id'))
         except Exception:
-            pass
+            current_app.logger.warning('payment processing failed silently in payments.py', exc_info=True)
     if hasattr(p, 'is_refunded_split'):
         d["is_refunded_split"] = bool(getattr(p, 'is_refunded_split'))
     if is_manual_check:
@@ -2036,7 +2036,7 @@ def view_payment(payment_id: str):
             real_id = int(parts[0])
             split_id = int(parts[1])
         except (ValueError, IndexError):
-            pass
+            current_app.logger.warning('payment processing failed silently in payments.py', exc_info=True)
     
     try:
         real_id = int(real_id)
@@ -2185,7 +2185,7 @@ def view_receipt(payment_id: str):
             real_id = int(parts[0])
             split_id = int(parts[1])
         except (ValueError, IndexError):
-            pass
+            current_app.logger.warning('payment processing failed silently in payments.py', exc_info=True)
     
     try:
         real_id = int(real_id)
@@ -2226,7 +2226,7 @@ def download_receipt(payment_id: str):
         try:
             real_id = int(payment_id.split('_split_')[0])
         except (ValueError, IndexError):
-            pass
+            current_app.logger.warning('payment processing failed silently in payments.py', exc_info=True)
     
     try:
         real_id = int(real_id)
@@ -2993,7 +2993,7 @@ def shop_checkout():
                 "items_count": len(items)
             })
         except ImportError:
-            pass
+            current_app.logger.warning('notification dispatch failed silently in payments.py', exc_info=True)
         
         return jsonify({
             "success": True,
@@ -3085,7 +3085,7 @@ def shop_process_payment():
             from notifications import notify_payment_received
             notify_payment_received(payment.id, float(payment.total_amount), payment.currency)
         except ImportError:
-            pass
+            current_app.logger.warning('notification dispatch failed silently in payments.py', exc_info=True)
         
         return jsonify({
             "success": True,
@@ -3779,7 +3779,7 @@ def refund_split(split_id: int):
                     else:
                         service.run(split.id, 'RETURNED', base_note + ' [RETURN_REASON=PAYMENT_REFUND]')
                 except Exception:
-                    pass
+                    current_app.logger.warning('refund processing failed silently in payments.py', exc_info=True)
         finally:
             db.session.commit()
 

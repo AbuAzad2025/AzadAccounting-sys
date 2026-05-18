@@ -3454,7 +3454,7 @@ def partner_detail_report(partner_id):
         try:
             total_inventory = Decimal(str(inv_total or 0))
         except Exception:
-            pass
+            current_app.logger.warning('financial operation failed silently in report_routes.py', exc_info=True)
 
     partner_breakdown = None
     try:

@@ -63,16 +63,16 @@ def _clear_affected_caches(perm: Permission):
         try:
             utils.clear_role_permission_cache(r.id)
         except Exception:
-            pass
+            current_app.logger.warning('cache operation failed silently in permissions.py', exc_info=True)
         try:
             utils.clear_users_cache_by_role(r.id)
         except Exception:
-            pass
+            current_app.logger.warning('cache operation failed silently in permissions.py', exc_info=True)
     for u in users_extra:
         try:
             utils.clear_user_permission_cache(u.id)
         except Exception:
-            pass
+            current_app.logger.warning('cache operation failed silently in permissions.py', exc_info=True)
 
 def _ensure_code_from_inputs(name: str | None, code: str | None) -> str | None:
     return _normalize_code(code) or _normalize_code(name)
@@ -244,16 +244,16 @@ def delete_permission(permission_id):
             try:
                 utils.clear_role_permission_cache(rid)
             except Exception:
-                pass
+                current_app.logger.warning('cache operation failed silently in permissions.py', exc_info=True)
             try:
                 utils.clear_users_cache_by_role(rid)
             except Exception:
-                pass
+                current_app.logger.warning('cache operation failed silently in permissions.py', exc_info=True)
         for uid in user_ids:
             try:
                 utils.clear_user_permission_cache(uid)
             except Exception:
-                pass
+                current_app.logger.warning('cache operation failed silently in permissions.py', exc_info=True)
         flash("تم حذف الإذن.", "warning")
     except SQLAlchemyError as e:
         db.session.rollback()

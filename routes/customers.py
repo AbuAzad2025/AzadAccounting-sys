@@ -247,7 +247,7 @@ def list_customers():
         try:
             setattr(customer, "calculated_balance", balance_val)
         except Exception:
-            pass
+            current_app.logger.warning('balance calculation failed silently in customers.py', exc_info=True)
 
         if check_mismatch_flag:
             stored_balance = float(customer.current_balance or 0)
@@ -465,7 +465,7 @@ def customer_detail(customer_id):
     try:
         db.session.rollback()
     except Exception:
-        pass
+        current_app.logger.warning('rollback after error failed silently in customers.py', exc_info=True)
     customer = db.session.get(Customer, customer_id) or abort(404)
     balance_breakdown = None
     rights_items = []
@@ -476,7 +476,7 @@ def customer_detail(customer_id):
         try:
             db.session.rollback()
         except Exception:
-            pass
+            current_app.logger.warning('rollback after error failed silently in customers.py', exc_info=True)
         current_app.logger.warning("customer_balance_breakdown_page_failed: %s", exc)
     if balance_breakdown and balance_breakdown.get("success"):
         rights_items = (balance_breakdown.get("rights") or {}).get("items") or []
@@ -497,7 +497,7 @@ def customer_analytics(customer_id):
     try:
         db.session.rollback()
     except Exception:
-        pass
+        current_app.logger.warning('rollback after error failed silently in customers.py', exc_info=True)
     customer = db.session.get(Customer, customer_id) or abort(404)
 
     from utils import D, q0
@@ -1054,7 +1054,7 @@ def account_statement(customer_id):
         try:
             db.session.rollback()
         except Exception:
-            pass
+            current_app.logger.warning('rollback after error failed silently in customers.py', exc_info=True)
 
     from utils import D, q0
 
@@ -2733,7 +2733,7 @@ def advanced_filter():
         if balance_max is not None and balance_max != "":
             q = q.filter(Customer.balance <= float(balance_max))
     except ValueError:
-        pass
+        current_app.logger.warning('balance calculation failed silently in customers.py', exc_info=True)
 
     if created_at_min := request.args.get("created_at_min"):
         try:

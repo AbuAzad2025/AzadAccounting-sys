@@ -1347,7 +1347,7 @@ def products(id):
             price = getattr(p, "selling_price", None) or getattr(p, "price", None) or 0
             page_total_value += float(qty) * float(price)
         except Exception:
-            pass
+            current_app.logger.warning('financial calculation failed silently in warehouses.py', exc_info=True)
 
     return render_template(
         "warehouses/products.html",

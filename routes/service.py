@@ -150,7 +150,7 @@ def _refresh_service_related_balances(service) -> None:
         for pid in partner_ids:
             utils.update_entity_balance("PARTNER", int(pid))
     except Exception:
-        pass
+        current_app.logger.warning('balance calculation failed silently in service.py', exc_info=True)
 
 def _flash_error(message: str) -> None:
     flash(f'❌ {message}', 'danger')
