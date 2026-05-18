@@ -2093,14 +2093,70 @@ def update_payment_status(payment_id: int):
     new_status = str(new_status).strip().upper()
     
     # التحقق من صحة الحالة الجديدة
-    valid_statuses = ["COMPLETED", "PENDING", "FAILED", "REFUNDED"]
+    valid_statuses = ["COMPLETED", "PENDING", "FAILED", "REFUNDED", "CANCELLED"]
     if new_status not in valid_statuses:
         return jsonify(error="invalid_status", message="حالة غير صحيحة"), 400
+    
+    # التحقق من الانتقال المنطقي بين الحالات
+    current_status = str(getattr(payment.status, 'value', payment.status) or '').upper()
+    allowed_transitions = {
+        "PENDING":   {"COMPLETED", "FAILED", "CANCELLED"},
+        "COMPLETED": {"REFUNDED", "CANCELLED"},
+        "FAILED":    {"PENDING"},
+        "REFUNDED":  set(),
+        "CANCELLED": set(),
+    }
+    allowed = allowed_transitions.get(current_status, set())
+    if new_status not in allowed:
+        return jsonify(
+            error="invalid_transition",
+            message=f"لا يمكن الانتقال من {current_status} إلى {new_status}"
+        ), 400
     
     try:
         if new_status == "REFUNDED":
             return refund_payment(payment_id)
+        
+        old_status = current_status
         payment.status = new_status
+        db.session.flush()
+        
+        # تحديث الأرصدة عند تغيير الحالة من/إلى COMPLETED
+        if old_status == "COMPLETED" and new_status == "CANCELLED":
+            if payment.sale_id:
+                sale = db.session.get(Sale, payment.sale_id)
+                if sale and hasattr(sale, "update_payment_status"):
+                    sale.update_payment_status()
+                    db.session.add(sale)
+            if payment.customer_id:
+                try:
+                    from utils.customer_balance_updater import update_customer_balance_components
+                    update_customer_balance_components(payment.customer_id, db.session)
+                except Exception as bal_err:
+                    import logging
+                    logging.getLogger(__name__).warning(f"فشل تحديث رصيد العميل {payment.customer_id}: {bal_err}")
+            if payment.supplier_id:
+                utils.update_entity_balance("supplier", payment.supplier_id)
+            if payment.partner_id:
+                utils.update_entity_balance("partner", payment.partner_id)
+        elif old_status == "PENDING" and new_status == "COMPLETED":
+            if payment.sale_id:
+                sale = db.session.get(Sale, payment.sale_id)
+                if sale and hasattr(sale, "update_payment_status"):
+                    sale.update_payment_status()
+                    db.session.add(sale)
+            if payment.customer_id:
+                try:
+                    from utils.customer_balance_updater import update_customer_balance_components
+                    update_customer_balance_components(payment.customer_id, db.session)
+                except Exception as bal_err:
+                    import logging
+                    logging.getLogger(__name__).warning(f"فشل تحديث رصيد العميل {payment.customer_id}: {bal_err}")
+            if payment.supplier_id:
+                utils.update_entity_balance("supplier", payment.supplier_id)
+            if payment.partner_id:
+                utils.update_entity_balance("partner", payment.partner_id)
+        
         db.session.commit()
         try:
             run_payment_gl_sync_after_commit(payment.id)
@@ -3066,6 +3122,21 @@ def shop_refund():
         if original_payment.status != PaymentStatus.COMPLETED.value:
             return jsonify({"error": "لا يمكن استرداد دفعة غير مكتملة"}), 400
         
+        if getattr(original_payment, 'is_refunded', False):
+            return jsonify({"error": "هذه الدفعة تم استردادها مسبقاً"}), 400
+        
+        previous_refunds = db.session.query(
+            func.coalesce(func.sum(Payment.total_amount), 0)
+        ).filter(
+            Payment.refund_of_id == original_payment.id,
+            Payment.status == PaymentStatus.COMPLETED.value
+        ).scalar() or 0
+        from decimal import Decimal as D
+        max_refundable = float(D(str(original_payment.total_amount or 0)) - D(str(previous_refunds)))
+        
+        if refund_amount > max_refundable:
+            return jsonify({"error": f"مبلغ الاسترداد ({refund_amount}) يتجاوز المبلغ القابل للاسترداد ({max_refundable:.2f})"}), 400
+        
         user_display = _resolve_user_display()
         counterparty_name = _resolve_counterparty_name(person_name=original_payment.receiver_name or original_payment.deliverer_name, customer_id=original_payment.customer_id)
         deliverer_name = user_display.strip() if user_display else ""
@@ -3086,10 +3157,17 @@ def shop_refund():
             created_by=current_user.id,
             deliverer_name=deliverer_name,
             receiver_name=receiver_name,
+            refund_of_id=original_payment.id,
         )
         
         _ensure_payment_number(refund_payment)
         db.session.add(refund_payment)
+        
+        # تمييز الدفعة الأصلية كمستردة إذا تم استرداد كامل المبلغ
+        total_refunded_after = float(D(str(previous_refunds)) + D(str(refund_amount)))
+        if total_refunded_after >= float(original_payment.total_amount or 0):
+            original_payment.is_refunded = True
+            db.session.add(original_payment)
         
         # تحديث رصيد العميل
         if original_payment.customer_id:
@@ -3714,6 +3792,17 @@ def refund_split(split_id: int):
         except Exception as e:
             current_app.logger.error(f"❌ فشل تحديث الأرصدة بعد استرجاع جزء دفعة {split_id}: {e}")
 
+        # تمييز الدفعة الأصلية كمستردة فقط إذا تم استرداد جميع الأجزاء
+        all_splits = list(getattr(parent, "splits", []) or [])
+        all_refunded = all(
+            (isinstance(s.details, dict) and s.details.get("refunded"))
+            for s in all_splits if s.id != split.id
+        )
+        if all_refunded:
+            parent.is_refunded = True
+            db.session.add(parent)
+            db.session.commit()
+
         return jsonify(success=True, refund_id=refund.id)
     except Exception as e:
         db.session.rollback()
@@ -3806,13 +3895,10 @@ def refund_payment(payment_id: int):
                 converted_currency=(original.currency or "ILS"),
                 details={"refunded": True},
             ))
-        # FIX: Do NOT change original payment status to REFUNDED.
-        # Keeping it as COMPLETED ensures that:
-        # 1. GL entries for the original payment remain valid (accounting history).
-        # 2. Customer balance calculations (which often filter by COMPLETED status) include the original payment.
-        # The Refund payment (created above) acts as the contra-entry to zero out the balance.
-        # original.status = PaymentStatus.REFUNDED.value
-        # db.session.add(original)
+        # الحالة تبقى COMPLETED للحفاظ على صحة القيود المحاسبية وحسابات الأرصدة.
+        # is_refunded يُستخدم للتمييز في التقارير بدون تغيير الحالة.
+        original.is_refunded = True
+        db.session.add(original)
         try:
             service = CheckActionService(current_user)
             cheque_splits = [sp for sp in splits if getattr(sp.method, 'value', sp.method) == PaymentMethod.CHEQUE.value]

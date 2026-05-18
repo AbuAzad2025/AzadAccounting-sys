@@ -5527,6 +5527,8 @@ class Sale(db.Model, TimestampMixin, AuditMixin):
     refund_of_id = db.Column(db.Integer, db.ForeignKey("sales.id", ondelete="SET NULL"), index=True)
     idempotency_key = db.Column(db.String(64), unique=True, index=True)
 
+    stock_deducted = db.Column(db.Boolean, default=False, nullable=False)
+
     cancelled_at = db.Column(db.DateTime, index=True)
     cancelled_by = db.Column(db.Integer, db.ForeignKey("users.id"), index=True)
     cancel_reason = db.Column(db.String(200))
@@ -5582,6 +5584,8 @@ class Sale(db.Model, TimestampMixin, AuditMixin):
 
     @hybrid_property
     def total(self):
+        """المجموع المحسوب ديناميكياً من بنود المبيعة (subtotal - discount + shipping + tax).
+        يختلف عن total_amount المخزّن في قاعدة البيانات الذي يُحدَّث عبر event listener."""
         return (D(self.subtotal) - D(self.discount_total or 0) + D(self.shipping_cost or 0)) + D(self.tax_amount)
 
     @hybrid_property
@@ -5694,8 +5698,12 @@ class Sale(db.Model, TimestampMixin, AuditMixin):
                             try:
                                 from models import convert_amount
                                 total_paid += D(str(convert_amount(split_amt, split.currency, sale_currency, payment.payment_date)))
-                            except:
-                                pass
+                            except Exception as fx_err:
+                                import logging
+                                logging.getLogger(__name__).warning(
+                                    f"فشل تحويل العملة من {split.currency} إلى {sale_currency} "
+                                    f"للدفعة {payment.id} (split {split.id}): {fx_err}"
+                                )
             else:
                 amt = D(str(payment.total_amount or 0))
                 if (payment.currency or sale_currency).upper() == sale_currency:
@@ -5704,8 +5712,12 @@ class Sale(db.Model, TimestampMixin, AuditMixin):
                     try:
                         from models import convert_amount
                         total_paid += D(str(convert_amount(amt, payment.currency, sale_currency, payment.payment_date)))
-                    except:
-                        pass
+                    except Exception as fx_err:
+                        import logging
+                        logging.getLogger(__name__).warning(
+                            f"فشل تحويل العملة من {payment.currency} إلى {sale_currency} "
+                            f"للدفعة {payment.id}: {fx_err}"
+                        )
         
         # كمّي رصيد المدفوع والمتبقي وفق عملة الفاتورة
         self.total_paid = float(q(total_paid))
@@ -6860,6 +6872,9 @@ class Invoice(db.Model, TimestampMixin):
 
     @total_paid.expression
     def total_paid(cls):
+        """SQL expression — لا تدعم تحويل العملات.
+        النتائج قد تكون غير دقيقة للفواتير متعددة العملات.
+        استخدم النسخة Python (hybrid property) للحسابات الدقيقة."""
         from sqlalchemy.orm import aliased
 
         p = aliased(Payment)
@@ -7424,6 +7439,7 @@ class Payment(db.Model, TimestampMixin):
     service_id = Column(Integer, ForeignKey("service_requests.id", ondelete="CASCADE"), index=True)
 
     refund_of_id = Column(Integer, ForeignKey("payments.id", ondelete="SET NULL"))
+    is_refunded = Column(Boolean, default=False, nullable=False, index=True)
     idempotency_key = Column(String(64), unique=True, index=True)
     
     # حقول الأرشيف
