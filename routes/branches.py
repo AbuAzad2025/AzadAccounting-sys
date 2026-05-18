@@ -103,7 +103,8 @@ def create_branch():
             flash("❌ رمز الفرع مستخدم مسبقاً", "danger")
         except SQLAlchemyError as e:
             db.session.rollback()
-            flash(f"❌ خطأ في إنشاء الفرع: {e}", "danger")
+            current_app.logger.exception('internal error')
+            flash('❌ خطأ في إنشاء الفرع', 'danger')
     
     employees = Employee.query.order_by(Employee.name).all()
     return render_template('branches/form.html', branch=None, employees=employees)
@@ -157,7 +158,8 @@ def edit_branch(branch_id):
             flash("❌ رمز الفرع مستخدم مسبقاً", "danger")
         except SQLAlchemyError as e:
             db.session.rollback()
-            flash(f"❌ خطأ في تحديث الفرع: {e}", "danger")
+            current_app.logger.exception('internal error')
+            flash('❌ خطأ في تحديث الفرع', 'danger')
     
     employees = Employee.query.order_by(Employee.name).all()
     return render_template('branches/form.html', branch=b, employees=employees)
@@ -185,7 +187,8 @@ def archive_branch(branch_id):
         flash(f"✅ تم أرشفة الفرع: {b.name}", "success")
     except SQLAlchemyError as e:
         db.session.rollback()
-        flash(f"❌ خطأ في الأرشفة: {e}", "danger")
+        current_app.logger.exception('internal error')
+        flash('❌ خطأ في الأرشفة', 'danger')
     
     return redirect(url_for('branches_bp.list_branches'))
 
@@ -207,7 +210,8 @@ def restore_branch(branch_id):
         flash(f"✅ تم استعادة الفرع: {b.name}", "success")
     except SQLAlchemyError as e:
         db.session.rollback()
-        flash(f"❌ خطأ في الاستعادة: {e}", "danger")
+        current_app.logger.exception('internal error')
+        flash('❌ خطأ في الاستعادة', 'danger')
     
     return redirect(url_for('branches_bp.list_branches'))
 
@@ -322,7 +326,8 @@ def create_site(branch_id):
             flash("❌ رمز الموقع مستخدم مسبقاً في هذا الفرع", "danger")
         except SQLAlchemyError as e:
             db.session.rollback()
-            flash(f"❌ خطأ في إنشاء الموقع: {e}", "danger")
+            current_app.logger.exception('internal error')
+            flash('❌ خطأ في إنشاء الموقع', 'danger')
     
     employees = Employee.query.filter_by(branch_id=branch_id).order_by(Employee.name).all()
     return render_template('branches/site_form.html', branch=branch, site=None, employees=employees)
@@ -371,7 +376,8 @@ def edit_site(site_id):
             flash("❌ رمز الموقع مستخدم مسبقاً", "danger")
         except SQLAlchemyError as e:
             db.session.rollback()
-            flash(f"❌ خطأ في تحديث الموقع: {e}", "danger")
+            current_app.logger.exception('internal error')
+            flash('❌ خطأ في تحديث الموقع', 'danger')
     
     employees = Employee.query.filter_by(branch_id=s.branch_id).order_by(Employee.name).all()
     return render_template('branches/site_form.html', branch=s.branch, site=s, employees=employees)
@@ -394,7 +400,8 @@ def archive_site(site_id):
         flash(f"✅ تم أرشفة الموقع: {s.name}", "success")
     except SQLAlchemyError as e:
         db.session.rollback()
-        flash(f"❌ خطأ في الأرشفة: {e}", "danger")
+        current_app.logger.exception('internal error')
+        flash('❌ خطأ في الأرشفة', 'danger')
     
     return redirect(url_for('branches_bp.list_sites', branch_id=s.branch_id))
 

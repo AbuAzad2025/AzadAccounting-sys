@@ -1288,7 +1288,8 @@ def admin_product_new():
             return redirect(url_for("shop.admin_products"))
         except SQLAlchemyError as e:
             db.session.rollback()
-            flash(f"خطأ: {e}", "danger")
+            current_app.logger.exception('internal error')
+            flash('خطأ', 'danger')
     return render_template("shop/admin_product_form.html", form=form, product=None)
 
 @shop_bp.route("/admin/products/<int:pid>/edit", methods=["GET", "POST"], endpoint="admin_product_edit")
@@ -1366,7 +1367,8 @@ def admin_product_edit(pid):
             return redirect(url_for("shop.admin_products"))
         except SQLAlchemyError as e:
             db.session.rollback()
-            flash(f"خطأ: {e}", "danger")
+            current_app.logger.exception('internal error')
+            flash('خطأ', 'danger')
     return render_template("shop/admin_product_form.html", form=form, product=product)
 
 @shop_bp.route("/admin/products/<int:pid>/update_fields", methods=["POST"], endpoint="admin_product_update_fields")
@@ -1480,7 +1482,8 @@ def admin_product_delete(pid):
         flash("تم حذف المنتج", "info")
     except SQLAlchemyError as e:
         db.session.rollback()
-        flash(f"خطأ: {e}", "danger")
+        current_app.logger.exception('internal error')
+        flash('خطأ', 'danger')
     return redirect(url_for("shop.admin_products"))
 
 @shop_bp.route("/payments/<int:op_id>/refund", methods=["POST"], endpoint="refund_payment")

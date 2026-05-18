@@ -797,7 +797,8 @@ def create_customer():
         current_app.logger.exception("SQLAlchemyError while creating customer")
         if is_ajax:
             return jsonify({"ok": False, "message": f"خطأ أثناء إضافة العميل: {e}"}), 500
-        flash(f"❌ خطأ أثناء إضافة العميل: {e}", "danger")
+        current_app.logger.exception('internal error')
+        flash('❌ خطأ أثناء إضافة العميل', 'danger')
         # إبقاء المستخدم على نفس الصفحة مع عرض الخطأ بشكل ودي
         return render_template("customers/new.html", form=form, return_to=request.form.get("return_to"))
     if is_ajax:
@@ -848,7 +849,8 @@ def edit_customer(customer_id):
                 return render_template("customers/edit.html", form=form, customer=cust), 409
             except SQLAlchemyError as e:
                 db.session.rollback()
-                flash(f"❌ خطأ أثناء تعديل العميل: {e}", "danger")
+                current_app.logger.exception('internal error')
+                flash('❌ خطأ أثناء تعديل العميل', 'danger')
                 current_app.logger.exception("SQLAlchemyError while editing customer")
                 return render_template("customers/edit.html", form=form, customer=cust), 500
             flash("تم تعديل بيانات العميل", "success")
@@ -884,7 +886,8 @@ def delete_customer(id):
         flash(f"✅ تم حذف العميل: {name}", "success")
     except Exception as e:
         db.session.rollback()
-        flash(f"❌ خطأ أثناء الحذف: {e}", "danger")
+        current_app.logger.exception('internal error')
+        flash('❌ خطأ أثناء الحذف', 'danger')
     
     return redirect(url_for("customers_bp.list_customers"))
 

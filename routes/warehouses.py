@@ -920,7 +920,8 @@ def edit_warehouse(warehouse_id):
             return redirect(url_for("warehouse_bp.list"))
         except SQLAlchemyError as e:
             db.session.rollback()
-            flash(f"حدث خطأ: {e}", "danger")
+            current_app.logger.exception('internal error')
+            flash('حدث خطأ', 'danger')
 
     return render_template("warehouses/form.html", form=form, warehouse=w)
 
@@ -2693,7 +2694,8 @@ def import_commit(id):
             )
     except Exception as e:
         db.session.rollback()
-        flash(f"فشل الترحيل: {e}", "danger")
+        current_app.logger.exception('internal error')
+        flash('فشل الترحيل', 'danger')
 
     return redirect(url_for("warehouse_bp.detail", warehouse_id=w.id))
 
@@ -3667,7 +3669,8 @@ def preorder_fulfill(preorder_id):
             flash("تم تنفيذ الحجز وشحن الكمية", "success")
         except SQLAlchemyError as e:
             db.session.rollback()
-            flash(f"فشل تنفيذ الحجز: {e}", "danger")
+            current_app.logger.exception('internal error')
+            flash('فشل تنفيذ الحجز', 'danger')
     else:
         flash("هذا الحجز تم تنفيذه مسبقاً", "info")
     return redirect(url_for("warehouse_bp.preorder_detail", preorder_id=preorder_id))
@@ -3692,7 +3695,8 @@ def preorder_mark_fulfilled(preorder_id):
             flash("تم تحديث حالة الحجز إلى منفذ", "success")
         except SQLAlchemyError as e:
             db.session.rollback()
-            flash(f"فشل تحديث حالة الحجز: {e}", "danger")
+            current_app.logger.exception('internal error')
+            flash('فشل تحديث حالة الحجز', 'danger')
     return redirect(url_for("warehouse_bp.preorder_detail", preorder_id=preorder_id))
 
 

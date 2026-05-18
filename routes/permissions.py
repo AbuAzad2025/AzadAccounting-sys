@@ -142,7 +142,8 @@ def create_permission():
                 flash("اسم/كود الإذن مستخدم بالفعل.", "danger")
             except SQLAlchemyError as e:
                 db.session.rollback()
-                flash(f"خطأ أثناء الإضافة: {e}", "danger")
+                current_app.logger.exception('internal error')
+                flash('خطأ أثناء الإضافة', 'danger')
     return render_template("permissions/form.html", form=form, protected_codes=_RESERVED_CODES)
 
 @permissions_bp.route("/<int:permission_id>/edit", methods=["GET", "POST"], endpoint="edit")
@@ -194,7 +195,8 @@ def edit_permission(permission_id):
                 flash("اسم/كود الإذن مستخدم بالفعل.", "danger")
             except SQLAlchemyError as e:
                 db.session.rollback()
-                flash(f"خطأ أثناء التحديث: {e}", "danger")
+                current_app.logger.exception('internal error')
+                flash('خطأ أثناء التحديث', 'danger')
     return render_template("permissions/form.html", form=form, perm=perm, protected_codes=_RESERVED_CODES)
 
 @permissions_bp.route("/<int:permission_id>/delete", methods=["POST"], endpoint="delete")
@@ -255,7 +257,8 @@ def delete_permission(permission_id):
         flash("تم حذف الإذن.", "warning")
     except SQLAlchemyError as e:
         db.session.rollback()
-        flash(f"لا يمكن الحذف: {e}", "danger")
+        current_app.logger.exception('internal error')
+        flash('لا يمكن الحذف', 'danger')
     return redirect(url_for("permissions.list"))
 
 @permissions_bp.route("/matrix", methods=["GET"], endpoint="matrix")

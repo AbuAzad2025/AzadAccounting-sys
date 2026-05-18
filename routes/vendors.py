@@ -341,7 +341,8 @@ def suppliers_edit(id):
             return redirect(url_for("vendors_bp.suppliers_list"))
         except SQLAlchemyError as e:
             db.session.rollback()
-            flash(f"❌ خطأ أثناء تحديث المورد: {e}", "danger")
+            current_app.logger.exception('internal error')
+            flash('❌ خطأ أثناء تحديث المورد', 'danger')
     return render_template("vendors/suppliers/form.html", form=form, supplier=supplier)
 
 
@@ -3536,7 +3537,8 @@ def partners_edit(id):
             return redirect(url_for("vendors_bp.partners_list"))
         except SQLAlchemyError as e:
             db.session.rollback()
-            flash(f"❌ خطأ أثناء تحديث الشريك: {e}", "danger")
+            current_app.logger.exception('internal error')
+            flash('❌ خطأ أثناء تحديث الشريك', 'danger')
     return render_template("vendors/partners/form.html", form=form, partner=partner)
 
 @vendors_bp.route("/partners/<int:id>/delete", methods=["POST"], endpoint="partners_delete")
@@ -3574,7 +3576,8 @@ def partners_delete(id):
         if is_ajax:
             current_app.logger.exception('API error')
             return jsonify({"success": False, "error": "حدث خطأ داخلي"}), 400
-        flash(f"❌ خطأ أثناء حذف الشريك: {e}", "danger")
+        current_app.logger.exception('internal error')
+        flash('❌ خطأ أثناء حذف الشريك', 'danger')
         return redirect(url_for("vendors_bp.partners_list"))
 
 

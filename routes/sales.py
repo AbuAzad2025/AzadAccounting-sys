@@ -1067,10 +1067,12 @@ def create_sale():
             return redirect(url_for("sales_bp.sale_detail", id=sale.id))
         except SQLAlchemyError as e:
             db.session.rollback()
-            flash(f"❌ خطأ قاعدة بيانات أثناء الحفظ: {e}", "danger")
+            current_app.logger.exception('internal error')
+            flash('❌ خطأ قاعدة بيانات أثناء الحفظ', 'danger')
         except Exception as e:
             db.session.rollback()
-            flash(f"❌ خطأ أثناء الحفظ: {e}", "danger")
+            current_app.logger.exception('internal error')
+            flash('❌ خطأ أثناء الحفظ', 'danger')
     return render_template("sales/form.html", form=form, title="إنشاء فاتورة جديدة",
                            products=Product.query.order_by(Product.name).all(),
                            warehouses=Warehouse.query.order_by(Warehouse.name).all(),
@@ -1285,10 +1287,12 @@ def edit_sale(id):
             return redirect(url_for("sales_bp.sale_detail", id=sale.id))
         except SQLAlchemyError as e:
             db.session.rollback()
-            flash(f"❌ خطأ قاعدة بيانات أثناء التعديل: {e}", "danger")
+            current_app.logger.exception('internal error')
+            flash('❌ خطأ قاعدة بيانات أثناء التعديل', 'danger')
         except Exception as e:
             db.session.rollback()
-            flash(f"❌ خطأ أثناء التعديل: {e}", "danger")
+            current_app.logger.exception('internal error')
+            flash('❌ خطأ أثناء التعديل', 'danger')
     return render_template("sales/form.html", form=form, sale=sale, title="تعديل الفاتورة",
                            products=Product.query.order_by(Product.name).all(),
                            warehouses=Warehouse.query.order_by(Warehouse.name).all(),
@@ -1358,11 +1362,13 @@ def quick_sell():
         return redirect(url_for("sales_bp.sale_detail", id=sale.id))
     except SQLAlchemyError as e:
         db.session.rollback()
-        flash(f"❌ فشل البيع السريع (قاعدة البيانات): {e}", "danger")
+        current_app.logger.exception('internal error')
+        flash('❌ فشل البيع السريع (قاعدة البيانات)', 'danger')
         return redirect(url_for("sales_bp.list_sales"))
     except Exception as e:
         db.session.rollback()
-        flash(f"❌ فشل البيع السريع: {e}", "danger")
+        current_app.logger.exception('internal error')
+        flash('❌ فشل البيع السريع', 'danger')
         return redirect(url_for("sales_bp.list_sales"))
 
  
@@ -1418,7 +1424,8 @@ def change_status(id: int, status: str):
         flash("✅ تم تحديث الحالة.", "success")
     except (SQLAlchemyError, ValueError) as e:
         db.session.rollback()
-        flash(f"❌ خطأ أثناء تحديث الحالة: {e}", "danger")
+        current_app.logger.exception('internal error')
+        flash('❌ خطأ أثناء تحديث الحالة', 'danger')
     return redirect(url_for("sales_bp.sale_detail", id=sale.id))
 
 @sales_bp.route("/<int:id>/invoice", methods=["GET"], endpoint="generate_invoice")

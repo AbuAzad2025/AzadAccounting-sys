@@ -922,7 +922,8 @@ def system_cleanup():
                     cache.clear()
                     flash('تم مسح ذاكرة التخزين المؤقت بنجاح.', 'success')
                 except Exception as e:
-                    flash(f'فشل مسح الكاش: {e}', 'danger')
+                    current_app.logger.exception('internal error')
+                    flash('فشل مسح الكاش', 'danger')
             elif action == 'cleanup_temp':
                 flash('تم تنظيف الملفات المؤقتة (محاكاة).', 'success')
             elif action == 'purge_logs':
@@ -982,12 +983,14 @@ def system_cleanup():
                             flash(f'✅ تم تنظيف {result.get("cleaned", 0)} جدول وإعادة تهيئة النظام بنجاح', 'success')
                         except Exception as e:
                             current_app.logger.error(f"Reset Error: {e}")
-                            flash(f'✅ تم التنظيف ولكن حدث خطأ في التهيئة: {e}', 'warning')
+                            current_app.logger.exception('internal error')
+                            flash('✅ تم التنظيف ولكن حدث خطأ في التهيئة', 'warning')
                     else:
                         flash(f'✅ تم تنظيف {result.get("cleaned", 0)} جدول', 'success')
 
                 except Exception as e:
-                    flash(f'❌ حدث خطأ أثناء التنظيف: {e}', 'danger')
+                    current_app.logger.exception('internal error')
+                    flash('❌ حدث خطأ أثناء التنظيف', 'danger')
 
             return redirect(url_for('security.system_cleanup', tab='reset'))
     
@@ -7809,7 +7812,8 @@ def reconcile_tax_report(period):
             db.session.rollback()
         except Exception:
             pass
-        flash(f"❌ فشل تصحيح VAT: {e}", "danger")
+        current_app.logger.exception('internal error')
+        flash('❌ فشل تصحيح VAT', 'danger')
         return redirect(url_for("security.tax_reports", period=period))
 
     flash(result.get("message") or "تمت العملية.", result.get("message_level") or "success")
