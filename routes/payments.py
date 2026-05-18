@@ -3792,10 +3792,16 @@ def refund_split(split_id: int):
         except Exception as e:
             current_app.logger.error(f"❌ فشل تحديث الأرصدة بعد استرجاع جزء دفعة {split_id}: {e}")
 
-        # تمييز الدفعة الأصلية كمستردة
-        parent.is_refunded = True
-        db.session.add(parent)
-        db.session.commit()
+        # تمييز الدفعة الأصلية كمستردة فقط إذا تم استرداد جميع الأجزاء
+        all_splits = list(getattr(parent, "splits", []) or [])
+        all_refunded = all(
+            (isinstance(s.details, dict) and s.details.get("refunded"))
+            for s in all_splits if s.id != split.id
+        )
+        if all_refunded:
+            parent.is_refunded = True
+            db.session.add(parent)
+            db.session.commit()
 
         return jsonify(success=True, refund_id=refund.id)
     except Exception as e:
