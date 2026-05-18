@@ -5758,8 +5758,8 @@ def _sale_before_insert_ref(mapper, connection, target: "Sale"):
         target.sale_number = f"{prefix}-{count+1:04d}"
     
     # حفظ سعر الصرف تلقائياً للمبيعات (فقط عند الإنشاء)
-    sale_currency = target.currency or "ILS"
-    default_currency = "ILS"
+    sale_currency = target.currency or DEFAULT_CURRENCY
+    default_currency = DEFAULT_CURRENCY
     
     if sale_currency != default_currency:
         try:
@@ -17164,6 +17164,18 @@ def _invoice_update_customer_balance(mapper, connection, target):
         session = _balance_get_session(target)
         _queue_customer_balance(session, getattr(target, "customer_id", None))
         _queue_partner_balance(session, getattr(target, "partner_id", None))
+        
+        if hasattr(target, 'customer_id') and target.customer_id:
+            from sqlalchemy import text as sa_text
+            try:
+                supplier_result = connection.execute(
+                    sa_text("SELECT id FROM suppliers WHERE customer_id = :cid"),
+                    {"cid": target.customer_id}
+                ).fetchone()
+                if supplier_result:
+                    _queue_supplier_balance(session, supplier_result[0])
+            except Exception:
+                pass
     except Exception:
         pass
 
@@ -17233,6 +17245,19 @@ def _online_preorder_update_customer_balance(mapper, connection, target):
     try:
         session = _balance_get_session(target)
         _queue_customer_balance(session, getattr(target, "customer_id", None))
+        _queue_partner_balance(session, getattr(target, "partner_id", None))
+        
+        if hasattr(target, 'customer_id') and target.customer_id:
+            from sqlalchemy import text as sa_text
+            try:
+                supplier_result = connection.execute(
+                    sa_text("SELECT id FROM suppliers WHERE customer_id = :cid"),
+                    {"cid": target.customer_id}
+                ).fetchone()
+                if supplier_result:
+                    _queue_supplier_balance(session, supplier_result[0])
+            except Exception:
+                pass
     except Exception:
         pass
 
