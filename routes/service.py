@@ -561,14 +561,19 @@ def restore_service(id):
     try:
         restore_record(id, ServiceRequest)
         return jsonify({"status": "success", "message": "تم استعادة طلب الصيانة بنجاح"})
-    except Exception as e:
+    except Exception:
         db.session.rollback()
         service = db.session.get(ServiceRequest, id)
         if service:
-            service.is_archived = False
-            db.session.commit()
-            return jsonify({"status": "success", "message": "تم استعادة طلب الصيانة بنجاح (يدوي)"})
-        current_app.logger.exception("service.restore_service failed", extra={"service_id": id})
+            try:
+                service.is_archived = False
+                db.session.commit()
+                return jsonify({"status": "success", "message": "تم استعادة طلب الصيانة بنجاح (يدوي)"})
+            except Exception:
+                db.session.rollback()
+                current_app.logger.exception('fallback restore_service commit failed')
+                return jsonify({"status": "error", "message": "تعذر استعادة طلب الصيانة حالياً"}), 500
+        current_app.logger.exception("service.restore_service failed")
         return jsonify({"status": "error", "message": "تعذر استعادة طلب الصيانة حالياً"}), 500
 
 @service_bp.route('/export/csv', methods=['GET'])

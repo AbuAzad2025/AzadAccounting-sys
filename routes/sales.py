@@ -340,13 +340,18 @@ def restore_sale(id):
     try:
         restore_record(id, Sale)
         return jsonify({"status": "success", "message": "تم استعادة عملية البيع بنجاح"})
-    except Exception as e:
+    except Exception:
         db.session.rollback()
         sale = db.session.get(Sale, id)
         if sale:
-            sale.is_archived = False
-            db.session.commit()
-            return jsonify({"status": "success", "message": "تم استعادة عملية البيع بنجاح (يدوي)"})
+            try:
+                sale.is_archived = False
+                db.session.commit()
+                return jsonify({"status": "success", "message": "تم استعادة عملية البيع بنجاح (يدوي)"})
+            except Exception:
+                db.session.rollback()
+                current_app.logger.exception('fallback restore_sale commit failed')
+                return jsonify({"error": "حدث خطأ داخلي"}), 500
         current_app.logger.exception('API error')
         return jsonify({"error": "حدث خطأ داخلي"}), 500
 
