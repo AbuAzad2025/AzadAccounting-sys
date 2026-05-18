@@ -1235,6 +1235,9 @@ def database_manager():
     table_counts = {}
     for table in tables:
         try:
+            if not _is_safe_identifier(table):
+                table_counts[table] = 0
+                continue
             count_query = text(f"SELECT COUNT(*) as count FROM {table}")
             result = db.session.execute(count_query).fetchone()
             table_counts[table] = result[0] if result else 0
@@ -6536,7 +6539,7 @@ def api_clean_rebuild_indexes():
                 indexes = inspector.get_indexes(table)
             
             for idx in indexes:
-                if idx['name'] and idx['name'].startswith('ix_'):
+                if idx['name'] and idx['name'].startswith('ix_') and _is_safe_identifier(idx['name']):
                     try:
                         db.session.execute(text(f"DROP INDEX {idx['name']}"))
                         db.session.commit()
