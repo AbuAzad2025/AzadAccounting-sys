@@ -814,8 +814,14 @@ def get_installments_due(emp_id):
     from flask import jsonify
     from calendar import monthrange
     
-    month = int(request.args.get('month', datetime.now().month))
-    year = int(request.args.get('year', datetime.now().year))
+    try:
+        month = int(request.args.get('month', datetime.now().month))
+    except (ValueError, TypeError):
+        month = 0
+    try:
+        year = int(request.args.get('year', datetime.now().year))
+    except (ValueError, TypeError):
+        year = 0
     
     period_start = _date(year, month, 1)
     if month == 12:
@@ -858,8 +864,14 @@ def generate_salary(emp_id):
     
     employee = _get_or_404(Employee, emp_id)
     
-    month = int(request.form.get('month', date.today().month))
-    year = int(request.form.get('year', date.today().year))
+    try:
+        month = int(request.form.get('month', date.today().month))
+    except (ValueError, TypeError):
+        month = 0
+    try:
+        year = int(request.form.get('year', date.today().year))
+    except (ValueError, TypeError):
+        year = 0
     
     if year < 1900 or year > 2100:
         year = date.today().year
@@ -2969,8 +2981,14 @@ def payroll_monthly():
 
     
     today = datetime.now()
-    month = int(request.args.get('month', today.month))
-    year = int(request.args.get('year', today.year))
+    try:
+        month = int(request.args.get('month', today.month))
+    except (ValueError, TypeError):
+        month = 0
+    try:
+        year = int(request.args.get('year', today.year))
+    except (ValueError, TypeError):
+        year = 0
     
     employees = Employee.query.order_by(Employee.name).all()
     
@@ -3056,10 +3074,19 @@ def generate_all_salaries():
     from sqlalchemy import extract as sql_extract, or_
     
     today = datetime.now()
-    month = int(request.form.get('month', today.month))
-    year = int(request.form.get('year', today.year))
+    try:
+        month = int(request.form.get('month', today.month))
+    except (ValueError, TypeError):
+        month = 0
+    try:
+        year = int(request.form.get('year', today.year))
+    except (ValueError, TypeError):
+        year = 0
     payment_date = request.form.get('payment_date', today.date().isoformat())
-    pay_date = datetime.strptime(payment_date, '%Y-%m-%d').date() if payment_date else datetime.now().date()
+    try:
+        pay_date = datetime.strptime(payment_date, '%Y-%m-%d').date() if payment_date else datetime.now().date()
+    except (ValueError, TypeError):
+        pay_date = None
     allow_auto_pay = pay_date <= today.date()
     
     employees = Employee.query.order_by(Employee.name).limit(1000).all()
@@ -3189,7 +3216,10 @@ def payroll_summary():
     from models import ExpenseType
     from sqlalchemy import extract as sql_extract
     
-    year = int(request.args.get('year', datetime.now().year))
+    try:
+        year = int(request.args.get('year', datetime.now().year))
+    except (ValueError, TypeError):
+        year = 0
     
     salary_type = ExpenseType.query.filter_by(code='SALARY').first()
     

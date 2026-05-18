@@ -421,9 +421,18 @@ def _parse_dt(s):
 def shipments_data():
     from flask_wtf.csrf import generate_csrf
 
-    draw   = int(request.args.get("draw", 1))
-    start  = int(request.args.get("start", 0))
-    length = int(request.args.get("length", 10))
+    try:
+        draw   = int(request.args.get("draw", 1))
+    except (ValueError, TypeError):
+        draw = 1
+    try:
+        start  = int(request.args.get("start", 0))
+    except (ValueError, TypeError):
+        start = 0
+    try:
+        length = int(request.args.get("length", 10))
+    except (ValueError, TypeError):
+        length = 10
 
     f_status = (request.args.get("status") or "").strip().upper()
     f_from   = _parse_dt(request.args.get("from") or request.args.get("search[from]", "") or "")
@@ -464,7 +473,10 @@ def shipments_data():
 
     filtered_count = q.order_by(None).with_entities(func.count(Shipment.id)).scalar() or 0
 
-    order_col_index = int(request.args.get("order[0][column]", 3) or 3)
+    try:
+        order_col_index = int(request.args.get("order[0][column]", 3) or 3)
+    except (ValueError, TypeError):
+        order_col_index = 3
     order_dir = (request.args.get("order[0][dir]") or "desc").lower()
     col_map = {
         0: Shipment.id,

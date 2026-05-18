@@ -446,7 +446,10 @@ def report_performance():
     query = WorkflowInstance.query
     
     if date_from:
-        date_from_obj = datetime.strptime(date_from, '%Y-%m-%d')
+        try:
+            date_from_obj = datetime.strptime(date_from, '%Y-%m-%d')
+        except (ValueError, TypeError):
+            date_from_obj = None
         query = query.filter(WorkflowInstance.started_at >= date_from_obj)
     
     if date_to:

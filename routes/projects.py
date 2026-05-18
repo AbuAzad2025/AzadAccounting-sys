@@ -88,7 +88,10 @@ def add_project():
             branch_id = request.form.get('branch_id', type=int)
             start_date = datetime.strptime(request.form.get('start_date'), '%Y-%m-%d').date()
             end_date_str = request.form.get('end_date')
-            end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date() if end_date_str else None
+            try:
+                end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date() if end_date_str else None
+            except (ValueError, TypeError):
+                end_date = None
             estimated_cost = Decimal(request.form.get('estimated_cost', 0))
             estimated_revenue = Decimal(request.form.get('estimated_revenue', 0))
             contract_value = Decimal(request.form.get('contract_value', 0))
@@ -259,9 +262,15 @@ def add_phase(id):
         next_number = (last_phase.order + 1) if last_phase else 1
         
         name = request.form.get('name')
-        start_date = datetime.strptime(request.form.get('start_date'), '%Y-%m-%d').date()
+        try:
+            start_date = datetime.strptime(request.form.get('start_date'), '%Y-%m-%d').date()
+        except (ValueError, TypeError):
+            start_date = None
         end_date_str = request.form.get('end_date')
-        end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date() if end_date_str else None
+        try:
+            end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date() if end_date_str else None
+        except (ValueError, TypeError):
+            end_date = None
         estimated_cost = Decimal(request.form.get('estimated_cost', 0))
         description = request.form.get('description', '')
         

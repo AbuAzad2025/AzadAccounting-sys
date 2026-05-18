@@ -275,8 +275,14 @@ def upload_statement():
             period_start_raw = request.form.get('period_start') or statement_date_raw
             period_end_raw = request.form.get('period_end') or statement_date_raw
             
-            period_start = datetime.strptime(period_start_raw, '%Y-%m-%d').date()
-            period_end = datetime.strptime(period_end_raw, '%Y-%m-%d').date()
+            try:
+                period_start = datetime.strptime(period_start_raw, '%Y-%m-%d').date()
+            except (ValueError, TypeError):
+                period_start = None
+            try:
+                period_end = datetime.strptime(period_end_raw, '%Y-%m-%d').date()
+            except (ValueError, TypeError):
+                period_end = None
             
             if period_end < period_start:
                 flash('تاريخ نهاية الفترة يجب أن يكون بعد أو مساوي لتاريخ البداية', 'danger')

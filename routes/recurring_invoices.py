@@ -74,7 +74,10 @@ def add_template():
             frequency = request.form.get('frequency', '').strip()
             start_date_str = request.form.get('start_date', '').strip()
             end_date_str = request.form.get('end_date', '').strip()
-            branch_id = int(request.form.get('branch_id'))
+            try:
+                branch_id = int(request.form.get('branch_id'))
+            except (ValueError, TypeError):
+                branch_id = 0
             site_id = request.form.get('site_id', type=int)
             
             if not template_name:
@@ -154,9 +157,18 @@ def edit_template(template_id):
             start_date_str = request.form.get('start_date', '').strip()
             end_date_str = request.form.get('end_date', '').strip()
             
-            template.start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
-            template.end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date() if end_date_str else None
-            template.branch_id = int(request.form.get('branch_id'))
+            try:
+                template.start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+            except (ValueError, TypeError):
+                template.start_date = None
+            try:
+                template.end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date() if end_date_str else None
+            except (ValueError, TypeError):
+                template.end_date = None
+            try:
+                template.branch_id = int(request.form.get('branch_id'))
+            except (ValueError, TypeError):
+                template.branch_id = 0
             template.site_id = request.form.get('site_id', type=int)
             
             db.session.commit()
