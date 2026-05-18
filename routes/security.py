@@ -3928,7 +3928,7 @@ def impersonate_user(user_id):
         db.session.add(log)
         db.session.commit()
     except Exception:
-        pass
+        current_app.logger.warning('DB add failed silently')
     
     logout_user()
     login_user(target_user)
@@ -4021,7 +4021,7 @@ def toggle_user_status(user_id):
         )
         db.session.add(log)
     except Exception:
-        pass
+        current_app.logger.warning('DB add failed silently')
     
     try:
         db.session.commit()
@@ -4089,7 +4089,7 @@ def delete_user(user_id):
         db.session.add(log)
         db.session.commit()
     except Exception:
-        pass
+        current_app.logger.warning('DB add failed silently')
     
     # الحذف
     try:
@@ -4276,7 +4276,7 @@ def api_users_bulk_operation():
             )
             db.session.add(log)
         except Exception:
-            pass
+            current_app.logger.warning('DB add failed silently')
         
         db.session.commit()
         
@@ -4468,7 +4468,7 @@ def update_user_role(user_id):
         )
         db.session.add(log)
     except Exception:
-        pass
+        current_app.logger.warning('DB add failed silently')
     
     try:
         db.session.commit()

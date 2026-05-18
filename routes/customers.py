@@ -1047,7 +1047,7 @@ def account_statement(customer_id):
                 try:
                     db.session.rollback()
                 except Exception:
-                    pass
+                    current_app.logger.warning('DB commit failed silently')
             current_app.config["CUSTOMER_STATEMENT_IDX_DONE"] = True
     except Exception:
         try:

@@ -2777,7 +2777,7 @@ def delete(exp_id):
         try:
             run_expense_gl_reversal_after_delete(reversal_snapshot)
         except Exception:
-            pass
+            current_app.logger.warning('DB delete failed silently')
         try:
             _refresh_entity_balances(before_pairs)
         except Exception as e:

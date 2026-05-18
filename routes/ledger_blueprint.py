@@ -1453,7 +1453,7 @@ def fix_gl_entities_for_entity_audit():
             try:
                 db.session.rollback()
             except Exception:
-                pass
+                current_app.logger.warning('DB commit failed silently')
 
         return jsonify(
             {
@@ -1719,7 +1719,7 @@ def recalculate_entities_for_entity_audit():
                 try:
                     db.session.rollback()
                 except Exception:
-                    pass
+                    current_app.logger.warning('DB commit failed silently')
 
             resp = entity_balance_audit()
             try:
@@ -2023,7 +2023,7 @@ def auto_fix_entity_balance_audit():
                 try:
                     db.session.rollback()
                 except Exception:
-                    pass
+                    current_app.logger.warning('DB commit failed silently')
             return jsonify(base)
 
         return response

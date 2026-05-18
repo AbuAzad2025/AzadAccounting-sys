@@ -630,7 +630,7 @@ def create_request():
             try:
                 run_service_gl_sync_after_commit(service.id)
             except Exception:
-                pass
+                current_app.logger.warning('DB add failed silently')
             log_service_action(service,"CREATE")
             _refresh_service_related_balances(service)
             if customer.phone: utils.send_whatsapp_message(customer.phone, f"تم استلام طلب الصيانة رقم {service.service_number}.")
@@ -1463,7 +1463,7 @@ def delete_request(rid):
         try:
             run_service_gl_reversal_after_delete(reversal_snapshot)
         except Exception:
-            pass
+            current_app.logger.warning('DB delete failed silently')
         flash('✅ تم حذف الطلب ومعالجة المخزون','success')
         try:
             if customer_id:

@@ -439,7 +439,7 @@ def create_user():
             try:
                 utils.clear_user_permission_cache(user.id)
             except Exception:
-                pass
+                current_app.logger.warning('DB commit failed silently')
 
             if request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest":
                 return jsonify(id=user.id, username=user.username), 201
@@ -553,7 +553,7 @@ def edit_user(user_id):
             try:
                 utils.clear_user_permission_cache(user.id)
             except Exception:
-                pass
+                current_app.logger.warning('DB commit failed silently')
 
             flash("تم تحديث المستخدم.", "success")
             return redirect(url_for("users_bp.list_users"))

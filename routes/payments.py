@@ -3886,7 +3886,7 @@ def refund_payment(payment_id: int):
                     sp.details = details
                     db.session.add(sp)
                 except Exception:
-                    pass
+                    current_app.logger.warning('DB add failed silently')
         else:
             db.session.add(PaymentSplit(
                 payment=refund,
