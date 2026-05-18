@@ -200,6 +200,7 @@ def change_password():
                 db.session.rollback()
                 current_app.logger.exception('commit error')
                 flash('حدث خطأ أثناء الحفظ', 'danger')
+                return render_template("users/change_password.html", form=form)
             flash("✅ تم تغيير كلمة المرور بنجاح", "success")
             return redirect(url_for("users_bp.profile"))
     

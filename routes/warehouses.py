@@ -2039,7 +2039,7 @@ SELECT setval(
             except Exception:
                 db.session.rollback()
                 current_app.logger.exception('commit error')
-                flash('حدث خطأ أثناء الحفظ', 'danger')
+                raise ValueError('حدث خطأ أثناء الحفظ')
             return product, (existing_product is None)
 
         def _flash_success(product, created):

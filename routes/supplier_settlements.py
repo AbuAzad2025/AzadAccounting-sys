@@ -2436,6 +2436,7 @@ def approve_settlement(supplier_id):
         db.session.rollback()
         current_app.logger.exception('commit error')
         flash('حدث خطأ أثناء الحفظ', 'danger')
+        return redirect(url_for("supplier_settlements_bp.supplier_settlement", supplier_id=supplier_id))
     
     from utils.supplier_balance_updater import update_supplier_balance_components
     update_supplier_balance_components(supplier_id)
