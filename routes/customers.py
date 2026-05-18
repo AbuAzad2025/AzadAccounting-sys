@@ -792,12 +792,11 @@ def create_customer():
         flash(f"{msg} (Unique constraint).", "danger")
         # إبقاء المستخدم على نفس الصفحة مع الحفاظ على الإدخالات
         return render_template("customers/new.html", form=form, return_to=request.form.get("return_to"))
-    except SQLAlchemyError as e:
+    except SQLAlchemyError:
         db.session.rollback()
         current_app.logger.exception("SQLAlchemyError while creating customer")
         if is_ajax:
-            return jsonify({"ok": False, "message": f"خطأ أثناء إضافة العميل: {e}"}), 500
-        current_app.logger.exception('internal error')
+            return jsonify({"ok": False, "message": "خطأ أثناء إضافة العميل"}), 500
         flash('❌ خطأ أثناء إضافة العميل', 'danger')
         # إبقاء المستخدم على نفس الصفحة مع عرض الخطأ بشكل ودي
         return render_template("customers/new.html", form=form, return_to=request.form.get("return_to"))
@@ -847,11 +846,10 @@ def edit_customer(customer_id):
                 flash("بريد أو هاتف مكرر (Unique constraint).", "danger")
                 current_app.logger.exception("IntegrityError while editing customer")
                 return render_template("customers/edit.html", form=form, customer=cust), 409
-            except SQLAlchemyError as e:
+            except SQLAlchemyError:
                 db.session.rollback()
-                current_app.logger.exception('internal error')
-                flash('❌ خطأ أثناء تعديل العميل', 'danger')
                 current_app.logger.exception("SQLAlchemyError while editing customer")
+                flash('❌ خطأ أثناء تعديل العميل', 'danger')
                 return render_template("customers/edit.html", form=form, customer=cust), 500
             flash("تم تعديل بيانات العميل", "success")
             return redirect(url_for("customers_bp.customer_detail", customer_id=customer_id))
