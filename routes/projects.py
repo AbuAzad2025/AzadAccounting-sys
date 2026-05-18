@@ -307,6 +307,9 @@ def add_cost(id):
         project = db.get_or_404(Project, id)
         
         amount = Decimal(request.form.get('amount'))
+        if amount < 0:
+            flash('مبلغ التكلفة لا يمكن أن يكون سالباً', 'danger')
+            return redirect(url_for('projects.view_project', id=id))
         cost_date = datetime.strptime(request.form.get('cost_date'), '%Y-%m-%d').date()
         category = request.form.get('category')
         phase_id = request.form.get('phase_id', type=int)
@@ -383,6 +386,9 @@ def add_revenue(id):
         project = db.get_or_404(Project, id)
         
         amount = Decimal(request.form.get('amount'))
+        if amount < 0:
+            flash('مبلغ الإيراد لا يمكن أن يكون سالباً', 'danger')
+            return redirect(url_for('projects.view_project', id=id))
         revenue_date = datetime.strptime(request.form.get('revenue_date'), '%Y-%m-%d').date()
         category = request.form.get('category')
         phase_id = request.form.get('phase_id', type=int)

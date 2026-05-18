@@ -227,6 +227,9 @@ def allocate(id):
         center = db.get_or_404(CostCenter, id)
         
         amount = Decimal(request.form.get('amount'))
+        if amount < 0:
+            flash('مبلغ التوزيع لا يمكن أن يكون سالباً', 'danger')
+            return redirect(url_for('cost_centers.view', id=id))
         allocation_date = datetime.strptime(request.form.get('allocation_date'), '%Y-%m-%d').date()
         reference_type = request.form.get('reference_type')
         reference_id = request.form.get('reference_id', type=int)

@@ -4765,6 +4765,10 @@ def add_check():
                 flash("يرجى ملء جميع الحقول المطلوبة", "danger")
                 return redirect(url_for("checks.add_check"))
             
+            if amount < 0:
+                flash("مبلغ الشيك لا يمكن أن يكون سالباً", "danger")
+                return redirect(url_for("checks.add_check"))
+            
             check_date = datetime.strptime(check_date_str, "%Y-%m-%d") if check_date_str else datetime.now(timezone.utc)
             check_due_date = datetime.strptime(check_due_date_str, "%Y-%m-%d") if check_due_date_str else datetime.now(timezone.utc)
             
@@ -4837,6 +4841,9 @@ def edit_check(check_id):
             check.check_date = datetime.strptime(request.form.get("check_date"), "%Y-%m-%d")
             check.check_due_date = datetime.strptime(request.form.get("check_due_date"), "%Y-%m-%d")
             check.amount = Decimal(request.form.get("amount", 0))
+            if check.amount < 0:
+                flash("مبلغ الشيك لا يمكن أن يكون سالباً", "danger")
+                return redirect(url_for("checks.edit_check", check_id=check_id))
             check.currency = request.form.get("currency", "ILS")
             check.direction = request.form.get("direction")
             
