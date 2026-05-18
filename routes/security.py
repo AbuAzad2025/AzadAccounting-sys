@@ -7587,6 +7587,8 @@ def _vat_backfill_sales_for_period(period: str) -> dict:
             continue
 
         denom = (Decimal("1") + (sale_rate / Decimal("100")))
+        if denom <= Decimal("0"):
+            continue
         base = (total / denom).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         tax = (total - base).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         if tax <= Decimal("0.00"):
