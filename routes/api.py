@@ -16,6 +16,7 @@ import utils
 from utils import permission_required
 from permissions_config.enums import SystemPermissions
 from barcodes import validate_barcode
+from constants import DEFAULT_CURRENCY
 
 from models import (
     Archive,
@@ -281,7 +282,7 @@ def _req(value, field, errors: dict):
     return value
 
 def _norm_currency(v):
-    return (v or "ILS").strip().upper()
+    return (v or DEFAULT_CURRENCY).strip().upper()
 
 def _money(x) -> str:
     return f"{_q2(x):.2f}"
@@ -1184,14 +1185,14 @@ def product_info(pid: int):
         return jsonify({"error": "Not Found"}), 404
     
     wid = request.args.get("warehouse_id", type=int)
-    target_currency = (request.args.get("currency") or "ILS").upper()
+    target_currency = (request.args.get("currency") or DEFAULT_CURRENCY).upper()
     
     available = None
     if wid:
         sl = StockLevel.query.filter_by(product_id=pid, warehouse_id=wid).first()
         available = sl.quantity if sl else 0
     
-    product_currency = (p.currency or "ILS").upper()
+    product_currency = (p.currency or DEFAULT_CURRENCY).upper()
     product_price = Decimal(str(p.price or 0))
     
     if product_currency == target_currency:
@@ -1328,7 +1329,7 @@ def api_warehouse_products_stocked(id):
             "sku": p.sku or "",
             "part_number": p.part_number or "",
             "barcode": p.barcode or "",
-            "currency": p.currency or "ILS",
+            "currency": p.currency or DEFAULT_CURRENCY,
             "quantity": float(sl.quantity or 0),
             "warehouse_id": id,
             "warehouse_name": w.name,
@@ -2499,7 +2500,7 @@ def create_sale_api():
         seller_employee_id=seller_employee_id,
         sale_date=d.get("sale_date") or datetime.now(timezone.utc),
         status=status,
-        currency=(d.get("currency") or "ILS").upper(),
+        currency=(d.get("currency") or DEFAULT_CURRENCY).upper(),
         tax_rate=_as_float(d.get("tax_rate")) or 0.0,
         discount_total=_D(d.get("discount_total")),
         shipping_cost=_D(d.get("shipping_cost")),
@@ -2574,7 +2575,7 @@ def update_sale_api(id: int):
     if "sale_date" in data:
         s.sale_date = data.get("sale_date") or s.sale_date
     if "currency" in data:
-        s.currency = (data.get("currency") or s.currency or "ILS").upper()
+        s.currency = (data.get("currency") or s.currency or DEFAULT_CURRENCY).upper()
     if "tax_rate" in data:
         s.tax_rate = float(data.get("tax_rate") or 0)
     if "discount_total" in data:
@@ -2728,7 +2729,7 @@ def quick_sell_api():
         seller_employee_id=seller_employee_id,
         sale_date=datetime.now(timezone.utc),
         status=status,
-        currency=(d.get("currency") or "ILS").upper(),
+        currency=(d.get("currency") or DEFAULT_CURRENCY).upper(),
     )
     db.session.add(s)
     db.session.flush()
@@ -2739,14 +2740,6 @@ def quick_sell_api():
         _reserve_stock(s)
     try:
         db.session.commit()
-        
-        # تحديث رصيد العميل
-        try:
-            from utils.customer_balance_updater import update_customer_balance_components
-            update_customer_balance_components(s.customer_id)
-        except Exception as e:
-            current_app.logger.error(f"Error updating customer balance: {e}")
-
         return jsonify({"success": True, "id": s.id, "sale_number": s.sale_number}), 201
     except Exception as e:
         db.session.rollback()
@@ -2892,21 +2885,9 @@ def create_exchange_transaction():
     warning = None
     try:
         if direction == "IN":
-            _lock_stock_rows([(pid, wid)])
-            rec = _stock_row_locked(pid, wid)
-            rec.quantity = int(rec.quantity or 0) + qty
-            db.session.flush()
             if not priced:
                 warning = "لم تُدخل تكلفة، ستُحفظ الحركة كغير مسعّرة وسيُطلب تسعيرها لاحقًا."
         elif direction == "OUT":
-            _lock_stock_rows([(pid, wid)])
-            rec = _stock_row_locked(pid, wid)
-            available = int(rec.quantity or 0) - int(rec.reserved_quantity or 0)
-            if available < qty:
-                db.session.rollback()
-                return jsonify({"success": False, "error": "insufficient_stock", "available": max(available, 0)}), 400
-            rec.quantity = int(rec.quantity or 0) - qty
-            db.session.flush()
             if not priced:
                 warning = "لم تُدخل تكلفة لهذه الحركة."
         elif direction == "ADJUSTMENT":
@@ -2957,18 +2938,6 @@ def delete_exchange_transaction(id: int):
     qty = int(getattr(x, "quantity", 0) or 0)
     direction = (getattr(x, "direction", "") or "").upper()
     try:
-        if direction in {"IN", "OUT"} and pid and wid and qty > 0:
-            _lock_stock_rows([(pid, wid)])
-            rec = _stock_row_locked(pid, wid)
-            if direction == "IN":
-                reserved = int(rec.reserved_quantity or 0)
-                new_qty = int(rec.quantity or 0) - qty
-                if new_qty < 0 or new_qty < reserved:
-                    return jsonify({"success": False, "error": "insufficient_stock_to_reverse"}), 400
-                rec.quantity = new_qty
-            elif direction == "OUT":
-                rec.quantity = int(rec.quantity or 0) + qty
-            db.session.flush()
         db.session.delete(x)
         db.session.commit()
         return jsonify({"success": True})
