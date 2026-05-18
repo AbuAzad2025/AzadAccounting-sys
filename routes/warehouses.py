@@ -2034,7 +2034,12 @@ SELECT setval(
                         )
                         db.session.add(payment)
 
-            db.session.commit()
+            try:
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+                current_app.logger.exception('commit error')
+                raise ValueError('حدث خطأ أثناء الحفظ')
             return product, (existing_product is None)
 
         def _flash_success(product, created):
@@ -3901,7 +3906,12 @@ def api_product_partners_add(product_id):
         share_percentage=share_pct
     )
     db.session.add(pps)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception('commit error')
+        return jsonify({'success': False, 'error': 'حدث خطأ داخلي'}), 500
     
     return jsonify({
         "success": True,
@@ -3936,7 +3946,12 @@ def api_product_partners_update(product_id, share_id):
         return jsonify({"success": False, "message": "النسبة غير صالحة"}), 400
     
     pps.share_percentage = share_pct
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception('commit error')
+        return jsonify({'success': False, 'error': 'حدث خطأ داخلي'}), 500
     
     return jsonify({
         "success": True,
@@ -3961,7 +3976,12 @@ def api_product_partners_delete(product_id, share_id):
         return jsonify({"success": False, "message": "خطأ في البيانات"}), 400
     
     db.session.delete(pps)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception('commit error')
+        return jsonify({'success': False, 'error': 'حدث خطأ داخلي'}), 500
     
     return jsonify({"success": True, "message": "تم حذف الشريك بنجاح"})
 
@@ -4006,7 +4026,12 @@ def api_product_suppliers_update(product_id):
         except (ValueError, InvalidOperation):
             return jsonify({"success": False, "message": "سعر التكلفة غير صالح"}), 400
     
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception('commit error')
+        flash('حدث خطأ أثناء الحفظ', 'danger')
     
     # جلب اسم المورد إذا كان موجوداً
     supplier_name = ""

@@ -326,7 +326,8 @@ def archive_sale(id):
             sale.is_archived = True
             db.session.commit()
             return jsonify({"status": "success", "message": "تم أرشفة عملية البيع بنجاح (يدوي)"})
-        except:
+        except Exception:
+            db.session.rollback()
             current_app.logger.exception('API error')
             return jsonify({"error": "حدث خطأ داخلي"}), 500
 
@@ -340,6 +341,7 @@ def restore_sale(id):
         restore_record(id, Sale)
         return jsonify({"status": "success", "message": "تم استعادة عملية البيع بنجاح"})
     except Exception as e:
+        db.session.rollback()
         sale = db.session.get(Sale, id)
         if sale:
             sale.is_archived = False
@@ -1145,7 +1147,7 @@ def sale_detail(id: int):
         except Exception:
             paid_ils = Decimal('0.00'); grand_total_ils = grand_total; balance_due_ils = (grand_total - paid_ils)
     except Exception:
-        pass
+        current_app.logger.warning(f'Failed to compute ILS totals for sale {id}')
     invoice = Invoice.query.filter_by(sale_id=id).first()
     return render_template(
         "sales/detail.html",

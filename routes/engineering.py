@@ -220,9 +220,15 @@ def add_task():
             assigned_to_id = request.form.get('assigned_to_id', type=int)
             estimated_hours = Decimal(request.form.get('estimated_hours', 0))
             estimated_cost = Decimal(request.form.get('estimated_cost', 0))
-            scheduled_start = datetime.strptime(request.form.get('scheduled_start'), '%Y-%m-%dT%H:%M')
+            try:
+                scheduled_start = datetime.strptime(request.form.get('scheduled_start'), '%Y-%m-%dT%H:%M')
+            except (ValueError, TypeError):
+                scheduled_start = None
             scheduled_end_str = request.form.get('scheduled_end')
-            scheduled_end = datetime.strptime(scheduled_end_str, '%Y-%m-%dT%H:%M') if scheduled_end_str else None
+            try:
+                scheduled_end = datetime.strptime(scheduled_end_str, '%Y-%m-%dT%H:%M') if scheduled_end_str else None
+            except (ValueError, TypeError):
+                scheduled_end = None
             customer_id = request.form.get('customer_id', type=int)
             location = request.form.get('location', '')
             cost_center_id = request.form.get('cost_center_id', type=int)

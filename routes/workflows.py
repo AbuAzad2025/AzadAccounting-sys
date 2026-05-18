@@ -108,7 +108,7 @@ def add_definition():
             
             try:
                 steps = json.loads(steps_json)
-            except:
+            except Exception:
                 flash('خطأ في تنسيق خطوات Workflow', 'danger')
                 return redirect(request.url)
             
@@ -161,7 +161,7 @@ def edit_definition(id):
             if steps_json:
                 try:
                     definition.steps_definition = json.loads(steps_json)
-                except:
+                except Exception:
                     flash('خطأ في تنسيق خطوات Workflow', 'danger')
                     return redirect(request.url)
             
@@ -446,7 +446,10 @@ def report_performance():
     query = WorkflowInstance.query
     
     if date_from:
-        date_from_obj = datetime.strptime(date_from, '%Y-%m-%d')
+        try:
+            date_from_obj = datetime.strptime(date_from, '%Y-%m-%d')
+        except (ValueError, TypeError):
+            date_from_obj = None
         query = query.filter(WorkflowInstance.started_at >= date_from_obj)
     
     if date_to:

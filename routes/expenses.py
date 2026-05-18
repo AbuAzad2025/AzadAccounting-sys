@@ -814,8 +814,14 @@ def get_installments_due(emp_id):
     from flask import jsonify
     from calendar import monthrange
     
-    month = int(request.args.get('month', datetime.now().month))
-    year = int(request.args.get('year', datetime.now().year))
+    try:
+        month = int(request.args.get('month', datetime.now().month))
+    except (ValueError, TypeError):
+        month = 0
+    try:
+        year = int(request.args.get('year', datetime.now().year))
+    except (ValueError, TypeError):
+        year = 0
     
     period_start = _date(year, month, 1)
     if month == 12:
@@ -858,13 +864,22 @@ def generate_salary(emp_id):
     
     employee = _get_or_404(Employee, emp_id)
     
-    month = int(request.form.get('month', date.today().month))
-    year = int(request.form.get('year', date.today().year))
+    try:
+        month = int(request.form.get('month', date.today().month))
+    except (ValueError, TypeError):
+        month = 0
+    try:
+        year = int(request.form.get('year', date.today().year))
+    except (ValueError, TypeError):
+        year = 0
     
     if year < 1900 or year > 2100:
         year = date.today().year
     
-    base_salary = Decimal(request.form.get('base_salary', employee.salary))
+    try:
+        base_salary = Decimal(str(request.form.get('base_salary', employee.salary)))
+    except (InvalidOperation, TypeError, ValueError):
+        base_salary = Decimal(str(employee.salary))
     payment_method_raw = request.form.get('payment_method', 'BANK_TRANSFER')
     payment_date = request.form.get('payment_date', date.today().isoformat())
     notes = request.form.get('notes', '')
@@ -918,7 +933,10 @@ def generate_salary(emp_id):
     
     net_salary = net_salary_before_advances - total_installments_amount
     
-    actual_payment = Decimal(request.form.get('actual_payment', net_salary))
+    try:
+        actual_payment = Decimal(str(request.form.get('actual_payment', net_salary)))
+    except (InvalidOperation, TypeError, ValueError):
+        actual_payment = Decimal(str(net_salary))
     remaining_balance = net_salary - actual_payment
     
     if actual_payment > net_salary:
@@ -1801,7 +1819,7 @@ def detail(exp_id):
                     try:
                         import json
                         details = json.loads(details)
-                    except:
+                    except Exception:
                         details = {}
                 check_number = details.get("check_number") or p.check_number
                 check_bank = details.get("check_bank") or p.check_bank
@@ -2174,6 +2192,7 @@ def add():
                         db.session.commit()
                         current_app.logger.info(f"✅ أقساط السلفة {exp.id}: {installments_count} قسط")
             except Exception as e:
+                db.session.rollback()
                 current_app.logger.error(f"❌ فشل إنشاء أقساط السلفة: {e}")
             
             try:
@@ -2195,6 +2214,7 @@ def add():
                     db.session.commit()
                     current_app.logger.info(f"✅ خصم شهري لموظف {exp.employee_id} من مصروف {exp.id}")
             except Exception as e:
+                db.session.rollback()
                 current_app.logger.error(f"❌ فشل إنشاء خصم شهري: {e}")
             
             try:
@@ -2226,6 +2246,7 @@ def add():
                             db.session.commit()
                             current_app.logger.info(f"✅ تم إنشاء سجل شيك من مصروف رقم {exp.id}")
             except Exception as e:
+                db.session.rollback()
                 current_app.logger.error(f"❌ فشل إنشاء سجل شيك من مصروف {exp.id}: {str(e)}")
                 db.session.commit()
             
@@ -2319,7 +2340,12 @@ def quick_supplier_service():
     exp.payment_details = None
     db.session.add(exp)
     db.session.flush()
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception('commit error')
+        flash('حدث خطأ أثناء الحفظ', 'danger')
     flash("تم إنشاء المصروف بنجاح.", "success")
 
     try:
@@ -2461,7 +2487,12 @@ def quick_partner_service():
     exp.payment_details = None
     db.session.add(exp)
     db.session.flush()
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception('commit error')
+        flash('حدث خطأ أثناء الحفظ', 'danger')
     flash("تم إنشاء المصروف بنجاح.", "success")
 
     try:
@@ -2956,8 +2987,14 @@ def payroll_monthly():
 
     
     today = datetime.now()
-    month = int(request.args.get('month', today.month))
-    year = int(request.args.get('year', today.year))
+    try:
+        month = int(request.args.get('month', today.month))
+    except (ValueError, TypeError):
+        month = 0
+    try:
+        year = int(request.args.get('year', today.year))
+    except (ValueError, TypeError):
+        year = 0
     
     employees = Employee.query.order_by(Employee.name).all()
     
@@ -3043,10 +3080,19 @@ def generate_all_salaries():
     from sqlalchemy import extract as sql_extract, or_
     
     today = datetime.now()
-    month = int(request.form.get('month', today.month))
-    year = int(request.form.get('year', today.year))
+    try:
+        month = int(request.form.get('month', today.month))
+    except (ValueError, TypeError):
+        month = 0
+    try:
+        year = int(request.form.get('year', today.year))
+    except (ValueError, TypeError):
+        year = 0
     payment_date = request.form.get('payment_date', today.date().isoformat())
-    pay_date = datetime.strptime(payment_date, '%Y-%m-%d').date() if payment_date else datetime.now().date()
+    try:
+        pay_date = datetime.strptime(payment_date, '%Y-%m-%d').date() if payment_date else datetime.now().date()
+    except (ValueError, TypeError):
+        pay_date = None
     allow_auto_pay = pay_date <= today.date()
     
     employees = Employee.query.order_by(Employee.name).limit(1000).all()
@@ -3176,7 +3222,10 @@ def payroll_summary():
     from models import ExpenseType
     from sqlalchemy import extract as sql_extract
     
-    year = int(request.args.get('year', datetime.now().year))
+    try:
+        year = int(request.args.get('year', datetime.now().year))
+    except (ValueError, TypeError):
+        year = 0
     
     salary_type = ExpenseType.query.filter_by(code='SALARY').first()
     

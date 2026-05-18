@@ -271,6 +271,9 @@ def execute_allocation_rule(rule_id):
         
         execution_date = datetime.strptime(request.form.get('execution_date'), '%Y-%m-%d').date()
         total_amount = Decimal(request.form.get('total_amount'))
+        if total_amount < 0:
+            flash('مبلغ التوزيع لا يمكن أن يكون سالباً', 'danger')
+            return redirect(url_for('cost_centers_advanced.allocation_rules'))
         
         execution = CostAllocationExecution(
             rule_id=rule.id,

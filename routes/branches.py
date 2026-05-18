@@ -517,7 +517,10 @@ def export_branches():
 def api_search_branches():
     """API بحث الفروع (للاستخدام في قوائم الاختيار)"""
     q = request.args.get('q', '').strip()
-    limit = int(request.args.get('limit', 50))
+    try:
+        limit = int(request.args.get('limit', 50))
+    except (ValueError, TypeError):
+        limit = 50
     
     query = Branch.query.filter_by(is_active=True)
     if q:

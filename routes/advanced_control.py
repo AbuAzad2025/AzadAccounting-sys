@@ -328,7 +328,7 @@ def db_merger():
             size_bytes = db.session.execute(text("SELECT pg_database_size(current_database())")).scalar()
             size_mb = round(size_bytes / (1024 * 1024), 2)
             stats['current_db_size'] = f"{size_mb} MB"
-        except:
+        except Exception:
             stats['current_db_size'] = "Unknown"
 
         # Tables
@@ -336,7 +336,7 @@ def db_merger():
             inspector = inspect(db.engine)
             tables = inspector.get_table_names()
             stats['total_tables'] = len(tables)
-        except:
+        except Exception:
             pass
         
     except Exception as e:
@@ -391,7 +391,12 @@ def multi_tenant():
                 flash('❌ قاعدة بيانات الـ Tenant يجب أن تكون PostgreSQL (postgresql://...)', 'danger')
                 return redirect(url_for('advanced.multi_tenant'))
             
-            db.session.commit()
+            try:
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+                current_app.logger.exception('commit error')
+                flash('حدث خطأ أثناء الحفظ', 'danger')
             _log_owner_action('multi_tenant.create', tenant_name, {
                 'db': tenant_db,
                 'modules': tenant_modules,
@@ -408,7 +413,12 @@ def multi_tenant():
             setting = SystemSettings.query.filter_by(key=f'tenant_{tenant_name}_active').first()
             if setting:
                 setting.value = 'False' if setting.value == 'True' else 'True'
-                db.session.commit()
+                try:
+                    db.session.commit()
+                except Exception:
+                    db.session.rollback()
+                    current_app.logger.exception('commit error')
+                    flash('حدث خطأ أثناء الحفظ', 'danger')
                 _log_owner_action('multi_tenant.toggle', tenant_name, {
                     'new_status': setting.value,
                 })
@@ -426,7 +436,12 @@ def multi_tenant():
                 return redirect(url_for('advanced.multi_tenant'))
                                          
             SystemSettings.query.filter(SystemSettings.key.like(f'tenant_{tenant_name}_%')).delete()
-            db.session.commit()
+            try:
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+                current_app.logger.exception('commit error')
+                flash('حدث خطأ أثناء الحفظ', 'danger')
             _log_owner_action('multi_tenant.delete', tenant_name)
             flash(f'✅ تم حذف Tenant: {tenant_name}', 'success')
             return redirect(url_for('advanced.multi_tenant'))
@@ -447,7 +462,12 @@ def multi_tenant():
             _update_tenant_setting(f'tenant_{tenant_name}_max_users', tenant_max_users)
             _update_tenant_setting(f'tenant_{tenant_name}_modules', json.dumps(tenant_modules))
             
-            db.session.commit()
+            try:
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+                current_app.logger.exception('commit error')
+                flash('حدث خطأ أثناء الحفظ', 'danger')
             _log_owner_action('multi_tenant.update', tenant_name, {
                 'domain': tenant_domain,
                 'max_users': tenant_max_users,
@@ -507,7 +527,12 @@ def dashboard_links():
             else:
                 db.session.add(SystemSettings(key=f'dashboard_link_{link_key}', value=str(visible)))
             
-            db.session.commit()
+            try:
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+                current_app.logger.exception('commit error')
+                flash('حدث خطأ أثناء الحفظ', 'danger')
             _log_owner_action('dashboard_links.toggle', link_key, {'visible': visible})
             flash(f'✅ تم تحديث: {link_key}', 'success')
             return redirect(url_for('advanced.dashboard_links'))
@@ -559,7 +584,12 @@ def version_control():
             db.session.add(SystemSettings(key=f'version_{version_name}_notes', value=version_notes))
             if version_diff:
                 db.session.add(SystemSettings(key=f'version_{version_name}_diff', value=version_diff))
-            db.session.commit()
+            try:
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+                current_app.logger.exception('commit error')
+                flash('حدث خطأ أثناء الحفظ', 'danger')
             _log_owner_action('version.create', version_name, summary)
             
             flash(f'✅ تم إنشاء إصدار: {version_name}', 'success')
@@ -571,7 +601,12 @@ def version_control():
                 flash('❌ اسم الإصدار يجب أن يكون بدون مسافات أو رموز خاصة', 'danger')
                 return redirect(url_for('advanced.version_control'))
             SystemSettings.query.filter(SystemSettings.key.like(f'version_{version_name}_%')).delete()
-            db.session.commit()
+            try:
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+                current_app.logger.exception('commit error')
+                flash('حدث خطأ أثناء الحفظ', 'danger')
             _log_owner_action('version.delete', version_name)
             flash(f'✅ تم حذف الإصدار: {version_name}', 'success')
             return redirect(url_for('advanced.version_control'))
@@ -622,7 +657,12 @@ def licensing():
         else:
             db.session.add(SystemSettings(key='license_info', value=json.dumps(license_data)))
         
-        db.session.commit()
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            current_app.logger.exception('commit error')
+            return jsonify({'success': False, 'error': 'حدث خطأ داخلي'}), 500
         flash('✅ تم تفعيل الترخيص', 'success')
         return redirect(url_for('advanced.licensing'))
     
@@ -801,7 +841,12 @@ def backup_manager():
             else:
                 db.session.add(SystemSettings(key='auto_backup_schedule', value=json.dumps({'type': schedule_type, 'time': schedule_time})))
             
-            db.session.commit()
+            try:
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+                current_app.logger.exception('commit error')
+                return jsonify({'success': False, 'error': 'حدث خطأ داخلي'}), 500
             flash(f'✅ تم جدولة النسخ الاحتياطي: {schedule_type}', 'success')
             _log_owner_action('backup.schedule', schedule_type, {
                 'time': schedule_time,
@@ -1045,6 +1090,7 @@ def toggle_auto_backup():
             _log_owner_action('backup.auto_toggle', 'disabled')
             
     except Exception as e:
+        db.session.rollback()
         current_app.logger.exception('internal error')
         flash('حدث خطأ داخلي', 'danger')
     
@@ -1121,7 +1167,12 @@ def feature_flags():
         else:
             db.session.add(SystemSettings(key=f'feature_{flag_key}', value=str(enabled)))
         
-        db.session.commit()
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            current_app.logger.exception('commit error')
+            flash('حدث خطأ أثناء الحفظ', 'danger')
         _log_owner_action('feature_flags.toggle', flag_key, {'enabled': enabled})
         flash(f'✅ تم تحديث: {flag_key}', 'success')
         return redirect(url_for('advanced.feature_flags'))
@@ -2037,35 +2088,60 @@ def _normalize_security_settings(source, base=None, preserve_missing=False):
 def _save_bank_settings(source, base=None, preserve_missing=False):
     settings = _normalize_bank_settings(source, base, preserve_missing)
     _persist_settings_dict(settings)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception('commit error')
+        flash('حدث خطأ أثناء الحفظ', 'danger')
     return settings
 
 
 def _save_cost_center_settings(source, base=None, preserve_missing=False):
     settings = _normalize_cost_center_settings(source, base, preserve_missing)
     _persist_settings_dict(settings)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception('commit error')
+        flash('حدث خطأ أثناء الحفظ', 'danger')
     return settings
 
 
 def _save_project_settings(source, base=None, preserve_missing=False):
     settings = _normalize_project_settings(source, base, preserve_missing)
     _persist_settings_dict(settings)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception('commit error')
+        flash('حدث خطأ أثناء الحفظ', 'danger')
     return settings
 
 
 def _save_automation_settings(source, base=None, preserve_missing=False):
     settings = _normalize_automation_settings(source, base, preserve_missing)
     _persist_settings_dict(settings)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception('commit error')
+        flash('حدث خطأ أثناء الحفظ', 'danger')
     return settings
 
 
 def _save_security_settings(source, base=None, preserve_missing=False):
     settings = _normalize_security_settings(source, base, preserve_missing)
     _persist_settings_dict(settings)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception('commit error')
+        flash('حدث خطأ أثناء الحفظ', 'danger')
     return settings
 
 
@@ -3707,7 +3783,12 @@ def financial_control():
                     setting = SystemSettings(key=key, value=str(value), data_type=dtype, is_public=False)
                     db.session.add(setting)
             
-            db.session.commit()
+            try:
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+                current_app.logger.exception('commit error')
+                return jsonify({'success': False, 'error': 'حدث خطأ داخلي'}), 500
             flash('تم حفظ إعدادات الميزانية بنجاح', 'success')
             return redirect(url_for('advanced.financial_control'))
         
@@ -3731,7 +3812,12 @@ def financial_control():
                     setting = SystemSettings(key=key, value=str(value), data_type=dtype, is_public=False)
                     db.session.add(setting)
             
-            db.session.commit()
+            try:
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+                current_app.logger.exception('commit error')
+                return jsonify({'success': False, 'error': 'حدث خطأ داخلي'}), 500
             flash('تم حفظ إعدادات الأصول الثابتة بنجاح', 'success')
             return redirect(url_for('advanced.financial_control'))
     

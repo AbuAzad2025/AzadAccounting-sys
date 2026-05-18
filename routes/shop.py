@@ -434,7 +434,12 @@ class BlooprintAdapter(GatewayAdapter):
         op.cardholder_name = payload.get("cardholder_name") or op.cardholder_name
         op.transaction_data = payload
         db.session.add(op)
-        db.session.commit()
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            current_app.logger.exception('commit error')
+            return jsonify({'success': False, 'error': 'حدث خطأ داخلي'}), 500
         return {"ok": True, "payment_id": op.id, "status": op.status}
 
 _GATEWAYS = {"blooprint": BlooprintAdapter()}

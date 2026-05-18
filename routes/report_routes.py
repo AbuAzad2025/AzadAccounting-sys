@@ -503,7 +503,8 @@ def dynamic_report():
         try:
             model = _ensure_model(table)
         except BadRequest as e:
-            flash(str(e), 'danger')
+            current_app.logger.warning('dynamic_report BadRequest: %s', e)
+            flash('الجدول المطلوب غير صالح', 'danger')
             return render_template("reports/dynamic.html", data=None, summary=None, columns=selected_fields, model_names=model_names, selected_table=None, defaults=_DEFAULT_DATE_FIELD, date_field=date_field, start_date=request.form.get("start_date", ""), end_date=request.form.get("end_date", ""), like_filters={}, limit=limit, FIELD_LABELS=FIELD_LABELS, MODEL_LABELS=MODEL_LABELS), 400
         cols = [c for c in _model_all_fields(model) if _is_selectable_field(model, c)]
         all_fields = _model_all_fields(model)
@@ -518,7 +519,8 @@ def dynamic_report():
         try:
             rpt = advanced_report(model=model, date_field=date_field or None, start_date=start_date, end_date=end_date, filters=None, like_filters=like_filters or None, columns=selected_fields, aggregates={"count": ["id"]})
         except ValueError as e:
-            flash(str(e), 'danger')
+            current_app.logger.warning('dynamic_report ValueError: %s', e)
+            flash('خطأ في معالجة التقرير', 'danger')
             return render_template("reports/dynamic.html", data=None, summary=None, columns=(selected_fields or []), model_names=model_names, selected_table=table, defaults=_DEFAULT_DATE_FIELD, date_field=(date_field or ""), start_date=request.form.get("start_date", ""), end_date=request.form.get("end_date", ""), like_filters=like_filters, limit=limit, FIELD_LABELS=FIELD_LABELS, MODEL_LABELS=MODEL_LABELS), 400
         data = rpt.get("data") or []
         if limit:

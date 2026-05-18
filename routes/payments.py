@@ -867,7 +867,7 @@ def index():
             elif isinstance(x.payment_date, str):
                 try:
                     payment_date = datetime.strptime(x.payment_date, '%Y-%m-%d')
-                except:
+                except Exception:
                     payment_date = datetime.min
             elif isinstance(x.payment_date, date):
                 payment_date = datetime.combine(x.payment_date, datetime.min.time())
@@ -877,22 +877,22 @@ def index():
             if item_id.startswith('check_'):
                 try:
                     item_id = int(item_id.replace('check_', ''))
-                except:
+                except Exception:
                     item_id = 0
             elif '_split_' in item_id:
                 try:
                     parent_id = int(item_id.split('_split_')[0])
                     split_id = int(item_id.split('_split_')[1])
                     item_id = parent_id * 1000000 + split_id
-                except:
+                except Exception:
                     try:
                         item_id = int(item_id.replace('_split_', ''))
-                    except:
+                    except Exception:
                         item_id = 0
             else:
                 try:
                     item_id = int(item_id)
-                except:
+                except Exception:
                     item_id = 0
         
         return (payment_date, item_id)
@@ -1787,6 +1787,7 @@ def create_payment():
                         db.session.commit()
                         current_app.logger.info(f"✅ تم حفظ الشيكات من دفعة {payment.id}")
                     except Exception as e:
+                        db.session.rollback()
                         current_app.logger.error(f"❌ فشل إنشاء سجل شيك من دفعة {payment.id}: {str(e)}")
                 
                 utils.log_audit("Payment", payment.id, "CREATE")
@@ -1822,6 +1823,7 @@ def create_payment():
                             db.session.commit()
                             current_app.logger.info(f"✅ تم تسوية الشيك {check_token} بعد حفظ الدفعة {payment.id}")
                     except Exception as e:
+                        db.session.rollback()
                         current_app.logger.error(f"⚠️ فشل تسوية الشيك {check_token} بعد حفظ الدفعة {payment.id}: {str(e)}")
             except SQLAlchemyError:
                 db.session.rollback()
@@ -3763,7 +3765,7 @@ def refund_split(split_id: int):
             split.details = details
             db.session.add(split)
         except Exception:
-            pass
+            current_app.logger.warning(f'Failed to mark split {split.id} details as refunded')
         try:
             split_method_val = getattr(split.method, 'value', split.method)
             if str(split_method_val).upper() == PaymentMethod.CHEQUE.value:
@@ -3913,6 +3915,7 @@ def refund_payment(payment_id: int):
                         else:
                             service.run(sp.id, 'RETURNED', base_note + ' [RETURN_REASON=PAYMENT_REFUND]')
                     except Exception:
+                        current_app.logger.warning(f'Failed to update check status for split {sp.id} during refund')
                         continue
             else:
                 method_val = getattr(original.method, 'value', original.method)
@@ -3926,7 +3929,7 @@ def refund_payment(payment_id: int):
                         else:
                             service.run(original.id, 'RETURNED', base_note + ' [RETURN_REASON=PAYMENT_REFUND]')
                     except Exception:
-                        pass
+                        current_app.logger.warning(f'Failed to update check status for payment {original.id} during refund')
         finally:
             db.session.commit()
         

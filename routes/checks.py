@@ -780,7 +780,7 @@ def _check_create_payment_auto(mapper, connection, target):
                     use_new_connection = True
                     connection_from_event = False
                     connection = db.engine.connect()
-            except:
+            except Exception:
                 pass
         
         try:
@@ -839,13 +839,13 @@ def _check_create_payment_auto(mapper, connection, target):
                 try:
                     connection.close()
                     current_app.logger.info(f"🔍 [CHECK_PAYMENT_AUTO] تم إغلاق connection الجديد")
-                except:
+                except Exception:
                     pass
         except Exception as conn_e:
             if use_new_connection and not connection_from_event:
                 try:
                     connection.close()
-                except:
+                except Exception:
                     pass
             raise conn_e
         
@@ -1424,7 +1424,7 @@ def create_gl_entry_for_check(check_id, check_type, amount, currency, direction,
                     if should_close_connection:
                         try:
                             connection.close()
-                        except:
+                        except Exception:
                             pass
                     connection = db.engine.connect()
                     should_close_connection = True
@@ -1433,7 +1433,7 @@ def create_gl_entry_for_check(check_id, check_type, amount, currency, direction,
                 if should_close_connection:
                     try:
                         connection.close()
-                    except:
+                    except Exception:
                         pass
                 connection = db.engine.connect()
                 should_close_connection = True
@@ -1452,7 +1452,7 @@ def create_gl_entry_for_check(check_id, check_type, amount, currency, direction,
                 if should_close_connection:
                     try:
                         connection.close()
-                    except:
+                    except Exception:
                         pass
                 connection = db.engine.connect()
                 should_close_connection = True
@@ -1465,14 +1465,14 @@ def create_gl_entry_for_check(check_id, check_type, amount, currency, direction,
                 if should_close_connection:
                     try:
                         connection.close()
-                    except:
+                    except Exception:
                         pass
                 raise CheckAccountingError(f"فشل إنشاء GL batch: {str(conn_e)}", code='GL_BATCH_CREATION_FAILED')
         except Exception as e:
             if should_close_connection:
                 try:
                     connection.close()
-                except:
+                except Exception:
                     pass
             raise CheckAccountingError("خطأ في إنشاء GL batch", code='GL_BATCH_ERROR')
         
@@ -1518,7 +1518,7 @@ def create_gl_entry_for_check(check_id, check_type, amount, currency, direction,
                     if should_close_connection:
                         try:
                             connection.close()
-                        except:
+                        except Exception:
                             pass
                     connection = db.engine.connect()
                     should_close_connection = True
@@ -1556,9 +1556,9 @@ def create_gl_entry_for_check(check_id, check_type, amount, currency, direction,
             if 'should_close_connection' in locals() and should_close_connection and connection:
                 try:
                     connection.close()
-                except:
+                except Exception:
                     pass
-        except:
+        except Exception:
             pass
         return None
 
@@ -2334,7 +2334,7 @@ class CheckActionService:
                         details={'auto_refund': True, 'reverse_entry': True}
                     ))
         except Exception:
-            pass
+            current_app.logger.warning(f'Failed to create auto-refund payment for payment {payment.id}')
 
     def _auto_unrefund_payment(self, payment):
         try:
@@ -2348,7 +2348,7 @@ class CheckActionService:
                 r.notes = (r.notes or '') + "\n[REVERSAL_ON_RESUBMIT=true]"
                 db.session.add(r)
         except Exception:
-            pass
+            current_app.logger.warning(f'Failed to auto-unrefund payment {payment.id}')
 
     def _auto_refund_split(self, payment, split):
         try:
@@ -2460,7 +2460,7 @@ class CheckActionService:
                     details={'auto_refund': True, 'reverse_entry': True}
                 ))
         except Exception:
-            pass
+            current_app.logger.warning(f'Failed to create auto-refund split for payment {payment.id}, split {split.id}')
 
     def _auto_unrefund_split(self, payment, split):
         try:
@@ -2474,7 +2474,7 @@ class CheckActionService:
                 r.notes = (r.notes or '') + "\n[REVERSAL_ON_RESUBMIT=true]"
                 db.session.add(r)
         except Exception:
-            pass
+            current_app.logger.warning(f'Failed to auto-unrefund split for payment {payment.id}')
 
     # تم إزالة منطق إنشاء دفعات عكس تلقائية؛ سيتم إنشاء قيود دفتر الأستاذ مباشرة عند تغيير حالة الشيك
     
@@ -4765,6 +4765,10 @@ def add_check():
                 flash("يرجى ملء جميع الحقول المطلوبة", "danger")
                 return redirect(url_for("checks.add_check"))
             
+            if amount < 0:
+                flash("مبلغ الشيك لا يمكن أن يكون سالباً", "danger")
+                return redirect(url_for("checks.add_check"))
+            
             check_date = datetime.strptime(check_date_str, "%Y-%m-%d") if check_date_str else datetime.now(timezone.utc)
             check_due_date = datetime.strptime(check_due_date_str, "%Y-%m-%d") if check_due_date_str else datetime.now(timezone.utc)
             
@@ -4837,6 +4841,9 @@ def edit_check(check_id):
             check.check_date = datetime.strptime(request.form.get("check_date"), "%Y-%m-%d")
             check.check_due_date = datetime.strptime(request.form.get("check_due_date"), "%Y-%m-%d")
             check.amount = Decimal(request.form.get("amount", 0))
+            if check.amount < 0:
+                flash("مبلغ الشيك لا يمكن أن يكون سالباً", "danger")
+                return redirect(url_for("checks.edit_check", check_id=check_id))
             check.currency = request.form.get("currency", "ILS")
             check.direction = request.form.get("direction")
             

@@ -69,6 +69,9 @@ def add():
             branch_id = request.form.get('branch_id', type=int)
             site_id = request.form.get('site_id', type=int)
             allocated_amount = Decimal(request.form.get('allocated_amount', 0))
+            if allocated_amount < 0:
+                flash('مبلغ الميزانية لا يمكن أن يكون سالباً', 'danger')
+                return redirect(request.url)
             notes = request.form.get('notes', '')
             
             budget = Budget(
@@ -114,6 +117,9 @@ def edit(id):
     if request.method == 'POST':
         try:
             budget.allocated_amount = Decimal(request.form.get('allocated_amount', 0))
+            if budget.allocated_amount < 0:
+                flash('مبلغ الميزانية لا يمكن أن يكون سالباً', 'danger')
+                return redirect(request.url)
             budget.notes = request.form.get('notes', '')
             budget.is_active = request.form.get('is_active') == 'on'
             

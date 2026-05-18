@@ -43,7 +43,12 @@ def security_control():
                 'countries': len(blocked_countries),
             })
             
-            db.session.commit()
+            try:
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+                current_app.logger.exception('commit error')
+                return jsonify({'success': False, 'error': 'حدث خطأ داخلي'}), 500
             
             flash('تم حفظ إعدادات الأمان بنجاح', 'success')
             return redirect(url_for('security_control.security_control'))
