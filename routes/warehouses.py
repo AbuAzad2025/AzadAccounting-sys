@@ -3204,9 +3204,10 @@ def create_transfer(id=None):
         except IntegrityError:
             db.session.rollback()
             return respond_error("خطأ مرجعي في قاعدة البيانات (IntegrityError). تأكد من صحة اختيارك للمستودعات والصنف.")
-        except Exception as e:
+        except Exception:
             db.session.rollback()
-            return respond_error(f"حدث خطأ غير متوقع أثناء إضافة التحويل: {e}")
+            current_app.logger.exception('internal error')
+            return respond_error("حدث خطأ غير متوقع أثناء إضافة التحويل")
 
     if request.method == "POST" and form.errors:
         msgs = []

@@ -786,11 +786,12 @@ def add_to_cart(product_id):
                 **nums
             })
         return _resp("تمت إضافة المنتج إلى السلة.", "success", code=200)
-    except SQLAlchemyError as e:
+    except SQLAlchemyError:
         db.session.rollback()
+        current_app.logger.exception('internal error')
         if _json_requested():
-            return jsonify({"ok": False, "message": f"خطأ أثناء الإضافة: {e}"}), 500
-        return _resp(f"خطأ أثناء الإضافة: {e}", "danger")
+            return jsonify({"ok": False, "message": "خطأ أثناء الإضافة"}), 500
+        return _resp("خطأ أثناء الإضافة", "danger")
 
 @shop_bp.route("/cart", endpoint="cart")
 @online_customer_required
@@ -1053,9 +1054,10 @@ def checkout():
                     data={"preorder_id": preorder.id},
                 )
             return redirect(url_for("shop.preorder_receipt", preorder_id=preorder.id))
-        except SQLAlchemyError as e:
+        except SQLAlchemyError:
             db.session.rollback()
-            return _resp(f"خطأ أثناء الدفع: {e}", "danger")
+            current_app.logger.exception('internal error')
+            return _resp("خطأ أثناء الدفع", "danger")
     return render_template("shop/pay_online.html", 
                           cart=cart, 
                           subtotal=subtotal, 
@@ -1136,9 +1138,10 @@ def cancel_preorder(preorder_id):
         with db.session.begin_nested():
             po.status = "CANCELLED"
         return _resp("تم إلغاء الطلب.", "success", code=200, to="shop.preorder_list")
-    except SQLAlchemyError as e:
+    except SQLAlchemyError:
         db.session.rollback()
-        return _resp(f"خطأ أثناء الإلغاء: {e}", "danger", to="shop.preorder_list")
+        current_app.logger.exception('internal error')
+        return _resp("خطأ أثناء الإلغاء", "danger", to="shop.preorder_list")
 
 @shop_bp.route("/admin/preorders", endpoint="admin_preorders")
 @super_admin_required
@@ -1185,9 +1188,10 @@ def admin_categories_quick_create():
         db.session.add(cat)
         db.session.commit()
         return jsonify({"ok": True, "id": cat.id, "name": cat.name}), 201
-    except SQLAlchemyError as e:
+    except SQLAlchemyError:
         db.session.rollback()
-        return jsonify({"ok": False, "error": f"{e}"}), 400
+        current_app.logger.exception('internal error')
+        return jsonify({"ok": False, "error": "خطأ في قاعدة البيانات"}), 400
 
 @shop_bp.route("/admin/products/new", methods=["GET", "POST"], endpoint="admin_product_new")
 @super_admin_required
@@ -1441,9 +1445,10 @@ def admin_product_update_fields(pid):
             },
             to="shop.admin_products",
         )
-    except SQLAlchemyError as e:
+    except SQLAlchemyError:
         db.session.rollback()
-        return _resp(f"خطأ أثناء التحديث: {e}", "danger", code=400, to="shop.admin_products")
+        current_app.logger.exception('internal error')
+        return _resp("خطأ أثناء التحديث", "danger", code=400, to="shop.admin_products")
 
 @shop_bp.route("/admin/products/<int:pid>/toggle_active", methods=["POST"], endpoint="admin_product_toggle_active")
 @super_admin_required
@@ -1453,9 +1458,10 @@ def admin_product_toggle_active(pid):
     try:
         db.session.commit()
         return _resp("تم تحديث حالة المنتج.", "success", code=200, to="shop.admin_products")
-    except SQLAlchemyError as e:
+    except SQLAlchemyError:
         db.session.rollback()
-        return _resp(f"خطأ أثناء التحديث: {e}", "danger", code=400, to="shop.admin_products")
+        current_app.logger.exception('internal error')
+        return _resp("خطأ أثناء التحديث", "danger", code=400, to="shop.admin_products")
 
 @shop_bp.route("/admin/products/<int:pid>/delete", methods=["POST"], endpoint="admin_product_delete")
 @super_admin_required
@@ -1501,9 +1507,10 @@ def refund_payment(op_id: int):
             op.status = "REFUNDED"
             db.session.add(op)
         return _resp("✅ تم استرجاع الدفعة.", "success", to="shop.admin_preorders")
-    except SQLAlchemyError as e:
+    except SQLAlchemyError:
         db.session.rollback()
-        return _resp(f"خطأ أثناء الاسترجاع: {e}", "danger", to="shop.admin_preorders")
+        current_app.logger.exception('internal error')
+        return _resp("خطأ أثناء الاسترجاع", "danger", to="shop.admin_preorders")
 
 @shop_bp.route("/archive-preorder/<int:preorder_id>", methods=["POST"])
 @login_required
