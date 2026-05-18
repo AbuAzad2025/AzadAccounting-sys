@@ -78,7 +78,7 @@ def dashboard():
             if utils.is_super():
                 return True
         except Exception:
-            pass
+            current_app.logger.debug('operation failed in main.py', exc_info=True)
         try:
             targets = utils._expand_perms(code)
         except Exception:
@@ -149,7 +149,7 @@ def dashboard():
             try:
                 return value * Decimal(str(fx_used))
             except Exception:
-                pass
+                current_app.logger.debug('numeric conversion failed in main.py', exc_info=True)
         try:
             key = (code, at_dt.date() if isinstance(at_dt, datetime) else None)
             rate = fx_cache.get(key)
@@ -919,7 +919,7 @@ def cleanup_old_backups(db_dir, sql_dir, keep_days=7, keep_weekly=4, keep_monthl
                     try:
                         filepath.unlink()
                     except Exception:
-                        pass
+                        current_app.logger.debug('file operation failed in main.py', exc_info=True)
             elif age_days <= keep_days + (keep_weekly * 7) + (keep_monthly * 30):
                 if len(monthly_backups) < keep_monthly:
                     monthly_backups.append(filepath)
@@ -927,9 +927,9 @@ def cleanup_old_backups(db_dir, sql_dir, keep_days=7, keep_weekly=4, keep_monthl
                     try:
                         filepath.unlink()
                     except Exception:
-                        pass
+                        current_app.logger.debug('file operation failed in main.py', exc_info=True)
             else:
                 try:
                     filepath.unlink()
                 except Exception:
-                    pass
+                    current_app.logger.debug('file operation failed in main.py', exc_info=True)

@@ -457,14 +457,14 @@ def list_requests():
                 from_date = datetime.strptime(date_from, '%Y-%m-%d')
                 query = query.filter(col >= from_date)
             except ValueError:
-                pass
+                current_app.logger.debug('date parsing failed in service.py', exc_info=True)
         if date_to:
             try:
                 to_date = datetime.strptime(date_to, '%Y-%m-%d')
                 to_date = to_date.replace(hour=23, minute=59, second=59)
                 query = query.filter(col <= to_date)
             except ValueError:
-                pass
+                current_app.logger.debug('date parsing failed in service.py', exc_info=True)
     
     # الترتيب
     sort_by = request.args.get('sort', 'balance_due')

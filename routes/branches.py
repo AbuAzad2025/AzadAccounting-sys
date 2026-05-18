@@ -88,7 +88,7 @@ def create_branch():
                     b.geo_lat = float(geo_lat)
                     b.geo_lng = float(geo_lng)
                 except (ValueError, TypeError):
-                    pass
+                    current_app.logger.debug('numeric conversion failed in branches.py', exc_info=True)
             
             manager_employee_id = request.form.get('manager_employee_id')
             if manager_employee_id and manager_employee_id != '0':
@@ -311,7 +311,7 @@ def create_site(branch_id):
                     s.geo_lat = float(geo_lat)
                     s.geo_lng = float(geo_lng)
                 except (ValueError, TypeError):
-                    pass
+                    current_app.logger.debug('numeric conversion failed in branches.py', exc_info=True)
             
             manager_employee_id = request.form.get('manager_employee_id')
             if manager_employee_id and manager_employee_id != '0':

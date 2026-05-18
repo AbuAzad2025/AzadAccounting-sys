@@ -123,7 +123,7 @@ def _online_scope_ids():
             g._online_ids = ids
             return g._online_ids
     except Exception:
-        pass
+        current_app.logger.debug('database query failed in shop.py', exc_info=True)
     try:
         online_val = getattr(WarehouseType, "ONLINE").value if hasattr(WarehouseType, "ONLINE") else "ONLINE"
         q = Warehouse.query.filter(Warehouse.is_active.is_(True))
@@ -134,7 +134,7 @@ def _online_scope_ids():
             g._online_ids = ids
             return g._online_ids
     except Exception:
-        pass
+        current_app.logger.debug('attribute access failed in shop.py', exc_info=True)
     ids = current_app.config.get("SHOP_WAREHOUSE_IDS")
     g._online_ids = ids or None
     return g._online_ids
@@ -478,7 +478,7 @@ def _apply_online_scope(q):
         try:
             q = q.filter(Product.is_published.is_(True))
         except Exception:
-            pass
+            current_app.logger.debug('database query failed in shop.py', exc_info=True)
     if hasattr(Product, "deleted_at"):
         q = q.filter(Product.deleted_at.is_(None))
     company_ids = current_app.config.get("SHOP_WAREHOUSE_COMPANY_IDS")
@@ -498,7 +498,7 @@ def catalog():
                 try:
                     pre = pre.filter(Product.is_published.is_(True))
                 except Exception:
-                    pass
+                    current_app.logger.debug('database query failed in shop.py', exc_info=True)
             if qparam:
                 like = f"%{qparam}%"
                 pre = pre.filter((Product.name.ilike(like)) | (Product.sku.ilike(like)) | (Product.part_number.ilike(like)))
@@ -584,7 +584,7 @@ def products():
             try:
                 pre = pre.filter(Product.is_published.is_(True))
             except Exception:
-                pass
+                current_app.logger.debug('database query failed in shop.py', exc_info=True)
         if qparam:
             like = f"%{qparam}%"
             pre = pre.filter(
@@ -635,7 +635,7 @@ def api_products():
                 try:
                     pre = pre.filter(Product.is_published.is_(True))
                 except Exception:
-                    pass
+                    current_app.logger.debug('database query failed in shop.py', exc_info=True)
             if qparam:
                 like = f"%{qparam}%"
                 pre = pre.filter(
@@ -1184,7 +1184,7 @@ def admin_categories_quick_create():
                 if parent:
                     cat.parent = parent
             except Exception:
-                pass
+                current_app.logger.debug('numeric conversion failed in shop.py', exc_info=True)
         db.session.add(cat)
         db.session.commit()
         return jsonify({"ok": True, "id": cat.id, "name": cat.name}), 201

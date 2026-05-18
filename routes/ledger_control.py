@@ -753,12 +753,12 @@ def get_all_batches():
             try:
                 query = query.filter(GLBatch.posted_at >= datetime.fromisoformat(str(from_date).replace('Z', '+00:00')))
             except Exception:
-                pass
+                current_app.logger.debug('date parsing failed in ledger_control.py', exc_info=True)
         if to_date:
             try:
                 query = query.filter(GLBatch.posted_at <= datetime.fromisoformat(str(to_date).replace('Z', '+00:00')))
             except Exception:
-                pass
+                current_app.logger.debug('date parsing failed in ledger_control.py', exc_info=True)
         if source_type:
             query = query.filter(GLBatch.source_type == source_type)
         if search:

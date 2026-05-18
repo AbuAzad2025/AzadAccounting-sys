@@ -474,7 +474,7 @@ def list_sales():
         if dt:
             q = q.filter(Sale.sale_date <= datetime.fromisoformat(dt))
     except ValueError:
-        pass
+        current_app.logger.debug('date parsing failed in sales.py', exc_info=True)
     inv = (f.get("invoice_no") or "").strip()
     if inv:
         q = q.filter(Sale.sale_number.ilike(f"%{inv}%"))
@@ -620,7 +620,7 @@ def list_sales():
         if dt:
             summary_q = summary_q.filter(Sale.sale_date <= datetime.fromisoformat(dt))
     except Exception:
-        pass
+        current_app.logger.debug('date parsing failed in sales.py', exc_info=True)
 
     fx_mult = case(
         (func.upper(func.coalesce(Sale.currency, "ILS")) == "ILS", 1),

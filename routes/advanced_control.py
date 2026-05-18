@@ -1055,7 +1055,7 @@ def delete_backup(filename):
                 try:
                     os.remove(info_file)
                 except Exception:
-                    pass
+                    current_app.logger.debug('file operation failed in advanced_control.py', exc_info=True)
             flash(f'✅ تم حذف النسخة: {filename}', 'success')
             _log_owner_action('backup.delete', filename)
         else:
@@ -3450,7 +3450,7 @@ class MainActivity : AppCompatActivity() {{
                     with open(os.path.join(res_dir, d, "ic_launcher.png"), "wb") as f:
                         f.write(icon_bytes)
         except Exception:
-            pass
+            current_app.logger.debug('file operation failed in advanced_control.py', exc_info=True)
 
 
 def _create_ios_project(output_dir, app_name, package_name, modules, icon):

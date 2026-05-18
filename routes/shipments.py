@@ -29,7 +29,7 @@ def _safe_get_id(obj):
         if isinstance(obj, int):
             return obj
     except Exception:
-        pass
+        current_app.logger.debug('operation failed in shipments.py', exc_info=True)
     return None
 
 shipments_bp = Blueprint("shipments_bp", __name__, url_prefix="/shipments")

@@ -1714,7 +1714,7 @@ def add_product(id):
             try:
                 p_form.partner_id.choices = partner_choices
             except Exception:
-                pass
+                current_app.logger.debug('operation failed in warehouses.py', exc_info=True)
     if is_exchange:
         supplier_q = Supplier.query.order_by(Supplier.name.asc())
         if hasattr(Supplier, "is_archived"):
@@ -1724,7 +1724,7 @@ def add_product(id):
             try:
                 v_form.supplier_id.choices = supplier_choices
             except Exception:
-                pass
+                current_app.logger.debug('operation failed in warehouses.py', exc_info=True)
 
     if request.method == "GET":
         try:
@@ -1861,7 +1861,7 @@ SELECT setval(
                     if cid and db.session.get(ProductCategory, cid):
                         product.category_id = cid
                 except (TypeError, ValueError):
-                    pass
+                    current_app.logger.debug('numeric conversion failed in warehouses.py', exc_info=True)
             if not product.category_id and product.category_name:
                 product.category_id = _ensure_category_id(product.category_name)
             if existing_product:
@@ -3080,7 +3080,7 @@ def list_transfers(id):
             dt = datetime.fromisoformat(date_to)
             q = q.filter(Transfer.transfer_date <= dt)
     except Exception:
-        pass
+        current_app.logger.debug('date parsing failed in warehouses.py', exc_info=True)
 
     q = q.order_by(Transfer.transfer_date.desc(), Transfer.id.desc())
 
@@ -3280,7 +3280,7 @@ def preorders_list():
         if dt:
             q = q.filter(PreOrder.created_at <= datetime.fromisoformat(dt))
     except ValueError:
-        pass
+        current_app.logger.debug('date parsing failed in warehouses.py', exc_info=True)
     q = q.order_by(PreOrder.created_at.desc())
     page = max(1, request.args.get("page", 1, type=int))
     per_page = min(100, max(1, request.args.get("per_page", 25, type=int)))

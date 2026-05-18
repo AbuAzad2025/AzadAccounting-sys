@@ -27,7 +27,7 @@ def _role_level_by_name(role_name: str) -> int:
         if isinstance(info, dict):
             return int(info.get("level", 999))
     except Exception:
-        pass
+        current_app.logger.debug('numeric conversion failed in users.py', exc_info=True)
     return 999
 
 def _actor_level() -> int:

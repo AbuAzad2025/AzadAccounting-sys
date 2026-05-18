@@ -736,7 +736,7 @@ def create_customer():
             flash("هذا الهاتف مستخدم مسبقًا", "danger")
             return render_template("customers/new.html", form=form, return_to=request.form.get("return_to"))
     except Exception:
-        pass
+        current_app.logger.debug('optional import failed in customers.py', exc_info=True)
     # Default email: AZAD@<phone> when email not provided
     default_email = f"AZAD@{(form.phone.data or '').strip()}" if (form.phone.data or '').strip() else None
     cust = Customer(
@@ -1041,7 +1041,7 @@ def account_statement(customer_id):
                 try:
                     db.session.execute(sa_text(sql))
                 except Exception:
-                    pass
+                    current_app.logger.debug('session operation failed in customers.py', exc_info=True)
             try:
                 db.session.commit()
             except Exception:
@@ -2486,7 +2486,7 @@ def account_statement(customer_id):
             if c_created_date and s_date_date and s_date_date > c_created_date:
                  statement_text = "رصيد مدور (سابق)"
         except Exception:
-            pass
+            current_app.logger.debug('operation failed in customers.py', exc_info=True)
 
         opening_entry = {
             "date": start_date,
@@ -2739,23 +2739,23 @@ def advanced_filter():
         try:
             q = q.filter(Customer.created_at >= datetime.fromisoformat(created_at_min))
         except ValueError:
-            pass
+            current_app.logger.debug('date parsing failed in customers.py', exc_info=True)
     if created_at_max := request.args.get("created_at_max"):
         try:
             q = q.filter(Customer.created_at <= datetime.fromisoformat(created_at_max))
         except ValueError:
-            pass
+            current_app.logger.debug('date parsing failed in customers.py', exc_info=True)
 
     if last_activity_min := request.args.get("last_activity_min"):
         try:
             q = q.filter(Customer.last_activity >= datetime.fromisoformat(last_activity_min))
         except ValueError:
-            pass
+            current_app.logger.debug('date parsing failed in customers.py', exc_info=True)
     if last_activity_max := request.args.get("last_activity_max"):
         try:
             q = q.filter(Customer.last_activity <= datetime.fromisoformat(last_activity_max))
         except ValueError:
-            pass
+            current_app.logger.debug('date parsing failed in customers.py', exc_info=True)
 
     if category := request.args.get("category"):
         q = q.filter(Customer.category == category)

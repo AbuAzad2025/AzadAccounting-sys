@@ -2072,7 +2072,7 @@ def theme_editor():
             with open(os.path.join(css_dir, selected_css), 'r', encoding='utf-8') as f:
                 css_content = f.read()
         except Exception:
-            pass
+            current_app.logger.debug('file operation failed in security.py', exc_info=True)
     data['css'] = {'files': css_files, 'selected': selected_css, 'content': css_content}
     
     # HTML Templates
@@ -2102,7 +2102,7 @@ def theme_editor():
             with open(os.path.join(templates_dir, selected_template), 'r', encoding='utf-8') as f:
                 template_content = f.read()
         except Exception:
-            pass
+            current_app.logger.debug('file operation failed in security.py', exc_info=True)
     data['html'] = {'tree': templates_tree, 'selected': selected_template, 'content': template_content}
     
     # Text Settings
@@ -2779,7 +2779,7 @@ def get_cached_security_stats():
         blocked_ips = BlockedIP.query.count()
         blocked_countries = BlockedCountry.query.count()
     except Exception:
-        pass
+        current_app.logger.debug('optional import failed in security.py', exc_info=True)
     
     # أنشطة مشبوهة
     suspicious_activities = 0
@@ -2793,7 +2793,7 @@ def get_cached_security_stats():
             func.count(AuthAudit.ip) >= 5
         ).count()
     except Exception:
-        pass
+        current_app.logger.debug('database query failed in security.py', exc_info=True)
     
     db_size = "N/A"
     try:
@@ -2803,7 +2803,7 @@ def get_cached_security_stats():
                 text("SELECT pg_size_pretty(pg_database_size(current_database()))")
             ).scalar() or "N/A"
     except Exception:
-        pass
+        current_app.logger.debug('session operation failed in security.py', exc_info=True)
     
     # صحة النظام
     system_health = "ممتاز"
@@ -4179,7 +4179,7 @@ def api_user_details(user_id):
                 extra_perms = user.extra_permissions.all() if hasattr(user.extra_permissions, 'all') else user.extra_permissions
                 extra_permissions = [p.code for p in extra_perms if hasattr(p, 'code') and p.code]
             except Exception:
-                pass
+                current_app.logger.debug('operation failed in security.py', exc_info=True)
         
         user_data = {
             'id': user.id,
@@ -6182,7 +6182,7 @@ def _get_recent_errors(limit=100):
                             'timestamp': datetime.now(timezone.utc)
                         })
         except Exception:
-            pass
+            current_app.logger.debug('date parsing failed in security.py', exc_info=True)
     
     return errors
 
@@ -7954,14 +7954,14 @@ def audit_log_viewer():
             start_dt = datetime.strptime(start_date, '%Y-%m-%d')
             query = query.filter(AuditLog.created_at >= start_dt)
         except Exception:
-            pass
+            current_app.logger.debug('date parsing failed in security.py', exc_info=True)
     if end_date:
         try:
             end_dt = datetime.strptime(end_date, '%Y-%m-%d')
             end_dt = end_dt.replace(hour=23, minute=59, second=59)
             query = query.filter(AuditLog.created_at <= end_dt)
         except Exception:
-            pass
+            current_app.logger.debug('date parsing failed in security.py', exc_info=True)
     if search:
         query = query.filter(
             db.or_(
@@ -8152,7 +8152,7 @@ def security_audit_report():
                 from models import BlockedIP
                 blocked_ips_count = BlockedIP.query.count()
             except Exception:
-                pass
+                current_app.logger.debug('optional import failed in security.py', exc_info=True)
             
             suspicious_activities = AuditLog.query.filter(
                 AuditLog.action.in_(['security.blocked_ip', 'security.failed_login', 'security.unauthorized_access']),

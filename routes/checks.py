@@ -846,7 +846,7 @@ def _check_create_payment_auto(mapper, connection, target):
                 try:
                     connection.close()
                 except Exception:
-                    pass
+                    current_app.logger.debug('operation failed in checks.py', exc_info=True)
             raise conn_e
         
         current_app.logger.info(f"✅ تم إنشاء دفعة تلقائياً للشيك اليدوي #{target.id} - Payment #{payment_id}")
@@ -1021,7 +1021,7 @@ def ensure_check_accounts(connection=None):
             try:
                 connection.close()
             except Exception:
-                pass
+                current_app.logger.debug('operation failed in checks.py', exc_info=True)
     except Exception as e:
         current_app.logger.error(f"❌ خطأ في إنشاء حسابات دفتر الأستاذ: {str(e)}")
 
@@ -1425,7 +1425,7 @@ def create_gl_entry_for_check(check_id, check_type, amount, currency, direction,
                         try:
                             connection.close()
                         except Exception:
-                            pass
+                            current_app.logger.debug('operation failed in checks.py', exc_info=True)
                     connection = db.engine.connect()
                     should_close_connection = True
                     connection_from_event = False
@@ -1434,7 +1434,7 @@ def create_gl_entry_for_check(check_id, check_type, amount, currency, direction,
                     try:
                         connection.close()
                     except Exception:
-                        pass
+                        current_app.logger.debug('operation failed in checks.py', exc_info=True)
                 connection = db.engine.connect()
                 should_close_connection = True
                 connection_from_event = False
@@ -1453,7 +1453,7 @@ def create_gl_entry_for_check(check_id, check_type, amount, currency, direction,
                     try:
                         connection.close()
                     except Exception:
-                        pass
+                        current_app.logger.debug('operation failed in checks.py', exc_info=True)
                 connection = db.engine.connect()
                 should_close_connection = True
                 connection_from_event = False
@@ -1466,14 +1466,14 @@ def create_gl_entry_for_check(check_id, check_type, amount, currency, direction,
                     try:
                         connection.close()
                     except Exception:
-                        pass
+                        current_app.logger.debug('operation failed in checks.py', exc_info=True)
                 raise CheckAccountingError(f"فشل إنشاء GL batch: {str(conn_e)}", code='GL_BATCH_CREATION_FAILED')
         except Exception as e:
             if should_close_connection:
                 try:
                     connection.close()
                 except Exception:
-                    pass
+                    current_app.logger.debug('operation failed in checks.py', exc_info=True)
             raise CheckAccountingError("خطأ في إنشاء GL batch", code='GL_BATCH_ERROR')
         
         entries_data = []
@@ -1519,7 +1519,7 @@ def create_gl_entry_for_check(check_id, check_type, amount, currency, direction,
                         try:
                             connection.close()
                         except Exception:
-                            pass
+                            current_app.logger.debug('operation failed in checks.py', exc_info=True)
                     connection = db.engine.connect()
                     should_close_connection = True
                     connection_from_event = False
@@ -1547,7 +1547,7 @@ def create_gl_entry_for_check(check_id, check_type, amount, currency, direction,
             try:
                 connection.close()
             except Exception:
-                pass
+                current_app.logger.debug('operation failed in checks.py', exc_info=True)
         return batch
         
     except Exception as e:
@@ -1557,9 +1557,9 @@ def create_gl_entry_for_check(check_id, check_type, amount, currency, direction,
                 try:
                     connection.close()
                 except Exception:
-                    pass
+                    current_app.logger.debug('operation failed in checks.py', exc_info=True)
         except Exception:
-            pass
+            current_app.logger.debug('operation failed in checks.py', exc_info=True)
         return None
 
 CHECK_STATUS = {
@@ -2004,7 +2004,7 @@ class CheckActionService:
                         details['check_status'] = 'PENDING'
                         split.details = details
                     except Exception:
-                        pass
+                        current_app.logger.debug('operation failed in checks.py', exc_info=True)
                     check.status = 'PENDING'
                     ctx.payment.notes = (ctx.payment.notes or '') + self._compose_note('PENDING', None, f"Split #{split.id}")
                 elif status == 'RESUBMITTED':
@@ -2018,7 +2018,7 @@ class CheckActionService:
                         details['check_status'] = 'PENDING'
                         split.details = details
                     except Exception:
-                        pass
+                        current_app.logger.debug('operation failed in checks.py', exc_info=True)
                     check.status = 'PENDING'
                     ctx.payment.notes = (ctx.payment.notes or '') + self._compose_note('PENDING', None, f"Split #{split.id}")
 
@@ -2043,7 +2043,7 @@ class CheckActionService:
                 try:
                     connection.close()
                 except Exception:
-                    pass
+                    current_app.logger.debug('operation failed in checks.py', exc_info=True)
         else:
             ctx.payment.notes = (ctx.payment.notes or '') + self._compose_note(status, note_text, f"Split #{split.id}")
 
@@ -2089,7 +2089,7 @@ class CheckActionService:
                     try:
                         connection.close()
                     except Exception:
-                        pass
+                        current_app.logger.debug('operation failed in checks.py', exc_info=True)
             except Exception:
                 current_app.logger.warning('payment processing failed silently in checks.py', exc_info=True)
 
@@ -2099,7 +2099,7 @@ class CheckActionService:
         try:
             manual.add_status_change(status, note_text, self.actor)
         except Exception:
-            pass
+            current_app.logger.debug('operation failed in checks.py', exc_info=True)
         manual.notes = (manual.notes or '') + self._compose_note(status, note_text, None)
         manual._skip_gl_creation = True
 
@@ -2221,7 +2221,7 @@ class CheckActionService:
                     check_num = check_num or (det.get('check_number') or None)
                     check_bank = check_bank or (det.get('check_bank') or None)
                 except Exception:
-                    pass
+                    current_app.logger.debug('optional import failed in checks.py', exc_info=True)
             # إعداد ملاحظات العكس
             reverse_note = f"\nعكس قيد لل{('عميل' if payment.customer_id else ('مورد' if payment.supplier_id else ('شريك' if payment.partner_id else 'جهة')))} {entity_name or ''} بسبب ارجاع الشيك".strip()
             if check_num or check_bank:
@@ -2383,7 +2383,7 @@ class CheckActionService:
                 check_num = check_num or (det.get('check_number') or None)
                 check_bank = check_bank or (det.get('check_bank') or None)
             except Exception:
-                pass
+                current_app.logger.debug('optional import failed in checks.py', exc_info=True)
             reverse_note = f"\nعكس قيد لل{('عميل' if payment.customer_id else ('مورد' if payment.supplier_id else ('شريك' if payment.partner_id else 'جهة')))} {entity_name or ''} بسبب ارجاع الشيك".strip()
             if check_num or check_bank:
                 reverse_note += f" (رقم {check_num or '—'} بنك {check_bank or '—'} من البنك)"

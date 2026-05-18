@@ -360,26 +360,26 @@ def _expense_related_entity_pairs(expense):
         if customer_id:
             pairs.add(("CUSTOMER", int(customer_id)))
     except Exception:
-        pass
+        current_app.logger.debug('numeric conversion failed in expenses.py', exc_info=True)
     try:
         supplier_id = getattr(expense, "supplier_id", None)
         if supplier_id:
             pairs.add(("SUPPLIER", int(supplier_id)))
     except Exception:
-        pass
+        current_app.logger.debug('numeric conversion failed in expenses.py', exc_info=True)
     try:
         partner_id = getattr(expense, "partner_id", None)
         if partner_id:
             pairs.add(("PARTNER", int(partner_id)))
     except Exception:
-        pass
+        current_app.logger.debug('numeric conversion failed in expenses.py', exc_info=True)
     try:
         ptype = (getattr(expense, "payee_type", None) or "").strip().upper()
         pid = getattr(expense, "payee_entity_id", None)
         if pid and ptype in ("CUSTOMER", "SUPPLIER", "PARTNER"):
             pairs.add((ptype, int(pid)))
     except Exception:
-        pass
+        current_app.logger.debug('numeric conversion failed in expenses.py', exc_info=True)
     return pairs
 
 
@@ -2051,7 +2051,7 @@ def add():
                     exp.payee_entity_id = sid
                     exp.payee_name = getattr(db.session.get(Supplier, sid), "name", None) or exp.payee_name
             except (TypeError, ValueError):
-                pass
+                current_app.logger.debug('numeric conversion failed in expenses.py', exc_info=True)
         raw_part = request.form.get("partner_id")
         if raw_part and (not exp.partner_id or exp.partner_id == 0):
             try:
@@ -2062,7 +2062,7 @@ def add():
                     exp.payee_entity_id = pid
                     exp.payee_name = getattr(db.session.get(Partner, pid), "name", None) or exp.payee_name
             except (TypeError, ValueError):
-                pass
+                current_app.logger.debug('numeric conversion failed in expenses.py', exc_info=True)
 
         if (
             not exp.customer_id

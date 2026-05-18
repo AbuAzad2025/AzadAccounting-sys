@@ -305,7 +305,7 @@ def _serialize_payment_min(p, *, full=False):
             if name_fallback:
                 d["entity_display"] = name_fallback
     except Exception:
-        pass
+        current_app.logger.debug('attribute access failed in payments.py', exc_info=True)
     if hasattr(p, 'payment_id') and hasattr(p, 'split_id'):
         try:
             d["payment_id"] = int(getattr(p, 'payment_id'))
@@ -460,7 +460,7 @@ def entity_search():
             try:
                 conds.append(SupplierLoanSettlement.id == int(qdigits))
             except Exception:
-                pass
+                current_app.logger.debug('numeric conversion failed in payments.py', exc_info=True)
         conds.append(Supplier.name.ilike(like))
         rows = qry.filter(or_(*conds)).order_by(SupplierLoanSettlement.id.desc()).limit(limit).all()
         results = [{"id": r[0].id, "label": f"Loan Settlement #{r[0].id}", "extra": r[1]} for r in rows]
@@ -692,7 +692,7 @@ def index():
         try:
             _ = s.entity_label()
         except Exception:
-            pass
+            current_app.logger.debug('operation failed in payments.py', exc_info=True)
     
     # ✅ إضافة الشيكات اليدوية إلى قائمة الدفعات المعروضة
     manual_checks_for_display = []
@@ -1569,7 +1569,7 @@ def create_payment():
                         if cust_obj:
                             person_name = getattr(cust_obj, 'name', person_name)
                     except Exception:
-                        pass
+                        current_app.logger.debug('attribute access failed in payments.py', exc_info=True)
             
             deliverer_val = (form.deliverer_name.data or "").strip() if hasattr(form, "deliverer_name") else ""
             receiver_val = (form.receiver_name.data or "").strip() if hasattr(form, "receiver_name") else ""
