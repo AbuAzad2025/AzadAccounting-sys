@@ -171,7 +171,12 @@ def _normalize_meta(meta):
 def _update_type_meta(expense_type, meta):
     expense_type.fields_meta = meta
     db.session.add(expense_type)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception('commit error')
+        flash('حدث خطأ أثناء الحفظ', 'danger')
     return _normalize_meta(expense_type.fields_meta)
 
 

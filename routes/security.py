@@ -878,7 +878,12 @@ def block_user(user_id):
         flash('❌ لا يمكنك حظر نفسك!', 'danger')
     else:
         user.is_active = False
-        db.session.commit()
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            current_app.logger.exception('commit error')
+            return jsonify({'success': False, 'error': 'حدث خطأ داخلي'}), 500
         flash(f'✅ تم حظر المستخدم: {user.username}', 'success')
     
     return redirect(url_for('users_bp.list_users'))
@@ -1617,7 +1622,12 @@ def users_center():
                         deleted_count += 1
                 
                 if deleted_count > 0:
-                    db.session.commit()
+                    try:
+                        db.session.commit()
+                    except Exception:
+                        db.session.rollback()
+                        current_app.logger.exception('commit error')
+                        return jsonify({'success': False, 'error': 'حدث خطأ داخلي'}), 500
                     flash(f'✅ تم حذف {deleted_count} مستخدم بنجاح', 'success')
                 else:
                     flash('⚠️ لم يتم حذف أي مستخدم (قد تكون حاولت حذف نفسك أو حساب محمي)', 'warning')
@@ -1756,7 +1766,12 @@ def settings_center():
             SystemSettings.set_setting('TIMEZONE', request.form.get('timezone'))
             flash('✅ تم حفظ بيانات الشركة بنجاح', 'success')
         
-        db.session.commit()
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            current_app.logger.exception('commit error')
+            flash('حدث خطأ أثناء الحفظ', 'danger')
         return redirect(url_for('security.settings_center', tab=tab))
     
     settings_list = SystemSettings.query.order_by(SystemSettings.key).limit(50).all()
@@ -2027,7 +2042,12 @@ def theme_editor():
                 setting = SystemSettings(key=key, value=value)
                 db.session.add(setting)
             
-            db.session.commit()
+            try:
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+                current_app.logger.exception('commit error')
+                return jsonify({'success': False, 'error': 'حدث خطأ داخلي'}), 500
             flash(f'✅ تم تحديث {key}', 'success')
         
         return redirect(url_for('security.theme_editor', type=editor_type))
@@ -2276,7 +2296,12 @@ def permissions_manager():
             
             perm = Permission(code=normalized_code, name=name)
             db.session.add(perm)
-            db.session.commit()
+            try:
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+                current_app.logger.exception('commit error')
+                return jsonify({'success': False, 'error': 'حدث خطأ داخلي'}), 500
             flash(f'✅ تم إنشاء صلاحية: {name}', 'success')
         
         return redirect(url_for('security.permissions_manager'))
@@ -2333,7 +2358,12 @@ def invoice_designer():
                 else:
                     db.session.add(SystemSettings(key=key, value=str(value)))
         
-        db.session.commit()
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            current_app.logger.exception('commit error')
+            flash('حدث خطأ أثناء الحفظ', 'danger')
         
         # مسح الكاش إذا وجد
         try:
@@ -3931,7 +3961,12 @@ def force_reset_password(user_id):
     new_password = request.form.get('new_password', '123456')
     
     user.password = generate_password_hash(new_password)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception('commit error')
+        return jsonify({'success': False, 'error': 'حدث خطأ داخلي'}), 500
     
     flash(f'تم إعادة تعيين كلمة مرور {user.username}', 'success')
     return redirect(url_for('security.user_control'))
@@ -3983,7 +4018,12 @@ def toggle_user_status(user_id):
     except Exception:
         pass
     
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception('commit error')
+        flash('حدث خطأ أثناء الحفظ', 'danger')
     
     status = 'مفعل' if user.is_active else 'معطل'
     flash(f'✅ المستخدم {user.username} الآن {status}', 'success')
@@ -4425,7 +4465,12 @@ def update_user_role(user_id):
     except Exception:
         pass
     
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception('commit error')
+        return jsonify({'success': False, 'error': 'حدث خطأ داخلي'}), 500
     flash(f'✅ تم تحديث دور {user.username}', 'success')
     return redirect(url_for('security.user_control'))
 
@@ -4454,7 +4499,12 @@ def update_user_extra_permissions(user_id):
     for perm in permissions_to_add:
         user.extra_permissions.append(perm)
     
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception('commit error')
+        flash('حدث خطأ أثناء الحفظ', 'danger')
     
     utils.clear_user_permission_cache(user.id)
     
@@ -5308,7 +5358,12 @@ def _block_ip(ip, reason, duration):
         old_data=json.dumps({'ip': ip, 'reason': reason}, ensure_ascii=False),
         ip_address=request.remote_addr
     )
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception('commit error')
+        flash('حدث خطأ أثناء الحفظ', 'danger')
 
 def _unblock_ip(ip):
     """إلغاء حظر IP"""
@@ -5746,7 +5801,12 @@ def _kill_all_user_sessions():
     """إنهاء جميع جلسات المستخدمين"""
     # تحديث last_seen لجميع المستخدمين
     User.query.update({'last_seen': datetime.now(timezone.utc) - timedelta(days=30)})
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception('commit error')
+        flash('حدث خطأ أثناء الحفظ', 'danger')
 
 
 def _get_system_setting(key, default=None):
@@ -5778,7 +5838,12 @@ def _set_system_setting(key, value):
     else:
         setting = SystemSettings(key=key, value=str(value))
         db.session.add(setting)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception('commit error')
+        flash('حدث خطأ أثناء الحفظ', 'danger')
 
 
 def _get_db_size():
@@ -7688,7 +7753,12 @@ def _vat_backfill_sales_for_period(period: str) -> dict:
             )
             posted_batch = True
 
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception('commit error')
+        flash('حدث خطأ أثناء الحفظ', 'danger')
 
     msg = f"✅ تم إنشاء {created_count} سجل VAT للفترة {period}."
     if missing_vat_count:

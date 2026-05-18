@@ -194,7 +194,12 @@ def change_password():
         else:
             # تحديث كلمة المرور
             current_user.set_password(form.new_password.data)
-            db.session.commit()
+            try:
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+                current_app.logger.exception('commit error')
+                flash('حدث خطأ أثناء الحفظ', 'danger')
             flash("✅ تم تغيير كلمة المرور بنجاح", "success")
             return redirect(url_for("users_bp.profile"))
     

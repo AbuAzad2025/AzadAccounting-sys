@@ -2973,7 +2973,12 @@ def approve_settlement(partner_id):
     except Exception as e:
         current_app.logger.warning(f"⚠️ تحذير: فشل إنشاء قيد GL للتسوية: {str(e)}")
     
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception('commit error')
+        flash('حدث خطأ أثناء الحفظ', 'danger')
 
     try:
         import utils

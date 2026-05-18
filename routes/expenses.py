@@ -2319,7 +2319,12 @@ def quick_supplier_service():
     exp.payment_details = None
     db.session.add(exp)
     db.session.flush()
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception('commit error')
+        flash('حدث خطأ أثناء الحفظ', 'danger')
     flash("تم إنشاء المصروف بنجاح.", "success")
 
     try:
@@ -2461,7 +2466,12 @@ def quick_partner_service():
     exp.payment_details = None
     db.session.add(exp)
     db.session.flush()
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception('commit error')
+        flash('حدث خطأ أثناء الحفظ', 'danger')
     flash("تم إنشاء المصروف بنجاح.", "success")
 
     try:

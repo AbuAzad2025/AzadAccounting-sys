@@ -188,7 +188,12 @@ def toggle_template(template_id):
         return jsonify({'success': False, 'error': 'القالب غير موجود'}), 404
     
     template.is_active = not template.is_active
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception('commit error')
+        flash('حدث خطأ أثناء الحفظ', 'danger')
     
     status_text = 'مفعّل' if template.is_active else 'معطّل'
     return jsonify({'success': True, 'is_active': template.is_active, 'message': f'القالب الآن {status_text}'})
@@ -290,7 +295,12 @@ def _generate_recurring_invoice(template, invoice_date=None):
     )
     
     db.session.add(new_invoice)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception('commit error')
+        flash('حدث خطأ أثناء الحفظ', 'danger')
     
     invoice_line = InvoiceLine(
         invoice_id=new_invoice.id,
@@ -302,7 +312,12 @@ def _generate_recurring_invoice(template, invoice_date=None):
     )
     
     db.session.add(invoice_line)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception('commit error')
+        flash('حدث خطأ أثناء الحفظ', 'danger')
     
     if tax_rate > 0:
         fiscal_year = invoice_date.year
@@ -340,7 +355,12 @@ def _generate_recurring_invoice(template, invoice_date=None):
     
     template.next_invoice_date = _calculate_next_invoice_date(template, invoice_date)
     
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception('commit error')
+        flash('حدث خطأ أثناء الحفظ', 'danger')
     try:
         run_invoice_gl_sync_after_commit(new_invoice.id)
     except Exception as e:

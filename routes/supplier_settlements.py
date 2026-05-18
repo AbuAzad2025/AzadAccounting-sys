@@ -2430,7 +2430,12 @@ def approve_settlement(supplier_id):
     except Exception as e:
         current_app.logger.error(f"⚠️ خطأ في إنشاء قيد GL للتسوية #{settlement.code}: {e}")
     
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception('commit error')
+        flash('حدث خطأ أثناء الحفظ', 'danger')
     
     from utils.supplier_balance_updater import update_supplier_balance_components
     update_supplier_balance_components(supplier_id)

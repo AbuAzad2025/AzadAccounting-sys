@@ -301,7 +301,12 @@ def customer_register():
         )
         customer.set_password(raw_pwd)
         db.session.add(customer)
-        db.session.commit()
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            current_app.logger.exception('commit error')
+            flash('حدث خطأ أثناء الحفظ', 'danger')
         login_user(customer, fresh=True)
         utils._audit("customer.register", ok=True, customer_id=customer.id)
         flash("✅ تم إنشاء حسابك بنجاح! يمكنك الآن استخدام المتجر.", "success")
@@ -346,7 +351,12 @@ def customer_password_reset(token: str):
     customer = _get_or_404(Customer, customer_id)
     if form.validate_on_submit():
         customer.set_password(form.password.data)
-        db.session.commit()
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            current_app.logger.exception('commit error')
+            flash('حدث خطأ أثناء الحفظ', 'danger')
         utils._audit("customer.password_reset", ok=True, customer_id=customer.id)
         flash("✅ تم تحديث كلمة المرور بنجاح.", "success")
         return redirect(url_for("auth.login"))
