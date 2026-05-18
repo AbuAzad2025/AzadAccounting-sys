@@ -3764,12 +3764,12 @@ def financial_control():
         if action == 'save_budget_settings':
             settings_data = {
                 'enable_budget_module': request.form.get('enable_budget_module') == 'on',
-                'fiscal_year_start_month': int(request.form.get('fiscal_year_start_month', 1)),
+                'fiscal_year_start_month': _to_float(request.form.get('fiscal_year_start_month', 1), 1),
                 'budget_level': request.form.get('budget_level', 'ACCOUNT_BRANCH'),
                 'commitment_mode': request.form.get('commitment_mode', 'ALL'),
                 'enable_budget_alerts': request.form.get('enable_budget_alerts') == 'on',
-                'budget_threshold_warning': float(request.form.get('budget_threshold_warning', 80)),
-                'budget_threshold_critical': float(request.form.get('budget_threshold_critical', 95)),
+                'budget_threshold_warning': _to_float(request.form.get('budget_threshold_warning', 80), 80),
+                'budget_threshold_critical': _to_float(request.form.get('budget_threshold_critical', 95), 95),
                 'enable_budget_blocking': request.form.get('enable_budget_blocking') == 'on',
             }
             
@@ -3797,9 +3797,9 @@ def financial_control():
                 'enable_fixed_assets': request.form.get('enable_fixed_assets') == 'on',
                 'enable_auto_depreciation': request.form.get('enable_auto_depreciation') == 'on',
                 'depreciation_frequency': request.form.get('depreciation_frequency', 'YEARLY'),
-                'depreciation_day_of_month': int(request.form.get('depreciation_day_of_month', 1)),
+                'depreciation_day_of_month': _to_float(request.form.get('depreciation_day_of_month', 1), 1),
                 'auto_create_asset_from_expense': request.form.get('auto_create_asset_from_expense') == 'on',
-                'asset_capitalization_threshold': float(request.form.get('asset_capitalization_threshold', 1000)),
+                'asset_capitalization_threshold': _to_float(request.form.get('asset_capitalization_threshold', 1000), 1000),
             }
             
             for key, value in settings_data.items():
