@@ -638,6 +638,14 @@ def create_request():
                 current_app.logger.warning('DB add failed silently')
             log_service_action(service,"CREATE")
             _refresh_service_related_balances(service)
+            try:
+                from utils.credit_allocator import apply_customer_credit_to_obligations
+                apply_customer_credit_to_obligations(int(service.customer_id), created_by=getattr(current_user, "id", None))
+            except Exception:
+                try:
+                    db.session.rollback()
+                except Exception:
+                    pass
             if customer.phone: utils.send_whatsapp_message(customer.phone, f"تم استلام طلب الصيانة رقم {service.service_number}.")
             flash("✅ تم إنشاء طلب الصيانة بنجاح","success")
             return redirect(url_for('service.view_request', rid=service.id))

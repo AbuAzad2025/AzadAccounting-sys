@@ -1068,6 +1068,22 @@ def create_sale():
             except Exception as e:
                 current_app.logger.error(f"⚠️ GL Sync Failed for Sale #{sale.id}: {e}")
                 # Don't flash error to user as the sale is valid, but log it for admin
+            try:
+                from utils.credit_allocator import apply_customer_credit_to_obligations
+                apply_customer_credit_to_obligations(int(sale.customer_id), created_by=getattr(current_user, "id", None))
+                try:
+                    s2 = db.session.get(Sale, sale.id)
+                    if s2 and hasattr(s2, "update_payment_status"):
+                        s2.update_payment_status()
+                        db.session.add(s2)
+                        db.session.commit()
+                except Exception:
+                    db.session.rollback()
+            except Exception:
+                try:
+                    db.session.rollback()
+                except Exception:
+                    pass
             flash("✅ تم إنشاء الفاتورة.", "success")
             return redirect(url_for("sales_bp.sale_detail", id=sale.id))
         except SQLAlchemyError as e:

@@ -64,6 +64,8 @@ from models import (
     Shipment,
     Supplier,
     SupplierLoanSettlement,
+    SupplierSettlement,
+    PartnerSettlement,
     get_fx_rate_with_fallback,
     run_payment_gl_sync_after_commit,
 )
@@ -1620,230 +1622,712 @@ def create_payment():
                     target_kwargs["supplier_id"] = final_supplier_id
                 elif final_partner_id:
                     target_kwargs["partner_id"] = final_partner_id
-            payment = Payment(
+            base_receipt = (_fd(getattr(form, "receipt_number", None)) or None)
+            base_reference = ref_text or None
+            base_total = q0(actual_amount)
+            base_payment = Payment(
                 entity_type=etype,
                 **target_kwargs,
                 direction=direction_db,
                 status=form.status.data or PaymentStatus.COMPLETED.value,
                 payment_date=form.payment_date.data,
-                total_amount=q0(actual_amount),  # ✅ المبلغ الفعلي المدفوع (مجموع الدفعات الجزئية)
+                total_amount=base_total,
                 currency="ILS",
                 method=getattr(method_val, "value", method_val),
-                reference=ref_text or None,
-                receipt_number=(_fd(getattr(form, "receipt_number", None)) or None),
+                reference=base_reference,
+                receipt_number=base_receipt,
                 notes=notes_raw,
                 deliverer_name=deliverer_val,
                 receiver_name=receiver_val,
                 created_by=getattr(current_user, "id", None),
             )
-            _ensure_payment_number(payment)
-            
-            # Auto-link customer-level IN payments to open sales to keep balance_due accurate
-            if etype == "CUSTOMER" and direction_val == "IN" and final_customer_id:
-                open_sale = Sale.query.filter(
-                    Sale.customer_id == final_customer_id,
-                    Sale.balance_due > 0.01,
-                    Sale.is_archived == False,
-                ).order_by(Sale.sale_date.asc()).first()
-                
-                if open_sale:
-                    payment.sale_id = open_sale.id
-                    payment.customer_id = None
-                    payment.entity_type = 'SALE'
-                    flash(
-                        f"تم ربط الدفعة تلقائياً بمبيعة #{open_sale.sale_number} (المتبقي: {float(open_sale.balance_due):.2f} ₪). "
-                        f"سيتم تحديث المتبقي تلقائياً.",
-                        "info",
-                    )
-            
-            db.session.add(payment)
-            db.session.flush()
-            
-            # ✅ ضمان وجود Split واحد على الأقل لإنشاء القيود المحاسبية
-            if not parsed_splits:
-                default_split = PaymentSplit(
-                    payment_id=payment.id,
-                    amount=payment.total_amount,
-                    currency=payment.currency,
-                    method=payment.method,
-                    details={"auto_created": True}
-                )
-                db.session.add(default_split)
-                parsed_splits.append(default_split)
-            else:
-                for sp in parsed_splits:
-                    sp.payment_id = payment.id
-                    db.session.add(sp)
-            
-            _sync_payment_method_with_splits(payment)
-            db.session.add(payment)
-            try:
-                db.session.commit()
-            except IntegrityError as ie:
-                db.session.rollback()
-                msg = str(ie).lower()
-                fixed = False
-                if "payments.payment_number" in msg or "unique constraint failed: payments.payment_number" in msg:
-                    # إعادة توليد رقم الدفع باستخدام _ensure_payment_number
-                    payment.payment_number = None  # إعادة تعيين
-                    _ensure_payment_number(payment)
-                    fixed = True
-                if "payments.method" in msg or "may not be null" in msg:
-                    if parsed_splits:
-                        payment.method = getattr(parsed_splits[0].method, "value", str(parsed_splits[0].method))
-                    else:
-                        payment.method = PaymentMethod.CASH.value
-                    fixed = True
-                if fixed:
-                    db.session.add(payment)
-                    for sp in parsed_splits:
-                        sp.payment_id = payment.id
-                        db.session.add(sp)
-                    db.session.commit()
-                else:
-                    raise
-            try:
-                if payment.sale_id:
-                    sale = db.session.get(Sale, payment.sale_id)
-                    if sale and hasattr(sale, "update_payment_status"):
-                        old_paid = float(sale.total_paid or 0)
-                        sale.update_payment_status()
-                        db.session.add(sale)
-                        
-                        # خصم المخزون عند اكتمال الدفع (إذا كانت مؤكدة ومدفوعة)
-                        preorder_already_fulfilled = False
-                        try:
-                            if getattr(sale, "preorder_id", None):
-                                po = db.session.get(PreOrder, int(sale.preorder_id))
-                                st = getattr(po, "status", None) if po else None
-                                st = getattr(st, "value", st) if st is not None else None
-                                preorder_already_fulfilled = str(st or "").upper() == "FULFILLED"
-                        except Exception:
-                            preorder_already_fulfilled = False
+            _ensure_payment_number(base_payment)
 
-                        if sale.status == SaleStatus.CONFIRMED and sale.payment_status == PaymentProgress.PAID.value and old_paid < float(sale.total or 0) and not preorder_already_fulfilled:
-                            from routes.sales import _deduct_stock
-                            try:
-                                _deduct_stock(sale)
-                            except Exception as stock_err:
-                                # إذا فشل الخصم، نسجل الخطأ لكن لا نمنع الدفع
-                                current_app.logger.warning(f"⚠️ تحذير: فشل خصم المخزون للبيع {sale.sale_number}: {stock_err}")
-                        
-                        # إذا كانت المبيعة من حجز مسبق ومدفوعة بالكامل، نحدث حالة الحجز
-                        if sale.preorder_id and sale.balance_due <= 0:
-                            po = db.session.get(PreOrder, sale.preorder_id)
-                            if po and po.status != "FULFILLED":
-                                po.status = PreOrderStatus.FULFILLED.value
-                                db.session.add(po)
-                if payment.invoice_id:
-                    inv = db.session.get(Invoice, payment.invoice_id)
-                    if inv and hasattr(inv, "update_status"):
-                        inv.update_status()
-                        db.session.add(inv)
-                if payment.status == PaymentStatus.COMPLETED.value:
-                    customer_id_for_balance = None
-                    try:
-                        from utils.customer_balance_updater import get_customer_from_payment
-                        customer_id_for_balance = get_customer_from_payment(payment)
-                    except Exception:
-                        customer_id_for_balance = getattr(payment, "customer_id", None)
-                    if customer_id_for_balance:
-                        from utils.customer_balance_updater import update_customer_balance_components
-                        update_customer_balance_components(customer_id_for_balance, db.session)
-                    if payment.supplier_id:
-                        utils.update_entity_balance("supplier", payment.supplier_id)
-                    if payment.partner_id:
-                        utils.update_entity_balance("partner", payment.partner_id)
-                    if payment.loan_settlement_id:
-                        ls = db.session.get(SupplierLoanSettlement, payment.loan_settlement_id)
-                        if ls and ls.supplier_id:
-                            utils.update_entity_balance("supplier", ls.supplier_id)
-                if payment.preorder_id:
-                    # لا نحدث حالة الحجز عند دفع العربون
-                    # فقط عند دفع المبيعة المرتبطة بالحجز (انظر payment.sale_id)
-                    pass
-                db.session.commit()
+            pool_splits = list(parsed_splits or [])
+            if not pool_splits:
+                pool_splits = [
+                    PaymentSplit(
+                        method=getattr(base_payment.method, "value", base_payment.method),
+                        amount=base_total,
+                        details={"auto_created": True},
+                        currency="ILS",
+                        converted_amount=base_total,
+                        converted_currency="ILS",
+                        fx_rate_used=Decimal("1"),
+                        fx_rate_source="same",
+                        fx_rate_timestamp=_utc_now_naive(),
+                        fx_base_currency="ILS",
+                        fx_quote_currency="ILS",
+                    )
+                ]
+
+            def _take_splits(amount_needed: Decimal):
+                need = q0(amount_needed)
+                out = []
+                for sp in pool_splits:
+                    if need <= 0:
+                        break
+                    avail_conv = q0(getattr(sp, "converted_amount", 0) or 0)
+                    if avail_conv <= 0:
+                        continue
+                    take_conv = avail_conv if avail_conv <= need else q0(need)
+                    if take_conv <= 0:
+                        continue
+                    base_amt = q0(getattr(sp, "amount", 0) or 0)
+                    base_conv = q0(getattr(sp, "converted_amount", 0) or 0)
+                    if base_conv <= 0:
+                        continue
+                    take_amt = q0((base_amt * take_conv) / base_conv)
+                    if take_amt <= 0:
+                        continue
+                    out.append(
+                        PaymentSplit(
+                            method=getattr(sp.method, "value", sp.method),
+                            amount=take_amt,
+                            details=(sp.details or {}),
+                            currency=sp.currency,
+                            converted_amount=take_conv,
+                            converted_currency=sp.converted_currency,
+                            fx_rate_used=sp.fx_rate_used,
+                            fx_rate_source=sp.fx_rate_source,
+                            fx_rate_timestamp=sp.fx_rate_timestamp,
+                            fx_base_currency=sp.fx_base_currency,
+                            fx_quote_currency=sp.fx_quote_currency,
+                        )
+                    )
+                    sp.amount = q0(q0(getattr(sp, "amount", 0) or 0) - take_amt)
+                    sp.converted_amount = q0(q0(getattr(sp, "converted_amount", 0) or 0) - take_conv)
+                    need = q0(need - take_conv)
+                return out, need
+
+            payments_to_create = []
+            splits_by_payment = {}
+
+            def _new_payment_for_target(entity_type: str, *, receipt_number, reference_override=None, **target_link):
+                p = Payment(
+                    entity_type=entity_type,
+                    direction=direction_db,
+                    status=base_payment.status,
+                    payment_date=base_payment.payment_date,
+                    total_amount=q0(target_link.pop("_amount", 0)),
+                    currency=base_payment.currency,
+                    method=base_payment.method,
+                    reference=reference_override if reference_override is not None else base_payment.reference,
+                    receipt_number=receipt_number,
+                    notes=base_payment.notes,
+                    deliverer_name=base_payment.deliverer_name,
+                    receiver_name=base_payment.receiver_name,
+                    created_by=base_payment.created_by,
+                    **target_link,
+                )
+                _ensure_payment_number(p)
+                return p
+
+            def _add_alloc(entity_type: str, amount: Decimal, *, receipt_number, reference_override=None, **target_link):
+                amt = q0(amount)
+                if amt <= 0:
+                    return amt
+                splits, leftover = _take_splits(amt)
+                if leftover > 0:
+                    raise ValueError("split_allocation_failed")
+                p = _new_payment_for_target(entity_type, receipt_number=receipt_number, reference_override=reference_override, _amount=amt, **target_link)
+                payments_to_create.append(p)
+                splits_by_payment[p] = splits
+                return amt
+
+            if etype == "CUSTOMER" and direction_val == "IN" and final_customer_id:
+                obligations = []
                 try:
-                    run_payment_gl_sync_after_commit(payment.id)
+                    open_services = (
+                        ServiceRequest.query.filter(
+                            ServiceRequest.customer_id == final_customer_id,
+                            ServiceRequest.is_archived == False,
+                            ServiceRequest.cancelled_at.is_(None),
+                            ServiceRequest.balance_due > 0.01,
+                        )
+                        .order_by(ServiceRequest.received_at.asc(), ServiceRequest.id.asc())
+                        .all()
+                    )
+                    for svc in open_services:
+                        dtv = getattr(svc, "received_at", None) or getattr(svc, "created_at", None)
+                        obligations.append(("SERVICE", dtv, svc.id, q0(D(getattr(svc, "balance_due", 0) or 0))))
                 except Exception:
-                    current_app.logger.warning(f'Failed to sync payment GL entries: {payment.id}')
-                created_checks = False
-                payment_method_str = str(payment.method).upper()
-                if ('CHECK' in payment_method_str or 'CHEQUE' in payment_method_str) and payment.check_number and payment.check_bank:
-                    _, created = create_check_record(
-                        payment=payment,
-                        amount=payment.total_amount,
-                        check_number=payment.check_number,
-                        check_bank=payment.check_bank,
-                        check_date=payment.payment_date or _utc_now_naive(),
-                        check_due_date=payment.check_due_date or payment.payment_date,
-                        notes=f"شيك من دفعة رقم {payment.payment_number or payment.id}"
+                    pass
+                try:
+                    open_preorders = (
+                        PreOrder.query.filter(
+                            PreOrder.customer_id == final_customer_id,
+                            PreOrder.cancelled_at.is_(None),
+                            PreOrder.balance_due > 0.01,
+                        )
+                        .order_by(PreOrder.preorder_date.asc(), PreOrder.id.asc())
+                        .all()
                     )
-                    created_checks = created or created_checks
-                for split in payment.splits:
-                    method_str = str(split.method).upper()
-                    if 'CHECK' not in method_str and 'CHEQUE' not in method_str:
-                        continue
-                    details = split.details or {}
-                    check_number = (details.get('check_number') or "").strip()
-                    check_bank = (details.get('check_bank') or "").strip()
-                    if not check_number or not check_bank:
-                        current_app.logger.warning(f"⚠️ شيك بدون رقم أو بنك في دفعة {payment.id}")
-                        continue
-                    check_due_date_raw = details.get('check_due_date') or payment.check_due_date or payment.payment_date
-                    _, created = create_check_record(
-                        payment=payment,
-                        amount=split.amount,
-                        check_number=check_number,
-                        check_bank=check_bank,
-                        check_date=payment.payment_date or _utc_now_naive(),
-                        check_due_date=check_due_date_raw,
-                        notes=f"شيك من دفعة رقم {payment.payment_number or payment.id}"
+                    for po in open_preorders:
+                        dtv = getattr(po, "preorder_date", None) or getattr(po, "created_at", None)
+                        obligations.append(("PREORDER", dtv, po.id, q0(D(getattr(po, "balance_due", 0) or 0))))
+                except Exception:
+                    pass
+                try:
+                    open_sales = (
+                        Sale.query.filter(
+                            Sale.customer_id == final_customer_id,
+                            Sale.balance_due > 0.01,
+                            Sale.is_archived == False,
+                            Sale.cancelled_at.is_(None),
+                        )
+                        .order_by(Sale.sale_date.asc(), Sale.id.asc())
+                        .all()
                     )
-                    created_checks = created or created_checks
-                if created_checks:
+                    for s in open_sales:
+                        obligations.append(("SALE", getattr(s, "sale_date", None), s.id, q0(D(getattr(s, "balance_due", 0) or 0))))
+                except Exception:
+                    pass
+                try:
+                    open_invoices = (
+                        Invoice.query.filter(
+                            Invoice.customer_id == final_customer_id,
+                            Invoice.cancelled_at.is_(None),
+                            (Invoice.total_amount - Invoice.total_paid) > 0.01,
+                            Invoice.sale_id.is_(None),
+                            Invoice.service_id.is_(None),
+                            Invoice.preorder_id.is_(None),
+                        )
+                        .order_by(Invoice.invoice_date.asc(), Invoice.id.asc())
+                        .all()
+                    )
+                    for inv in open_invoices:
+                        obligations.append(("INVOICE", getattr(inv, "invoice_date", None), inv.id, q0(D(getattr(inv, "balance_due", 0) or 0))))
+                except Exception:
+                    pass
+                obligations = [o for o in obligations if o[3] > 0]
+                obligations.sort(key=lambda x: (x[1] or _utc_now_naive(), x[0], x[2]))
+
+                remaining = q0(base_total)
+                alloc_count = 0
+                for kind, _dtv, oid, bal in obligations:
+                    if remaining <= 0:
+                        break
+                    take = bal if bal <= remaining else q0(remaining)
+                    if take <= 0:
+                        continue
+                    alloc_count += 1
+                    rec = base_receipt if alloc_count == 1 else None
+                    if kind == "SERVICE":
+                        _add_alloc("SERVICE", take, receipt_number=rec, service_id=oid)
+                    elif kind == "PREORDER":
+                        _add_alloc("PREORDER", take, receipt_number=rec, preorder_id=oid)
+                    elif kind == "INVOICE":
+                        _add_alloc("INVOICE", take, receipt_number=rec, invoice_id=oid)
+                    else:
+                        _add_alloc("SALE", take, receipt_number=rec, sale_id=oid)
+                    remaining = q0(remaining - take)
+                if payments_to_create and remaining > 0:
+                    _add_alloc("CUSTOMER", remaining, receipt_number=None, customer_id=final_customer_id)
+                    remaining = q0(0)
+
+            if etype == "SUPPLIER" and direction_val == "IN" and final_supplier_id and not payments_to_create:
+                linked_customer_id = None
+                try:
+                    s_obj = db.session.get(Supplier, final_supplier_id)
+                    linked_customer_id = getattr(s_obj, "customer_id", None)
+                except Exception:
+                    linked_customer_id = None
+
+                if linked_customer_id:
+                    obligations = []
                     try:
-                        db.session.commit()
-                        current_app.logger.info(f"✅ تم حفظ الشيكات من دفعة {payment.id}")
-                    except Exception as e:
-                        db.session.rollback()
-                        current_app.logger.error(f"❌ فشل إنشاء سجل شيك من دفعة {payment.id}: {str(e)}")
-                
-                utils.log_audit("Payment", payment.id, "CREATE")
-                
-                check_token = request.form.get("check_token") or request.args.get("check_token")
-                if check_token:
+                        open_services = (
+                            ServiceRequest.query.filter(
+                                ServiceRequest.customer_id == linked_customer_id,
+                                ServiceRequest.is_archived == False,
+                                ServiceRequest.cancelled_at.is_(None),
+                                ServiceRequest.balance_due > 0.01,
+                            )
+                            .order_by(ServiceRequest.received_at.asc(), ServiceRequest.id.asc())
+                            .all()
+                        )
+                        for svc in open_services:
+                            dtv = getattr(svc, "received_at", None) or getattr(svc, "created_at", None)
+                            obligations.append(("SERVICE", dtv, svc.id, q0(D(getattr(svc, "balance_due", 0) or 0))))
+                    except Exception:
+                        pass
                     try:
-                        from routes.checks import CheckActionService
-                        service = CheckActionService(current_user)
-                        ctx = service._resolve(check_token)
-                        current_status = service._current_status(ctx)
-                        if current_status not in ['CANCELLED', 'CASHED']:
-                            note_text = "تم تسوية الشيك مرتجع عن طريق دفع بديل"
-                            payment._skip_gl_entry = True
-                            if ctx.kind in ['payment', 'payment_split'] and ctx.payment:
-                                if current_status == 'PENDING':
-                                    service.run(check_token, 'CANCELLED', note_text)
-                                else:
-                                    note_suffix = "\n[SETTLED=true] " + note_text
-                                    if '[SETTLED=true]' not in (ctx.payment.notes or ''):
-                                        ctx.payment.notes = (ctx.payment.notes or '') + note_suffix
-                            elif ctx.kind == 'expense' and ctx.expense:
-                                note_suffix = "\n[SETTLED=true] " + note_text
-                                if '[SETTLED=true]' not in (ctx.expense.notes or ''):
-                                    ctx.expense.notes = (ctx.expense.notes or '') + note_suffix
-                            elif ctx.kind == 'manual' and ctx.manual:
-                                if current_status == 'PENDING':
-                                    service.run(check_token, 'CANCELLED', note_text)
-                                else:
-                                    note_suffix = "\n[SETTLED=true] " + note_text
-                                    if '[SETTLED=true]' not in (ctx.manual.notes or ''):
-                                        ctx.manual.notes = (ctx.manual.notes or '') + note_suffix
+                        open_preorders = (
+                            PreOrder.query.filter(
+                                PreOrder.customer_id == linked_customer_id,
+                                PreOrder.cancelled_at.is_(None),
+                                PreOrder.balance_due > 0.01,
+                            )
+                            .order_by(PreOrder.preorder_date.asc(), PreOrder.id.asc())
+                            .all()
+                        )
+                        for po in open_preorders:
+                            dtv = getattr(po, "preorder_date", None) or getattr(po, "created_at", None)
+                            obligations.append(("PREORDER", dtv, po.id, q0(D(getattr(po, "balance_due", 0) or 0))))
+                    except Exception:
+                        pass
+                    try:
+                        open_sales = (
+                            Sale.query.filter(
+                                Sale.customer_id == linked_customer_id,
+                                Sale.balance_due > 0.01,
+                                Sale.is_archived == False,
+                                Sale.cancelled_at.is_(None),
+                            )
+                            .order_by(Sale.sale_date.asc(), Sale.id.asc())
+                            .all()
+                        )
+                        for s in open_sales:
+                            obligations.append(("SALE", getattr(s, "sale_date", None), s.id, q0(D(getattr(s, "balance_due", 0) or 0))))
+                    except Exception:
+                        pass
+                    try:
+                        open_invoices = (
+                            Invoice.query.filter(
+                                Invoice.customer_id == linked_customer_id,
+                                Invoice.cancelled_at.is_(None),
+                                (Invoice.total_amount - Invoice.total_paid) > 0.01,
+                                Invoice.sale_id.is_(None),
+                                Invoice.service_id.is_(None),
+                                Invoice.preorder_id.is_(None),
+                            )
+                            .order_by(Invoice.invoice_date.asc(), Invoice.id.asc())
+                            .all()
+                        )
+                        for inv in open_invoices:
+                            obligations.append(("INVOICE", getattr(inv, "invoice_date", None), inv.id, q0(D(getattr(inv, "balance_due", 0) or 0))))
+                    except Exception:
+                        pass
+
+                    obligations = [o for o in obligations if o[3] > 0]
+                    obligations.sort(key=lambda x: (x[1] or _utc_now_naive(), x[0], x[2]))
+                    remaining = q0(base_total)
+                    alloc_count = 0
+                    for kind, _dtv, oid, bal in obligations:
+                        if remaining <= 0:
+                            break
+                        take = bal if bal <= remaining else q0(remaining)
+                        if take <= 0:
+                            continue
+                        alloc_count += 1
+                        rec = base_receipt if alloc_count == 1 else None
+                        if kind == "SERVICE":
+                            _add_alloc("SERVICE", take, receipt_number=rec, service_id=oid)
+                        elif kind == "PREORDER":
+                            _add_alloc("PREORDER", take, receipt_number=rec, preorder_id=oid)
+                        elif kind == "INVOICE":
+                            _add_alloc("INVOICE", take, receipt_number=rec, invoice_id=oid)
+                        else:
+                            _add_alloc("SALE", take, receipt_number=rec, sale_id=oid)
+                        remaining = q0(remaining - take)
+                    if payments_to_create and remaining > 0:
+                        _add_alloc("SUPPLIER", remaining, receipt_number=None, supplier_id=final_supplier_id)
+                        remaining = q0(0)
+
+            if etype == "PARTNER" and direction_val == "IN" and final_partner_id and not payments_to_create:
+                linked_customer_id = None
+                try:
+                    p_obj = db.session.get(Partner, final_partner_id)
+                    linked_customer_id = getattr(p_obj, "customer_id", None)
+                except Exception:
+                    linked_customer_id = None
+
+                if linked_customer_id:
+                    obligations = []
+                    try:
+                        open_services = (
+                            ServiceRequest.query.filter(
+                                ServiceRequest.customer_id == linked_customer_id,
+                                ServiceRequest.is_archived == False,
+                                ServiceRequest.cancelled_at.is_(None),
+                                ServiceRequest.balance_due > 0.01,
+                            )
+                            .order_by(ServiceRequest.received_at.asc(), ServiceRequest.id.asc())
+                            .all()
+                        )
+                        for svc in open_services:
+                            dtv = getattr(svc, "received_at", None) or getattr(svc, "created_at", None)
+                            obligations.append(("SERVICE", dtv, svc.id, q0(D(getattr(svc, "balance_due", 0) or 0))))
+                    except Exception:
+                        pass
+                    try:
+                        open_preorders = (
+                            PreOrder.query.filter(
+                                PreOrder.customer_id == linked_customer_id,
+                                PreOrder.cancelled_at.is_(None),
+                                PreOrder.balance_due > 0.01,
+                            )
+                            .order_by(PreOrder.preorder_date.asc(), PreOrder.id.asc())
+                            .all()
+                        )
+                        for po in open_preorders:
+                            dtv = getattr(po, "preorder_date", None) or getattr(po, "created_at", None)
+                            obligations.append(("PREORDER", dtv, po.id, q0(D(getattr(po, "balance_due", 0) or 0))))
+                    except Exception:
+                        pass
+                    try:
+                        open_sales = (
+                            Sale.query.filter(
+                                Sale.customer_id == linked_customer_id,
+                                Sale.balance_due > 0.01,
+                                Sale.is_archived == False,
+                                Sale.cancelled_at.is_(None),
+                            )
+                            .order_by(Sale.sale_date.asc(), Sale.id.asc())
+                            .all()
+                        )
+                        for s in open_sales:
+                            obligations.append(("SALE", getattr(s, "sale_date", None), s.id, q0(D(getattr(s, "balance_due", 0) or 0))))
+                    except Exception:
+                        pass
+                    try:
+                        open_invoices = (
+                            Invoice.query.filter(
+                                Invoice.customer_id == linked_customer_id,
+                                Invoice.cancelled_at.is_(None),
+                                (Invoice.total_amount - Invoice.total_paid) > 0.01,
+                                Invoice.sale_id.is_(None),
+                                Invoice.service_id.is_(None),
+                                Invoice.preorder_id.is_(None),
+                            )
+                            .order_by(Invoice.invoice_date.asc(), Invoice.id.asc())
+                            .all()
+                        )
+                        for inv in open_invoices:
+                            obligations.append(("INVOICE", getattr(inv, "invoice_date", None), inv.id, q0(D(getattr(inv, "balance_due", 0) or 0))))
+                    except Exception:
+                        pass
+
+                    obligations = [o for o in obligations if o[3] > 0]
+                    obligations.sort(key=lambda x: (x[1] or _utc_now_naive(), x[0], x[2]))
+                    remaining = q0(base_total)
+                    alloc_count = 0
+                    for kind, _dtv, oid, bal in obligations:
+                        if remaining <= 0:
+                            break
+                        take = bal if bal <= remaining else q0(remaining)
+                        if take <= 0:
+                            continue
+                        alloc_count += 1
+                        rec = base_receipt if alloc_count == 1 else None
+                        if kind == "SERVICE":
+                            _add_alloc("SERVICE", take, receipt_number=rec, service_id=oid)
+                        elif kind == "PREORDER":
+                            _add_alloc("PREORDER", take, receipt_number=rec, preorder_id=oid)
+                        elif kind == "INVOICE":
+                            _add_alloc("INVOICE", take, receipt_number=rec, invoice_id=oid)
+                        else:
+                            _add_alloc("SALE", take, receipt_number=rec, sale_id=oid)
+                        remaining = q0(remaining - take)
+                    if payments_to_create and remaining > 0:
+                        _add_alloc("PARTNER", remaining, receipt_number=None, partner_id=final_partner_id)
+                        remaining = q0(0)
+
+            if etype == "SUPPLIER" and direction_val == "OUT" and final_supplier_id and not payments_to_create:
+                obligations = []
+                try:
+                    rows = (
+                        SupplierSettlement.query.filter(
+                            SupplierSettlement.supplier_id == final_supplier_id,
+                            SupplierSettlement.code.isnot(None),
+                        )
+                        .order_by(SupplierSettlement.from_date.asc(), SupplierSettlement.id.asc())
+                        .all()
+                    )
+                    for s in rows:
+                        rem = q0(D(getattr(s, "remaining", 0) or 0))
+                        if rem > 0.01:
+                            obligations.append(("SUPPLIER_SETTLEMENT", getattr(s, "from_date", None), s.id, rem, getattr(s, "code", None)))
+                except Exception:
+                    pass
+                try:
+                    rows = (
+                        SupplierLoanSettlement.query.filter(
+                            SupplierLoanSettlement.supplier_id == final_supplier_id,
+                            ~SupplierLoanSettlement.payment.has(),
+                        )
+                        .order_by(SupplierLoanSettlement.settlement_date.asc(), SupplierLoanSettlement.id.asc())
+                        .all()
+                    )
+                    for ls in rows:
+                        obligations.append(("LOAN", getattr(ls, "settlement_date", None), ls.id, q0(D(getattr(ls, "settled_price", 0) or 0)), None))
+                except Exception:
+                    pass
+                try:
+                    rows = (
+                        Expense.query.filter(
+                            or_(
+                                Expense.supplier_id == final_supplier_id,
+                                and_(Expense.payee_type == "SUPPLIER", Expense.payee_entity_id == final_supplier_id),
+                            ),
+                            Expense.balance > 0.01,
+                            Expense.is_archived == False,
+                        )
+                        .order_by(Expense.date.asc(), Expense.id.asc())
+                        .all()
+                    )
+                    for e in rows:
+                        obligations.append(("EXPENSE", getattr(e, "date", None), e.id, q0(D(getattr(e, "balance", 0) or 0)), None))
+                except Exception:
+                    pass
+                obligations = [o for o in obligations if o[3] > 0]
+                obligations.sort(key=lambda x: (x[1] or _utc_now_naive(), x[0], x[2]))
+
+                remaining = q0(base_total)
+                alloc_count = 0
+                for kind, _dtv, oid, bal, code in obligations:
+                    if remaining <= 0:
+                        break
+                    take = bal if bal <= remaining else q0(remaining)
+                    if take <= 0:
+                        continue
+                    alloc_count += 1
+                    rec = base_receipt if alloc_count == 1 else None
+                    if kind == "SUPPLIER_SETTLEMENT" and code:
+                        _add_alloc("SUPPLIER", take, receipt_number=rec, reference_override=f"SupplierSettle:{code}", supplier_id=final_supplier_id)
+                    elif kind == "LOAN":
+                        _add_alloc("LOAN", take, receipt_number=rec, loan_settlement_id=oid)
+                    else:
+                        _add_alloc("EXPENSE", take, receipt_number=rec, expense_id=oid)
+                    remaining = q0(remaining - take)
+                if payments_to_create and remaining > 0:
+                    _add_alloc("SUPPLIER", remaining, receipt_number=None, supplier_id=final_supplier_id)
+                    remaining = q0(0)
+
+            if etype == "PARTNER" and direction_val == "OUT" and final_partner_id and not payments_to_create:
+                obligations = []
+                try:
+                    rows = (
+                        PartnerSettlement.query.filter(
+                            PartnerSettlement.partner_id == final_partner_id,
+                            PartnerSettlement.code.isnot(None),
+                        )
+                        .order_by(PartnerSettlement.from_date.asc(), PartnerSettlement.id.asc())
+                        .all()
+                    )
+                    for s in rows:
+                        rem = q0(D(getattr(s, "remaining", 0) or 0))
+                        if rem > 0.01:
+                            obligations.append(("PARTNER_SETTLEMENT", getattr(s, "from_date", None), s.id, rem, getattr(s, "code", None)))
+                except Exception:
+                    pass
+                try:
+                    rows = (
+                        Expense.query.filter(
+                            or_(
+                                Expense.partner_id == final_partner_id,
+                                and_(Expense.payee_type == "PARTNER", Expense.payee_entity_id == final_partner_id),
+                            ),
+                            Expense.balance > 0.01,
+                            Expense.is_archived == False,
+                        )
+                        .order_by(Expense.date.asc(), Expense.id.asc())
+                        .all()
+                    )
+                    for e in rows:
+                        obligations.append(("EXPENSE", getattr(e, "date", None), e.id, q0(D(getattr(e, "balance", 0) or 0)), None))
+                except Exception:
+                    pass
+                obligations = [o for o in obligations if o[3] > 0]
+                obligations.sort(key=lambda x: (x[1] or _utc_now_naive(), x[0], x[2]))
+
+                remaining = q0(base_total)
+                alloc_count = 0
+                for kind, _dtv, oid, bal, code in obligations:
+                    if remaining <= 0:
+                        break
+                    take = bal if bal <= remaining else q0(remaining)
+                    if take <= 0:
+                        continue
+                    alloc_count += 1
+                    rec = base_receipt if alloc_count == 1 else None
+                    if kind == "PARTNER_SETTLEMENT" and code:
+                        _add_alloc("PARTNER", take, receipt_number=rec, reference_override=f"PartnerSettle:{code}", partner_id=final_partner_id)
+                    else:
+                        _add_alloc("EXPENSE", take, receipt_number=rec, expense_id=oid)
+                    remaining = q0(remaining - take)
+                if payments_to_create and remaining > 0:
+                    _add_alloc("PARTNER", remaining, receipt_number=None, partner_id=final_partner_id)
+                    remaining = q0(0)
+
+            if not payments_to_create:
+                payments_to_create = [base_payment]
+                splits_by_payment[base_payment] = pool_splits
+
+            for p in payments_to_create:
+                db.session.add(p)
+            db.session.flush()
+
+            for p in payments_to_create:
+                psplits = splits_by_payment.get(p) or []
+                for sp in psplits:
+                    sp.payment_id = p.id
+                    db.session.add(sp)
+                _sync_payment_method_with_splits(p)
+                db.session.add(p)
+
+            try:
+                db.session.commit()
+            except IntegrityError:
+                db.session.rollback()
+                for p in payments_to_create:
+                    p.payment_number = None
+                    _ensure_payment_number(p)
+                    if not getattr(p, "method", None):
+                        p.method = PaymentMethod.CASH.value
+                    db.session.add(p)
+                for p in payments_to_create:
+                    for sp in (splits_by_payment.get(p) or []):
+                        sp.payment_id = p.id
+                        db.session.add(sp)
+                db.session.commit()
+
+            try:
+                for idx, payment in enumerate(payments_to_create):
+                    if payment.sale_id:
+                        sale = db.session.get(Sale, payment.sale_id)
+                        if sale and hasattr(sale, "update_payment_status"):
+                            old_paid = float(sale.total_paid or 0)
+                            sale.update_payment_status()
+                            db.session.add(sale)
+                            preorder_already_fulfilled = False
+                            try:
+                                if getattr(sale, "preorder_id", None):
+                                    po = db.session.get(PreOrder, int(sale.preorder_id))
+                                    st = getattr(po, "status", None) if po else None
+                                    st = getattr(st, "value", st) if st is not None else None
+                                    preorder_already_fulfilled = str(st or "").upper() == "FULFILLED"
+                            except Exception:
+                                preorder_already_fulfilled = False
+                            if sale.status == SaleStatus.CONFIRMED and sale.payment_status == PaymentProgress.PAID.value and old_paid < float(sale.total or 0) and not preorder_already_fulfilled:
+                                from routes.sales import _deduct_stock
+                                try:
+                                    _deduct_stock(sale)
+                                except Exception as stock_err:
+                                    current_app.logger.warning(f"⚠️ تحذير: فشل خصم المخزون للبيع {sale.sale_number}: {stock_err}")
+                            if sale.preorder_id and sale.balance_due <= 0:
+                                po = db.session.get(PreOrder, sale.preorder_id)
+                                if po and po.status != "FULFILLED":
+                                    po.status = PreOrderStatus.FULFILLED.value
+                                    db.session.add(po)
+                    if payment.invoice_id:
+                        inv = db.session.get(Invoice, payment.invoice_id)
+                        if inv and hasattr(inv, "update_status"):
+                            inv.update_status()
+                            db.session.add(inv)
+                    if payment.status == PaymentStatus.COMPLETED.value:
+                        customer_id_for_balance = None
+                        try:
+                            from utils.customer_balance_updater import get_customer_from_payment
+                            customer_id_for_balance = get_customer_from_payment(payment)
+                        except Exception:
+                            customer_id_for_balance = getattr(payment, "customer_id", None)
+                        if customer_id_for_balance:
+                            from utils.customer_balance_updater import update_customer_balance_components
+                            update_customer_balance_components(customer_id_for_balance, db.session)
+                        if payment.supplier_id:
+                            utils.update_entity_balance("supplier", payment.supplier_id)
+                        if payment.partner_id:
+                            utils.update_entity_balance("partner", payment.partner_id)
+                        if payment.loan_settlement_id:
+                            ls = db.session.get(SupplierLoanSettlement, payment.loan_settlement_id)
+                            if ls and ls.supplier_id:
+                                utils.update_entity_balance("supplier", ls.supplier_id)
+                        if payment.expense_id:
+                            exp = db.session.get(Expense, payment.expense_id)
+                            if exp:
+                                if getattr(exp, "supplier_id", None):
+                                    utils.update_entity_balance("supplier", int(exp.supplier_id))
+                                if getattr(exp, "partner_id", None):
+                                    utils.update_entity_balance("partner", int(exp.partner_id))
+                                if getattr(exp, "customer_id", None):
+                                    try:
+                                        from utils.customer_balance_updater import update_customer_balance_components
+                                        update_customer_balance_components(int(exp.customer_id), db.session)
+                                    except Exception:
+                                        pass
+                    db.session.commit()
+                    try:
+                        run_payment_gl_sync_after_commit(payment.id)
+                    except Exception:
+                        current_app.logger.warning(f'Failed to sync payment GL entries: {payment.id}')
+                    created_checks = False
+                    payment_method_str = str(payment.method).upper()
+                    if ('CHECK' in payment_method_str or 'CHEQUE' in payment_method_str) and payment.check_number and payment.check_bank:
+                        _, created = create_check_record(
+                            payment=payment,
+                            amount=payment.total_amount,
+                            check_number=payment.check_number,
+                            check_bank=payment.check_bank,
+                            check_date=payment.payment_date or _utc_now_naive(),
+                            check_due_date=payment.check_due_date or payment.payment_date,
+                            notes=f"شيك من دفعة رقم {payment.payment_number or payment.id}"
+                        )
+                        created_checks = created or created_checks
+                    for split in payment.splits:
+                        method_str = str(split.method).upper()
+                        if 'CHECK' not in method_str and 'CHEQUE' not in method_str:
+                            continue
+                        details = split.details or {}
+                        check_number = (details.get('check_number') or "").strip()
+                        check_bank = (details.get('check_bank') or "").strip()
+                        if not check_number or not check_bank:
+                            current_app.logger.warning(f"⚠️ شيك بدون رقم أو بنك في دفعة {payment.id}")
+                            continue
+                        check_due_date_raw = details.get('check_due_date') or payment.check_due_date or payment.payment_date
+                        _, created = create_check_record(
+                            payment=payment,
+                            amount=split.amount,
+                            check_number=check_number,
+                            check_bank=check_bank,
+                            check_date=payment.payment_date or _utc_now_naive(),
+                            check_due_date=check_due_date_raw,
+                            notes=f"شيك من دفعة رقم {payment.payment_number or payment.id}"
+                        )
+                        created_checks = created or created_checks
+                    if created_checks:
+                        try:
                             db.session.commit()
-                            current_app.logger.info(f"✅ تم تسوية الشيك {check_token} بعد حفظ الدفعة {payment.id}")
-                    except Exception as e:
-                        db.session.rollback()
-                        current_app.logger.error(f"⚠️ فشل تسوية الشيك {check_token} بعد حفظ الدفعة {payment.id}: {str(e)}")
+                            current_app.logger.info(f"✅ تم حفظ الشيكات من دفعة {payment.id}")
+                        except Exception as e:
+                            db.session.rollback()
+                            current_app.logger.error(f"❌ فشل إنشاء سجل شيك من دفعة {payment.id}: {str(e)}")
+                    utils.log_audit("Payment", payment.id, "CREATE")
+                    if idx == 0:
+                        check_token = request.form.get("check_token") or request.args.get("check_token")
+                        if check_token:
+                            try:
+                                service = CheckActionService(current_user)
+                                ctx = service._resolve(check_token)
+                                current_status = service._current_status(ctx)
+                                if current_status not in ['CANCELLED', 'CASHED']:
+                                    note_text = "تم تسوية الشيك مرتجع عن طريق دفع بديل"
+                                    payment._skip_gl_entry = True
+                                    if ctx.kind in ['payment', 'payment_split'] and ctx.payment:
+                                        if current_status == 'PENDING':
+                                            service.run(check_token, 'CANCELLED', note_text)
+                                        else:
+                                            note_suffix = "\n[SETTLED=true] " + note_text
+                                            if '[SETTLED=true]' not in (ctx.payment.notes or ''):
+                                                ctx.payment.notes = (ctx.payment.notes or '') + note_suffix
+                                    elif ctx.kind == 'expense' and ctx.expense:
+                                        note_suffix = "\n[SETTLED=true] " + note_text
+                                        if '[SETTLED=true]' not in (ctx.expense.notes or ''):
+                                            ctx.expense.notes = (ctx.expense.notes or '') + note_suffix
+                                    elif ctx.kind == 'manual' and ctx.manual:
+                                        if current_status == 'PENDING':
+                                            service.run(check_token, 'CANCELLED', note_text)
+                                        else:
+                                            note_suffix = "\n[SETTLED=true] " + note_text
+                                            if '[SETTLED=true]' not in (ctx.manual.notes or ''):
+                                                ctx.manual.notes = (ctx.manual.notes or '') + note_suffix
+                                    db.session.commit()
+                                    current_app.logger.info(f"✅ تم تسوية الشيك {check_token} بعد حفظ الدفعة {payment.id}")
+                            except Exception as e:
+                                db.session.rollback()
+                                current_app.logger.error(f"⚠️ فشل تسوية الشيك {check_token} بعد حفظ الدفعة {payment.id}: {str(e)}")
+                payment = payments_to_create[0]
             except SQLAlchemyError:
                 db.session.rollback()
         except SQLAlchemyError as e:
