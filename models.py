@@ -810,8 +810,21 @@ class DeletionStatus(str, enum.Enum):
             "RESTORED": "info",
         }[self.value]
 
+class TenantRegistry(db.Model):
+    __tablename__ = "tenants"
+
+    id = db.Column(db.Integer, primary_key=True)
+    slug = db.Column(db.String(60), unique=True, nullable=False, index=True)
+    schema_name = db.Column(db.String(63), unique=True, nullable=False, index=True)
+    display_name = db.Column(db.String(200))
+    domain = db.Column(db.String(255), unique=True)
+    is_active = db.Column(db.Boolean, default=True, nullable=False, index=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
 class SystemSettings(db.Model):
     __tablename__ = "system_settings"
+
 
     id = db.Column(db.Integer, primary_key=True)
     key = db.Column(db.String(100), unique=True, nullable=False, index=True)
