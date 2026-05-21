@@ -288,7 +288,10 @@
 {% block scripts %}
 {{ super() }}
 {% if branch.geo_lat and branch.geo_lng %}
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBFw0Qbyq9zTFTd-tUY6dZWTgaQzuU17R8&language=ar&region=PS"></script>
+{% set gm_key = config.get('GOOGLE_MAPS_API_KEY') %}
+{% if gm_key %}
+<script src="https://maps.googleapis.com/maps/api/js?key={{ gm_key|urlencode }}&language=ar&region=PS"></script>
+{% endif %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const lat = parseFloat('{{ branch.geo_lat }}');
@@ -310,4 +313,3 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 {% endif %}
 {% endblock %}
-

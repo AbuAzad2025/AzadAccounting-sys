@@ -9,12 +9,22 @@
 {% block security_breadcrumb %}
 <li class="breadcrumb-item active">مركز الإعدادات</li>
 {% if active_tab %}
-<li class="breadcrumb-item active">{{ active_tab|title }}</li>
+{% set tab_titles = {
+  'system': 'إعدادات النظام',
+  'constants': 'الثوابت',
+  'config': 'تكوين متقدم',
+  'branding': 'العلامة التجارية',
+  'theme': 'المظهر والثيمات',
+  'logos': 'الشعارات',
+  'darkmode': 'الوضع الليلي',
+  'branches': 'الفروع'
+} %}
+<li class="breadcrumb-item active">{{ tab_titles.get(active_tab, active_tab) }}</li>
 {% endif %}
 {% endblock %}
 
 {% block security_actions %}
-<span class="badge bg-warning text-dark fs-6">8 أدوات</span>
+<span class="badge badge-warning">8 أدوات</span>
 {% endblock %}
 
 {% block security_content %}
@@ -139,7 +149,7 @@
                         <td><small class="text-muted">{{ setting.description or '-' }}</small></td>
                         <td><span class="badge bg-secondary">{{ setting.data_type }}</span></td>
                         <td>
-                          <a href="{{ url_for('security.system_settings', key=setting.key) }}" 
+                          <a href="{{ url_for('security.system_settings', tab='general') }}" 
                              class="btn btn-sm btn-outline-primary" 
                              title="تعديل">
                             <i class="fas fa-edit"></i>
@@ -182,10 +192,18 @@
                     <div class="card-body">
                       <h6 class="text-primary"><i class="fas fa-coins"></i> الثوابت المالية</h6>
                       <ul class="list-unstyled small">
-                        <li><i class="fas fa-check text-success"></i> العملة الافتراضية: ILS</li>
-                        <li><i class="fas fa-check text-success"></i> رمز العملة: ₪</li>
-                        <li><i class="fas fa-check text-success"></i> الأرقام العشرية: 2</li>
-                        <li><i class="fas fa-check text-success"></i> ضريبة VAT: 17%</li>
+                        <li><i class="fas fa-check text-success"></i> العملة الافتراضية: {{ constants_data.default_currency if constants_data else 'ILS' }}</li>
+                        <li><i class="fas fa-check text-success"></i> رمز العملة: {{ constants_data.currency_symbol if constants_data else '₪' }}</li>
+                        <li><i class="fas fa-check text-success"></i> الأرقام العشرية: {{ constants_data.decimals if constants_data else 2 }}</li>
+                        <li>
+                          <i class="fas fa-check text-success"></i>
+                          VAT:
+                          {% if constants_data and constants_data.vat_enabled %}
+                            {{ constants_data.default_vat_rate }}%
+                          {% else %}
+                            معطّل
+                          {% endif %}
+                        </li>
                       </ul>
                     </div>
                   </div>
@@ -195,9 +213,9 @@
                     <div class="card-body">
                       <h6 class="text-success"><i class="fas fa-cogs"></i> ثوابت التطبيق</h6>
                       <ul class="list-unstyled small">
-                        <li><i class="fas fa-check text-success"></i> المنطقة الزمنية: UTC+3</li>
+                        <li><i class="fas fa-check text-success"></i> المنطقة الزمنية: {{ constants_data.timezone if constants_data else 'UTC' }}</li>
                         <li><i class="fas fa-check text-success"></i> اللغة: العربية</li>
-                        <li><i class="fas fa-check text-success"></i> التاريخ الهجري: مفعّل</li>
+                        <li><i class="fas fa-check text-success"></i> التاريخ الهجري: متاح</li>
                       </ul>
                     </div>
                   </div>
@@ -346,8 +364,8 @@
                       <div class="card-body">
                         <h6 class="text-success mb-3"><i class="fas fa-image"></i> الشعارات والهوية البصرية</h6>
                         <div class="text-center mb-3">
-                          {% if branding_settings and branding_settings.company_logo %}
-                            <img src="{{ branding_settings.company_logo }}" alt="Logo" class="img-thumbnail mb-2" style="max-height: 100px;">
+                          {% if branding_settings and branding_settings.company_logo_url %}
+                            <img src="{{ branding_settings.company_logo_url }}" alt="Logo" class="img-thumbnail mb-2" style="max-height: 100px;">
                           {% else %}
                             <div class="text-muted"><i class="fas fa-image fa-3x"></i></div>
                             <p class="small">لم يتم رفع شعار</p>
@@ -447,7 +465,7 @@
                     </div>
                     <div class="card-body text-center">
                       {% if branding_settings and branding_settings.company_logo %}
-                        <img src="{{ branding_settings.company_logo }}" alt="Company Logo" class="img-thumbnail mb-2" style="max-height: 150px;">
+                        <img src="{{ branding_settings.company_logo_url }}" alt="Company Logo" class="img-thumbnail mb-2" style="max-height: 150px;">
                       {% else %}
                         <i class="fas fa-image fa-4x text-muted mb-3"></i>
                         <p class="text-muted">لم يتم رفع الشعار</p>
@@ -461,8 +479,8 @@
                       <h6 class="mb-0"><i class="fas fa-star"></i> أيقونة الموقع (Favicon)</h6>
                     </div>
                     <div class="card-body text-center">
-                      {% if branding_settings and branding_settings.custom_favicon %}
-                        <img src="{{ branding_settings.custom_favicon }}" alt="أيقونة الموقع" class="img-thumbnail mb-2" style="max-height: 64px;">
+                      {% if branding_settings and branding_settings.custom_favicon_url %}
+                        <img src="{{ branding_settings.custom_favicon_url }}" alt="أيقونة الموقع" class="img-thumbnail mb-2" style="max-height: 64px;">
                       {% else %}
                         <i class="fas fa-star fa-4x text-muted mb-3"></i>
                         <p class="text-muted">لم يتم رفع أيقونة الموقع</p>
@@ -608,4 +626,3 @@
   </div>
 </div>
 {% endblock %}
-

@@ -46,8 +46,18 @@
         }
         
         .icon {
-            font-size: 120px;
-            margin-bottom: 30px;
+            width: 110px;
+            height: 110px;
+            margin: 0 auto 30px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.18);
+            border: 2px solid rgba(255, 255, 255, 0.35);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 42px;
+            font-weight: 800;
+            letter-spacing: 2px;
             animation: pulse 2s ease-in-out infinite;
         }
         
@@ -95,10 +105,24 @@
             opacity: 0.8;
             margin-top: 20px;
         }
+
+        .contact {
+            margin-top: 20px;
+            font-size: 14px;
+            opacity: 0.9;
+            line-height: 1.7;
+        }
+
+        .actions {
+            margin-top: 26px;
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
         
         .back-link {
             display: inline-block;
-            margin-top: 30px;
             padding: 12px 30px;
             background: rgba(255, 255, 255, 0.2);
             color: white;
@@ -118,11 +142,24 @@
 </head>
 <body>
     <div class="maintenance-container">
-        <div class="icon">🔧</div>
+        <div class="icon">GM</div>
         <h1>وضع الصيانة</h1>
         <p>نعتذر عن الإزعاج، نحن نقوم بتحديث النظام لتحسين الأداء وإضافة مميزات جديدة.</p>
         <div class="spinner"></div>
-        <p class="message">سنعود قريباً... شكراً لصبركم! 🙏</p>
+        <p class="message">سنعود قريباً... شكراً لصبركم.</p>
+        <div class="contact">
+            {% if system_settings and (system_settings.COMPANY_PHONE or system_settings.COMPANY_EMAIL) %}
+                {% if system_settings.COMPANY_PHONE %}للتواصل: {{ system_settings.COMPANY_PHONE }}<br>{% endif %}
+                {% if system_settings.COMPANY_EMAIL %}{{ system_settings.COMPANY_EMAIL }}{% endif %}
+            {% endif %}
+        </div>
+        <div class="actions">
+            <a class="back-link" href="{{ url_for('auth.login') }}">الذهاب لتسجيل الدخول</a>
+            <form method="post" action="{{ url_for('auth.logout') }}" style="display:inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="back-link" style="cursor:pointer;border:0;">تسجيل خروج</button>
+            </form>
+        </div>
     </div>
 </body>
 </html>

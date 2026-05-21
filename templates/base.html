@@ -108,9 +108,9 @@
   <link rel="manifest" href="{{ static_url('manifest.json') }}">
   
   {% if system_settings.custom_favicon %}
-  <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename=system_settings.custom_favicon.replace('static/', '')) }}">
-  <link rel="apple-touch-icon" href="{{ url_for('static', filename=system_settings.custom_favicon.replace('static/', '')) }}">
-  <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename=system_settings.custom_favicon.replace('static/', '')) }}">
+  <link rel="icon" type="image/x-icon" href="{{ system_settings.custom_favicon_url }}">
+  <link rel="apple-touch-icon" href="{{ system_settings.custom_favicon_url }}">
+  <link rel="apple-touch-icon" sizes="180x180" href="{{ system_settings.custom_favicon_url }}">
   {% else %}
   <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/logo.png') }}">
@@ -118,7 +118,7 @@
   {% endif %}
 
   <meta name="gm-company-name" content="{{ system_settings.company_name or system_settings.system_name or 'النظام' }}">
-  <meta name="gm-logo-url" content="{% if system_settings.custom_logo %}{{ url_for('static', filename=system_settings.custom_logo.replace('static/', '')) }}{% else %}{{ url_for('static', filename='img/logo.png') }}{% endif %}">
+  <meta name="gm-logo-url" content="{% if system_settings.custom_logo_url %}{{ system_settings.custom_logo_url }}{% else %}{{ url_for('static', filename='img/logo.png') }}{% endif %}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
@@ -439,10 +439,10 @@
 </nav>
 {% endif %}
 
-<script src="{{ url_for('static', filename='adminlte/plugins/jquery/jquery.min.js') }}"></script>
-<script src="{{ url_for('static', filename='adminlte/plugins/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
-<script src="{{ url_for('static', filename='adminlte/plugins/overlayScrollbars/js/jquery.overlayScrollbars.min.js') }}"></script>
-<script src="{{ url_for('static', filename='adminlte/js/adminlte.min.js') }}"></script>
+<script src="{{ static_url('adminlte/plugins/jquery/jquery.min.js') }}"></script>
+<script src="{{ static_url('adminlte/plugins/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
+<script src="{{ static_url('adminlte/plugins/overlayScrollbars/js/jquery.overlayScrollbars.min.js') }}"></script>
+<script src="{{ static_url('adminlte/js/adminlte.min.js') }}"></script>
 <script src="{{ static_url('js/datatables-arabic.js') }}"></script>
 <script src="{{ static_url('js/archive.js') }}"></script>
 

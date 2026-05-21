@@ -32,7 +32,7 @@
     // قائمة الإجراءات السريعة
     const actions = [
       {icon: '🗄️', name: 'Database Manager', url: '/security/database-manager', shortcut: 'Ctrl+Shift+D'},
-      {icon: '🤖', name: 'AI Hub', url: '/security/ai-hub', shortcut: 'Ctrl+Shift+A'},
+      {icon: '🤖', name: 'AI Hub', url: '/ai/hub', shortcut: 'Ctrl+Shift+A'},
       {icon: '🛡️', name: 'Security Center', url: '/security/security-center', shortcut: 'Ctrl+Shift+S'},
       {icon: '👥', name: 'Users Center', url: '/security/users-center', shortcut: 'Ctrl+Shift+U'},
       {icon: '🔧', name: 'Tools Center', url: '/security/tools-center', shortcut: 'Ctrl+Shift+T'},
@@ -368,4 +368,3 @@
   });
   
 })();
-

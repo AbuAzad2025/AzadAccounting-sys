@@ -1692,8 +1692,13 @@ def settings_center():
     - الفروع والمواقع
     """
     from models import SystemSettings, Branch
+    from constants import DEFAULT_CURRENCY
     
+    allowed_tabs = {'system', 'constants', 'config', 'branding', 'theme', 'logos', 'darkmode', 'branches'}
     tab = request.args.get('tab', 'system')
+    if tab not in allowed_tabs:
+        flash('⚠️ تبويب غير صالح، تم تحويلك للإعدادات العامة.', 'warning')
+        return redirect(url_for('security.settings_center', tab='system'))
     
     if request.method == 'POST':
         action = request.form.get('action')
@@ -1804,6 +1809,23 @@ def settings_center():
         'sidebar_bg': _get_setting('sidebar_bg', '#343a40'),
         'sidebar_text': _get_setting('sidebar_text', '#ffffff'),
     }
+
+    def _static_url_from_setting(val: str) -> str:
+        s = str(val or '').strip().replace('\\', '/')
+        if not s:
+            return ''
+        lowered = s.lower()
+        if lowered.startswith(('http://', 'https://', '//')):
+            return ''
+        s = s.lstrip('/')
+        if s.startswith('static/'):
+            s = s[len('static/'):]
+        if not s:
+            return ''
+        return url_for('static', filename=s)
+
+    branding_settings['company_logo_url'] = _static_url_from_setting(branding_settings.get('company_logo'))
+    branding_settings['custom_favicon_url'] = _static_url_from_setting(branding_settings.get('custom_favicon'))
     
     branches_data = {
         'total': Branch.query.count(),
@@ -1811,6 +1833,16 @@ def settings_center():
     }
     
     branches_list = Branch.query.all()
+    
+    constants_data = {
+        'default_currency': DEFAULT_CURRENCY,
+        'currency_symbol': _get_setting('CURRENCY_SYMBOL', '₪'),
+        'timezone': _get_setting('TIMEZONE', 'UTC'),
+        'vat_enabled': SystemSettings.get_setting('vat_enabled', True),
+        'default_vat_rate': SystemSettings.get_setting('default_vat_rate', 16.0),
+        'decimals': 2,
+        'language': 'ar',
+    }
     
     stats = get_cached_security_stats()
     return render_template('security/settings_center.html', 
@@ -1820,7 +1852,8 @@ def settings_center():
                           settings_stats=settings_stats,
                           branding_settings=branding_settings,
                           branches_data=branches_data,
-                          branches_list=branches_list)
+                          branches_list=branches_list,
+                          constants_data=constants_data)
 
 
 @security_bp.route('/reports-center')
@@ -2125,7 +2158,9 @@ def theme_editor():
 def logo_manager():
     """مدير الشعارات - رفع وتعديل الشعارات"""
     import os
+    import time
     from werkzeug.utils import secure_filename
+    from models import SystemSettings
     
     if request.method == 'POST':
         if 'logo_file' in request.files:
@@ -2166,20 +2201,10 @@ def logo_manager():
                     # تحديث الإعداد
                     setting_key = key_map.get(logo_type)
                     if setting_key:
-                        db_setting = SystemSettings.query.filter_by(key=setting_key).first()
                         rel_path = f"static/img/{target_name}"
-                        if db_setting:
-                            db_setting.value = rel_path
-                        else:
-                            db.session.add(SystemSettings(key=setting_key, value=rel_path))
+                        SystemSettings.set_setting(setting_key, rel_path, data_type='string', commit=False)
+                        SystemSettings.set_setting('assets_version', int(time.time()), data_type='number', commit=False)
                         db.session.commit()
-                        
-                        # تحديث الكاش
-                        try:
-                            from extensions import cache
-                            cache.delete(f"system_setting_{setting_key}")
-                        except Exception:
-                            current_app.logger.warning('cache invalidation failed silently in security.py', exc_info=True)
 
                     flash(f'✅ تم رفع {target_name} بنجاح!', 'success')
                 except Exception as e:
@@ -4828,7 +4853,7 @@ def emergency_tools():
     from models import User, AuditLog
     
     emergency_data = {
-        'maintenance_mode': _get_setting('maintenance_mode', 'false') == 'true',
+        'maintenance_mode': bool(_get_system_setting('maintenance_mode', False)),
         'total_users': User.query.count(),
         'active_users': User.query.filter_by(is_active=True).count(),
         'blocked_users': User.query.filter_by(is_active=False).count(),
@@ -4844,8 +4869,8 @@ def emergency_tools():
 @permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def toggle_maintenance_mode():
     """تفعيل/تعطيل وضع الصيانة"""
-    current = _get_system_setting('maintenance_mode', False)
-    _set_system_setting('maintenance_mode', not current)
+    current = bool(_get_system_setting('maintenance_mode', False))
+    _set_system_setting('maintenance_mode', (not current))
     
     status = 'مفعل' if not current else 'معطل'
     flash(f'وضع الصيانة الآن {status}', 'warning')
@@ -5821,8 +5846,11 @@ def _kill_all_user_sessions():
 
 
 def _get_system_setting(key, default=None):
-    """توجيه لدالة get_system_setting من ai_service"""
-    return get_system_setting(key, default)
+    try:
+        from models import SystemSettings
+        return SystemSettings.get_setting(str(key), default)
+    except Exception:
+        return default
 
 
 def _get_recent_actions(limit=50):
@@ -5843,16 +5871,20 @@ def _get_live_metrics():
 def _set_system_setting(key, value):
     """حفظ إعداد نظام"""
     from models import SystemSettings
-    setting = SystemSettings.query.filter_by(key=key).first()
-    if setting:
-        setting.value = str(value)
-    else:
-        setting = SystemSettings(key=key, value=str(value))
-        db.session.add(setting)
+    data_type = 'string'
+    if isinstance(value, bool):
+        data_type = 'boolean'
+    elif isinstance(value, (int, float)):
+        data_type = 'number'
+    elif isinstance(value, (dict, list)):
+        data_type = 'json'
     try:
-        db.session.commit()
+        SystemSettings.set_setting(str(key), value, data_type=data_type, commit=True)
     except Exception:
-        db.session.rollback()
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
         current_app.logger.exception('commit error')
         flash('حدث خطأ أثناء الحفظ', 'danger')
 
@@ -7314,6 +7346,69 @@ def api_system_constants():
         }), 500
 
 
+@security_bp.route('/constants/update', methods=['POST'])
+@permission_required(SystemPermissions.MANAGE_SYSTEM_CONFIG)
+def update_constants():
+    from models import SystemSettings
+
+    def _as_float(val, default=None):
+        try:
+            if val is None or str(val).strip() == "":
+                return default
+            return float(val)
+        except Exception:
+            return default
+
+    def _as_int(val, default=None):
+        try:
+            if val is None or str(val).strip() == "":
+                return default
+            return int(float(val))
+        except Exception:
+            return default
+
+    def _as_bool(val) -> bool:
+        if val is None:
+            return False
+        s = str(val).strip().lower()
+        if s in ("true", "1", "yes", "on"):
+            return True
+        if s in ("false", "0", "no", "off"):
+            return False
+        return True
+
+    try:
+        SystemSettings.set_setting('default_vat_rate', _as_float(request.form.get('default_vat_rate'), 16.0), 'نسبة VAT الافتراضية', 'number', commit=False)
+        SystemSettings.set_setting('default_currency', (request.form.get('default_currency') or 'ILS').strip().upper(), 'العملة الافتراضية', 'string', commit=False)
+        SystemSettings.set_setting('price_decimal_places', _as_int(request.form.get('price_decimal_places'), 2), 'الخانات العشرية للأسعار', 'number', commit=False)
+        SystemSettings.set_setting('vat_enabled', _as_bool(request.form.get('vat_enabled')), 'تفعيل VAT', 'boolean', commit=False)
+
+        SystemSettings.set_setting('items_per_page', _as_int(request.form.get('items_per_page'), 20), 'عدد العناصر بالصفحة', 'number', commit=False)
+        SystemSettings.set_setting('max_upload_size_mb', _as_int(request.form.get('max_upload_size_mb'), 10), 'الحد الأقصى لرفع الملفات MB', 'number', commit=False)
+
+        session_timeout_minutes = _as_int(request.form.get('session_timeout_minutes'), None)
+        if session_timeout_minutes is not None:
+            SystemSettings.set_setting('SESSION_TIMEOUT', int(session_timeout_minutes) * 60, 'مهلة الجلسة بالثواني', 'number', commit=False)
+
+        max_login_attempts = _as_int(request.form.get('max_login_attempts'), None)
+        if max_login_attempts is not None:
+            SystemSettings.set_setting('MAX_LOGIN_ATTEMPTS', int(max_login_attempts), 'أقصى محاولات دخول فاشلة', 'number', commit=False)
+
+        SystemSettings.set_setting('stock_warning_threshold', _as_int(request.form.get('stock_warning_threshold'), 0), 'حد تنبيه المخزون', 'number', commit=False)
+        SystemSettings.set_setting('allow_negative_stock', _as_bool(request.form.get('allow_negative_stock')), 'السماح بالمخزون السالب', 'boolean', commit=False)
+        SystemSettings.set_setting('enable_loyalty_points', _as_bool(request.form.get('enable_loyalty_points')), 'تفعيل النقاط/الولاء', 'boolean', commit=False)
+        SystemSettings.set_setting('date_format_ui', (request.form.get('date_format') or 'YYYY-MM-DD').strip(), 'تنسيق التاريخ (واجهة)', 'string', commit=False)
+
+        db.session.commit()
+        flash('تم حفظ الثوابت بنجاح', 'success')
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception('commit error')
+        flash('حدث خطأ داخلي', 'danger')
+
+    return redirect(request.referrer or url_for('security.settings_center', tab='constants'))
+
+
 # ==================== وحدة الإشعارات - Notifications Center ====================
 
 @security_bp.route('/notifications', methods=['GET'])
@@ -8244,6 +8339,34 @@ def api_chart_data():
     except Exception as e:
         current_app.logger.error(f"chart-data error: {str(e)}")
         return jsonify({'error': 'حدث خطأ داخلي'}), 500
+
+
+@security_bp.route('/mobile/update-version', methods=['POST'])
+@permission_required(SystemPermissions.MANAGE_SYSTEM_CONFIG)
+def mobile_update_version():
+    from models import SystemSettings
+
+    latest_version = (request.form.get('latest_version') or '').strip()
+    min_version = (request.form.get('min_version') or '').strip()
+    store_url = (request.form.get('store_url') or '').strip()
+    app_maintenance = bool(request.form.get('maintenance_mode'))
+
+    try:
+        if latest_version:
+            SystemSettings.set_setting('mobile_latest_version', latest_version, 'آخر إصدار للتطبيق', 'string', commit=False)
+        if min_version:
+            SystemSettings.set_setting('mobile_min_version', min_version, 'أقل إصدار مدعوم للتطبيق', 'string', commit=False)
+        if store_url:
+            SystemSettings.set_setting('mobile_store_url', store_url, 'رابط المتجر للتطبيق', 'string', commit=False)
+        SystemSettings.set_setting('mobile_maintenance_mode', app_maintenance, 'وضع صيانة للتطبيق فقط', 'boolean', commit=False)
+        db.session.commit()
+        flash('تم حفظ إعدادات التطبيق', 'success')
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception('commit error')
+        flash('حدث خطأ داخلي', 'danger')
+
+    return redirect(request.referrer or url_for('security.settings_center'))
 
 
 @security_bp.route('/api/mobile/push', methods=['POST'])

@@ -21,7 +21,7 @@
       description: 'مركز قاعدة البيانات'
     },
     'A': {
-      url: '/security/ai-hub',
+      url: '/ai/hub',
       name: 'AI Hub',
       icon: '🤖',
       description: 'مركز الذكاء الاصطناعي'
@@ -89,7 +89,7 @@
       description: 'التكاملات'
     },
     'M': {
-      url: '/security/system-map',
+      url: '/ai/system-map',
       name: 'System Map',
       icon: '🗺️',
       description: 'خريطة النظام'
@@ -402,4 +402,3 @@
   });
   
 })();
-

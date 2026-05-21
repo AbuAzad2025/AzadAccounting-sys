@@ -39,7 +39,7 @@
 
     /* Global Overrides */
     body.security-body {
-        background-color: #7f1d1d; /* red background for owner console */
+        background-color: #0b1220;
         background-image: none;
         background-attachment: scroll;
         background-size: auto;
@@ -57,8 +57,8 @@
         right: 0;
         width: var(--sidebar-width);
         height: calc(100vh - var(--main-navbar_height));
-        background: #991b1b; /* solid dark red */
-        border-left: 1px solid var(--border-glass);
+        background: var(--sec-sidebar-bg);
+        border-left: 1px solid var(--sec-sidebar-border);
         z-index: 1040;
         transition: transform 0.3s ease-in-out;
         box-shadow: -5px 0 18px rgba(0,0,0,0.55);
@@ -88,9 +88,9 @@
     }
     
     .security-brand .brand-badge {
-        background: rgba(255, 51, 102, 0.2);
-        color: #ff3366;
-        border: 1px solid #ff3366;
+        background: rgba(239, 68, 68, 0.14);
+        color: rgba(254, 202, 202, 0.95);
+        border: 1px solid rgba(239, 68, 68, 0.55);
         font-size: 0.65rem;
         padding: 2px 8px;
         border-radius: 12px;
@@ -106,23 +106,65 @@
         height: calc(100% - var(--header-height) - 60px);
     }
 
-    .security-nav-header {
-        padding: 1.5rem 1rem 0.5rem;
-        font-size: 0.75rem;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-        font-weight: 700;
-        color: #fef2f2;
-        font-family: 'Tajawal', sans-serif;
-        border-bottom: 1px solid rgba(248,113,113,0.4);
-        margin-bottom: 0.5rem;
+    .sec-nav-section {
+        margin-bottom: 0.75rem;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 12px;
+        overflow: hidden;
+        background: rgba(15, 23, 42, 0.35);
     }
 
-    .nav-link {
+    .sec-nav-section-toggle {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.85rem 1rem;
+        border: 0;
+        background: rgba(255, 255, 255, 0.03);
+        color: rgba(255, 255, 255, 0.92);
+        font-weight: 700;
+        letter-spacing: 0.4px;
+        cursor: pointer;
+        text-align: start;
+    }
+
+    .sec-nav-section-toggle:focus {
+        outline: none;
+        box-shadow: 0 0 0 0.2rem rgba(6, 182, 212, 0.2);
+    }
+
+    .sec-nav-section-title {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.6rem;
+        font-size: 0.85rem;
+    }
+
+    .sec-nav-caret {
+        transition: transform 0.2s ease;
+        opacity: 0.8;
+        font-size: 0.9rem;
+    }
+
+    .sec-nav-section-toggle[aria-expanded="true"] .sec-nav-caret {
+        transform: rotate(180deg);
+    }
+
+    .sec-nav-section--danger {
+        border-color: rgba(239, 68, 68, 0.35);
+        background: rgba(127, 29, 29, 0.18);
+    }
+
+    .sec-nav-section--danger .sec-nav-section-toggle {
+        background: rgba(239, 68, 68, 0.1);
+    }
+
+    .security-sidebar .nav-link {
         display: flex;
         align-items: center;
         padding: 0.85rem 1rem;
-        color: #e5e7eb;
+        color: rgba(226, 232, 240, 0.92);
         border-radius: 8px;
         margin-bottom: 6px;
         transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -132,53 +174,55 @@
         overflow: hidden;
     }
 
-    .nav-link:hover {
-        background: rgba(239,68,68,0.15);
+    .security-sidebar .nav-link:hover {
+        background: rgba(6, 182, 212, 0.12);
         color: #ffffff;
-        transform: translateX(4px);
-        border-color: rgba(248,113,113,0.7);
-        box-shadow: 0 4px 14px rgba(127,29,29,0.8);
+        transform: translateX(-4px);
+        border-color: rgba(6, 182, 212, 0.35);
+        box-shadow: 0 10px 24px rgba(0,0,0,0.35);
     }
     
-    .nav-link.active {
-        background: linear-gradient(90deg, rgba(248,113,113,0.85) 0%, rgba(127,29,29,0.95) 100%);
+    .security-sidebar .nav-link.active {
+        background: linear-gradient(90deg, rgba(6, 182, 212, 0.22) 0%, rgba(15, 23, 42, 0.88) 100%);
         color: #ffffff;
-        border: 1px solid rgba(248,113,113,0.95);
-        box-shadow: 0 0 20px rgba(239,68,68,0.5);
+        border: 1px solid rgba(6, 182, 212, 0.35);
+        box-shadow: 0 0 0 1px rgba(6, 182, 212, 0.14);
         font-weight: 600;
     }
 
-    .nav-link.active i {
-        color: #fecaca;
-        filter: drop-shadow(0 0 4px rgba(254,202,202,0.9));
+    .security-sidebar .nav-link.active i {
+        color: rgba(125, 211, 252, 0.95);
+        filter: none;
     }
 
-    .nav-link i {
+    .security-sidebar .nav-link i {
         width: 24px;
         text-align: center;
         margin-left: 12px;
         font-size: 1.2rem;
+        color: rgba(148, 163, 184, 0.95);
     }
     
     /* Danger Zone Links */
-    .nav-link.danger-link {
-        color: #fecaca;
+    .security-sidebar .nav-link.danger-link {
+        color: rgba(254, 202, 202, 0.95);
     }
-    .nav-link.danger-link:hover {
-        background: rgba(248,113,113,0.2);
-        color: #fee2e2;
+    .security-sidebar .nav-link.danger-link:hover {
+        background: rgba(239, 68, 68, 0.14);
+        color: #fff;
+        border-color: rgba(239, 68, 68, 0.35);
     }
-    .nav-link.danger-link.active {
-        background: linear-gradient(90deg, rgba(127,29,29,1) 0%, rgba(185,28,28,0.95) 100%);
-        color: #fee2e2;
-        border-color: rgba(248,113,113,0.9);
-        box-shadow: 0 0 18px rgba(248,113,113,0.6);
+    .security-sidebar .nav-link.danger-link.active {
+        background: linear-gradient(90deg, rgba(239, 68, 68, 0.22) 0%, rgba(15, 23, 42, 0.88) 100%);
+        color: #fff;
+        border-color: rgba(239, 68, 68, 0.5);
+        box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.14);
     }
 
     /* Main Content Area */
     .security-main {
         margin-right: var(--sidebar-width);
-        min-height: calc(100vh - var(--main-navbar-height));
+        min-height: calc(100vh - var(--main-navbar_height));
         transition: margin-right 0.3s ease-in-out;
         background: transparent; /* Let body gradient show */
         display: flex;
@@ -192,8 +236,8 @@
     /* Header - Glassmorphism */
     .security-header {
         height: var(--header-height);
-        background: #b91c1c; /* red header */
-        border-bottom: 2px solid #fecaca;
+        background: rgba(15, 23, 42, 0.92);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
         display: flex;
         align-items: center;
         padding: 0 1.5rem;
@@ -281,12 +325,145 @@
         border-top: 1px solid var(--sec-sidebar-border) !important;
         color: rgba(255,255,255,0.5) !important;
     }
+
+    .security-body .text-muted { color: rgba(255, 255, 255, 0.72) !important; }
+    .security-body .text-white-50 { color: rgba(255, 255, 255, 0.5) !important; }
+    .security-body .opacity-10 { opacity: 0.1 !important; }
+    .security-body .border-opacity-10 { border-color: rgba(255, 255, 255, 0.1) !important; }
+    .security-body .text-gray-800 { color: rgba(255, 255, 255, 0.92) !important; }
+    .security-body .text-xs { font-size: 0.75rem !important; }
+
+    .security-body .card:not([class*="bg-"]) {
+        background: rgba(15, 23, 42, 0.92);
+        border: 1px solid rgba(148, 163, 184, 0.25);
+        color: rgba(255, 255, 255, 0.92);
+    }
+    .security-body .card:not([class*="bg-"]) .card-header {
+        background: rgba(255, 255, 255, 0.05);
+        border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+        color: rgba(255, 255, 255, 0.92);
+    }
+    .security-body .card:not([class*="bg-"]) .card-title,
+    .security-body .card:not([class*="bg-"]) .card-text { color: rgba(255, 255, 255, 0.9); }
+    .security-body .card:not([class*="bg-"]) .text-muted { color: rgba(255, 255, 255, 0.68) !important; }
+
+    .ms-0 { margin-inline-start: 0 !important; }
+    .ms-1 { margin-inline-start: 0.25rem !important; }
+    .ms-2 { margin-inline-start: 0.5rem !important; }
+    .ms-3 { margin-inline-start: 1rem !important; }
+    .ms-4 { margin-inline-start: 1.5rem !important; }
+    .ms-5 { margin-inline-start: 3rem !important; }
+    .me-0 { margin-inline-end: 0 !important; }
+    .me-1 { margin-inline-end: 0.25rem !important; }
+    .me-2 { margin-inline-end: 0.5rem !important; }
+    .me-3 { margin-inline-end: 1rem !important; }
+    .me-4 { margin-inline-end: 1.5rem !important; }
+    .me-5 { margin-inline-end: 3rem !important; }
+
+    .gap-0 { gap: 0 !important; }
+    .gap-1 { gap: 0.25rem !important; }
+    .gap-2 { gap: 0.5rem !important; }
+    .gap-3 { gap: 1rem !important; }
+    .gap-4 { gap: 1.5rem !important; }
+    .gap-5 { gap: 3rem !important; }
+
+    .fw-bold { font-weight: 700 !important; }
+    .fw-semibold { font-weight: 600 !important; }
+    .fw-normal { font-weight: 400 !important; }
+    .font-monospace { font-family: var(--font-mono) !important; }
+
+    .d-grid { display: grid !important; }
+    .form-label { display: inline-block; margin-bottom: 0.5rem; }
+
+    .row.g-0 { margin-right: 0; margin-left: 0; }
+    .row.g-0 > [class^="col"], .row.g-0 > [class*=" col"] { padding-right: 0; padding-left: 0; }
+    .row.g-1 { margin-right: -0.125rem; margin-left: -0.125rem; }
+    .row.g-1 > [class^="col"], .row.g-1 > [class*=" col"] { padding-right: 0.125rem; padding-left: 0.125rem; }
+    .row.g-2 { margin-right: -0.25rem; margin-left: -0.25rem; }
+    .row.g-2 > [class^="col"], .row.g-2 > [class*=" col"] { padding-right: 0.25rem; padding-left: 0.25rem; }
+    .row.g-3 { margin-right: -0.5rem; margin-left: -0.5rem; }
+    .row.g-3 > [class^="col"], .row.g-3 > [class*=" col"] { padding-right: 0.5rem; padding-left: 0.5rem; }
+    .row.g-4 { margin-right: -0.75rem; margin-left: -0.75rem; }
+    .row.g-4 > [class^="col"], .row.g-4 > [class*=" col"] { padding-right: 0.75rem; padding-left: 0.75rem; }
+    .row.g-5 { margin-right: -1.5rem; margin-left: -1.5rem; }
+    .row.g-5 > [class^="col"], .row.g-5 > [class*=" col"] { padding-right: 1.5rem; padding-left: 1.5rem; }
+
+    .dropdown-menu-end { right: 0; left: auto; }
+    .end-0 { right: 0 !important; left: auto !important; }
+    .start-0 { left: 0 !important; right: auto !important; }
+    .top-0 { top: 0 !important; }
+    .bottom-0 { bottom: 0 !important; }
+    .border-1 { border-width: 1px !important; }
+
+    .vr { width: 1px; align-self: stretch; background-color: currentColor; opacity: 0.2; }
+    .badge.bg-secondary, .badge.bg-primary, .badge.bg-success, .badge.bg-danger, .badge.bg-warning, .badge.bg-info, .badge.bg-dark { color: #fff; }
+    .badge.bg-warning { color: #111827; }
+
+    .visually-hidden { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; border: 0 !important; }
+
+    .form-switch { padding-left: 0; padding-right: 0; }
+    .form-switch .form-check-input {
+        width: 2.5rem;
+        height: 1.25rem;
+        border-radius: 2rem;
+        background-color: #6b7280;
+        border: 1px solid rgba(255,255,255,0.25);
+        position: relative;
+        appearance: none;
+        -webkit-appearance: none;
+        outline: none;
+        cursor: pointer;
+        transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out;
+        direction: ltr;
+    }
+    .form-switch .form-check-input::before {
+        content: "";
+        position: absolute;
+        top: 50%;
+        left: 0.15rem;
+        width: 0.95rem;
+        height: 0.95rem;
+        border-radius: 999px;
+        background: #fff;
+        transform: translateY(-50%);
+        transition: transform 0.15s ease-in-out;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+    }
+    .form-switch .form-check-input:checked { background-color: #16a34a; border-color: rgba(255,255,255,0.25); }
+    .form-switch .form-check-input:checked::before { transform: translate(1.2rem, -50%); }
+    .form-switch .form-check-input:focus { box-shadow: 0 0 0 0.2rem rgba(6, 182, 212, 0.35); }
     
     /* Responsive */
     @media (max-width: 992px) {
         .security-sidebar { transform: translateX(100%); }
         .security-sidebar.show { transform: translateX(0); }
         .security-main { margin-right: 0; }
+    }
+
+    .security-body .modal-content {
+        background: rgba(15, 23, 42, 0.98);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        color: rgba(255, 255, 255, 0.92);
+    }
+
+    .security-body .modal-header,
+    .security-body .modal-footer {
+        background: rgba(255, 255, 255, 0.03);
+        border-color: rgba(255, 255, 255, 0.08) !important;
+    }
+
+    .security-body .modal .form-control {
+        background: rgba(2, 6, 23, 0.65);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        color: rgba(255, 255, 255, 0.92);
+    }
+
+    .security-body .modal .form-control::placeholder {
+        color: rgba(148, 163, 184, 0.85);
+    }
+
+    .security-body .modal .input-group-text {
+        color: rgba(148, 163, 184, 0.95);
     }
 </style>
 {% block extra_css %}{% endblock %}
@@ -299,51 +476,199 @@
             <div>
                 <h5>الكونسول السري</h5>
                 <span class="brand-badge">TOP SECRET</span>
+                {% if system_settings and system_settings.maintenance_mode %}
+                    <div class="mt-1">
+                        <span class="badge badge-danger">وضع الصيانة مفعّل</span>
+                    </div>
+                {% endif %}
             </div>
         </div>
         
         <nav class="security-nav custom-scrollbar">
-            <!-- القيادة والسيطرة -->
-            <div class="security-nav-header">القيادة والسيطرة</div>
-            <a href="{{ url_for('security.settings_center') }}" class="nav-link {% if request.endpoint == 'security.settings_center' and not request.args.get('tab') %}active{% endif %}">
-                <i class="fas fa-satellite-dish"></i> <span>مركز العمليات (Dashboard)</span>
-            </a>
-            <a href="{{ url_for('security.live_monitoring') }}" class="nav-link {% if 'live_monitoring' in request.endpoint %}active{% endif %}">
-                <i class="fas fa-radar"></i> <span>المراقبة الحية</span>
-            </a>
+            {% set ep = request.endpoint or '' %}
+            {% set sec_home = ep in ['security.index', 'security.settings_center', 'security.tools_center', 'security.reports_center'] %}
+            {% set sec_monitoring = ep in ['security.live_monitoring', 'security.monitoring_dashboard', 'security.performance_monitor', 'security.data_quality_center', 'security.security_center', 'security.grafana_setup', 'security.audit_log_viewer', 'security.audit_log_detail'] %}
+            {% set sec_management = ep in ['security.user_control', 'security.users_center', 'security.permissions_manager', 'security.saas_manager'] %}
+            {% set sec_system = ep in ['security.system_settings', 'security.system_branding', 'security.integrations', 'security.notifications_log', 'security.tax_reports', 'security.email_manager', 'security.invoice_designer', 'security.logo_manager', 'security.theme_editor'] %}
+            {% set sec_data = ep in ['security.database_manager', 'security.data_export', 'security.advanced_analytics', 'security.dark_mode_settings'] %}
+            {% set sec_danger = ep in ['security.emergency_tools', 'security.system_cleanup', 'security.block_ip', 'security.blocked_ips', 'security.block_country', 'security.blocked_countries', 'security.ultimate_control'] %}
 
-            <!-- منطقة الخطر -->
-            <div class="security-nav-header text-danger">منطقة الخطر</div>
-            <a href="{{ url_for('security.system_cleanup') }}" class="nav-link danger-link {% if 'system_cleanup' in request.endpoint %}active{% endif %}">
-                <i class="fas fa-biohazard"></i> <span>تصفير النظام (Reset)</span>
-            </a>
-            <a href="{{ url_for('advanced.database_optimizer') }}" class="nav-link {% if 'database_optimizer' in request.endpoint %}active{% endif %}">
-                <i class="fas fa-database"></i> <span>قاعدة البيانات</span>
-            </a>
+            <div class="sec-nav-section">
+                <button class="sec-nav-section-toggle" type="button" data-toggle="collapse" data-target="#secNavHome" aria-expanded="{% if sec_home %}true{% else %}false{% endif %}">
+                    <span class="sec-nav-section-title"><i class="fas fa-layer-group"></i> الرئيسية</span>
+                    <i class="fas fa-chevron-down sec-nav-caret"></i>
+                </button>
+                <div class="collapse {% if sec_home %}show{% endif %}" id="secNavHome">
+                    <div class="p-2 pb-1">
+                        <a href="{{ url_for('security.index') }}" class="nav-link {% if ep == 'security.index' %}active{% endif %}">
+                            <i class="fas fa-tachometer-alt"></i> <span>لوحة التحكم</span>
+                        </a>
+                        <a href="{{ url_for('security.settings_center') }}" class="nav-link {% if ep == 'security.settings_center' and not request.args.get('tab') %}active{% endif %}">
+                            <i class="fas fa-satellite-dish"></i> <span>مركز العمليات</span>
+                        </a>
+                        <a href="{{ url_for('security.tools_center') }}" class="nav-link {% if ep == 'security.tools_center' %}active{% endif %}">
+                            <i class="fas fa-toolbox"></i> <span>مركز الأدوات</span>
+                        </a>
+                        <a href="{{ url_for('security.reports_center') }}" class="nav-link {% if ep == 'security.reports_center' %}active{% endif %}">
+                            <i class="fas fa-chart-bar"></i> <span>مركز التقارير</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
 
-            <!-- الذكاء الاصطناعي -->
-            <div class="security-nav-header">الذكاء الاصطناعي</div>
-            <a href="{{ url_for('ai.hub') }}" class="nav-link {% if request.endpoint == 'ai.hub' %}active{% endif %}">
-                <i class="fas fa-microchip"></i> <span>مركز الذكاء (AI Core)</span>
-            </a>
+            <div class="sec-nav-section">
+                <button class="sec-nav-section-toggle" type="button" data-toggle="collapse" data-target="#secNavMonitoring" aria-expanded="{% if sec_monitoring %}true{% else %}false{% endif %}">
+                    <span class="sec-nav-section-title"><i class="fas fa-eye"></i> المراقبة</span>
+                    <i class="fas fa-chevron-down sec-nav-caret"></i>
+                </button>
+                <div class="collapse {% if sec_monitoring %}show{% endif %}" id="secNavMonitoring">
+                    <div class="p-2 pb-1">
+                        <a href="{{ url_for('security.live_monitoring') }}" class="nav-link {% if ep == 'security.live_monitoring' %}active{% endif %}">
+                            <i class="fas fa-radar"></i> <span>المراقبة الحية</span>
+                        </a>
+                        <a href="{{ url_for('security.monitoring_dashboard') }}" class="nav-link {% if ep == 'security.monitoring_dashboard' %}active{% endif %}">
+                            <i class="fas fa-chart-line"></i> <span>لوحة المراقبة</span>
+                        </a>
+                        <a href="{{ url_for('security.performance_monitor') }}" class="nav-link {% if ep == 'security.performance_monitor' %}active{% endif %}">
+                            <i class="fas fa-tachometer-alt"></i> <span>مراقبة الأداء</span>
+                        </a>
+                        <a href="{{ url_for('security.data_quality_center') }}" class="nav-link {% if ep == 'security.data_quality_center' %}active{% endif %}">
+                            <i class="fas fa-check-double"></i> <span>جودة البيانات</span>
+                        </a>
+                        <a href="{{ url_for('security.security_center') }}" class="nav-link {% if ep == 'security.security_center' %}active{% endif %}">
+                            <i class="fas fa-shield-alt"></i> <span>مركز الأمان</span>
+                        </a>
+                        <a href="{{ url_for('security.grafana_setup') }}" class="nav-link {% if ep == 'security.grafana_setup' %}active{% endif %}">
+                            <i class="fas fa-chart-area"></i> <span>Grafana</span>
+                        </a>
+                        <a href="{{ url_for('security.audit_log_viewer') }}" class="nav-link {% if 'audit' in ep %}active{% endif %}">
+                            <i class="fas fa-file-signature"></i> <span>سجل التدقيق</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
 
-            <!-- الإدارة -->
-            <div class="security-nav-header">الإدارة العليا</div>
-            <a href="{{ url_for('security.user_control') }}" class="nav-link {% if 'user_control' in request.endpoint %}active{% endif %}">
-                <i class="fas fa-users-cog"></i> <span>المستخدمين المتقدم (Users Control)</span>
-            </a>
-            <a href="{{ url_for('security.system_settings') }}" class="nav-link {% if 'system_settings' in request.endpoint %}active{% endif %}">
-                <i class="fas fa-cogs"></i> <span>الإعدادات المتقدمة</span>
-            </a>
-            <a href="{{ url_for('security.system_branding') }}" class="nav-link {% if 'branding' in request.endpoint %}active{% endif %}">
-                <i class="fas fa-fingerprint"></i> <span>الهوية (Branding)</span>
-            </a>
+            <div class="sec-nav-section">
+                <button class="sec-nav-section-toggle" type="button" data-toggle="collapse" data-target="#secNavManagement" aria-expanded="{% if sec_management %}true{% else %}false{% endif %}">
+                    <span class="sec-nav-section-title"><i class="fas fa-users-cog"></i> الإدارة</span>
+                    <i class="fas fa-chevron-down sec-nav-caret"></i>
+                </button>
+                <div class="collapse {% if sec_management %}show{% endif %}" id="secNavManagement">
+                    <div class="p-2 pb-1">
+                        <a href="{{ url_for('security.user_control') }}" class="nav-link {% if ep == 'security.user_control' %}active{% endif %}">
+                            <i class="fas fa-user-shield"></i> <span>تحكم المستخدمين</span>
+                        </a>
+                        <a href="{{ url_for('security.users_center') }}" class="nav-link {% if ep == 'security.users_center' %}active{% endif %}">
+                            <i class="fas fa-users"></i> <span>مركز المستخدمين</span>
+                        </a>
+                        <a href="{{ url_for('security.permissions_manager') }}" class="nav-link {% if ep == 'security.permissions_manager' %}active{% endif %}">
+                            <i class="fas fa-user-lock"></i> <span>مدير الصلاحيات</span>
+                        </a>
+                        {% if current_app and ('permissions.list' in current_app.view_functions) %}
+                            <a href="{{ url_for('permissions.list') }}" class="nav-link {% if ep.startswith('permissions.') %}active{% endif %}">
+                                <i class="fas fa-key"></i> <span>الصلاحيات</span>
+                            </a>
+                        {% endif %}
+                        {% if current_app and ('roles.list_roles' in current_app.view_functions) %}
+                            <a href="{{ url_for('roles.list_roles') }}" class="nav-link {% if ep.startswith('roles.') %}active{% endif %}">
+                                <i class="fas fa-user-tag"></i> <span>الأدوار</span>
+                            </a>
+                        {% endif %}
+                        <a href="{{ url_for('security.saas_manager') }}" class="nav-link {% if ep == 'security.saas_manager' %}active{% endif %}">
+                            <i class="fas fa-money-check-alt"></i> <span>SaaS Manager</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
 
-            <!-- السجلات -->
-            <div class="security-nav-header">السجلات والمراقبة</div>
-            <a href="{{ url_for('security.audit_log_viewer') }}" class="nav-link {% if 'audit' in request.endpoint %}active{% endif %}">
-                <i class="fas fa-file-contract"></i> <span>سجل الصندوق الأسود</span>
-            </a>
+            <div class="sec-nav-section">
+                <button class="sec-nav-section-toggle" type="button" data-toggle="collapse" data-target="#secNavSystem" aria-expanded="{% if sec_system %}true{% else %}false{% endif %}">
+                    <span class="sec-nav-section-title"><i class="fas fa-cogs"></i> النظام والتكامل</span>
+                    <i class="fas fa-chevron-down sec-nav-caret"></i>
+                </button>
+                <div class="collapse {% if sec_system %}show{% endif %}" id="secNavSystem">
+                    <div class="p-2 pb-1">
+                        <a href="{{ url_for('security.system_settings') }}" class="nav-link {% if ep == 'security.system_settings' %}active{% endif %}">
+                            <i class="fas fa-sliders-h"></i> <span>الإعدادات المتقدمة</span>
+                        </a>
+                        <a href="{{ url_for('security.system_branding') }}" class="nav-link {% if ep == 'security.system_branding' %}active{% endif %}">
+                            <i class="fas fa-fingerprint"></i> <span>الهوية والمظهر</span>
+                        </a>
+                        <a href="{{ url_for('security.theme_editor') }}" class="nav-link {% if ep == 'security.theme_editor' %}active{% endif %}">
+                            <i class="fas fa-palette"></i> <span>محرر الثيم</span>
+                        </a>
+                        <a href="{{ url_for('security.integrations') }}" class="nav-link {% if ep == 'security.integrations' %}active{% endif %}">
+                            <i class="fas fa-plug"></i> <span>التكاملات</span>
+                        </a>
+                        <a href="{{ url_for('security.notifications_log') }}" class="nav-link {% if ep == 'security.notifications_log' %}active{% endif %}">
+                            <i class="fas fa-bell"></i> <span>الإشعارات</span>
+                        </a>
+                        <a href="{{ url_for('security.tax_reports') }}" class="nav-link {% if ep == 'security.tax_reports' %}active{% endif %}">
+                            <i class="fas fa-file-invoice-dollar"></i> <span>الضرائب</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sec-nav-section">
+                <button class="sec-nav-section-toggle" type="button" data-toggle="collapse" data-target="#secNavData" aria-expanded="{% if sec_data %}true{% else %}false{% endif %}">
+                    <span class="sec-nav-section-title"><i class="fas fa-database"></i> أدوات البيانات</span>
+                    <i class="fas fa-chevron-down sec-nav-caret"></i>
+                </button>
+                <div class="collapse {% if sec_data %}show{% endif %}" id="secNavData">
+                    <div class="p-2 pb-1">
+                        <a href="{{ url_for('security.database_manager') }}" class="nav-link {% if ep == 'security.database_manager' %}active{% endif %}">
+                            <i class="fas fa-database"></i> <span>مدير قاعدة البيانات</span>
+                        </a>
+                        <a href="{{ url_for('security.data_export') }}" class="nav-link {% if ep == 'security.data_export' %}active{% endif %}">
+                            <i class="fas fa-file-export"></i> <span>التصدير</span>
+                        </a>
+                        {% if current_app and ('ledger_control.index' in current_app.view_functions) %}
+                            <a href="{{ url_for('ledger_control.index') }}" class="nav-link {% if ep.startswith('ledger_control.') %}active{% endif %}">
+                                <i class="fas fa-book"></i> <span>Ledger Control</span>
+                            </a>
+                        {% endif %}
+                        <a href="{{ url_for('security.advanced_analytics') }}" class="nav-link {% if ep == 'security.advanced_analytics' %}active{% endif %}">
+                            <i class="fas fa-chart-pie"></i> <span>Advanced Analytics</span>
+                        </a>
+                        <a href="{{ url_for('security.dark_mode_settings') }}" class="nav-link {% if ep == 'security.dark_mode_settings' %}active{% endif %}">
+                            <i class="fas fa-moon"></i> <span>إعدادات الوضع الداكن</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sec-nav-section sec-nav-section--danger">
+                <button class="sec-nav-section-toggle" type="button" data-toggle="collapse" data-target="#secNavDanger" aria-expanded="{% if sec_danger %}true{% else %}false{% endif %}">
+                    <span class="sec-nav-section-title text-danger"><i class="fas fa-exclamation-triangle"></i> الطوارئ</span>
+                    <i class="fas fa-chevron-down sec-nav-caret"></i>
+                </button>
+                <div class="collapse {% if sec_danger %}show{% endif %}" id="secNavDanger">
+                    <div class="p-2 pb-1">
+                        <a href="{{ url_for('security.emergency_tools') }}" class="nav-link danger-link {% if ep == 'security.emergency_tools' %}active{% endif %}">
+                            <i class="fas fa-first-aid"></i> <span>أدوات الطوارئ</span>
+                        </a>
+                        <a href="{{ url_for('security.system_cleanup') }}" class="nav-link danger-link {% if ep == 'security.system_cleanup' %}active{% endif %}">
+                            <i class="fas fa-broom"></i> <span>تنظيف النظام</span>
+                        </a>
+                        <a href="{{ url_for('security.block_ip') }}" class="nav-link danger-link {% if ep == 'security.block_ip' %}active{% endif %}">
+                            <i class="fas fa-ban"></i> <span>حظر IP</span>
+                        </a>
+                        <a href="{{ url_for('security.blocked_ips') }}" class="nav-link danger-link {% if ep == 'security.blocked_ips' %}active{% endif %}">
+                            <i class="fas fa-list"></i> <span>IPs محظورة</span>
+                        </a>
+                        <a href="{{ url_for('security.block_country') }}" class="nav-link danger-link {% if ep == 'security.block_country' %}active{% endif %}">
+                            <i class="fas fa-globe"></i> <span>حظر دولة</span>
+                        </a>
+                        <a href="{{ url_for('security.blocked_countries') }}" class="nav-link danger-link {% if ep == 'security.blocked_countries' %}active{% endif %}">
+                            <i class="fas fa-flag"></i> <span>دول محظورة</span>
+                        </a>
+                        <a href="{{ url_for('security.ultimate_control') }}" class="nav-link danger-link {% if ep == 'security.ultimate_control' %}active{% endif %}">
+                            <i class="fas fa-skull-crossbones"></i> <span>Ultimate Control</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
         </nav>
         
         <div class="p-3 border-top border-secondary border-opacity-10">
@@ -363,13 +688,11 @@
                 <nav aria-label="breadcrumb" class="d-none d-md-block">
                     <ol class="breadcrumb m-0 bg-transparent p-0 align-items-center">
                         <li class="breadcrumb-item">
-                            <a href="{{ url_for('security.settings_center') }}" class="text-white-50 text-decoration-none hover-text-white">
+                            <a href="{{ url_for('security.index') }}" class="text-white-50 text-decoration-none hover-text-white">
                                 <i class="fas fa-shield-alt me-1"></i> الكونسول
                             </a>
                         </li>
-                        <li class="breadcrumb-item active text-white" aria-current="page">
-                            {% block security_breadcrumb %}{% endblock %}
-                        </li>
+                        {% block security_breadcrumb %}<li class="breadcrumb-item active text-white" aria-current="page">لوحة التحكم</li>{% endblock %}
                     </ol>
                 </nav>
             </div>
@@ -383,6 +706,12 @@
                 
                 <div class="vr h-50 my-auto bg-white opacity-10 mx-1"></div>
                 
+                {% if system_settings and system_settings.maintenance_mode %}
+                    <a href="{{ url_for('security.emergency_tools') }}" class="badge badge-danger text-decoration-none">
+                        وضع الصيانة مفعّل
+                    </a>
+                {% endif %}
+
                 {% block security_actions %}{% endblock %}
                 
                 <div class="dropdown">
@@ -414,7 +743,8 @@
             {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
                     {% for category, message in messages %}
-                        <div class="alert alert-{{ category }} alert-dismissible fade show shadow-lg border-0 mb-4" style="background: rgba(20,20,20,0.9); border-left: 4px solid var(--sec-{{ 'danger' if category == 'error' else 'success' }}); color: #fff;" role="alert">
+                        {% set tone = 'danger' if category in ['danger','error'] else ('warning' if category == 'warning' else ('success' if category == 'success' else 'primary')) %}
+                        <div class="alert alert-{{ category }} alert-dismissible fade show shadow-lg border-0 mb-4" style="background: rgba(20,20,20,0.9); border-left: 4px solid var(--sec-{{ tone }}); color: #fff;" role="alert">
                             <i class="fas fa-terminal me-2"></i> <span class="font-monospace">{{ message }}</span>
                             <button type="button" class="close text-white" data-dismiss="alert">&times;</button>
                         </div>
@@ -471,14 +801,25 @@
     document.addEventListener('keydown', (e) => {
         if (e.ctrlKey && e.key === 'k') {
             e.preventDefault();
-            const modal = new bootstrap.Modal(document.getElementById('commandPaletteModal'));
-            modal.show();
+            const el = document.getElementById('commandPaletteModal');
+            if (window.jQuery && window.$ && $.fn && $.fn.modal) {
+                $(el).modal('show');
+            } else if (window.bootstrap && bootstrap.Modal) {
+                const modal = new bootstrap.Modal(el);
+                modal.show();
+            }
         }
     });
     const commandModal = document.getElementById('commandPaletteModal');
-    commandModal.addEventListener('shown.bs.modal', () => {
-        document.getElementById('globalCommandInput').focus();
-    });
+    if (window.jQuery && window.$ && $.fn && $.fn.modal) {
+        $(commandModal).on('shown.bs.modal', function () {
+            document.getElementById('globalCommandInput').focus();
+        });
+    } else {
+        commandModal.addEventListener('shown.bs.modal', () => {
+            document.getElementById('globalCommandInput').focus();
+        });
+    }
 </script>
 {% block scripts %}{% endblock %}
 {% endblock %}

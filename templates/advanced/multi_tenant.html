@@ -225,7 +225,28 @@
                 <i class="fas fa-image"></i> الشعار (Logo URL)
               </label>
               <input type="text" name="tenant_logo" class="form-control" 
-                     placeholder="/static/img/tenant_logo.png">
+                     placeholder="/static/img/logo.png">
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label font-weight-bold">
+                <i class="fas fa-building"></i> اسم الشركة (Tenant Company Name)
+              </label>
+              <input type="text" name="tenant_company_name" class="form-control" placeholder="اختياري - يظهر في النافبار/السايدبار/الفوتر">
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label font-weight-bold">
+                <i class="fas fa-tag"></i> اسم النظام (Tenant System Name)
+              </label>
+              <input type="text" name="tenant_system_name" class="form-control" placeholder="اختياري - يظهر كعنوان للنظام">
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label font-weight-bold">
+                <i class="fas fa-star"></i> أيقونة الموقع (Tenant Favicon)
+              </label>
+              <input type="text" name="tenant_favicon" class="form-control" placeholder="/static/favicon.ico">
             </div>
             
             <div class="mb-3">
@@ -357,7 +378,7 @@
                   
                   <div class="btn-group-vertical w-100" role="group">
                     <button type="button" class="btn btn-sm btn-primary" 
-                            onclick="editTenant('{{ tenant.name }}', '{{ tenant.domain }}', '{{ tenant.logo }}', '{{ tenant.max_users }}', {{ tenant.modules|tojson }})">
+                            onclick="editTenant('{{ tenant.name }}', '{{ tenant.domain }}', '{{ tenant.logo }}', '{{ tenant.company_name|default('')|e }}', '{{ tenant.system_name|default('')|e }}', '{{ tenant.favicon|default('')|e }}', '{{ tenant.max_users }}', {{ tenant.modules|tojson }})">
                       <i class="fas fa-edit"></i> تعديل
                     </button>
                     
@@ -414,6 +435,21 @@
             <label class="form-label font-weight-bold">الشعار (Logo URL)</label>
             <input type="text" name="tenant_logo" id="edit_tenant_logo" class="form-control">
           </div>
+
+          <div class="mb-3">
+            <label class="form-label font-weight-bold">اسم الشركة (Tenant Company Name)</label>
+            <input type="text" name="tenant_company_name" id="edit_tenant_company_name" class="form-control">
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label font-weight-bold">اسم النظام (Tenant System Name)</label>
+            <input type="text" name="tenant_system_name" id="edit_tenant_system_name" class="form-control">
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label font-weight-bold">أيقونة الموقع (Tenant Favicon)</label>
+            <input type="text" name="tenant_favicon" id="edit_tenant_favicon" class="form-control">
+          </div>
           
           <div class="mb-3">
             <label class="form-label font-weight-bold">الحد الأقصى للمستخدمين</label>
@@ -448,10 +484,13 @@
 </div>
 
 <script>
-function editTenant(name, domain, logo, maxUsers, modules) {
+function editTenant(name, domain, logo, companyName, systemName, favicon, maxUsers, modules) {
   document.getElementById('edit_tenant_name').value = name;
   document.getElementById('edit_tenant_domain').value = domain || '';
   document.getElementById('edit_tenant_logo').value = logo || '';
+  document.getElementById('edit_tenant_company_name').value = companyName || '';
+  document.getElementById('edit_tenant_system_name').value = systemName || '';
+  document.getElementById('edit_tenant_favicon').value = favicon || '';
   document.getElementById('edit_tenant_max_users').value = maxUsers || '10';
   
   // إلغاء تحديد جميع الوحدات أولاً

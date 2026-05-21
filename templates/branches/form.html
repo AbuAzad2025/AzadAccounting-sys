@@ -155,8 +155,11 @@
 
 {% block scripts %}
 {{ super() }}
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBFw0Qbyq9zTFTd-tUY6dZWTgaQzuU17R8&libraries=places&language=ar&region=PS"></script>
-<script src="{{ url_for('static', filename='js/gps-location-picker.js') }}"></script>
+{% set gm_key = config.get('GOOGLE_MAPS_API_KEY') %}
+{% if gm_key %}
+<script src="https://maps.googleapis.com/maps/api/js?key={{ gm_key|urlencode }}&libraries=places&language=ar&region=PS"></script>
+{% endif %}
+<script src="{{ static_url('js/gps-location-picker.js') }}"></script>
 <script>
 // تحديث عرض الإحداثيات عند التغيير
 document.addEventListener('DOMContentLoaded', function() {

@@ -1,11 +1,7 @@
 <footer class="main-footer gm-main-footer" dir="rtl">
   <div class="gm-footer-left d-flex align-items-center">
     <div class="gm-footer-logo d-flex align-items-center">
-      {% if system_settings and system_settings.custom_logo %}
-      <img src="{{ url_for('static', filename=system_settings.custom_logo.replace('static/', '')) }}" alt="Logo" loading="lazy" decoding="async">
-      {% else %}
-      <img src="{{ url_for('static', filename='img/azad_logo.png') }}" alt="Azad" loading="lazy" decoding="async">
-      {% endif %}
+      <img src="{{ system_settings.custom_logo_url }}" alt="{{ system_settings.company_name or system_settings.system_name or 'النظام' }}" loading="lazy" decoding="async">
       <div class="gm-footer-owner">
         <span class="gm-footer-owner-name">{{ system_settings.company_name or system_settings.system_name or 'النظام' }}</span>
         <span class="gm-footer-owner-tagline text-muted small">

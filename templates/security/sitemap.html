@@ -277,7 +277,9 @@
           <li><a href="{{ url_for('security.card_vault') }}"><i class="fas fa-credit-card"></i> خزنة الكروت</a></li>
           <li><a href="{{ url_for('security.emergency_tools') }}"><i class="fas fa-exclamation-triangle text-danger"></i> أدوات الطوارئ</a></li>
           <li><a href="{{ url_for('security.data_export') }}"><i class="fas fa-download"></i> تصدير البيانات</a></li>
-          <li><a href="{{ url_for('security.system_cleanup') }}"><i class="fas fa-broom"></i> تنظيف النظام</a></li>
+          {% if current_user.is_authenticated and current_user.has_permission('access_owner_dashboard') %}
+            <li><a href="{{ url_for('security.system_cleanup') }}"><i class="fas fa-broom"></i> تنظيف النظام</a></li>
+          {% endif %}
           <li><a href="{{ url_for('security.integrations') }}"><i class="fas fa-plug"></i> التكاملات (مباشر)</a></li>
           <li><a href="{{ url_for('security.saas_manager') }}"><i class="fas fa-cloud"></i> مدير SaaS</a></li>
           <li><a href="{{ url_for('security.advanced_check_linking') }}"><i class="fas fa-link"></i> ربط الشيكات المتقدم</a></li>
@@ -403,4 +405,3 @@ document.getElementById('sitemapSearch').addEventListener('input', function() {
 });
 </script>
 {% endblock %}
-

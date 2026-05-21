@@ -15,12 +15,48 @@
     <!-- Header -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h1 class="h3 text-gray-800">System Cleanup</h1>
+            <h1 class="h3 text-gray-800">تنظيف النظام</h1>
             <p class="text-muted">أدوات تنظيف وصيانة النظام وتحسين الأداء</p>
         </div>
         <a href="{{ url_for('security.index') }}" class="btn btn-secondary">
             <i class="fas fa-arrow-left"></i> عودة
         </a>
+    </div>
+
+    <div class="card mb-4 border-warning">
+        <div class="card-header bg-warning text-dark d-flex align-items-center justify-content-between">
+            <div class="font-weight-bold">
+                <i class="fas fa-tools"></i> وضع الصيانة
+                {% if system_settings and system_settings.maintenance_mode %}
+                    <span class="badge badge-danger ml-2">مفعّل</span>
+                {% else %}
+                    <span class="badge badge-success ml-2">معطّل</span>
+                {% endif %}
+            </div>
+            <a href="{{ url_for('security.emergency_tools') }}" class="btn btn-sm btn-outline-dark">
+                <i class="fas fa-external-link-alt"></i> أدوات الطوارئ
+            </a>
+        </div>
+        <div class="card-body">
+            <div class="d-flex flex-wrap align-items-center justify-content-between">
+                <div class="mb-2">
+                    <div class="font-weight-bold">تشغيل/تعطيل وضع الصيانة من هنا مباشرة</div>
+                    <div class="text-muted small">الرابط الأساسي أيضاً: <span class="font-monospace">{{ url_for('security.emergency_tools') }}</span></div>
+                </div>
+                <form method="POST" action="{{ url_for('security.toggle_maintenance_mode') }}" id="maintenanceModeQuickForm" class="mb-2">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    {% if system_settings and system_settings.maintenance_mode %}
+                        <button type="button" class="btn btn-danger" id="maintenanceQuickBtn" onclick="confirmMaintenanceMode(false, () => { const b=document.getElementById('maintenanceQuickBtn'); if(b){ b.disabled=true; b.innerHTML='<span class=&quot;spinner-border spinner-border-sm&quot; role=&quot;status&quot; aria-hidden=&quot;true&quot;></span> جارٍ الإيقاف...'; } document.getElementById('maintenanceModeQuickForm').submit(); })">
+                            <i class="fas fa-power-off"></i> إيقاف الصيانة
+                        </button>
+                    {% else %}
+                        <button type="button" class="btn btn-success" id="maintenanceQuickBtn" onclick="confirmMaintenanceMode(true, () => { const b=document.getElementById('maintenanceQuickBtn'); if(b){ b.disabled=true; b.innerHTML='<span class=&quot;spinner-border spinner-border-sm&quot; role=&quot;status&quot; aria-hidden=&quot;true&quot;></span> جارٍ التفعيل...'; } document.getElementById('maintenanceModeQuickForm').submit(); })">
+                            <i class="fas fa-power-off"></i> تشغيل الصيانة
+                        </button>
+                    {% endif %}
+                </form>
+            </div>
+        </div>
     </div>
 
     <!-- Tabs -->

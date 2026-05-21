@@ -372,6 +372,9 @@ def multi_tenant():
             tenant_db = request.form.get('tenant_db')
             tenant_domain = request.form.get('tenant_domain', '')
             tenant_logo = request.form.get('tenant_logo', '')
+            tenant_company_name = request.form.get('tenant_company_name', '')
+            tenant_system_name = request.form.get('tenant_system_name', '')
+            tenant_favicon = request.form.get('tenant_favicon', '')
             tenant_max_users = request.form.get('tenant_max_users', '10')
             tenant_modules = request.form.getlist('tenant_modules')
             if not _validate_safe_slug(tenant_name):
@@ -383,6 +386,9 @@ def multi_tenant():
             db.session.add(SystemSettings(key=f'tenant_{tenant_name}_active', value='True'))
             db.session.add(SystemSettings(key=f'tenant_{tenant_name}_domain', value=tenant_domain))
             db.session.add(SystemSettings(key=f'tenant_{tenant_name}_logo', value=tenant_logo))
+            db.session.add(SystemSettings(key=f'tenant_{tenant_name}_company_name', value=tenant_company_name))
+            db.session.add(SystemSettings(key=f'tenant_{tenant_name}_system_name', value=tenant_system_name))
+            db.session.add(SystemSettings(key=f'tenant_{tenant_name}_favicon', value=tenant_favicon))
             db.session.add(SystemSettings(key=f'tenant_{tenant_name}_max_users', value=tenant_max_users))
             db.session.add(SystemSettings(key=f'tenant_{tenant_name}_modules', value=json.dumps(tenant_modules)))
             db.session.add(SystemSettings(key=f'tenant_{tenant_name}_created_at', value=datetime.now(timezone.utc).isoformat()))
@@ -390,6 +396,16 @@ def multi_tenant():
             if not tenant_db or not str(tenant_db).strip().startswith('postgresql://'):
                 flash('❌ قاعدة بيانات الـ Tenant يجب أن تكون PostgreSQL (postgresql://...)', 'danger')
                 return redirect(url_for('advanced.multi_tenant'))
+
+            domain_norm = (tenant_domain or '').strip().lower()
+            if domain_norm:
+                existing = SystemSettings.query.filter(
+                    SystemSettings.key.like('tenant_%_domain'),
+                    func.lower(SystemSettings.value) == domain_norm
+                ).first()
+                if existing:
+                    flash('❌ هذا الدومين مستخدم مسبقاً لTenant آخر. يجب أن يكون الدومين فريد لكل Tenant.', 'danger')
+                    return redirect(url_for('advanced.multi_tenant'))
             
             try:
                 db.session.commit()
@@ -398,6 +414,13 @@ def multi_tenant():
                 current_app.logger.exception('commit error')
                 flash('حدث خطأ أثناء الحفظ', 'danger')
                 return redirect(url_for('advanced.multi_tenant'))
+            try:
+                cache.delete("all_tenants_list")
+                cache.delete("tenant_domains:v1")
+                from models import SystemSettings as _SS
+                _SS.set_setting('assets_version', int(datetime.now(timezone.utc).timestamp()), data_type='number')
+            except Exception:
+                current_app.logger.warning('cache invalidation failed silently in advanced_control.py', exc_info=True)
             _log_owner_action('multi_tenant.create', tenant_name, {
                 'db': tenant_db,
                 'modules': tenant_modules,
@@ -445,6 +468,11 @@ def multi_tenant():
                 current_app.logger.exception('commit error')
                 flash('حدث خطأ أثناء الحفظ', 'danger')
                 return redirect(url_for('advanced.multi_tenant'))
+            try:
+                cache.delete("all_tenants_list")
+                cache.delete("tenant_domains:v1")
+            except Exception:
+                current_app.logger.warning('cache invalidation failed silently in advanced_control.py', exc_info=True)
             _log_owner_action('multi_tenant.delete', tenant_name)
             flash(f'✅ تم حذف Tenant: {tenant_name}', 'success')
             return redirect(url_for('advanced.multi_tenant'))
@@ -456,12 +484,28 @@ def multi_tenant():
                 return redirect(url_for('advanced.multi_tenant'))
             tenant_domain = request.form.get('tenant_domain', '')
             tenant_logo = request.form.get('tenant_logo', '')
+            tenant_company_name = request.form.get('tenant_company_name', '')
+            tenant_system_name = request.form.get('tenant_system_name', '')
+            tenant_favicon = request.form.get('tenant_favicon', '')
             tenant_max_users = request.form.get('tenant_max_users', '10')
             tenant_modules = request.form.getlist('tenant_modules')
+
+            domain_norm = (tenant_domain or '').strip().lower()
+            if domain_norm:
+                existing = SystemSettings.query.filter(
+                    SystemSettings.key.like('tenant_%_domain'),
+                    func.lower(SystemSettings.value) == domain_norm
+                ).first()
+                if existing and not str(existing.key or '').startswith(f'tenant_{tenant_name}_'):
+                    flash('❌ هذا الدومين مستخدم مسبقاً لTenant آخر. يجب أن يكون الدومين فريد لكل Tenant.', 'danger')
+                    return redirect(url_for('advanced.multi_tenant'))
             
                              
             _update_tenant_setting(f'tenant_{tenant_name}_domain', tenant_domain)
             _update_tenant_setting(f'tenant_{tenant_name}_logo', tenant_logo)
+            _update_tenant_setting(f'tenant_{tenant_name}_company_name', tenant_company_name)
+            _update_tenant_setting(f'tenant_{tenant_name}_system_name', tenant_system_name)
+            _update_tenant_setting(f'tenant_{tenant_name}_favicon', tenant_favicon)
             _update_tenant_setting(f'tenant_{tenant_name}_max_users', tenant_max_users)
             _update_tenant_setting(f'tenant_{tenant_name}_modules', json.dumps(tenant_modules))
             
@@ -472,6 +516,13 @@ def multi_tenant():
                 current_app.logger.exception('commit error')
                 flash('حدث خطأ أثناء الحفظ', 'danger')
                 return redirect(url_for('advanced.multi_tenant'))
+            try:
+                cache.delete("all_tenants_list")
+                cache.delete("tenant_domains:v1")
+                from models import SystemSettings as _SS
+                _SS.set_setting('assets_version', int(datetime.now(timezone.utc).timestamp()), data_type='number')
+            except Exception:
+                current_app.logger.warning('cache invalidation failed silently in advanced_control.py', exc_info=True)
             _log_owner_action('multi_tenant.update', tenant_name, {
                 'domain': tenant_domain,
                 'max_users': tenant_max_users,
@@ -3631,6 +3682,9 @@ def _get_all_tenants():
             'active': tenant_settings.get('active', 'False') == 'True',
             'domain': tenant_settings.get('domain', ''),
             'logo': tenant_settings.get('logo', ''),
+            'company_name': tenant_settings.get('company_name', ''),
+            'system_name': tenant_settings.get('system_name', ''),
+            'favicon': tenant_settings.get('favicon', ''),
             'max_users': tenant_settings.get('max_users', '10'),
             'modules': modules,
             'created_at': tenant_settings.get('created_at', '')

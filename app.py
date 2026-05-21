@@ -419,7 +419,17 @@ def _register_template_support(app):
 
     @app.template_filter('static_version')
     def static_version_filter(filename):
-        version = app.config.get("STATIC_VERSION") or int(time.time())
+        version = app.config.get("STATIC_VERSION")
+        if not version:
+            try:
+                from models import SystemSettings
+                v = SystemSettings.get_setting("assets_version", None)
+                if v is not None and str(v).strip() != "":
+                    version = int(float(v))
+            except Exception:
+                version = None
+        if not version:
+            version = app.config.setdefault("STATIC_VERSION", int(time.time()))
         if '?' in filename:
             return f"{filename}&v={version}"
         return f"{filename}?v={version}"
@@ -1429,9 +1439,12 @@ def create_app(config_object=Config) -> Flask:
             'system_name', 'SystemName', 'company_name', 'CompanyName',
             'login_title', 'login_subtitle', 'footer_text',
             'custom_logo', 'custom_favicon',
+            'assets_version',
+            'multi_tenancy_enabled',
             'primary_color', 'secondary_color', 'sidebar_bg', 'sidebar_text',
             'COMPANY_ADDRESS', 'COMPANY_PHONE', 'COMPANY_EMAIL', 'TAX_NUMBER',
             'CURRENCY_SYMBOL', 'TIMEZONE',
+            'maintenance_mode',
             'MARKETING_MODULES', 'MARKETING_APIS', 'MARKETING_INDEXES',
             'MARKETING_OTHER_SYSTEMS', 'MARKETING_PRICE_FROM_USD',
         }
@@ -1482,12 +1495,89 @@ def create_app(config_object=Config) -> Flask:
                 return default
             return '/'.join(parts)
 
+        def _safe_static_path_allow_root(value, default='favicon.ico'):
+            s = str(value or '').strip().replace('\\', '/')
+            if not s:
+                return default
+            lowered = s.lower()
+            if lowered.startswith(('http://', 'https://', '//')):
+                return default
+            s = s.lstrip('/')
+            if s.startswith('static/'):
+                s = s[len('static/'):]
+            parts = [p for p in s.split('/') if p]
+            if not parts or any(p in {'.', '..'} for p in parts):
+                return default
+            return '/'.join(parts)
+
         system_name_val = _get('system_name') or _get('SystemName') or 'أزاد لإدارة الكراج'
         company_name_val = _get('company_name') or _get('CompanyName') or 'شركة أزاد للأنظمة الذكية'
 
+        assets_version = _get('assets_version', '') or ''
+
+        def _with_ver(u: str) -> str:
+            v = str(assets_version or '').strip()
+            if not v:
+                return u
+            sep = '&' if '?' in u else '?'
+            return f"{u}{sep}v={v}"
+
         custom_logo = _get('custom_logo')
         logo_filename = _safe_static_path(custom_logo)
-        logo_url = url_for('static', filename=logo_filename)
+        logo_url = _with_ver(url_for('static', filename=logo_filename))
+
+        favicon_val = _get('custom_favicon', '') or ''
+        favicon_filename = _safe_static_path_allow_root(favicon_val, default='favicon.ico')
+        favicon_url = _with_ver(url_for('static', filename=favicon_filename))
+
+        try:
+            tenancy_enabled = SystemSettings.get_setting('multi_tenancy_enabled', False)
+            if bool(tenancy_enabled):
+                host = (request.host or '').split(':')[0].strip().lower()
+                mapping_key = 'tenant_domains:v1'
+                domains = cache.get(mapping_key)
+                if not isinstance(domains, dict):
+                    try:
+                        rows = SystemSettings.query.filter(SystemSettings.key.like('tenant\\_%\\_domain', escape='\\')).all()
+                    except Exception:
+                        rows = []
+                    domains = {}
+                    for row in rows:
+                        dom = str(row.value or '').strip().lower()
+                        if not dom:
+                            continue
+                        key = str(row.key or '')
+                        if key.startswith('tenant_') and key.endswith('_domain'):
+                            name = key[len('tenant_'):-len('_domain')]
+                            if name:
+                                domains[dom] = name
+                    try:
+                        cache.set(mapping_key, domains, timeout=300)
+                    except Exception:
+                        pass
+
+                tenant_name = domains.get(host)
+                if tenant_name:
+                    tenant_logo = SystemSettings.get_setting(f'tenant_{tenant_name}_logo', '') or ''
+                    tenant_logo_filename = _safe_static_path(tenant_logo, default='')
+                    if tenant_logo_filename:
+                        logo_url = _with_ver(url_for('static', filename=tenant_logo_filename))
+
+                    tenant_company_name = SystemSettings.get_setting(f'tenant_{tenant_name}_company_name', '') or ''
+                    if str(tenant_company_name).strip():
+                        company_name_val = str(tenant_company_name).strip()
+
+                    tenant_system_name = SystemSettings.get_setting(f'tenant_{tenant_name}_system_name', '') or ''
+                    if str(tenant_system_name).strip():
+                        system_name_val = str(tenant_system_name).strip()
+
+                    tenant_favicon = SystemSettings.get_setting(f'tenant_{tenant_name}_favicon', '') or ''
+                    if str(tenant_favicon).strip():
+                        favicon_val = str(tenant_favicon).strip()
+                        favicon_filename = _safe_static_path_allow_root(favicon_val, default=favicon_filename)
+                        favicon_url = _with_ver(url_for('static', filename=favicon_filename))
+        except Exception:
+            pass
 
         settings = {
             'system_name': system_name_val,
@@ -1497,7 +1587,9 @@ def create_app(config_object=Config) -> Flask:
             'footer_text': _get('footer_text', 'جميع الحقوق محفوظة'),
             'custom_logo': custom_logo or '',
             'custom_logo_url': logo_url,
-            'custom_favicon': _get('custom_favicon', ''),
+            'custom_favicon': favicon_val,
+            'custom_favicon_url': favicon_url,
+            'assets_version': assets_version,
             'primary_color': _get('primary_color', '#007bff'),
             'secondary_color': _get('secondary_color', '#1f2937'),
             'sidebar_bg': _get('sidebar_bg', '#111827'),
@@ -1508,6 +1600,7 @@ def create_app(config_object=Config) -> Flask:
             'TAX_NUMBER': _get('TAX_NUMBER', ''),
             'CURRENCY_SYMBOL': _get('CURRENCY_SYMBOL', '$'),
             'TIMEZONE': _get('TIMEZONE', 'UTC'),
+            'maintenance_mode': _get('maintenance_mode', False),
             'marketing_modules': _get('MARKETING_MODULES', '40+'),
             'marketing_apis': _get('MARKETING_APIS', '133'),
             'marketing_indexes': _get('MARKETING_INDEXES', '89'),
@@ -1538,9 +1631,12 @@ def create_app(config_object=Config) -> Flask:
             return None
         
         try:
-            if (current_user.id == 1 or 
-                current_user.username.lower() in ['owner', 'admin'] or
-                False):  # Simplified version
+            if (
+                (hasattr(current_user, "has_permission") and current_user.has_permission("access_owner_dashboard"))
+                or (hasattr(utils, "is_super") and utils.is_super())
+                or current_user.id == 1
+                or (getattr(current_user, "username", "") or "").lower() in ["owner", "admin"]
+            ):
                 return None
         except Exception:
             pass

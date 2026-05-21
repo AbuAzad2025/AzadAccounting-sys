@@ -34,15 +34,27 @@
    * تحديث أيقونة الزر
    */
   function updateToggleIcon(isDark) {
-    const btn = document.getElementById('darkModeToggle');
-    if (!btn) return;
+    const candidates = [
+      document.getElementById('darkModeToggleNavbar'),
+      document.getElementById('darkModeToggle'),
+    ].filter(Boolean);
+    if (!candidates.length) return;
     
-    const icon = btn.querySelector('i');
-    if (icon) {
-      icon.className = isDark ? 'fas fa-sun' : 'fas fa-moon';
-    }
-    
-    btn.title = isDark ? 'تفعيل الوضع النهاري' : 'تفعيل الوضع الليلي';
+    candidates.forEach(el => {
+      if (el.tagName === 'INPUT' && el.type === 'checkbox') {
+        el.checked = !!isDark;
+        el.setAttribute('aria-label', isDark ? 'تعطيل الوضع الليلي' : 'تفعيل الوضع الليلي');
+        return;
+      }
+      
+      const icon = el.querySelector ? el.querySelector('i') : null;
+      if (icon) {
+        icon.className = isDark ? 'fas fa-sun' : 'fas fa-moon';
+      }
+      try {
+        el.title = isDark ? 'تفعيل الوضع النهاري' : 'تفعيل الوضع الليلي';
+      } catch (e) {}
+    });
   }
   
   /**
@@ -81,7 +93,7 @@
     
     toast.innerHTML = `
       <i class="fas fa-${isDark ? 'moon' : 'sun'}"></i>
-      ${isDark ? '🌙 الوضع الليلي مفعّل' : '☀️ الوضع النهاري مفعّل'}
+      ${isDark ? 'الوضع الليلي مفعّل' : 'الوضع النهاري مفعّل'}
     `;
     
     document.body.appendChild(toast);
@@ -142,10 +154,17 @@
     loadSavedPreference();
     // addDarkModeButton(); // Disabled as we moved it to navbar
     watchSystemPreference();
+    
+    const checkbox = document.getElementById('darkModeToggle');
+    if (checkbox && checkbox.tagName === 'INPUT' && checkbox.type === 'checkbox') {
+      checkbox.addEventListener('change', function() {
+        applyDarkMode(!!checkbox.checked);
+        showDarkModeToast(!!checkbox.checked);
+      });
+    }
   });
   
   // تطبيق سريع قبل التحميل لتجنب flash
   loadSavedPreference();
   
 })();
-

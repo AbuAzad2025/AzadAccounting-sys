@@ -878,6 +878,7 @@ class SystemSettings(db.Model):
             from extensions import cache
             cache.delete(f"system_setting_{key}")
             cache.delete("system_settings:bundle:v2") # Also clear bundle cache
+            cache.delete("system_settings:template_settings:v1")
         except Exception:
             pass
         

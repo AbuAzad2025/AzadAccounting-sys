@@ -10,871 +10,168 @@
 
 {% block security_actions %}
 <div class="d-flex gap-2 flex-wrap">
-  <a href="{{ url_for('security.help_page') }}" class="btn btn-sm btn-light">
+  <a href="{{ url_for('security.help_page') }}" class="btn btn-glass btn-sm">
     <i class="fas fa-question-circle"></i> مساعدة
   </a>
-  <a href="{{ url_for('security.sitemap') }}" class="btn btn-sm btn-outline-light">
+  <a href="{{ url_for('security.sitemap') }}" class="btn btn-glass btn-sm">
     <i class="fas fa-sitemap"></i> خريطة
   </a>
 </div>
 {% endblock %}
 
 {% block security_content %}
-  
-  <!-- شريط البحث السريع -->
-  <div class="card border-0 shadow-sm mb-4">
-    <div class="card-body">
-      <div class="input-group input-group-lg">
-        <span class="input-group-text bg-primary text-white">
-          <i class="fas fa-search"></i>
-        </span>
-        <input type="text" id="quickSearch" class="form-control form-control-lg" 
-               placeholder="🔍 بحث سريع في الوحدة السرية... (Ctrl+K)"
-               style="font-size: 1.1rem;">
-        <button class="btn btn-outline-secondary" type="button" id="clearSearch" style="display: none;">
-          <i class="fas fa-times"></i>
-        </button>
-      </div>
-      <small class="text-muted d-block mt-2">
-        <i class="fas fa-lightbulb"></i> <strong>نصيحة:</strong> اكتب أي كلمة للبحث الفوري في جميع المراكز والأدوات ({{ stats.total_modules }} وحدة • {{ stats.total_apis }} API)
-      </small>
-    </div>
-  </div>
-  
-  <div class="alert alert-warning border-0 shadow-sm">
-    <div class="d-flex align-items-center">
-      <i class="fas fa-crown fa-2x text-warning mr-3"></i>
+  <div class="sec-card mb-4">
+    <div class="sec-card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
       <div>
-        <strong>🔐 وصول حصري للمالك</strong>
-        <br><small>جميع الإجراءات يتم تسجيلها في Audit Trail • Restricted Access <span class="badge bg-danger">ممنوع</span></small>
+        <h5 class="mb-1 fw-bold text-white"><i class="fas fa-bolt text-info ms-2"></i> إجراءات سريعة</h5>
+        <div class="text-muted small">اختصارات لأكثر المراكز استخداماً داخل الكونسول</div>
+      </div>
+      <div class="text-muted small font-monospace">CTRL+K</div>
+    </div>
+    <div class="sec-card-body">
+      <div class="row g-2">
+        <div class="col-lg-4 col-md-6">
+          <a href="{{ url_for('security.settings_center') }}" class="btn btn-glass w-100 py-3 d-flex align-items-center justify-content-between">
+            <span class="d-flex align-items-center"><i class="fas fa-satellite-dish text-info ms-2"></i> مركز العمليات</span>
+            <i class="fas fa-arrow-left text-white-50"></i>
+          </a>
+        </div>
+        <div class="col-lg-4 col-md-6">
+          <a href="{{ url_for('security.monitoring_dashboard') }}" class="btn btn-glass w-100 py-3 d-flex align-items-center justify-content-between">
+            <span class="d-flex align-items-center"><i class="fas fa-chart-line text-info ms-2"></i> لوحة المراقبة</span>
+            <i class="fas fa-arrow-left text-white-50"></i>
+          </a>
+        </div>
+        <div class="col-lg-4 col-md-6">
+          <a href="{{ url_for('security.users_center') }}" class="btn btn-glass w-100 py-3 d-flex align-items-center justify-content-between">
+            <span class="d-flex align-items-center"><i class="fas fa-users text-info ms-2"></i> مركز المستخدمين</span>
+            <i class="fas fa-arrow-left text-white-50"></i>
+          </a>
+        </div>
+        <div class="col-lg-4 col-md-6">
+          <a href="{{ url_for('security.database_manager') }}" class="btn btn-glass w-100 py-3 d-flex align-items-center justify-content-between">
+            <span class="d-flex align-items-center"><i class="fas fa-database text-info ms-2"></i> مدير قاعدة البيانات</span>
+            <i class="fas fa-arrow-left text-white-50"></i>
+          </a>
+        </div>
+        <div class="col-lg-4 col-md-6">
+          <a href="{{ url_for('security.integrations') }}" class="btn btn-glass w-100 py-3 d-flex align-items-center justify-content-between">
+            <span class="d-flex align-items-center"><i class="fas fa-plug text-info ms-2"></i> التكاملات</span>
+            <i class="fas fa-arrow-left text-white-50"></i>
+          </a>
+        </div>
+        <div class="col-lg-4 col-md-6">
+          <a href="{{ url_for('security.emergency_tools') }}" class="btn btn-glass w-100 py-3 d-flex align-items-center justify-content-between border border-1 border-opacity-10">
+            <span class="d-flex align-items-center"><i class="fas fa-exclamation-triangle text-danger ms-2"></i> أدوات الطوارئ</span>
+            <i class="fas fa-arrow-left text-white-50"></i>
+          </a>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- سجل التدقيق المرئي -->
-  <div class="row mb-4">
-    <div class="col-12">
-      <div class="card border-0 shadow-sm">
-        <div class="card-header bg-white border-bottom py-3">
-          <div class="d-flex justify-content-between align-items-center">
-            <h5 class="mb-0 font-weight-bold text-primary"><i class="fas fa-history ml-2"></i> آخر الإجراءات</h5>
-            <span class="badge badge-light text-primary border">آخر 10 إجراءات</span>
+  <div class="sec-card mb-4">
+    <div class="sec-card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+      <div>
+        <h5 class="mb-0 fw-bold text-white"><i class="fas fa-signal text-info ms-2"></i> الحالة الحية</h5>
+      </div>
+      <div>
+        {% if system_settings and system_settings.maintenance_mode %}
+          <a href="{{ url_for('security.emergency_tools') }}" class="badge badge-danger text-decoration-none">وضع الصيانة مفعّل</a>
+        {% endif %}
+      </div>
+    </div>
+    <div class="sec-card-body">
+      <div class="row">
+        <div class="col-lg-3 col-md-6 mb-3">
+          <div class="small-box security-summary-box security-summary-box--blue" data-total-users="{{ stats.total_users }}">
+            <div class="inner">
+              <h3>{{ stats.total_users }}</h3>
+              <p>إجمالي المستخدمين</p>
+              <div style="height: 40px; margin-top: 10px;">
+                <canvas id="usersTrendChart"></canvas>
+              </div>
+            </div>
+            <div class="icon"><i class="fas fa-users"></i></div>
           </div>
         </div>
-        <div class="card-body p-0">
-          <div class="timeline" id="auditTimeline" style="max-height: 200px; overflow-y: auto;">
-            {% if recent %}
-              {% for audit in recent[:10] %}
-              <div class="timeline-item" style="padding: 12px 20px; border-bottom: 1px solid #f0f0f0;">
-                <div class="d-flex justify-content-between align-items-start">
-                  <div class="d-flex align-items-start">
-                    <i class="fas fa-circle text-{% if audit.success %}success{% else %}danger{% endif %} mt-1" style="font-size: 0.5rem; margin-left: 10px;"></i>
-                    <div>
-                      <strong>{{ audit.event or 'نشاط' }}</strong>
-                      <br><small class="text-muted">
-                        <i class="fas fa-user"></i> {{ audit.user.username if audit.user else 'غير معروف' }}
-                        {% if audit.ip %} | <i class="fas fa-network-wired"></i> {{ audit.ip }}{% endif %}
-                      </small>
-                    </div>
-                  </div>
-                  <small class="text-muted" title="{{ audit.created_at }}">
-                    <i class="fas fa-clock"></i> {{ audit.created_at.strftime('%H:%M') if audit.created_at else 'غير معروف' }}
+        <div class="col-lg-3 col-md-6 mb-3">
+          <div class="small-box security-summary-box security-summary-box--green" data-active-users="{{ stats.active_users }}">
+            <div class="inner">
+              <h3>{{ stats.active_users }}</h3>
+              <p>مستخدمين نشطين</p>
+              <div style="height: 40px; margin-top: 10px;">
+                <canvas id="activitySparkline"></canvas>
+              </div>
+            </div>
+            <div class="icon"><i class="fas fa-user-check"></i></div>
+          </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+          <div class="small-box security-summary-box security-summary-box--red" data-blocked-users="{{ stats.blocked_users }}">
+            <div class="inner">
+              <h3>{{ stats.blocked_users }}</h3>
+              <p>مستخدمين محظورين</p>
+              <div style="height: 40px; margin-top: 10px;">
+                <canvas id="systemHealthChart"></canvas>
+              </div>
+            </div>
+            <div class="icon"><i class="fas fa-user-lock"></i></div>
+          </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+          <div class="small-box security-summary-box security-summary-box--amber">
+            <div class="inner">
+              <h3>{{ stats.failed_logins_24h }}</h3>
+              <p>محاولات فاشلة (24 ساعة)</p>
+              <div style="height: 40px; margin-top: 10px;">
+                <canvas id="failedLoginsChart"></canvas>
+              </div>
+            </div>
+            <div class="icon"><i class="fas fa-exclamation-triangle"></i></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec-card">
+    <div class="sec-card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+      <h5 class="mb-0 fw-bold text-white"><i class="fas fa-history text-info ms-2"></i> آخر الإجراءات</h5>
+      <a href="{{ url_for('security.audit_log_viewer') }}" class="btn btn-glass btn-sm">عرض السجل</a>
+    </div>
+    <div class="sec-card-body p-0">
+      <div class="timeline" id="auditTimeline" style="max-height: 280px; overflow-y: auto;">
+        {% if recent %}
+          {% for audit in recent[:10] %}
+          <div class="timeline-item" style="padding: 12px 20px; border-bottom: 1px solid rgba(255,255,255,0.08);">
+            <div class="d-flex justify-content-between align-items-start">
+              <div class="d-flex align-items-start">
+                <i class="fas fa-circle text-{% if audit.success %}success{% else %}danger{% endif %} mt-1" style="font-size: 0.5rem; margin-left: 10px;"></i>
+                <div>
+                  <strong class="text-white">{{ audit.event or 'نشاط' }}</strong>
+                  <br><small class="text-muted">
+                    <i class="fas fa-user"></i> {{ audit.user.username if audit.user else 'غير معروف' }}
+                    {% if audit.ip %} | <i class="fas fa-network-wired"></i> {{ audit.ip }}{% endif %}
                   </small>
                 </div>
               </div>
-              {% endfor %}
-            {% else %}
-              <div class="text-center p-4 text-muted">
-                <i class="fas fa-inbox"></i> لا توجد إجراءات حديثة
-              </div>
-            {% endif %}
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- الإحصائيات (شريط أخبار المالك) -->
-  <div class="row mb-4">
-    <div class="col-lg-3 col-md-6 mb-3">
-      <div class="small-box security-summary-box security-summary-box--blue" data-total-users="{{ stats.total_users }}">
-        <div class="inner">
-          <h3>{{ stats.total_users }}</h3>
-          <p>إجمالي المستخدمين</p>
-          <!-- Mini Chart -->
-          <div style="height: 40px; margin-top: 10px;">
-            <canvas id="usersTrendChart"></canvas>
-          </div>
-        </div>
-        <div class="icon"><i class="fas fa-users"></i></div>
-      </div>
-    </div>
-    
-    <div class="col-lg-3 col-md-6 mb-3">
-      <div class="small-box security-summary-box security-summary-box--green" data-active-users="{{ stats.active_users }}">
-        <div class="inner">
-          <h3>{{ stats.active_users }}</h3>
-          <p>مستخدمين نشطين</p>
-          <!-- Mini Chart -->
-          <div style="height: 40px; margin-top: 10px;">
-            <canvas id="activitySparkline"></canvas>
-          </div>
-        </div>
-        <div class="icon"><i class="fas fa-user-check"></i></div>
-      </div>
-    </div>
-    
-    <div class="col-lg-3 col-md-6 mb-3">
-      <div class="small-box security-summary-box security-summary-box--red" data-blocked-users="{{ stats.blocked_users }}">
-        <div class="inner">
-          <h3>{{ stats.blocked_users }}</h3>
-          <p>مستخدمين محظورين</p>
-          <!-- Mini Chart -->
-          <div style="height: 40px; margin-top: 10px;">
-            <canvas id="systemHealthChart"></canvas>
-          </div>
-        </div>
-        <div class="icon"><i class="fas fa-user-lock"></i></div>
-      </div>
-    </div>
-    
-    <div class="col-lg-3 col-md-6 mb-3">
-      <div class="small-box security-summary-box security-summary-box--amber">
-        <div class="inner">
-          <h3>{{ stats.failed_logins_24h }}</h3>
-          <p>محاولات فاشلة (24 ساعة)</p>
-          <!-- Mini Chart -->
-          <div style="height: 40px; margin-top: 10px;">
-            <canvas id="failedLoginsChart"></canvas>
-          </div>
-        </div>
-        <div class="icon"><i class="fas fa-exclamation-triangle"></i></div>
-      </div>
-    </div>
-  </div>
-
-  <h4 class="mb-3 font-weight-bold"><i class="fas fa-crown text-warning"></i> المراكز الرئيسية</h4>
-  
-  <div class="row mb-4">
-    <div class="col-lg-4 col-md-6 mb-4">
-      <div class="card card-security-module card-module-db h-100">
-        <div class="card-body text-center">
-          <div class="icon-wrapper">
-            <i class="fas fa-database"></i>
-          </div>
-          <h5 class="mb-2">Database Control</h5>
-          <p class="small mb-4">تصفح • تحرير • SQL • Python • فهارس • صيانة</p>
-          <a href="{{ url_for('security.database_manager') }}" class="btn btn-primary btn-sm btn-block">
-            <i class="fas fa-terminal"></i> فتح المركز
-          </a>
-        </div>
-      </div>
-    </div>
-
-    <div class="col-lg-4 col-md-6 mb-4">
-      <div class="card card-security-module card-module-ai h-100">
-        <div class="card-body text-center">
-          <div class="icon-wrapper">
-            <i class="fas fa-robot"></i>
-          </div>
-          <h5 class="mb-2">AI Control Center</h5>
-          <p class="small mb-4">مساعد ذكي • تحليل • تنبؤات • تدريب</p>
-          <div class="d-flex justify-content-center">
-            <a href="{{ url_for('ai.hub') }}" class="btn btn-primary btn-sm ml-1 flex-fill">
-              <i class="fas fa-comments"></i> فتح المركز
-            </a>
-            <a href="{{ url_for('ai_admin.ai_settings') }}" class="btn btn-outline-primary btn-sm mr-1 flex-fill">
-              <i class="fas fa-cog"></i> الإعدادات
-            </a>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="col-lg-4 col-md-6 mb-4">
-      <div class="card card-security-module card-module-security h-100">
-        <div class="card-body text-center">
-          <div class="icon-wrapper">
-            <i class="fas fa-shield-alt"></i>
-          </div>
-          <h5 class="mb-2">Security Center</h5>
-          <p class="small mb-4">مراقبة • جدار حماية • Audit • تنبيهات</p>
-          <a href="{{ url_for('security.security_center') }}" class="btn btn-primary btn-sm btn-block">
-            <i class="fas fa-lock"></i> فتح المركز
-          </a>
-        </div>
-      </div>
-    </div>
-
-    <div class="col-lg-4 col-md-6 mb-4">
-      <div class="card card-security-module card-module-users h-100">
-        <div class="card-body text-center">
-          <div class="icon-wrapper">
-            <i class="fas fa-users-cog"></i>
-          </div>
-          <h5 class="mb-2">Users Center</h5>
-          <p class="small mb-4">مستخدمين • صلاحيات • أدوار • تحكم كامل</p>
-          <a href="{{ url_for('security.users_center') }}" class="btn btn-primary btn-sm btn-block">
-            <i class="fas fa-user-shield"></i> فتح المركز
-          </a>
-        </div>
-      </div>
-    </div>
-
-    <div class="col-lg-4 col-md-6 mb-4">
-      <div class="card card-security-module card-module-settings h-100">
-        <div class="card-body text-center">
-          <div class="icon-wrapper">
-            <i class="fas fa-cogs"></i>
-          </div>
-          <h5 class="mb-2">Settings Center</h5>
-          <p class="small mb-4">ثيمات • شعارات • تخصيص • إعدادات</p>
-          <a href="{{ url_for('security.settings_center') }}" class="btn btn-primary btn-sm btn-block">
-            <i class="fas fa-sliders-h"></i> فتح المركز
-          </a>
-        </div>
-      </div>
-    </div>
-
-    <div class="col-lg-4 col-md-6 mb-4">
-      <div class="card card-security-module card-module-reports h-100">
-        <div class="card-body text-center">
-          <div class="icon-wrapper">
-            <i class="fas fa-chart-bar"></i>
-          </div>
-          <h5 class="mb-2">Reports Center</h5>
-          <p class="small mb-4">تقارير • أداء • Grafana • تحليلات</p>
-          <a href="{{ url_for('security.reports_center') }}" class="btn btn-primary btn-sm btn-block">
-            <i class="fas fa-file-alt"></i> فتح المركز
-          </a>
-        </div>
-      </div>
-    </div>
-
-    <div class="col-lg-4 col-md-6 mb-4">
-      <div class="card card-security-module card-module-tools h-100">
-        <div class="card-body text-center">
-          <div class="icon-wrapper">
-            <i class="fas fa-toolbox"></i>
-          </div>
-          <h5 class="mb-2">Tools Center</h5>
-          <p class="small mb-4">تكاملات • بريد • فواتير • كروت</p>
-          <a href="{{ url_for('security.tools_center') }}" class="btn btn-primary btn-sm btn-block">
-            <i class="fas fa-wrench"></i> فتح المركز
-          </a>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <h4 class="mt-5 mb-3 font-weight-bold"><i class="fas fa-layer-group text-info"></i> المحاسبة والمالية</h4>
-  
-  <div class="row mb-4">
-    <div class="col-lg-4 col-md-6 mb-4">
-      <div class="card card-security-module card-module-accounting h-100">
-        <div class="card-body text-center">
-          <div class="icon-wrapper">
-            <i class="fas fa-calculator"></i>
-          </div>
-          <h5 class="mb-2">المحاسبة المتقدمة</h5>
-          <p class="small mb-4">Advanced Accounting Control</p>
-          <a href="{{ url_for('advanced.accounting_control') }}" class="btn btn-primary btn-sm btn-block">
-            <i class="fas fa-arrow-left"></i> فتح لوحة التحكم
-          </a>
-        </div>
-      </div>
-    </div>
-    
-    <div class="col-lg-4 col-md-6 mb-4">
-      <div class="card card-security-module card-module-ledger h-100">
-        <div class="card-body text-center">
-          <div class="icon-wrapper">
-            <i class="fas fa-book"></i>
-          </div>
-          <h5 class="mb-2">Ledger Control</h5>
-          <p class="small mb-4">دفتر الأستاذ المحاسبي</p>
-          <a href="{{ url_for('ledger_control.index') }}" class="btn btn-primary btn-sm btn-block">
-            <i class="fas fa-arrow-left"></i> فتح الوحدة
-          </a>
-        </div>
-      </div>
-    </div>
-    
-    <div class="col-lg-4 col-md-6 mb-4">
-      <div class="card card-security-module card-module-expenses h-100">
-        <div class="card-body text-center">
-          <div class="icon-wrapper">
-            <i class="fas fa-sliders-h"></i>
-          </div>
-          <h5 class="mb-2">لوحة تحكم المصاريف</h5>
-          <p class="small mb-4">تحكم احترافي بالحقول والأنواع</p>
-          <a href="{{ url_for('security_expenses.control_panel') }}" class="btn btn-primary btn-sm btn-block">
-            <i class="fas fa-arrow-left"></i> فتح لوحة التحكم
-          </a>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <h4 class="mt-5 mb-3 font-weight-bold"><i class="fas fa-bell text-primary"></i> الإشعارات والضرائب</h4>
-  
-  <div class="row mb-4">
-    <div class="col-lg-4 col-md-6 mb-4">
-      <div class="card card-security-module card-module-notifications h-100">
-        <div class="card-body text-center">
-          <div class="icon-wrapper">
-            <i class="fas fa-bell"></i>
-          </div>
-          <h5 class="mb-2">Notifications Center</h5>
-          <p class="small mb-4">إدارة الإشعارات • Email • SMS</p>
-          <a href="{{ url_for('security.notifications_log') }}" class="btn btn-primary btn-sm btn-block">
-            <i class="fas fa-envelope"></i> فتح المركز
-          </a>
-        </div>
-      </div>
-    </div>
-    
-    <div class="col-lg-4 col-md-6 mb-4">
-      <div class="card card-security-module card-module-tax h-100">
-        <div class="card-body text-center">
-          <div class="icon-wrapper">
-            <i class="fas fa-file-invoice-dollar"></i>
-          </div>
-          <h5 class="mb-2">Tax Reports</h5>
-          <p class="small mb-4">VAT Tracking • إقرارات ضريبية</p>
-          <a href="{{ url_for('security.tax_reports') }}" class="btn btn-primary btn-sm btn-block">
-            <i class="fas fa-calculator"></i> فتح المركز
-          </a>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <h4 class="mt-5 mb-3 font-weight-bold"><i class="fas fa-fire text-danger"></i> أدوات الطوارئ والأمان</h4>
-  
-  <div class="row mb-4">
-    <div class="col-lg-4 col-md-6 mb-4">
-      <div class="card card-security-module card-module-emergency h-100">
-        <div class="card-body text-center">
-          <div class="icon-wrapper">
-            <i class="fas fa-exclamation-triangle"></i>
-          </div>
-          <h5 class="mb-2">Emergency Tools</h5>
-          <p class="small mb-4">أدوات الطوارئ الحرجة</p>
-          <a href="{{ url_for('security.emergency_tools') }}" class="btn btn-primary btn-sm btn-block">
-            <i class="fas fa-fire-extinguisher"></i> فتح الأدوات
-          </a>
-        </div>
-      </div>
-    </div>
-    
-    <div class="col-lg-4 col-md-6 mb-4">
-      <div class="card card-security-module card-module-cleanup h-100">
-        <div class="card-body text-center">
-          <div class="icon-wrapper">
-            <i class="fas fa-broom"></i>
-          </div>
-          <h5 class="mb-2">تنظيف وتصفير النظام</h5>
-          <p class="small mb-4">تنظيف الكاش • تصفير البيانات (Factory Reset)</p>
-          <a href="{{ url_for('security.system_cleanup') }}" class="btn btn-primary btn-sm btn-block">
-            <i class="fas fa-recycle"></i> فتح الأدوات
-          </a>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <h4 class="mt-5 mb-3 font-weight-bold"><i class="fas fa-ban text-danger"></i> جدار الحماية - Firewall</h4>
-  
-  <div class="row mb-4">
-    <div class="col-lg-6 mb-4">
-      <div class="card card-security-module card-module-firewall h-100">
-        <div class="card-body">
-          <div class="text-center mb-4">
-            <div class="icon-wrapper">
-              <i class="fas fa-ban"></i>
-            </div>
-            <h5 class="mb-1">IPs محظورة</h5>
-            <span class="badge badge-danger badge-pill">{{ stats.blocked_ips }}</span>
-          </div>
-          
-          <div class="row text-center mb-4">
-            <div class="col-4">
-              <div class="p-2 border rounded bg-light">
-                <h6 class="font-weight-bold mb-0 text-dark">{{ stats.blocked_ips }}</h6>
-                <small class="text-muted" style="font-size: 0.7rem;">محظورة</small>
-              </div>
-            </div>
-            <div class="col-4">
-              <div class="p-2 border rounded bg-light">
-                <h6 class="font-weight-bold mb-0 text-dark">{{ stats.failed_logins_24h }}</h6>
-                <small class="text-muted" style="font-size: 0.7rem;">فاشلة</small>
-              </div>
-            </div>
-            <div class="col-4">
-              <div class="p-2 border rounded bg-light">
-                <h6 class="font-weight-bold mb-0 text-dark">{{ stats.suspicious_activities }}</h6>
-                <small class="text-muted" style="font-size: 0.7rem;">مشبوهة</small>
-              </div>
+              <small class="text-muted" title="{{ audit.created_at }}">
+                <i class="fas fa-clock"></i> {{ audit.created_at.strftime('%H:%M') if audit.created_at else 'غير معروف' }}
+              </small>
             </div>
           </div>
-
-          <div class="d-flex justify-content-center">
-            <a href="{{ url_for('security.blocked_ips') }}" class="btn btn-primary btn-sm ml-1 flex-fill">
-              <i class="fas fa-list"></i> القائمة الكاملة
-            </a>
-            <a href="{{ url_for('security.block_ip') }}" class="btn btn-outline-primary btn-sm mr-1 flex-fill">
-              <i class="fas fa-plus"></i> حظر IP
-            </a>
+          {% endfor %}
+        {% else %}
+          <div class="text-center p-4 text-muted">
+            <i class="fas fa-inbox ms-2"></i> لا توجد إجراءات حديثة
           </div>
-        </div>
-      </div>
-    </div>
-    
-    <div class="col-lg-6 mb-4">
-      <div class="card card-security-module card-module-firewall h-100">
-        <div class="card-body">
-          <div class="text-center mb-4">
-            <div class="icon-wrapper">
-              <i class="fas fa-globe"></i>
-            </div>
-            <h5 class="mb-1">دول محظورة</h5>
-            <span class="badge badge-danger badge-pill">{{ stats.blocked_countries }}</span>
-          </div>
-          
-          <div class="row text-center mb-4">
-            <div class="col-4">
-              <div class="p-2 border rounded bg-light">
-                <h6 class="font-weight-bold mb-0 text-dark">{{ stats.blocked_countries }}</h6>
-                <small class="text-muted" style="font-size: 0.7rem;">دول</small>
-              </div>
-            </div>
-            <div class="col-4">
-              <div class="p-2 border rounded bg-light">
-                <h6 class="font-weight-bold mb-0 text-dark">{{ stats.total_users }}</h6>
-                <small class="text-muted" style="font-size: 0.7rem;">مستخدمين</small>
-              </div>
-            </div>
-            <div class="col-4">
-              <div class="p-2 border rounded bg-light">
-                <h6 class="font-weight-bold mb-0 text-dark">{{ stats.active_users }}</h6>
-                <small class="text-muted" style="font-size: 0.7rem;">نشطين</small>
-              </div>
-            </div>
-          </div>
-
-          <div class="d-flex justify-content-center">
-            <a href="{{ url_for('security.blocked_countries') }}" class="btn btn-primary btn-sm ml-1 flex-fill">
-              <i class="fas fa-list"></i> القائمة الكاملة
-            </a>
-            <a href="{{ url_for('security.block_country') }}" class="btn btn-outline-primary btn-sm mr-1 flex-fill">
-              <i class="fas fa-plus"></i> حظر دولة
-            </a>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <h4 class="mt-5 mb-3 font-weight-bold"><i class="fas fa-link text-success"></i> أدوات سريعة</h4>
-  
-  <div class="row mb-4">
-    <div class="col-lg-3 col-md-6 mb-4">
-      <div class="card card-security-module card-module-sitemap h-100">
-        <div class="card-body text-center">
-          <div class="icon-wrapper">
-            <i class="fas fa-sitemap"></i>
-          </div>
-          <h5 class="mb-2">خريطة الموقع</h5>
-          <p class="small mb-4">هيكل النظام الكامل</p>
-          <a href="{{ url_for('security.sitemap') }}" class="btn btn-primary btn-sm btn-block">
-            <i class="fas fa-map"></i> عرض
-          </a>
-        </div>
-      </div>
-    </div>
-    
-    <div class="col-lg-3 col-md-6 mb-4">
-      <div class="card card-security-module card-module-help h-100">
-        <div class="card-body text-center">
-          <div class="icon-wrapper">
-            <i class="fas fa-question-circle"></i>
-          </div>
-          <h5 class="mb-2">المساعدة</h5>
-          <p class="small mb-4">دليل الاستخدام والدعم</p>
-          <a href="{{ url_for('security.help_page') }}" class="btn btn-primary btn-sm btn-block">
-            <i class="fas fa-book"></i> عرض
-          </a>
-        </div>
-      </div>
-    </div>
-    
-    <div class="col-lg-3 col-md-6 mb-4">
-      <div class="card card-security-module card-module-audit h-100">
-        <div class="card-body text-center">
-          <div class="icon-wrapper">
-            <i class="fas fa-history"></i>
-          </div>
-          <h5 class="mb-2">سجل التدقيق</h5>
-          <p class="small mb-4">سجل العمليات والأنشطة</p>
-          <a href="{{ url_for('security.audit_log_viewer') }}" class="btn btn-primary btn-sm btn-block">
-            <i class="fas fa-eye"></i> عرض
-          </a>
-        </div>
-      </div>
-    </div>
-    
-    <div class="col-lg-3 col-md-6 mb-4">
-      <div class="card card-security-module card-module-db h-100">
-        <div class="card-body text-center">
-          <div class="icon-wrapper">
-            <i class="fas fa-bolt"></i>
-          </div>
-          <h5 class="mb-2">الفهارس</h5>
-          <p class="small mb-4">إدارة فهارس البيانات</p>
-          <a href="{{ url_for('security.database_manager', tab='indexes') }}" class="btn btn-primary btn-sm btn-block">
-            <i class="fas fa-database"></i> إدارة
-          </a>
-        </div>
+        {% endif %}
       </div>
     </div>
   </div>
 {% endblock security_content %}
 
 {% block scripts %}
-<script>
-// ═══════════════════════════════════════════════════════════
-// 🔍 نظام البحث المحسّن - Enhanced Search System
-// ═══════════════════════════════════════════════════════════
-(function() {
-  const searchInput = document.getElementById('quickSearch');
-  const clearBtn = document.getElementById('clearSearch');
-  
-  if (!searchInput) return;
-  
-  const searchData = [
-    {keywords: ['database', 'قاعدة', 'بيانات', 'sql', 'فهارس'], category: 'قاعدة البيانات'},
-    {keywords: ['ai', 'ذكاء', 'اصطناعي', 'مساعد', 'روبوت'], category: 'الذكاء الاصطناعي'},
-    {keywords: ['security', 'أمان', 'حماية', 'مراقبة'], category: 'الأمان والمراقبة'},
-    {keywords: ['users', 'مستخدمين', 'صلاحيات', 'permissions'], category: 'المستخدمين'},
-    {keywords: ['settings', 'إعدادات', 'تخصيص', 'ثيم'], category: 'الإعدادات'},
-    {keywords: ['reports', 'تقارير', 'أداء', 'performance'], category: 'التقارير'},
-    {keywords: ['tools', 'أدوات', 'تكاملات', 'integrations'], category: 'الأدوات'},
-    {keywords: ['ledger', 'دفتر', 'محاسبة', 'accounting'], category: 'المحاسبة'},
-    {keywords: ['emergency', 'طوارئ', 'cleanup', 'تنظيف'], category: 'الطوارئ'}
-  ];
-  
-  let searchTimeout;
-  searchInput.addEventListener('input', function() {
-    clearTimeout(searchTimeout);
-    const query = this.value.trim().toLowerCase();
-    
-    clearBtn.style.display = query ? 'block' : 'none';
-    
-    searchTimeout = setTimeout(() => {
-      performSearch(query);
-    }, 300);
-  });
-  
-  function performSearch(query) {
-    const cards = document.querySelectorAll('.card, .small-box');
-    let visibleCount = 0;
-    let matchedCategories = new Set();
-    
-    if (!query) {
-      cards.forEach(card => {
-        const parent = card.closest('.col-lg-3, .col-lg-4, .col-lg-6, .col-md-6');
-        if (parent) {
-          parent.style.display = '';
-          card.classList.remove('border-primary', 'border-2', 'search-highlight');
-        }
-      });
-      removeNoResults();
-      return;
-    }
-    
-    cards.forEach(card => {
-      const text = card.textContent.toLowerCase();
-      const parent = card.closest('.col-lg-3, .col-lg-4, .col-lg-6, .col-md-6');
-      
-      let shouldShow = text.includes(query);
-      
-      if (!shouldShow) {
-        searchData.forEach(item => {
-          if (item.keywords.some(kw => query.includes(kw) || kw.includes(query))) {
-            if (text.toLowerCase().includes(item.category.toLowerCase())) {
-              shouldShow = true;
-              matchedCategories.add(item.category);
-            }
-          }
-        });
-      }
-      
-      if (parent) {
-        parent.style.display = shouldShow ? '' : 'none';
-        if (shouldShow) {
-          visibleCount++;
-          card.classList.add('border-primary', 'border-2', 'search-highlight');
-          
-          parent.style.animation = 'none';
-          setTimeout(() => {
-            parent.style.animation = 'fadeInScale 0.3s ease';
-          }, 10);
-        } else {
-          card.classList.remove('border-primary', 'border-2', 'search-highlight');
-        }
-      }
-    });
-    
-    if (visibleCount === 0) {
-      showNoResults(query, matchedCategories);
-    } else {
-      removeNoResults();
-      showSearchStats(visibleCount, matchedCategories);
-    }
-  }
-  
-  function showNoResults(query, categories) {
-    removeNoResults();
-    const noResults = document.createElement('div');
-    noResults.id = 'noSearchResults';
-    noResults.className = 'alert alert-warning text-center shadow-sm';
-    noResults.innerHTML = `
-      <i class="fas fa-search fa-2x mb-2"></i>
-      <h5>لم يتم العثور على نتائج لـ "<strong>${query}</strong>"</h5>
-      <p class="mb-2">جرب البحث باستخدام:</p>
-      <div class="d-flex flex-wrap gap-2 justify-content-center">
-        ${searchData.map(item => `
-          <button class="btn btn-sm btn-outline-primary" onclick="document.getElementById('quickSearch').value='${item.keywords[0]}'; document.getElementById('quickSearch').dispatchEvent(new Event('input'));">
-            ${item.category}
-          </button>
-        `).join('')}
-      </div>
-    `;
-    searchInput.closest('.card').after(noResults);
-  }
-  
-  function showSearchStats(count, categories) {
-    let statsEl = document.getElementById('searchStats');
-    if (!statsEl) {
-      statsEl = document.createElement('div');
-      statsEl.id = 'searchStats';
-      statsEl.className = 'alert alert-success mb-3';
-      searchInput.closest('.card').after(statsEl);
-    }
-    
-    const catList = Array.from(categories).join(' • ');
-    statsEl.innerHTML = `
-      <i class="fas fa-check-circle"></i>
-      <strong>تم العثور على ${count} نتيجة</strong>
-      ${catList ? `<br><small>الفئات: ${catList}</small>` : ''}
-    `;
-  }
-  
-  function removeNoResults() {
-    document.getElementById('noSearchResults')?.remove();
-    document.getElementById('searchStats')?.remove();
-  }
-  
-  clearBtn.addEventListener('click', function() {
-    searchInput.value = '';
-    searchInput.dispatchEvent(new Event('input'));
-    searchInput.focus();
-  });
-  
-  document.addEventListener('keydown', function(e) {
-    if (e.ctrlKey && e.key === 'k') {
-      e.preventDefault();
-      searchInput.focus();
-      searchInput.select();
-    }
-    
-    if (e.key === 'Escape' && document.activeElement === searchInput) {
-      searchInput.value = '';
-      searchInput.dispatchEvent(new Event('input'));
-      searchInput.blur();
-    }
-  });
-  
-})();
-
-// ═══════════════════════════════════════════════════════════
-// 🎨 Animations وتحسينات UI
-// ═══════════════════════════════════════════════════════════
-(function() {
-  const style = document.createElement('style');
-  style.textContent = `
-    .small-box {
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-    
-    .small-box:hover {
-      transform: translateY(-5px);
-      box-shadow: 0 10px 30px rgba(0,0,0,0.15) !important;
-      z-index: 10;
-    }
-    
-    .search-highlight {
-      animation: pulseGlow 1.5s ease-in-out infinite;
-    }
-    
-    @keyframes pulseGlow {
-      0%, 100% { box-shadow: 0 0 0 0 rgba(0,123,255,0.7); }
-      50% { box-shadow: 0 0 20px 5px rgba(0,123,255,0.3); }
-    }
-    
-    @keyframes fadeInScale {
-      from {
-        opacity: 0;
-        transform: scale(0.9);
-      }
-      to {
-        opacity: 1;
-        transform: scale(1);
-      }
-    }
-    
-    @keyframes fadeInUp {
-      from {
-        opacity: 0;
-        transform: translateY(30px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-    
-    .card, .small-box {
-      animation: fadeInUp 0.6s ease;
-    }
-    
-    .border-2 {
-      border-width: 3px !important;
-    }
-    
-    [data-toggle="tooltip"] {
-      cursor: help;
-    }
-    
-    .btn {
-      transition: all 0.2s ease;
-    }
-    
-    .btn:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    }
-    
-    .btn:active {
-      transform: translateY(0);
-    }
-    
-    .menu-badge {
-      animation: fadeInRight 0.5s ease;
-    }
-    
-    @keyframes fadeInRight {
-      from {
-        opacity: 0;
-        transform: translateX(-10px);
-      }
-      to {
-        opacity: 1;
-        transform: translateX(0);
-      }
-    }
-    
-    .timeline-item {
-      transition: background 0.2s ease;
-    }
-    
-    .timeline-item:hover {
-      background: #f8f9fa !important;
-      cursor: pointer;
-    }
-    
-    .alert {
-      animation: slideInDown 0.5s ease;
-    }
-    
-    @keyframes slideInDown {
-      from {
-        opacity: 0;
-        transform: translateY(-20px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-  `;
-  document.head.appendChild(style);
-  
-})();
-
-(function() {
-  const style = document.createElement('style');
-  style.textContent = `
-    .hover-lift {
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-    
-    .hover-lift:hover {
-      transform: translateY(-10px);
-      box-shadow: 0 20px 40px rgba(0,0,0,0.3) !important;
-    }
-    
-    .card-body p {
-      line-height: 1.6;
-    }
-    
-    h4 {
-      font-weight: 700;
-      padding-bottom: 10px;
-      border-bottom: 3px solid #f0f0f0;
-      margin-bottom: 20px !important;
-    }
-  `;
-  document.head.appendChild(style);
-})();
-
-// ═══════════════════════════════════════════════════════════
-// 💡 Tooltips توضيحية
-// ═══════════════════════════════════════════════════════════
-(function() {
-  // إضافة tooltips للبطاقات
-  const tooltips = {
-    'مركز قواعد البيانات': 'إدارة شاملة لقاعدة البيانات: تصفح، تحرير، SQL، Python، فهارس، صيانة، وأكثر',
-    'مركز الذكاء الاصطناعي': 'مساعد ذكي، تحليل البيانات، كشف الأنماط، تنبؤات، وتدريب النماذج',
-    'مركز الأمان': 'مراقبة فورية، جدار حماية، تنبيهات أمنية، وسجل النشاطات',
-    'مركز المستخدمين': 'إدارة المستخدمين، الصلاحيات، الأدوار، والتحكم الكامل',
-    'مركز الإعدادات': 'إعدادات النظام، الثيمات، الشعارات، العلامة التجارية، والتخصيص',
-    'مركز التقارير': 'تقارير إدارية، مراقبة الأداء، Grafana، ولوحات التحكم',
-    'مركز الأدوات': 'التكاملات، البريد، الفواتير، الكروت، وأدوات متنوعة',
-    'دفتر الأستاذ': 'دفتر الأستاذ المحاسبي: الحسابات، القيود، الأرصدة، والتقارير المالية'
-  };
-  
-  document.querySelectorAll('.card h5').forEach(h5 => {
-    const text = h5.textContent.trim();
-    for (const [key, value] of Object.entries(tooltips)) {
-      if (text.includes(key)) {
-        const card = h5.closest('.card');
-        if (card) {
-          card.setAttribute('data-toggle', 'tooltip');
-          card.setAttribute('data-placement', 'top');
-          card.setAttribute('title', value);
-        }
-      }
-    }
-  });
-  
-  // تفعيل Bootstrap tooltips
-  $('[data-toggle="tooltip"]').tooltip();
-  
-})();
-</script>
-
-<!-- تحميل Charts للإحصائيات -->
 <script src="{{ url_for('static', filename='js/security_charts.js') }}"></script>
 {% endblock %}
