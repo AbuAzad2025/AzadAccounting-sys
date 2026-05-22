@@ -3549,32 +3549,27 @@ def preorder_convert_to_sale(preorder_id):
         db.session.add(sale_line)
         db.session.flush()  # لحساب total_amount من SaleLine
         
-        # ربط Payment المرتبط بـ PreOrder بالـ Sale أيضاً
         prepaid_payment = Payment.query.filter(
             Payment.preorder_id == preorder.id,
             Payment.direction == PaymentDirection.IN.value,
             Payment.status == PaymentStatus.COMPLETED.value
         ).first()
         
-        if prepaid_payment:
-            prepaid_payment.preorder_id = None
-            prepaid_payment.sale_id = sale.id
-            prepaid_payment.customer_id = None
+        if prepaid_payment and preorder.customer_id:
+            prepaid_payment.customer_id = int(preorder.customer_id)
+            prepaid_payment.entity_type = "CUSTOMER"
+            prepaid_payment.sale_id = None
             prepaid_payment.supplier_id = None
             prepaid_payment.partner_id = None
-            prepaid_payment.entity_type = "SALE"
             db.session.add(prepaid_payment)
         
         db.session.flush()
         db.session.refresh(sale)
         
-        sale.total_paid = Decimal(str(prepaid))
+        sale.total_paid = Decimal("0")
+        sale.balance_due = Decimal(str(sale.total_amount or 0))
         db.session.add(sale)
         db.session.flush()
-        
-        db.session.refresh(sale)
-        sale.balance_due = Decimal(str(sale.total_amount or 0)) - Decimal(str(sale.total_paid or 0))
-        db.session.add(sale)
         
         preorder._skip_reservation_flow = True
         sl = StockLevel.query.filter_by(product_id=preorder.product_id, warehouse_id=preorder.warehouse_id).with_for_update(nowait=False).first()

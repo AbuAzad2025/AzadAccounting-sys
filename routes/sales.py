@@ -1188,7 +1188,7 @@ def sale_detail(id: int):
         invoice_tax_amount = (base_for_tax * sale_tax_rate / Decimal("100")).quantize(TWOPLACES, rounding=ROUND_HALF_UP)
         grand_total = (base_for_tax + invoice_tax_amount).quantize(TWOPLACES, rounding=ROUND_HALF_UP)
         sale.total_amount = float(grand_total)
-        sale.balance_due = float((grand_total - D(getattr(sale, "total_paid", 0))).quantize(TWOPLACES, rounding=ROUND_HALF_UP))
+        sale.balance_due = float(grand_total.quantize(TWOPLACES, rounding=ROUND_HALF_UP))
         # حساب عرض بالشيكل عند الحاجة
         try:
             from models import convert_amount, PaymentStatus

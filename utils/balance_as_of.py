@@ -57,11 +57,11 @@ def customer_components_since(customer_id: int, since_date: datetime, session=No
     )}
 
     def _sum_ils(model, date_col, amount_col, extra=None):
-        filters = [getattr(model, "customer_id") == customer_id, getattr(date_col) >= since_date]
+        filters = [model.customer_id == customer_id, date_col >= since_date]
         if extra:
             filters.extend(extra)
-        val = session.query(func.coalesce(func.sum(getattr(model, amount_col)), 0)).filter(
-            *filters, getattr(model, "currency") == "ILS"
+        val = session.query(func.coalesce(func.sum(amount_col), 0)).filter(
+            *filters, model.currency == "ILS"
         ).scalar() or 0
         return Decimal(str(val))
 
