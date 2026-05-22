@@ -105,9 +105,13 @@ def calculate_customer_balance_components(customer_id, session=None):
                 except Exception:
                     pass
         
+        # فواتير مستقلة فقط — الفاتورة المرتبطة ببيع/خدمة/حجز تُحسب ضمن ذلك الالتزام
         ils_invoices_sum = session.query(func.coalesce(func.sum(Invoice.total_amount), 0)).filter(
             Invoice.customer_id == customer_id,
             Invoice.cancelled_at.is_(None),
+            Invoice.sale_id.is_(None),
+            Invoice.service_id.is_(None),
+            Invoice.preorder_id.is_(None),
             Invoice.currency == 'ILS'
         ).scalar() or 0
         result['invoices_balance'] += Decimal(str(ils_invoices_sum))
@@ -117,6 +121,9 @@ def calculate_customer_balance_components(customer_id, session=None):
         ).filter(
             Invoice.customer_id == customer_id,
             Invoice.cancelled_at.is_(None),
+            Invoice.sale_id.is_(None),
+            Invoice.service_id.is_(None),
+            Invoice.preorder_id.is_(None),
             Invoice.currency != 'ILS'
         ).group_by(Invoice.currency, func.date(Invoice.invoice_date)).all()
         for total_amt, currency, date_val in other_currency_invoices:
@@ -1001,9 +1008,14 @@ def _build_customer_balance_view_impl(customer_id, session):
         {"key": "expenses_balance", "label": "مصاريف / خصومات", "flow": "OUT", "amount": _component("expenses_balance")},
     ]
 
-    rights_total = sum((row["amount"] for row in rights_rows), Decimal("0.00"))
-    obligations_total = sum((row["amount"] for row in obligations_rows), Decimal("0.00"))
-    calculated_balance = opening_balance + rights_total - obligations_total
+    from utils.accounting_formulas import (
+        customer_balance_from_components,
+        customer_obligations_total,
+        customer_rights_total,
+    )
+    rights_total = customer_rights_total(components)
+    obligations_total = customer_obligations_total(components)
+    calculated_balance = customer_balance_from_components(opening_balance, components)
     stored_balance = _dec(customer.current_balance or 0)
     difference = calculated_balance - stored_balance
     tolerance = Decimal("0.01")
@@ -1244,7 +1256,17 @@ def calculate_balance_before_date(customer_id, before_date, session=None):
     
     # 3. Obligations (Flow OUT - Increases what he owes us)
     sales_balance = sum_model(Sale, 'sale_date', 'total_amount', [Sale.status == 'CONFIRMED'])
-    invoices_balance = sum_model(Invoice, 'invoice_date', 'total_amount', [Invoice.cancelled_at.is_(None)])
+    invoices_balance = sum_model(
+        Invoice,
+        'invoice_date',
+        'total_amount',
+        [
+            Invoice.cancelled_at.is_(None),
+            Invoice.sale_id.is_(None),
+            Invoice.service_id.is_(None),
+            Invoice.preorder_id.is_(None),
+        ],
+    )
     
     # Services
     services_balance = Decimal('0.00')

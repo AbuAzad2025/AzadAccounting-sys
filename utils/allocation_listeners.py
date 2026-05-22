@@ -400,6 +400,14 @@ def register_allocation_listeners():
     global _ALLOCATION_LISTENERS_REGISTERED
     if _ALLOCATION_LISTENERS_REGISTERED:
         return
+    try:
+        from utils.payment_allocation_policy import payment_auto_allocate_enabled
+        if not payment_auto_allocate_enabled():
+            _ALLOCATION_LISTENERS_REGISTERED = True
+            logger.info("Payment allocation disabled; skip allocation listeners registration")
+            return
+    except Exception:
+        pass
     from sqlalchemy import event
     from extensions import db
     from models import (

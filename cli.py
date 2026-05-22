@@ -24,7 +24,7 @@ from utils.partner_balance_updater import update_partner_balance_components, bui
 from permissions_config.permissions import PermissionsRegistry
 from models import (
     Account, AuditLog, Branch, Site, Check, CheckStatus, Customer, Employee, ExchangeTransaction, Expense, ExpenseType, GLBatch,
-    GLEntry, GL_ACCOUNTS, Invoice, Note, OnlineCart, OnlineCartItem, OnlinePayment, OnlinePreOrder, OnlinePreOrderItem,
+    GLEntry, GL_ACCOUNTS, Invoice, InvoiceLine, Note, OnlineCart, OnlineCartItem, OnlinePayment, OnlinePreOrder, OnlinePreOrderItem,
     Partner, PartnerSettlement, Payment, PaymentDirection, PaymentEntityType, PaymentMethod, PaymentStatus, Permission,
     PreOrder, Product, ProductCategory, Role, Sale, SaleLine, ServicePart, ServiceRequest, ServiceStatus, ServiceTask,
     Shipment, ShipmentItem, ShipmentStatus, StockAdjustment, StockAdjustmentItem, StockLevel, Supplier,
@@ -2270,6 +2270,103 @@ def invoice_update_status(invoice_id: int):
     except SQLAlchemyError as e:
         db.session.rollback(); raise click.ClickException(str(e)) from e
 
+@click.command("backfill-sale-invoices")
+@click.option("--limit", type=int, default=0)
+@click.option("--dry-run", is_flag=True, default=False)
+@with_appcontext
+def backfill_sale_invoices(limit: int, dry_run: bool):
+    q = (
+        db.session.query(Sale.id)
+        .outerjoin(Invoice, Invoice.sale_id == Sale.id)
+        .filter(Invoice.id.is_(None))
+        .filter(Sale.cancelled_at.is_(None))
+        .filter(Sale.is_archived == False)
+        .order_by(Sale.id.asc())
+    )
+    if limit and int(limit) > 0:
+        q = q.limit(int(limit))
+    sale_ids = [int(r[0]) for r in q.all()]
+    if not sale_ids:
+        click.echo("OK: no missing sale invoices")
+        return
+    created = 0
+    for sid in sale_ids:
+        sale = db.session.get(Sale, sid)
+        if not sale or not getattr(sale, "customer_id", None):
+            continue
+        inv = Invoice(
+            invoice_number=f"FINV-{int(sale.id):06d}",
+            invoice_date=getattr(sale, "sale_date", None) or datetime.now(timezone.utc),
+            due_date=None,
+            customer_id=int(sale.customer_id),
+            sale_id=int(sale.id),
+            source="SALE",
+            kind="INVOICE",
+            currency=(getattr(sale, "currency", None) or "ILS").upper(),
+            total_amount=_Q2(getattr(sale, "total_amount", 0) or 0),
+            tax_amount=_Q2(getattr(sale, "tax_amount", 0) or 0),
+            discount_amount=_Q2(getattr(sale, "discount_total", 0) or 0),
+            notes=getattr(sale, "notes", None),
+        )
+        for ln in (getattr(sale, "lines", None) or []):
+            prod = None
+            try:
+                prod = db.session.get(Product, int(getattr(ln, "product_id", 0) or 0))
+            except Exception:
+                prod = None
+            inv.lines.append(
+                InvoiceLine(
+                    description=(getattr(prod, "name", None) or f"ITEM-{getattr(ln, 'product_id', '')}"),
+                    quantity=float(getattr(ln, "quantity", 0) or 0),
+                    unit_price=_Q2(getattr(ln, "unit_price", 0) or 0),
+                    tax_rate=_Q2(getattr(ln, "tax_rate", 0) or 0),
+                    discount=_Q2(getattr(ln, "discount_rate", 0) or 0),
+                    product_id=int(getattr(ln, "product_id", 0) or 0) or None,
+                )
+            )
+        if dry_run:
+            continue
+        db.session.add(inv)
+        try:
+            db.session.flush()
+            created += 1
+        except IntegrityError:
+            db.session.rollback()
+            continue
+    if dry_run:
+        db.session.rollback()
+        click.echo(f"DRY RUN: would create {len(sale_ids)} invoices")
+        return
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
+    click.echo(f"OK: created {created} invoices")
+
+
+@click.command("accounting-audit")
+@click.option("--limit", type=int, default=0, show_default=True, help="0 = كل الجهات")
+@click.option("--fix", is_flag=True, help="إعادة حساب الأرصدة المخزّنة عند الفروقات")
+@click.option("--fix-policy", is_flag=True, help="فك ربط الدفعات القديمة من المبيعات وربطها بالعميل فقط")
+@click.option("--include-archived", is_flag=True)
+@with_appcontext
+def accounting_audit(limit, fix, fix_policy, include_archived):
+    """تدقيق محاسبي صارم: حقوق / التزامات / رصيد للعميل والمورد والشريك."""
+    from utils.accounting_audit import audit_entity_balances, format_audit_report_text
+
+    report = audit_entity_balances(
+        limit=int(limit or 0),
+        include_archived=include_archived,
+        fix=fix,
+        fix_policy=fix_policy,
+    )
+    click.echo(format_audit_report_text(report))
+    s = report.get("summary", {})
+    if any(s.get(k, 0) for k in s):
+        raise SystemExit(1)
+
+
 @click.command("preorder-create")
 @click.option("--product-id", type=int, required=True)
 @click.option("--warehouse-id", type=int, required=True)
@@ -4510,6 +4607,8 @@ def register_cli(app) -> None:
         stock_transfer, stock_exchange, stock_reserve, stock_unreserve, shipment_create, shipment_status,
         supplier_settlement_draft, supplier_settlement_confirm, partner_settlement_draft, partner_settlement_confirm,
         payment_create, payment_list, invoice_list, invoice_update_status, preorder_create,
+        backfill_sale_invoices,
+        accounting_audit,
         sr_create, sr_add_part, sr_add_task, sr_recalc, sr_set_status, sr_show, 
         cart_create, cart_add_item, order_from_cart, order_set_status, order_add_item,
         onlinepay_create, onlinepay_decrypt_card, expense_create, expense_pay, expense_link_known_entities, expenses_payoff_all,

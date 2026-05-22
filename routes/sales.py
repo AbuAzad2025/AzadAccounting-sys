@@ -11,7 +11,7 @@ from sqlalchemy import func, or_, desc, extract, case, and_
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload, selectinload, load_only
 from extensions import db, cache
-from models import Sale, SaleLine, Invoice, Customer, Product, AuditLog, Warehouse, User, Payment, StockLevel, Employee, CostCenter, SaleStatus, PaymentStatus, PaymentMethod
+from models import Sale, SaleLine, Invoice, InvoiceLine, InvoiceSource, Customer, Product, AuditLog, Warehouse, User, Payment, StockLevel, Employee, CostCenter, SaleStatus, PaymentStatus, PaymentMethod
 from models import convert_amount, run_sale_gl_sync_after_commit
 
 
@@ -307,6 +307,58 @@ def _safe_generate_number_after_flush(sale: Sale) -> None:
     if not sale.sale_number:
         sale.sale_number = f"INV-{_utc_now_naive():%Y%m%d}-{sale.id:04d}"
         db.session.flush()
+
+def _ensure_invoice_for_sale(sale: Sale) -> Invoice | None:
+    if not sale or not getattr(sale, "id", None) or not getattr(sale, "customer_id", None):
+        return None
+    inv = Invoice.query.filter_by(sale_id=int(sale.id)).first()
+    if not inv:
+        inv = Invoice(
+            invoice_number=f"FINV-{int(sale.id):06d}",
+            invoice_date=getattr(sale, "sale_date", None) or _utc_now_naive(),
+            due_date=None,
+            customer_id=int(sale.customer_id),
+            sale_id=int(sale.id),
+            source=InvoiceSource.SALE.value,
+            kind="INVOICE",
+            currency=(getattr(sale, "currency", None) or "ILS").upper(),
+            total_amount=D(getattr(sale, "total_amount", 0) or 0),
+            tax_amount=D(getattr(sale, "tax_amount", 0) or 0),
+            discount_amount=D(getattr(sale, "discount_total", 0) or 0),
+            notes=getattr(sale, "notes", None),
+        )
+        db.session.add(inv)
+        db.session.flush()
+    else:
+        inv.customer_id = int(sale.customer_id)
+        inv.invoice_date = getattr(sale, "sale_date", None) or inv.invoice_date
+        inv.currency = (getattr(sale, "currency", None) or inv.currency or "ILS").upper()
+        inv.total_amount = D(getattr(sale, "total_amount", 0) or 0)
+        inv.tax_amount = D(getattr(sale, "tax_amount", 0) or 0)
+        inv.discount_amount = D(getattr(sale, "discount_total", 0) or 0)
+        inv.notes = getattr(sale, "notes", None)
+
+    inv.lines = []
+    for ln in (getattr(sale, "lines", None) or []):
+        prod = None
+        try:
+            prod = db.session.get(Product, int(getattr(ln, "product_id", 0) or 0))
+        except Exception:
+            prod = None
+        inv.lines.append(
+            InvoiceLine(
+                invoice_id=int(inv.id),
+                product_id=int(getattr(ln, "product_id", 0) or 0) or None,
+                description=(getattr(prod, "name", None) or f"ITEM-{getattr(ln, 'product_id', '')}"),
+                quantity=float(getattr(ln, "quantity", 0) or 0),
+                unit_price=D(getattr(ln, "unit_price", 0) or 0),
+                discount=D(getattr(ln, "discount_rate", 0) or 0),
+                tax_rate=D(getattr(ln, "tax_rate", 0) or 0),
+            )
+        )
+    db.session.add(inv)
+    db.session.flush()
+    return inv
 
 @sales_bp.route("/<int:id>/archive", methods=["POST"])
 @login_required
@@ -1058,6 +1110,7 @@ def create_sale():
             _safe_generate_number_after_flush(sale)
             _attach_lines(sale, lines_payload)
             db.session.flush()
+            _ensure_invoice_for_sale(sale)
             if require_stock and target_status == "CONFIRMED":
                 _deduct_stock(sale)
             _log(sale, "CREATE", None, sale_to_dict(sale))
@@ -1069,16 +1122,8 @@ def create_sale():
                 current_app.logger.error(f"⚠️ GL Sync Failed for Sale #{sale.id}: {e}")
                 # Don't flash error to user as the sale is valid, but log it for admin
             try:
-                from utils.credit_allocator import apply_customer_credit_to_obligations
-                apply_customer_credit_to_obligations(int(sale.customer_id), created_by=getattr(current_user, "id", None))
-                try:
-                    s2 = db.session.get(Sale, sale.id)
-                    if s2 and hasattr(s2, "update_payment_status"):
-                        s2.update_payment_status()
-                        db.session.add(s2)
-                        db.session.commit()
-                except Exception:
-                    db.session.rollback()
+                from utils.customer_balance_updater import update_customer_balance_components
+                update_customer_balance_components(int(sale.customer_id))
             except Exception:
                 try:
                     db.session.rollback()
@@ -1291,6 +1336,7 @@ def edit_sale(id):
             db.session.flush()
             if require_stock:
                 _reserve_stock(sale)
+            _ensure_invoice_for_sale(sale)
             _log(sale, "UPDATE", old, sale_to_dict(sale))
             db.session.commit()
             try:
@@ -1366,6 +1412,7 @@ def quick_sell():
         db.session.flush()
         if status == "CONFIRMED":
             _reserve_stock(sale)
+        _ensure_invoice_for_sale(sale)
         _log(sale, "CREATE", None, sale_to_dict(sale))
         db.session.commit()
         try:
@@ -1427,6 +1474,7 @@ def change_status(id: int, status: str):
             sale.status = "CONFIRMED"
             db.session.flush()
             _reserve_stock(sale)
+            _ensure_invoice_for_sale(sale)
         elif status == "CANCELLED":
             _release_stock(sale)
             sale.status = "CANCELLED"

@@ -1594,6 +1594,15 @@ def create_payment():
                     receiver_val = counterparty_name
             deliverer_val = (deliverer_val or "").strip() or None
             receiver_val = (receiver_val or "").strip() or None
+            try:
+                from utils.payment_allocation_policy import (
+                    payment_auto_allocate_enabled,
+                    normalize_customer_payment_booking,
+                )
+                allocation_enabled = payment_auto_allocate_enabled()
+            except Exception:
+                allocation_enabled = bool(current_app.config.get("PAYMENT_ALLOCATION_ENABLED", False))
+                normalize_customer_payment_booking = None
             target_kwargs = {}
             if etype == "CUSTOMER":
                 target_kwargs["customer_id"] = target_id
@@ -1622,6 +1631,10 @@ def create_payment():
                     target_kwargs["supplier_id"] = final_supplier_id
                 elif final_partner_id:
                     target_kwargs["partner_id"] = final_partner_id
+            if normalize_customer_payment_booking and final_customer_id:
+                etype, target_kwargs = normalize_customer_payment_booking(
+                    etype, target_kwargs, customer_id=int(final_customer_id)
+                )
             base_receipt = (_fd(getattr(form, "receipt_number", None)) or None)
             base_reference = ref_text or None
             base_total = q0(actual_amount)
@@ -1735,7 +1748,7 @@ def create_payment():
                 splits_by_payment[p] = splits
                 return amt
 
-            if etype == "CUSTOMER" and direction_val == "IN" and final_customer_id:
+            if allocation_enabled and etype == "CUSTOMER" and direction_val == "IN" and final_customer_id:
                 obligations = []
                 try:
                     open_services = (
@@ -1826,7 +1839,7 @@ def create_payment():
                     _add_alloc("CUSTOMER", remaining, receipt_number=None, customer_id=final_customer_id)
                     remaining = q0(0)
 
-            if etype == "SUPPLIER" and direction_val == "IN" and final_supplier_id and not payments_to_create:
+            if allocation_enabled and etype == "SUPPLIER" and direction_val == "IN" and final_supplier_id and not payments_to_create:
                 linked_customer_id = None
                 try:
                     s_obj = db.session.get(Supplier, final_supplier_id)
@@ -2095,7 +2108,7 @@ def create_payment():
                     _add_alloc("SUPPLIER", remaining, receipt_number=None, supplier_id=final_supplier_id)
                     remaining = q0(0)
 
-            if etype == "PARTNER" and direction_val == "OUT" and final_partner_id and not payments_to_create:
+            if allocation_enabled and etype == "PARTNER" and direction_val == "OUT" and final_partner_id and not payments_to_create:
                 obligations = []
                 try:
                     rows = (

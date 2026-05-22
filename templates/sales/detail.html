@@ -131,19 +131,19 @@
           <i class="fas fa-money-bill-wave mr-2"></i> سجل الدفعات
         </h5>
         <div class="d-flex align-items-center">
-          <a class="btn btn-outline-primary btn-sm ml-2" href="{{ url_for('sales_bp.sale_payments', id=sale.id) }}">
-            <i class="fas fa-list mr-1"></i> السجل الخاص بهذه الفاتورة
+          <a class="btn btn-outline-primary btn-sm ml-2" href="{{ url_for('payments.index', entity_type='CUSTOMER', entity_id=sale.customer_id) }}">
+            <i class="fas fa-list mr-1"></i> دفعات العميل
           </a>
-          {% if sale.balance_due and sale.balance_due > 0 %}
-          <a class="btn btn-success btn-sm" href="{{ url_for('payments.create_payment', 
-                                                           entity_type='SALE', 
-                                                           entity_id=sale.id,
-                                                           amount=sale.balance_due,
+          {% if sale.total_amount and sale.total_amount > 0 %}
+          <a class="btn btn-success btn-sm" href="{{ url_for('payments.create_payment',
+                                                           entity_type='CUSTOMER',
+                                                           entity_id=sale.customer_id,
+                                                           amount=sale.total_amount,
                                                            currency=sale.currency if sale.currency else 'ILS',
                                                            reference='دفع مبيعة من ' ~ (sale.customer.name if sale.customer else 'عميل') ~ ' - ' ~ (sale.sale_number or sale.id),
                                                            notes='دفع مبيعة: ' ~ (sale.sale_number or sale.id) ~ ' - العميل: ' ~ (sale.customer.name if sale.customer else 'غير محدد'),
                                                            customer_id=sale.customer_id) }}">
-            <i class="fas fa-plus mr-1"></i> إضافة دفعة ({{ '%.2f'|format(sale.balance_due) }} {{ sale.currency if sale.currency else 'ILS' }})
+            <i class="fas fa-plus mr-1"></i> إضافة دفعة
           </a>
           {% endif %}
         </div>
@@ -160,20 +160,7 @@
             </tr>
           </thead>
           <tbody>
-            {% for p in sale.payments %}
-              <tr>
-                <td>{{ p.date_formatted }}</td>
-                <td>{{ num(p.total_amount) }} {{ sale.currency }}</td>
-                <td>{{ p.method_label }}</td>
-                <td>
-                  <span class="badge {{ p.status_class }} {{ p.status_class|replace('bg-','badge-') }}">
-                    {{ p.status_label }}
-                  </span>
-                </td>
-              </tr>
-            {% else %}
-              <tr><td colspan="4" class="text-center text-muted py-3">لا توجد دفعات مسجلة</td></tr>
-            {% endfor %}
+            <tr><td colspan="4" class="text-center text-muted py-3">الدفعات تُسجّل على حساب العميل (بدون ربط تلقائي بهذه المبيعة)</td></tr>
           </tbody>
         </table>
       </div>
@@ -182,30 +169,14 @@
         <div class="col-md-5">
           <table class="table table-bordered">
             <tr>
-              <th class="text-right">المجموع المدفوع:</th>
-              <td>{{ num(sale.total_paid) }} {{ sale.currency }}</td>
+              <th class="text-right">الذمة:</th>
+              <td>{{ num(sale.total_amount) }} {{ sale.currency }}</td>
             </tr>
             {% if show_ils_display %}
             <tr>
-              <th class="text-right">المجموع المدفوع (بالشيكل):</th>
-              <td>{{ num(paid_ils) }} ILS</td>
-            </tr>
-            {% endif %}
-            <tr>
-              <th class="text-right">المتبقي:</th>
+              <th class="text-right">الذمة (بالشيكل):</th>
               <td>
-                <span class="badge {{ 'badge-success' if (sale.balance_due or 0)|float == 0 else 'badge-danger' }}">
-                  {{ num(sale.balance_due) }} {{ sale.currency }}
-                </span>
-              </td>
-            </tr>
-            {% if show_ils_display %}
-            <tr>
-              <th class="text-right">المتبقي (بالشيكل):</th>
-              <td>
-                <span class="badge {{ 'badge-success' if (balance_due_ils or 0)|float == 0 else 'badge-danger' }}">
-                  {{ num(balance_due_ils) }} ILS
-                </span>
+                {{ num(grand_total_ils) }} ILS
               </td>
             </tr>
             {% endif %}
