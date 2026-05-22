@@ -2345,6 +2345,53 @@ def backfill_sale_invoices(limit: int, dry_run: bool):
     click.echo(f"OK: created {created} invoices")
 
 
+@click.command("fiscal-periods-sync")
+@click.option("--from-year", type=int, default=None)
+@click.option("--to-year", type=int, default=None)
+@click.option("--no-monthly", is_flag=True)
+@click.option("--no-quarterly", is_flag=True)
+@click.option("--no-half", is_flag=True)
+@click.option("--no-year", is_flag=True)
+@with_appcontext
+def fiscal_periods_sync(from_year, to_year, no_monthly, no_quarterly, no_half, no_year):
+    """توليد الفترات المحاسبية (شهر / ربع / نصف / سنة)."""
+    from utils.period_close_service import sync_fiscal_periods
+
+    stats = sync_fiscal_periods(
+        from_year=from_year,
+        to_year=to_year,
+        include_monthly=not no_monthly,
+        include_quarterly=not no_quarterly,
+        include_half=not no_half,
+        include_year=not no_year,
+    )
+    click.echo(f"OK: created={stats['created']} updated={stats['updated']}")
+
+
+@click.command("fiscal-period-close")
+@click.argument("period_key")
+@click.option("--scope", type=click.Choice(["GL_ONLY", "FULL"]), default="FULL")
+@click.option("--no-gl", is_flag=True, help="بدون قيود إقفال GL")
+@click.option("--no-carry", is_flag=True, help="بدون ترحيل سنوي")
+@click.option("--no-lock", is_flag=True, help="إقفال بدون LOCKED")
+@with_appcontext
+def fiscal_period_close(period_key, scope, no_gl, no_carry, no_lock):
+    """إقفال فترة محاسبية بالمفتاح (مثل 2025-FY أو 2025-Q1)."""
+    from utils.period_close_service import close_fiscal_period, get_period_by_key
+
+    period = get_period_by_key(period_key)
+    if not period:
+        raise click.ClickException(f"الفترة غير موجودة: {period_key}")
+    result = close_fiscal_period(
+        period.id,
+        close_scope=scope,
+        post_gl=not no_gl,
+        carry_forward=not no_carry,
+        lock_period=not no_lock,
+    )
+    click.echo(f"OK: {result['period_key']} -> {result['status']} snapshots={result.get('entity_snapshots')}")
+
+
 @click.command("accounting-audit")
 @click.option("--limit", type=int, default=0, show_default=True, help="0 = كل الجهات")
 @click.option("--fix", is_flag=True, help="إعادة حساب الأرصدة المخزّنة عند الفروقات")
@@ -4608,6 +4655,8 @@ def register_cli(app) -> None:
         supplier_settlement_draft, supplier_settlement_confirm, partner_settlement_draft, partner_settlement_confirm,
         payment_create, payment_list, invoice_list, invoice_update_status, preorder_create,
         backfill_sale_invoices,
+        fiscal_periods_sync,
+        fiscal_period_close,
         accounting_audit,
         sr_create, sr_add_part, sr_add_task, sr_recalc, sr_set_status, sr_show, 
         cart_create, cart_add_item, order_from_cart, order_set_status, order_add_item,

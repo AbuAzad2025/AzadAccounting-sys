@@ -2378,7 +2378,15 @@ def account_statement(customer_id):
 
     # Calculate opening balance (brought forward)
     from utils.balance_calculator import calculate_balance_before_date
-    opening_balance = D(calculate_balance_before_date(c.id, start_date))
+    from utils.period_close_service import get_opening_balance_for_entity
+
+    opening_balance = None
+    if start_date:
+        snap_open = get_opening_balance_for_entity("CUSTOMER", c.id, start_date.date() if hasattr(start_date, "date") else start_date)
+        if snap_open is not None:
+            opening_balance = D(snap_open)
+    if opening_balance is None:
+        opening_balance = D(calculate_balance_before_date(c.id, start_date))
     
     if opening_balance != 0:
         opening_date = start_date or c.created_at
