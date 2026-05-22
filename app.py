@@ -1436,7 +1436,7 @@ def create_app(config_object=Config) -> Flask:
             "customers_bp.list_customers",
             "users_bp.list_users",
             "service.list_requests",
-            "sales_bp.index",
+            "sales_bp.list_sales",
             "permissions.list",
             "roles.list_roles",
         ],

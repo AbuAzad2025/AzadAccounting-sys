@@ -91,18 +91,47 @@ def filter_sales_query(query):
     return query.filter(Sale.id.in_(select(sub.c.sale_id)))
 
 
-def filter_customers_query(query):
-    """عملاء لهم نشاط (مبيعات) في فروع المستخدم."""
-    ids = get_accessible_branch_ids()
+def payment_ids_in_branches(branch_ids: List[int]):
+    """معرفات الدفعات المرتبطة بفروع معيّنة."""
+    from models import Payment, Sale, Shipment, Warehouse, Expense
+
+    sale_sub = _sale_ids_in_branches(branch_ids).subquery()
+    shipment_branch = (
+        select(Shipment.id)
+        .join(Warehouse, Warehouse.id == Shipment.destination_id)
+        .where(Warehouse.branch_id.in_(branch_ids))
+    )
+    customer_in_branch = (
+        select(Sale.customer_id)
+        .filter(Sale.id.in_(select(sale_sub.c.sale_id)), Sale.customer_id.isnot(None))
+        .distinct()
+    )
+    clauses = [
+        Payment.sale_id.in_(select(sale_sub.c.sale_id)),
+        Payment.expense.has(Expense.branch_id.in_(branch_ids)),
+        Payment.shipment_id.in_(shipment_branch),
+        and_(
+            Payment.customer_id.isnot(None),
+            Payment.customer_id.in_(customer_in_branch),
+            Payment.sale_id.is_(None),
+            Payment.invoice_id.is_(None),
+        ),
+    ]
+    return select(Payment.id).where(or_(*clauses))
+
+
+def filter_customers_query(query, branch_ids: Optional[List[int]] = None):
+    """عملاء لهم نشاط في الفرع، أو رصيد افتتاحي/جاري، أو دفعات في الفرع."""
+    ids = branch_ids if branch_ids is not None else get_accessible_branch_ids()
     if ids is None:
         return query
     if not ids:
         from models import Customer
         return query.filter(Customer.id == -1)
     from extensions import db
-    from models import Customer, Sale
+    from models import Customer, Sale, Payment
 
-    customer_ids_q = (
+    sale_customer_ids = (
         db.session.query(Sale.customer_id)
         .filter(
             Sale.id.in_(_sale_ids_in_branches(ids)),
@@ -110,7 +139,74 @@ def filter_customers_query(query):
         )
         .distinct()
     )
-    return query.filter(Customer.id.in_(customer_ids_q))
+    payment_customer_ids = (
+        db.session.query(Payment.customer_id)
+        .filter(
+            Payment.id.in_(payment_ids_in_branches(ids)),
+            Payment.customer_id.isnot(None),
+        )
+        .distinct()
+    )
+    return query.filter(
+        or_(
+            Customer.id.in_(sale_customer_ids),
+            Customer.id.in_(payment_customer_ids),
+            Customer.opening_balance != 0,
+            Customer.current_balance != 0,
+        )
+    )
+
+
+def filter_suppliers_query(query, branch_ids: Optional[List[int]] = None):
+    """موردون لهم أوامر شراء/مصروفات في الفرع أو رصيد غير صفري."""
+    ids = branch_ids if branch_ids is not None else get_accessible_branch_ids()
+    if ids is None:
+        return query
+    if not ids:
+        from models import Supplier
+        return query.filter(Supplier.id == -1)
+    from models import Supplier, PurchaseOrder, Expense
+
+    po_supplier_ids = (
+        select(PurchaseOrder.supplier_id)
+        .where(
+            PurchaseOrder.branch_id.in_(ids),
+            PurchaseOrder.supplier_id.isnot(None),
+        )
+        .distinct()
+    )
+    exp_supplier_ids = (
+        select(Expense.supplier_id)
+        .where(Expense.branch_id.in_(ids), Expense.supplier_id.isnot(None))
+        .distinct()
+    )
+    return query.filter(
+        or_(
+            Supplier.id.in_(po_supplier_ids),
+            Supplier.id.in_(exp_supplier_ids),
+            Supplier.current_balance != 0,
+        )
+    )
+
+
+def filter_partners_query(query, branch_ids: Optional[List[int]] = None):
+    """شركاء لهم مصروفات في الفرع أو رصيد غير صفري."""
+    ids = branch_ids if branch_ids is not None else get_accessible_branch_ids()
+    if ids is None:
+        return query
+    if not ids:
+        from models import Partner
+        return query.filter(Partner.id == -1)
+    from models import Partner, Expense
+
+    partner_ids = (
+        select(Expense.partner_id)
+        .where(Expense.branch_id.in_(ids), Expense.partner_id.isnot(None))
+        .distinct()
+    )
+    return query.filter(
+        or_(Partner.id.in_(partner_ids), Partner.current_balance != 0)
+    )
 
 
 def filter_payments_query(query):
@@ -121,35 +217,8 @@ def filter_payments_query(query):
     if not ids:
         from models import Payment
         return query.filter(Payment.id == -1)
-
-    from models import Payment, Sale, Shipment, Warehouse, Expense
-
-    sale_sub = _sale_ids_in_branches(ids).subquery()
-    shipment_branch = (
-        select(Shipment.id)
-        .join(Warehouse, Warehouse.id == Shipment.destination_id)
-        .where(Warehouse.branch_id.in_(ids))
-    )
-    clauses = [
-        Payment.sale_id.in_(select(sale_sub.c.sale_id)),
-        Payment.expense.has(Expense.branch_id.in_(ids)),
-        Payment.shipment_id.in_(shipment_branch),
-    ]
-    # دفعات على عميل له مبيعات في الفرع
-    customer_in_branch = (
-        select(Sale.customer_id)
-        .filter(Sale.id.in_(select(sale_sub.c.sale_id)), Sale.customer_id.isnot(None))
-        .distinct()
-    )
-    clauses.append(
-        and_(
-            Payment.customer_id.isnot(None),
-            Payment.customer_id.in_(customer_in_branch),
-            Payment.sale_id.is_(None),
-            Payment.invoice_id.is_(None),
-        )
-    )
-    return query.filter(or_(*clauses))
+    from models import Payment
+    return query.filter(Payment.id.in_(payment_ids_in_branches(ids)))
 
 
 def filter_shipments_query(query):

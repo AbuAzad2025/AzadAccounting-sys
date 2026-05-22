@@ -262,7 +262,7 @@
             } else if (reportType === 'balances-summary') {
                 url = `/reports/financial/${reportType}`;
             }
-            if (companyId && reportType !== 'balance-sheet') {
+            if (companyId) {
                 url += (url.includes('?') ? '&' : '?') + `company_id=${companyId}`;
             }
 

@@ -504,7 +504,6 @@ def dashboard():
                            months=months, sales_count=counts, revenue=revenue)
 
 @sales_bp.route("/", endpoint="list_sales")
-@sales_bp.route("/", endpoint="index")
 @login_required
 def list_sales():
     f = request.args

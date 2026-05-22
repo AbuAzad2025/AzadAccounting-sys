@@ -411,9 +411,6 @@ def list_shipments():
     )
 
 
-shipments_bp.add_url_rule("/", endpoint="shipments", view_func=list_shipments)
-
-
 def _parse_dt(s):
     try:
         return datetime.strptime(s, "%Y-%m-%d").date()

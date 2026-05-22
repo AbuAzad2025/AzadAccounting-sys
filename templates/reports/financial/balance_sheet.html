@@ -17,6 +17,31 @@
             <div class="alert alert-info">
                 تقرير الميزانية العمومية يعرض الأصول والخصوم وحقوق الملكية كما في تاريخ محدد
             </div>
+
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <label for="company_id">الشركة</label>
+                    <select id="company_id" class="form-control">
+                        <option value="">الكل (مجموعة)</option>
+                        {% for co in companies|default([]) %}
+                        <option value="{{ co.id }}" {% if company_id == co.id %}selected{% endif %}>{{ co.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="balance_date">كما في تاريخ</label>
+                    <input type="date" id="balance_date" class="form-control" value="{{ balance_date.strftime('%Y-%m-%d') }}">
+                </div>
+                <div class="col-md-3">
+                    <label>&nbsp;</label>
+                    <button type="button" class="btn btn-primary d-block w-100" onclick="updateReport()">
+                        <i class="fas fa-sync"></i> تحديث
+                    </button>
+                </div>
+            </div>
+            {% if company_filter_active %}
+            <div class="alert alert-info py-2 small">عرض الميزانية لفروع الشركة المحددة فقط.</div>
+            {% endif %}
             
             <div class="row">
                 <div class="col-md-6">
@@ -110,6 +135,14 @@
 </div>
 
 <script>
+function updateReport() {
+    const d = document.getElementById('balance_date').value;
+    const cid = document.getElementById('company_id').value;
+    let url = `/reports/financial/balance-sheet?date=${d}`;
+    if (cid) url += `&company_id=${cid}`;
+    window.location.href = url;
+}
+
 function exportToExcel() {
     const table = document.querySelector('.table');
     if (!table) { alert('لا يوجد جدول للتصدير'); return; }
