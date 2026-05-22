@@ -10,6 +10,7 @@
 """
 
 import logging
+from threading import Thread
 
 logger = logging.getLogger(__name__)
 _ALLOCATION_LISTENERS_REGISTERED = False

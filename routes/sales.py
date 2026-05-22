@@ -1568,10 +1568,11 @@ def generate_invoice(id: int):
                         except Exception:
                             current_app.logger.debug('Currency conversion skipped')
                     paid_display += amt
-        sale.total_paid = float(paid_display.quantize(TWOPLACES, rounding=ROUND_HALF_UP))
-        sale.balance_due = float((grand_total - paid_display).quantize(TWOPLACES, rounding=ROUND_HALF_UP))
+        invoice_paid_display = float(paid_display.quantize(TWOPLACES, rounding=ROUND_HALF_UP))
+        invoice_balance_display = float(grand_total.quantize(TWOPLACES, rounding=ROUND_HALF_UP))
     except Exception:
-        pass
+        invoice_paid_display = float(getattr(sale, "total_paid", 0) or 0)
+        invoice_balance_display = float(grand_total)
     
     # التحقق من نوع القالب (بسيط أو ملون)
     use_simple = request.args.get('simple', '').strip().lower() in ('1', 'true', 'yes')

@@ -1097,6 +1097,10 @@ def account_statement(customer_id):
     invoices = (
         Invoice.query
         .filter(Invoice.customer_id == customer_id)
+        .filter(Invoice.cancelled_at.is_(None))
+        .filter(Invoice.sale_id.is_(None))
+        .filter(Invoice.service_id.is_(None))
+        .filter(Invoice.preorder_id.is_(None))
         .filter(Invoice.invoice_date >= start_date)
         .filter(Invoice.invoice_date <= end_date)
         .options(selectinload(Invoice.lines))
@@ -1180,37 +1184,22 @@ def account_statement(customer_id):
             "currency": getattr(inv, 'currency', None) or (getattr(c, 'currency', None) or 'ILS'),
         })
 
-    sales = Sale.query.filter_by(customer_id=customer_id).options(
-        joinedload(Sale.lines).load_only(SaleLine.id, SaleLine.quantity, SaleLine.unit_price, SaleLine.line_total, SaleLine.line_receiver, SaleLine.note),
-        joinedload(Sale.lines).joinedload(SaleLine.product).load_only(Product.id, Product.name),
-        joinedload(Sale.preorder).selectinload(PreOrder.payments)
-    ).filter(Sale.sale_date >= start_date).filter(Sale.sale_date <= end_date).order_by(Sale.sale_date, Sale.id).all()
-    
-    for s in sales:
-        if s.preorder_id:
-            preorder = s.preorder
-            if preorder:
-                prepaid_amount = D(preorder.prepaid_amount or 0)
-                if prepaid_amount > 0:
-                    # تحسين الأداء: استخدام البيانات المحملة مسبقاً بدلاً من الاستعلام
-                    prepaid_payment = next((
-                        p for p in getattr(preorder, 'payments', [])
-                        if (getattr(p, 'direction', None) == 'IN' or str(getattr(p, 'direction', 'IN')) == 'IN')
-                        and getattr(p, 'status', None) in ['COMPLETED', 'PENDING']
-                        and getattr(p, 'sale_id', None) is None
-                    ), None)
-                    
-                    if prepaid_payment:
-                        prepaid_payment.sale_id = s.id
-                        prepaid_payment.preorder_id = None
-                        prepaid_payment.customer_id = None
-                        prepaid_payment.supplier_id = None
-                        prepaid_payment.partner_id = None
-                        prepaid_payment.entity_type = "SALE"
-                        db.session.add(prepaid_payment)
-    
-    # db.session.flush() and expire_all removed to prevent performance degradation
-    
+    sales = (
+        Sale.query.filter_by(customer_id=customer_id)
+        .filter(Sale.status == "CONFIRMED")
+        .filter(Sale.cancelled_at.is_(None))
+        .filter(Sale.is_archived == False)  # noqa: E712
+        .options(
+            joinedload(Sale.lines).load_only(SaleLine.id, SaleLine.quantity, SaleLine.unit_price, SaleLine.line_total, SaleLine.line_receiver, SaleLine.note),
+            joinedload(Sale.lines).joinedload(SaleLine.product).load_only(Product.id, Product.name),
+            joinedload(Sale.preorder),
+        )
+        .filter(Sale.sale_date >= start_date)
+        .filter(Sale.sale_date <= end_date)
+        .order_by(Sale.sale_date, Sale.id)
+        .all()
+    )
+
     for s in sales:
         sale_lines = getattr(s, 'lines', []) or []
         sale_discount_total = D(getattr(s, "discount_total", 0) or 0)
@@ -1267,6 +1256,12 @@ def account_statement(customer_id):
                 'note': ''
             })
         
+        sale_debit = D(s.total_amount or 0)
+        prepaid_applied = D(0)
+        if getattr(s, "preorder_id", None) and getattr(s, "preorder", None):
+            prepaid_applied = D(getattr(s.preorder, "prepaid_amount", 0) or 0)
+        sale_debit = max(D(0), sale_debit - prepaid_applied)
+
         entries.append({
             "date": getattr(s, "sale_date", None) or getattr(s, "created_at", None),
             "type": "SALE",
@@ -1274,12 +1269,25 @@ def account_statement(customer_id):
             "model": "sale",
             "ref": getattr(s, "sale_number", None) or f"SALE-{s.id}",
             "statement": generate_statement("SALE", s),
-            "debit": D(s.total_amount or 0),  # البيع = عليه (مدين)
+            "debit": sale_debit,
             "credit": D(0),
-            "items": items,  # إضافة البنود المباعة
+            "items": items,
             "notes": getattr(s, 'notes', '') or '',
             "currency": getattr(s, 'currency', None) or (getattr(c, 'currency', None) or 'ILS'),
         })
+        if prepaid_applied > 0:
+            entries.append({
+                "date": getattr(s, "sale_date", None) or getattr(s, "created_at", None),
+                "type": "PREPAID_APPLIED",
+                "id": s.id,
+                "model": "sale",
+                "ref": getattr(s, "sale_number", None) or f"SALE-{s.id}",
+                "statement": f"عربون مُطبّق على البيع {getattr(s, 'sale_number', s.id)}",
+                "debit": D(0),
+                "credit": prepaid_applied,
+                "notes": "",
+                "currency": getattr(s, 'currency', None) or (getattr(c, 'currency', None) or 'ILS'),
+            })
 
     sale_returns = (
         SaleReturn.query
@@ -1406,10 +1414,9 @@ def account_statement(customer_id):
                 "notes": "دفعة مقدمة - طلب أونلاين",
             })
 
-    # ✅ فلترة الدفعات: COMPLETED + PENDING + الشيكات المرتدة (BOUNCED/FAILED) + REFUNDED للعرض التاريخي
-    # PENDING: الشيكات المعلقة تُحسب في الرصيد (حسب العرف المحلي)
-    # BOUNCED/FAILED: الشيكات المرتدة تظهر لتوثيق عكس القيد
-    payment_statuses = ['COMPLETED', 'PENDING', 'BOUNCED', 'FAILED', 'REJECTED', 'REFUNDED']
+    # الدفعات المكتملة فقط تؤثر على الرصيد؛ الحالات الأخرى للعرض التوثيقي فقط
+    payment_statuses_balance = ['COMPLETED']
+    payment_statuses_display = ['COMPLETED', 'PENDING', 'BOUNCED', 'FAILED', 'REJECTED', 'REFUNDED']
     
     # ✅ إضافة joinedload(Payment.splits) لجميع استعلامات الدفعات لضمان تحميل splits
     # ✅ إضافة selectinload(Payment.related_check) لتحميل الشيكات المرتبطة وتجنب N+1 queries
@@ -1464,7 +1471,7 @@ def account_statement(customer_id):
         .outerjoin(ServiceRequest, Payment.service_id == ServiceRequest.id)
         .outerjoin(PreOrder, Payment.preorder_id == PreOrder.id)
         .filter(
-            Payment.status.in_(payment_statuses),
+            Payment.status.in_(payment_statuses_display),
             Payment.payment_date >= start_date,
             Payment.payment_date <= end_date,
             or_(*payment_criteria)
@@ -1988,6 +1995,7 @@ def account_statement(customer_id):
                     "currency": "ILS",
                     "payment_details": payment_details_no_splits,
                     "notes": notes,
+                    "affects_balance": payment_status == "COMPLETED",
                 })
 
                 # إضافة الشيكات المرتدة من الـ splits كقيود منفصلة
@@ -2087,6 +2095,7 @@ def account_statement(customer_id):
                     "currency": "ILS",
                     "payment_details": payment_details,
                     "notes": notes,
+                    "affects_balance": payment_status == "COMPLETED",
                 })
                 
                 # إضافة الشيكات المرتدة كقيود منفصلة (للدفعات بدون splits)
@@ -2449,6 +2458,9 @@ def account_statement(customer_id):
     running = opening_entry_val if opening_entry_val is not None else D(0)
     for e in entries:
         if e.get("type") == "OPENING_BALANCE":
+            e["balance"] = running
+            continue
+        if e.get("affects_balance") is False:
             e["balance"] = running
             continue
         running = running + e["credit"] - e["debit"]

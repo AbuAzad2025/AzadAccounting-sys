@@ -1,4 +1,4 @@
-from decimal import Decimal
+﻿from decimal import Decimal
 from sqlalchemy import func, or_, and_
 from sqlalchemy.orm import object_session, selectinload, joinedload
 from models import (
@@ -21,7 +21,7 @@ def convert_amount(amount, from_currency, to_currency, date=None):
 
 
 def calculate_customer_balance_components(customer_id, session=None):
-    """حساب جميع مكونات رصيد العميل"""
+    """Ø­Ø³Ø§Ø¨ Ø¬Ù…ÙŠØ¹ Ù…ÙƒÙˆÙ†Ø§Øª Ø±ØµÙŠØ¯ Ø§Ù„Ø¹Ù…ÙŠÙ„"""
     if not session:
         session = db.session
     
@@ -105,7 +105,7 @@ def calculate_customer_balance_components(customer_id, session=None):
                 except Exception:
                     pass
         
-        # فواتير مستقلة فقط — الفاتورة المرتبطة ببيع/خدمة/حجز تُحسب ضمن ذلك الالتزام
+        # ÙÙˆØ§ØªÙŠØ± Ù…Ø³ØªÙ‚Ù„Ø© ÙÙ‚Ø· â€” Ø§Ù„ÙØ§ØªÙˆØ±Ø© Ø§Ù„Ù…Ø±ØªØ¨Ø·Ø© Ø¨Ø¨ÙŠØ¹/Ø®Ø¯Ù…Ø©/Ø­Ø¬Ø² ØªÙØ­Ø³Ø¨ Ø¶Ù…Ù† Ø°Ù„Ùƒ Ø§Ù„Ø§Ù„ØªØ²Ø§Ù…
         ils_invoices_sum = session.query(func.coalesce(func.sum(Invoice.total_amount), 0)).filter(
             Invoice.customer_id == customer_id,
             Invoice.cancelled_at.is_(None),
@@ -204,7 +204,20 @@ def calculate_customer_balance_components(customer_id, session=None):
                 except Exception:
                     pass
         
-        result['preorders_balance'] = Decimal('0.00')
+        from models import PreOrder
+        open_preorders = session.query(PreOrder).filter(
+            PreOrder.customer_id == customer_id,
+            PreOrder.cancelled_at.is_(None),
+            PreOrder.status.in_(['PENDING', 'CONFIRMED']),
+        ).all()
+        for po in open_preorders:
+            try:
+                bd = Decimal(str(po.balance_due or 0))
+                if po.currency and str(po.currency).upper() != 'ILS':
+                    bd = convert_amount(bd, po.currency, 'ILS', getattr(po, 'preorder_date', None))
+                result['preorders_balance'] += bd
+            except Exception:
+                pass
         
         ils_online_orders_sum = session.query(func.coalesce(func.sum(OnlinePreOrder.total_amount), 0)).filter(
             OnlinePreOrder.customer_id == customer_id,
@@ -253,7 +266,7 @@ def calculate_customer_balance_components(customer_id, session=None):
         payments_in_filters = (
             payment_customer_criteria,
             Payment.direction == 'IN',
-            Payment.status.in_(['COMPLETED', 'PENDING']),
+            Payment.status.in_(['COMPLETED']),
             Payment.expense_id.is_(None),
         )
 
@@ -358,7 +371,7 @@ def calculate_customer_balance_components(customer_id, session=None):
                 except Exception:
                     pass
         
-        # تم دمج منطق active_preorders في الاستعلام العام للدفعات لأنه يجلب جميع الدفعات الواردة بما فيها دفعات الحجوزات
+        # ØªÙ… Ø¯Ù…Ø¬ Ù…Ù†Ø·Ù‚ active_preorders ÙÙŠ Ø§Ù„Ø§Ø³ØªØ¹Ù„Ø§Ù… Ø§Ù„Ø¹Ø§Ù… Ù„Ù„Ø¯ÙØ¹Ø§Øª Ù„Ø£Ù†Ù‡ ÙŠØ¬Ù„Ø¨ Ø¬Ù…ÙŠØ¹ Ø§Ù„Ø¯ÙØ¹Ø§Øª Ø§Ù„ÙˆØ§Ø±Ø¯Ø© Ø¨Ù…Ø§ ÙÙŠÙ‡Ø§ Ø¯ÙØ¹Ø§Øª Ø§Ù„Ø­Ø¬ÙˆØ²Ø§Øª
 
         
         ils_manual_checks_in_sum = session.query(func.coalesce(func.sum(Check.amount), 0)).filter(
@@ -394,7 +407,7 @@ def calculate_customer_balance_components(customer_id, session=None):
         payments_out_filters = (
             payment_customer_criteria,
             Payment.direction == 'OUT',
-            Payment.status.in_(['COMPLETED', 'PENDING']),
+            Payment.status.in_(['COMPLETED']),
             Payment.expense_id.is_(None),
         )
 
@@ -529,7 +542,7 @@ def calculate_customer_balance_components(customer_id, session=None):
         result['checks_out_balance'] = checks_out_manual
         result['payments_out_balance'] += checks_out_manual
         
-        # تحسين: استعلام واحد لجلب جميع الدفعات المرتدة (شيكات أو فشل)
+        # ØªØ­Ø³ÙŠÙ†: Ø§Ø³ØªØ¹Ù„Ø§Ù… ÙˆØ§Ø­Ø¯ Ù„Ø¬Ù„Ø¨ Ø¬Ù…ÙŠØ¹ Ø§Ù„Ø¯ÙØ¹Ø§Øª Ø§Ù„Ù…Ø±ØªØ¯Ø© (Ø´ÙŠÙƒØ§Øª Ø£Ùˆ ÙØ´Ù„)
         from sqlalchemy import exists
         from sqlalchemy.orm import aliased
         SplitCheck = aliased(Check)
@@ -571,7 +584,7 @@ def calculate_customer_balance_components(customer_id, session=None):
             selectinload(Payment.related_check)
         ).distinct().all()
         
-        # تحسين: جلب جميع الشيكات المرتجعة المرتبطة بتقسيمات الدفعات دفعة واحدة لتجنب N+1
+        # ØªØ­Ø³ÙŠÙ†: Ø¬Ù„Ø¨ Ø¬Ù…ÙŠØ¹ Ø§Ù„Ø´ÙŠÙƒØ§Øª Ø§Ù„Ù…Ø±ØªØ¬Ø¹Ø© Ø§Ù„Ù…Ø±ØªØ¨Ø·Ø© Ø¨ØªÙ‚Ø³ÙŠÙ…Ø§Øª Ø§Ù„Ø¯ÙØ¹Ø§Øª Ø¯ÙØ¹Ø© ÙˆØ§Ø­Ø¯Ø© Ù„ØªØ¬Ù†Ø¨ N+1
         all_returned_split_checks = session.query(Check).filter(
             Check.customer_id == customer_id,
             Check.status.in_(['RETURNED', 'BOUNCED']),
@@ -596,10 +609,10 @@ def calculate_customer_balance_components(customer_id, session=None):
                         (split.method and ('CHEQUE' in str(split.method).upper() or 'CHECK' in str(split.method).upper()))
                     )
                     if is_cheque_split:
-                        # التحقق من وجود شيك مرتجع لهذا التقسيم
+                        # Ø§Ù„ØªØ­Ù‚Ù‚ Ù…Ù† ÙˆØ¬ÙˆØ¯ Ø´ÙŠÙƒ Ù…Ø±ØªØ¬Ø¹ Ù„Ù‡Ø°Ø§ Ø§Ù„ØªÙ‚Ø³ÙŠÙ…
                         ref_key = f"PMT-SPLIT-{split.id}"
                         split_checks = returned_split_checks_map.get(ref_key, [])
-                        # ملاحظة: يمكن تحسين هذا الاستعلام الداخلي أيضاً، لكنه يحدث فقط للدفعات المرتجعة وهي قليلة
+                        # Ù…Ù„Ø§Ø­Ø¸Ø©: ÙŠÙ…ÙƒÙ† ØªØ­Ø³ÙŠÙ† Ù‡Ø°Ø§ Ø§Ù„Ø§Ø³ØªØ¹Ù„Ø§Ù… Ø§Ù„Ø¯Ø§Ø®Ù„ÙŠ Ø£ÙŠØ¶Ø§Ù‹ØŒ Ù„ÙƒÙ†Ù‡ ÙŠØ­Ø¯Ø« ÙÙ‚Ø· Ù„Ù„Ø¯ÙØ¹Ø§Øª Ø§Ù„Ù…Ø±ØªØ¬Ø¹Ø© ÙˆÙ‡ÙŠ Ù‚Ù„ÙŠÙ„Ø©
                         
                         if split_checks:
                             for check in split_checks:
@@ -649,7 +662,7 @@ def calculate_customer_balance_components(customer_id, session=None):
                                 
                                 result['returned_checks_in_balance'] += amt
             else:
-                # استخدام الشيكات المحملة مسبقاً
+                # Ø§Ø³ØªØ®Ø¯Ø§Ù… Ø§Ù„Ø´ÙŠÙƒØ§Øª Ø§Ù„Ù…Ø­Ù…Ù„Ø© Ù…Ø³Ø¨Ù‚Ø§Ù‹
                 returned_checks = [c for c in p.related_check if c.status in ['RETURNED', 'BOUNCED'] and c.status != 'CANCELLED']
                 
                 for check in returned_checks:
@@ -720,7 +733,7 @@ def calculate_customer_balance_components(customer_id, session=None):
                 except Exception:
                     pass
         
-        # تحسين: استعلام واحد لجلب جميع الدفعات الصادرة المرتدة (شيكات أو فشل)
+        # ØªØ­Ø³ÙŠÙ†: Ø§Ø³ØªØ¹Ù„Ø§Ù… ÙˆØ§Ø­Ø¯ Ù„Ø¬Ù„Ø¨ Ø¬Ù…ÙŠØ¹ Ø§Ù„Ø¯ÙØ¹Ø§Øª Ø§Ù„ØµØ§Ø¯Ø±Ø© Ø§Ù„Ù…Ø±ØªØ¯Ø© (Ø´ÙŠÙƒØ§Øª Ø£Ùˆ ÙØ´Ù„)
         returned_payments_out = session.query(Payment).outerjoin(
             Sale, Payment.sale_id == Sale.id
         ).outerjoin(
@@ -820,7 +833,7 @@ def calculate_customer_balance_components(customer_id, session=None):
                                 
                                 result['returned_checks_out_balance'] += amt
             else:
-                # استخدام الشيكات المحملة مسبقاً
+                # Ø§Ø³ØªØ®Ø¯Ø§Ù… Ø§Ù„Ø´ÙŠÙƒØ§Øª Ø§Ù„Ù…Ø­Ù…Ù„Ø© Ù…Ø³Ø¨Ù‚Ø§Ù‹
                 returned_checks = [c for c in p.related_check if c.status in ['RETURNED', 'BOUNCED'] and c.status != 'CANCELLED']
                 
                 for check in returned_checks:
@@ -933,7 +946,7 @@ def calculate_customer_balance_components(customer_id, session=None):
         except Exception:
             pass
         try:
-            current_app.logger.error(f"خطأ في حساب مكونات رصيد العميل #{customer_id}: {e}")
+            current_app.logger.error(f"Ø®Ø·Ø£ ÙÙŠ Ø­Ø³Ø§Ø¨ Ù…ÙƒÙˆÙ†Ø§Øª Ø±ØµÙŠØ¯ Ø§Ù„Ø¹Ù…ÙŠÙ„ #{customer_id}: {e}")
         except:
             pass
         return None
@@ -991,21 +1004,21 @@ def _build_customer_balance_view_impl(customer_id, session):
                 pass
 
     rights_rows = [
-        {"key": "payments_in_balance", "label": "دفعات واردة", "flow": "IN", "amount": _component("payments_in_balance")},
-        {"key": "returns_balance", "label": "مرتجعات مبيعات", "flow": "IN", "amount": _component("returns_balance")},
-        {"key": "returned_checks_out_balance", "label": "شيكات صادرة مرتدة", "flow": "IN", "amount": _component("returned_checks_out_balance")},
-        {"key": "service_expenses_balance", "label": "توريد خدمات لصالحه", "flow": "IN", "amount": _component("service_expenses_balance")},
+        {"key": "payments_in_balance", "label": "Ø¯ÙØ¹Ø§Øª ÙˆØ§Ø±Ø¯Ø©", "flow": "IN", "amount": _component("payments_in_balance")},
+        {"key": "returns_balance", "label": "Ù…Ø±ØªØ¬Ø¹Ø§Øª Ù…Ø¨ÙŠØ¹Ø§Øª", "flow": "IN", "amount": _component("returns_balance")},
+        {"key": "returned_checks_out_balance", "label": "Ø´ÙŠÙƒØ§Øª ØµØ§Ø¯Ø±Ø© Ù…Ø±ØªØ¯Ø©", "flow": "IN", "amount": _component("returned_checks_out_balance")},
+        {"key": "service_expenses_balance", "label": "ØªÙˆØ±ÙŠØ¯ Ø®Ø¯Ù…Ø§Øª Ù„ØµØ§Ù„Ø­Ù‡", "flow": "IN", "amount": _component("service_expenses_balance")},
     ]
 
     obligations_rows = [
-        {"key": "sales_balance", "label": "مبيعات", "flow": "OUT", "amount": _component("sales_balance")},
-        {"key": "invoices_balance", "label": "فواتير", "flow": "OUT", "amount": _component("invoices_balance")},
-        {"key": "services_balance", "label": "صيانة", "flow": "OUT", "amount": _component("services_balance")},
-        {"key": "preorders_balance", "label": "حجوزات مسبقة", "flow": "OUT", "amount": _component("preorders_balance")},
-        {"key": "online_orders_balance", "label": "طلبات أونلاين", "flow": "OUT", "amount": _component("online_orders_balance")},
-        {"key": "payments_out_balance", "label": "دفعات صادرة", "flow": "OUT", "amount": _component("payments_out_balance")},
-        {"key": "returned_checks_in_balance", "label": "شيكات واردة مرتدة", "flow": "OUT", "amount": _component("returned_checks_in_balance")},
-        {"key": "expenses_balance", "label": "مصاريف / خصومات", "flow": "OUT", "amount": _component("expenses_balance")},
+        {"key": "sales_balance", "label": "Ù…Ø¨ÙŠØ¹Ø§Øª", "flow": "OUT", "amount": _component("sales_balance")},
+        {"key": "invoices_balance", "label": "ÙÙˆØ§ØªÙŠØ±", "flow": "OUT", "amount": _component("invoices_balance")},
+        {"key": "services_balance", "label": "ØµÙŠØ§Ù†Ø©", "flow": "OUT", "amount": _component("services_balance")},
+        {"key": "preorders_balance", "label": "Ø­Ø¬ÙˆØ²Ø§Øª Ù…Ø³Ø¨Ù‚Ø©", "flow": "OUT", "amount": _component("preorders_balance")},
+        {"key": "online_orders_balance", "label": "Ø·Ù„Ø¨Ø§Øª Ø£ÙˆÙ†Ù„Ø§ÙŠÙ†", "flow": "OUT", "amount": _component("online_orders_balance")},
+        {"key": "payments_out_balance", "label": "Ø¯ÙØ¹Ø§Øª ØµØ§Ø¯Ø±Ø©", "flow": "OUT", "amount": _component("payments_out_balance")},
+        {"key": "returned_checks_in_balance", "label": "Ø´ÙŠÙƒØ§Øª ÙˆØ§Ø±Ø¯Ø© Ù…Ø±ØªØ¯Ø©", "flow": "OUT", "amount": _component("returned_checks_in_balance")},
+        {"key": "expenses_balance", "label": "Ù…ØµØ§Ø±ÙŠÙ / Ø®ØµÙˆÙ…Ø§Øª", "flow": "OUT", "amount": _component("expenses_balance")},
     ]
 
     from utils.accounting_formulas import (
@@ -1034,17 +1047,17 @@ def _build_customer_balance_view_impl(customer_id, session):
 
     def _direction_text(amount):
         if amount > 0:
-            return "له عندنا"
+            return "Ù„Ù‡ Ø¹Ù†Ø¯Ù†Ø§"
         if amount < 0:
-            return "عليه لنا"
-        return "متوازن"
+            return "Ø¹Ù„ÙŠÙ‡ Ù„Ù†Ø§"
+        return "Ù…ØªÙˆØ§Ø²Ù†"
 
     def _action_text(amount):
         if amount > 0:
-            return "يجب أن ندفع له"
+            return "ÙŠØ¬Ø¨ Ø£Ù† Ù†Ø¯ÙØ¹ Ù„Ù‡"
         if amount < 0:
-            return "يجب أن يدفع لنا"
-        return "لا يوجد رصيد مستحق"
+            return "ÙŠØ¬Ø¨ Ø£Ù† ÙŠØ¯ÙØ¹ Ù„Ù†Ø§"
+        return "Ù„Ø§ ÙŠÙˆØ¬Ø¯ Ø±ØµÙŠØ¯ Ù…Ø³ØªØ­Ù‚"
 
     formula = f"({float(opening_balance):.2f} + {float(rights_total):.2f} - {float(obligations_total):.2f}) = {float(calculated_balance):.2f}"
 
@@ -1091,271 +1104,6 @@ def _build_customer_balance_view_impl(customer_id, session):
 
 
 def calculate_balance_before_date(customer_id, before_date, session=None):
-    """
-    حساب رصيد العميل المتراكم قبل تاريخ معين (للرصيد الافتتاحي في كشف الحساب)
-    """
-    if not session:
-        session = db.session
-        
-    try:
-        from sqlalchemy.orm import Session
-        from sqlalchemy import text as sa_text
-        if isinstance(session, Session):
-            try:
-                session.execute(sa_text("SELECT 1"))
-            except Exception:
-                from sqlalchemy.orm import sessionmaker
-                session = sessionmaker(bind=db.engine)()
-    except Exception:
-        pass
-        
-    customer = session.get(Customer, customer_id)
-    if not customer:
-        return Decimal('0.00')
-
-    # 1. Opening Balance (Static)
-    opening_balance = Decimal(str(customer.opening_balance or 0))
-    if customer.currency and customer.currency != "ILS":
-        try:
-            opening_balance = convert_amount(opening_balance, customer.currency, "ILS", customer.created_at)
-        except:
-            pass
-        
-    # Helper for summing with date filter and currency conversion
-    def sum_model(model, date_field, amount_field='total_amount', extra_filters=None):
-        total = Decimal('0.00')
-        
-        # ILS
-        filters = [
-            getattr(model, 'customer_id') == customer_id,
-            getattr(model, 'currency') == 'ILS',
-            getattr(model, date_field) < before_date
-        ]
-        if extra_filters:
-            filters.extend(extra_filters)
-            
-        val = session.query(func.coalesce(func.sum(getattr(model, amount_field)), 0)).filter(*filters).scalar() or 0
-        total += Decimal(str(val))
-        
-        # Other Currencies
-        filters_other = [
-            getattr(model, 'customer_id') == customer_id,
-            getattr(model, 'currency') != 'ILS',
-            getattr(model, date_field) < before_date
-        ]
-        if extra_filters:
-            filters_other.extend(extra_filters)
-            
-        others = session.query(model).filter(*filters_other).all()
-        for item in others:
-            amt = Decimal(str(getattr(item, amount_field) or 0))
-            try:
-                d_val = getattr(item, date_field) or before_date
-                total += convert_amount(amt, item.currency, "ILS", d_val)
-            except:
-                pass
-        return total
-
-    # 2. Rights (Flow IN - Increases what we owe him or decreases what he owes us)
-    # Payments IN
-    payments_in = Decimal('0.00')
-    from models import Sale, Invoice, ServiceRequest, PreOrder, Expense
-    p_in_all = (
-        session.query(Payment)
-        .outerjoin(Sale, Payment.sale_id == Sale.id)
-        .outerjoin(Invoice, Payment.invoice_id == Invoice.id)
-        .outerjoin(ServiceRequest, Payment.service_id == ServiceRequest.id)
-        .outerjoin(PreOrder, Payment.preorder_id == PreOrder.id)
-        .outerjoin(Expense, Payment.expense_id == Expense.id)
-        .filter(
-            Payment.direction == 'IN',
-            Payment.status.in_(['COMPLETED', 'PENDING']),
-            Payment.payment_date < before_date,
-            or_(
-                Payment.customer_id == customer_id,
-                Sale.customer_id == customer_id,
-                Invoice.customer_id == customer_id,
-                ServiceRequest.customer_id == customer_id,
-                PreOrder.customer_id == customer_id,
-                Expense.customer_id == customer_id,
-            ),
-            or_(
-                Payment.preorder_id.is_(None),
-                Payment.sale_id.isnot(None),
-                PreOrder.status == 'FULFILLED',
-            ),
-        )
-        .distinct()
-        .all()
-    )
-    
-    for p in p_in_all:
-        amt = Decimal(str(p.total_amount or 0))
-        if p.currency != 'ILS':
-             try:
-                amt = convert_amount(amt, p.currency, "ILS", p.payment_date)
-             except:
-                pass
-        payments_in += amt
-
-    # Sale Returns
-    returns_balance = sum_model(SaleReturn, 'created_at', 'total_amount', [SaleReturn.status == 'CONFIRMED'])
-    
-    # Manual Checks IN
-    checks_in = Decimal('0.00')
-    c_filters = [
-        Check.payment_id.is_(None),
-        Check.direction == 'IN',
-        ~Check.status.in_(['RETURNED', 'BOUNCED', 'CANCELLED', 'ARCHIVED'])
-    ]
-    checks_in_all = session.query(Check).filter(
-        Check.customer_id == customer_id,
-        Check.check_date < before_date,
-        *c_filters
-    ).all()
-    for c in checks_in_all:
-        amt = Decimal(str(c.amount or 0))
-        if c.currency and c.currency != 'ILS':
-            try:
-                amt = convert_amount(amt, c.currency, "ILS", c.check_date)
-            except:
-                pass
-        checks_in += amt
-    
-    # Service Expenses
-    service_expenses = Decimal('0.00')
-    exp_all = session.query(Expense).filter(
-        Expense.customer_id == customer_id,
-        Expense.date < before_date
-    ).all()
-    
-    for exp in exp_all:
-        amt = Decimal(str(exp.amount or 0))
-        if exp.currency and exp.currency != "ILS":
-            try:
-                amt = convert_amount(amt, exp.currency, "ILS", exp.date)
-            except:
-                pass
-        
-        exp_type_code = None
-        if exp.type_id:
-            et = session.query(ExpenseType).filter_by(id=exp.type_id).first()
-            if et:
-                exp_type_code = (et.code or "").strip().upper()
-                
-        is_service_expense = (
-            exp_type_code in ('PARTNER_EXPENSE', 'SERVICE_EXPENSE') or
-            (exp.partner_id and exp.payee_type and exp.payee_type.upper() == "PARTNER") or
-            (exp.supplier_id and exp.payee_type and exp.payee_type.upper() == "SUPPLIER")
-        )
-        
-        if is_service_expense:
-            service_expenses += amt
-            
-    rights_total = payments_in + returns_balance + checks_in + service_expenses
-    
-    # 3. Obligations (Flow OUT - Increases what he owes us)
-    sales_balance = sum_model(Sale, 'sale_date', 'total_amount', [Sale.status == 'CONFIRMED'])
-    invoices_balance = sum_model(
-        Invoice,
-        'invoice_date',
-        'total_amount',
-        [
-            Invoice.cancelled_at.is_(None),
-            Invoice.sale_id.is_(None),
-            Invoice.service_id.is_(None),
-            Invoice.preorder_id.is_(None),
-        ],
-    )
-    
-    # Services
-    services_balance = Decimal('0.00')
-    srv_all = session.query(ServiceRequest).filter(
-        ServiceRequest.customer_id == customer_id,
-        ServiceRequest.received_at < before_date
-    ).all()
-    for srv in srv_all:
-        subtotal = Decimal(str(srv.parts_total or 0)) + Decimal(str(srv.labor_total or 0))
-        discount = Decimal(str(srv.discount_total or 0))
-        base = subtotal - discount
-        if base < 0: base = Decimal('0.00')
-        tax = base * (Decimal(str(srv.tax_rate or 0)) / Decimal('100'))
-        total = base + tax
-        if srv.currency and srv.currency != 'ILS':
-            try:
-                total = convert_amount(total, srv.currency, "ILS", srv.received_at)
-            except:
-                pass
-        services_balance += total
-
-    # Online Orders
-    online_orders_balance = sum_model(OnlinePreOrder, 'created_at', 'total_amount', [OnlinePreOrder.payment_status != 'CANCELLED'])
-    
-    # Payments OUT
-    payments_out = Decimal('0.00')
-    p_out_all = (
-        session.query(Payment)
-        .outerjoin(Sale, Payment.sale_id == Sale.id)
-        .outerjoin(Invoice, Payment.invoice_id == Invoice.id)
-        .outerjoin(ServiceRequest, Payment.service_id == ServiceRequest.id)
-        .outerjoin(PreOrder, Payment.preorder_id == PreOrder.id)
-        .outerjoin(Expense, Payment.expense_id == Expense.id)
-        .filter(
-            Payment.direction == 'OUT',
-            Payment.status.in_(['COMPLETED', 'PENDING']),
-            Payment.payment_date < before_date,
-            or_(
-                Payment.customer_id == customer_id,
-                Sale.customer_id == customer_id,
-                Invoice.customer_id == customer_id,
-                ServiceRequest.customer_id == customer_id,
-                PreOrder.customer_id == customer_id,
-                Expense.customer_id == customer_id,
-            ),
-            or_(
-                Payment.preorder_id.is_(None),
-                Payment.sale_id.isnot(None),
-                PreOrder.status == 'FULFILLED',
-            ),
-        )
-        .distinct()
-        .all()
-    )
-    for p in p_out_all:
-        amt = Decimal(str(p.total_amount or 0))
-        if p.currency != 'ILS':
-             try:
-                amt = convert_amount(amt, p.currency, "ILS", p.payment_date)
-             except:
-                pass
-        payments_out += amt
-
-    # Expenses (Normal expenses, not service ones)
-    expenses_balance = Decimal('0.00')
-    # Reuse exp_all from above
-    for exp in exp_all:
-        amt = Decimal(str(exp.amount or 0))
-        if exp.currency and exp.currency != "ILS":
-            try:
-                amt = convert_amount(amt, exp.currency, "ILS", exp.date)
-            except:
-                pass
-        
-        exp_type_code = None
-        if exp.type_id:
-            et = session.query(ExpenseType).filter_by(id=exp.type_id).first()
-            if et:
-                exp_type_code = (et.code or "").strip().upper()
-                
-        is_service_expense = (
-            exp_type_code in ('PARTNER_EXPENSE', 'SERVICE_EXPENSE') or
-            (exp.partner_id and exp.payee_type and exp.payee_type.upper() == "PARTNER") or
-            (exp.supplier_id and exp.payee_type and exp.payee_type.upper() == "SUPPLIER")
-        )
-        
-        if not is_service_expense:
-            expenses_balance += amt
-    
-    obligations_total = sales_balance + invoices_balance + services_balance + online_orders_balance + payments_out + expenses_balance
-    
-    return opening_balance + rights_total - obligations_total
+    """Ø­Ø³Ø§Ø¨ Ø±ØµÙŠØ¯ Ø§Ù„Ø¹Ù…ÙŠÙ„ Ø§Ù„Ù…ØªØ±Ø§ÙƒÙ… Ù‚Ø¨Ù„ ØªØ§Ø±ÙŠØ® Ù…Ø¹ÙŠÙ† â€” Ù…Ø·Ø§Ø¨Ù‚ Ù„ØµÙŠØºØ© Ø§Ù„Ø±ØµÙŠØ¯ Ø§Ù„Ù…Ø®Ø²Ù‘Ù†."""
+    from utils.balance_as_of import calculate_balance_before_date as _calc_before
+    return _calc_before(customer_id, before_date, session)

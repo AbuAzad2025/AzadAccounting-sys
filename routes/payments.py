@@ -1938,7 +1938,7 @@ def create_payment():
                         _add_alloc("SUPPLIER", remaining, receipt_number=None, supplier_id=final_supplier_id)
                         remaining = q0(0)
 
-            if etype == "PARTNER" and direction_val == "IN" and final_partner_id and not payments_to_create:
+            if allocation_enabled and etype == "PARTNER" and direction_val == "IN" and final_partner_id and not payments_to_create:
                 linked_customer_id = None
                 try:
                     p_obj = db.session.get(Partner, final_partner_id)
@@ -2037,7 +2037,7 @@ def create_payment():
                         _add_alloc("PARTNER", remaining, receipt_number=None, partner_id=final_partner_id)
                         remaining = q0(0)
 
-            if etype == "SUPPLIER" and direction_val == "OUT" and final_supplier_id and not payments_to_create:
+            if allocation_enabled and etype == "SUPPLIER" and direction_val == "OUT" and final_supplier_id and not payments_to_create:
                 obligations = []
                 try:
                     rows = (

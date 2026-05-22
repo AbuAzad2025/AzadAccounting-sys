@@ -169,8 +169,12 @@
         <div class="col-md-5">
           <table class="table table-bordered">
             <tr>
-              <th class="text-right">الذمة:</th>
+              <th class="text-right">الذمة (التزام المستند):</th>
               <td>{{ num(sale.total_amount) }} {{ sale.currency }}</td>
+            </tr>
+            <tr>
+              <th class="text-right">مدفوع على المبيعة (قديم):</th>
+              <td>{{ num(sale.total_paid or 0) }} {{ sale.currency }}</td>
             </tr>
             {% if show_ils_display %}
             <tr>

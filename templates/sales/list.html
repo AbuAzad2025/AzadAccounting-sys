@@ -325,6 +325,7 @@ html, body { background:#fff; direction:rtl; font-family:"Segoe UI","Tahoma",san
               <th data-sortable="false">الإجمالي</th>
               <th data-sortable="false" class="text-center">العملة</th>
               <th data-sortable="false" class="text-center d-none d-lg-table-cell">سعر الصرف</th>
+              <th data-sortable="false">مدفوع</th>
               <th data-sortable="false">ذمة</th>
               <th class="text-center" data-sortable="false">إجراءات</th>
             </tr>
@@ -349,6 +350,7 @@ html, body { background:#fff; direction:rtl; font-family:"Segoe UI","Tahoma",san
                   <span class="text-muted">-</span>
                 {% endif %}
               </td>
+              <td data-sort-value="{{ sale.total_paid or 0 }}">{{ sale.paid_fmt }}</td>
               <td data-sort-value="{{ sale.total_amount or 0 }}">
                 <span class="badge bg-danger">{{ sale.total_fmt }}</span>
               </td>
@@ -396,7 +398,7 @@ html, body { background:#fff; direction:rtl; font-family:"Segoe UI","Tahoma",san
               </td>
             </tr>
             {% else %}
-            <tr><td colspan="8" class="text-center text-muted py-4">لا توجد فواتير</td></tr>
+            <tr><td colspan="9" class="text-center text-muted py-4">لا توجد فواتير</td></tr>
             {% endfor %}
           </tbody>
         </table>

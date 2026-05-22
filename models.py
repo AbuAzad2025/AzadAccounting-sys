@@ -5714,7 +5714,8 @@ class Sale(db.Model, TimestampMixin, AuditMixin):
         # كمّي رصيد المدفوع والمتبقي وفق عملة الفاتورة
         self.total_paid = float(q(total_paid))
         total_amount = float(q(self.total_amount or self.total or 0))
-        self.balance_due = float(q(total_amount) - q(self.total_paid))
+        # ذمة المستند = الإجمالي؛ الدفعات على حساب العميل تُخفّض الرصيد العام فقط
+        self.balance_due = float(q(total_amount))
         
         self.payment_status = (
             PaymentProgress.PAID.value if q(self.total_paid) >= q(total_amount)
@@ -5790,7 +5791,7 @@ def _compute_total_amount(mapper, connection, target: "Sale"):
     if total < 0:
         total = Decimal("0.00")
     target.total_amount = q(total)
-    target.balance_due = q(target.total_amount or 0) - q(target.total_paid or 0)
+    target.balance_due = q(target.total_amount or 0)
 
 @event.listens_for(Sale, "before_update")
 def _sale_enforce_status(mapper, connection, target: "Sale"):
@@ -5815,7 +5816,13 @@ def _reserve_release_on_status_change(target, value, oldvalue, initiator):
     if newv == SaleStatus.CONFIRMED.value and oldv != SaleStatus.CONFIRMED.value:
         # التحقق من حد الائتمان فقط
         if target.customer and float(target.customer.credit_limit or 0) > 0:
-            cur_bal = float(target.customer.balance or 0)
+            try:
+                from utils.customer_balance_updater import update_customer_balance_components
+                update_customer_balance_components(int(target.customer_id), db.session)
+                db.session.flush()
+            except Exception:
+                pass
+            cur_bal = float(target.customer.current_balance or target.customer.balance or 0)
             new_total = float(getattr(target, "total", None) or getattr(target, "total_amount", 0) or 0)
             if cur_bal + new_total > float(target.customer.credit_limit or 0):
                 raise Exception("تأكيد البيع مرفوض: حد الائتمان للعميل سيتجاوز المسموح.")
@@ -9023,10 +9030,8 @@ def _update_sale_payment_totals(connection, sale_id):
         {"sale_id": sale_id}
     ).scalar() or 0
     
-    # حساب balance_due
-    balance_due = float(sale_total) - float(total_paid_result)
+    balance_due = float(sale_total)
     
-    # تحديث الحقول في جدول Sales
     connection.execute(
         sa_text("""
             UPDATE sales 
