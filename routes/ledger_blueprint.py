@@ -343,10 +343,31 @@ def ledger_index():
 
 @ledger_bp.route("/chart-of-accounts", methods=["GET"], endpoint="chart_of_accounts")
 @login_required
-@utils.permission_required(SystemPermissions.MANAGE_LEDGER)
+@utils.permission_required(SystemPermissions.VIEW_LEDGER)
 def chart_of_accounts():
-    """دليل الحسابات المحاسبية - واجهة مبسطة"""
-    return render_template("ledger/chart_of_accounts.html")
+    """شجرة دليل الحسابات."""
+    accounts = Account.query.filter_by(is_active=True).order_by(Account.code).all()
+    by_parent = {}
+    roots = []
+    for a in accounts:
+        by_parent.setdefault(a.parent_id, []).append(a)
+    for a in accounts:
+        if not a.parent_id:
+            roots.append(a)
+
+    def build_tree(node):
+        return {
+            "id": node.id,
+            "code": node.code,
+            "name": node.name,
+            "type": node.type,
+            "children": [build_tree(c) for c in by_parent.get(node.id, [])],
+        }
+
+    tree = [build_tree(r) for r in roots]
+    if request.args.get("format") == "json":
+        return jsonify({"success": True, "tree": tree})
+    return render_template("ledger/chart_of_accounts.html", tree=tree, accounts=accounts)
 
 @ledger_bp.route("/accounts", methods=["GET"], endpoint="get_accounts")
 @login_required

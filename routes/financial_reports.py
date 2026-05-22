@@ -7,7 +7,7 @@ import json
 
 from models import (
     db, Account, GLBatch, GLEntry, Customer, Supplier, Partner,
-    Sale, Payment, Expense, Invoice, ServiceRequest,
+    Sale, Payment, Expense, Invoice, ServiceRequest, Product, StockLevel, Warehouse,
     GL_ACCOUNTS, _gl_upsert_batch_and_entries, _ensure_account_exists,
 )
 from utils import permission_required, get_income_tax_rate, classify_entity_balance
@@ -1613,3 +1613,106 @@ def revenue_by_source():
         current_app.logger.error(f"خطأ في تحليل مصادر الإيرادات: {str(e)}")
         current_app.logger.exception('API error')
         return jsonify({"success": False, "error": "حدث خطأ داخلي"}), 500
+
+
+@financial_reports_bp.route('/drill-down')
+@permission_required(SystemPermissions.VIEW_REPORTS)
+def drill_down():
+    """تفاصيل قيد GL أو المستند المصدر."""
+    batch_id = request.args.get('batch_id', type=int)
+    if not batch_id:
+        return jsonify({"success": False, "error": "batch_id مطلوب"}), 400
+    batch = db.session.get(GLBatch, batch_id)
+    if not batch:
+        return jsonify({"success": False, "error": "القيد غير موجود"}), 404
+    entries = [
+        {
+            "account": e.account,
+            "debit": float(e.debit or 0),
+            "credit": float(e.credit or 0),
+            "ref": e.ref,
+        }
+        for e in batch.entries
+    ]
+    source_link = None
+    st = (batch.source_type or "").upper()
+    sid = batch.source_id
+    if st == "SALE" and sid:
+        source_link = f"/sales/{sid}"
+    elif st == "PAYMENT" and sid:
+        source_link = f"/payments/{sid}"
+    elif st == "PURCHASE_ORDER" and sid:
+        source_link = f"/purchases/{sid}"
+    elif st == "SUPPLIER_INVOICE" and sid:
+        source_link = f"/purchases"
+    elif st == "SHIPMENT" and sid:
+        source_link = f"/shipments/{sid}"
+    return jsonify({
+        "success": True,
+        "batch": {
+            "id": batch.id,
+            "code": batch.code,
+            "source_type": batch.source_type,
+            "source_id": batch.source_id,
+            "branch_id": batch.branch_id,
+            "posted_at": batch.posted_at.isoformat() if batch.posted_at else None,
+            "memo": batch.memo,
+            "status": batch.status,
+        },
+        "entries": entries,
+        "source_link": source_link,
+    })
+
+
+@financial_reports_bp.route('/inventory-valuation')
+@permission_required(SystemPermissions.VIEW_REPORTS)
+def inventory_valuation():
+    """تقييم مخزون نهاية الفترة (تكلفة × كمية)."""
+    from utils.company_scope import branch_ids_for_company
+
+    company_id = request.args.get('company_id', type=int)
+    branch_ids = branch_ids_for_company(company_id) if company_id else None
+    q = (
+        db.session.query(
+            Product.id,
+            Product.name,
+            Product.sku,
+            Warehouse.name.label("warehouse_name"),
+            StockLevel.quantity,
+            Product.purchase_price,
+        )
+        .join(StockLevel, StockLevel.product_id == Product.id)
+        .join(Warehouse, Warehouse.id == StockLevel.warehouse_id)
+        .filter(StockLevel.quantity > 0)
+    )
+    if branch_ids is not None:
+        if not branch_ids:
+            q = q.filter(Product.id == -1)
+        else:
+            q = q.filter(Warehouse.branch_id.in_(branch_ids))
+    rows = q.limit(5000).all()
+    items = []
+    total = 0.0
+    for r in rows:
+        qty = float(r.quantity or 0)
+        cost = float(r.purchase_price or 0)
+        val = qty * cost
+        total += val
+        items.append({
+            "product_id": r.id,
+            "name": r.name,
+            "sku": r.sku,
+            "warehouse": r.warehouse_name,
+            "quantity": qty,
+            "unit_cost": cost,
+            "value": round(val, 2),
+        })
+    if request.args.get("format") == "json":
+        return jsonify({"success": True, "total_value": round(total, 2), "items": items, "count": len(items)})
+    return render_template(
+        "reports/financial/inventory_valuation.html",
+        items=items,
+        total_value=total,
+        company_id=company_id,
+        companies=_companies_for_reports(),
+    )

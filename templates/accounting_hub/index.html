@@ -32,6 +32,11 @@
     <div class="col"><a href="{{ url_for('ledger_control.index') }}">مراقبة الدفتر</a></div>
     <div class="col"><a href="{{ url_for('budgets.index') }}">موازنات</a></div>
     <div class="col"><a href="{{ url_for('financial_reports.index') }}">تقارير مالية</a></div>
+    <div class="col"><a href="{{ url_for('ledger.chart_of_accounts') }}">دليل حسابات</a></div>
+    <div class="col"><a href="{{ url_for('payroll_bp.index') }}">رواتب</a></div>
+    <div class="col"><a href="{{ url_for('pos_bp.terminal') }}">نقطة بيع</a></div>
+    <div class="col"><a href="{{ url_for('tax_compliance_bp.vat_settlement') }}">تسوية VAT</a></div>
+    <div class="col"><a href="{{ url_for('enterprise_security_bp.posting_controls') }}">ضوابط إدخال</a></div>
   </div></div>
 </div>
 {% endblock %}

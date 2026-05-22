@@ -52,7 +52,8 @@ def gl_batch_branch_clause(branch_ids: List[int]):
         .join(Warehouse, Warehouse.id == Shipment.destination_id)
         .where(Warehouse.branch_id.in_(branch_ids))
     )
-    return or_(
+    direct_branch = GLBatch.branch_id.in_(branch_ids)
+    inferred = or_(
         and_(GLBatch.source_type == "SALE", GLBatch.source_id.in_(sale_ids)),
         and_(GLBatch.source_type == "INVOICE", GLBatch.source_id.in_(invoice_via_sale)),
         and_(
@@ -66,6 +67,7 @@ def gl_batch_branch_clause(branch_ids: List[int]):
             GLBatch.source_id.in_(pay_ids),
         ),
     )
+    return or_(direct_branch, and_(GLBatch.branch_id.is_(None), inferred))
 
 
 def gl_entries_base(branch_filter_ids: Optional[List[int]], start_dt: datetime, end_dt: datetime):

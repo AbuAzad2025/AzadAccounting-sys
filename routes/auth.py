@@ -229,6 +229,19 @@ def login():
                     customer = Customer.query.filter(Customer.phone == phone_alias).first()
 
     if user and user.check_password(password) and bool(getattr(user, "is_active", True)):
+        if getattr(user, "totp_enabled", False) and getattr(user, "totp_secret", None):
+            from utils.totp_util import verify_totp
+            from utils.enterprise_security import user_may_login_now
+
+            totp_in = (request.form.get("totp_code") or "").strip()
+            if not totp_in or not verify_totp(user.totp_secret, totp_in):
+                record_attempt(ip, identifier)
+                flash("رمز المصادقة الثنائية مطلوب أو غير صحيح.", "danger")
+                return render_template("auth/login.html", form=form, require_totp=True)
+            ok_sched, msg = user_may_login_now(user)
+            if not ok_sched:
+                flash(msg or "خارج وقت الدخول المسموح.", "danger")
+                return render_template("auth/login.html", form=form)
         remember = bool(getattr(form, "remember_me", None) and getattr(form.remember_me, "data", False))
         _secure_login_user(user, remember=remember, fresh=True)
         try:

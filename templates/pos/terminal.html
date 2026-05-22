@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% block title %}نقطة البيع{% endblock %}
+{% block content %}
+<div class="container-fluid py-3" dir="rtl">
+  <h4>نقطة البيع (POS)</h4>
+  <div class="row mb-2">
+    <div class="col-md-4"><label>المستودع</label><select id="warehouse_id" class="form-control">{% for w in warehouses %}<option value="{{ w.id }}">{{ w.name }}</option>{% endfor %}</select></div>
+    <div class="col-md-4"><label>معرف منتج</label><input id="scan_input" class="form-control" type="number"></div>
+    <div class="col-md-4 align-self-end"><button type="button" class="btn btn-primary" onclick="addLine()">إضافة</button></div>
+  </div>
+  <table class="table table-bordered" id="cart"><thead><tr><th>منتج</th><th>كمية</th><th>سعر</th><th></th></tr></thead><tbody></tbody></table>
+  <h5>الإجمالي: <span id="total">0</span> ₪</h5>
+  <button class="btn btn-success btn-lg" onclick="checkout()">إتمام البيع النقدي</button>
+</div>
+<script>
+const productMap = {{ products_json|safe }};
+let cart = [];
+function addLine() {
+  const pid = document.getElementById('scan_input').value;
+  const p = productMap[pid];
+  if (!p) { alert('منتج غير معروف'); return; }
+  cart.push({ product_id: p.id, name: p.name, quantity: 1, price: p.price });
+  renderCart();
+}
+function renderCart() {
+  const tb = document.querySelector('#cart tbody');
+  tb.innerHTML = '';
+  let t = 0;
+  cart.forEach((row, i) => {
+    t += row.quantity * row.price;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${row.name}</td><td><input type="number" min="1" value="${row.quantity}"></td><td>${row.price}</td><td><button type="button">×</button></td>`;
+    tr.querySelector('input').onchange = (e) => { cart[i].quantity = +e.target.value; renderCart(); };
+    tr.querySelector('button').onclick = () => { cart.splice(i,1); renderCart(); };
+    tb.appendChild(tr);
+  });
+  document.getElementById('total').textContent = t.toFixed(2);
+}
+async function checkout() {
+  const wh = document.getElementById('warehouse_id').value;
+  const res = await fetch('{{ url_for("pos_bp.checkout") }}', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}'},
+    body: JSON.stringify({ warehouse_id: wh, lines: cart, tax_rate: 16 })
+  });
+  const data = await res.json();
+  if (data.success) { alert('تم البيع #' + data.sale_id); cart = []; renderCart(); }
+  else alert(data.error || 'فشل');
+}
+</script>
+{% endblock %}

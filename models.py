@@ -1843,6 +1843,10 @@ class User(db.Model, UserMixin, TimestampMixin, AuditMixin):
     login_count = db.Column(db.Integer, nullable=False, server_default=sa_text("0"))
     avatar_url = db.Column(db.String(500))
     notes_text = db.Column(db.Text)
+    totp_secret = db.Column(db.String(64), nullable=True)
+    totp_enabled = db.Column(db.Boolean, nullable=False, server_default=sa_text("false"))
+    login_schedule_json = db.Column(db.Text, nullable=True)
+    allowed_stations_json = db.Column(db.Text, nullable=True)
     role = relationship("Role", backref="users", lazy="select")
     extra_permissions = relationship(
         "Permission",
@@ -5543,6 +5547,7 @@ class Sale(db.Model, TimestampMixin, AuditMixin):
     refunded_total = db.Column(db.Numeric(12, 2), default=0, nullable=False)
     refund_of_id = db.Column(db.Integer, db.ForeignKey("sales.id", ondelete="SET NULL"), index=True)
     idempotency_key = db.Column(db.String(64), unique=True, index=True)
+    sale_channel = db.Column(db.String(20), nullable=False, server_default=sa_text("'STANDARD'"), index=True)
 
     stock_deducted = db.Column(db.Boolean, default=False, nullable=False)
 
@@ -9473,6 +9478,105 @@ class PurchaseOrderLine(db.Model, TimestampMixin):
     __table_args__ = (
         db.CheckConstraint("quantity > 0", name="ck_po_line_qty_pos"),
         db.CheckConstraint("received_qty >= 0", name="ck_po_line_rcv_ge_0"),
+    )
+
+
+class SupplierInvoice(db.Model, TimestampMixin, AuditMixin):
+    """فاتورة مورد — تكملة دورة المشتريات بعد الاستلام."""
+    __tablename__ = "supplier_invoices"
+
+    id = db.Column(db.Integer, primary_key=True)
+    number = db.Column(db.String(50), unique=True, nullable=False, index=True)
+    supplier_id = db.Column(db.Integer, db.ForeignKey("suppliers.id", ondelete="RESTRICT"), nullable=False, index=True)
+    purchase_order_id = db.Column(db.Integer, db.ForeignKey("purchase_orders.id", ondelete="SET NULL"), nullable=True, index=True)
+    branch_id = db.Column(db.Integer, db.ForeignKey("branches.id", ondelete="RESTRICT"), nullable=False, index=True)
+    invoice_date = db.Column(db.Date, nullable=False, index=True)
+    due_date = db.Column(db.Date, nullable=True)
+    status = db.Column(String(20), nullable=False, server_default=sa_text("'DRAFT'"), index=True)
+    currency = db.Column(db.String(10), nullable=False, server_default=sa_text("'ILS'"))
+    subtotal = db.Column(db.Numeric(14, 2), nullable=False, server_default=sa_text("0"))
+    vat_amount = db.Column(db.Numeric(14, 2), nullable=False, server_default=sa_text("0"))
+    total_amount = db.Column(db.Numeric(14, 2), nullable=False, server_default=sa_text("0"))
+    notes = db.Column(db.Text)
+
+    supplier = db.relationship("Supplier", backref=db.backref("supplier_invoices", lazy="dynamic"))
+    purchase_order = db.relationship("PurchaseOrder", backref=db.backref("supplier_invoices", lazy="dynamic"))
+    branch = db.relationship("Branch")
+    lines = db.relationship(
+        "SupplierInvoiceLine",
+        back_populates="supplier_invoice",
+        cascade="all, delete-orphan",
+    )
+
+
+class SupplierInvoiceLine(db.Model, TimestampMixin):
+    __tablename__ = "supplier_invoice_lines"
+
+    id = db.Column(db.Integer, primary_key=True)
+    supplier_invoice_id = db.Column(
+        db.Integer, db.ForeignKey("supplier_invoices.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    product_id = db.Column(db.Integer, db.ForeignKey("products.id", ondelete="SET NULL"), nullable=True)
+    description = db.Column(db.String(255))
+    quantity = db.Column(db.Numeric(12, 3), nullable=False, default=1)
+    unit_price = db.Column(db.Numeric(12, 4), nullable=False, default=0)
+
+    supplier_invoice = db.relationship("SupplierInvoice", back_populates="lines")
+    product = db.relationship("Product")
+
+
+class PayrollRun(db.Model, TimestampMixin, AuditMixin):
+    __tablename__ = "payroll_runs"
+
+    id = db.Column(db.Integer, primary_key=True)
+    period_key = db.Column(db.String(7), nullable=False, index=True)
+    branch_id = db.Column(db.Integer, db.ForeignKey("branches.id", ondelete="RESTRICT"), nullable=False, index=True)
+    status = db.Column(String(20), nullable=False, server_default=sa_text("'DRAFT'"), index=True)
+    run_date = db.Column(db.Date, nullable=False)
+    total_gross = db.Column(db.Numeric(14, 2), nullable=False, server_default=sa_text("0"))
+    total_deductions = db.Column(db.Numeric(14, 2), nullable=False, server_default=sa_text("0"))
+    total_net = db.Column(db.Numeric(14, 2), nullable=False, server_default=sa_text("0"))
+    currency = db.Column(db.String(10), nullable=False, server_default=sa_text("'ILS'"))
+    notes = db.Column(db.Text)
+    posted_at = db.Column(db.DateTime, nullable=True)
+
+    branch = db.relationship("Branch")
+    lines = db.relationship("PayrollLine", back_populates="payroll_run", cascade="all, delete-orphan")
+
+    __table_args__ = (db.UniqueConstraint("period_key", "branch_id", name="uq_payroll_period_branch"),)
+
+
+class PayrollLine(db.Model, TimestampMixin):
+    __tablename__ = "payroll_lines"
+
+    id = db.Column(db.Integer, primary_key=True)
+    payroll_run_id = db.Column(db.Integer, db.ForeignKey("payroll_runs.id", ondelete="CASCADE"), nullable=False, index=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey("employees.id", ondelete="RESTRICT"), nullable=False, index=True)
+    base_salary = db.Column(db.Numeric(14, 2), nullable=False, server_default=sa_text("0"))
+    allowances = db.Column(db.Numeric(14, 2), nullable=False, server_default=sa_text("0"))
+    deductions = db.Column(db.Numeric(14, 2), nullable=False, server_default=sa_text("0"))
+    net_pay = db.Column(db.Numeric(14, 2), nullable=False, server_default=sa_text("0"))
+
+    payroll_run = db.relationship("PayrollRun", back_populates="lines")
+    employee = db.relationship("Employee")
+
+
+class DocumentApproval(db.Model, TimestampMixin):
+    """اعتماد مستند (PO، دفعة، قيد يدوي، مسير رواتب)."""
+    __tablename__ = "document_approvals"
+
+    id = db.Column(db.Integer, primary_key=True)
+    document_type = db.Column(db.String(40), nullable=False, index=True)
+    document_id = db.Column(db.Integer, nullable=False, index=True)
+    level_no = db.Column(db.Integer, nullable=False, server_default=sa_text("1"))
+    status = db.Column(String(20), nullable=False, server_default=sa_text("'PENDING'"), index=True)
+    requested_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    approved_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    approved_at = db.Column(db.DateTime, nullable=True)
+    notes = db.Column(db.Text)
+
+    __table_args__ = (
+        db.Index("ix_doc_approval_type_id", "document_type", "document_id"),
     )
 
 
@@ -13801,7 +13905,10 @@ class Account(db.Model, TimestampMixin):
     code = db.Column(db.String(50), unique=True, nullable=False, index=True)
     name = db.Column(db.String(100), nullable=False)
     type = db.Column(sa_str_enum(["ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"], name="account_type"), nullable=False)
+    parent_id = db.Column(db.Integer, db.ForeignKey("accounts.id"), nullable=True, index=True)
     is_active = db.Column(db.Boolean, default=True, nullable=False)
+
+    parent = db.relationship("Account", remote_side=[id], backref=db.backref("children", lazy="dynamic"))
 
     __table_args__ = ()
 
@@ -13833,15 +13940,18 @@ class GLBatch(db.Model, TimestampMixin):
     currency = db.Column(db.String(10), default=DEFAULT_CURRENCY, nullable=False)
     entity_type = db.Column(db.String(30), index=True)
     entity_id = db.Column(db.Integer, index=True)
+    branch_id = db.Column(db.Integer, db.ForeignKey("branches.id"), nullable=True, index=True)
     status = db.Column(sa_str_enum(["DRAFT", "POSTED", "VOID"], name="gl_batch_status"), default="DRAFT", nullable=False, index=True)
 
     entries = db.relationship("GLEntry", backref="batch", cascade="all, delete-orphan", passive_deletes=True, order_by="GLEntry.id")
+    branch = db.relationship("Branch", backref=db.backref("gl_batches", lazy="dynamic"))
 
     __table_args__ = (
         db.UniqueConstraint("source_type", "source_id", "purpose", name="uq_gl_source_purpose"),
         db.Index("ix_gl_entity", "entity_type", "entity_id"),
         db.Index("ix_gl_status_source", "status", "source_type", "source_id"),
         db.Index("ix_gl_posted_status", "status", "posted_at"),
+        db.Index("ix_gl_branch_posted", "branch_id", "posted_at"),
     )
 
     @validates("currency")
@@ -13968,6 +14078,10 @@ GL_ACCOUNTS = {
     "INVENTORY_RESERVE": "1300_INV_RSV",  # احتياطي المخزون للشركاء
     "DISCOUNT_ALLOWED": "4050_SALES_DISCOUNT",
     "SHIPPING_INCOME": "4200_SHIPPING_INCOME",
+    "PURCHASES": "5100_COGS",
+    "VAT_INPUT": "1500_VAT_INPUT",
+    "PAYROLL_EXP": "6100_PAYROLL_EXPENSE",
+    "PAYROLL_PAYABLE": "2100_PAYROLL_PAYABLE",
 }
 
 
@@ -13983,6 +14097,7 @@ def _gl_upsert_batch_and_entries(
     ref: str,
     entity_type: str | None,
     entity_id: int | None,
+    branch_id: int | None = None,
 ):
     if not entries:
         raise ValueError("entries required")
@@ -14054,13 +14169,20 @@ def _gl_upsert_batch_and_entries(
 
     batch_code = f"{source_type}-{source_id}-{purpose}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
     posted_at = datetime.now(timezone.utc)
-    
+    if branch_id is None:
+        try:
+            from utils.gl_branch_resolver import resolve_branch_for_gl
+
+            branch_id = resolve_branch_for_gl(source_type, source_id, connection=connection)
+        except Exception:
+            branch_id = None
+
     cur = connection.execute(
         sa_text(f"""
             INSERT INTO {batch_table}
-                (code, source_type, source_id, purpose, memo, posted_at, currency, entity_type, entity_id, status, created_at, updated_at)
+                (code, source_type, source_id, purpose, memo, posted_at, currency, entity_type, entity_id, branch_id, status, created_at, updated_at)
             VALUES
-                (:code, :st, :sid, :p, :memo, :posted_at, :cur, :etype, :eid, 'POSTED', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                (:code, :st, :sid, :p, :memo, :posted_at, :cur, :etype, :eid, :bid, 'POSTED', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             RETURNING id
         """),
         {
@@ -14073,6 +14195,7 @@ def _gl_upsert_batch_and_entries(
             "cur": (currency or "ILS").upper(),
             "etype": entity_type,
             "eid": entity_id,
+            "bid": branch_id,
         }
     )
     batch_id = cur.scalar_one()

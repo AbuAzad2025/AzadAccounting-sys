@@ -2392,6 +2392,26 @@ def fiscal_period_close(period_key, scope, no_gl, no_carry, no_lock):
     click.echo(f"OK: {result['period_key']} -> {result['status']} snapshots={result.get('entity_snapshots')}")
 
 
+@click.command("erp-readiness")
+@with_appcontext
+def erp_readiness_cmd():
+    """تقييم جاهزية ERP (هدف ≥90% لكل محور)."""
+    from flask import current_app
+    from utils.erp_readiness import run_erp_readiness
+
+    report = run_erp_readiness(current_app)
+    click.echo(f"Overall: {report['overall']}% — pass_all_90={report['pass_all_90']}")
+    for m in report["modules"]:
+        flag = "OK" if m["score"] >= 90 else "!!"
+        click.echo(f"  [{flag}] {m['label']}: {m['score']}%")
+    if report.get("below_90"):
+        click.echo("Below 90%:")
+        for m in report["below_90"]:
+            click.echo(f"  - {m['label']}: {m['score']}%")
+    if not report["pass_all_90"]:
+        raise SystemExit(1)
+
+
 @click.command("integration-audit")
 @with_appcontext
 def integration_audit_cmd():
@@ -4673,6 +4693,7 @@ def register_cli(app) -> None:
         backfill_sale_invoices,
         fiscal_periods_sync,
         fiscal_period_close,
+        erp_readiness_cmd,
         integration_audit_cmd,
         accounting_audit,
         sr_create, sr_add_part, sr_add_task, sr_recalc, sr_set_status, sr_show, 

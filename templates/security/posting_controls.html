@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block title %}ضوابط الإدخال{% endblock %}
+{% block content %}
+<div class="container py-3" dir="rtl">
+  <h4>قفل الإدخال المحاسبي</h4>
+  <p class="text-muted">لا يُسمح بترحيل قيود بتاريخ أقدم من التاريخ المحدّد (يُطبّق تدريجياً على العمليات الجديدة).</p>
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-group">
+      <label>آخر تاريخ مسموح للإدخال (قبله مقفول)</label>
+      <input type="date" name="posting_locked_before" class="form-control" value="{{ posting_locked_before }}">
+    </div>
+    <button class="btn btn-primary">حفظ</button>
+  </form>
+</div>
+{% endblock %}

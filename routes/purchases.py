@@ -172,3 +172,71 @@ def create_shipment_from_po(id):
     db.session.commit()
     flash(f"تم إنشاء الشحنة #{sh.id} من {order.number}", "success")
     return redirect(url_for("shipments_bp.edit_shipment", id=sh.id))
+
+
+@purchases_bp.route("/<int:id>/receive", methods=["POST"])
+@login_required
+@permission_required(SystemPermissions.MANAGE_SHIPMENTS)
+def partial_receive(id):
+    order = db.session.get(PurchaseOrder, id) or abort(404)
+    any_rcv = False
+    for ln in order.lines:
+        key = f"recv_qty_{ln.id}"
+        raw = request.form.get(key)
+        if raw is None:
+            continue
+        qty = Decimal(str(raw or 0))
+        if qty < 0:
+            continue
+        max_q = Decimal(str(ln.quantity or 0))
+        ln.received_qty = min(qty, max_q)
+        if ln.received_qty > 0:
+            any_rcv = True
+    if not any_rcv:
+        flash("لم تُدخل كميات استلام", "warning")
+        return redirect(url_for("purchases_bp.detail", id=id))
+    all_full = all(
+        Decimal(str(l.received_qty or 0)) >= Decimal(str(l.quantity or 0)) for l in order.lines
+    )
+    any_partial = any(
+        Decimal("0") < Decimal(str(l.received_qty or 0)) < Decimal(str(l.quantity or 0))
+        for l in order.lines
+    )
+    order.status = "RECEIVED" if all_full else "PARTIAL"
+    db.session.commit()
+    if order.status == "RECEIVED":
+        from utils.po_gl_service import run_po_gl_sync_after_commit
+        run_po_gl_sync_after_commit(order.id)
+    flash("تم تسجيل الاستلام", "success")
+    return redirect(url_for("purchases_bp.detail", id=id))
+
+
+@purchases_bp.route("/<int:id>/supplier-invoice", methods=["POST"])
+@login_required
+@permission_required(SystemPermissions.MANAGE_SHIPMENTS)
+def create_supplier_invoice(id):
+    order = db.session.get(PurchaseOrder, id) or abort(404)
+    try:
+        from utils.supplier_invoice_service import create_from_purchase_order, post_supplier_invoice_gl
+
+        inv = create_from_purchase_order(order)
+        db.session.commit()
+        post_supplier_invoice_gl(inv.id)
+        flash(f"تم إنشاء وترحيل فاتورة المورد {inv.number}", "success")
+    except Exception as e:
+        db.session.rollback()
+        flash(str(e), "danger")
+    return redirect(url_for("purchases_bp.detail", id=id))
+
+
+@purchases_bp.route("/<int:id>/request-approval", methods=["POST"])
+@login_required
+@permission_required(SystemPermissions.MANAGE_SHIPMENTS)
+def request_po_approval(id):
+    from flask_login import current_user
+    from utils.document_approval_service import request_approval
+
+    request_approval("PURCHASE_ORDER", id, current_user.id)
+    db.session.commit()
+    flash("تم طلب اعتماد أمر الشراء", "info")
+    return redirect(url_for("purchases_bp.detail", id=id))
