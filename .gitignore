@@ -29,6 +29,7 @@ instance/
 
 .env
 .env.local
+.dbg/
 .venv
 .venv/
 temp_env/
