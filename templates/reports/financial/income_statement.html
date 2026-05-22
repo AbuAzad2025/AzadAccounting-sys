@@ -17,21 +17,33 @@
             
 
             <div class="row mb-4">
-                <div class="col-md-4">
+                <div class="col-md-3">
+                    <label for="company_id">الشركة</label>
+                    <select id="company_id" class="form-control">
+                        <option value="">الكل (مجموعة)</option>
+                        {% for co in companies|default([]) %}
+                        <option value="{{ co.id }}" {% if company_id == co.id %}selected{% endif %}>{{ co.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
                     <label for="from_date">من تاريخ:</label>
                     <input type="date" id="from_date" class="form-control" value="{{ from_date.strftime('%Y-%m-%d') }}" title="من تاريخ" aria-label="من تاريخ">
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <label for="to_date">إلى تاريخ:</label>
                     <input type="date" id="to_date" class="form-control" value="{{ to_date.strftime('%Y-%m-%d') }}" title="إلى تاريخ" aria-label="إلى تاريخ">
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <label>&nbsp;</label>
                     <button class="btn btn-primary d-block w-100" onclick="updateReport()">
                         <i class="fas fa-sync"></i> تحديث
                     </button>
                 </div>
             </div>
+            {% if company_filter_active %}
+            <div class="alert alert-info py-2 small">عرض قائمة الدخل لفروع الشركة المحددة فقط (قيود GL المرتبطة بالمبيعات/المصروفات/الشحنات/أوامر الشراء).</div>
+            {% endif %}
             
             <div class="row">
                 <div class="col-md-12">
@@ -176,7 +188,10 @@
 function updateReport() {
     const fromDate = document.getElementById('from_date').value;
     const toDate = document.getElementById('to_date').value;
-    window.location.href = `/reports/financial/income-statement?start_date=${fromDate}&end_date=${toDate}`;
+    const cid = document.getElementById('company_id').value;
+    let url = `/reports/financial/income-statement?start_date=${fromDate}&end_date=${toDate}`;
+    if (cid) url += `&company_id=${cid}`;
+    window.location.href = url;
 }
 
 function exportToExcel() {

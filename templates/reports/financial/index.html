@@ -140,6 +140,15 @@
                             <label for="endDate" class="form-label">إلى تاريخ</label>
                             <input type="date" class="form-control form-control-modern" id="endDate">
                         </div>
+                        <div class="col-md-4">
+                            <label for="companyId" class="form-label">الشركة (اختياري)</label>
+                            <select id="companyId" class="form-control form-control-modern">
+                                <option value="">الكل</option>
+                                {% for co in companies|default([]) %}
+                                <option value="{{ co.id }}">{{ co.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
                         <div class="col-md-4 d-flex align-items-end">
                             <button type="button" class="btn btn-primary" onclick="applyDateRange()">
                                 <i class="fas fa-filter ml-1"></i>
@@ -246,11 +255,15 @@
 
             showLoading();
             
+            const companyId = document.getElementById('companyId').value;
             let url = `/reports/financial/${reportType}?start_date=${startDate}&end_date=${endDate}`;
             if (reportType === 'balance-sheet') {
                 url = `/reports/financial/${reportType}?date=${endDate}`;
             } else if (reportType === 'balances-summary') {
                 url = `/reports/financial/${reportType}`;
+            }
+            if (companyId && reportType !== 'balance-sheet') {
+                url += (url.includes('?') ? '&' : '?') + `company_id=${companyId}`;
             }
 
             fetch(url)

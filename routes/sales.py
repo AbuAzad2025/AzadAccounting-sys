@@ -651,7 +651,7 @@ def list_sales():
         SaleStatus.REFUNDED.value,
     }
 
-    summary_q = Sale.query.filter(Sale.is_archived.is_(False))
+    summary_q = filter_sales_query(Sale.query.filter(Sale.is_archived.is_(False)))
     need_customer_join = bool(cust or search_term)
     if need_customer_join:
         summary_q = summary_q.outerjoin(Customer)

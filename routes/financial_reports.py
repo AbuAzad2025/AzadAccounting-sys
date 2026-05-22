@@ -13,22 +13,25 @@ from models import (
 from utils import permission_required, get_income_tax_rate, classify_entity_balance
 from permissions_config.enums import SystemPermissions
 
-# إنشاء Blueprint
-financial_reports_bp = Blueprint('financial_reports', __name__, url_prefix='/reports/financial')
 
-@financial_reports_bp.route('/')
-@permission_required(SystemPermissions.VIEW_REPORTS)
-def index():
+def _companies_for_reports():
     from models import Company
     from utils.company_scope import get_accessible_company_ids
 
     cq = Company.query.filter_by(is_active=True).order_by(Company.name)
     allowed = get_accessible_company_ids()
     if allowed is not None:
-        companies = cq.filter(Company.id.in_(allowed)).all() if allowed else []
-    else:
-        companies = cq.all()
-    return render_template('reports/financial/index.html', companies=companies)
+        return cq.filter(Company.id.in_(allowed)).all() if allowed else []
+    return cq.all()
+
+
+# إنشاء Blueprint
+financial_reports_bp = Blueprint('financial_reports', __name__, url_prefix='/reports/financial')
+
+@financial_reports_bp.route('/')
+@permission_required(SystemPermissions.VIEW_REPORTS)
+def index():
+    return render_template('reports/financial/index.html', companies=_companies_for_reports())
 
 
 @financial_reports_bp.route('/accrue-income-tax', methods=['POST'])
@@ -128,9 +131,10 @@ def accrue_income_tax():
 @permission_required(SystemPermissions.VIEW_REPORTS)
 def income_statement():
     try:
-        from utils.company_scope import branch_ids_for_company
+        from utils.gl_company_scope import gl_entries_base, resolve_branch_filter
+
         company_id = request.args.get('company_id', type=int)
-        branch_filter_ids = branch_ids_for_company(company_id) if company_id else None
+        branch_filter_ids = resolve_branch_filter(company_id)
 
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
@@ -145,61 +149,59 @@ def income_statement():
         if isinstance(end_date, str):
             end_date = datetime.fromisoformat(end_date).date()
 
-        start_dt = datetime.combine(start_date, datetime.min.time())
-        end_dt = datetime.combine(end_date, datetime.max.time())
-        
         start_date_dt = datetime.combine(start_date, datetime.min.time())
         end_date_dt = datetime.combine(end_date, datetime.max.time())
-        
-        revenue_query = db.session.query(
-            func.sum(GLEntry.credit - GLEntry.debit).label('total_revenue')
-        ).join(GLBatch).filter(
-            GLBatch.status == 'POSTED',
-            GLBatch.posted_at >= start_date_dt,
-            GLBatch.posted_at <= end_date_dt,
-            Account.type == 'REVENUE'
-        ).join(Account, Account.code == GLEntry.account).scalar() or 0
-        
-        # تكلفة البضاعة المباعة (COGS)
-        # عادة ما تكون حسابات المصاريف التي تبدأ بـ 51
-        cogs_query = db.session.query(
-            func.sum(GLEntry.debit - GLEntry.credit).label('total_cogs')
-        ).join(GLBatch).join(Account, Account.code == GLEntry.account).filter(
-            GLBatch.status == 'POSTED',
-            GLBatch.posted_at >= start_date_dt,
-            GLBatch.posted_at <= end_date_dt,
-            Account.type == 'EXPENSE',
-            or_(
-                GLEntry.account.like('51%'),
-                GLEntry.account == '5105_COGS_EXCHANGE'
-            )
-        ).scalar() or 0
-        
-        # المصاريف التشغيلية (كل المصاريف ما عدا COGS والضرائب)
-        expenses_query = db.session.query(
-            func.sum(GLEntry.debit - GLEntry.credit).label('total_expenses')
-        ).join(GLBatch).filter(
-            GLBatch.status == 'POSTED',
-            GLBatch.posted_at >= start_date_dt,
-            GLBatch.posted_at <= end_date_dt,
-            Account.type == 'EXPENSE',
-            ~GLEntry.account.like('51%'),
-            GLEntry.account != '5105_COGS_EXCHANGE'
-        ).join(Account, Account.code == GLEntry.account).scalar() or 0
-        
 
-        taxes_query = db.session.query(
-            func.sum(GLEntry.debit - GLEntry.credit).label('total_taxes')
-        ).join(GLBatch).filter(
-            GLBatch.status == 'POSTED',
-            GLBatch.posted_at >= start_date_dt,
-            GLBatch.posted_at <= end_date_dt,
-            Account.type == 'EXPENSE',
-            or_(
-                Account.name.ilike('%tax%'),
-                Account.name.ilike('%ضريبة%')
+        def _sum_revenue():
+            return (
+                gl_entries_base(branch_filter_ids, start_date_dt, end_date_dt)
+                .filter(Account.type == "REVENUE")
+                .with_entities(func.coalesce(func.sum(GLEntry.credit - GLEntry.debit), 0))
+                .scalar()
+                or 0
             )
-        ).join(Account, Account.code == GLEntry.account).scalar() or 0
+
+        def _sum_cogs():
+            return (
+                gl_entries_base(branch_filter_ids, start_date_dt, end_date_dt)
+                .filter(
+                    Account.type == "EXPENSE",
+                    or_(GLEntry.account.like("51%"), GLEntry.account == "5105_COGS_EXCHANGE"),
+                )
+                .with_entities(func.coalesce(func.sum(GLEntry.debit - GLEntry.credit), 0))
+                .scalar()
+                or 0
+            )
+
+        def _sum_operating_expenses():
+            return (
+                gl_entries_base(branch_filter_ids, start_date_dt, end_date_dt)
+                .filter(
+                    Account.type == "EXPENSE",
+                    ~GLEntry.account.like("51%"),
+                    GLEntry.account != "5105_COGS_EXCHANGE",
+                )
+                .with_entities(func.coalesce(func.sum(GLEntry.debit - GLEntry.credit), 0))
+                .scalar()
+                or 0
+            )
+
+        def _sum_taxes():
+            return (
+                gl_entries_base(branch_filter_ids, start_date_dt, end_date_dt)
+                .filter(
+                    Account.type == "EXPENSE",
+                    or_(Account.name.ilike("%tax%"), Account.name.ilike("%ضريبة%")),
+                )
+                .with_entities(func.coalesce(func.sum(GLEntry.debit - GLEntry.credit), 0))
+                .scalar()
+                or 0
+            )
+
+        revenue_query = _sum_revenue()
+        cogs_query = _sum_cogs()
+        expenses_query = _sum_operating_expenses()
+        taxes_query = _sum_taxes()
         
         total_revenue = float(revenue_query)
         total_cogs = float(cogs_query)
@@ -212,48 +214,55 @@ def income_statement():
         total_taxes = float(taxes_query)
         net_profit = operating_profit - total_taxes
         
-        revenue_details = db.session.query(
-            GLEntry.account,
-            Account.name,
-            func.sum(GLEntry.credit - GLEntry.debit).label('amount')
-        ).join(Account, Account.code == GLEntry.account).join(GLBatch).filter(
-            GLBatch.status == 'POSTED',
-            GLBatch.posted_at >= start_date_dt,
-            GLBatch.posted_at <= end_date_dt,
-            Account.type == 'REVENUE'
-        ).group_by(GLEntry.account, Account.name).having(func.sum(GLEntry.credit - GLEntry.debit) != 0).order_by(func.sum(GLEntry.credit).desc()).all()
-        
-        expense_details = db.session.query(
-            GLEntry.account,
-            Account.name,
-            func.sum(GLEntry.debit - GLEntry.credit).label('amount')
-        ).join(Account, Account.code == GLEntry.account).join(GLBatch).filter(
-            GLBatch.status == 'POSTED',
-            GLBatch.posted_at >= start_date_dt,
-            GLBatch.posted_at <= end_date_dt,
-            Account.type == 'EXPENSE',
-            ~GLEntry.account.like('51%'),
-            GLEntry.account != '5105_COGS_EXCHANGE',
-            ~or_(
-                Account.name.ilike('%tax%'),
-                Account.name.ilike('%ضريبة%')
+        revenue_details = (
+            gl_entries_base(branch_filter_ids, start_date_dt, end_date_dt)
+            .filter(Account.type == "REVENUE")
+            .with_entities(
+                GLEntry.account,
+                Account.name,
+                func.sum(GLEntry.credit - GLEntry.debit).label("amount"),
             )
-        ).group_by(GLEntry.account, Account.name).having(func.sum(GLEntry.debit - GLEntry.credit) != 0).order_by(func.sum(GLEntry.debit).desc()).all()
-        
-        cogs_details = db.session.query(
-            GLEntry.account,
-            Account.name,
-            func.sum(GLEntry.debit - GLEntry.credit).label('amount')
-        ).join(Account, Account.code == GLEntry.account).join(GLBatch).filter(
-            GLBatch.status == 'POSTED',
-            GLBatch.posted_at >= start_date_dt,
-            GLBatch.posted_at <= end_date_dt,
-            Account.type == 'EXPENSE',
-            or_(
-                GLEntry.account.like('51%'),
-                GLEntry.account == '5105_COGS_EXCHANGE'
+            .group_by(GLEntry.account, Account.name)
+            .having(func.sum(GLEntry.credit - GLEntry.debit) != 0)
+            .order_by(func.sum(GLEntry.credit).desc())
+            .all()
+        )
+
+        expense_details = (
+            gl_entries_base(branch_filter_ids, start_date_dt, end_date_dt)
+            .filter(
+                Account.type == "EXPENSE",
+                ~GLEntry.account.like("51%"),
+                GLEntry.account != "5105_COGS_EXCHANGE",
+                ~or_(Account.name.ilike("%tax%"), Account.name.ilike("%ضريبة%")),
             )
-        ).group_by(GLEntry.account, Account.name).having(func.sum(GLEntry.debit - GLEntry.credit) != 0).order_by(func.sum(GLEntry.debit).desc()).all()
+            .with_entities(
+                GLEntry.account,
+                Account.name,
+                func.sum(GLEntry.debit - GLEntry.credit).label("amount"),
+            )
+            .group_by(GLEntry.account, Account.name)
+            .having(func.sum(GLEntry.debit - GLEntry.credit) != 0)
+            .order_by(func.sum(GLEntry.debit).desc())
+            .all()
+        )
+
+        cogs_details = (
+            gl_entries_base(branch_filter_ids, start_date_dt, end_date_dt)
+            .filter(
+                Account.type == "EXPENSE",
+                or_(GLEntry.account.like("51%"), GLEntry.account == "5105_COGS_EXCHANGE"),
+            )
+            .with_entities(
+                GLEntry.account,
+                Account.name,
+                func.sum(GLEntry.debit - GLEntry.credit).label("amount"),
+            )
+            .group_by(GLEntry.account, Account.name)
+            .having(func.sum(GLEntry.debit - GLEntry.credit) != 0)
+            .order_by(func.sum(GLEntry.debit).desc())
+            .all()
+        )
         
         data = {
             'start_date': start_date,
@@ -280,20 +289,15 @@ def income_statement():
             'expense_details': expense_details,
             'company_id': company_id,
             'branch_filter_ids': branch_filter_ids,
+            'companies': _companies_for_reports(),
+            'company_filter_active': branch_filter_ids is not None,
         }
-        from models import Company
-        from utils.company_scope import get_accessible_company_ids
-        cq = Company.query.filter_by(is_active=True).order_by(Company.name)
-        allowed = get_accessible_company_ids()
-        if allowed is not None:
-            data['companies'] = cq.filter(Company.id.in_(allowed)).all() if allowed else []
-        else:
-            data['companies'] = cq.all()
         
         if request.args.get('format') == 'json' or request.headers.get('Accept') == 'application/json':
             return jsonify({
                 'success': True,
                 'report_type': 'income_statement',
+                'company_id': company_id,
                 'period': {
                     'start_date': start_date.isoformat(),
                     'end_date': end_date.isoformat()
@@ -659,8 +663,12 @@ def cash_flow():
 def balances_summary():
     """تقرير الأرصدة المجمعة"""
     try:
-        # أرصدة العملاء
-        customers = Customer.query.all()
+        from utils.company_scope import filter_customers_query, resolve_branch_filter
+
+        company_id = request.args.get('company_id', type=int)
+        branch_filter_ids = resolve_branch_filter(company_id)
+
+        customers = filter_customers_query(Customer.query.filter(Customer.is_archived == False)).all()
         customer_balances = []
         total_customer_balance = 0
         
@@ -707,6 +715,7 @@ def balances_summary():
         return jsonify({
             'success': True,
             'report_type': 'balances_summary',
+            'company_id': company_id,
             'summary': {
                 'total_customer_balance': total_customer_balance,
                 'total_supplier_balance': total_supplier_balance,

@@ -2590,8 +2590,10 @@ def services():
 @login_required
 @limiter.limit("60/minute")
 def sales():
+    from utils.company_scope import filter_sales_query
+
     q = utils.q
-    qry = Sale.query
+    qry = filter_sales_query(Sale.query)
     if q:
         like = f"%{q}%"
         qry = qry.filter(or_(Sale.sale_number.ilike(like),))
@@ -2614,8 +2616,10 @@ def sales():
 @login_required
 @limiter.limit("60/minute")
 def shipments():
+    from utils.company_scope import filter_shipments_query
+
     q = utils.q
-    qry = Shipment.query
+    qry = filter_shipments_query(Shipment.query)
     if q:
         like = f"%{q}%"
         qry = qry.filter(or_(Shipment.shipment_number.ilike(like), Shipment.tracking_number.ilike(like)))
@@ -3139,7 +3143,9 @@ def loan_settlements():
 @limiter.limit("60/minute")
 def payments():
     q = utils.q
-    qry = Payment.query
+    from utils.company_scope import filter_payments_query
+
+    qry = filter_payments_query(Payment.query)
     if q:
         like = f"%{q}%"
         qry = qry.filter(or_(Payment.payment_number.ilike(like), Payment.receipt_number.ilike(like)))
@@ -4700,7 +4706,7 @@ def get_partners():
 
 # ===== Suppliers API =====
 
-@bp.route('/suppliers', methods=['GET'])
+@bp.route('/suppliers/catalog', methods=['GET'], endpoint='api_suppliers_catalog')
 @login_required
 def get_suppliers():
     """جلب قائمة الموردين"""

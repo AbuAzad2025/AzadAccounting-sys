@@ -407,6 +407,7 @@ def list_shipments():
         date_from=date_from,
         date_to=date_to,
         destination=destination,
+        pre_po_id=request.args.get("purchase_order_id", type=int),
     )
 
 
@@ -605,7 +606,13 @@ def create_shipment():
         for field, errors in form.errors.items():
             for err in errors:
                 flash(f"❌ {form[field].label.text}: {err}", "danger")
-        return render_template("warehouses/shipment_form.html", form=form, shipment=None)
+        return render_template(
+            "warehouses/shipment_form.html",
+            form=form,
+            shipment=None,
+            pre_po=pre_po,
+            pre_po_id=pre_po_id,
+        )
 
     if form.validate_on_submit():
         dest_obj = form.destination_id.data
@@ -751,7 +758,15 @@ def create_shipment():
             current_app.logger.exception('internal error')
             flash('❌ تعذر إتمام العملية', 'danger')
 
-    return render_template("warehouses/shipment_form.html", form=form, shipment=None)
+    return render_template(
+        "warehouses/shipment_form.html",
+        form=form,
+        shipment=None,
+        pre_po=pre_po,
+        pre_po_id=pre_po_id,
+    )
+
+
 @shipments_bp.route("/<int:id>/edit", methods=["GET", "POST"], endpoint="edit_shipment")
 @login_required
 def edit_shipment(id: int):

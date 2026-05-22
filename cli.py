@@ -2392,6 +2392,22 @@ def fiscal_period_close(period_key, scope, no_gl, no_carry, no_lock):
     click.echo(f"OK: {result['period_key']} -> {result['status']} snapshots={result.get('entity_snapshots')}")
 
 
+@click.command("integration-audit")
+@with_appcontext
+def integration_audit_cmd():
+    """تدقيق تكامل: جداول الشركات/التوزيع/الفروع."""
+    from flask import current_app
+    from utils.integration_audit import run_integration_audit
+
+    report = run_integration_audit(current_app)
+    for item in report.get("issues", []):
+        click.echo(f"[{item['level']}] {item['msg']}")
+    if report.get("ok"):
+        click.echo("OK: integration audit passed")
+    else:
+        raise SystemExit(1)
+
+
 @click.command("accounting-audit")
 @click.option("--limit", type=int, default=0, show_default=True, help="0 = كل الجهات")
 @click.option("--fix", is_flag=True, help="إعادة حساب الأرصدة المخزّنة عند الفروقات")
@@ -4657,6 +4673,7 @@ def register_cli(app) -> None:
         backfill_sale_invoices,
         fiscal_periods_sync,
         fiscal_period_close,
+        integration_audit_cmd,
         accounting_audit,
         sr_create, sr_add_part, sr_add_task, sr_recalc, sr_set_status, sr_show, 
         cart_create, cart_add_item, order_from_cart, order_set_status, order_add_item,

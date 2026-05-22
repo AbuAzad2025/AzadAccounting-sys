@@ -261,6 +261,10 @@
 {% block content %}
 <form method="POST" id="shipment-form" novalidate autocomplete="off">
   {{ form.hidden_tag() }}
+  {% if pre_po_id %}<input type="hidden" name="purchase_order_id" value="{{ pre_po_id }}">{% endif %}
+  {% if pre_po %}
+  <div class="alert alert-info">مرتبط بأمر شراء <strong>{{ pre_po.number }}</strong> — المورد: {{ pre_po.supplier.name if pre_po.supplier else pre_po.supplier_id }}</div>
+  {% endif %}
 
   <!-- إحصائيات سريعة -->
   <div class="row mb-3">
