@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% block title %}{{ order.number }}{% endblock %}
+{% block content %}
+<div class="container py-3" dir="rtl">
+  <h4>{{ order.number }} — {{ order.status }}</h4>
+  <p>المورد: {{ order.supplier.name if order.supplier else '—' }} | الإجمالي: {{ order.total_amount }} {{ order.currency }}</p>
+  <table class="table table-sm table-bordered"><thead><tr><th>منتج</th><th>كمية</th><th>سعر</th><th>مستلم</th></tr></thead>
+  <tbody>{% for ln in order.lines %}<tr><td>{{ ln.product.name if ln.product else ln.product_id }}</td><td>{{ ln.quantity }}</td><td>{{ ln.unit_price }}</td><td>{{ ln.received_qty }}</td></tr>{% endfor %}</tbody>
+  </table>
+  <form method="post" action="{{ url_for('purchases_bp.set_status', id=order.id) }}" class="form-inline">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <select name="status" class="form-control form-control-sm"><option>ORDERED</option><option>PARTIAL</option><option>RECEIVED</option><option>CANCELLED</option></select>
+    <button class="btn btn-sm btn-warning">تحديث الحالة</button>
+  </form>
+  <a href="{{ url_for('purchases_bp.index') }}" class="btn btn-secondary btn-sm mt-2">رجوع</a>
+</div>
+{% endblock %}

@@ -101,8 +101,8 @@
 
         {# --- المخزون والشحن --- #}
         {% if has_perm('view_warehouses') or has_perm('manage_warehouses') or has_perm('manage_vendors') or has_perm('manage_shipments') %}
-        <li class="nav-item has-treeview {% if request.blueprint in ['warehouse_bp', 'vendors_bp', 'shipments_bp'] %}menu-open{% endif %}">
-          <a href="#" class="nav-link {% if request.blueprint in ['warehouse_bp', 'vendors_bp', 'shipments_bp'] %}active{% endif %}">
+        <li class="nav-item has-treeview {% if request.blueprint in ['warehouse_bp', 'vendors_bp', 'shipments_bp', 'purchases_bp'] %}menu-open{% endif %}">
+          <a href="#" class="nav-link {% if request.blueprint in ['warehouse_bp', 'vendors_bp', 'shipments_bp', 'purchases_bp'] %}active{% endif %}">
             <i class="nav-icon fas fa-boxes text-success"></i>
             <p>
               المخزون والشحن
@@ -148,6 +148,12 @@
                 <p>الشحنات</p>
               </a>
             </li>
+            <li class="nav-item">
+              <a href="{{ url_for('purchases_bp.index') }}" class="nav-link {% if request.blueprint == 'purchases_bp' %}active{% endif %}">
+                <i class="far fa-circle nav-icon text-success"></i>
+                <p>أوامر الشراء</p>
+              </a>
+            </li>
             {% endif %}
             {% endif %}
           </ul>
@@ -155,9 +161,9 @@
         {% endif %}
 
         {# --- المحاسبة (Basic) --- #}
-        {% if has_perm('manage_payments') or has_perm('view_payments') or has_perm('manage_expenses') or has_perm('manage_ledger') or has_perm('manage_currencies') %}
-        <li class="nav-item has-treeview {% if request.blueprint in ['payments', 'checks', 'expenses_bp', 'ledger', 'currencies'] %}menu-open{% endif %}">
-          <a href="#" class="nav-link {% if request.blueprint in ['payments', 'checks', 'expenses_bp', 'ledger', 'currencies'] %}active{% endif %}">
+        {% if has_perm('manage_payments') or has_perm('view_payments') or has_perm('manage_expenses') or has_perm('manage_ledger') or has_perm('manage_currencies') or has_perm('view_reports') %}
+        <li class="nav-item has-treeview {% if request.blueprint in ['payments', 'checks', 'expenses_bp', 'ledger', 'currencies', 'accounting_hub_bp', 'companies_bp', 'purchases_bp', 'fiscal_periods_bp', 'budgets', 'financial_reports'] %}menu-open{% endif %}">
+          <a href="#" class="nav-link {% if request.blueprint in ['payments', 'checks', 'expenses_bp', 'ledger', 'currencies', 'accounting_hub_bp', 'companies_bp', 'purchases_bp', 'fiscal_periods_bp', 'budgets', 'financial_reports'] %}active{% endif %}">
             <i class="nav-icon fas fa-calculator text-warning"></i>
             <p>
               المحاسبة
@@ -165,6 +171,30 @@
             </p>
           </a>
           <ul class="nav nav-treeview">
+            {% if has_perm('view_reports') %}
+            <li class="nav-item">
+              <a href="{{ url_for('accounting_hub_bp.index') }}" class="nav-link {% if request.blueprint == 'accounting_hub_bp' %}active{% endif %}">
+                <i class="far fa-circle nav-icon text-warning"></i>
+                <p>مركز المحاسبة</p>
+              </a>
+            </li>
+            {% endif %}
+            {% if has_perm('manage_ledger') %}
+            <li class="nav-item">
+              <a href="{{ url_for('fiscal_periods_bp.index') }}" class="nav-link {% if request.blueprint == 'fiscal_periods_bp' %}active{% endif %}">
+                <i class="far fa-circle nav-icon text-dark"></i>
+                <p>الفترات والإقفال</p>
+              </a>
+            </li>
+            {% endif %}
+            {% if has_perm('manage_branches') %}
+            <li class="nav-item">
+              <a href="{{ url_for('companies_bp.index') }}" class="nav-link {% if request.blueprint == 'companies_bp' %}active{% endif %}">
+                <i class="far fa-circle nav-icon text-secondary"></i>
+                <p>الشركات</p>
+              </a>
+            </li>
+            {% endif %}
             {% if is_module_enabled('payments') %}
             {% if has_perm('manage_payments') %}
             <li class="nav-item">

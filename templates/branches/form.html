@@ -32,6 +32,15 @@
           </div>
 
           <div class="col-md-4">
+            <label class="form-label fw-bold">الشركة <span class="text-danger">*</span></label>
+            <select name="company_id" class="custom-select" required>
+              {% for co in companies|default([]) %}
+              <option value="{{ co.id }}" {% if branch and branch.company_id == co.id %}selected{% endif %}>{{ co.name }} ({{ co.code }})</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="col-md-4">
             <label class="form-label fw-bold">
               الرمز <span class="text-danger">*</span>
             </label>

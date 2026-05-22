@@ -4529,10 +4529,34 @@ def _product_before_save(mapper, connection, t: Product):
     t.is_exchange = bool(t.is_exchange)
     t.is_published = bool(t.is_published)
 
+class Company(db.Model, TimestampMixin, AuditMixin):
+    """كيان قانوني — قاعدة واحدة، عدة شركات وفروع (بدون multi-tenant)."""
+    __tablename__ = "companies"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), nullable=False, index=True)
+    code = db.Column(db.String(32), nullable=False, unique=True, index=True)
+    legal_name = db.Column(db.String(250))
+    tax_id = db.Column(db.String(64), index=True)
+    currency = db.Column(db.String(10), nullable=False, server_default=sa_text("'ILS'"))
+    fiscal_year_start_month = db.Column(db.Integer, nullable=False, server_default=sa_text("1"))
+    address = db.Column(db.String(300))
+    phone = db.Column(db.String(32))
+    email = db.Column(db.String(120))
+    is_active = db.Column(db.Boolean, nullable=False, server_default=sa_text("true"), index=True)
+    notes = db.Column(db.Text)
+
+    branches = db.relationship("Branch", back_populates="company", lazy="dynamic")
+
+    def __repr__(self):
+        return f"<Company {self.code}:{self.name}>"
+
+
 class Branch(db.Model, TimestampMixin, AuditMixin):
     __tablename__ = 'branches'
 
     id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id", ondelete="RESTRICT"), nullable=False, index=True)
     name = db.Column(db.String(120), nullable=False, index=True)
     code = db.Column(db.String(32), nullable=False, unique=True)
     is_active = db.Column(db.Boolean, nullable=False, server_default=sa_text("true"), index=True)
@@ -4553,6 +4577,7 @@ class Branch(db.Model, TimestampMixin, AuditMixin):
     archived_by = db.Column(db.Integer, db.ForeignKey('users.id'), index=True)
     archive_reason = db.Column(db.String(200))
 
+    company = db.relationship("Company", back_populates="branches")
     manager_user = db.relationship('User', foreign_keys=[manager_user_id])
     manager_employee = db.relationship('Employee', foreign_keys=[manager_employee_id], post_update=True)
     archived_by_user = db.relationship('User', foreign_keys=[archived_by])
@@ -9380,6 +9405,94 @@ def build_supplier_settlement_draft(
     ss.ensure_code()
     return ss
 
+class PurchaseOrder(db.Model, TimestampMixin, AuditMixin):
+    """أمر شراء — يكمّل مسار الشحنات (ليس بديلاً عنها)."""
+    __tablename__ = "purchase_orders"
+
+    id = db.Column(db.Integer, primary_key=True)
+    number = db.Column(db.String(50), unique=True, index=True)
+    supplier_id = db.Column(db.Integer, db.ForeignKey("suppliers.id", ondelete="RESTRICT"), nullable=False, index=True)
+    branch_id = db.Column(db.Integer, db.ForeignKey("branches.id", ondelete="RESTRICT"), nullable=False, index=True)
+    order_date = db.Column(db.Date, nullable=False, index=True)
+    expected_date = db.Column(db.Date, index=True)
+    status = db.Column(
+        sa_str_enum(
+            ["DRAFT", "ORDERED", "PARTIAL", "RECEIVED", "CANCELLED"],
+            name="purchase_order_status",
+        ),
+        nullable=False,
+        default="DRAFT",
+        server_default=sa_text("'DRAFT'"),
+        index=True,
+    )
+    currency = db.Column(db.String(10), nullable=False, server_default=sa_text("'ILS'"))
+    total_amount = db.Column(db.Numeric(14, 2), nullable=False, server_default=sa_text("0"))
+    notes = db.Column(db.Text)
+
+    supplier = db.relationship("Supplier", backref=db.backref("purchase_orders", lazy="dynamic"))
+    branch = db.relationship("Branch", backref=db.backref("purchase_orders", lazy="dynamic"))
+    shipments = db.relationship("Shipment", back_populates="purchase_order", foreign_keys="Shipment.purchase_order_id")
+    lines = db.relationship(
+        "PurchaseOrderLine",
+        back_populates="purchase_order",
+        cascade="all, delete-orphan",
+        order_by="PurchaseOrderLine.id",
+    )
+
+    __table_args__ = (
+        db.CheckConstraint("total_amount >= 0", name="ck_po_total_ge_0"),
+    )
+
+    def __repr__(self):
+        return f"<PurchaseOrder {self.number} {self.status}>"
+
+
+class PurchaseOrderLine(db.Model, TimestampMixin):
+    __tablename__ = "purchase_order_lines"
+
+    id = db.Column(db.Integer, primary_key=True)
+    purchase_order_id = db.Column(
+        db.Integer, db.ForeignKey("purchase_orders.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    product_id = db.Column(db.Integer, db.ForeignKey("products.id", ondelete="RESTRICT"), nullable=False, index=True)
+    quantity = db.Column(db.Numeric(12, 3), nullable=False, default=1)
+    unit_price = db.Column(db.Numeric(12, 4), nullable=False, default=0)
+    received_qty = db.Column(db.Numeric(12, 3), nullable=False, server_default=sa_text("0"))
+    notes = db.Column(db.String(255))
+
+    purchase_order = db.relationship("PurchaseOrder", back_populates="lines")
+    product = db.relationship("Product")
+
+    __table_args__ = (
+        db.CheckConstraint("quantity > 0", name="ck_po_line_qty_pos"),
+        db.CheckConstraint("received_qty >= 0", name="ck_po_line_rcv_ge_0"),
+    )
+
+
+class PaymentAllocation(db.Model, TimestampMixin):
+    """توزيع يدوي للدفعة على مستندات مفتوحة (اختياري — لا يُفعّل تلقائياً)."""
+    __tablename__ = "payment_allocations"
+
+    id = db.Column(db.Integer, primary_key=True)
+    payment_id = db.Column(db.Integer, db.ForeignKey("payments.id", ondelete="CASCADE"), nullable=False, index=True)
+    entity_type = db.Column(
+        sa_str_enum(["SALE", "INVOICE", "SERVICE", "PREORDER"], name="payment_alloc_entity_type"),
+        nullable=False,
+        index=True,
+    )
+    entity_id = db.Column(db.Integer, nullable=False, index=True)
+    amount = db.Column(db.Numeric(14, 2), nullable=False)
+    currency = db.Column(db.String(10), default="ILS")
+    notes = db.Column(db.String(255))
+
+    payment = db.relationship("Payment", backref=db.backref("allocations", lazy="dynamic", cascade="all, delete-orphan"))
+
+    __table_args__ = (
+        db.UniqueConstraint("payment_id", "entity_type", "entity_id", name="uq_payment_alloc_target"),
+        db.CheckConstraint("amount > 0", name="ck_payment_alloc_amt_pos"),
+    )
+
+
 class ShipmentItem(db.Model):
     __tablename__ = "shipment_items"
 
@@ -9474,6 +9587,7 @@ class Shipment(db.Model, TimestampMixin, AuditMixin):
     fx_quote_currency = db.Column(db.String(10))
     
     sale_id = db.Column(db.Integer, db.ForeignKey("sales.id"), index=True)
+    purchase_order_id = db.Column(db.Integer, db.ForeignKey("purchase_orders.id", ondelete="SET NULL"), index=True)
     
     # حقول إضافية للشحنات
     weight = db.Column(db.Numeric(10, 3))  # الوزن بالكيلو
@@ -9498,6 +9612,7 @@ class Shipment(db.Model, TimestampMixin, AuditMixin):
     partners = db.relationship("ShipmentPartner", back_populates="shipment", cascade="all, delete-orphan", order_by="ShipmentPartner.id")
     payments = db.relationship("Payment", back_populates="shipment", order_by="Payment.id")
     sale     = db.relationship("Sale", back_populates="shipments")
+    purchase_order = db.relationship("PurchaseOrder", back_populates="shipments", foreign_keys=[purchase_order_id])
     destination_warehouse = db.relationship("Warehouse", back_populates="shipments_received", foreign_keys=[destination_id])
     expenses = db.relationship("Expense", back_populates="shipment", passive_deletes=True, order_by="Expense.id")
     archived_by_user = db.relationship("User", foreign_keys=[archived_by])

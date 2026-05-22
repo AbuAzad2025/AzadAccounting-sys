@@ -81,6 +81,9 @@ from routes.supplier_settlements import supplier_settlements_bp
 from routes.ledger_blueprint import ledger_bp
 from routes.ledger_control import ledger_control_bp
 from routes.fiscal_periods import fiscal_periods_bp
+from routes.companies import companies_bp
+from routes.purchases import purchases_bp
+from routes.accounting_hub import accounting_hub_bp
 from routes.financial_reports import financial_reports_bp
 from routes.accounting_validation import accounting_validation_bp
 from routes.accounting_docs import accounting_docs_bp
@@ -746,6 +749,9 @@ def _register_blueprints(app):
         barcode_scanner_bp,
         ledger_control_bp,
         fiscal_periods_bp,
+        companies_bp,
+        purchases_bp,
+        accounting_hub_bp,
         ai_bp,
         ai_admin_bp,
         user_guide_bp,
