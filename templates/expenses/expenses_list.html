@@ -572,13 +572,13 @@
             {% if e.supplier %}
               {% set payee = namespace(label='المورد', name=e.supplier.name, chip='supplier', guessed=False) %}
             {% elif e.customer %}
-              {% set payee = namespace(label='العميل', name=e.customer.name, chip='customer', guessed=False) %}
+              {% set payee = namespace(label='الزبون', name=e.customer.name, chip='customer', guessed=False) %}
             {% elif e.partner %}
               {% set payee = namespace(label='الشريك', name=e.partner.name, chip='partner', guessed=False) %}
             {% elif e.employee %}
               {% set payee = namespace(label='الموظف', name=e.employee.name, chip='employee', guessed=False) %}
             {% elif pt == 'CUSTOMER' %}
-              {% set payee = namespace(label='العميل', name=e.payee_name or ('عميل #' ~ e.payee_entity_id if e.payee_entity_id else '—'), chip='customer', guessed=False) %}
+              {% set payee = namespace(label='الزبون', name=e.payee_name or ('زبون #' ~ e.payee_entity_id if e.payee_entity_id else '—'), chip='customer', guessed=False) %}
             {% elif pt == 'SUPPLIER' %}
               {% set payee = namespace(label='المورد', name=e.payee_name or ('مورد #' ~ e.payee_entity_id if e.payee_entity_id else '—'), chip='supplier', guessed=False) %}
             {% elif pt == 'PARTNER' %}

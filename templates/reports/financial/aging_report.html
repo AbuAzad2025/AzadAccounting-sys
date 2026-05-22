@@ -21,7 +21,7 @@
                     <div class="btn-group w-100" role="group">
                         <a href="/financial-reports/aging-report?type=ar" 
                            class="btn {% if report_type == 'ar' %}btn-primary{% else %}btn-outline-primary{% endif %}">
-                            📥 ذمم العملاء (AR)
+                            📥 ذمم الزبائن (AR)
                         </a>
                         <a href="/financial-reports/aging-report?type=ap" 
                            class="btn {% if report_type == 'ap' %}btn-primary{% else %}btn-outline-primary{% endif %}">
@@ -74,7 +74,7 @@
                 <thead class="table-dark">
                     <tr>
                         <th>#</th>
-                        <th>{% if report_type == 'ar' %}العميل{% else %}الجهة{% endif %}</th>
+                        <th>{% if report_type == 'ar' %}الزبون{% else %}الجهة{% endif %}</th>
                         <th>المبلغ</th>
                         <th>العمر (يوم)</th>
                         <th>التصنيف</th>

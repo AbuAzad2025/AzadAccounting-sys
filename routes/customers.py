@@ -75,7 +75,7 @@ def _recalculate_customer_balance(customer_id):
         session.commit()
     except Exception as e:
         session.rollback()
-        current_app.logger.error(f"خطأ في إعادة حساب رصيد العميل {customer_id}: {e}")
+        current_app.logger.error(f"خطأ في إعادة حساب رصيد الزبون {customer_id}: {e}")
     finally:
         session.close()
 class CustomEncoder(json.JSONEncoder):
@@ -128,7 +128,7 @@ def log_customer_action(cust, action, old_data=None, new_data=None):
 @customers_bp.route("/", methods=["GET"], endpoint="list_customers")
 @login_required
 def list_customers():
-    # عرض جميع العملاء مع فلتر افتراضي لاستبعاد المؤرشفين إلا إذا طلب خلاف ذلك
+    # عرض جميع الزبائن مع فلتر افتراضي لاستبعاد المؤرشفين إلا إذا طلب خلاف ذلك
     q = Customer.query.options(
         selectinload(Customer.supplier_link).load_only(Supplier.id, Supplier.name),
         selectinload(Customer.partner_link).load_only(Partner.id, Partner.name),
@@ -433,7 +433,7 @@ def balances_recalculate():
     if not customer_ids:
         if request.accept_mimetypes.best == "application/json":
             return jsonify({"success": False, "message": "no_customer_ids"}), 400
-        flash("أدخل أرقام العملاء لتحديث الأرصدة.", "warning")
+        flash("أدخل أرقام الزبائن لتحديث الأرصدة.", "warning")
         return redirect(url_for("customers_bp.list_customers"))
 
     try:
@@ -456,7 +456,7 @@ def balances_recalculate():
             session.close()
         if request.accept_mimetypes.best == "application/json":
             return jsonify({"success": True, "updated": updated})
-        flash(f"تم تحديث أرصدة {updated} عميل.", "success")
+        flash(f"تم تحديث أرصدة {updated} زبون.", "success")
         return redirect(url_for("customers_bp.list_customers"))
     except Exception as e:
         if request.accept_mimetypes.best == "application/json":
@@ -561,7 +561,7 @@ def customer_analytics(customer_id):
     docs_count = len(invoices) + len(sales) + len(services)
     avg_purchase = (total_purchases / docs_count) if docs_count else D(0)
 
-    # تحسين: استعلام واحد لجلب جميع الدفعات المكتملة للعميل (مباشرة أو مرتبطة)
+    # تحسين: استعلام واحد لجلب جميع الدفعات المكتملة للزبون (مباشرة أو مرتبطة)
     all_payments = db.session.query(Payment).outerjoin(
         Sale, Payment.sale_id == Sale.id
     ).outerjoin(
@@ -774,7 +774,7 @@ def create_customer():
         if "email" in detail.lower():
             field_errs["email"] = ["هذا البريد مستخدم مسبقًا"]
         if "phone" in detail.lower() or "whatsapp" in detail.lower():
-            # البحث عن هوية العميل الموجود لإظهار رابط فتحه على الواجهة
+            # البحث عن هوية الزبون الموجود لإظهار رابط فتحه على الواجهة
             try:
                 existing_obj = db.session.query(Customer.id).filter(Customer.phone == cust.phone).first()
                 existing_id = existing_obj.id if existing_obj else None
@@ -797,8 +797,8 @@ def create_customer():
         db.session.rollback()
         current_app.logger.exception("SQLAlchemyError while creating customer")
         if is_ajax:
-            return jsonify({"ok": False, "message": "خطأ أثناء إضافة العميل"}), 500
-        flash('❌ خطأ أثناء إضافة العميل', 'danger')
+            return jsonify({"ok": False, "message": "خطأ أثناء إضافة الزبون"}), 500
+        flash('❌ خطأ أثناء إضافة الزبون', 'danger')
         # إبقاء المستخدم على نفس الصفحة مع عرض الخطأ بشكل ودي
         return render_template("customers/new.html", form=form, return_to=request.form.get("return_to"))
     if is_ajax:
@@ -807,7 +807,7 @@ def create_customer():
         except Exception:
             pass
         return jsonify({"ok": True, "id": cust.id, "text": cust.name}), 201
-    flash("تم إنشاء العميل بنجاح", "success")
+    flash("تم إنشاء الزبون بنجاح", "success")
     return_to = request.form.get("return_to") or request.args.get("return_to")
     if return_to:
         return redirect(return_to)
@@ -850,9 +850,9 @@ def edit_customer(customer_id):
             except SQLAlchemyError:
                 db.session.rollback()
                 current_app.logger.exception("SQLAlchemyError while editing customer")
-                flash('❌ خطأ أثناء تعديل العميل', 'danger')
+                flash('❌ خطأ أثناء تعديل الزبون', 'danger')
                 return render_template("customers/edit.html", form=form, customer=cust), 500
-            flash("تم تعديل بيانات العميل", "success")
+            flash("تم تعديل بيانات الزبون", "success")
             return redirect(url_for("customers_bp.customer_detail", customer_id=customer_id))
         current_app.logger.warning("CustomerForm errors (edit): %s", form.errors)
         if form.errors:
@@ -875,14 +875,14 @@ def delete_customer(id):
     has_opening_balance = (customer.opening_balance and float(customer.opening_balance) != 0)
     
     if has_invoices or has_payments or has_sales or has_services or has_preorders or has_opening_balance:
-        flash("❌ لا يمكن حذف العميل لأنه مرتبط بمعاملات أو له رصيد افتتاحي.", "danger")
+        flash("❌ لا يمكن حذف الزبون لأنه مرتبط بمعاملات أو له رصيد افتتاحي.", "danger")
         return redirect(url_for("customers_bp.list_customers"))
     
     try:
         name = customer.name
         db.session.delete(customer)
         db.session.commit()
-        flash(f"✅ تم حذف العميل: {name}", "success")
+        flash(f"✅ تم حذف الزبون: {name}", "success")
     except Exception as e:
         db.session.rollback()
         current_app.logger.exception('internal error')
@@ -967,7 +967,7 @@ def import_customers():
     except SQLAlchemyError as e:
         db.session.rollback()
         errors.append(f"فشل حفظ الدفعة: {e}")
-    flash(f"تم استيراد {count} عميل", "success")
+    flash(f"تم استيراد {count} زبون", "success")
     if errors:
         flash("; ".join(errors), "warning")
     return redirect(url_for("customers_bp.list_customers"))
@@ -978,7 +978,7 @@ def import_customers():
 def customer_whatsapp(customer_id):
     c = db.session.get(Customer, customer_id) or abort(404)
     if not c.whatsapp:
-        flash("لا يوجد رقم واتساب للعميل", "warning")
+        flash("لا يوجد رقم واتساب للزبون", "warning")
         return redirect(url_for("customers_bp.customer_detail", customer_id=customer_id))
     ok, info = utils.send_whatsapp_message(c.whatsapp, f"رصيدك الحالي: {getattr(c, 'balance', 0):,.2f}")
     if ok:
@@ -1423,13 +1423,13 @@ def account_statement(customer_id):
     
     # ✅ إضافة joinedload(Payment.splits) لجميع استعلامات الدفعات لضمان تحميل splits
     # ✅ إضافة selectinload(Payment.related_check) لتحميل الشيكات المرتبطة وتجنب N+1 queries
-    # ✅ البحث عن جميع الدفعات المباشرة للعميل (بما في ذلك entity_type == 'CUSTOMER')
-    # تحسين كبير: استعلام واحد لجلب جميع الدفعات المرتبطة بالعميل
+    # ✅ البحث عن جميع الدفعات المباشرة للزبون (بما في ذلك entity_type == 'CUSTOMER')
+    # تحسين كبير: استعلام واحد لجلب جميع الدفعات المرتبطة بالزبون
     # يجمع الدفعات المباشرة، ودفعات المبيعات، والفواتير، والخدمات، والطلبات المسبقة، والمصاريف
     # يستخدم Outer Joins لتجنب الاستعلامات المتعددة (N+1 queries are handled via eager loading)
     
     from models import Expense
-    # نحتاج لمعرفة مصاريف العميل لتضمين دفعاتها
+    # نحتاج لمعرفة مصاريف الزبون لتضمين دفعاتها
     expense_ids_with_customer = [e.id for e in Expense.query.filter(Expense.customer_id == customer_id).all()]
     
     # بناء شروط البحث
@@ -1827,9 +1827,9 @@ def account_statement(customer_id):
             continue
         
         # حساب debit/credit
-        # في محاسبة العملاء:
-        # - الدفعة الواردة (IN) = العميل دفع لنا = له (حق له = تقليل ما عليه) = credit (دائن)
-        # - الدفعة الصادرة (OUT) = دفعنا للعميل = عليه (التزام عليه = يجب أن يعيد المبلغ) = debit (مدين)
+        # في محاسبة الزبائن:
+        # - الدفعة الواردة (IN) = الزبون دفع لنا = له (حق له = تقليل ما عليه) = credit (دائن)
+        # - الدفعة الصادرة (OUT) = دفعنا للزبون = عليه (التزام عليه = يجب أن يعيد المبلغ) = debit (مدين)
         
         returned_checks_amount = D(0)
         returned_checks_list = []
@@ -1978,7 +1978,7 @@ def account_statement(customer_id):
         
         if not should_skip:
             # ✅ عرض الدفعة كسطر واحد بالمبلغ الإجمالي بدلاً من تفصيل كل split
-            # العميل يتذكر فقط المبلغ الكلي الذي دفعه، لا يحتاج لرؤية التوزيع
+            # الزبون يتذكر فقط المبلغ الكلي الذي دفعه، لا يحتاج لرؤية التوزيع
             # تفاصيل التوزيع (splits) تبقى متاحة في صفحة تفاصيل الدفعة الداخلية
             if splits and len(splits) > 0:
                 # عرض الدفعة كسطر واحد مجمّع بالمبلغ الإجمالي
@@ -2183,8 +2183,8 @@ def account_statement(customer_id):
                 current_app.logger.debug('Currency conversion skipped')
         
         # حساب debit/credit للشيكات اليدوية
-        # الشيك الوارد (IN) = العميل دفع لنا = credit (دائن) = تقليل ما عليه
-        # الشيك الصادر (OUT) = دفعنا للعميل = debit (مدين) = زيادة ما عليه
+        # الشيك الوارد (IN) = الزبون دفع لنا = credit (دائن) = تقليل ما عليه
+        # الشيك الصادر (OUT) = دفعنا للزبون = debit (مدين) = زيادة ما عليه
         is_in = not is_out
         
         if is_legal or is_settled:
@@ -2523,7 +2523,7 @@ def account_statement(customer_id):
         diff_val2 = abs(float(current_balance - final_running_balance))
         if diff_val2 > 0.01:
             current_app.logger.warning(
-                f"⚠️ عدم تطابق الرصيد في كشف حساب العميل {customer_id}: "
+                f"⚠️ عدم تطابق الرصيد في كشف حساب الزبون {customer_id}: "
                 f"current_balance={current_balance}, calculated_balance={final_running_balance}, "
                 f"difference={diff_val2}"
             )
@@ -2796,9 +2796,9 @@ def archive_customer(customer_id):
         utils.archive_record(customer, reason, current_user.id)
         
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return jsonify({'success': True, 'message': f'تم أرشفة العميل {customer.name} بنجاح'})
+            return jsonify({'success': True, 'message': f'تم أرشفة الزبون {customer.name} بنجاح'})
             
-        flash(f'تم أرشفة العميل {customer.name} بنجاح', 'success')
+        flash(f'تم أرشفة الزبون {customer.name} بنجاح', 'success')
         return redirect(url_for('customers_bp.list_customers'))
         
     except Exception as e:
@@ -2819,8 +2819,8 @@ def restore_customer(customer_id):
         
         if not customer.is_archived:
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                return jsonify({'success': False, 'message': 'العميل غير مؤرشف'}), 400
-            flash('العميل غير مؤرشف', 'warning')
+                return jsonify({'success': False, 'message': 'الزبون غير مؤرشف'}), 400
+            flash('الزبون غير مؤرشف', 'warning')
             return redirect(url_for('customers_bp.list_customers'))
         
         from models import Archive
@@ -2838,9 +2838,9 @@ def restore_customer(customer_id):
             db.session.commit()
             
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return jsonify({'success': True, 'message': f'تم استعادة العميل {customer.name} بنجاح'})
+            return jsonify({'success': True, 'message': f'تم استعادة الزبون {customer.name} بنجاح'})
             
-        flash(f'تم استعادة العميل {customer.name} بنجاح', 'success')
+        flash(f'تم استعادة الزبون {customer.name} بنجاح', 'success')
         return redirect(url_for('customers_bp.list_customers'))
         
     except Exception as e:
@@ -2865,9 +2865,9 @@ def _generate_smart_password(customer):
 @customers_bp.route('/reset-passwords', methods=['POST'])
 @login_required
 def reset_passwords():
-    """تعيين كلمة مرور فريدة عشوائية لكل عميل لا يملك كلمة مرور.
-    يولّد كلمة مرور ذكية لكل عميل على حدة ويعرض قائمة البيانات للمدير.
-    إذا مرّر المستخدم `default_password` عبر النموذج، يُستخدم لجميع العملاء بدلاً من التوليد.
+    """تعيين كلمة مرور فريدة عشوائية لكل زبون لا يملك كلمة مرور.
+    يولّد كلمة مرور ذكية لكل زبون على حدة ويعرض قائمة البيانات للمدير.
+    إذا مرّر المستخدم `default_password` عبر النموذج، يُستخدم لجميع الزبائن بدلاً من التوليد.
     """
     try:
         from werkzeug.security import generate_password_hash
@@ -2903,10 +2903,10 @@ def reset_passwords():
         db.session.commit()
 
         if total_candidates == 0:
-            flash('ℹ️ لا يوجد عملاء بحاجة لتعيين كلمة مرور (الحقل موجود بالفعل).', 'info')
+            flash('ℹ️ لا يوجد زبائن بحاجة لتعيين كلمة مرور (الحقل موجود بالفعل).', 'info')
             return redirect(url_for('customers_bp.list_customers'))
 
-        flash(f'✅ تم تعيين كلمة مرور فريدة لعدد {updated} عميل من أصل {total_candidates}.', 'success')
+        flash(f'✅ تم تعيين كلمة مرور فريدة لعدد {updated} زبون من أصل {total_candidates}.', 'success')
         from markupsafe import escape as _esc
         rows_html = ''.join(
             f"<tr><td>{c['id']}</td><td>{_esc(c['name'])}</td><td>{_esc(c['phone'])}</td><td style='font-family:monospace'>{_esc(c['password'])}</td></tr>"
@@ -2967,7 +2967,7 @@ def make_online_all():
         db.session.commit()
 
         if new_passwords:
-            flash(f'✅ تم تحويل {updated} عميل للأونلاين. تم توليد كلمات مرور لـ {len(new_passwords)} عميل.', 'success')
+            flash(f'✅ تم تحويل {updated} زبون للأونلاين. تم توليد كلمات مرور لـ {len(new_passwords)} زبون.', 'success')
             from markupsafe import escape as _esc
             rows_html = ''.join(
                 f"<tr><td>{c['id']}</td><td>{_esc(c['name'])}</td><td>{_esc(c['phone'])}</td><td style='font-family:monospace'>{_esc(c['password'])}</td></tr>"
@@ -2977,7 +2977,7 @@ def make_online_all():
                 "{{ html_content|safe }}",
                 html_content=(
                     "<div class='container py-3'>"
-                    "<h4><i class='fas fa-key'></i> كلمات المرور المولّدة للعملاء الجدد</h4>"
+                    "<h4><i class='fas fa-key'></i> كلمات المرور المولّدة للزبائن الجدد</h4>"
                     "<div class='alert alert-warning'>احفظ هذه القائمة الآن — لن تظهر مرة أخرى.</div>"
                     "<table class='table table-striped table-bordered'>"
                     "<thead><tr><th>ID</th><th>الاسم</th><th>الجوال</th><th>كلمة المرور</th></tr></thead>"
@@ -2987,12 +2987,12 @@ def make_online_all():
                 )
             )
 
-        flash(f'✅ تم تحويل جميع العملاء ({updated}) إلى وضع الأونلاين.', 'success')
+        flash(f'✅ تم تحويل جميع الزبائن ({updated}) إلى وضع الأونلاين.', 'success')
         return redirect(url_for('customers_bp.list_customers'))
     except Exception as e:
         db.session.rollback()
-        current_app.logger.error("خطأ في تحويل العملاء للأونلاين: %s", e)
-        flash('خطأ أثناء تحويل العملاء للأونلاين', 'error')
+        current_app.logger.error("خطأ في تحويل الزبائن للأونلاين: %s", e)
+        flash('خطأ أثناء تحويل الزبائن للأونلاين', 'error')
         return redirect(url_for('customers_bp.list_customers'))
 
 
@@ -3017,7 +3017,7 @@ def set_default_emails():
             cust.email = target_email
             updated += 1
         db.session.commit()
-        flash(f'✅ تم ضبط بريد افتراضي لـ {updated} عميل. تم تخطي {skipped} بسبب تعارض أو عدم وجود هاتف.', 'success')
+        flash(f'✅ تم ضبط بريد افتراضي لـ {updated} زبون. تم تخطي {skipped} بسبب تعارض أو عدم وجود هاتف.', 'success')
         return redirect(url_for('customers_bp.list_customers'))
     except Exception as e:
         db.session.rollback()
@@ -3044,7 +3044,7 @@ def export_online_credentials():
         })
     html = [
         "<div class='container py-3'>",
-        "<h4><i class='fas fa-id-card'></i> حسابات دخول العملاء</h4>",
+        "<h4><i class='fas fa-id-card'></i> حسابات دخول الزبائن</h4>",
         "<div class='alert alert-info'>كلمات المرور مُشفّرة ولا يمكن عرضها. استخدم 'تعيين كلمات المرور' لتوليد جديدة.</div>",
         "<table class='table table-striped table-bordered'>",
         "<thead><tr><th>ID</th><th>الاسم</th><th>الجوال</th><th>اسم المستخدم</th><th>حالة كلمة المرور</th></tr></thead>",

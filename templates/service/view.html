@@ -51,7 +51,7 @@
         <div class="col-md-6">
           <div class="card border-0 bg-light">
             <div class="card-body">
-              <h6 class="fw-bold text-primary"><i class="fas fa-user"></i> معلومات العميل</h6>
+              <h6 class="fw-bold text-primary"><i class="fas fa-user"></i> معلومات الزبون</h6>
               <table class="table table-sm table-borderless">
                 <tr><th>الاسم:</th><td>{{ service.customer and service.customer.name or '—' }}</td></tr>
                 <tr><th>الجوال:</th><td>{{ service.customer and service.customer.phone or '—' }}</td></tr>
@@ -214,7 +214,7 @@
                 <strong>رقم الطلب:</strong> {{ service.service_number or ('#' ~ service.id) }}
               </div>
               <div class="col-md-6">
-                <strong>العميل:</strong> {{ service.customer.name if service.customer else '—' }}
+                <strong>الزبون:</strong> {{ service.customer.name if service.customer else '—' }}
               </div>
             </div>
           </div>

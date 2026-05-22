@@ -512,7 +512,7 @@ def dashboard():
     
     active_existing = customer_data['active_existing']
     inactive_count = customer_data['inactive_count']
-    customer_segment_labels = ["عملاء جدد", "عملاء نشطين", "عملاء غير نشطين"]
+    customer_segment_labels = ["زبائن جدد", "زبائن نشطين", "زبائن غير نشطين"]
     customer_segment_values = [
         customer_data['new_count'],
         active_existing,
@@ -625,7 +625,7 @@ def dashboard():
                     balance_value = cust_obj.balance
                 except Exception as exc:
                     current_app.logger.warning(
-                        f"⚠️ خطأ في حساب رصيد العميل #{cust_id}: {exc}"
+                        f"⚠️ خطأ في حساب رصيد الزبون #{cust_id}: {exc}"
                     )
             if balance_value and balance_value < 0:
                 amount_due = abs(float(balance_value))
@@ -633,7 +633,7 @@ def dashboard():
                     "category": "الذمم",
                     "severity": "warning",
                     "icon": "fas fa-user-clock",
-                    "title": f"دين على العميل {cust_name}",
+                    "title": f"دين على الزبون {cust_name}",
                     "message": f"عدد الفواتير المفتوحة: {sale_count}",
                     "amount_display": f"{amount_due:,.2f} ₪",
                     "link": url_for('customers_bp.list_customers', name=cust_name),

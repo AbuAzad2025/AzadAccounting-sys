@@ -37,9 +37,9 @@ class PermissionsRegistry:
         SystemPermissions.MANAGE_PERMISSIONS: 'إدارة_الصلاحيات',
         SystemPermissions.MANAGE_ROLES: 'إدارة_الأدوار',
         SystemPermissions.MANAGE_USERS: 'إدارة_المستخدمين',
-        SystemPermissions.MANAGE_CUSTOMERS: 'إدارة_العملاء',
-        SystemPermissions.ADD_CUSTOMER: 'إضافة_عميل',
-        SystemPermissions.VIEW_CUSTOMERS: 'عرض_العملاء',
+        SystemPermissions.MANAGE_CUSTOMERS: 'إدارة_الزبائن',
+        SystemPermissions.ADD_CUSTOMER: 'إضافة_زبون',
+        SystemPermissions.VIEW_CUSTOMERS: 'عرض_الزبائن',
         SystemPermissions.MANAGE_SALES: 'إدارة_المبيعات',
         SystemPermissions.ARCHIVE_SALE: 'أرشفة_المبيعات',
         SystemPermissions.VIEW_SALES: 'عرض_المبيعات',
@@ -248,23 +248,23 @@ class PermissionsRegistry:
         
         'customers': {
             SystemPermissions.MANAGE_CUSTOMERS: {
-                'name_ar': 'إدارة العملاء',
-                'code_ar': 'إدارة_العملاء',
-                'description': 'إدارة كاملة للعملاء',
+                'name_ar': 'إدارة الزبائن',
+                'code_ar': 'إدارة_الزبائن',
+                'description': 'إدارة كاملة للزبائن',
                 'module': 'customers',
                 'is_protected': False,
             },
             SystemPermissions.ADD_CUSTOMER: {
-                'name_ar': 'إضافة عميل',
-                'code_ar': 'إضافة_عميل',
-                'description': 'إضافة عميل جديد',
+                'name_ar': 'إضافة زبون',
+                'code_ar': 'إضافة_زبون',
+                'description': 'إضافة زبون جديد',
                 'module': 'customers',
                 'is_protected': False,
             },
             SystemPermissions.VIEW_CUSTOMERS: {
-                'name_ar': 'عرض العملاء',
-                'code_ar': 'عرض_العملاء',
-                'description': 'عرض قائمة العملاء',
+                'name_ar': 'عرض الزبائن',
+                'code_ar': 'عرض_الزبائن',
+                'description': 'عرض قائمة الزبائن',
                 'module': 'customers',
                 'is_protected': False,
             },
@@ -960,8 +960,8 @@ class PermissionsRegistry:
         },
         
         SystemRoles.REGISTERED_CUSTOMER: {
-            'name_ar': 'عميل مسجل',
-            'description': '🛒 عميل - التصفح والطلبات الشخصية',
+            'name_ar': 'زبون مسجّل',
+            'description': '🛒 زبون - التصفح والطلبات الشخصية',
             'permissions': [
                 SystemPermissions.VIEW_SHOP, SystemPermissions.BROWSE_PRODUCTS,
             ],

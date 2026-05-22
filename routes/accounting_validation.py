@@ -139,8 +139,8 @@ def entity_balance_verification():
     try:
         verification_results = []
         
-        # فحص أرصدة العملاء
-        customers = Customer.query.limit(10).all()  # عينة من العملاء
+        # فحص أرصدة الزبائن
+        customers = Customer.query.limit(10).all()  # عينة من الزبائن
         for customer in customers:
             try:
                 # حساب الرصيد من GL

@@ -920,10 +920,10 @@ def generic_search(target: str):
                     url_for("customers_bp.customer_detail", customer_id=c0.id),
                     c0.name or f"#{c0.id}",
                     (c0.phone or c0.email or "").strip() or None,
-                    "عميل",
+                    "زبون",
                     "badge-info",
                 )
-                html_parts.append(_section("العملاء", items))
+                html_parts.append(_section("الزبائن", items))
                 return
         qry = Customer.query.filter(Customer.is_archived == False)
         qry = qry.filter(or_(Customer.name.ilike(q_like), Customer.phone.ilike(q_like), Customer.email.ilike(q_like)))
@@ -935,12 +935,12 @@ def generic_search(target: str):
                 url_for("customers_bp.customer_detail", customer_id=c.id),
                 c.name or f"#{c.id}",
                 (c.phone or c.email or "").strip() or None,
-                "عميل",
+                "زبون",
                 "badge-info",
             )
             for c in rows
         )
-        html_parts.append(_section("العملاء", items))
+        html_parts.append(_section("الزبائن", items))
 
     def _append_suppliers():
         if not allow_vendors:
@@ -1569,7 +1569,7 @@ def create_customer_api():
         return jsonify({"id": c.id, "text": c.name}), 201
     except SQLAlchemyError:
         db.session.rollback()
-        return jsonify({"error": "فشل حفظ العميل"}), 500
+        return jsonify({"error": "فشل حفظ الزبون"}), 500
 
 @bp.get("/search_suppliers")
 @login_required
@@ -4023,23 +4023,23 @@ def api_archive_stats():
 @bp.route("/archive/customer/<int:customer_id>", methods=["POST"])
 @login_required
 def api_archive_customer(customer_id):
-    """أرشفة عميل عبر API"""
+    """أرشفة زبون عبر API"""
     try:
         customer = db.get_or_404(Customer, customer_id)
         
         if customer.is_archived:
-            return jsonify({'success': False, 'error': 'العميل مؤرشف بالفعل'}), 400
+            return jsonify({'success': False, 'error': 'الزبون مؤرشف بالفعل'}), 400
         
         reason = request.json.get('reason', 'أرشفة عبر API')
         
-        # أرشفة العميل
+        # أرشفة الزبون
         archive = Archive.archive_record(
             record=customer,
             reason=reason,
             user_id=current_user.id
         )
         
-        # تحديث حالة العميل
+        # تحديث حالة الزبون
         customer.is_archived = True
         customer.archived_at = datetime.now(timezone.utc)
         customer.archived_by = current_user.id
@@ -4049,7 +4049,7 @@ def api_archive_customer(customer_id):
         
         return jsonify({
             'success': True,
-            'message': f'تم أرشفة العميل {customer.name} بنجاح',
+            'message': f'تم أرشفة الزبون {customer.name} بنجاح',
             'data': {
                 'customer_id': customer.id,
                 'archive_id': archive.id
@@ -4312,12 +4312,12 @@ def api_archive_payment(payment_id):
 @bp.route("/restore/customer/<int:customer_id>", methods=["POST"])
 @login_required
 def api_restore_customer(customer_id):
-    """استعادة عميل عبر API"""
+    """استعادة زبون عبر API"""
     try:
         customer = db.get_or_404(Customer, customer_id)
         
         if not customer.is_archived:
-            return jsonify({'success': False, 'error': 'العميل غير مؤرشف'}), 400
+            return jsonify({'success': False, 'error': 'الزبون غير مؤرشف'}), 400
         
         # البحث عن الأرشيف
         archive = Archive.query.filter_by(
@@ -4328,7 +4328,7 @@ def api_restore_customer(customer_id):
         if archive:
             db.session.delete(archive)
         
-        # استعادة العميل
+        # استعادة الزبون
         customer.is_archived = False
         customer.archived_at = None
         customer.archived_by = None
@@ -4338,7 +4338,7 @@ def api_restore_customer(customer_id):
         
         return jsonify({
             'success': True,
-            'message': f'تم استعادة العميل {customer.name} بنجاح',
+            'message': f'تم استعادة الزبون {customer.name} بنجاح',
             'data': {
                 'customer_id': customer.id
             }

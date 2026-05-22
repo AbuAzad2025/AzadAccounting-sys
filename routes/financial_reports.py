@@ -921,9 +921,9 @@ def trial_balance():
             db.session.query(func.coalesce(func.sum(Customer.current_balance), 0)),
             branch_filter_ids,
         ).scalar() or 0
-        # الرصيد في المودل موجب يعني أن العميل مدين لنا (أصل)
-        # ولكن في قاعدة البيانات (customers table) الرصيد الموجب يعني أن العميل له رصيد عندنا (التزام)
-        # والسالب يعني أن العميل عليه رصيد لنا (أصل)
+        # الرصيد في المودل موجب يعني أن الزبون مدين لنا (أصل)
+        # ولكن في قاعدة البيانات (customers table) الرصيد الموجب يعني أن الزبون له رصيد عندنا (التزام)
+        # والسالب يعني أن الزبون عليه رصيد لنا (أصل)
         # بينما في GL (1100_AR) الرصيد المدين (الأصل) موجب
         # لذلك يجب عكس إشارة رصيد المودل ليتطابق مع GL
         ar_model_balance = -float(customers_total)
@@ -941,7 +941,7 @@ def trial_balance():
         ap_model_balance = float(suppliers_total) + float(partners_total)
         
         # حساب التسويات اليدوية (Manual Adjustments) لحسابات الذمم
-        # هذا ضروري لأن القيود اليدوية لا تحدث أرصدة العملاء/الموردين في المودل
+        # هذا ضروري لأن القيود اليدوية لا تحدث أرصدة الزبائن/الموردين في المودل
         manual_ar_adjustments = _apply_gl_branch(
             db.session.query(
                 func.coalesce(func.sum(GLEntry.debit - GLEntry.credit), 0)

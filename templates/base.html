@@ -160,6 +160,7 @@
   <link rel="stylesheet" href="{{ static_url('css/security_dark_mode.css') }}">
   <link rel="stylesheet" href="{{ static_url('css/numbers-fix.css') }}">
   <link rel="stylesheet" href="{{ static_url('css/bs5-utils.css') }}">
+  <link rel="stylesheet" href="{{ static_url('css/ux-unified.css') }}">
   <link rel="stylesheet" href="{{ static_url('css/print.css') }}" media="print">
   
   <!-- NProgress for loading indicator -->
@@ -415,7 +416,7 @@
   {% if (has_perm('view_customers') or has_perm('manage_customers')) and ('customers_bp.list_customers' in current_app.view_functions) %}
   <a class="gm-tab" href="{{ url_for('customers_bp.list_customers') }}">
     <i class="fas fa-users"></i>
-    <span>العملاء</span>
+    <span>الزبائن</span>
   </a>
   {% endif %}
   {% if (has_perm('view_sales') or has_perm('manage_sales')) and ('sales_bp.list_sales' in current_app.view_functions) %}
@@ -475,6 +476,7 @@
 </script>
 
 <script src="{{ static_url('js/dom-safe.js') }}"></script>
+<script src="{{ static_url('js/ux-forms.js') }}"></script>
 <script src="{{ static_url('js/fx_utils.js') }}"></script>
 {% if show_charts %}
 <script src="{{ static_url('js/charts.js') }}"></script>

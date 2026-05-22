@@ -530,7 +530,7 @@ class PaymentEntityType(str, enum.Enum):
     @property
     def label(self):
         return {
-            "CUSTOMER": "عميل",
+            "CUSTOMER": "زبون",
             "SUPPLIER": "مورد",
             "PARTNER": "شريك",
             "SHIPMENT": "شحنة",
@@ -772,7 +772,7 @@ class DeletionType(str, enum.Enum):
     @property
     def label(self):
         return {
-            "CUSTOMER": "عميل",
+            "CUSTOMER": "زبون",
             "SUPPLIER": "مورد",
             "PARTNER": "شريك",
             "SALE": "بيع",
@@ -2548,7 +2548,7 @@ def _customer_opening_balance_gl(mapper, connection, target: "Customer"):
         )
     except Exception as e:
         from flask import current_app
-        current_app.logger.warning(f"⚠️ خطأ في إنشاء GLBatch للرصيد الافتتاحي للعميل #{target.id}: {e}")
+        current_app.logger.warning(f"⚠️ خطأ في إنشاء GLBatch للرصيد الافتتاحي للزبون #{target.id}: {e}")
 
 
 @event.listens_for(Customer, "after_insert")
@@ -2655,7 +2655,7 @@ class Supplier(db.Model, TimestampMixin, AuditMixin):
     returned_checks_in_balance = Column(Numeric(12, 2), default=0, nullable=False, server_default=sa_text("0"), comment="رصيد الشيكات المرتدة الواردة")
     returned_checks_out_balance = Column(Numeric(12, 2), default=0, nullable=False, server_default=sa_text("0"), comment="رصيد الشيكات المرتدة الصادرة")
     
-    # ربط تلقائي مع جدول العملاء
+    # ربط تلقائي مع جدول الزبائن
     customer_id = db.Column(db.Integer, db.ForeignKey("customers.id"), index=True, nullable=True)
     
     # حقول الأرشيف
@@ -2811,7 +2811,7 @@ class Supplier(db.Model, TimestampMixin, AuditMixin):
         return f"<Supplier {self.name}>"
     
     def ensure_customer_link(self):
-        """ربط عميل تلقائياً - يبحث بالهاتف فقط (الأدق)"""
+        """ربط زبون تلقائياً - يبحث بالهاتف فقط (الأدق)"""
         if not self.customer_id and self.id and self.phone:
             existing = Customer.query.filter(Customer.phone == self.phone).first()
             if existing:
@@ -2820,7 +2820,7 @@ class Supplier(db.Model, TimestampMixin, AuditMixin):
 
 @event.listens_for(Supplier, "after_insert")  
 def supplier_after_insert_create_customer(mapper, connection, target):
-    """ربط أو إنشاء عميل تلقائياً للمورد الجديد"""
+    """ربط أو إنشاء زبون تلقائياً للمورد الجديد"""
     if target.customer_id:
         return
     from sqlalchemy import update as sa_update
@@ -3300,7 +3300,7 @@ class Partner(db.Model, TimestampMixin, AuditMixin):
     
     notes = db.Column(db.Text)
     
-    # ربط تلقائي مع جدول العملاء
+    # ربط تلقائي مع جدول الزبائن
     customer_id = db.Column(db.Integer, db.ForeignKey("customers.id"), index=True, nullable=True)
     
     # حقول الأرشيف
@@ -3442,7 +3442,7 @@ class Partner(db.Model, TimestampMixin, AuditMixin):
         return f"<Partner {self.name}>"
     
     def ensure_customer_link(self):
-        """ربط عميل تلقائياً - يبحث بالهاتف فقط (الأدق)"""
+        """ربط زبون تلقائياً - يبحث بالهاتف فقط (الأدق)"""
         if not self.customer_id and self.id and self.phone_number:
             existing = Customer.query.filter(Customer.phone == self.phone_number).first()
             if existing:
@@ -3451,7 +3451,7 @@ class Partner(db.Model, TimestampMixin, AuditMixin):
 
 @event.listens_for(Partner, "after_insert")
 def partner_after_insert_create_customer(mapper, connection, target):
-    """ربط أو إنشاء عميل تلقائياً للشريك الجديد"""
+    """ربط أو إنشاء زبون تلقائياً للشريك الجديد"""
     if target.customer_id:
         return
     from sqlalchemy import update as sa_update
@@ -5766,7 +5766,7 @@ class Sale(db.Model, TimestampMixin, AuditMixin):
         # كمّي رصيد المدفوع والمتبقي وفق عملة الفاتورة
         self.total_paid = float(q(total_paid))
         total_amount = float(q(self.total_amount or self.total or 0))
-        # ذمة المستند = الإجمالي؛ الدفعات على حساب العميل تُخفّض الرصيد العام فقط
+        # ذمة المستند = الإجمالي؛ الدفعات على حساب الزبون تُخفّض الرصيد العام فقط
         self.balance_due = float(q(total_amount))
         
         self.payment_status = (
@@ -5877,7 +5877,7 @@ def _reserve_release_on_status_change(target, value, oldvalue, initiator):
             cur_bal = float(target.customer.current_balance or target.customer.balance or 0)
             new_total = float(getattr(target, "total", None) or getattr(target, "total_amount", 0) or 0)
             if cur_bal + new_total > float(target.customer.credit_limit or 0):
-                raise Exception("تأكيد البيع مرفوض: حد الائتمان للعميل سيتجاوز المسموح.")
+                raise Exception("تأكيد البيع مرفوض: حد الائتمان للزبون سيتجاوز المسموح.")
         # تم تعطيل: target.reserve_stock()
     # elif oldv == SaleStatus.CONFIRMED.value and newv != SaleStatus.CONFIRMED.value:
         # تم تعطيل: target.release_stock()
@@ -6464,7 +6464,7 @@ class SaleReturnLine(db.Model):
     )
     
     # الجهة المسؤولة عن الخسارة (للتالف فقط)
-    # COMPANY = الشركة، SUPPLIER = المورد، PARTNER = الشريك، CUSTOMER = العميل
+    # COMPANY = الشركة، SUPPLIER = المورد، PARTNER = الشريك، CUSTOMER = الزبون
     liability_party = db.Column(
         sa_str_enum(["COMPANY", "SUPPLIER", "PARTNER", "CUSTOMER", "NONE"], name="return_liability_party"),
         nullable=True,
@@ -6616,7 +6616,7 @@ def _srl_after_insert(mapper, connection, t: "SaleReturnLine"):
                         _queue_partner_balance(t, wh_row.partner_id)
                 
                 elif liability == 'CUSTOMER':
-                    # العميل مسؤول (سوء استخدام) - لا نخفض دينه، يدفع التعويض
+                    # الزبون مسؤول (سوء استخدام) - لا نخفض دينه، يدفع التعويض
                     # يمكن إضافة قيد إضافي أو فاتورة تعويض هنا
                     pass
                 
@@ -7608,12 +7608,12 @@ class Payment(db.Model, TimestampMixin):
         raise ValueError("No link")
 
     def entity_label(self):
-        if self.customer: return f"العميل: {self.customer.name}"
+        if self.customer: return f"الزبون: {self.customer.name}"
         if self.supplier: return f"المورد: {self.supplier.name}"
         if self.partner: return f"الشريك: {self.partner.name}"
         if self.invoice:
             parts = [f"فاتورة #{self.invoice.invoice_number or self.invoice.id}"]
-            for attr, label in (("customer", "العميل"), ("supplier", "المورد"), ("partner", "الشريك")):
+            for attr, label in (("customer", "الزبون"), ("supplier", "المورد"), ("partner", "الشريك")):
                 obj = getattr(self.invoice, attr, None)
                 if obj:
                     parts.append(f"{label}: {obj.name}")
@@ -7623,7 +7623,7 @@ class Payment(db.Model, TimestampMixin):
             parts = [f"فاتورة مبيعات #{self.sale.sale_number or self.sale.id}"]
             customer = getattr(self.sale, "customer", None)
             if customer:
-                parts.append(f"العميل: {customer.name}")
+                parts.append(f"الزبون: {customer.name}")
             return " — ".join(parts)
         if self.shipment: return f"شحنة #{self.shipment.shipment_number or self.shipment.id}"
         if self.service:
@@ -7634,12 +7634,12 @@ class Payment(db.Model, TimestampMixin):
             if vehicle_info:
                 parts.append(f"المركبة: {vehicle_info}")
             if customer_name:
-                parts.append(f"العميل: {customer_name}")
+                parts.append(f"الزبون: {customer_name}")
             suffix = " — ".join(parts)
             return f"طلب صيانة #{identifier}" + (f" — {suffix}" if suffix else "")
         if self.preorder:
             parts = [f"طلب مسبق #{self.preorder.reference or self.preorder.id}"]
-            for attr, label in (("customer", "العميل"), ("supplier", "المورد"), ("partner", "الشريك")):
+            for attr, label in (("customer", "الزبون"), ("supplier", "المورد"), ("partner", "الشريك")):
                 obj = getattr(self.preorder, attr, None)
                 if obj:
                     parts.append(f"{label}: {obj.name}")
@@ -8962,7 +8962,7 @@ def _payment_split_gl_batch_upsert_by_id(connection, *, split_id: int) -> None:
                     pass
 
             entity_account = GL_ACCOUNTS.get("AR", "1100_AR")
-            entity_name = "عميل"
+            entity_name = "زبون"
 
             if payment_entity_type == PaymentEntityType.SUPPLIER.value or supplier_id:
                 entity_account = GL_ACCOUNTS.get("AP", "2000_AP")
@@ -11829,7 +11829,7 @@ def _online_preorder_gl_batch_upsert(mapper, connection, target: "OnlinePreOrder
     
     try:
         # القيد المحاسبي للطلب الأونلاين:
-        # مدين: 1100_AR (حساب العملاء)
+        # مدين: 1100_AR (حساب الزبائن)
         # دائن: 2300_ADV_PAY (دفعات مقدمة)
         entries = [
             (GL_ACCOUNTS.get("AR", "1100_AR"), amount, 0),
@@ -13132,7 +13132,7 @@ def _ensure_account_exists(connection, account_code: str) -> bool:
             "1000_CASH": "الصندوق",
             "1010_BANK": "البنك",
             "1020_CARD_CLEARING": "البطاقات",
-            "1100_AR": "ذمم العملاء",
+            "1100_AR": "ذمم الزبائن",
             "1150_CHQ_REC": "شيكات تحت التحصيل",
             "1205_INV_EXCHANGE": "مخزون توريد تبادل",
             "1300_INVENTORY": "المخزون",
@@ -14347,7 +14347,7 @@ class ProductRating(db.Model, TimestampMixin, AuditMixin):
             "id": self.id,
             "product_id": self.product_id,
             "customer_id": self.customer_id,
-            "customer_name": self.customer.name if self.customer else "عميل مجهول",
+            "customer_name": self.customer.name if self.customer else "زبون مجهول",
             "rating": self.rating,
             "title": self.title,
             "comment": self.comment,
@@ -14408,7 +14408,7 @@ class ProductRatingHelpful(db.Model, TimestampMixin):
     id = Column(Integer, primary_key=True)
     rating_id = Column(Integer, ForeignKey("product_ratings.id"), nullable=False)
     customer_id = Column(Integer, ForeignKey("customers.id"), nullable=True)
-    ip_address = Column(String(45), nullable=True)  # للعملاء غير المسجلين
+    ip_address = Column(String(45), nullable=True)  # للزبائن غير المسجلين
     is_helpful = Column(Boolean, nullable=False)
     
     # العلاقات
@@ -14459,10 +14459,10 @@ class ProductRatingHelpful(db.Model, TimestampMixin):
         db.session.commit()
 
 
-# ===== نظام الولاء للعملاء =====
+# ===== نظام الولاء للزبائن =====
 
 class CustomerLoyalty(db.Model, TimestampMixin, AuditMixin):
-    """نظام الولاء للعملاء"""
+    """نظام الولاء للزبائن"""
     __tablename__ = "customer_loyalty"
     
     id = Column(Integer, primary_key=True)
@@ -14497,7 +14497,7 @@ class CustomerLoyalty(db.Model, TimestampMixin, AuditMixin):
         }
     
     def add_points(self, points, reason="شراء"):
-        """إضافة نقاط للعميل"""
+        """إضافة نقاط للزبون"""
         self.total_points += points
         self.available_points += points
         self.last_activity = datetime.now(timezone.utc)
@@ -14518,7 +14518,7 @@ class CustomerLoyalty(db.Model, TimestampMixin, AuditMixin):
         db.session.commit()
     
     def use_points(self, points, reason="استرداد"):
-        """استخدام نقاط العميل"""
+        """استخدام نقاط الزبون"""
         if self.available_points < points:
             raise ValueError("نقاط غير كافية")
         
@@ -14553,7 +14553,7 @@ class CustomerLoyalty(db.Model, TimestampMixin, AuditMixin):
     
     @classmethod
     def get_or_create(cls, customer_id):
-        """الحصول على أو إنشاء سجل ولاء للعميل"""
+        """الحصول على أو إنشاء سجل ولاء للزبون"""
         loyalty = cls.query.filter_by(customer_id=customer_id).first()
         if not loyalty:
             loyalty = cls(customer_id=customer_id)
@@ -14681,13 +14681,13 @@ class Check(db.Model, TimestampMixin, AuditMixin):
     
     # معلومات إضافية
     notes = Column(Text)  # ملاحظات عامة
-    internal_notes = Column(Text)  # ملاحظات داخلية (لا تظهر للعميل)
+    internal_notes = Column(Text)  # ملاحظات داخلية (لا تظهر للزبون)
     reference_number = Column(String(100))  # رقم مرجعي
     
     # تاريخ التغييرات (JSON)
     status_history = Column(Text)  # JSON array of status changes
     
-    # الربط بعميل أو مورد (اختياري)
+    # الربط بزبون أو مورد (اختياري)
     customer_id = Column(Integer, ForeignKey("customers.id", ondelete="SET NULL"), index=True)
     supplier_id = Column(Integer, ForeignKey("suppliers.id", ondelete="SET NULL"), index=True)
     partner_id = Column(Integer, ForeignKey("partners.id", ondelete="SET NULL"), index=True)
@@ -14727,7 +14727,7 @@ class Check(db.Model, TimestampMixin, AuditMixin):
     
     @property
     def entity_name(self):
-        """الحصول على اسم العميل/المورد/الشريك/الشركة المرتبط بالشيك"""
+        """الحصول على اسم الزبون/المورد/الشريك/الشركة المرتبط بالشيك"""
         # الأولوية: من Payment إذا كان موجوداً
         if self.payment_id and self.payment:
             if self.payment.customer:
@@ -14758,7 +14758,7 @@ class Check(db.Model, TimestampMixin, AuditMixin):
     
     @property
     def entity_type(self):
-        """نوع الكيان المرتبط (عميل/مورد/شريك)"""
+        """نوع الكيان المرتبط (زبون/مورد/شريك)"""
         if self.payment_id and self.payment:
             if self.payment.customer_id:
                 return "customer"
@@ -15349,7 +15349,7 @@ class PeriodClose(db.Model, TimestampMixin):
 
 
 class EntityPeriodBalance(db.Model, TimestampMixin):
-    """رصيد إقفال عميل/مورد/شريك عند نهاية فترة (للتقارير والترحيل الافتتاحي)."""
+    """رصيد إقفال زبون/مورد/شريك عند نهاية فترة (للتقارير والترحيل الافتتاحي)."""
     __tablename__ = "entity_period_balances"
 
     id = db.Column(db.Integer, primary_key=True)
@@ -17508,7 +17508,7 @@ def _process_pending_balance_updates(session):
                         pass
                 processed_count += 1
                 try:
-                    current_app.logger.info(f"✅ تحديث رصيد عميل #{entity_id}")
+                    current_app.logger.info(f"✅ تحديث رصيد زبون #{entity_id}")
                 except Exception:
                     pass
                 try:

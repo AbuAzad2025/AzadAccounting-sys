@@ -722,7 +722,7 @@ def get_sale_items(sale_id):
 @returns_bp.route('/api/customer/<int:customer_id>/sales')
 @login_required
 def get_customer_sales(customer_id: int):
-    """إرجاع آخر المبيعات المؤكدة لعميل محدد لتصفية قائمة الفواتير في المرتجع"""
+    """إرجاع آخر المبيعات المؤكدة لزبون محدد لتصفية قائمة الفواتير في المرتجع"""
     try:
         sales = (
             Sale.query

@@ -541,7 +541,7 @@ class LegacyEntityResolver:
         sources = [
             ("SUPPLIER", "المورد", "supplier", "supplier_id", Supplier),
             ("PARTNER", "الشريك", "partner", "partner_id", Partner),
-            ("CUSTOMER", "العميل", "customer", "customer_id", Customer),
+            ("CUSTOMER", "الزبون", "customer", "customer_id", Customer),
             ("EMPLOYEE", "الموظف", "employee", "employee_id", Employee),
         ]
         for kind, label, chip, field_name, model in sources:
@@ -1284,7 +1284,7 @@ def index():
     entity_meta = {
         "SUPPLIER": (Supplier, "مورد"),
         "PARTNER": (Partner, "شريك"),
-        "CUSTOMER": (Customer, "عميل"),
+        "CUSTOMER": (Customer, "زبون"),
         "EMPLOYEE": (Employee, "موظف"),
     }
     for exp in expenses:
@@ -1973,7 +1973,7 @@ def add():
     if hasattr(Customer, 'is_archived'):
         customers_query = customers_query.filter_by(is_archived=False)
     customers = customers_query.order_by(Customer.name).limit(100).all()
-    form.customer_id.choices = [(0, '-- اختر عميل --')] + [(c.id, c.name) for c in customers]
+    form.customer_id.choices = [(0, '-- اختر زبون --')] + [(c.id, c.name) for c in customers]
     form.shipment_id.choices = [(0, '-- اختر شحنة --')] + [(s.id, f"شحنة #{s.id}") for s in Shipment.query.order_by(Shipment.id.desc()).limit(50).all()]
     form.stock_adjustment_id.choices = [(0, '-- اختر تسوية --')] + [(sa.id, f"تسوية #{sa.id}") for sa in StockAdjustment.query.order_by(StockAdjustment.id.desc()).limit(50).all()]
     
@@ -2265,7 +2265,7 @@ def add():
             error_msg = str(err).lower()
             
             if "expense.entity_required" in error_msg:
-                flash("❌ يجب اختيار جهة للمصروف (مورد/عميل/شريك/موظف) قبل الحفظ.", "danger")
+                flash("❌ يجب اختيار جهة للمصروف (مورد/زبون/شريك/موظف) قبل الحفظ.", "danger")
             elif "foreign key mismatch" in error_msg:
                 flash("⚠️ يوجد خطأ في إعدادات قاعدة البيانات - يرجى التواصل مع الدعم الفني", "warning")
                 current_app.logger.error(f"Foreign key mismatch في المصروفات: {err}")
@@ -2634,13 +2634,13 @@ def edit(exp_id):
     if hasattr(Customer, 'is_archived'):
         customers_query = customers_query.filter_by(is_archived=False)
     customers = customers_query.order_by(Customer.name).limit(100).all()
-    form.customer_id.choices = [(0, '-- اختر عميل --')]
+    form.customer_id.choices = [(0, '-- اختر زبون --')]
     current_customer_id = exp.customer_id or (exp.payee_entity_id if getattr(exp, 'payee_type', '').upper() == 'CUSTOMER' else None)
     if current_customer_id:
         if exp.customer_id and exp.customer and exp.customer not in customers:
             form.customer_id.choices.append((exp.customer.id, f"✓ {exp.customer.name or '—'}"))
         elif not any(c.id == current_customer_id for c in customers):
-            form.customer_id.choices.append((current_customer_id, f"✓ {exp.payee_name or f'عميل #{current_customer_id}'}"))
+            form.customer_id.choices.append((current_customer_id, f"✓ {exp.payee_name or f'زبون #{current_customer_id}'}"))
         form.customer_id.data = current_customer_id
     form.customer_id.choices += [(c.id, c.name or '—') for c in customers]
     
@@ -2701,7 +2701,7 @@ def edit(exp_id):
             db.session.rollback()
             perr_msg = str(perr)
             if "expense.entity_required" in perr_msg:
-                flash("❌ يجب اختيار جهة للمصروف (مورد/عميل/شريك/موظف) قبل الحفظ.", "danger")
+                flash("❌ يجب اختيار جهة للمصروف (مورد/زبون/شريك/موظف) قبل الحفظ.", "danger")
             else:
                 flash(perr_msg, "danger")
         except SQLAlchemyError as err:

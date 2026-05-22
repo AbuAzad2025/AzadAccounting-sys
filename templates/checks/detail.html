@@ -188,7 +188,7 @@
               <table class="table table-sm table-borderless">
                 {% if check.customer %}
                 <tr>
-                  <th width="40%">عميل:</th>
+                  <th width="40%">زبون:</th>
                   <td>
                     <a href="{{ url_for('customers_bp.customer_detail', customer_id=check.customer.id) }}" class="btn btn-sm btn-primary">
                       <i class="fas fa-external-link-alt"></i> {{ check.customer.name }}

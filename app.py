@@ -453,7 +453,15 @@ def _register_template_support(app):
 
     @app.context_processor
     def inject_common():
-        return {"current_app": current_app, "get_unique_flashes": get_unique_flashes, "static_url": static_url}
+        from utils.arabic_ux import ZB, UI_LABELS
+
+        return {
+            "current_app": current_app,
+            "get_unique_flashes": get_unique_flashes,
+            "static_url": static_url,
+            "ZB": ZB,
+            "UI_LABELS": UI_LABELS,
+        }
 
     @app.context_processor
     def inject_permissions():

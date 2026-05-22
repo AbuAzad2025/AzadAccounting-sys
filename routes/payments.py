@@ -777,7 +777,7 @@ def index():
                     return f"مورد: {supplier_obj.name if supplier_obj else ''}"
                 elif check_entity_type == "CUSTOMER":
                     customer_obj = db.session.get(Customer, check_entity_id)
-                    return f"عميل: {customer_obj.name if customer_obj else ''}"
+                    return f"زبون: {customer_obj.name if customer_obj else ''}"
                 return "شيك يدوي"
         
         mock_payment = MockPayment(check)
@@ -1222,7 +1222,7 @@ def create_payment():
                         pre_amount = balance
                     if not preset_currency:
                         form.currency.data = getattr(c, "currency", "ILS")
-                    # ملء اسم العميل في search field
+                    # ملء اسم الزبون في search field
                     if hasattr(form, 'customer_search'):
                         form.customer_search.data = c.name
             elif et == "SUPPLIER" and eid is not None:
@@ -2661,7 +2661,7 @@ def update_payment_status(payment_id: int):
                     update_customer_balance_components(payment.customer_id, db.session)
                 except Exception as bal_err:
                     import logging
-                    logging.getLogger(__name__).warning(f"فشل تحديث رصيد العميل {payment.customer_id}: {bal_err}")
+                    logging.getLogger(__name__).warning(f"فشل تحديث رصيد الزبون {payment.customer_id}: {bal_err}")
             if payment.supplier_id:
                 utils.update_entity_balance("supplier", payment.supplier_id)
             if payment.partner_id:
@@ -2678,7 +2678,7 @@ def update_payment_status(payment_id: int):
                     update_customer_balance_components(payment.customer_id, db.session)
                 except Exception as bal_err:
                     import logging
-                    logging.getLogger(__name__).warning(f"فشل تحديث رصيد العميل {payment.customer_id}: {bal_err}")
+                    logging.getLogger(__name__).warning(f"فشل تحديث رصيد الزبون {payment.customer_id}: {bal_err}")
             if payment.supplier_id:
                 utils.update_entity_balance("supplier", payment.supplier_id)
             if payment.partner_id:
@@ -3192,7 +3192,7 @@ def get_entities(entity_type):
 @payments_bp.route("/api/related-party", methods=["GET"], endpoint="get_related_party")
 @login_required
 def get_related_party():
-    """API لجلب الجهة المرتبطة (العميل أو المورد) بناءً على الكيان"""
+    """API لجلب الجهة المرتبطة (الزبون أو المورد) بناءً على الكيان"""
     entity_type = request.args.get("entity_type", "").strip().upper()
     entity_id = request.args.get("entity_id", "").strip()
     
@@ -3215,7 +3215,7 @@ def get_related_party():
                     result["customer_id"] = customer.id
                     result["customer_name"] = customer.name
                     
-                    # البحث عن المورد المرتبط بالعميل
+                    # البحث عن المورد المرتبط بالزبون
                     supplier = db.session.query(Supplier).filter_by(customer_id=customer.id).first()
                     if supplier:
                         result["supplier_id"] = supplier.id
@@ -3277,7 +3277,7 @@ def search_entities():
         if not entity_type or not query:
             return jsonify([])
         
-        # البحث في العملاء
+        # البحث في الزبائن
         if entity_type == "customer":
             customers = Customer.query.filter(
                 or_(
@@ -3601,7 +3601,7 @@ def shop_process_payment():
         payment.status = PaymentStatus.COMPLETED.value
         payment.payment_date = _utc_now_naive()
         
-        # تحديث رصيد العميل إذا كان موجود
+        # تحديث رصيد الزبون إذا كان موجود
         if payment.customer_id:
             try:
                 from utils.customer_balance_updater import update_customer_balance_components
@@ -3708,7 +3708,7 @@ def shop_refund():
             original_payment.is_refunded = True
             db.session.add(original_payment)
         
-        # تحديث رصيد العميل
+        # تحديث رصيد الزبون
         if original_payment.customer_id:
             try:
                 from utils.customer_balance_updater import update_customer_balance_components
@@ -4022,7 +4022,7 @@ def _collect_partner_obligations(partner: Partner, date_from: datetime, date_to:
         entries.append(
             LedgerEntry.create(
                 date=datetime.strptime(item.get("date") or date_from.strftime("%Y-%m-%d"), "%Y-%m-%d"),
-                label="مبيعات للشريك كعميل",
+                label="مبيعات للشريك كزبون",
                 amount=amount,
                 direction="debit",
                 category="obligations_sales",

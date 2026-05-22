@@ -61,7 +61,7 @@ def index():
 @login_required
 @permission_required(SystemPermissions.MANAGE_PAYMENTS)
 def collect():
-    """تحصيل سريع — عميل + عرض رصيد + رابط دفعة."""
+    """تحصيل سريع — زبون + عرض رصيد + رابط دفعة."""
     customer = None
     balance_view = None
     if request.method == "GET":
@@ -112,7 +112,7 @@ def allocate_payment(payment_id):
         return redirect(url_for("accounting_hub_bp.index"))
     customer_id = payment.customer_id
     if not customer_id:
-        flash("الدفعة غير مرتبطة بعميل", "warning")
+        flash("الدفعة غير مرتبطة بزبون", "warning")
         return redirect(url_for("payments.index"))
 
     open_docs = list_open_documents_for_customer(customer_id)

@@ -3599,10 +3599,10 @@ def preorder_convert_to_sale(preorder_id):
         
         flash(f"✅ تم إنشاء مبيعة #{sale.id} - أكمل الدفع لإتمام التسليم!", "success")
         
-        # جلب اسم العميل/الجهة
+        # جلب اسم الزبون/الجهة
         entity_name = ''
         if preorder.customer:
-            entity_name = f"عميل: {preorder.customer.name}"
+            entity_name = f"زبون: {preorder.customer.name}"
         elif preorder.supplier:
             entity_name = f"مورد: {preorder.supplier.name}"
         elif preorder.partner:
@@ -3745,7 +3745,7 @@ def api_add_customer():
     data = request.get_json() or {}
     name = (data.get("name") or "").strip()
     if not name:
-        return jsonify({"error": "اسم العميل مطلوب"}), 400
+        return jsonify({"error": "اسم الزبون مطلوب"}), 400
     cust = Customer(name=name, phone=data.get("phone"), email=data.get("email"), address=data.get("address"), whatsapp=data.get("whatsapp"), category=data.get("category", "عادي"), is_active=True)
     db.session.add(cust)
     try:

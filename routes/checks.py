@@ -628,7 +628,7 @@ def _check_manual_gl_on_insert(mapper, connection, target):
                     sa_text("SELECT name FROM customers WHERE id = :id"),
                     {"id": target.customer_id}
                 ).scalar_one_or_none()
-                entity_name = customer or 'عميل'
+                entity_name = customer or 'زبون'
                 entity_id = target.customer_id
                 entity_type = 'CUSTOMER'
             elif target.supplier_id:
@@ -694,7 +694,7 @@ def _check_create_payment_auto(mapper, connection, target):
         if target.customer_id:
             entity_id = target.customer_id
             entity_type = 'CUSTOMER'
-            current_app.logger.info(f"🔍 [CHECK_PAYMENT_AUTO] الشيك #{getattr(target, 'id', '?')} مرتبط بعميل #{entity_id}")
+            current_app.logger.info(f"🔍 [CHECK_PAYMENT_AUTO] الشيك #{getattr(target, 'id', '?')} مرتبط بزبون #{entity_id}")
         elif target.supplier_id:
             entity_id = target.supplier_id
             entity_type = 'SUPPLIER'
@@ -894,7 +894,7 @@ def _check_manual_gl_on_update(mapper, connection, target):
                 sa_text("SELECT name FROM customers WHERE id = :id"),
                 {"id": target.customer_id}
             ).scalar_one_or_none()
-            entity_name = customer or 'عميل'
+            entity_name = customer or 'زبون'
             entity_id = target.customer_id
             entity_type = 'CUSTOMER'
         elif target.supplier_id:
@@ -977,7 +977,7 @@ def ensure_check_accounts(connection=None):
             ('1000_CASH', 'الصندوق', 'ASSET'),
             ('1010_BANK', 'البنك', 'ASSET'),
             ('1020_CARD_CLEARING', 'بطاقات الائتمان', 'ASSET'),
-            ('1100_AR', 'العملاء (ذمم مدينة)', 'ASSET'),
+            ('1100_AR', 'الزبائن (ذمم مدينة)', 'ASSET'),
             ('1150_CHQ_REC', 'شيكات تحت التحصيل', 'ASSET'),
             ('1205_INV_EXCHANGE', 'المخزون - تبادل', 'ASSET'),
             ('2000_AP', 'الموردين (ذمم دائنة)', 'LIABILITY'),
@@ -1326,16 +1326,16 @@ def create_gl_entry_for_check(check_id, check_type, amount, currency, direction,
         connection: SQLAlchemy connection object (من event listener) - إذا كان None، يستخدم db.session
     
     القيود المحاسبية:
-    1. عند استلام شيك من عميل (INCOMING):
+    1. عند استلام شيك من زبون (INCOMING):
        - مدين: شيكات تحت التحصيل (أصل)
-       - دائن: العملاء (أصل - تخفيض)
+       - دائن: الزبائن (أصل - تخفيض)
        
     2. عند صرف شيك وارد (CASHED - INCOMING):
        - مدين: البنك (أصل - زيادة)
        - دائن: شيكات تحت التحصيل (أصل - تخفيض)
        
     3. عند إرجاع شيك وارد (RETURNED - INCOMING):
-       - مدين: العملاء (أصل - زيادة)
+       - مدين: الزبائن (أصل - زيادة)
        - دائن: شيكات تحت التحصيل (أصل - تخفيض)
        
     4. عند إعطاء شيك لمورد (OUTGOING):
@@ -1728,7 +1728,7 @@ class CheckActionService:
             if ctx.entity_type == 'CUSTOMER':
                 customer = db.session.get(Customer, ctx.entity_id)
                 if not customer:
-                    raise CheckValidationError(f"العميل #{ctx.entity_id} غير موجود", code='ENTITY_NOT_FOUND')
+                    raise CheckValidationError(f"الزبون #{ctx.entity_id} غير موجود", code='ENTITY_NOT_FOUND')
             elif ctx.entity_type == 'SUPPLIER':
                 supplier = db.session.get(Supplier, ctx.entity_id)
                 if not supplier:
@@ -2181,7 +2181,7 @@ class CheckActionService:
                 except Exception:
                     current_app.logger.debug('optional import failed in checks.py', exc_info=True)
             # إعداد ملاحظات العكس
-            reverse_note = f"\nعكس قيد لل{('عميل' if payment.customer_id else ('مورد' if payment.supplier_id else ('شريك' if payment.partner_id else 'جهة')))} {entity_name or ''} بسبب ارجاع الشيك".strip()
+            reverse_note = f"\nعكس قيد لل{('زبون' if payment.customer_id else ('مورد' if payment.supplier_id else ('شريك' if payment.partner_id else 'جهة')))} {entity_name or ''} بسبب ارجاع الشيك".strip()
             if check_num or check_bank:
                 reverse_note += f" (رقم {check_num or '—'} بنك {check_bank or '—'} من البنك)"
             refund = Payment(
@@ -2342,7 +2342,7 @@ class CheckActionService:
                 check_bank = check_bank or (det.get('check_bank') or None)
             except Exception:
                 current_app.logger.debug('optional import failed in checks.py', exc_info=True)
-            reverse_note = f"\nعكس قيد لل{('عميل' if payment.customer_id else ('مورد' if payment.supplier_id else ('شريك' if payment.partner_id else 'جهة')))} {entity_name or ''} بسبب ارجاع الشيك".strip()
+            reverse_note = f"\nعكس قيد لل{('زبون' if payment.customer_id else ('مورد' if payment.supplier_id else ('شريك' if payment.partner_id else 'جهة')))} {entity_name or ''} بسبب ارجاع الشيك".strip()
             if check_num or check_bank:
                 reverse_note += f" (رقم {check_num or '—'} بنك {check_bank or '—'} من البنك)"
             refund = Payment(
@@ -3002,23 +3002,23 @@ def get_checks():
             def _resolve_entity(payment):
                 if payment.customer:
                     name = (payment.customer.name or "") or ""
-                    return name, 'عميل', f"/customers/{payment.customer.id}", 'CUSTOMER', payment.customer.id
+                    return name, 'زبون', f"/customers/{payment.customer.id}", 'CUSTOMER', payment.customer.id
                 sale = getattr(payment, 'sale', None)
                 if sale and getattr(sale, 'customer', None):
                     name = (sale.customer.name or "") or ""
-                    return name, 'عميل', f"/customers/{sale.customer.id}", 'CUSTOMER', sale.customer.id
+                    return name, 'زبون', f"/customers/{sale.customer.id}", 'CUSTOMER', sale.customer.id
                 invoice = getattr(payment, 'invoice', None)
                 if invoice and getattr(invoice, 'customer', None):
                     name = (invoice.customer.name or "") or ""
-                    return name, 'عميل', f"/customers/{invoice.customer.id}", 'CUSTOMER', invoice.customer.id
+                    return name, 'زبون', f"/customers/{invoice.customer.id}", 'CUSTOMER', invoice.customer.id
                 preorder = getattr(payment, 'preorder', None)
                 if preorder and getattr(preorder, 'customer', None):
                     name = (preorder.customer.name or "") or ""
-                    return name, 'عميل', f"/customers/{preorder.customer.id}", 'CUSTOMER', preorder.customer.id
+                    return name, 'زبون', f"/customers/{preorder.customer.id}", 'CUSTOMER', preorder.customer.id
                 service_request = getattr(payment, 'service', None)
                 if service_request and getattr(service_request, 'customer', None):
                     name = (service_request.customer.name or "") or ""
-                    return name, 'عميل', f"/customers/{service_request.customer.id}", 'CUSTOMER', service_request.customer.id
+                    return name, 'زبون', f"/customers/{service_request.customer.id}", 'CUSTOMER', service_request.customer.id
                 if payment.supplier:
                     name = (payment.supplier.name or "") or ""
                     return name, 'مورد', f"/vendors/{payment.supplier.id}", 'SUPPLIER', payment.supplier.id
@@ -3591,7 +3591,7 @@ def get_checks():
                 entity_type = ''
 
                 if entity_type_code_raw == 'customer':
-                    entity_type = 'عميل'
+                    entity_type = 'زبون'
                     entity_link = f'/customers/{check.entity_id}'
                 elif entity_type_code_raw == 'supplier':
                     entity_type = 'مورد'

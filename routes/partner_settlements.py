@@ -1821,8 +1821,8 @@ def _get_payments_to_partner(partner_id: int, partner: Partner, date_from: datet
     
     تشمل:
     1. الدفعات المرتبطة مباشرة بـ partner_id
-    2. الدفعات المرتبطة بـ customer_id (العميل المرتبط بالشريك)
-    3. الدفعات المرتبطة بمبيعات للعميل (entity_type = SALE)
+    2. الدفعات المرتبطة بـ customer_id (الزبون المرتبط بالشريك)
+    3. الدفعات المرتبطة بمبيعات للزبون (entity_type = SALE)
     """
     from models import Payment, PaymentDirection, PaymentStatus, PaymentEntityType, Sale, Check
     from sqlalchemy import or_
@@ -2215,7 +2215,7 @@ def _get_partner_preorders_share(partner_id: int, date_from: datetime, date_to: 
 def _get_partner_preorders_prepaid(partner_id: int, partner: Partner, date_from: datetime, date_to: datetime, session=None):
     """
     أرصدة الحجوزات المسبقة (العربون المدفوع) للشريك
-    إذا كان الشريك له عميل مرتبط، نحسب العربون من الحجوزات لذلك العميل
+    إذا كان الشريك له زبون مرتبط، نحسب العربون من الحجوزات لذلك الزبون
     """
     from models import PreOrder, PreOrderStatus
     from types import SimpleNamespace
@@ -2324,8 +2324,8 @@ def _get_partner_payments_received(partner_id: int, partner: Partner, date_from:
     
     تشمل:
     1. الدفعات المرتبطة مباشرة بـ partner_id
-    2. الدفعات المرتبطة بـ customer_id (العميل المرتبط بالشريك)
-    3. الدفعات المرتبطة بمبيعات للعميل (entity_type = SALE)
+    2. الدفعات المرتبطة بـ customer_id (الزبون المرتبط بالشريك)
+    3. الدفعات المرتبطة بمبيعات للزبون (entity_type = SALE)
     """
     from models import Payment, PaymentDirection, PaymentStatus, PaymentEntityType, Sale, Check
     from sqlalchemy import or_
@@ -2618,7 +2618,7 @@ def _get_partner_payments_received(partner_id: int, partner: Partner, date_from:
 
 def _get_partner_sales_as_customer(partner_id: int, partner: Partner, date_from: datetime, date_to: datetime, session=None):
     """
-    مبيعات للشريك (كعميل) - تُخصم من حقوقه
+    مبيعات للشريك (كزبون) - تُخصم من حقوقه
     """
     from models import Sale, SaleLine, Product
     session = session or db.session
@@ -2677,7 +2677,7 @@ def _get_partner_sales_as_customer(partner_id: int, partner: Partner, date_from:
 
 def _get_partner_service_fees(partner_id: int, partner: Partner, date_from: datetime, date_to: datetime, session=None):
     """
-    رسوم صيانة على الشريك (كعميل) - تُخصم من حقوقه
+    رسوم صيانة على الشريك (كزبون) - تُخصم من حقوقه
     """
     from models import ServiceRequest
     session = session or db.session
@@ -2736,7 +2736,7 @@ def _get_partner_service_fees(partner_id: int, partner: Partner, date_from: date
 
 def _get_partner_preorders_as_customer(partner_id: int, partner: Partner, date_from: datetime, date_to: datetime, session=None):
     """
-    حجوزات مسبقة للشريك (إذا كان عميلاً) - تُخصم من حقوقه
+    حجوزات مسبقة للشريك (إذا كان زبوناً) - تُخصم من حقوقه
     """
     from models import PreOrder
     session = session or db.session

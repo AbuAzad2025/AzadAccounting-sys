@@ -40,7 +40,7 @@ def run_integration_audit(app) -> Dict[str, Any]:
         else:
             issues.append({
                 "level": "info",
-                "msg": "التوزيع التلقائي معطّل — دفعة على حساب العميل (الافتراضي)",
+                "msg": "التوزيع التلقائي معطّل — دفعة على حساب الزبون (الافتراضي)",
             })
 
     return {

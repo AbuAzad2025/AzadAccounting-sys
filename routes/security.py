@@ -372,7 +372,7 @@ def api_saas_create_subscription():
             return jsonify({'success': False, 'error': 'حقول مطلوبة ناقصة'}), 400
         customer = db.session.get(Customer, customer_id)
         if not customer:
-            return jsonify({'success': False, 'error': 'العميل غير موجود'}), 404
+            return jsonify({'success': False, 'error': 'الزبون غير موجود'}), 404
         plan = db.session.get(SaaSPlan, plan_id)
         if not plan:
             return jsonify({'success': False, 'error': 'الباقة غير موجودة'}), 404
@@ -568,7 +568,7 @@ def api_saas_send_reminder(invoice_id):
         
         customer = db.session.get(Customer, subscription.customer_id)
         if not customer or not customer.email:
-            return jsonify({'success': False, 'error': 'لا يوجد بريد إلكتروني للعميل'}), 400
+            return jsonify({'success': False, 'error': 'لا يوجد بريد إلكتروني للزبون'}), 400
         html_body = f"""
         <h3>تذكير بالدفع</h3>
         <p>عزيزنا {customer.name}</p>
@@ -592,7 +592,7 @@ def api_saas_send_reminder(invoice_id):
 @security_bp.route('/api/customers', methods=['GET'])
 @login_required
 def api_get_customers():
-    """API: جلب قائمة العملاء"""
+    """API: جلب قائمة الزبائن"""
     from models import Customer
     
     try:
@@ -631,7 +631,7 @@ def api_saas_get_subscription(sub_id):
             'subscription': {
                 'id': sub.id,
                 'customer_id': sub.customer_id,
-                'customer_name': customer.name if customer else 'عميل محذوف',
+                'customer_name': customer.name if customer else 'زبون محذوف',
                 'plan_id': sub.plan_id,
                 'plan_name': sub.plan.name if sub.plan else 'باقة محذوفة',
                 'price': float(sub.plan.price_monthly) if sub.plan else 0,
@@ -710,7 +710,7 @@ def api_saas_invoice_pdf(invoice_id):
             </div>
             
             <div class="info">
-                <p><strong>العميل:</strong> {customer.name if customer else 'غير محدد'}</p>
+                <p><strong>الزبون:</strong> {customer.name if customer else 'غير محدد'}</p>
                 <p><strong>البريد:</strong> {customer.email if customer else '-'}</p>
                 <p><strong>الباقة:</strong> {subscription.plan.name if subscription and subscription.plan else '-'}</p>
                 <p><strong>تاريخ الإصدار:</strong> {invoice.created_at.strftime('%Y-%m-%d')}</p>
@@ -1032,7 +1032,7 @@ def system_cleanup():
     }
     category_descriptions = {
         'المستخدمين والأدوار': 'حسابات الدخول والأذونات المرتبطة بها.',
-        'الجهات': 'العملاء والموردون والشركاء والموظفون.',
+        'الجهات': 'الزبائن والموردون والشركاء والموظفون.',
         'العمليات المالية': 'المدفوعات والشيكات والمصاريف.',
         'العمليات المحاسبية': 'دفعات القيود والحسابات العامة.',
         'المبيعات والصيانة': 'المبيعات، الفواتير وطلبات الصيانة.',
@@ -1931,10 +1931,10 @@ def tools_center():
     
     export_links = [
         {
-            'name': 'أعمار الذمم (عملاء)',
+            'name': 'أعمار الذمم (زبائن)',
             'format': 'CSV',
             'icon': 'fas fa-user-clock',
-            'description': 'كشف الرصيد المجمع لكل عميل حسب الفترات الزمنية.',
+            'description': 'كشف الرصيد المجمع لكل زبون حسب الفترات الزمنية.',
             'url': url_for('reports_bp.export_ar_aging_csv'),
         },
         {
@@ -1949,7 +1949,7 @@ def tools_center():
         {'value': 'Sale', 'label': 'المبيعات'},
         {'value': 'Invoice', 'label': 'الفواتير'},
         {'value': 'Payment', 'label': 'المدفوعات'},
-        {'value': 'Customer', 'label': 'العملاء'},
+        {'value': 'Customer', 'label': 'الزبائن'},
         {'value': 'Supplier', 'label': 'الموردون'},
     ]
     
@@ -2552,7 +2552,7 @@ def integrations():
                 _save_setting('customer_display_port', request.form.get('customer_display_port', 'COM2'))
                 _save_setting('customer_display_lines', request.form.get('customer_display_lines', '2'))
                 _save_setting('customer_display_chars', request.form.get('customer_display_chars', '20'))
-                flash('✅ تم حفظ إعدادات شاشة العميل', 'success')
+                flash('✅ تم حفظ إعدادات شاشة الزبون', 'success')
             
             elif action == 'save_fingerprint_scanner':
                 _save_setting('fingerprint_scanner_enabled', request.form.get('fingerprint_scanner_enabled') == 'on')
@@ -3220,7 +3220,7 @@ def print_thermal_invoice(sale):
         printer.text("─" * 32 + "\n")
         
         printer.set(align='right')
-        printer.text(f"العميل: {sale.customer.name}\n")
+        printer.text(f"الزبون: {sale.customer.name}\n")
         printer.text(f"التاريخ: {sale.sale_date.strftime('%Y-%m-%d %H:%M')}\n")
         printer.text("─" * 32 + "\n\n")
         
@@ -3562,9 +3562,9 @@ def open_cash_drawer():
 
 
 def update_customer_display(line1, line2=''):
-    """تحديث شاشة العميل"""
+    """تحديث شاشة الزبون"""
     if not _get_setting('customer_display_enabled', False):
-        return {'success': False, 'error': 'شاشة العميل غير مفعّلة'}
+        return {'success': False, 'error': 'شاشة الزبون غير مفعّلة'}
     
     try:
         import serial
@@ -5504,7 +5504,7 @@ def _get_cleanable_tables():
         """توليد اسم عربي للجدول"""
         # قاموس الترجمات
         translations = {
-            'users': 'المستخدمين', 'roles': 'الأدوار', 'customers': 'العملاء',
+            'users': 'المستخدمين', 'roles': 'الأدوار', 'customers': 'الزبائن',
             'suppliers': 'الموردين', 'partners': 'الشركاء', 'employees': 'الموظفين',
             'payments': 'المدفوعات', 'checks': 'الشيكات', 'expenses': 'المصاريف',
             'sales': 'المبيعات', 'invoices': 'الفواتير', 'products': 'المنتجات',

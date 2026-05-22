@@ -101,7 +101,7 @@
                          or p.supplier and p.supplier.name
                          or p.partner and p.partner.name
                          or 'غير محدد' %}
-      {% set entity_type = p.customer and 'عميل'
+      {% set entity_type = p.customer and 'زبون'
                          or p.supplier and 'مورد'
                          or p.partner and 'شريك'
                          or '' %}

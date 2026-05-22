@@ -121,7 +121,7 @@ def payment_ids_in_branches(branch_ids: List[int]):
 
 
 def filter_customers_query(query, branch_ids: Optional[List[int]] = None):
-    """عملاء لهم نشاط في الفرع، أو رصيد افتتاحي/جاري، أو دفعات في الفرع."""
+    """زبائن لهم نشاط في الفرع، أو رصيد افتتاحي/جاري، أو دفعات في الفرع."""
     ids = branch_ids if branch_ids is not None else get_accessible_branch_ids()
     if ids is None:
         return query

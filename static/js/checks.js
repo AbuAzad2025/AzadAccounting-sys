@@ -543,9 +543,9 @@
                     const tokenReference = check.token || check.id;
                     const ledgerLines = [];
                     if (check.is_incoming) {
-                        ledgerLines.push('تسجيل الشيك يزيد حساب الشيكات تحت التحصيل ويخفض ذمة العميل.');
-                        ledgerLines.push('عند صرف الشيك تنتقل القيمة من الشيكات تحت التحصيل إلى البنك ويتم إقفال دين العميل.');
-                        ledgerLines.push('إذا عاد الشيك يتم إعادة الدين على العميل وتُفتح متابعة تحصيل جديدة.');
+                        ledgerLines.push('تسجيل الشيك يزيد حساب الشيكات تحت التحصيل ويخفض ذمة الزبون.');
+                        ledgerLines.push('عند صرف الشيك تنتقل القيمة من الشيكات تحت التحصيل إلى البنك ويتم إقفال دين الزبون.');
+                        ledgerLines.push('إذا عاد الشيك يتم إعادة الدين على الزبون وتُفتح متابعة تحصيل جديدة.');
                     } else {
                         ledgerLines.push('إصدار الشيك يسجل التزاماً على المورد أو المصروف في حساب الشيكات تحت الدفع.');
                         ledgerLines.push('عند صرف الشيك يتم تخفيض حساب الشيكات تحت الدفع وسحب المبلغ من البنك.');
@@ -711,7 +711,7 @@
 
             const selectOptions = [
                 { value: '', label: '-- بدون تغيير --' },
-                { value: 'CUSTOMER', label: 'عميل' },
+                { value: 'CUSTOMER', label: 'زبون' },
                 { value: 'SUPPLIER', label: 'مورد' },
                 { value: 'PARTNER', label: 'شريك' },
             ].map(opt => `<option value="${opt.value}" ${opt.value === entityType ? 'selected' : ''}>${opt.label}</option>`).join('');
@@ -1057,7 +1057,7 @@
                 }
                 if (entName || entType || entId) {
                     const typeAr = (function(t){
-                        if (t === 'customer') return 'عميل';
+                        if (t === 'customer') return 'زبون';
                         if (t === 'supplier') return 'مورد';
                         if (t === 'partner') return 'شريك';
                         return '';

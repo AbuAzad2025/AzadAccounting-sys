@@ -594,7 +594,7 @@ def dashboard_links():
             return redirect(url_for('advanced.dashboard_links'))
     
     available_links = [
-        {'key': 'customers', 'name': 'العملاء', 'icon': 'users'},
+        {'key': 'customers', 'name': 'الزبائن', 'icon': 'users'},
         {'key': 'service', 'name': 'الصيانة', 'icon': 'wrench'},
         {'key': 'sales', 'name': 'المبيعات', 'icon': 'shopping-cart'},
         {'key': 'warehouses', 'name': 'المستودعات', 'icon': 'warehouse'},
@@ -747,7 +747,7 @@ def licensing():
 
 
 MODULE_CATALOG = [
-    {'key': 'customers', 'name': 'إدارة العملاء', 'icon': 'users', 'color': 'primary', 'dependencies': []},
+    {'key': 'customers', 'name': 'إدارة الزبائن', 'icon': 'users', 'color': 'primary', 'dependencies': []},
     {'key': 'service', 'name': 'الصيانة', 'icon': 'wrench', 'color': 'success', 'dependencies': ['customers']},
     {'key': 'sales', 'name': 'المبيعات', 'icon': 'shopping-cart', 'color': 'info', 'dependencies': ['customers']},
     {'key': 'warehouses', 'name': 'المستودعات', 'icon': 'warehouse', 'color': 'warning', 'dependencies': []},
@@ -2411,8 +2411,8 @@ def system_cloner():
             }
         },
         'customers': {
-            'name': 'إدارة العملاء',
-            'description': 'العملاء + كشوف الحساب',
+            'name': 'إدارة الزبائن',
+            'description': 'الزبائن + كشوف الحساب',
             'required': False,
             'dependencies': ['core'],
             'files': {
@@ -2914,8 +2914,8 @@ def _get_mobile_modules():
         'dashboard': {'name': 'الداشبورد', 'icon': 'tachometer-alt', 'required': True, 'category': 'core'},
         'profile': {'name': 'الملف الشخصي', 'icon': 'user-circle', 'required': True, 'category': 'core'},
         
-        'customers': {'name': 'إدارة العملاء', 'icon': 'users', 'required': False, 'category': 'business'},
-        'customer_statements': {'name': 'كشوف حساب العملاء', 'icon': 'file-invoice', 'required': False, 'category': 'business'},
+        'customers': {'name': 'إدارة الزبائن', 'icon': 'users', 'required': False, 'category': 'business'},
+        'customer_statements': {'name': 'كشوف حساب الزبائن', 'icon': 'file-invoice', 'required': False, 'category': 'business'},
         
         'service': {'name': 'طلبات الصيانة', 'icon': 'wrench', 'required': False, 'category': 'business'},
         'service_create': {'name': 'إنشاء طلب صيانة', 'icon': 'plus-circle', 'required': False, 'category': 'business'},
@@ -3124,7 +3124,7 @@ class CustomersScreen extends StatelessWidget {{
   @override
   Widget build(BuildContext context) {{
     return Scaffold(
-      appBar: AppBar(title: Text('العملاء')),
+      appBar: AppBar(title: Text('الزبائن')),
       body: Center(child: Text('Customers List')),
     );
   }}
@@ -3792,7 +3792,7 @@ def _update_tenant_setting(key, value):
 def _get_available_modules_list():
     """قائمة الوحدات المتاحة"""
     return [
-        {'key': 'customers', 'name': 'إدارة العملاء', 'icon': 'users'},
+        {'key': 'customers', 'name': 'إدارة الزبائن', 'icon': 'users'},
         {'key': 'service', 'name': 'الصيانة', 'icon': 'wrench'},
         {'key': 'sales', 'name': 'المبيعات', 'icon': 'shopping-cart'},
         {'key': 'warehouses', 'name': 'المستودعات', 'icon': 'warehouse'},

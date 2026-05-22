@@ -200,10 +200,10 @@ function restoreService(serviceId) {
 }
 
 function archiveCustomer(customerId) {
-    const reason = prompt('أدخل سبب أرشفة هذا العميل:');
+    const reason = prompt('أدخل سبب أرشفة هذا الزبون:');
     if (!reason) return;
     
-    if (confirm('هل أنت متأكد من أرشفة هذا العميل؟')) {
+    if (confirm('هل أنت متأكد من أرشفة هذا الزبون؟')) {
         const form = document.createElement('form');
         form.method = 'POST';
         form.action = `/customers/archive/${customerId}`;
@@ -224,7 +224,7 @@ function archiveCustomer(customerId) {
 }
 
 function restoreCustomer(customerId) {
-    if (confirm('هل أنت متأكد من استعادة هذا العميل؟')) {
+    if (confirm('هل أنت متأكد من استعادة هذا الزبون؟')) {
         const form = document.createElement('form');
         form.method = 'POST';
         form.action = `/customers/restore/${customerId}`;

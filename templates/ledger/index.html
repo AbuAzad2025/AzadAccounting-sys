@@ -1399,7 +1399,7 @@ html[data-ui-mode="mobile"] body.ledger-page .col-md-12 {
                                             <optgroup label="💰 الأصول (ما تملكه)">
                                                 <option value="1000_CASH">الصندوق النقدي</option>
                                                 <option value="1010_BANK">البنك الحالي</option>
-                                                <option value="1100_AR">العملاء - ذمم مدينة</option>
+                                                <option value="1100_AR">الزبائن - ذمم مدينة</option>
                                                 <option value="1200_INVENTORY">المخزون</option>
                                                 <option value="1300_CHECKS_RECEIVABLE">شيكات واردة</option>
                                             </optgroup>
@@ -1439,7 +1439,7 @@ html[data-ui-mode="mobile"] body.ledger-page .col-md-12 {
                                             <optgroup label="💰 الأصول (ما تملكه)">
                                                 <option value="1000_CASH">الصندوق النقدي</option>
                                                 <option value="1010_BANK">البنك الحالي</option>
-                                                <option value="1100_AR">العملاء - ذمم مدينة</option>
+                                                <option value="1100_AR">الزبائن - ذمم مدينة</option>
                                                 <option value="1200_INVENTORY">المخزون</option>
                                                 <option value="1300_CHECKS_RECEIVABLE">شيكات واردة</option>
                                             </optgroup>
@@ -1880,7 +1880,7 @@ function updateLedgerTable(data, totals) {
         if (entry.entity_name && entry.entity_name !== '—' && entry.entity_name !== 'غير محدد') {
             let badgeColor = 'secondary';
             let icon = 'fa-user';
-            if (entry.entity_type === 'عميل') {
+            if (entry.entity_type === 'زبون') {
                 badgeColor = 'primary';
                 icon = 'fa-user-check';
             } else if (entry.entity_type === 'مورد') {
@@ -2772,7 +2772,7 @@ function getTransactionDescription(entry) {
             serviceInfo += `<i class="fas fa-hashtag"></i> رقم الصيانة: ${pd.service_number}<br>`;
         }
         if (pd.service_customer) {
-            serviceInfo += `<i class="fas fa-user-check"></i> العميل: ${pd.service_customer}<br>`;
+            serviceInfo += `<i class="fas fa-user-check"></i> الزبون: ${pd.service_customer}<br>`;
         }
         if (pd.service_vehicle) {
             serviceInfo += `<i class="fas fa-car-side"></i> المركبة: ${pd.service_vehicle}<br>`;

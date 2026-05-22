@@ -2451,11 +2451,11 @@ def integration_audit_cmd():
 @click.command("accounting-audit")
 @click.option("--limit", type=int, default=0, show_default=True, help="0 = كل الجهات")
 @click.option("--fix", is_flag=True, help="إعادة حساب الأرصدة المخزّنة عند الفروقات")
-@click.option("--fix-policy", is_flag=True, help="فك ربط الدفعات القديمة من المبيعات وربطها بالعميل فقط")
+@click.option("--fix-policy", is_flag=True, help="فك ربط الدفعات القديمة من المبيعات وربطها بالزبون فقط")
 @click.option("--include-archived", is_flag=True)
 @with_appcontext
 def accounting_audit(limit, fix, fix_policy, include_archived):
-    """تدقيق محاسبي صارم: حقوق / التزامات / رصيد للعميل والمورد والشريك."""
+    """تدقيق محاسبي صارم: حقوق / التزامات / رصيد للزبون والمورد والشريك."""
     from utils.accounting_audit import audit_entity_balances, format_audit_report_text
 
     report = audit_entity_balances(
@@ -3921,7 +3921,7 @@ def gl_recreate_payments(dry_run, payment_id, from_date, to_date, force, list_on
                 expense_ledger_ctx = _payment_expense_ledger(db.session, payment) if payment.expense_id else None
                 
                 entity_account = GL_ACCOUNTS.get("AR", "1100_AR")
-                entity_name = "عميل"
+                entity_name = "زبون"
                 
                 if payment.entity_type == PaymentEntityType.SUPPLIER.value or payment.supplier_id:
                     entity_account = GL_ACCOUNTS.get("AP", "2000_AP")

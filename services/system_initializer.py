@@ -113,7 +113,7 @@ class SystemInitializer:
             ('1000_CASH', 'النقدية في الصندوق', AccountType.ASSET),
             ('1010_BANK_ILS', 'البنك - شيقل', AccountType.ASSET),
             ('1020_BANK_USD', 'البنك - دولار', AccountType.ASSET),
-            ('1100_AR', 'الذمم المدينة (العملاء)', AccountType.ASSET),
+            ('1100_AR', 'الذمم المدينة (الزبائن)', AccountType.ASSET),
             ('1200_INVENTORY', 'المخزون', AccountType.ASSET),
             ('1300_FIXED_ASSETS', 'الأصول الثابتة', AccountType.ASSET),
             

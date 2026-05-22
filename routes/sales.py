@@ -825,7 +825,7 @@ def list_sales():
     <tr>
       <th data-sortable="false">رقم</th>
       <th data-sortable="false">التاريخ</th>
-      <th data-sortable="false">العميل</th>
+      <th data-sortable="false">الزبون</th>
       <th data-sortable="false">الإجمالي</th>
       <th data-sortable="false" class="text-center">العملة</th>
       <th data-sortable="false" class="text-center d-none d-lg-table-cell">سعر الصرف</th>
@@ -882,8 +882,8 @@ def list_sales():
                                    entity_id=sale.id,
                                    amount=sale.balance_due,
                                    currency=sale.currency if sale.currency else 'ILS',
-                                   reference='دفع مبيعة من ' ~ (sale.customer.name if sale.customer else 'عميل') ~ ' - ' ~ (sale.sale_number or sale.id),
-                                   notes='دفع مبيعة: ' ~ (sale.sale_number or sale.id) ~ ' - العميل: ' ~ (sale.customer.name if sale.customer else 'غير محدد'),
+                                   reference='دفع مبيعة من ' ~ (sale.customer.name if sale.customer else 'زبون') ~ ' - ' ~ (sale.sale_number or sale.id),
+                                   notes='دفع مبيعة: ' ~ (sale.sale_number or sale.id) ~ ' - الزبون: ' ~ (sale.customer.name if sale.customer else 'غير محدد'),
                                    customer_id=sale.customer_id) }}" class="dropdown-item text-success">
                 <i class="fas fa-money-bill-wave mr-2"></i> إضافة دفعة
               </a>
@@ -1345,7 +1345,7 @@ def edit_sale(id):
                 run_sale_gl_sync_after_commit(sale.id)
             except Exception as e:
                 current_app.logger.error(f"⚠️ GL Sync Failed for Sale #{sale.id} (Update): {e}")
-            # تحديث رصيد العميل
+            # تحديث رصيد الزبون
             try:
                 from utils.customer_balance_updater import update_customer_balance_components
                 update_customer_balance_components(sale.customer_id)
@@ -1421,7 +1421,7 @@ def quick_sell():
             run_sale_gl_sync_after_commit(sale.id)
         except Exception:
             current_app.logger.warning(f'Failed to sync sale GL entries: {sale.id}')
-        # تحديث رصيد العميل
+        # تحديث رصيد الزبون
         try:
             from utils.customer_balance_updater import update_customer_balance_components
             update_customer_balance_components(sale.customer_id)
@@ -1485,7 +1485,7 @@ def change_status(id: int, status: str):
             sale.status = "REFUNDED"
         db.session.commit()
 
-        # تحديث رصيد العميل فوراً
+        # تحديث رصيد الزبون فوراً
         try:
             from utils.customer_balance_updater import update_customer_balance_components
             update_customer_balance_components(sale.customer_id)

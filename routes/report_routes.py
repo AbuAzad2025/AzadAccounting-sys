@@ -96,7 +96,7 @@ MODEL_LABELS = {
     "OnlinePreOrder": "الطلبات المسبقة (أونلاين)",
     "OnlinePayment": "مدفوعات أونلاين",
     "Shipment": "الشحنات",
-    "Customer": "العملاء",
+    "Customer": "الزبائن",
     "Supplier": "الموردون",
     "Partner": "الشركاء",
     "Product": "المنتجات",
@@ -116,7 +116,7 @@ REPORT_CARDS = [
     },
     {
         "key": "customers",
-        "title": "تقارير العملاء",
+        "title": "تقارير الزبائن",
         "description": "إجمالي الفواتير / المدفوع / الرصيد",
         "icon": "fas fa-user-friends",
         "endpoint": "reports_bp.customers_report",
@@ -215,7 +215,7 @@ REPORT_CARDS = [
     },
     {
         "key": "ar_aging",
-        "title": "أعمار الذمم (عملاء)",
+        "title": "أعمار الذمم (زبائن)",
         "description": "تفصيل حسب الفترات",
         "icon": "fas fa-user-clock",
         "endpoint": "reports_bp.ar_aging",
@@ -282,7 +282,7 @@ FIELD_LABELS: Dict[str, str] = {
     "id": "المعرف",
     "sale_number": "رقم الفاتورة",
     "sale_date": "اليوم",
-    "customer_id": "العميل",
+    "customer_id": "الزبون",
     "seller_id": "المندوب",
     "seller_employee_id": "الموظف البائع",
     "preorder_id": "طلب مسبق",
@@ -341,10 +341,10 @@ FIELD_LABELS: Dict[str, str] = {
     "sales_table": "جدول المبيعات",
     "grand_total": "الإجمالي",
     "ap_aging": "أعمار الذمم (الموردون)",
-    "ar_aging": "أعمار الذمم (العملاء)",
+    "ar_aging": "أعمار الذمم (الزبائن)",
     "supplier": "المورد",
-    "customer": "العميل",
-    "customers": "العملاء",
+    "customer": "الزبون",
+    "customers": "الزبائن",
     "service_reports": "تقارير الصيانة",
     "total_requests": "عدد الطلبات",
     "completed": "مكتملة",
@@ -1874,7 +1874,7 @@ def customers_report():
 @login_required
 @utils.permission_required(SystemPermissions.VIEW_REPORTS)
 def customers_advanced_report():
-    """تقرير العملاء الشامل الاحترافي"""
+    """تقرير الزبائن الشامل الاحترافي"""
     from datetime import datetime
     from sqlalchemy import or_
 

@@ -94,7 +94,7 @@
                 <div class="col-md-6">
                     <div class="card border-0 shadow-sm h-100 card-hover">
                         <div class="card-header bg-light">
-                            <h6 class="mb-0"><i class="fas fa-users"></i> مطابقة ذمم العملاء (AR Reconciliation)</h6>
+                            <h6 class="mb-0"><i class="fas fa-users"></i> مطابقة ذمم الزبائن (AR Reconciliation)</h6>
                         </div>
                         <div class="card-body">
                             <table class="table table-sm table-borderless">
@@ -103,7 +103,7 @@
                                     <td class="text-end fw-bold">{{ "{:,.2f}".format(reconciliation.ar.gl_balance) }} ₪</td>
                                 </tr>
                                 <tr>
-                                    <td>رصيد العملاء (Models):</td>
+                                    <td>رصيد الزبائن (Models):</td>
                                     <td class="text-end">{{ "{:,.2f}".format(reconciliation.ar.model_balance) }} ₪</td>
                                 </tr>
                                 {% if reconciliation.ar.manual_adjustments != 0 %}
@@ -265,7 +265,7 @@
                                 <div class="col-md-6">
                                     <h6 class="text-primary"><i class="fas fa-coins"></i> الحسابات المدينة (Debit):</h6>
                                     <ul class="small">
-                                        <li><strong>الأصول:</strong> النقدية، البنك، العملاء، المخزون</li>
+                                        <li><strong>الأصول:</strong> النقدية، البنك، الزبائن، المخزون</li>
                                         <li><strong>المصروفات:</strong> الإيجار، الرواتب، المرافق، COGS</li>
                                     </ul>
                                     

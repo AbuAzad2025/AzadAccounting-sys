@@ -1,0 +1,132 @@
+/**
+ * واجهة موحّدة: قوائم منسدلة، أزرار، نصوص — RTL
+ */
+:root {
+  --ux-input-height: 2.5rem;
+  --ux-radius: 0.375rem;
+  --ux-gap: 0.75rem;
+}
+
+.form-control,
+.custom-select,
+select.form-control {
+  min-height: var(--ux-input-height);
+  border-radius: var(--ux-radius);
+  font-size: 0.95rem;
+}
+
+.form-control:focus,
+.custom-select:focus,
+select.form-control:focus {
+  border-color: #667eea;
+  box-shadow: 0 0 0 0.15rem rgba(102, 126, 234, 0.2);
+}
+
+.form-label,
+label.col-form-label {
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+  color: #374151;
+}
+
+.form-text,
+small.text-muted {
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.btn {
+  border-radius: var(--ux-radius);
+  font-weight: 600;
+  padding: 0.45rem 0.9rem;
+  white-space: nowrap;
+}
+
+.btn-group .btn,
+.input-group .btn {
+  min-height: var(--ux-input-height);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #667eea 0%, #5a67d8 100%);
+  border-color: #5a67d8;
+}
+
+.btn-primary:hover {
+  background: linear-gradient(135deg, #5a67d8 0%, #4c51bf 100%);
+  border-color: #4c51bf;
+}
+
+.btn-secondary,
+.btn-outline-secondary {
+  color: #4b5563;
+}
+
+.btn-sm {
+  padding: 0.3rem 0.65rem;
+  font-size: 0.85rem;
+}
+
+/* تباعد صفوف الفلاتر */
+.filter-toolbar,
+.form-inline.gap-2,
+.card-body .row.g-2 {
+  gap: var(--ux-gap);
+}
+
+.filter-toolbar .form-group,
+.filter-toolbar .col-md-auto {
+  margin-bottom: 0.5rem;
+}
+
+/* Select2 / AJAX selects */
+.select2-container--default .select2-selection--single {
+  min-height: var(--ux-input-height);
+  border-radius: var(--ux-radius);
+  border-color: #ced4da;
+}
+
+.select2-container--default .select2-selection--single .select2-selection__rendered {
+  line-height: calc(var(--ux-input-height) - 6px);
+  padding-right: 12px;
+}
+
+.select2-container--default .select2-selection--single .select2-selection__arrow {
+  height: var(--ux-input-height);
+}
+
+/* جداول — عناوين أوضح */
+.table thead th {
+  font-weight: 700;
+  font-size: 0.88rem;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.table td {
+  vertical-align: middle;
+}
+
+/* بطاقات إجراءات */
+.card-header .btn + .btn {
+  margin-inline-start: 0.35rem;
+}
+
+/* منع تزاحم الأزرار في الشريط */
+.page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+@media (max-width: 768px) {
+  .btn {
+    margin-bottom: 0.25rem;
+  }
+  .form-inline .form-control,
+  .form-inline .btn {
+    width: 100%;
+    margin-bottom: 0.35rem;
+  }
+}

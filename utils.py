@@ -819,7 +819,7 @@ def get_cached_exchange_rates():
 
 @cache.memoize(timeout=180)  # 3 دقائق
 def get_cached_customer_balance(customer_id):
-    """الحصول على رصيد العميل من التخزين المؤقت"""
+    """الحصول على رصيد الزبون من التخزين المؤقت"""
     from models import Customer
     customer = db.session.get(Customer, customer_id)
     if customer:
@@ -1423,7 +1423,7 @@ _ENUM_AR = {
     "PaymentStatus": {"PENDING": "قيد الانتظار", "COMPLETED": "مكتملة", "FAILED": "فاشلة", "REFUNDED": "مُرجعة"},
     "PaymentDirection": {"IN": "وارد", "OUT": "صادر"},
     "PaymentEntityType": {
-        "CUSTOMER": "عميل", "SUPPLIER": "مورد", "PARTNER": "شريك", "SHIPMENT": "شحنة",
+        "CUSTOMER": "زبون", "SUPPLIER": "مورد", "PARTNER": "شريك", "SHIPMENT": "شحنة",
         "EXPENSE": "مصروف", "LOAN": "قرض", "SALE": "بيع", "INVOICE": "فاتورة",
         "PREORDER": "حجز", "SERVICE": "صيانة"
     },

@@ -115,7 +115,7 @@ html, body { background:#fff; direction:rtl; font-family:"Segoe UI","Tahoma",san
         <colgroup>
           <col style="width:6%"><!-- رقم -->
           <col style="width:12%"><!-- التاريخ -->
-          <col style="width:28%"><!-- العميل -->
+          <col style="width:28%"><!-- الزبون -->
           <col style="width:18%"><!-- الإجمالي -->
           <col style="width:12%"><!-- مدفوع -->
           <col style="width:18%"><!-- متبقي -->
@@ -125,7 +125,7 @@ html, body { background:#fff; direction:rtl; font-family:"Segoe UI","Tahoma",san
           <tr>
             <th>#</th>
             <th>التاريخ</th>
-            <th>العميل</th>
+            <th>الزبون</th>
             <th>الإجمالي</th>
             <th>مدفوع</th>
             <th>متبقي</th>
@@ -268,7 +268,7 @@ html, body { background:#fff; direction:rtl; font-family:"Segoe UI","Tahoma",san
                 <input type="text" name="invoice_no" class="form-control" placeholder="مثال: 2026-0001" value="{{ request.args.get('invoice_no','') }}">
               </div>
               <div class="form-group col-lg-2 col-md-6">
-                <label class="mb-1">العميل</label>
+                <label class="mb-1">الزبون</label>
                 <input type="text" name="customer" class="form-control" placeholder="اسم/هاتف" value="{{ request.args.get('customer','') }}">
               </div>
               <div class="form-group col-lg-2 col-md-3">
@@ -288,7 +288,7 @@ html, body { background:#fff; direction:rtl; font-family:"Segoe UI","Tahoma",san
                 <select id="sales-sort" name="sort" class="form-control">
                   <option value="date" {% if sort_val == 'date' %}selected{% endif %}>التاريخ</option>
                   <option value="invoice_no" {% if sort_val == 'invoice_no' %}selected{% endif %}>رقم الفاتورة</option>
-                  <option value="customer" {% if sort_val == 'customer' %}selected{% endif %}>العميل</option>
+                  <option value="customer" {% if sort_val == 'customer' %}selected{% endif %}>الزبون</option>
                   <option value="total" {% if sort_val == 'total' %}selected{% endif %}>الإجمالي</option>
                   <option value="paid" {% if sort_val == 'paid' %}selected{% endif %}>المدفوع</option>
                   <option value="balance" {% if sort_val == 'balance' %}selected{% endif %}>المتبقي</option>
@@ -321,7 +321,7 @@ html, body { background:#fff; direction:rtl; font-family:"Segoe UI","Tahoma",san
             <tr>
               <th data-sortable="false">رقم</th>
               <th data-sortable="false">التاريخ</th>
-              <th data-sortable="false">العميل</th>
+              <th data-sortable="false">الزبون</th>
               <th data-sortable="false">الإجمالي</th>
               <th data-sortable="false" class="text-center">العملة</th>
               <th data-sortable="false" class="text-center d-none d-lg-table-cell">سعر الصرف</th>
@@ -376,8 +376,8 @@ html, body { background:#fff; direction:rtl; font-family:"Segoe UI","Tahoma",san
                                          entity_id=sale.customer_id,
                                          amount=sale.total_amount,
                                          currency=sale.currency if sale.currency else 'ILS',
-                                         reference='دفع مبيعة من ' ~ (sale.customer.name if sale.customer else 'عميل') ~ ' - ' ~ (sale.sale_number or sale.id),
-                                         notes='دفع مبيعة: ' ~ (sale.sale_number or sale.id) ~ ' - العميل: ' ~ (sale.customer.name if sale.customer else 'غير محدد'),
+                                         reference='دفع مبيعة من ' ~ (sale.customer.name if sale.customer else 'زبون') ~ ' - ' ~ (sale.sale_number or sale.id),
+                                         notes='دفع مبيعة: ' ~ (sale.sale_number or sale.id) ~ ' - الزبون: ' ~ (sale.customer.name if sale.customer else 'غير محدد'),
                                          customer_id=sale.customer_id) }}" class="dropdown-item text-success">
                         <i class="fas fa-money-bill-wave mr-2"></i> إضافة دفعة
                       </a>

@@ -361,7 +361,7 @@ def _fmt_dt(dt):
 
 def _row_dict(sr:ServiceRequest)->dict:
     cust=getattr(sr,"customer",None); mech=getattr(sr,"mechanic",None)
-    return {"ID":getattr(sr,"id",""),"رقم الطلب":getattr(sr,"service_number","") or getattr(sr,"code",""),"العميل":getattr(cust,"name","") if cust else "","هاتف":getattr(cust,"phone","") if cust else "","الحالة":getattr(getattr(sr,"status",""),"value",getattr(sr,"status","")) or "","الأولوية":getattr(getattr(sr,"priority",""),"value",getattr(sr,"priority","")) or "","لوحة المركبة":getattr(sr,"vehicle_vrn","") or "","الميكانيكي":getattr(mech,"username","") if mech else "","تاريخ الاستلام":_fmt_dt(getattr(sr,"received_at",None)),"تاريخ البدء":_fmt_dt(getattr(sr,"started_at",None)),"تاريخ الإكمال":_fmt_dt(getattr(sr,"completed_at",None)),"التكلفة التقديرية":float(getattr(sr,"estimated_cost",0) or 0),"المبلغ المستحق":float(getattr(sr,"balance_due",None) or getattr(sr,"total_cost",0) or 0),"الوصف":(getattr(sr,"description","") or "")[:120]}
+    return {"ID":getattr(sr,"id",""),"رقم الطلب":getattr(sr,"service_number","") or getattr(sr,"code",""),"الزبون":getattr(cust,"name","") if cust else "","هاتف":getattr(cust,"phone","") if cust else "","الحالة":getattr(getattr(sr,"status",""),"value",getattr(sr,"status","")) or "","الأولوية":getattr(getattr(sr,"priority",""),"value",getattr(sr,"priority","")) or "","لوحة المركبة":getattr(sr,"vehicle_vrn","") or "","الميكانيكي":getattr(mech,"username","") if mech else "","تاريخ الاستلام":_fmt_dt(getattr(sr,"received_at",None)),"تاريخ البدء":_fmt_dt(getattr(sr,"started_at",None)),"تاريخ الإكمال":_fmt_dt(getattr(sr,"completed_at",None)),"التكلفة التقديرية":float(getattr(sr,"estimated_cost",0) or 0),"المبلغ المستحق":float(getattr(sr,"balance_due",None) or getattr(sr,"total_cost",0) or 0),"الوصف":(getattr(sr,"description","") or "")[:120]}
 
 def _build_list_query():
     status_filter=request.args.getlist('status'); priority_filter=request.args.getlist('priority'); customer_filter=request.args.get('customer',''); mechanic_filter=request.args.get('mechanic',''); vrn_filter=request.args.get('vrn',''); date_filter=request.args.get('date','')
@@ -582,7 +582,7 @@ def export_requests_csv():
     services=_build_list_query().all()
     rows=[_row_dict(sr) for sr in services]
     sio=io.StringIO(newline="")
-    fieldnames=list(rows[0].keys()) if rows else ["ID","رقم الطلب","العميل","هاتف","الحالة","الأولوية","لوحة المركبة","الميكانيكي","تاريخ الاستلام","تاريخ البدء","تاريخ الإكمال","التكلفة التقديرية","المبلغ المستحق","الوصف"]
+    fieldnames=list(rows[0].keys()) if rows else ["ID","رقم الطلب","الزبون","هاتف","الحالة","الأولوية","لوحة المركبة","الميكانيكي","تاريخ الاستلام","تاريخ البدء","تاريخ الإكمال","التكلفة التقديرية","المبلغ المستحق","الوصف"]
     writer=csv.DictWriter(sio, fieldnames=fieldnames); writer.writeheader()
     for r in rows: writer.writerow(r)
     data=sio.getvalue().encode('utf-8-sig'); bio=io.BytesIO(data); bio.seek(0)
@@ -616,11 +616,11 @@ def create_request():
     except Exception: pass
     if form.validate_on_submit():
         if not form.customer_id.data:
-            flash("⚠️ يجب اختيار عميل قبل إنشاء طلب صيانة.","warning")
+            flash("⚠️ يجب اختيار زبون قبل إنشاء طلب صيانة.","warning")
             return redirect(url_for("customers_bp.create_form", return_to=url_for("service.create_request")))
         customer=db.session.get(Customer,utils._get_id(form.customer_id.data))
         if not customer:
-            flash("⚠️ العميل غير موجود. الرجاء إضافته.","danger")
+            flash("⚠️ الزبون غير موجود. الرجاء إضافته.","danger")
             return redirect(url_for("customers_bp.create_form", return_to=url_for("service.create_request")))
         # Sanitize priority/status to avoid invalid enum values (e.g., 'NEW')
         _prio_code = (form.priority.data or 'MEDIUM').upper()
@@ -1436,7 +1436,7 @@ def add_payment(rid):
     currency = getattr(service, 'currency', 'ILS') or 'ILS'
     
     # تجهيز المرجع والملاحظات
-    customer_name = service.customer.name if service.customer else 'عميل'
+    customer_name = service.customer.name if service.customer else 'زبون'
     service_number = service.service_number or f'#{service.id}'
     
     return redirect(url_for('payments.create_payment', 
@@ -1445,7 +1445,7 @@ def add_payment(rid):
                           amount=balance if balance and balance > 0 else None,
                           currency=currency,
                           reference=f'دفع صيانة من {customer_name} - {service_number}',
-                          notes=f'دفع طلب صيانة: {service_number} - العميل: {customer_name} - المركبة: {service.vehicle_model or "غير محدد"}',
+                          notes=f'دفع طلب صيانة: {service_number} - الزبون: {customer_name} - المركبة: {service.vehicle_model or "غير محدد"}',
                           customer_id=service.customer_id if service.customer_id else None))
 
 @service_bp.route('/<int:rid>/invoice', methods=['GET','POST'])
@@ -1608,7 +1608,7 @@ def generate_service_receipt_pdf(service_request):
     c.setFont("Helvetica",10); y=height-30*mm
     c.drawString(20*mm,y,f"رقم الطلب: {service_request.service_number or service_request.id or ''}")
     c.drawString(120*mm,y,f"التاريخ: {service_request.received_at.strftime('%Y-%m-%d') if getattr(service_request,'received_at',None) else ''}")
-    y-=8*mm; c.drawString(20*mm,y,f"العميل: {service_request.customer.name if service_request.customer else (getattr(service_request,'name',None) or '-')}")
+    y-=8*mm; c.drawString(20*mm,y,f"الزبون: {service_request.customer.name if service_request.customer else (getattr(service_request,'name',None) or '-')}")
     c.drawString(120*mm,y,f"لوحة المركبة: {service_request.vehicle_vrn or ''}")
     y-=12*mm; c.setFont("Helvetica-Bold",11); c.drawString(20*mm,y,"القطع المُركّبة"); y-=6*mm; c.setFont("Helvetica",9)
     headers=[("الصنف",20),("المخزن",70),("الكمية",110),("سعر",125),("خصم ₪",145),("ضريبة%",160),("الإجمالي",175)]

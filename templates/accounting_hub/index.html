@@ -21,7 +21,7 @@
   {% if dashboard %}
   <div class="row">
     <div class="col-md-3"><div class="card"><div class="card-body text-center"><h5>{{ dashboard.branches_count }}</h5><small>فروع</small></div></div></div>
-    <div class="col-md-3"><div class="card"><div class="card-body text-center"><h5>{{ dashboard.customers_balance_net|round(2) }}</h5><small>صافي ذمم عملاء (عينة)</small></div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body text-center"><h5>{{ dashboard.customers_balance_net|round(2) }}</h5><small>صافي ذمم زبائن (عينة)</small></div></div></div>
     <div class="col-md-3"><div class="card"><div class="card-body text-center"><h5>{{ dashboard.fiscal_open_periods }}</h5><small>فترات مفتوحة</small></div></div></div>
     <div class="col-md-3"><div class="card"><div class="card-body text-center"><h5>{% if auto_allocate %}نعم{% else %}لا{% endif %}</h5><small>توزيع تلقائي</small></div></div></div>
   </div>

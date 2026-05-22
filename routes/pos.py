@@ -28,10 +28,10 @@ pos_bp = Blueprint("pos_bp", __name__, url_prefix="/pos")
 
 
 def _walkin_customer():
-    c = Customer.query.filter(Customer.name == "عميل نقدي POS").first()
+    c = Customer.query.filter(Customer.name == "زبون نقدي POS").first()
     if c:
         return c
-    c = Customer(name="عميل نقدي POS", phone="POS", currency="ILS")
+    c = Customer(name="زبون نقدي POS", phone="POS", currency="ILS")
     db.session.add(c)
     db.session.flush()
     return c

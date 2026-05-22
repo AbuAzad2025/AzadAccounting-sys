@@ -551,7 +551,7 @@ def suppliers_statement(supplier_id: int):
         })
         total_debit += returns_supply_total
 
-    # المبيعات للمورد (كعميل) — تُسجّل دائن (تُخفّض ما ندين به)
+    # المبيعات للمورد (كزبون) — تُسجّل دائن (تُخفّض ما ندين به)
     sales_data = []
     if supplier.customer_id:
         from models import Sale, SaleStatus, SaleLine, Product
@@ -611,7 +611,7 @@ def suppliers_statement(supplier_id: int):
             total_debit += amt
             sales_data.append({"ref": ref, "date": d, "amount": amt, "items": items})
     
-    # الصيانة للمورد (كعميل) — تُسجّل مدين
+    # الصيانة للمورد (كزبون) — تُسجّل مدين
     services_data = []
     if supplier.customer_id:
         from models import ServiceRequest, ServicePart, ServiceTask

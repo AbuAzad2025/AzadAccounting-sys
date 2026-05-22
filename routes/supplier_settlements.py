@@ -1048,9 +1048,9 @@ def _calculate_supplier_outgoing(supplier_id: int, date_from: datetime, date_to:
     from models import Sale, ExchangeTransaction
     from sqlalchemy import func
     
-    # المبيعات للمورد (إذا كان عميل أيضاً)
+    # المبيعات للمورد (إذا كان زبون أيضاً)
     sales = db.session.query(func.sum(Sale.total_amount)).filter(
-        Sale.customer_id == supplier_id,  # إذا كان المورد عميل أيضاً
+        Sale.customer_id == supplier_id,  # إذا كان المورد زبون أيضاً
         Sale.sale_date >= date_from,
         Sale.sale_date <= date_to
     ).scalar() or 0
@@ -1480,7 +1480,7 @@ def _get_supplier_exchange_items(supplier_id: int, date_from: datetime, date_to:
 
 def _get_sales_to_supplier(supplier_id: int, date_from: datetime, date_to: datetime):
     """
-    مبيعات للمورد (كعميل) - تُخصم من حقوقه
+    مبيعات للمورد (كزبون) - تُخصم من حقوقه
     """
     from models import Sale, SaleLine, Product, Supplier
     
@@ -1540,7 +1540,7 @@ def _get_sales_to_supplier(supplier_id: int, date_from: datetime, date_to: datet
 
 def _get_services_to_supplier(supplier_id: int, date_from: datetime, date_to: datetime):
     """
-    رسوم صيانة على المورد (كعميل) - تُخصم من حقوقه
+    رسوم صيانة على المورد (كزبون) - تُخصم من حقوقه
     """
     from models import ServiceRequest, Supplier
     
@@ -1587,8 +1587,8 @@ def _get_payments_to_supplier(supplier_id: int, supplier, date_from: datetime, d
     
     تشمل:
     1. الدفعات المرتبطة مباشرة بـ supplier_id
-    2. الدفعات المرتبطة بـ customer_id (العميل المرتبط بالمورد)
-    3. الدفعات المرتبطة بمبيعات للعميل (entity_type = SALE)
+    2. الدفعات المرتبطة بـ customer_id (الزبون المرتبط بالمورد)
+    3. الدفعات المرتبطة بمبيعات للزبون (entity_type = SALE)
     """
     from models import Payment, PaymentDirection, PaymentStatus, PaymentEntityType, Sale, Check
     from sqlalchemy import or_
@@ -1624,7 +1624,7 @@ def _get_payments_to_supplier(supplier_id: int, supplier, date_from: datetime, d
             "source": "supplier"
         })
     
-    # 2. الدفعات المرتبطة بالعميل المرتبط بالمورد
+    # 2. الدفعات المرتبطة بالزبون المرتبط بالمورد
     if supplier.customer_id:
         customer_payments = db.session.query(Payment).outerjoin(
             Check, Check.payment_id == Payment.id
@@ -1654,7 +1654,7 @@ def _get_payments_to_supplier(supplier_id: int, supplier, date_from: datetime, d
                     "source": "customer"
                 })
         
-        # 3. الدفعات المرتبطة بمبيعات للعميل (استثناء الشيكات المرتدة)
+        # 3. الدفعات المرتبطة بمبيعات للزبون (استثناء الشيكات المرتدة)
         sale_payments = db.session.query(Payment).join(
             Sale, Sale.id == Payment.sale_id
         ).outerjoin(
@@ -1719,7 +1719,7 @@ def _get_payments_to_supplier(supplier_id: int, supplier, date_from: datetime, d
             })
     
     if supplier.customer_id:
-        # 5. الدفعات المرتبطة بفواتير للعميل (استثناء الشيكات المرتدة)
+        # 5. الدفعات المرتبطة بفواتير للزبون (استثناء الشيكات المرتدة)
         from models import Invoice
         invoice_payments = db.session.query(Payment).join(
             Invoice, Invoice.id == Payment.invoice_id
@@ -1751,7 +1751,7 @@ def _get_payments_to_supplier(supplier_id: int, supplier, date_from: datetime, d
                     "source": "invoice"
                 })
         
-        # 5. الدفعات المرتبطة بخدمات للعميل (استثناء الشيكات المرتدة)
+        # 5. الدفعات المرتبطة بخدمات للزبون (استثناء الشيكات المرتدة)
         from models import ServiceRequest
         service_payments = db.session.query(Payment).join(
             ServiceRequest, ServiceRequest.id == Payment.service_id
@@ -1783,7 +1783,7 @@ def _get_payments_to_supplier(supplier_id: int, supplier, date_from: datetime, d
                     "source": "service"
                 })
         
-        # 6. الدفعات المرتبطة بحجوزات مسبقة للعميل (استثناء الشيكات المرتدة)
+        # 6. الدفعات المرتبطة بحجوزات مسبقة للزبون (استثناء الشيكات المرتدة)
         from models import PreOrder
         preorder_payments = db.session.query(Payment).join(
             PreOrder, PreOrder.id == Payment.preorder_id
@@ -1860,8 +1860,8 @@ def _get_payments_from_supplier(supplier_id: int, supplier, date_from: datetime,
     
     تشمل:
     1. الدفعات المرتبطة مباشرة بـ supplier_id
-    2. الدفعات المرتبطة بـ customer_id (العميل المرتبط بالمورد)
-    3. الدفعات المرتبطة بمبيعات للعميل (entity_type = SALE)
+    2. الدفعات المرتبطة بـ customer_id (الزبون المرتبط بالمورد)
+    3. الدفعات المرتبطة بمبيعات للزبون (entity_type = SALE)
     """
     from models import Payment, PaymentDirection, PaymentStatus, PaymentEntityType, Sale, Check
     from sqlalchemy import or_
@@ -1897,7 +1897,7 @@ def _get_payments_from_supplier(supplier_id: int, supplier, date_from: datetime,
             "source": "supplier"
         })
     
-    # 2. الدفعات المرتبطة بالعميل المرتبط بالمورد (استثناء الشيكات المرتدة)
+    # 2. الدفعات المرتبطة بالزبون المرتبط بالمورد (استثناء الشيكات المرتدة)
     if supplier.customer_id:
         customer_payments = db.session.query(Payment).outerjoin(
             Check, Check.payment_id == Payment.id
@@ -1927,7 +1927,7 @@ def _get_payments_from_supplier(supplier_id: int, supplier, date_from: datetime,
                     "source": "customer"
                 })
         
-        # 3. الدفعات المرتبطة بمبيعات للعميل (استثناء الشيكات المرتدة)
+        # 3. الدفعات المرتبطة بمبيعات للزبون (استثناء الشيكات المرتدة)
         sale_payments = db.session.query(Payment).join(
             Sale, Sale.id == Payment.sale_id
         ).outerjoin(
@@ -1958,7 +1958,7 @@ def _get_payments_from_supplier(supplier_id: int, supplier, date_from: datetime,
                     "source": "sale"
                 })
         
-        # 4. الدفعات المرتبطة بفواتير للعميل (استثناء الشيكات المرتدة)
+        # 4. الدفعات المرتبطة بفواتير للزبون (استثناء الشيكات المرتدة)
         from models import Invoice
         invoice_payments = db.session.query(Payment).join(
             Invoice, Invoice.id == Payment.invoice_id
@@ -1990,7 +1990,7 @@ def _get_payments_from_supplier(supplier_id: int, supplier, date_from: datetime,
                     "source": "invoice"
                 })
         
-        # 5. الدفعات المرتبطة بخدمات للعميل (استثناء الشيكات المرتدة)
+        # 5. الدفعات المرتبطة بخدمات للزبون (استثناء الشيكات المرتدة)
         from models import ServiceRequest
         service_payments = db.session.query(Payment).join(
             ServiceRequest, ServiceRequest.id == Payment.service_id
@@ -2022,7 +2022,7 @@ def _get_payments_from_supplier(supplier_id: int, supplier, date_from: datetime,
                     "source": "service"
                 })
         
-        # 5. الدفعات المرتبطة بحجوزات مسبقة للعميل (استثناء الشيكات المرتدة)
+        # 5. الدفعات المرتبطة بحجوزات مسبقة للزبون (استثناء الشيكات المرتدة)
         from models import PreOrder
         preorder_payments = db.session.query(Payment).join(
             PreOrder, PreOrder.id == Payment.preorder_id
@@ -2095,7 +2095,7 @@ def _get_payments_from_supplier(supplier_id: int, supplier, date_from: datetime,
 
 def _get_supplier_preorders(supplier_id: int, date_from: datetime, date_to: datetime):
     """
-    حجوزات مسبقة للمورد (إذا كان عميلاً)
+    حجوزات مسبقة للمورد (إذا كان زبوناً)
     تُحسب فقط الإجمالي (عليه)، بدون العربون
     """
     from models import PreOrder, Supplier

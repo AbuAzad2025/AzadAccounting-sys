@@ -85,7 +85,7 @@ def add_template():
                 return redirect(url_for('recurring.add_template'))
             
             if not customer_id:
-                flash('العميل مطلوب', 'danger')
+                flash('الزبون مطلوب', 'danger')
                 return redirect(url_for('recurring.add_template'))
             
             if amount <= 0:

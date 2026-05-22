@@ -630,7 +630,7 @@ def get_ledger_data():
         payment_split_cache = {}
 
         for entry, batch, account in entries:
-            # استخراج اسم الجهة (عميل، مورد، الخ)
+            # استخراج اسم الجهة (زبون، مورد، الخ)
             entity_name, entity_type_ar, entity_id, entity_type_code = SmartEntityExtractor.extract_from_batch(batch)
             if not entity_name:
                 entity_name = "—"
@@ -2205,7 +2205,7 @@ def get_receivables_detailed_summary():
             if abs(balance) < 0.01:
                 continue
             customer = db.session.get(Customer, cid)
-            name = customer.name if customer else f"عميل #{cid}"
+            name = customer.name if customer else f"زبون #{cid}"
             oldest_date = None
             last_payment_date = None
             oldest_sale = Sale.query.filter(Sale.customer_id == cid, Sale.status == 'CONFIRMED').order_by(Sale.sale_date.asc()).first()
@@ -2230,7 +2230,7 @@ def get_receivables_detailed_summary():
             receivables.append({
                 "name": name,
                 "type": "customer",
-                "type_ar": "عميل",
+                "type_ar": "زبون",
                 "balance": balance,
                 "debit": abs(balance) if balance < 0 else 0.0,
                 "credit": balance if balance > 0 else 0.0,
@@ -2303,7 +2303,7 @@ def get_receivables_detailed_summary():
 @login_required
 @utils.permission_required(SystemPermissions.MANAGE_LEDGER)
 def get_receivables_summary():
-    """جلب ملخص الذمم (العملاء، الموردين، الشركاء)"""
+    """جلب ملخص الذمم (الزبائن، الموردين، الشركاء)"""
     try:
         from_date_str = request.args.get('from_date')
         to_date_str = request.args.get('to_date')
@@ -2313,7 +2313,7 @@ def get_receivables_summary():
         
         receivables = []
         
-        # 1. العملاء (Customers) - من دفتر الأستاذ
+        # 1. الزبائن (Customers) - من دفتر الأستاذ
         cust_query = db.session.query(
             GLBatch.entity_id,
             func.sum(GLEntry.debit).label('debit'),
@@ -2339,7 +2339,7 @@ def get_receivables_summary():
                     receivables.append({
                         "name": c_map.get(r.entity_id, f"Client #{r.entity_id}"),
                         "type": "customer",
-                        "type_ar": "عميل",
+                        "type_ar": "زبون",
                         "debit": float(r.debit or 0),
                         "credit": float(r.credit or 0)
                     })
@@ -2655,7 +2655,7 @@ def entity_ledger():
     entity_name = "—"
     if et == 'CUSTOMER':
         customer = db.session.get(Customer, eid)
-        entity_name = customer.name if customer else f"عميل #{eid}"
+        entity_name = customer.name if customer else f"زبون #{eid}"
     elif et == 'SUPPLIER':
         supplier = db.session.get(Supplier, eid)
         if supplier:
@@ -2809,7 +2809,7 @@ def get_batch_details(batch_id):
 def get_ar_ap_summary():
     """
     تقرير الذمم التفصيلي الحقيقي المعتمد على قيود دفتر الأستاذ فقط.
-    يجمع الأرصدة لكل كيان (عميل، مورد، شريك، موظف).
+    يجمع الأرصدة لكل كيان (زبون، مورد، شريك، موظف).
     """
     try:
         from_date_str = request.args.get('from_date')

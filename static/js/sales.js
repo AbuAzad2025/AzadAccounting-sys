@@ -505,7 +505,7 @@
     }
     const recalcDebounced = debounce(recalc,150);
 
-    // تهيئة Select2 للعناصر الرأسية (العميل والموظف)
+    // تهيئة Select2 للعناصر الرأسية (الزبون والموظف)
     select2Ready.then(()=>{
       if(!(window.jQuery && window.jQuery.fn && window.jQuery.fn.select2)) return;
       const $ = window.jQuery;

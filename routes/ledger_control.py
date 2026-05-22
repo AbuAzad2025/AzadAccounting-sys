@@ -56,7 +56,7 @@ def index():
     completed_payments = Payment.query.filter_by(status='COMPLETED').count()
     failed_payments = Payment.query.filter_by(status='FAILED').count()
     
-    # أرصدة العملاء والموردين والشركاء
+    # أرصدة الزبائن والموردين والشركاء
     customers_count = Customer.query.count()
     suppliers_count = Supplier.query.count()
     partners_count = Partner.query.count()
@@ -663,7 +663,7 @@ def health_check():
             health_status['checks'].append({
                 'name': 'تطابق أرصدة الجهات',
                 'status': 'WARNING',
-                'message': f'عدم تطابق: عملاء {int(customers_mismatch_count)} | موردين {int(suppliers_mismatch_count)} | شركاء {int(partners_mismatch_count)} | مجموع الفرق {round(total_abs, 2)}'
+                'message': f'عدم تطابق: زبائن {int(customers_mismatch_count)} | موردين {int(suppliers_mismatch_count)} | شركاء {int(partners_mismatch_count)} | مجموع الفرق {round(total_abs, 2)}'
             })
             if health_status['overall'] == 'HEALTHY':
                 health_status['overall'] = 'WARNING'
@@ -1185,7 +1185,7 @@ def recalculate_all_balances():
         return jsonify({
             'success': True,
             'recalculated': recalculated,
-            'message': f"تم: {recalculated['customers']} عميل، {recalculated['partners']} شريك، {recalculated['suppliers']} مورد"
+            'message': f"تم: {recalculated['customers']} زبون، {recalculated['partners']} شريك، {recalculated['suppliers']} مورد"
         })
     except Exception as e:
         db.session.rollback()
@@ -1197,7 +1197,7 @@ def recalculate_all_balances():
 @ledger_control_bp.route('/fix-cashed-checks-balance', methods=['POST'])
 @permission_required(SystemPermissions.MANAGE_ADVANCED_ACCOUNTING)
 def fix_cashed_checks_balance():
-    """تصحيح أرصدة العملاء المتأثرين بالشيكات المسوية والمرتدة"""
+    """تصحيح أرصدة الزبائن المتأثرين بالشيكات المسوية والمرتدة"""
     try:
         from decimal import Decimal
         from models import Customer, Payment, Check, PaymentSplit, CheckStatus
@@ -1278,12 +1278,12 @@ def fix_cashed_checks_balance():
                     })
                     fixed_count += 1
                 except Exception as e:
-                    current_app.logger.error(f"❌ خطأ في تحديث رصيد العميل #{customer_id}: {e}")
+                    current_app.logger.error(f"❌ خطأ في تحديث رصيد الزبون #{customer_id}: {e}")
                     db.session.rollback()
             
             return jsonify({
                 'success': True,
-                'message': f'تم تصحيح أرصدة {fixed_count} عميل',
+                'message': f'تم تصحيح أرصدة {fixed_count} زبون',
                 'total_checks': len(all_checks),
                 'issues_found': len(issues_found),
                 'affected_customers': len(affected_customers),
@@ -1938,7 +1938,7 @@ def search_entities():
 @ledger_control_bp.route('/verify-customer-balances', methods=['POST'])
 @permission_required(SystemPermissions.MANAGE_SYSTEM_HEALTH)
 def verify_customer_balances():
-    """التحقق من أرصدة العملاء القدامى وتحديثها حسب النظام الجديد"""
+    """التحقق من أرصدة الزبائن القدامى وتحديثها حسب النظام الجديد"""
     try:
         from decimal import Decimal
         from models import Customer
@@ -2007,7 +2007,7 @@ def verify_customer_balances():
                     verified += 1
                     
             except Exception as e:
-                current_app.logger.error(f"❌ خطأ في التحقق من رصيد العميل #{customer.id}: {e}")
+                current_app.logger.error(f"❌ خطأ في التحقق من رصيد الزبون #{customer.id}: {e}")
                 issues.append({
                     'customer_id': customer.id,
                     'customer_name': getattr(customer, 'name', 'Unknown'),
@@ -2022,10 +2022,10 @@ def verify_customer_balances():
             'verified': verified,
             'updated': updated,
             'issues': issues,
-            'message': f'تم التحقق من {total} عميل: {verified} صحيح، {updated} تم تحديثه'
+            'message': f'تم التحقق من {total} زبون: {verified} صحيح، {updated} تم تحديثه'
         })
     except Exception as e:
-        current_app.logger.error(f"❌ خطأ في التحقق من أرصدة العملاء: {str(e)}")
+        current_app.logger.error(f"❌ خطأ في التحقق من أرصدة الزبائن: {str(e)}")
         db.session.rollback()
         current_app.logger.exception('API error')
         return jsonify({"success": False, "error": "حدث خطأ داخلي"}), 500
