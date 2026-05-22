@@ -2080,6 +2080,7 @@ def account_statement(customer_id):
                             "credit": split_amount_ils if not is_in else D(0),
                             "payment_details": returned_details,
                             "notes": notes,
+                            "affects_balance": True,
                         })
             else:
                 # ✅ الدفعة بدون splits - نعرضها كالمعتاد
@@ -2122,6 +2123,7 @@ def account_statement(customer_id):
                         "statement": check_statement,
                         "debit": returned_debit,
                         "credit": returned_credit,
+                        "affects_balance": True,
                         "payment_details": {
                             'method': 'شيك',
                             'method_raw': 'cheque',

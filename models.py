@@ -6843,10 +6843,10 @@ class Invoice(db.Model, TimestampMixin):
 
     @hybrid_property
     def total_paid(self):
-        from decimal import Decimal
+        from decimal import Decimal as D
 
-        total = Decimal("0.00")
-        invoice_currency = self.currency or "ILS"
+        total = D("0.00")
+        invoice_currency = (self.currency or "ILS").upper()
 
         payments = [
             p
@@ -6856,16 +6856,47 @@ class Invoice(db.Model, TimestampMixin):
             and getattr(p, "direction", None) == PaymentDirection.IN.value
         ]
 
-        for p in payments:
-            amt = Decimal(str(getattr(p, "total_amount", 0) or 0))
-            p_currency = getattr(p, "currency", None)
-            if not p_currency or p_currency == invoice_currency:
-                total += amt
-                continue
-            try:
-                total += convert_amount(amt, p_currency, invoice_currency, getattr(p, "payment_date", None))
-            except Exception:
-                pass
+        for payment in payments:
+            splits = payment.splits if hasattr(payment, "splits") else []
+            if splits:
+                for split in splits:
+                    split_amt = D(str(split.amount or 0))
+                    split_currency = (split.currency or payment.currency or invoice_currency).upper()
+                    if split_currency == invoice_currency:
+                        total += split_amt
+                    else:
+                        try:
+                            total += D(
+                                str(
+                                    convert_amount(
+                                        split_amt,
+                                        split_currency,
+                                        invoice_currency,
+                                        payment.payment_date,
+                                    )
+                                )
+                            )
+                        except Exception:
+                            pass
+            else:
+                amt = D(str(getattr(payment, "total_amount", 0) or 0))
+                p_currency = (getattr(payment, "currency", None) or invoice_currency).upper()
+                if p_currency == invoice_currency:
+                    total += amt
+                else:
+                    try:
+                        total += D(
+                            str(
+                                convert_amount(
+                                    amt,
+                                    p_currency,
+                                    invoice_currency,
+                                    getattr(payment, "payment_date", None),
+                                )
+                            )
+                        )
+                    except Exception:
+                        pass
 
         return float(total)
 
