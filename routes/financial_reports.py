@@ -19,7 +19,16 @@ financial_reports_bp = Blueprint('financial_reports', __name__, url_prefix='/rep
 @financial_reports_bp.route('/')
 @permission_required(SystemPermissions.VIEW_REPORTS)
 def index():
-    return render_template('reports/financial/index.html')
+    from models import Company
+    from utils.company_scope import get_accessible_company_ids
+
+    cq = Company.query.filter_by(is_active=True).order_by(Company.name)
+    allowed = get_accessible_company_ids()
+    if allowed is not None:
+        companies = cq.filter(Company.id.in_(allowed)).all() if allowed else []
+    else:
+        companies = cq.all()
+    return render_template('reports/financial/index.html', companies=companies)
 
 
 @financial_reports_bp.route('/accrue-income-tax', methods=['POST'])
@@ -119,6 +128,10 @@ def accrue_income_tax():
 @permission_required(SystemPermissions.VIEW_REPORTS)
 def income_statement():
     try:
+        from utils.company_scope import branch_ids_for_company
+        company_id = request.args.get('company_id', type=int)
+        branch_filter_ids = branch_ids_for_company(company_id) if company_id else None
+
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
         
@@ -264,8 +277,18 @@ def income_statement():
             'expenses': expense_details,
             'cogs_details': cogs_details,
             'revenue_details': revenue_details,
-            'expense_details': expense_details
+            'expense_details': expense_details,
+            'company_id': company_id,
+            'branch_filter_ids': branch_filter_ids,
         }
+        from models import Company
+        from utils.company_scope import get_accessible_company_ids
+        cq = Company.query.filter_by(is_active=True).order_by(Company.name)
+        allowed = get_accessible_company_ids()
+        if allowed is not None:
+            data['companies'] = cq.filter(Company.id.in_(allowed)).all() if allowed else []
+        else:
+            data['companies'] = cq.all()
         
         if request.args.get('format') == 'json' or request.headers.get('Accept') == 'application/json':
             return jsonify({

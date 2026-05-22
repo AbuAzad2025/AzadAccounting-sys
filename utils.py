@@ -1712,6 +1712,11 @@ def _install_accounting_listeners():
                         except Exception:
                             pass
                     paid += amt
+        try:
+            from utils.allocation_amounts import sum_allocations
+            paid += sum_allocations("SALE", int(sale.id), sess)
+        except Exception:
+            pass
         total_paid = float(paid.quantize(Q, rounding=ROUND_HALF_UP))
         balance_due = float((_q2_local(sale.total_amount) - paid).quantize(Q, rounding=ROUND_HALF_UP))
         set_committed_value(sale, "total_paid", total_paid)

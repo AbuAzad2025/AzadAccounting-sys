@@ -6,7 +6,7 @@ from flask_login import login_required
 from decimal import Decimal
 
 from extensions import db
-from models import PurchaseOrder, PurchaseOrderLine, Supplier, Branch, Product
+from models import PurchaseOrder, PurchaseOrderLine, Supplier, Branch, Product, Warehouse, Shipment, ShipmentItem
 from permissions_config.enums import SystemPermissions
 from utils import permission_required
 from utils.company_scope import filter_by_branches, default_company
@@ -119,6 +119,56 @@ def set_status(id):
     st = (request.form.get("status") or "").upper()
     if st in ("DRAFT", "ORDERED", "PARTIAL", "RECEIVED", "CANCELLED"):
         order.status = st
+        if st == "RECEIVED":
+            for ln in order.lines:
+                ln.received_qty = ln.quantity
         db.session.commit()
+        if st == "RECEIVED":
+            from utils.po_gl_service import run_po_gl_sync_after_commit
+            run_po_gl_sync_after_commit(order.id)
         flash("تم تحديث الحالة", "success")
     return redirect(url_for("purchases_bp.detail", id=id))
+
+
+@purchases_bp.route("/<int:id>/create-shipment", methods=["POST"])
+@login_required
+@permission_required(SystemPermissions.MANAGE_SHIPMENTS)
+def create_shipment_from_po(id):
+    order = db.session.get(PurchaseOrder, id) or abort(404)
+    if not order.lines:
+        flash("أمر الشراء بلا بنود", "warning")
+        return redirect(url_for("purchases_bp.detail", id=id))
+    wh = (
+        Warehouse.query.filter_by(branch_id=order.branch_id, is_active=True)
+        .order_by(Warehouse.id.asc())
+        .first()
+    )
+    if not wh:
+        flash("لا مستودع نشط مرتبط بفرع أمر الشراء", "danger")
+        return redirect(url_for("purchases_bp.detail", id=id))
+    sh = Shipment(
+        shipment_number=None,
+        shipment_date=datetime.now(),
+        expected_arrival=datetime.now(),
+        status="DRAFT",
+        destination_id=wh.id,
+        currency=order.currency or "ILS",
+        purchase_order_id=order.id,
+        notes=f"من أمر شراء {order.number}",
+    )
+    db.session.add(sh)
+    db.session.flush()
+    for ln in order.lines:
+        qty = int(ln.quantity or 0) or 1
+        sh.items.append(
+            ShipmentItem(
+                product_id=ln.product_id,
+                warehouse_id=wh.id,
+                quantity=qty,
+                unit_cost=float(ln.unit_price or 0),
+                declared_value=float((ln.quantity or 0) * (ln.unit_price or 0)),
+            )
+        )
+    db.session.commit()
+    flash(f"تم إنشاء الشحنة #{sh.id} من {order.number}", "success")
+    return redirect(url_for("shipments_bp.edit_shipment", id=sh.id))

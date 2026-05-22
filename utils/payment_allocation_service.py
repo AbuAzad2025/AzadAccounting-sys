@@ -77,4 +77,8 @@ def apply_manual_allocations(
         raise ValueError("مجموع التوزيع يتجاوز مبلغ الدفعة")
 
     db.session.commit()
+    from utils.allocation_amounts import recompute_allocations_for_payment
+
+    recompute_allocations_for_payment(payment_id)
+    db.session.commit()
     return {"success": True, "allocated": float(total_alloc), "payment_total": float(pay_total)}

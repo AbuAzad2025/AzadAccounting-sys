@@ -24,8 +24,20 @@ accounting_hub_bp = Blueprint("accounting_hub_bp", __name__, url_prefix="/accoun
 @login_required
 @permission_required(SystemPermissions.VIEW_REPORTS)
 def index():
-    companies = Company.query.filter_by(is_active=True).order_by(Company.name).all()
+    from utils.company_scope import get_accessible_company_ids
+
+    companies_q = Company.query.filter_by(is_active=True).order_by(Company.name)
+    allowed_co = get_accessible_company_ids()
+    if allowed_co is not None:
+        if not allowed_co:
+            companies = []
+        else:
+            companies = companies_q.filter(Company.id.in_(allowed_co)).all()
+    else:
+        companies = companies_q.all()
     cid = request.args.get("company_id", type=int)
+    if cid and allowed_co is not None and cid not in allowed_co:
+        cid = None
     if not cid and companies:
         cid = companies[0].id
     dash = None

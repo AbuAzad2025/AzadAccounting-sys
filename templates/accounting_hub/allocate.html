@@ -18,6 +18,6 @@
   </table>
     <button class="btn btn-primary">حفظ التوزيع</button>
   </form>
-  {% if existing %}<p class="mt-2 small">موزّع حالياً: {{ existing|length }} سطر</p>{% endif %}
+  {% if existing %}<p class="mt-2 small text-muted">موزّع حالياً: {{ existing|length }} سطر — يُحدَّث <code>total_paid</code> على المستندات دون نقل الدفعة من حساب العميل.</p>{% endif %}
 </div>
 {% endblock %}

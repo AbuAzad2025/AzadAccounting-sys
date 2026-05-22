@@ -615,7 +615,10 @@ def _base_query_with_filters(include_relations=True):
         show_archived = True
     else:
         show_archived = True
+    from utils.company_scope import filter_by_branches
+
     q = Expense.query
+    q = filter_by_branches(q, Expense.branch_id)
     if not show_archived:
         q = q.filter(Expense.is_archived == False)
     if include_relations:

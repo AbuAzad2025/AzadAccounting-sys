@@ -508,6 +508,8 @@ def dashboard():
 @login_required
 def list_sales():
     f = request.args
+    from utils.company_scope import filter_sales_query
+
     q = (Sale.query
          .filter(Sale.is_archived == False)
         .options(
@@ -516,6 +518,7 @@ def list_sales():
             joinedload(Sale.seller_employee).load_only(Employee.id, Employee.name)
         )
          .outerjoin(Customer))
+    q = filter_sales_query(q)
     st = (f.get("status") or "").upper().strip()
     status_filter_enabled = bool(st and st != "ALL")
     if status_filter_enabled:

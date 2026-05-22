@@ -194,6 +194,12 @@
                 <p>الشركات</p>
               </a>
             </li>
+            <li class="nav-item">
+              <a href="{{ url_for('branches_bp.list_branches') }}" class="nav-link {% if request.blueprint == 'branches_bp' %}active{% endif %}">
+                <i class="far fa-circle nav-icon text-info"></i>
+                <p>الفروع</p>
+              </a>
+            </li>
             {% endif %}
             {% if is_module_enabled('payments') %}
             {% if has_perm('manage_payments') %}

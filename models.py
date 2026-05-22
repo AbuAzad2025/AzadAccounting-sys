@@ -6923,6 +6923,13 @@ class Invoice(db.Model, TimestampMixin):
                     except Exception:
                         pass
 
+        try:
+            from utils.allocation_amounts import sum_allocations
+            from decimal import Decimal as D
+            total += D(str(sum_allocations("INVOICE", int(self.id))))
+        except Exception:
+            pass
+
         return float(total)
 
     @total_paid.expression

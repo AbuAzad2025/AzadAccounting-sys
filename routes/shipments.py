@@ -315,9 +315,12 @@ def list_shipments():
             return st
 
     if _wants_json():
+        from utils.company_scope import filter_shipments_query
+
         q = db.session.query(Shipment).filter(Shipment.is_archived == False).options(
             joinedload(Shipment.destination_warehouse),
         )
+        q = filter_shipments_query(q)
 
         if status:
             q = q.filter(Shipment.status == status)
@@ -440,7 +443,11 @@ def shipments_data():
     f_dest   = (request.args.get("destination") or "").strip()
     f_extra  = (request.args.get("search_extra") or request.args.get("search[value]", "") or "").strip()
 
-    base_q = db.session.query(Shipment).filter(Shipment.is_archived == False)
+    from utils.company_scope import filter_shipments_query
+
+    base_q = filter_shipments_query(
+        db.session.query(Shipment).filter(Shipment.is_archived == False)
+    )
     total_count = base_q.order_by(None).with_entities(func.count(Shipment.id)).scalar() or 0
     q = base_q
     dest_wh = None
@@ -560,6 +567,7 @@ def shipments_data():
 def create_shipment():
     form = ShipmentForm()
     pre_dest_id = request.args.get("destination_id", type=int)
+    pre_po_id = request.args.get("purchase_order_id", type=int)
 
     if request.method == "GET":
         if not form.shipment_date.data:
@@ -581,6 +589,15 @@ def create_shipment():
         dest_prefill = db.session.get(Warehouse, pre_dest_id)
         if dest_prefill:
             form.destination_id.data = dest_prefill
+
+    pre_po = None
+    if pre_po_id:
+        from models import PurchaseOrder
+        pre_po = db.session.get(PurchaseOrder, pre_po_id)
+        if pre_po and pre_po.branch_id:
+            wh = Warehouse.query.filter_by(branch_id=pre_po.branch_id, is_active=True).first()
+            if wh and not form.destination_id.data:
+                form.destination_id.data = wh
 
     if request.method == "POST" and not form.validate_on_submit():
         if _wants_json():
@@ -609,6 +626,7 @@ def create_shipment():
             notes=form.notes.data or None,
             currency=_norm_currency(getattr(form, "currency", None) and form.currency.data),
             sale_id=(form.sale_id.data.id if getattr(form, "sale_id", None) and getattr(form.sale_id.data, "id", None) else None),
+            purchase_order_id=request.form.get("purchase_order_id", type=int) or pre_po_id or None,
             # الحقول الإضافية
             weight=form.weight.data if hasattr(form, "weight") else None,
             dimensions=form.dimensions.data if hasattr(form, "dimensions") else None,

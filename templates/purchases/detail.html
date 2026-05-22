@@ -7,11 +7,16 @@
   <table class="table table-sm table-bordered"><thead><tr><th>منتج</th><th>كمية</th><th>سعر</th><th>مستلم</th></tr></thead>
   <tbody>{% for ln in order.lines %}<tr><td>{{ ln.product.name if ln.product else ln.product_id }}</td><td>{{ ln.quantity }}</td><td>{{ ln.unit_price }}</td><td>{{ ln.received_qty }}</td></tr>{% endfor %}</tbody>
   </table>
-  <form method="post" action="{{ url_for('purchases_bp.set_status', id=order.id) }}" class="form-inline">
+  <form method="post" action="{{ url_for('purchases_bp.set_status', id=order.id) }}" class="form-inline d-inline-flex align-items-center gap-2">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <select name="status" class="form-control form-control-sm"><option>ORDERED</option><option>PARTIAL</option><option>RECEIVED</option><option>CANCELLED</option></select>
     <button class="btn btn-sm btn-warning">تحديث الحالة</button>
   </form>
+  <form method="post" action="{{ url_for('purchases_bp.create_shipment_from_po', id=order.id) }}" class="d-inline ml-2">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="btn btn-sm btn-success">إنشاء شحنة</button>
+  </form>
+  {% if order.shipments %}<p class="small mt-2">شحنات مرتبطة: {% for sh in order.shipments %}<a href="{{ url_for('shipments_bp.edit_shipment', id=sh.id) }}">#{{ sh.id }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
   <a href="{{ url_for('purchases_bp.index') }}" class="btn btn-secondary btn-sm mt-2">رجوع</a>
 </div>
 {% endblock %}

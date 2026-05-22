@@ -1137,6 +1137,12 @@ def create_app(config_object=Config) -> Flask:
         "barcode_scanner_bp": barcode_scanner_bp,
         "checks_bp": checks_bp,
         "balances_api_bp": balances_api_bp,
+        "companies_bp": companies_bp,
+        "purchases_bp": purchases_bp,
+        "accounting_hub_bp": accounting_hub_bp,
+        "fiscal_periods_bp": fiscal_periods_bp,
+        "branches_bp": branches_bp,
+        "budgets_bp": budgets_bp,
     }
     for _name, _opts in get_blueprint_guard_config():
         if _name in _blueprints_for_acl:

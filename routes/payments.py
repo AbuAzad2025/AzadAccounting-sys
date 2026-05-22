@@ -588,9 +588,12 @@ def index():
         Payment.is_archived.is_(None),
         and_(Payment.is_archived.is_(True), Payment.archived_at.is_(None)),
     )
+    from utils.company_scope import filter_payments_query
+
     base_q = (
-        Payment.query.filter(active_filter)
-        .filter(*filters)
+        filter_payments_query(
+            Payment.query.filter(active_filter).filter(*filters)
+        )
         .options(
             load_only(
                 Payment.id,

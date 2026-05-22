@@ -140,6 +140,9 @@ def list_customers():
     else:
         q = q.filter(Customer.is_archived == False)
 
+    from utils.company_scope import filter_customers_query
+    q = filter_customers_query(q)
+
     if name := request.args.get("name"):
         q = q.filter(Customer.name.ilike(f"%{name}%"))
     if phone := request.args.get("phone"):

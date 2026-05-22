@@ -14,7 +14,17 @@ companies_bp = Blueprint("companies_bp", __name__, url_prefix="/companies")
 @login_required
 @permission_required(SystemPermissions.MANAGE_BRANCHES)
 def index():
-    companies = Company.query.order_by(Company.is_active.desc(), Company.name).all()
+    from utils.company_scope import get_accessible_company_ids
+
+    q = Company.query.order_by(Company.is_active.desc(), Company.name)
+    allowed = get_accessible_company_ids()
+    if allowed is not None:
+        if not allowed:
+            companies = []
+        else:
+            companies = q.filter(Company.id.in_(allowed)).all()
+    else:
+        companies = q.all()
     for c in companies:
         c.branches_count = Branch.query.filter_by(company_id=c.id).count()
     return render_template("companies/index.html", companies=companies)

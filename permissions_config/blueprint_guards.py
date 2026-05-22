@@ -76,4 +76,10 @@ def get_blueprint_guard_config():
         ("barcode_scanner_bp", {"read_perm": SP.VIEW_BARCODE.value, "write_perm": SP.MANAGE_BARCODE.value}),
         ("checks_bp", {"read_perm": SP.MANAGE_PAYMENTS.value, "write_perm": SP.MANAGE_PAYMENTS.value}),
         ("balances_api_bp", {"read_perm": SP.VIEW_REPORTS.value, "write_perm": SP.MANAGE_REPORTS.value}),
+        ("companies_bp", {"read_perm": SP.MANAGE_BRANCHES.value, "write_perm": SP.MANAGE_BRANCHES.value}),
+        ("purchases_bp", {"read_perm": SP.MANAGE_SHIPMENTS.value, "write_perm": SP.MANAGE_SHIPMENTS.value}),
+        ("accounting_hub_bp", {"read_perm": SP.VIEW_REPORTS.value, "write_perm": SP.MANAGE_LEDGER.value}),
+        ("fiscal_periods_bp", {"read_perm": SP.MANAGE_LEDGER.value, "write_perm": SP.MANAGE_LEDGER.value}),
+        ("branches_bp", {"read_perm": SP.MANAGE_BRANCHES.value, "write_perm": SP.MANAGE_BRANCHES.value}),
+        ("budgets_bp", {"read_perm": SP.VIEW_REPORTS.value, "write_perm": SP.MANAGE_LEDGER.value}),
     ]
