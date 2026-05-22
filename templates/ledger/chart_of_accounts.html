@@ -352,12 +352,10 @@ async function loadAccounts() {
         
     } catch (error) {
         console.error('خطأ في تحميل الحسابات:', error);
-        document.getElementById('accountsContainer').innerHTML = `
-            <div class="alert alert-danger">
-                <i class="fas fa-exclamation-triangle"></i>
-                حدث خطأ في تحميل الحسابات. يرجى المحاولة لاحقاً.
-            </div>
-        `;
+        const errBox = document.getElementById('accountsContainer');
+        const errHtml = '<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> حدث خطأ في تحميل الحسابات. يرجى المحاولة لاحقاً.</div>';
+        if (window.AzadDom && AzadDom.setHtmlTrusted) AzadDom.setHtmlTrusted(errBox, errHtml);
+        else errBox.innerHTML = errHtml;
     }
 }
 
@@ -386,16 +384,20 @@ function updateStats() {
 }
 
 // عرض الحسابات
+function _esc(s) {
+    return (window.AzadDom && AzadDom.escapeHtml) ? AzadDom.escapeHtml(String(s ?? '')) : String(s ?? '');
+}
+function _setHtml(el, html) {
+    if (!el) return;
+    if (window.AzadDom && AzadDom.setHtmlTrusted) AzadDom.setHtmlTrusted(el, html);
+    else el.innerHTML = html;
+}
+
 function displayAccounts(accounts) {
     const container = document.getElementById('accountsContainer');
     
     if (accounts.length === 0) {
-        container.innerHTML = `
-            <div class="empty-state">
-                <i class="fas fa-inbox fa-3x mb-3"></i>
-                <p>لا توجد حسابات لعرضها</p>
-            </div>
-        `;
+        _setHtml(container, '<div class="empty-state"><i class="fas fa-inbox fa-3x mb-3"></i><p>لا توجد حسابات لعرضها</p></div>');
         return;
     }
     
@@ -438,8 +440,8 @@ function displayAccounts(accounts) {
                             </div>
                             <div class="flex-grow-1">
                                 <div>
-                                    <span class="account-code">${acc.code}</span>
-                                    <span class="account-name">${acc.name}</span>
+                                    <span class="account-code">${_esc(acc.code)}</span>
+                                    <span class="account-name">${_esc(acc.name)}</span>
                                 </div>
                             </div>
                             <span class="account-badge badge-${acc.type}">${acc.type}</span>
@@ -455,7 +457,7 @@ function displayAccounts(accounts) {
         }
     });
     
-    container.innerHTML = html;
+    _setHtml(container, html);
 }
 
 // البحث والفلترة

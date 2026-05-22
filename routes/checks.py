@@ -4867,6 +4867,32 @@ def check_detail(check_id):
                          CHECK_STATUS=CHECK_STATUS)
 
 
+@checks_bp.route("/<int:check_id>/print")
+@login_required
+def print_check(check_id):
+    """طباعة شيك بأبعاد قياسية (mm) لورق الشيكات."""
+    from models import SystemSettings
+
+    check = db.get_or_404(Check, check_id)
+    layout = {
+        "payee_top_mm": 32,
+        "amount_words_top_mm": 38,
+        "amount_figures_left_mm": 155,
+        "amount_figures_top_mm": 32,
+        "date_top_mm": 18,
+        "date_left_mm": 145,
+    }
+    raw = SystemSettings.get_setting("check_print_layout_json")
+    if raw:
+        try:
+            import json as _json
+
+            layout.update(_json.loads(raw))
+        except Exception:
+            pass
+    return render_template("checks/print_layout.html", check=check, layout=layout)
+
+
 @checks_bp.route("/delete/<int:check_id>", methods=["POST"])
 @login_required
 @utils.permission_required(SystemPermissions.MANAGE_PAYMENTS)

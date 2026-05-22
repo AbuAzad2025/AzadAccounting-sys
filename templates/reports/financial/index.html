@@ -311,7 +311,8 @@
             }
             
             reportTitle.textContent = title;
-            reportContent.innerHTML = content;
+            if (window.AzadDom && AzadDom.setHtmlTrusted) AzadDom.setHtmlTrusted(reportContent, content);
+            else reportContent.innerHTML = content;
             reportResults.style.display = 'block';
             
             // Scroll to results
@@ -473,12 +474,10 @@
             const reportResults = document.getElementById('reportResults');
             const reportContent = document.getElementById('reportContent');
             
-            reportContent.innerHTML = `
-                <div class="alert alert-danger">
-                    <i class="fas fa-exclamation-triangle ml-2"></i>
-                    ${message}
-                </div>
-            `;
+            const esc = (window.AzadDom && AzadDom.escapeHtml) ? AzadDom.escapeHtml(String(message)) : String(message);
+            const errHtml = '<div class="alert alert-danger"><i class="fas fa-exclamation-triangle ml-2"></i> ' + esc + '</div>';
+            if (window.AzadDom && AzadDom.setHtmlTrusted) AzadDom.setHtmlTrusted(reportContent, errHtml);
+            else reportContent.innerHTML = errHtml;
             reportResults.style.display = 'block';
         }
 

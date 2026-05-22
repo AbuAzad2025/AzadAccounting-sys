@@ -1716,3 +1716,127 @@ def inventory_valuation():
         company_id=company_id,
         companies=_companies_for_reports(),
     )
+
+
+@financial_reports_bp.route('/comparative')
+@login_required
+@permission_required(SystemPermissions.VIEW_REPORTS)
+def comparative():
+    from utils.comparative_financial import comparative_pl
+
+    year_b = request.args.get('year_b', type=int) or date.today().year
+    year_a = request.args.get('year_a', type=int) or (year_b - 1)
+    company_id = request.args.get('company_id', type=int)
+    data = comparative_pl(year_a, year_b, company_id=company_id)
+    if request.args.get('format') == 'json':
+        return jsonify({'success': True, **data})
+    return render_template(
+        'reports/financial/comparative.html',
+        data=data,
+        year_a=year_a,
+        year_b=year_b,
+        company_id=company_id,
+        companies=_companies_for_reports(),
+    )
+
+
+@financial_reports_bp.route('/prepaid-accrual', methods=['GET', 'POST'])
+@login_required
+@permission_required(SystemPermissions.MANAGE_LEDGER)
+def prepaid_accrual():
+    from models import CostCenter, Branch
+    from utils.prepaid_accrual_gl import post_prepaid_expense, post_accrual_expense
+
+    branches = Branch.query.filter_by(is_active=True).order_by(Branch.name).all()
+    cost_centers = CostCenter.query.filter_by(is_active=True).limit(200).all()
+    if request.method == 'POST':
+        try:
+            kind = request.form.get('entry_type')
+            amount = float(request.form.get('amount') or 0)
+            account = request.form.get('expense_account') or '5000_EXPENSES'
+            memo = request.form.get('memo') or ''
+            branch_id = request.form.get('branch_id', type=int)
+            cc_id = request.form.get('cost_center_id', type=int)
+            if kind == 'prepaid':
+                post_prepaid_expense(
+                    amount=amount,
+                    expense_account=account,
+                    memo=memo,
+                    branch_id=branch_id,
+                    cost_center_id=cc_id,
+                )
+            else:
+                post_accrual_expense(
+                    amount=amount,
+                    expense_account=account,
+                    memo=memo,
+                    branch_id=branch_id,
+                    cost_center_id=cc_id,
+                )
+            return jsonify({'success': True, 'message': 'تم ترحيل القيد'})
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 400
+    return render_template(
+        'reports/financial/prepaid_accrual.html',
+        branches=branches,
+        cost_centers=cost_centers,
+    )
+
+
+@financial_reports_bp.route('/drill-down-view')
+@login_required
+@permission_required(SystemPermissions.VIEW_REPORTS)
+def drill_down_view():
+    batch_id = request.args.get('batch_id', type=int)
+    return render_template('reports/financial/drill_down.html', batch_id=batch_id)
+
+
+@financial_reports_bp.route('/pending-inventory')
+@login_required
+@permission_required(SystemPermissions.VIEW_INVENTORY)
+def pending_inventory():
+    from utils.company_scope import branch_ids_for_company
+
+    company_id = request.args.get('company_id', type=int)
+    branch_ids = branch_ids_for_company(company_id) if company_id else None
+    q = (
+        db.session.query(
+            Product.name,
+            Product.sku,
+            Warehouse.name.label('warehouse_name'),
+            StockLevel.quantity,
+            StockLevel.reserved_quantity,
+        )
+        .join(StockLevel, StockLevel.product_id == Product.id)
+        .join(Warehouse, Warehouse.id == StockLevel.warehouse_id)
+        .filter(StockLevel.reserved_quantity > 0)
+    )
+    if branch_ids is not None:
+        if not branch_ids:
+            q = q.filter(Product.id == -1)
+        else:
+            q = q.filter(Warehouse.branch_id.in_(branch_ids))
+    rows = q.limit(3000).all()
+    items = []
+    for r in rows:
+        qty = int(r.quantity or 0)
+        res = int(r.reserved_quantity or 0)
+        items.append({
+            'name': r.name,
+            'sku': r.sku,
+            'warehouse': r.warehouse_name,
+            'quantity': qty,
+            'reserved': res,
+            'available': max(0, qty - res),
+            'pending': res,
+        })
+    total_pending = sum(i['pending'] for i in items)
+    if request.args.get('format') == 'json':
+        return jsonify({'success': True, 'items': items, 'total_pending_units': total_pending})
+    return render_template(
+        'reports/financial/pending_inventory.html',
+        items=items,
+        total_pending=total_pending,
+        company_id=company_id,
+        companies=_companies_for_reports(),
+    )

@@ -192,17 +192,22 @@ def change_password():
         if not current_user.check_password(form.current_password.data):
             flash("❌ كلمة المرور الحالية غير صحيحة", "danger")
         else:
-            # تحديث كلمة المرور
-            current_user.set_password(form.new_password.data)
-            try:
-                db.session.commit()
-            except Exception:
-                db.session.rollback()
-                current_app.logger.exception('commit error')
-                flash('حدث خطأ أثناء الحفظ', 'danger')
-                return render_template("users/change_password.html", form=form)
-            flash("✅ تم تغيير كلمة المرور بنجاح", "success")
-            return redirect(url_for("users_bp.profile"))
+            from utils.password_policy import validate_password
+
+            ok, msg = validate_password(form.new_password.data)
+            if not ok:
+                flash(msg, "danger")
+            else:
+                current_user.set_password(form.new_password.data)
+                try:
+                    db.session.commit()
+                except Exception:
+                    db.session.rollback()
+                    current_app.logger.exception('commit error')
+                    flash('حدث خطأ أثناء الحفظ', 'danger')
+                    return render_template("users/change_password.html", form=form)
+                flash("✅ تم تغيير كلمة المرور بنجاح", "success")
+                return redirect(url_for("users_bp.profile"))
     
     return render_template("users/change_password.html", form=form)
 

@@ -549,9 +549,9 @@ html, body { background:#fff; direction:rtl; font-family:"Segoe UI","Tahoma",san
         }
         
         url.searchParams.set('ajax', '1');
-        const previousTable = salesTableWrapper.innerHTML;
-        const previousPagination = paginationWrapper ? paginationWrapper.innerHTML : '';
-        const previousSummary = salesSummaryWrapper ? salesSummaryWrapper.innerHTML : '';
+        const previousTable = salesTableWrapper.cloneNode(true);
+        const previousPagination = paginationWrapper ? paginationWrapper.cloneNode(true) : null;
+        const previousSummary = salesSummaryWrapper ? salesSummaryWrapper.cloneNode(true) : null;
         const tbody = salesTableWrapper.querySelector('tbody');
         
         if(tbody && typeof window.setLoading === 'function') {
@@ -570,13 +570,19 @@ html, body { background:#fff; direction:rtl; font-family:"Segoe UI","Tahoma",san
         })
         .then(data => {
           if(typeof data.table_html === 'string') {
-            salesTableWrapper.innerHTML = data.table_html;
+            (window.AzadDom && AzadDom.setHtmlTrusted)
+              ? AzadDom.setHtmlTrusted(salesTableWrapper, data.table_html)
+              : (salesTableWrapper.innerHTML = data.table_html);
           }
           if(paginationWrapper) {
-            paginationWrapper.innerHTML = data.pagination_html || '';
+            (window.AzadDom && AzadDom.setHtmlTrusted)
+              ? AzadDom.setHtmlTrusted(paginationWrapper, data.pagination_html || '')
+              : (paginationWrapper.innerHTML = data.pagination_html || '');
           }
           if(salesSummaryWrapper) {
-            salesSummaryWrapper.innerHTML = data.summary_html || '';
+            (window.AzadDom && AzadDom.setHtmlTrusted)
+              ? AzadDom.setHtmlTrusted(salesSummaryWrapper, data.summary_html || '')
+              : (salesSummaryWrapper.innerHTML = data.summary_html || '');
           }
           if(salesSearchSummary && typeof data.total_filtered === 'number') {
             salesSearchSummary.textContent = `إجمالي النتائج: ${data.total_filtered}`;
@@ -594,12 +600,12 @@ html, body { background:#fff; direction:rtl; font-family:"Segoe UI","Tahoma",san
           window.history.replaceState({}, '', nextUrl);
         })
         .catch(() => {
-          salesTableWrapper.innerHTML = previousTable;
-          if(paginationWrapper) {
-            paginationWrapper.innerHTML = previousPagination;
+          salesTableWrapper.replaceChildren(...previousTable.childNodes);
+          if(paginationWrapper && previousPagination) {
+            paginationWrapper.replaceChildren(...previousPagination.childNodes);
           }
-          if(salesSummaryWrapper) {
-            salesSummaryWrapper.innerHTML = previousSummary;
+          if(salesSummaryWrapper && previousSummary) {
+            salesSummaryWrapper.replaceChildren(...previousSummary.childNodes);
           }
           if(typeof window.showNotification === 'function') {
             window.showNotification('تعذر تحديث القائمة', 'danger');

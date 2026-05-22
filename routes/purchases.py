@@ -6,7 +6,18 @@ from flask_login import login_required
 from decimal import Decimal
 
 from extensions import db
-from models import PurchaseOrder, PurchaseOrderLine, Supplier, Branch, Product, Warehouse, Shipment, ShipmentItem
+from models import (
+    PurchaseOrder,
+    PurchaseOrderLine,
+    Supplier,
+    Branch,
+    Product,
+    Warehouse,
+    Shipment,
+    ShipmentItem,
+    GoodsReceipt,
+    SupplierInvoice,
+)
 from permissions_config.enums import SystemPermissions
 from utils import permission_required
 from utils.company_scope import filter_by_branches, default_company
@@ -240,3 +251,63 @@ def request_po_approval(id):
     db.session.commit()
     flash("تم طلب اعتماد أمر الشراء", "info")
     return redirect(url_for("purchases_bp.detail", id=id))
+
+
+@purchases_bp.route("/<int:id>/grn", methods=["POST"])
+@login_required
+@permission_required(SystemPermissions.MANAGE_SHIPMENTS)
+def create_grn(id):
+    order = db.session.get(PurchaseOrder, id) or abort(404)
+    try:
+        from utils.goods_receipt_service import create_grn_from_po
+
+        wh_id = request.form.get("warehouse_id", type=int)
+        grn = create_grn_from_po(order, warehouse_id=wh_id)
+        db.session.commit()
+        flash(f"تم إنشاء إشعار الاستلام {grn.number}", "success")
+        return redirect(url_for("purchases_bp.grn_detail", id=grn.id))
+    except Exception as e:
+        db.session.rollback()
+        flash(str(e), "danger")
+        return redirect(url_for("purchases_bp.detail", id=id))
+
+
+@purchases_bp.route("/grn/<int:id>")
+@login_required
+@permission_required(SystemPermissions.MANAGE_SHIPMENTS)
+def grn_detail(id):
+    grn = db.session.get(GoodsReceipt, id) or abort(404)
+    return render_template("purchases/grn_detail.html", grn=grn)
+
+
+@purchases_bp.route("/supplier-invoices")
+@login_required
+@permission_required(SystemPermissions.MANAGE_SHIPMENTS)
+def supplier_invoices():
+    q = SupplierInvoice.query.order_by(SupplierInvoice.invoice_date.desc())
+    q = filter_by_branches(q, SupplierInvoice.branch_id)
+    status = request.args.get("status", "")
+    if status:
+        q = q.filter(SupplierInvoice.status == status.upper())
+    invoices = q.limit(200).all()
+    for inv in invoices:
+        inv.balance_due = float(inv.total_amount or 0) - float(inv.amount_paid or 0)
+    return render_template("purchases/supplier_invoices.html", invoices=invoices, status=status)
+
+
+@purchases_bp.route("/supplier-invoices/<int:id>/pay", methods=["POST"])
+@login_required
+@permission_required(SystemPermissions.MANAGE_PAYMENTS)
+def pay_supplier_invoice(id):
+    from flask_login import current_user
+    from utils.supplier_invoice_service import pay_supplier_invoice as do_pay
+
+    inv = db.session.get(SupplierInvoice, id) or abort(404)
+    amount = request.form.get("amount", type=float) or float(inv.total_amount or 0) - float(inv.amount_paid or 0)
+    try:
+        do_pay(inv, amount, method=request.form.get("method") or "BANK", created_by_id=current_user.id)
+        flash("تم تسجيل الدفع وترحيل القيد", "success")
+    except Exception as e:
+        db.session.rollback()
+        flash(str(e), "danger")
+    return redirect(url_for("purchases_bp.supplier_invoices"))

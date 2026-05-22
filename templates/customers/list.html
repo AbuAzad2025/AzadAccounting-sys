@@ -623,10 +623,15 @@ body.print-mode .content {
         if(!customersTableWrapper) return;
         
         if(typeof data.table_html === 'string') {
-          customersTableWrapper.innerHTML = data.table_html;
+          (window.AzadDom && AzadDom.setHtmlTrusted)
+            ? AzadDom.setHtmlTrusted(customersTableWrapper, data.table_html)
+            : (customersTableWrapper.innerHTML = data.table_html);
         }
         if(paginationWrapper) {
-          paginationWrapper.innerHTML = data.pagination_html || '';
+          const ph = data.pagination_html || '';
+          (window.AzadDom && AzadDom.setHtmlTrusted)
+            ? AzadDom.setHtmlTrusted(paginationWrapper, ph)
+            : (paginationWrapper.innerHTML = ph);
         }
         if(customersSearchSummary && typeof data.total_filtered === 'number') {
           customersSearchSummary.textContent = `إجمالي النتائج: ${data.total_filtered}`;
@@ -653,8 +658,8 @@ body.print-mode .content {
         const urlObj = new URL(targetUrl, window.location.origin);
         urlObj.searchParams.set('ajax', '1');
         
-        const previousTable = customersTableWrapper.innerHTML;
-        const previousPagination = paginationWrapper ? paginationWrapper.innerHTML : '';
+        const previousTable = customersTableWrapper.cloneNode(true);
+        const previousPagination = paginationWrapper ? paginationWrapper.cloneNode(true) : null;
         const tbody = customersTableWrapper.querySelector('tbody');
         
         if(showLoading && tbody && typeof window.setLoading === 'function') {
@@ -685,9 +690,9 @@ body.print-mode .content {
           if(err.name === 'AbortError') return;
           if(activeRequest !== controller) return;
           
-          customersTableWrapper.innerHTML = previousTable;
-          if(paginationWrapper) {
-            paginationWrapper.innerHTML = previousPagination;
+          customersTableWrapper.replaceChildren(...previousTable.childNodes);
+          if(paginationWrapper && previousPagination) {
+            paginationWrapper.replaceChildren(...previousPagination.childNodes);
           }
           activeRequest = null;
           

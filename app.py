@@ -88,6 +88,7 @@ from routes.payroll import payroll_bp
 from routes.pos import pos_bp
 from routes.tax_compliance import tax_compliance_bp
 from routes.enterprise_security import enterprise_security_bp
+from routes.hr_portal import hr_portal_bp
 from routes.financial_reports import financial_reports_bp
 from routes.accounting_validation import accounting_validation_bp
 from routes.accounting_docs import accounting_docs_bp
@@ -760,6 +761,7 @@ def _register_blueprints(app):
         pos_bp,
         tax_compliance_bp,
         enterprise_security_bp,
+        hr_portal_bp,
         ai_bp,
         ai_admin_bp,
         user_guide_bp,
@@ -1235,6 +1237,55 @@ def create_app(config_object=Config) -> Flask:
                     db.session.rollback()
             except Exception:
                 pass
+
+    @app.before_request
+    def _guard_sensitive_print():
+        from flask_login import current_user
+        from models import SystemSettings
+        from permissions_config.enums import SystemPermissions
+
+        if not getattr(current_user, "is_authenticated", False):
+            return
+        if request.method != "GET":
+            return
+        blocked = str(SystemSettings.get_setting("block_document_print", "false")).lower() in (
+            "true",
+            "1",
+            "yes",
+        )
+        if not blocked:
+            return
+        path = request.path or ""
+        if not any(x in path for x in ("/print", "/receipt", "/invoice", "/payslip")):
+            return
+        if hasattr(current_user, "has_permission") and current_user.has_permission(
+            SystemPermissions.EXPORT_DATA.value
+        ):
+            return
+        from flask import abort
+
+        abort(403, description="الطباعة تتطلب صلاحية تصدير")
+
+    @app.before_request
+    def _enforce_login_schedule():
+        from flask import flash, redirect, url_for
+        from flask_login import current_user, logout_user
+
+        if not getattr(current_user, "is_authenticated", False):
+            return
+        ep = request.endpoint or ""
+        if ep.startswith("auth.") or ep.startswith("static.") or ep == "health.health":
+            return
+        try:
+            from utils.enterprise_security import user_may_login_now
+
+            ok, msg = user_may_login_now(current_user)
+            if not ok:
+                logout_user()
+                flash(msg or "خارج أوقات الدخول المسموحة", "danger")
+                return redirect(url_for("auth.login"))
+        except Exception:
+            pass
 
     @app.before_request
     def _mark_request_start():

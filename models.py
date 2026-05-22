@@ -182,6 +182,7 @@ role_permissions = db.Table(
     db.Column("permission_id", db.Integer, db.ForeignKey("permissions.id"), primary_key=True),
 )
 
+
 import constants
 from constants import (
     DEFAULT_CURRENCY, CURRENCY_CHOICES, CENT, TWOPLACES, ZERO_PLACES
@@ -2120,6 +2121,26 @@ class Role(db.Model, AuditMixin):
 
     def __repr__(self):
         return f"<Role {self.name}>"
+
+
+class UserPermissionLink(db.Model):
+    """ربط مستخدم ↔ صلاحية (جدول user_permissions)."""
+    __table__ = user_permissions
+
+
+class RolePermissionLink(db.Model):
+    """ربط دور ↔ صلاحية (جدول role_permissions)."""
+    __table__ = role_permissions
+
+
+class DbPatchApplied(db.Model):
+    """سجل ترقيات/باتشات DB المطبّقة."""
+    __tablename__ = "db_patches_applied"
+
+    id = db.Column(db.Integer, primary_key=True)
+    filename = db.Column(db.String(255), unique=True, nullable=False, index=True)
+    checksum = db.Column(db.String(64), nullable=False)
+    applied_at = db.Column(db.DateTime(timezone=True), nullable=False, server_default=func.now())
 
 class Customer(db.Model, TimestampMixin, AuditMixin, UserMixin):
     __tablename__ = "customers"
@@ -5548,6 +5569,7 @@ class Sale(db.Model, TimestampMixin, AuditMixin):
     refund_of_id = db.Column(db.Integer, db.ForeignKey("sales.id", ondelete="SET NULL"), index=True)
     idempotency_key = db.Column(db.String(64), unique=True, index=True)
     sale_channel = db.Column(db.String(20), nullable=False, server_default=sa_text("'STANDARD'"), index=True)
+    is_quotation = db.Column(db.Boolean, default=False, nullable=False, server_default=sa_text("false"), index=True)
 
     stock_deducted = db.Column(db.Boolean, default=False, nullable=False)
 
@@ -7504,6 +7526,7 @@ class Payment(db.Model, TimestampMixin):
     invoice_id = Column(Integer, ForeignKey("invoices.id", ondelete="CASCADE"), index=True)
     preorder_id = Column(Integer, ForeignKey("preorders.id", ondelete="CASCADE"), index=True)
     service_id = Column(Integer, ForeignKey("service_requests.id", ondelete="CASCADE"), index=True)
+    supplier_invoice_id = Column(Integer, ForeignKey("supplier_invoices.id", ondelete="SET NULL"), index=True)
 
     refund_of_id = Column(Integer, ForeignKey("payments.id", ondelete="SET NULL"))
     is_refunded = Column(Boolean, default=False, nullable=False, index=True)
@@ -9497,6 +9520,7 @@ class SupplierInvoice(db.Model, TimestampMixin, AuditMixin):
     subtotal = db.Column(db.Numeric(14, 2), nullable=False, server_default=sa_text("0"))
     vat_amount = db.Column(db.Numeric(14, 2), nullable=False, server_default=sa_text("0"))
     total_amount = db.Column(db.Numeric(14, 2), nullable=False, server_default=sa_text("0"))
+    amount_paid = db.Column(db.Numeric(14, 2), nullable=False, server_default=sa_text("0"))
     notes = db.Column(db.Text)
 
     supplier = db.relationship("Supplier", backref=db.backref("supplier_invoices", lazy="dynamic"))
@@ -9522,6 +9546,42 @@ class SupplierInvoiceLine(db.Model, TimestampMixin):
     unit_price = db.Column(db.Numeric(12, 4), nullable=False, default=0)
 
     supplier_invoice = db.relationship("SupplierInvoice", back_populates="lines")
+    product = db.relationship("Product")
+
+
+class GoodsReceipt(db.Model, TimestampMixin, AuditMixin):
+    """إشعار استلام بضاعة (GRN) — مستقل عن الشحنة."""
+    __tablename__ = "goods_receipts"
+
+    id = db.Column(db.Integer, primary_key=True)
+    number = db.Column(db.String(50), unique=True, nullable=False, index=True)
+    purchase_order_id = db.Column(
+        db.Integer, db.ForeignKey("purchase_orders.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    branch_id = db.Column(db.Integer, db.ForeignKey("branches.id", ondelete="RESTRICT"), nullable=False, index=True)
+    warehouse_id = db.Column(db.Integer, db.ForeignKey("warehouses.id", ondelete="SET NULL"), nullable=True, index=True)
+    receipt_date = db.Column(db.Date, nullable=False, index=True)
+    status = db.Column(db.String(20), nullable=False, server_default=sa_text("'POSTED'"), index=True)
+    notes = db.Column(db.Text)
+
+    purchase_order = db.relationship("PurchaseOrder", backref=db.backref("goods_receipts", lazy="dynamic"))
+    branch = db.relationship("Branch")
+    warehouse = db.relationship("Warehouse")
+    lines = db.relationship("GoodsReceiptLine", back_populates="goods_receipt", cascade="all, delete-orphan")
+
+
+class GoodsReceiptLine(db.Model, TimestampMixin):
+    __tablename__ = "goods_receipt_lines"
+
+    id = db.Column(db.Integer, primary_key=True)
+    goods_receipt_id = db.Column(
+        db.Integer, db.ForeignKey("goods_receipts.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    product_id = db.Column(db.Integer, db.ForeignKey("products.id", ondelete="SET NULL"), nullable=True)
+    quantity = db.Column(db.Numeric(12, 3), nullable=False)
+    unit_price = db.Column(db.Numeric(12, 4), nullable=False, default=0)
+
+    goods_receipt = db.relationship("GoodsReceipt", back_populates="lines")
     product = db.relationship("Product")
 
 
@@ -14015,6 +14075,9 @@ class GLEntry(db.Model, TimestampMixin):
     credit = db.Column(db.Numeric(12, 2), default=0, nullable=False)
     currency = db.Column(db.String(10), default=DEFAULT_CURRENCY, nullable=False)
     ref = db.Column(db.String(50))
+    cost_center_id = db.Column(db.Integer, db.ForeignKey("cost_centers.id", ondelete="SET NULL"), nullable=True, index=True)
+
+    cost_center = db.relationship("CostCenter", backref=db.backref("gl_entries", lazy="dynamic"))
 
     __table_args__ = (
         db.CheckConstraint("debit >= 0", name="ck_gl_debit_ge_0"),
@@ -14082,6 +14145,8 @@ GL_ACCOUNTS = {
     "VAT_INPUT": "1500_VAT_INPUT",
     "PAYROLL_EXP": "6100_PAYROLL_EXPENSE",
     "PAYROLL_PAYABLE": "2100_PAYROLL_PAYABLE",
+    "PREPAID": "1400_PREPAID_EXP",
+    "ACCRUED_EXP": "2205_ACCRUED_EXP",
 }
 
 
@@ -14108,15 +14173,23 @@ def _gl_upsert_batch_and_entries(
     else:
         batch_table = "gl_batches"
         entry_table = "gl_entries"
-    rows = [(str(a or "").strip().upper(), float(d or 0), float(c or 0)) for a, d, c in entries]
-    if any(d < 0 or c < 0 for _, d, c in rows):
+    parsed = []
+    for item in entries:
+        if len(item) >= 4:
+            a, d, c, cc = item[0], item[1], item[2], item[3]
+        else:
+            a, d, c, cc = item[0], item[1], item[2], None
+        parsed.append((str(a or "").strip().upper(), float(d or 0), float(c or 0), cc))
+    rows = parsed
+    if any(d < 0 or c < 0 for _, d, c, _ in rows):
         raise ValueError("negative amounts not allowed")
-    total_debit = round(sum(d for _, d, _ in rows), 2)
-    total_credit = round(sum(c for _, _, c in rows), 2)
+    total_debit = round(sum(d for _, d, _, _ in rows), 2)
+    total_credit = round(sum(c for _, _, c, _ in rows), 2)
     if total_debit != total_credit or total_debit <= 0:
         raise ValueError("unbalanced or zero batch")
 
     accs = [r[0] for r in rows]
+    has_cc_col = hasattr(GLEntry, "cost_center_id")
     found_codes = connection.execute(
         select(Account.code).where(
             Account.code.in_(accs),
@@ -14200,16 +14273,42 @@ def _gl_upsert_batch_and_entries(
     )
     batch_id = cur.scalar_one()
 
-    for acct, debit, credit in rows:
-        connection.execute(
-            sa_text(f"""
-                INSERT INTO {entry_table}
-                    (batch_id, account, debit, credit, currency, ref, created_at, updated_at)
-                VALUES
-                    (:bid, :acc, :d, :c, :cur, :ref, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-            """),
-            {"bid": batch_id, "acc": acct, "d": debit, "c": credit, "cur": (currency or "ILS").upper(), "ref": (ref or "").strip()}
-        )
+    for acct, debit, credit, cc_id in rows:
+        if has_cc_col and cc_id:
+            connection.execute(
+                sa_text(f"""
+                    INSERT INTO {entry_table}
+                        (batch_id, account, debit, credit, currency, ref, cost_center_id, created_at, updated_at)
+                    VALUES
+                        (:bid, :acc, :d, :c, :cur, :ref, :cc, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """),
+                {
+                    "bid": batch_id,
+                    "acc": acct,
+                    "d": debit,
+                    "c": credit,
+                    "cur": (currency or "ILS").upper(),
+                    "ref": (ref or "").strip(),
+                    "cc": cc_id,
+                },
+            )
+        else:
+            connection.execute(
+                sa_text(f"""
+                    INSERT INTO {entry_table}
+                        (batch_id, account, debit, credit, currency, ref, created_at, updated_at)
+                    VALUES
+                        (:bid, :acc, :d, :c, :cur, :ref, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """),
+                {
+                    "bid": batch_id,
+                    "acc": acct,
+                    "d": debit,
+                    "c": credit,
+                    "cur": (currency or "ILS").upper(),
+                    "ref": (ref or "").strip(),
+                },
+            )
 
     return int(batch_id)
 

@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block title %}مخزون معلق{% endblock %}
+{% block content %}
+<div class="container-fluid py-3" dir="rtl">
+  <h4>مخزون معلق (محجوز)</h4>
+  <p>إجمالي وحدات محجوزة: <strong>{{ total_pending }}</strong></p>
+  <table class="table table-sm table-bordered">
+    <thead><tr><th>منتج</th><th>SKU</th><th>مستودع</th><th>كمية</th><th>محجوز</th><th>متاح</th></tr></thead>
+    <tbody>
+      {% for i in items %}
+      <tr><td>{{ i.name }}</td><td>{{ i.sku }}</td><td>{{ i.warehouse }}</td><td>{{ i.quantity }}</td><td>{{ i.reserved }}</td><td>{{ i.available }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -108,3 +108,67 @@ def post_supplier_invoice_gl(invoice_id: int) -> int:
     inv.status = "POSTED"
     db.session.commit()
     return int(batch_id)
+
+
+def pay_supplier_invoice(
+    inv: SupplierInvoice,
+    amount: float,
+    *,
+    method: str = "BANK",
+    reference: str | None = None,
+    created_by_id: int | None = None,
+) -> int:
+    """دفع على فاتورة مورد — دفعة OUT + قيد GL."""
+    from datetime import datetime, timezone
+    from models import Payment, PaymentMethod, PaymentStatus, PaymentDirection, PaymentEntityType
+
+    if inv.status != "POSTED":
+        raise ValueError("يجب ترحيل الفاتورة أولاً")
+    total = float(inv.total_amount or 0)
+    paid = float(inv.amount_paid or 0)
+    balance = total - paid
+    pay_amt = float(amount)
+    if pay_amt <= 0 or pay_amt > balance + 0.01:
+        raise ValueError(f"مبلغ الدفع غير صالح (المتبقي {balance:,.2f})")
+    n = Payment.query.count() + 1
+    pnum = f"PAY-SI-{datetime.now().year}-{n:06d}"
+    pay = Payment(
+        payment_number=pnum,
+        payment_date=datetime.now(timezone.utc).replace(tzinfo=None),
+        total_amount=pay_amt,
+        currency=inv.currency or "ILS",
+        method=method if method in PaymentMethod.__members__ else PaymentMethod.BANK.value,
+        status=PaymentStatus.COMPLETED.value,
+        direction=PaymentDirection.OUT.value,
+        entity_type=PaymentEntityType.SUPPLIER.value,
+        supplier_id=inv.supplier_id,
+        supplier_invoice_id=inv.id,
+        reference=reference or inv.number,
+        notes=f"دفع فاتورة مورد {inv.number}",
+        created_by=created_by_id,
+    )
+    db.session.add(pay)
+    db.session.flush()
+    ap = GL_ACCOUNTS.get("AP", "2000_AP")
+    cash = GL_ACCOUNTS.get("BANK", "1010_BANK")
+    conn = db.session.connection()
+    _ensure_account_exists(conn, ap)
+    _ensure_account_exists(conn, cash)
+    batch_id = _gl_upsert_batch_and_entries(
+        conn,
+        source_type="PAYMENT",
+        source_id=pay.id,
+        purpose="SUPPLIER_INVOICE_PAY",
+        currency=inv.currency or "ILS",
+        memo=f"دفع {inv.number}",
+        entries=[(ap, pay_amt, 0.0), (cash, 0.0, pay_amt)],
+        ref=pnum,
+        entity_type="SUPPLIER",
+        entity_id=inv.supplier_id,
+        branch_id=inv.branch_id,
+    )
+    inv.amount_paid = Decimal(str(paid + pay_amt))
+    if float(inv.amount_paid) >= total - 0.01:
+        inv.status = "PAID"
+    db.session.commit()
+    return int(batch_id)

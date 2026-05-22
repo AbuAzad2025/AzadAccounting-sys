@@ -6,6 +6,7 @@ from flask import Blueprint, flash, jsonify, render_template, request, url_for
 from flask_login import current_user, login_required
 
 from extensions import db
+from sqlalchemy import or_
 from models import (
     Customer,
     Product,
@@ -61,6 +62,34 @@ def terminal():
         warehouses=warehouses,
         products_json=products_json,
     )
+
+
+@pos_bp.route("/barcode")
+@login_required
+@permission_required(SystemPermissions.USE_POS)
+def barcode_lookup():
+    code = (request.args.get("code") or "").strip()
+    if not code:
+        return jsonify({"success": False, "error": "الباركود مطلوب"}), 400
+    p = Product.query.filter(
+        or_(
+            Product.barcode == code,
+            Product.sku == code,
+            Product.id == int(code) if code.isdigit() else -1,
+        )
+    ).filter_by(is_active=True).first()
+    if not p:
+        return jsonify({"success": False, "error": "المنتج غير موجود"}), 404
+    return jsonify({
+        "success": True,
+        "product": {
+            "id": p.id,
+            "name": p.name,
+            "price": float(p.selling_price or p.price or 0),
+            "barcode": p.barcode,
+            "sku": p.sku,
+        },
+    })
 
 
 @pos_bp.route("/checkout", methods=["POST"])

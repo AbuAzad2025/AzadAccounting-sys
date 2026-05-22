@@ -241,7 +241,11 @@
   };
   Array.from(tbody.rows).forEach((tr, idx) => {
     const cell = tr.querySelector('td.rank');
-    if (cell) cell.innerHTML = medal(idx + 1);
+    if (cell) {
+      const html = medal(idx + 1);
+      if (window.AzadDom && AzadDom.setHtmlTrusted) AzadDom.setHtmlTrusted(cell, html);
+      else cell.textContent = (idx + 1).toString();
+    }
   });
 })();
 

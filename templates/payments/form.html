@@ -1828,13 +1828,17 @@ function updateSplitSum() {
       }
     }
     if (infoNode) {
+      const AD = window.AzadDom;
       if (amount > 0 && baseCurrency !== paymentCurrency && fxRate > 0) {
-        infoNode.innerHTML = `<i class="fas fa-equals text-primary"></i> ${amount.toFixed(2)} ${baseCurrency} ≈ ${converted.toFixed(2)} ${paymentCurrency}`;
+        const msg = amount.toFixed(2) + ' ' + baseCurrency + ' ≈ ' + converted.toFixed(2) + ' ' + paymentCurrency;
+        if (AD) AD.setHtmlTrusted(infoNode, '<i class="fas fa-equals text-primary"></i> ' + AD.escapeHtml(msg));
+        else infoNode.textContent = msg;
       } else if (amount > 0 && baseCurrency === paymentCurrency) {
-        infoNode.innerHTML = `<i class="fas fa-equals text-primary"></i> ${amount.toFixed(2)} ${paymentCurrency}`;
-      } else {
-        infoNode.innerHTML = '';
-      }
+        const msg = amount.toFixed(2) + ' ' + paymentCurrency;
+        if (AD) AD.setHtmlTrusted(infoNode, '<i class="fas fa-equals text-primary"></i> ' + AD.escapeHtml(msg));
+        else infoNode.textContent = msg;
+      } else if (AD) AD.clear(infoNode);
+      else infoNode.textContent = '';
     }
     sumConverted += converted;
   });
@@ -1843,11 +1847,15 @@ function updateSplitSum() {
   }
   const splitSumEl = document.getElementById('splitSum');
   if (splitSumEl) {
+    const AD = window.AzadDom;
     if (hasMissingRate) {
-      splitSumEl.innerHTML = '<i class="fas fa-exclamation-triangle text-danger"></i> أدخل سعر الصرف لكل دفعة بعملة مختلفة.';
+      if (AD) AD.setHtmlTrusted(splitSumEl, '<i class="fas fa-exclamation-triangle text-danger"></i> أدخل سعر الصرف لكل دفعة بعملة مختلفة.');
+      else splitSumEl.textContent = 'أدخل سعر الصرف لكل دفعة بعملة مختلفة.';
       splitSumEl.className = 'form-text text-danger';
     } else {
-      splitSumEl.innerHTML = `<i class="fas fa-check-circle text-success"></i> مجموع الدفعات بعد التحويل: <strong>${sumConverted.toFixed(2)}</strong> ${paymentCurrency}`;
+      const msg = 'مجموع الدفعات بعد التحويل: ' + sumConverted.toFixed(2) + ' ' + paymentCurrency;
+      if (AD) AD.setHtmlTrusted(splitSumEl, '<i class="fas fa-check-circle text-success"></i> <strong>' + AD.escapeHtml(msg) + '</strong>');
+      else splitSumEl.textContent = msg;
       splitSumEl.className = 'form-text text-success';
     }
   }

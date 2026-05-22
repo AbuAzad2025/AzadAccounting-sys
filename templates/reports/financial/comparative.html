@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block title %}مقارنة سنوات{% endblock %}
+{% block content %}
+<div class="container-fluid py-3" dir="rtl">
+  <h4>مقارنة قوائم — {{ year_a }} مقابل {{ year_b }}</h4>
+  <form class="form-inline mb-3">
+    <input type="number" name="year_a" value="{{ year_a }}" class="form-control form-control-sm mx-1" placeholder="سنة أ">
+    <input type="number" name="year_b" value="{{ year_b }}" class="form-control form-control-sm mx-1" placeholder="سنة ب">
+    <select name="company_id" class="form-control form-control-sm mx-1">
+      <option value="">كل الشركات</option>
+      {% for c in companies %}<option value="{{ c.id }}" {% if company_id == c.id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+    </select>
+    <button class="btn btn-primary btn-sm">عرض</button>
+  </form>
+  <div class="row mb-3">
+    <div class="col-md-3"><div class="card p-2"><small>إيراد {{ year_a }}</small><strong>{{ data.summary.revenue_a }}</strong></div></div>
+    <div class="col-md-3"><div class="card p-2"><small>إيراد {{ year_b }}</small><strong>{{ data.summary.revenue_b }}</strong></div></div>
+    <div class="col-md-3"><div class="card p-2"><small>صافي {{ year_a }}</small><strong>{{ data.summary.net_income_a }}</strong></div></div>
+    <div class="col-md-3"><div class="card p-2"><small>صافي {{ year_b }}</small><strong>{{ data.summary.net_income_b }}</strong></div></div>
+  </div>
+  <table class="table table-sm table-bordered">
+    <thead><tr><th>حساب</th><th>الاسم</th><th>{{ year_a }}</th><th>{{ year_b }}</th><th>فرق</th><th>%</th></tr></thead>
+    <tbody>
+      {% for row in data.lines %}
+      <tr>
+        <td><code>{{ row.account }}</code></td>
+        <td>{{ row.name }}</td>
+        <td class="text-end">{{ row.year_a }}</td>
+        <td class="text-end">{{ row.year_b }}</td>
+        <td class="text-end">{{ row.variance }}</td>
+        <td>{{ row.variance_pct }}%</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

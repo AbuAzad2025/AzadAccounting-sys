@@ -1593,3 +1593,80 @@ def generate_invoice(id: int):
         grand_total=grand_total,
         money_fmt=money_fmt,
     )
+
+
+@sales_bp.route("/quotations")
+@login_required
+@utils.permission_required(SystemPermissions.VIEW_SALES)
+def quotations():
+    quotes = (
+        Sale.query.filter(Sale.is_quotation.is_(True))
+        .order_by(Sale.sale_date.desc())
+        .limit(200)
+        .all()
+    )
+    return render_template("sales/quotations.html", quotes=quotes)
+
+
+@sales_bp.route("/quotations/new", methods=["GET", "POST"])
+@login_required
+@utils.permission_required(SystemPermissions.MANAGE_SALES)
+def create_quotation():
+    form = SaleForm()
+    if form.validate_on_submit():
+        try:
+            lines_payload, err = _resolve_lines_from_form(form, require_stock=False)
+            if err:
+                flash(err, "danger")
+                return redirect(url_for("sales_bp.create_quotation"))
+            for d in lines_payload:
+                if (d.get("unit_price") or 0) <= 0:
+                    d["unit_price"] = _resolve_unit_price(d["product_id"], d.get("warehouse_id"))
+            sale = Sale(
+                sale_number=None,
+                customer_id=form.customer_id.data,
+                seller_id=current_user.id,
+                sale_date=form.sale_date.data or _utc_now_naive(),
+                status=SaleStatus.DRAFT.value,
+                payment_status="PENDING",
+                currency=(form.currency.data or "ILS").upper(),
+                tax_rate=form.tax_rate.data or 0,
+                discount_total=form.discount_total.data or 0,
+                is_quotation=True,
+                notes=((form.notes.data or "").strip() + " [عرض سعر]").strip(),
+                cost_center_id=int(form.cost_center_id.data) if form.cost_center_id.data else None,
+            )
+            db.session.add(sale)
+            db.session.flush()
+            _safe_generate_number_after_flush(sale)
+            _attach_lines(sale, lines_payload)
+            db.session.commit()
+            flash(f"تم إنشاء عرض السعر {sale.sale_number or sale.id}", "success")
+            return redirect(url_for("sales_bp.quotations"))
+        except Exception as e:
+            db.session.rollback()
+            flash(str(e), "danger")
+    return render_template(
+        "sales/form.html",
+        form=form,
+        title="عرض سعر جديد",
+        products=Product.query.filter_by(is_active=True).order_by(Product.name).limit(500).all(),
+        warehouses=Warehouse.query.filter_by(is_active=True).order_by(Warehouse.name).all(),
+        cost_centers=CostCenter.query.filter_by(is_active=True).order_by(CostCenter.code).all(),
+    )
+
+
+@sales_bp.route("/quotations/<int:id>/convert", methods=["POST"])
+@login_required
+@utils.permission_required(SystemPermissions.MANAGE_SALES)
+def convert_quotation(id):
+    sale = db.session.get(Sale, id) or abort(404)
+    if not sale.is_quotation:
+        flash("ليست عرض سعر", "warning")
+        return redirect(url_for("sales_bp.sale_detail", id=id))
+    sale.is_quotation = False
+    sale.status = SaleStatus.CONFIRMED.value
+    sale.notes = (sale.notes or "").replace("[عرض سعر]", "").strip()
+    db.session.commit()
+    flash("تم تحويل عرض السعر إلى فاتورة مؤكدة", "success")
+    return redirect(url_for("sales_bp.sale_detail", id=id))

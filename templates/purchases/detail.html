@@ -24,6 +24,11 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <button class="btn btn-sm btn-outline-secondary">طلب اعتماد</button>
   </form>
+  <form method="post" action="{{ url_for('purchases_bp.create_grn', id=order.id) }}" class="d-inline ml-2">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="btn btn-sm btn-dark">إشعار استلام GRN</button>
+  </form>
+  <a href="{{ url_for('purchases_bp.supplier_invoices') }}" class="btn btn-sm btn-outline-primary ml-2">فواتير الموردين</a>
   <hr>
   <h6>استلام جزئي</h6>
   <form method="post" action="{{ url_for('purchases_bp.partial_receive', id=order.id) }}">

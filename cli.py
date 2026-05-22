@@ -2412,6 +2412,26 @@ def erp_readiness_cmd():
         raise SystemExit(1)
 
 
+@click.command("comprehensive-audit")
+@click.option("--json-out", type=click.Path(), default=None, help="حفظ التقرير JSON")
+@with_appcontext
+def comprehensive_audit_cmd(json_out):
+    """تدقيق شامل: DB، FK، موديلات، endpoints، قوالب، JavaScript."""
+    from flask import current_app
+    from utils.comprehensive_audit import run_comprehensive_audit, format_audit_report_text
+
+    report = run_comprehensive_audit(current_app)
+    click.echo(format_audit_report_text(report))
+    if json_out:
+        import json as _json
+
+        with open(json_out, "w", encoding="utf-8") as f:
+            _json.dump(report, f, ensure_ascii=False, indent=2, default=str)
+        click.echo(f"JSON: {json_out}")
+    if not report.get("ok"):
+        raise SystemExit(1)
+
+
 @click.command("integration-audit")
 @with_appcontext
 def integration_audit_cmd():
@@ -4694,6 +4714,7 @@ def register_cli(app) -> None:
         fiscal_periods_sync,
         fiscal_period_close,
         erp_readiness_cmd,
+        comprehensive_audit_cmd,
         integration_audit_cmd,
         accounting_audit,
         sr_create, sr_add_part, sr_add_task, sr_recalc, sr_set_status, sr_show, 

@@ -21,6 +21,7 @@ wheels/
 
 instance/
 !instance/.gitkeep
+audit_report.json
 *.db
 *.db-shm
 *.db-wal
