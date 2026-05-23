@@ -410,21 +410,34 @@ def _register_template_support(app):
 
     def get_unique_flashes(with_categories=True):
         from flask import get_flashed_messages
+        from utils.ux_messages import clean_flash_text, normalize_flash_category
+
         msgs = get_flashed_messages(with_categories=with_categories)
         seen = set()
         if with_categories:
             uniq = []
             for cat, msg in msgs:
-                if msg not in seen:
-                    uniq.append((cat or "info", msg))
-                    seen.add(msg)
+                norm_cat = normalize_flash_category(cat)
+                cleaned = clean_flash_text(msg)
+                if not cleaned:
+                    continue
+                dedupe_key = (norm_cat, cleaned)
+                if dedupe_key not in seen:
+                    uniq.append((norm_cat, cleaned))
+                    seen.add(dedupe_key)
             return uniq
         uniq = []
         for msg in msgs:
-            if msg not in seen:
-                uniq.append(msg)
-                seen.add(msg)
+            cleaned = clean_flash_text(msg)
+            if cleaned and cleaned not in seen:
+                uniq.append(cleaned)
+                seen.add(cleaned)
         return uniq
+
+    def prepare_flash(category, message):
+        from utils.ux_messages import prepare_flash as _prepare_flash
+
+        return _prepare_flash(category, message)
 
     @app.template_filter('static_version')
     def static_version_filter(filename):
@@ -454,6 +467,7 @@ def _register_template_support(app):
     @app.context_processor
     def inject_common():
         from utils.arabic_ux import ZB, UI_LABELS
+        from utils.ux_messages import STANDARD_MESSAGES, flash_msg as _flash_msg
 
         def zb(key: str, default: str = "") -> str:
             return ZB.get(key, default or key)
@@ -464,11 +478,14 @@ def _register_template_support(app):
         return {
             "current_app": current_app,
             "get_unique_flashes": get_unique_flashes,
+            "prepare_flash": prepare_flash,
             "static_url": static_url,
             "ZB": ZB,
             "UI_LABELS": UI_LABELS,
+            "UX_MSG": STANDARD_MESSAGES,
             "zb": zb,
             "ui_label": ui_label,
+            "flash_msg": _flash_msg,
         }
 
     @app.context_processor

@@ -37,6 +37,10 @@
     },
 
     showToast(message, type = 'info') {
+      if (window.AzadUX && typeof window.AzadUX.notify === 'function') {
+        window.AzadUX.notify(type, message);
+        return;
+      }
       if (typeof toastr !== 'undefined') {
         const method = type === 'danger' ? 'error' : type;
         toastr[method](message);
