@@ -2,8 +2,8 @@
 // 📱 Service Worker for Garage Manager System - PWA Support
 // ═══════════════════════════════════════════════════════════════════
 
-const CACHE_NAME = 'garage-manager-v1.3.2';
-const STATIC_CACHE = 'garage-static-v6';
+const CACHE_NAME = 'garage-manager-v1.4.0';
+const STATIC_CACHE = 'garage-static-v7';
 const DYNAMIC_CACHE = 'garage-dynamic-v3';
 
 // الملفات المهمة للتخزين المسبق
@@ -15,12 +15,12 @@ const STATIC_FILES = [
   '/static/css/gm-financial-pages.css',
   '/static/css/gm-scroll-filters.css',
   '/static/css/gm-invoice-detail.css',
+  '/static/css/tenant-scope.css',
   '/static/js/mobile-app.js',
   '/static/js/layout-responsive.js',
   '/static/js/gm-scroll-filters.js',
-  '/static/js/gm-financial-scroll.js',
+  '/static/js/tenant-scope.js',
   '/static/js/ux-enhancements.js',
-  '/static/img/logo.png',
   '/static/img/logo.png',
   '/static/adminlte/css/adminlte.min.css',
   '/static/adminlte/plugins/fontawesome-free/css/all.min.css',

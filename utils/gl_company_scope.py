@@ -88,3 +88,15 @@ def gl_entries_base(branch_filter_ids: Optional[List[int]], start_dt: datetime, 
             return q.filter(GLEntry.id == -1)
         q = q.filter(gl_batch_branch_clause(branch_filter_ids))
     return q
+
+
+def filter_gl_query_on_batch(query, company_id: Optional[int] = None):
+    """تطبيق نطاق الفروع على استعلام يحتوي GLBatch."""
+    from models import GLBatch
+
+    branch_ids = resolve_branch_filter(company_id)
+    if branch_ids is None:
+        return query
+    if not branch_ids:
+        return query.filter(GLBatch.id == -1)
+    return query.filter(gl_batch_branch_clause(branch_ids))

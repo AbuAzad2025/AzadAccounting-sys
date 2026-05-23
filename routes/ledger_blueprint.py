@@ -21,6 +21,7 @@ from services.ledger_service import (
     SmartEntityExtractor, LedgerQueryOptimizer, CurrencyConverter,
     LedgerStatisticsCalculator, LedgerCache
 )
+from utils.gl_company_scope import filter_gl_query_on_batch, resolve_branch_filter, gl_batch_branch_clause
 
 csrf = CSRFProtect()
 
@@ -51,6 +52,12 @@ def _calculate_ledger_statistics(from_date: datetime | None, to_date: datetime |
         return cached
 
     base_gl = db.session.query(GLEntry).join(GLBatch).filter(GLBatch.status == "POSTED")
+    branch_ids = resolve_branch_filter()
+    if branch_ids is not None:
+        if not branch_ids:
+            base_gl = base_gl.filter(GLEntry.id == -1)
+        else:
+            base_gl = base_gl.filter(gl_batch_branch_clause(branch_ids))
     if from_date:
         base_gl = base_gl.filter(GLBatch.posted_at >= from_date)
     if to_date:
@@ -526,6 +533,8 @@ def get_ledger_data():
             query = query.filter(GLBatch.posted_at >= from_date)
         if to_date:
             query = query.filter(GLBatch.posted_at <= to_date)
+            
+        query = filter_gl_query_on_batch(query)
             
         if transaction_type:
             tt_upper = transaction_type.strip().upper()

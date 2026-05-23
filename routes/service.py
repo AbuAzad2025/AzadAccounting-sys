@@ -15,6 +15,7 @@ from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.orm import joinedload
 
 from extensions import db, cache
+from utils.company_scope import filter_service_requests_query
 from stock_audit_system import (
     StockTransactionType, StockAuditLogger,
     log_service_part_add, log_service_part_remove,
@@ -409,6 +410,7 @@ def list_requests():
         joinedload(ServiceRequest.mechanic),
         joinedload(ServiceRequest.vehicle_type)
     )
+    query = filter_service_requests_query(query)
     
     # تطبيق الفلاتر
     sts = _status_list(status_filter)

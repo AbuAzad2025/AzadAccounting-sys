@@ -431,6 +431,12 @@ def create_user():
             primary = int(form.primary_branch_id.data or 0) or None
             if branch_ids:
                 sync_user_branches(user.id, branch_ids, primary_branch_id=primary)
+            else:
+                from utils.company_scope import can_view_all_branches
+                if not utils.is_super() and not can_view_all_branches():
+                    db.session.rollback()
+                    flash("يجب تعيين فرع واحد على الأقل للمستخدم.", "danger")
+                    return redirect(request.url)
 
             if selected_perm_ids:
                 user.extra_permissions = Permission.query.filter(

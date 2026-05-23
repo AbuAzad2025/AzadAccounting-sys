@@ -332,6 +332,19 @@ def filter_partners_query(query, branch_ids: Optional[List[int]] = None):
     return query.filter(Partner.id.in_(partner_ids))
 
 
+def filter_projects_query(query):
+    from models import Project
+
+    return filter_by_branches(query, Project.branch_id)
+
+
+def assert_project_access(project_id: int) -> None:
+    from models import Project
+
+    if not filter_projects_query(Project.query.filter_by(id=int(project_id))).first():
+        abort(404)
+
+
 def sale_id_in_accessible_branches(sale_id: int) -> bool:
     ids = get_accessible_branch_ids()
     if ids is None:
