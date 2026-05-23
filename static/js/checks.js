@@ -195,7 +195,7 @@
         }
 
         if (checks.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="10" class="text-center"><div class="empty-state"><i class="fas fa-inbox"></i><p>لا توجد شيكات</p></div></td></tr>';
+            tbody.innerHTML = '<tr><td colspan="12" class="text-center"><div class="empty-state"><i class="fas fa-inbox"></i><p>لا توجد شيكات</p></div></td></tr>';
             return;
         }
         
@@ -663,6 +663,11 @@
     window.markAsReturned = function(checkToken) {
         updateCheckStatus(checkToken, 'RETURNED', 'تم إرجاع الشيك من البنك', { return_reason: 'BANK' });
     };
+
+    // شيك مرفوض من البنك
+    window.markAsBounced = function(checkToken) {
+        updateCheckStatus(checkToken, 'BOUNCED', 'تم رفض الشيك من البنك', { return_reason: 'BANK' });
+    };
     
     // تحديث حالة الشيك إلى ملغي
     window.markAsCancelled = function(checkToken) {
@@ -676,7 +681,7 @@
     
     // أرشفة الشيك
     window.archiveCheck = function(checkToken) {
-        updateCheckStatus(checkToken, 'CANCELLED', 'تم إلغاء الشيك (أرشفة)');
+        updateCheckStatus(checkToken, 'ARCHIVED', 'تم أرشفة الشيك');
     };
 
     window.restoreCheck = function(checkToken) {

@@ -19,6 +19,6 @@
   <div class="field date">{{ check.check_date.strftime('%d/%m/%Y') if check.check_date else '' }}</div>
   <div class="field payee">{{ check.payee_name or '' }}</div>
   <div class="field amount-fig">{{ check.amount }} {{ check.currency }}</div>
-  <div class="field amount-words">{{ check.amount }} {{ check.currency }}</div>
+  <div class="field amount-words">{{ check.amount|amount_in_words(check.currency) }}</div>
 </body>
 </html>

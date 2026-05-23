@@ -455,12 +455,20 @@ def _register_template_support(app):
     def inject_common():
         from utils.arabic_ux import ZB, UI_LABELS
 
+        def zb(key: str, default: str = "") -> str:
+            return ZB.get(key, default or key)
+
+        def ui_label(key: str, default: str = "") -> str:
+            return UI_LABELS.get(key, default or key)
+
         return {
             "current_app": current_app,
             "get_unique_flashes": get_unique_flashes,
             "static_url": static_url,
             "ZB": ZB,
             "UI_LABELS": UI_LABELS,
+            "zb": zb,
+            "ui_label": ui_label,
         }
 
     @app.context_processor

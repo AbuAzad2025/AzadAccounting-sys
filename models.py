@@ -1490,34 +1490,43 @@ def convert_amount(amount: Decimal | float | str, from_code: str, to_code: str, 
 def auto_update_missing_rates():
     """تحديث تلقائي للأسعار المفقودة من السيرفرات العالمية"""
     try:
-        # الحصول على جميع العملات النشطة
+        from datetime import time as time_cls
+
         currencies = db.session.query(Currency).filter_by(is_active=True).all()
         currency_codes = [c.code for c in currencies]
-        
+
         updated_count = 0
-        today = datetime.now(timezone.utc).date()
-        
+        now = datetime.now(timezone.utc)
+        today = now.date()
+        day_start = datetime.combine(today, time_cls.min, tzinfo=timezone.utc)
+        day_end = datetime.combine(today, time_cls.max, tzinfo=timezone.utc)
+
         for base_code in currency_codes:
             for quote_code in currency_codes:
                 if base_code == quote_code:
                     continue
-                
-                # التحقق من وجود سعر لهذا اليوم
-                existing_rate = db.session.query(ExchangeRate).filter(
-                    ExchangeRate.base_code == base_code,
-                    ExchangeRate.quote_code == quote_code,
-                    ExchangeRate.valid_from == today
-                ).first()
-                
-                if not existing_rate:
-                    try:
-                        # محاولة سحب السعر من السيرفرات العالمية
-                        rate = _fetch_external_fx_rate(base_code, quote_code, datetime.now(timezone.utc))
-                        if rate and rate > Decimal("0"):
-                            updated_count += 1
-                    except Exception:
-                        continue
-        
+
+                existing_rate = (
+                    db.session.query(ExchangeRate)
+                    .filter(
+                        ExchangeRate.base_code == base_code,
+                        ExchangeRate.quote_code == quote_code,
+                        ExchangeRate.valid_from >= day_start,
+                        ExchangeRate.valid_from <= day_end,
+                    )
+                    .first()
+                )
+
+                if existing_rate:
+                    continue
+                try:
+                    rate = _fetch_external_fx_rate(base_code, quote_code, now)
+                    if rate and rate > Decimal("0"):
+                        _save_external_rate(base_code, quote_code, rate, now)
+                        updated_count += 1
+                except Exception:
+                    continue
+
         return {
             'success': True,
             'updated_rates': updated_count,
@@ -5963,6 +5972,43 @@ def _sale_delete_tax_entry(mapper, connection, target: "Sale"):
     except Exception:
         pass
 
+def _amount_to_ils_via_connection(
+    connection,
+    amount,
+    currency: str | None = None,
+    at: datetime | None = None,
+    fx_rate_used=None,
+) -> Decimal:
+    """تحويل مبلغ إلى ILS — يفضّل السعر المحفوظ ثم السعر المحلي."""
+    from decimal import ROUND_HALF_UP
+
+    amt = Decimal(str(amount or 0))
+    if amt <= 0:
+        return Decimal("0.00")
+    code = (currency or DEFAULT_CURRENCY).upper()
+    if code == DEFAULT_CURRENCY:
+        return amt.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    if fx_rate_used is not None:
+        try:
+            rate = Decimal(str(fx_rate_used))
+            if rate > 0:
+                return (amt * rate).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        except Exception:
+            pass
+    try:
+        live = _fx_rate_local_via_connection(
+            connection,
+            code,
+            DEFAULT_CURRENCY,
+            at or datetime.now(timezone.utc),
+        )
+        if live and Decimal(str(live)) > 0:
+            return (amt * Decimal(str(live))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    except Exception:
+        pass
+    return Decimal("0.00")
+
+
 def _sale_gl_upsert_core(connection, target: "Sale") -> None:
     """منطق إنشاء/تحديث قيد GL للبيع (يُستدعى من معاملة منفصلة بعد commit)."""
     from decimal import Decimal, ROUND_HALF_UP
@@ -5972,26 +6018,33 @@ def _sale_gl_upsert_core(connection, target: "Sale") -> None:
     amount = Decimal(str(target.total_amount or 0))
     if amount <= 0:
         return
-    amount_ils = amount
+    sale_at = target.sale_date or getattr(target, "created_at", None) or datetime.now(timezone.utc)
     exchange_rate = Decimal(1)
-    if target.currency and target.currency != DEFAULT_CURRENCY:
+    if target.fx_rate_used and Decimal(str(target.fx_rate_used)) > 0:
+        exchange_rate = Decimal(str(target.fx_rate_used))
+    elif target.currency and target.currency != DEFAULT_CURRENCY:
         try:
-            rate = _fx_rate_local_via_connection(connection, target.currency, DEFAULT_CURRENCY, target.sale_date or datetime.now(timezone.utc))
+            rate = _fx_rate_local_via_connection(
+                connection, target.currency, DEFAULT_CURRENCY, sale_at
+            )
             if rate and rate > 0:
                 exchange_rate = Decimal(str(rate))
-                amount_ils = amount * exchange_rate
         except Exception:
             pass
-    # Modified Query to include purchase_price for COGS calculation
+    amount_ils = amount * exchange_rate
+    # تكلفة البضاعة: سعر الشراء/التكلفة بعملة المنتج → ILS
     sale_lines = connection.execute(
         sa_text("""
-            SELECT sl.id, sl.product_id, sl.warehouse_id, sl.quantity, sl.unit_price, 
-                   sl.discount_rate, sl.tax_rate, p.purchase_price
+            SELECT sl.id, sl.product_id, sl.warehouse_id, sl.quantity, sl.unit_price,
+                   sl.discount_rate, sl.tax_rate,
+                   COALESCE(NULLIF(p.cost_after_shipping, 0), p.purchase_price, 0),
+                   COALESCE(p.currency, :default_cur),
+                   p.fx_rate_used
             FROM sale_lines sl
             JOIN products p ON p.id = sl.product_id
             WHERE sl.sale_id = :sid
         """),
-        {"sid": target.id}
+        {"sid": target.id, "default_cur": DEFAULT_CURRENCY},
     ).fetchall()
 
     if not sale_lines:
@@ -6008,7 +6061,18 @@ def _sale_gl_upsert_core(connection, target: "Sale") -> None:
     subtotal_base_ils = Decimal(0)
     total_tax_ils = Decimal(0)
     for line in sale_lines:
-        line_id, product_id, warehouse_id, qty, unit_price, disc_rate, tax_rate, purchase_price = line
+        (
+            line_id,
+            product_id,
+            warehouse_id,
+            qty,
+            unit_price,
+            disc_rate,
+            tax_rate,
+            unit_cost,
+            product_currency,
+            product_fx,
+        ) = line
         gross = Decimal(str(qty or 0)) * Decimal(str(unit_price or 0))
         discount = gross * (Decimal(str(disc_rate or 0)) / Decimal(100))
         taxable = gross - discount
@@ -6018,12 +6082,36 @@ def _sale_gl_upsert_core(connection, target: "Sale") -> None:
         line_total = line_base_ils + line_tax_ils
         subtotal_base_ils += line_base_ils
         total_tax_ils += line_tax_ils
-        
-        unit_cost_ils = Decimal(str(purchase_price or 0))
-        line_details.append(
-            (product_id, warehouse_id, qty, line_base_ils, line_total, unit_cost_ils)
+
+        unit_cost_ils = _amount_to_ils_via_connection(
+            connection,
+            unit_cost,
+            product_currency,
+            sale_at,
+            product_fx,
         )
-    for product_id, warehouse_id, qty, line_base_ils, line_total, unit_cost_ils in line_details:
+        line_details.append(
+            (
+                product_id,
+                warehouse_id,
+                qty,
+                line_base_ils,
+                line_total,
+                unit_cost_ils,
+                product_currency,
+                product_fx,
+            )
+        )
+    for (
+        product_id,
+        warehouse_id,
+        qty,
+        line_base_ils,
+        line_total,
+        unit_cost_ils,
+        product_currency,
+        product_fx,
+    ) in line_details:
         cogs_amount = Decimal(str(qty or 0)) * unit_cost_ils
         wh_result = connection.execute(
             sa_text("SELECT warehouse_type, partner_id, supplier_id, share_percent FROM warehouses WHERE id = :wid"),
@@ -6075,8 +6163,14 @@ def _sale_gl_upsert_core(connection, target: "Sale") -> None:
             ).fetchone()
             if exchange_result:
                 supplier_id, unit_cost = exchange_result
-                # Note: Using unit_cost from exchange table for supplier COGS
-                ex_cogs_amount = Decimal(str(qty or 0)) * Decimal(str(unit_cost or 0))
+                ex_unit_ils = _amount_to_ils_via_connection(
+                    connection,
+                    unit_cost,
+                    product_currency,
+                    sale_at,
+                    product_fx,
+                )
+                ex_cogs_amount = Decimal(str(qty or 0)) * ex_unit_ils
                 total_cogs_suppliers[supplier_id] = total_cogs_suppliers.get(supplier_id, Decimal(0)) + ex_cogs_amount
             else:
                 total_cogs_inventory += cogs_amount
@@ -7910,6 +8004,19 @@ def _payment_update_supplier_balance_on_delete(mapper, connection, target: "Paym
     except Exception:
         pass
 
+def _payment_amount_to_ils(connection, target: "Payment") -> float:
+    """تحويل مبلغ الدفعة إلى ILS باستخدام السعر المحفوظ أولاً."""
+    return float(
+        _amount_to_ils_via_connection(
+            connection,
+            getattr(target, "total_amount", 0) or 0,
+            getattr(target, "currency", None),
+            getattr(target, "payment_date", None) or datetime.now(timezone.utc),
+            getattr(target, "fx_rate_used", None),
+        )
+    )
+
+
 def _payment_gl_upsert_core(connection, target: "Payment") -> None:
     """منطق إنشاء/تحديث قيد GL للدفعة (يُستدعى من معاملة منفصلة بعد commit)."""
     if hasattr(target, "_skip_gl_entry") and target._skip_gl_entry:
@@ -7931,17 +8038,9 @@ def _payment_gl_upsert_core(connection, target: "Payment") -> None:
             _payment_split_gl_batch_upsert_by_id(connection, split_id=int(sid))
         return
     if target.status in [PaymentStatus.FAILED.value, PaymentStatus.REFUNDED.value, PaymentStatus.CANCELLED.value] or getattr(target, "is_refunded", False):
-        amount = float(target.total_amount or 0)
-        if amount <= 0:
+        amount_ils = _payment_amount_to_ils(connection, target)
+        if amount_ils <= 0:
             return
-        amount_ils = amount
-        if target.currency and target.currency != "ILS":
-            try:
-                rate = _fx_rate_local_via_connection(connection, target.currency, "ILS", target.payment_date or datetime.now(timezone.utc))
-                if rate and rate > 0:
-                    amount_ils = float(amount * float(rate))
-            except Exception:
-                pass
         method_val = getattr(target, "method", "CASH")
         if hasattr(method_val, "value"):
             method_val = method_val.value
@@ -7980,17 +8079,9 @@ def _payment_gl_upsert_core(connection, target: "Payment") -> None:
         target.status == PaymentStatus.PENDING.value
         and target.method == PaymentMethod.CHEQUE.value
     )
-    amount = float(target.total_amount or 0)
-    if amount <= 0:
+    amount_ils = _payment_amount_to_ils(connection, target)
+    if amount_ils <= 0:
         return
-    amount_ils = amount
-    if target.currency and target.currency != "ILS":
-        try:
-            rate = _fx_rate_local_via_connection(connection, target.currency, "ILS", target.payment_date or datetime.now(timezone.utc))
-            if rate and rate > 0:
-                amount_ils = float(amount * float(rate))
-        except Exception:
-            pass
     if is_pending_check:
         cash_account = "1150_CHQ_REC" if target.direction == PaymentDirection.IN.value else "2150_CHQ_PAY"
     elif target.method == PaymentMethod.BANK.value:
@@ -8233,6 +8324,13 @@ def _payment_create_check_auto(mapper, connection, target: "Payment"):
         check_bank = (getattr(target, 'check_bank', None) or '').strip()
         
         if not check_number or not check_bank:
+            return
+
+        existing_check = connection.execute(
+            sa_text("SELECT id FROM checks WHERE payment_id = :pid LIMIT 1"),
+            {"pid": int(target.id)},
+        ).scalar()
+        if existing_check:
             return
         
         # تحويل check_due_date
@@ -8873,17 +8971,27 @@ def _payment_split_gl_batch_upsert_by_id(connection, *, split_id: int) -> None:
             split_currency = (split_row["converted_currency"] or split_row["currency"] or payment_row["currency"] or "ILS").upper()
             amount_ils = amount
             if split_currency != "ILS" and not float(split_row["converted_amount"] or 0):
-                try:
-                    rate = _fx_rate_local_via_connection(
-                        connection,
-                        split_currency,
-                        "ILS",
-                        payment_row["payment_date"] or datetime.now(timezone.utc),
-                    )
-                    if rate and float(rate) > 0:
-                        amount_ils = float(amount * float(rate))
-                except Exception:
-                    pass
+                split_fx = split_row.get("fx_rate_used")
+                rate = None
+                if split_fx is not None:
+                    try:
+                        rate = float(split_fx)
+                    except Exception:
+                        rate = None
+                if not rate or rate <= 0:
+                    try:
+                        rate = _fx_rate_local_via_connection(
+                            connection,
+                            split_currency,
+                            "ILS",
+                            payment_row["payment_date"] or datetime.now(timezone.utc),
+                        )
+                        if rate:
+                            rate = float(rate)
+                    except Exception:
+                        rate = None
+                if rate and rate > 0:
+                    amount_ils = float(amount * rate)
 
             split_method = str(split_row["method"] or PaymentMethod.CASH.value).strip().lower()
             is_check = ("check" in split_method) or ("cheque" in split_method)
@@ -13472,73 +13580,81 @@ def _sale_return_gl_upsert_core(connection, target: "SaleReturn") -> None:
         return
         
     total_refund_dec = Decimal(str(total_refund))
+    return_at = target.return_date or datetime.now(timezone.utc)
+    refund_ils = _amount_to_ils_via_connection(
+        connection,
+        total_refund_dec,
+        target.currency,
+        return_at,
+        target.fx_rate_used,
+    )
+    if refund_ils <= 0:
+        return
 
-    # 1. Calculate Tax Share
+    # 1. Calculate Tax Share (on ILS amounts)
     tax_rate = Decimal("0")
     if target.sale_id:
         try:
-            # Use SQL to get tax_rate to avoid ORM loading issues
             res = connection.execute(
-                sa_text("SELECT tax_rate FROM sales WHERE id = :sid"), 
-                {"sid": target.sale_id}
+                sa_text("SELECT tax_rate FROM sales WHERE id = :sid"),
+                {"sid": target.sale_id},
             ).scalar()
             if res:
                 tax_rate = Decimal(str(res))
         except Exception:
             pass
 
-    # Net = Total / (1 + Rate/100)
     if tax_rate > 0:
-        net_sales = total_refund_dec / (Decimal("1") + (tax_rate / Decimal("100")))
+        net_sales = refund_ils / (Decimal("1") + (tax_rate / Decimal("100")))
         net_sales = net_sales.quantize(Decimal("0.01"), ROUND_HALF_UP)
-        tax_amount = total_refund_dec - net_sales
+        tax_amount = refund_ils - net_sales
     else:
-        net_sales = total_refund_dec
+        net_sales = refund_ils
         tax_amount = Decimal("0")
 
-    # 2. Calculate Cost of Returned Goods (For Inventory/COGS reversal)
+    # 2. Cost of returned goods in ILS (product currency → ILS)
     total_cost = Decimal("0")
     try:
         lines = connection.execute(
             sa_text("""
-                SELECT srl.quantity, p.purchase_price, p.cost_after_shipping
+                SELECT srl.quantity,
+                       COALESCE(NULLIF(p.cost_after_shipping, 0), p.purchase_price, 0),
+                       COALESCE(p.currency, :default_cur),
+                       p.fx_rate_used
                 FROM sale_return_lines srl
                 JOIN products p ON srl.product_id = p.id
                 WHERE srl.sale_return_id = :rid
             """),
-            {"rid": target.id}
+            {"rid": target.id, "default_cur": DEFAULT_CURRENCY},
         ).fetchall()
-        
+
         for ln in lines:
             qty = Decimal(str(ln[0] or 0))
-            # Use cost_after_shipping if available (>0), else purchase_price
-            c1 = Decimal(str(ln[2] or 0))
-            c2 = Decimal(str(ln[1] or 0))
-            cost = c1 if c1 > 0 else c2
-            total_cost += qty * cost
+            unit_cost_ils = _amount_to_ils_via_connection(
+                connection, ln[1], ln[2], return_at, ln[3]
+            )
+            total_cost += qty * unit_cost_ils
     except Exception:
         pass
 
     entries = []
-    
-    # A. Reversing Revenue & Tax (Debit Sales, Debit Tax, Credit Customer)
+
     entries.append((GL_ACCOUNTS.get("REV", "4000_SALES"), float(net_sales), 0))
     if tax_amount > 0:
         entries.append((GL_ACCOUNTS.get("TAX_OUT", "2100_VAT_PAYABLE"), float(tax_amount), 0))
-    
-    entries.append((GL_ACCOUNTS.get("AR", "1100_AR"), 0, float(total_refund_dec)))
 
-    # B. Reversing Cost (Debit Inventory, Credit COGS)
+    entries.append((GL_ACCOUNTS.get("AR", "1100_AR"), 0, float(refund_ils)))
+
     if total_cost > 0:
         entries.append((GL_ACCOUNTS.get("INVENTORY", "1200_INVENTORY"), float(total_cost), 0))
-        entries.append((GL_ACCOUNTS.get("COGS", "5000_COGS"), 0, float(total_cost)))
+        entries.append((GL_ACCOUNTS.get("COGS", "5100_COGS"), 0, float(total_cost)))
 
     _gl_upsert_batch_and_entries(
         connection,
         source_type="SALE_RETURN",
         source_id=target.id,
         purpose="RETURN",
-        currency=target.currency or "ILS",
+        currency=DEFAULT_CURRENCY,
         memo=f"Sale return #{target.id} (Tax: {tax_rate}%)",
         entries=entries,
         ref=f"RET-{target.id}",

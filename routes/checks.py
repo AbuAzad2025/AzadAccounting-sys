@@ -13,9 +13,9 @@ try:
 except ImportError:
     limiter = None
 from models import (
-    Payment, PaymentSplit, Expense, PaymentMethod, PaymentStatus, PaymentDirection, 
+    Payment, PaymentSplit, Expense, PaymentMethod, PaymentStatus, PaymentDirection,
     Check, CheckStatus, Customer, Supplier, Partner, GLBatch, GLEntry, Account,
-    _ALLOWED_TRANSITIONS,
+    Currency, _ALLOWED_TRANSITIONS,
 )
 from permissions_config.enums import SystemPermissions
 import utils
@@ -1316,6 +1316,58 @@ def _create_gl_entries_for_reverse_cancelled(amount_decimal, currency, batch_id,
     return entries
 
 
+def _resolve_gl_amount_ils(amount, currency, connection, *, check_id=None, check_type=None, new_status=None):
+    """تحويل مبلغ الشيك إلى ILS للقيد المحاسبي."""
+    from sqlalchemy import text as sa_text
+    from models import _fx_rate_local_via_connection
+
+    cur = (currency or "ILS").upper()
+    amt = Decimal(str(amount))
+    if cur == "ILS":
+        return amt, "ILS"
+
+    rate = None
+    if check_id and connection is not None:
+        try:
+            row = connection.execute(
+                sa_text(
+                    """
+                    SELECT c.fx_rate_issue, c.fx_rate_cash, c.status, p.fx_rate_used
+                    FROM checks c
+                    LEFT JOIN payments p ON p.id = c.payment_id
+                    WHERE c.id = :cid
+                    LIMIT 1
+                    """
+                ),
+                {"cid": int(check_id)},
+            ).fetchone()
+            if row:
+                status_val = (new_status or row[2] or "").upper()
+                raw_rate = row[1] if status_val == "CASHED" else row[0]
+                if raw_rate is None or float(raw_rate or 0) <= 0:
+                    raw_rate = row[3]
+                if raw_rate is not None and float(raw_rate) > 0:
+                    rate = float(raw_rate)
+        except Exception:
+            rate = None
+
+    if not rate or rate <= 0:
+        try:
+            live = _fx_rate_local_via_connection(connection, cur, "ILS", _utcnow())
+            if live and float(live) > 0:
+                rate = float(live)
+        except Exception:
+            rate = None
+
+    if not rate or rate <= 0:
+        raise CheckAccountingError(
+            f"لا يوجد سعر صرف صالح لتحويل {cur} إلى ILS",
+            code="FX_MISSING",
+        )
+
+    return (amt * Decimal(str(rate))).quantize(Decimal("0.01")), "ILS"
+
+
 def create_gl_entry_for_check(check_id, check_type, amount, currency, direction, 
                                new_status, old_status=None, entity_name='', notes='', 
                                entity_type=None, entity_id=None, connection=None):
@@ -1353,6 +1405,15 @@ def create_gl_entry_for_check(check_id, check_type, amount, currency, direction,
     try:
         is_incoming = (direction == 'IN')
         amount_decimal = Decimal(str(amount))
+        if connection is not None:
+            amount_decimal, currency = _resolve_gl_amount_ils(
+                amount_decimal,
+                currency,
+                connection,
+                check_id=check_id,
+                check_type=check_type,
+                new_status=new_status,
+            )
         
         check_type_label = "شيك يدوي" if check_type == "manual" else "شيك"
         
@@ -1541,13 +1602,14 @@ GL_ACCOUNTS_CHECKS = {
 }
 
 CHECK_LIFECYCLE = {
-    'PENDING': ['CASHED', 'RETURNED', 'BOUNCED', 'CANCELLED'],
+    'PENDING': ['CASHED', 'RETURNED', 'BOUNCED', 'CANCELLED', 'ARCHIVED'],
     'RETURNED': ['RESUBMITTED', 'CANCELLED', 'PENDING'],
-    'BOUNCED': ['RESUBMITTED', 'CANCELLED'],
-    'RESUBMITTED': ['CASHED', 'RETURNED', 'BOUNCED', 'CANCELLED'],
-    'OVERDUE': ['CASHED', 'RETURNED', 'BOUNCED', 'CANCELLED'],
-    'CASHED': [],
-    'CANCELLED': ['RETURNED', 'PENDING', 'RESUBMITTED']
+    'BOUNCED': ['RESUBMITTED', 'CANCELLED', 'ARCHIVED'],
+    'RESUBMITTED': ['CASHED', 'RETURNED', 'BOUNCED', 'CANCELLED', 'ARCHIVED'],
+    'OVERDUE': ['CASHED', 'RETURNED', 'BOUNCED', 'CANCELLED', 'ARCHIVED'],
+    'CASHED': ['ARCHIVED'],
+    'CANCELLED': ['RETURNED', 'PENDING', 'RESUBMITTED', 'ARCHIVED'],
+    'ARCHIVED': ['PENDING'],
 }
 
 def _current_user_is_owner() -> bool:
@@ -2946,7 +3008,9 @@ def get_checks():
 
         def _status_snapshot(manual_status: str | None, status_value: str | None, due_days: int | None):
             manual = (manual_status or '').upper()
-            if manual in {'RETURNED', 'BOUNCED'}:
+            if manual == 'BOUNCED':
+                return 'BOUNCED', 'مرفوض', 'danger'
+            if manual == 'RETURNED':
                 return 'RETURNED', 'مرتجع', 'warning'
             if manual == 'CANCELLED':
                 return 'CANCELLED', 'ملغي', 'secondary'
@@ -3757,9 +3821,16 @@ def get_statistics():
                 rate_num = float(rate) if rate is not None else None
             except Exception:
                 rate_num = None
-            if rate_num:
+            if rate_num and rate_num > 0:
                 return amount * rate_num
-            return 0.0
+            try:
+                from models import get_fx_rate_with_fallback
+                info = get_fx_rate_with_fallback(currency, "ILS")
+                if info.get("success") and float(info.get("rate") or 0) > 0:
+                    return amount * float(info["rate"])
+            except Exception:
+                current_app.logger.warning("check stats FX fallback failed", exc_info=True)
+            return amount if currency == "ILS" else 0.0
 
         def _sum_amount(items):
             total = 0.0
@@ -3989,6 +4060,7 @@ def get_current_check_status(check, check_type):
 
 @checks_bp.route('/api/update-status/<check_id>', methods=['POST'])
 @login_required
+@utils.permission_required(SystemPermissions.MANAGE_PAYMENTS)
 def update_check_status(check_id):
     try:
         data = request.get_json() or {}
@@ -4693,6 +4765,7 @@ def get_alerts():
 
 @checks_bp.route("/new", methods=["GET", "POST"])
 @login_required
+@utils.permission_required(SystemPermissions.MANAGE_PAYMENTS)
 def add_check():
     """إضافة شيك يدوي جديد"""
     if request.method == "POST":
@@ -4725,16 +4798,21 @@ def add_check():
             supplier_id_raw = request.form.get("supplier_id") or None
             partner_id_raw = request.form.get("partner_id") or None
             
-            if not check_number or not check_bank or not amount or not direction:
+            if not check_number or not check_bank or not direction:
                 flash("يرجى ملء جميع الحقول المطلوبة", "danger")
                 return redirect(url_for("checks.add_check"))
-            
-            if amount < 0:
-                flash("مبلغ الشيك لا يمكن أن يكون سالباً", "danger")
+
+            if amount <= 0:
+                flash("مبلغ الشيك يجب أن يكون أكبر من صفر", "danger")
                 return redirect(url_for("checks.add_check"))
-            
+
             check_date = datetime.strptime(check_date_str, "%Y-%m-%d") if check_date_str else datetime.now(timezone.utc)
             check_due_date = datetime.strptime(check_due_date_str, "%Y-%m-%d") if check_due_date_str else datetime.now(timezone.utc)
+            if check_due_date.date() < check_date.date():
+                flash("تاريخ الاستحقاق لا يمكن أن يكون قبل تاريخ الشيك", "danger")
+                return redirect(url_for("checks.add_check"))
+
+            currency = (currency or "ILS").strip().upper()
             
             customer_id = int(customer_id_raw) if customer_id_raw else None
             supplier_id = int(supplier_id_raw) if supplier_id_raw else None
@@ -4783,17 +4861,23 @@ def add_check():
     customers = Customer.query.filter_by(is_active=True, is_archived=False).order_by(Customer.name).limit(1000).all()
     suppliers = Supplier.query.order_by(Supplier.name).limit(1000).all()
     partners = Partner.query.order_by(Partner.name).limit(1000).all()
-    
-    return render_template("checks/form.html",
-                         customers=customers,
-                         suppliers=suppliers,
-                         partners=partners,
-                         check=None,
-                         currencies=["ILS", "USD", "EUR", "JOD"])
+    active_currencies = [
+        c.code for c in Currency.query.filter_by(is_active=True).order_by(Currency.code).all()
+    ] or ["ILS", "USD", "EUR", "JOD"]
+
+    return render_template(
+        "checks/form.html",
+        customers=customers,
+        suppliers=suppliers,
+        partners=partners,
+        check=None,
+        currencies=active_currencies,
+    )
 
 
 @checks_bp.route("/edit/<int:check_id>", methods=["GET", "POST"])
 @login_required
+@utils.permission_required(SystemPermissions.MANAGE_PAYMENTS)
 def edit_check(check_id):
     """تعديل شيك"""
     check = db.get_or_404(Check, check_id)
@@ -4809,10 +4893,13 @@ def edit_check(check_id):
                 check.amount = Decimal(amount_raw) if amount_raw else Decimal(0)
             except Exception:
                 check.amount = Decimal(0)
-            if check.amount < 0:
-                flash("مبلغ الشيك لا يمكن أن يكون سالباً", "danger")
+            if check.amount <= 0:
+                flash("مبلغ الشيك يجب أن يكون أكبر من صفر", "danger")
                 return redirect(url_for("checks.edit_check", check_id=check_id))
-            check.currency = request.form.get("currency", "ILS")
+            if check.check_due_date.date() < check.check_date.date():
+                flash("تاريخ الاستحقاق لا يمكن أن يكون قبل تاريخ الشيك", "danger")
+                return redirect(url_for("checks.edit_check", check_id=check_id))
+            check.currency = (request.form.get("currency", "ILS") or "ILS").strip().upper()
             check.direction = request.form.get("direction")
             
             check.drawer_name = request.form.get("drawer_name")
@@ -4846,12 +4933,17 @@ def edit_check(check_id):
     suppliers = Supplier.query.order_by(Supplier.name).limit(1000).all()
     partners = Partner.query.order_by(Partner.name).limit(1000).all()
     
-    return render_template("checks/form.html",
-                         check=check,
-                         customers=customers,
-                         suppliers=suppliers,
-                         partners=partners,
-                         currencies=["ILS", "USD", "EUR", "JOD"])
+    active_currencies = [
+        c.code for c in Currency.query.filter_by(is_active=True).order_by(Currency.code).all()
+    ] or ["ILS", "USD", "EUR", "JOD"]
+    return render_template(
+        "checks/form.html",
+        check=check,
+        customers=customers,
+        suppliers=suppliers,
+        partners=partners,
+        currencies=active_currencies,
+    )
 
 
 @checks_bp.route("/detail/<int:check_id>")
