@@ -15,6 +15,10 @@
   <meta name="keywords" content="نظام إدارة الكراج، إدارة المركبات، صيانة السيارات، {{ system_settings.company_name or 'شركة ازاد' }}">
   <meta name="author" content="{{ system_settings.company_name or 'شركة ازاد للأنظمة الذكية' }}">
   <meta name="csrf-token" content="{{ csrf_token() }}">
+  {% if current_user.is_authenticated and tenant_branch_id %}
+  <meta name="tenant-branch-id" content="{{ tenant_branch_id }}">
+  <meta name="tenant-company-id" content="{{ tenant_company_id or '' }}">
+  {% endif %}
   <script>
   (function(){
     try{
@@ -135,10 +139,17 @@
   <link rel="preload" href="{{ static_url('css/style.css') }}" as="style">
   <link rel="stylesheet" href="{{ static_url('css/style.css') }}">
   <link rel="stylesheet" href="{{ static_url('css/mobile.css') }}" id="mobile-css" data-default-media="(max-width: 575.98px)" media="(max-width: 575.98px)">
+  <link rel="stylesheet" href="{{ static_url('css/mobile-app.css') }}" id="mobile-app-css" data-default-media="(max-width: 575.98px)" media="(max-width: 575.98px)">
+  <link rel="stylesheet" href="{{ static_url('css/gm-scroll-filters.css') }}" id="gm-scroll-filters-css">
+  <link rel="stylesheet" href="{{ static_url('css/gm-financial-pages.css') }}" id="gm-financial-css" data-default-media="(max-width: 575.98px)" media="(max-width: 575.98px)">
+  <link rel="stylesheet" href="{{ static_url('css/gm-invoice-detail.css') }}" id="gm-invoice-detail-css" data-default-media="(max-width: 575.98px)" media="(max-width: 575.98px)">
   <script>
     (function() {
       const html = document.documentElement;
       const link = document.getElementById('mobile-css');
+      const appLink = document.getElementById('mobile-app-css');
+      const finLink = document.getElementById('gm-financial-css');
+      const invLink = document.getElementById('gm-invoice-detail-css');
       const stored = (function() {
         try { return localStorage.getItem('ui_mode') || 'auto'; } catch (e) { return 'auto'; }
       })();
@@ -154,13 +165,18 @@
       })();
       const effective = mode === 'auto' ? autoMode : mode;
       html.setAttribute('data-ui-mode', effective);
-      if (link) link.media = effective === 'mobile' ? 'all' : 'not all';
+      const compactMedia = (effective === 'mobile' || effective === 'tablet') ? 'all' : (link && link.getAttribute('data-default-media')) || '(max-width: 575.98px)';
+      if (link) link.media = compactMedia;
+      if (appLink) appLink.media = compactMedia;
+      if (finLink) finLink.media = compactMedia;
+      if (invLink) invLink.media = compactMedia;
     })();
   </script>
   <link rel="stylesheet" href="{{ static_url('css/security_dark_mode.css') }}">
   <link rel="stylesheet" href="{{ static_url('css/numbers-fix.css') }}">
   <link rel="stylesheet" href="{{ static_url('css/bs5-utils.css') }}">
   <link rel="stylesheet" href="{{ static_url('css/ux-unified.css') }}">
+  <link rel="stylesheet" href="{{ static_url('css/tenant-scope.css') }}">
   <link rel="stylesheet" href="{{ static_url('css/ux-contrast.css') }}">
   <link rel="stylesheet" href="{{ static_url('css/ux-messages.css') }}">
   <link rel="stylesheet" href="{{ static_url('css/print.css') }}" media="print">
@@ -309,8 +325,13 @@
     .content-wrapper {
         min-height: calc(100vh - 57px);
         transition: margin 0.3s ease-in-out, width 0.3s ease-in-out;
-        overflow-x: auto !important; /* Allow horizontal scrolling to prevent content hiding */
-        padding-top: 65px !important; /* Force space for fixed navbar */
+        overflow-x: auto !important;
+        padding-top: 65px !important;
+    }
+
+    body.gm-compact-app .content-wrapper {
+        padding-top: 0 !important;
+        overflow-x: hidden !important;
     }
     
     /* Ensure no content is hidden behind fixed elements */
@@ -360,7 +381,7 @@
   {% block extra_css %}{% endblock %}
   <!-- Bootstrap shim already defined at top of <head>; no duplicate needed here. -->
 </head>
-<body class="hold-transition sidebar-mini layout-fixed text-sm layout-navbar-fixed ui-v2 electric-theme {% block body_class %}{% endblock %}">
+<body class="hold-transition sidebar-mini layout-fixed text-sm layout-navbar-fixed ui-v2 electric-theme {% block body_class %}{% endblock %}"{% if tenant_company_id %} data-tenant-scoped="1"{% endif %}>
 <div class="wrapper">
   {% include 'partials/navbar.html' %}
   <div id="gm-open-in-app-banner" class="gm-open-in-app-banner d-none" role="banner" aria-label="فتح كتطبيق">
@@ -386,7 +407,7 @@
         </div>
       </div>
     </div>
-    <section class="content">
+    <section class="content gm-app-content">
       <div class="container-fluid">
         {% include 'partials/ux_flash_messages.html' %}
         {% block content %}{% endblock %}
@@ -404,31 +425,35 @@
     <span>الرئيسية</span>
   </a>
   {% endif %}
-  {% if (has_perm('view_customers') or has_perm('manage_customers')) and ('customers_bp.list_customers' in current_app.view_functions) %}
-  <a class="gm-tab" href="{{ url_for('customers_bp.list_customers') }}">
-    <i class="fas fa-users"></i>
-    <span>الزبائن</span>
-  </a>
-  {% endif %}
   {% if (has_perm('view_sales') or has_perm('manage_sales')) and ('sales_bp.list_sales' in current_app.view_functions) %}
   <a class="gm-tab" href="{{ url_for('sales_bp.list_sales') }}">
     <i class="fas fa-shopping-cart"></i>
     <span>المبيعات</span>
   </a>
   {% endif %}
-  {% if (has_perm('view_service') or has_perm('manage_service')) and ('service.list_requests' in current_app.view_functions) %}
+  {% if (has_perm('view_customers') or has_perm('manage_customers')) and ('customers_bp.list_customers' in current_app.view_functions) %}
+  <a class="gm-tab" href="{{ url_for('customers_bp.list_customers') }}">
+    <i class="fas fa-users"></i>
+    <span>الزبائن</span>
+  </a>
+  {% endif %}
+  {% if (has_perm('view_payments') or has_perm('manage_payments')) and ('payments.index' in current_app.view_functions) %}
+  <a class="gm-tab" href="{{ url_for('payments.index') }}">
+    <i class="fas fa-money-bill-wave"></i>
+    <span>الدفعات</span>
+  </a>
+  {% elif (has_perm('view_service') or has_perm('manage_service')) and ('service.list_requests' in current_app.view_functions) %}
   <a class="gm-tab" href="{{ url_for('service.list_requests') }}">
     <i class="fas fa-wrench"></i>
     <span>الصيانة</span>
   </a>
   {% endif %}
-  {% if has_perm('view_reports') and ('reports_bp.dynamic_report' in current_app.view_functions) %}
-  <a class="gm-tab" href="{{ url_for('reports_bp.dynamic_report') }}">
-    <i class="fas fa-chart-line"></i>
-    <span>التقارير</span>
-  </a>
-  {% endif %}
+  <button type="button" class="gm-tab gm-tab-more" id="gm-mobile-more-btn" aria-label="المزيد">
+    <i class="fas fa-th-large"></i>
+    <span>المزيد</span>
+  </button>
 </nav>
+{% include 'partials/mobile_more_sheet.html' %}
 {% endif %}
 
 <script src="{{ static_url('adminlte/plugins/jquery/jquery.min.js') }}"></script>
@@ -469,6 +494,10 @@
 <script src="{{ static_url('js/dom-safe.js') }}"></script>
 <script src="{{ static_url('js/ux-forms.js') }}"></script>
 <script src="{{ static_url('js/ux-messages.js') }}"></script>
+<script src="{{ static_url('js/layout-responsive.js') }}"></script>
+<script src="{{ static_url('js/mobile-app.js') }}"></script>
+<script src="{{ static_url('js/gm-scroll-filters.js') }}"></script>
+<script src="{{ static_url('js/tenant-scope.js') }}"></script>
 <script src="{{ static_url('js/fx_utils.js') }}"></script>
 {% if show_charts %}
 <script src="{{ static_url('js/charts.js') }}"></script>
@@ -488,6 +517,9 @@
 function applyUIMode(mode, silent) {
   const html = document.documentElement;
   const link = document.getElementById('mobile-css');
+  const appLink = document.getElementById('mobile-app-css');
+  const finLink = document.getElementById('gm-financial-css');
+  const invLink = document.getElementById('gm-invoice-detail-css');
   const stored = (function() {
     try { return mode || localStorage.getItem('ui_mode') || 'auto'; } catch (e) { return mode || 'auto'; }
   })();
@@ -503,12 +535,16 @@ function applyUIMode(mode, silent) {
   })();
   const effective = next === 'auto' ? autoMode : next;
   html.setAttribute('data-ui-mode', effective);
-  if (link) link.media = effective === 'mobile' ? 'all' : 'not all';
+  const compactMedia = (effective === 'mobile' || effective === 'tablet') ? 'all' : (link && link.getAttribute('data-default-media')) || '(max-width: 575.98px)';
+  if (link) link.media = compactMedia;
+  if (appLink) appLink.media = compactMedia;
+  if (finLink) finLink.media = compactMedia;
+  if (invLink) invLink.media = compactMedia;
+  if (document.body) {
+    document.body.classList.toggle('gm-compact-app', effective === 'mobile' || effective === 'tablet');
+  }
   if (document.body && effective === 'desktop') {
-    document.body.classList.remove('sidebar-open');
-    const backdrop = document.getElementById('gm-sidebar-backdrop');
-    if (backdrop) backdrop.remove();
-    document.body.classList.remove('gm-mobile');
+    document.body.classList.remove('sidebar-open', 'gm-mobile');
   }
   syncUIModeButton(next);
   if (typeof applySidebarPosition === 'function' && document.body) {
@@ -520,6 +556,9 @@ function applyUIMode(mode, silent) {
   if (!silent) {
     try { window.dispatchEvent(new Event('resize')); } catch (_) {}
   }
+  try {
+    window.dispatchEvent(new CustomEvent('gm:layout-change', { detail: { effective: effective, stored: next } }));
+  } catch (_) {}
   try { if (window.AppCharts && typeof window.AppCharts.refresh === 'function') window.AppCharts.refresh(); } catch (_) {}
 }
 
@@ -700,12 +739,21 @@ let resizeTimeout;
 window.addEventListener('resize', function() {
   clearTimeout(resizeTimeout);
   resizeTimeout = setTimeout(function() {
-    try {
-      const currentMode = localStorage.getItem('ui_mode') || 'auto';
-      if (currentMode === 'auto') applyUIMode('auto', true);
-    } catch (_) {}
+    if (window.GMLayout && typeof window.GMLayout.reconcileUIModeOnResize === 'function') {
+      window.GMLayout.reconcileUIModeOnResize();
+    } else {
+      try {
+        const currentMode = localStorage.getItem('ui_mode') || 'auto';
+        if (currentMode === 'auto') applyUIMode('auto', true);
+      } catch (_) {}
+    }
     const savedPosition = localStorage.getItem('sidebarPosition') || 'left';
     applySidebarPosition(savedPosition);
+    if (window.GMLayout && typeof window.GMLayout.isCompactLayout === 'function' && !window.GMLayout.isCompactLayout()) {
+      document.body.classList.remove('sidebar-open', 'gm-mobile');
+      const bd = document.getElementById('gm-sidebar-backdrop');
+      if (bd) bd.style.display = 'none';
+    }
   }, 150);
 });
 
@@ -736,6 +784,9 @@ handleBreakpointChange(desktopQuery, 'desktop');
   
   // التحقق من الموبايل باستخدام matchMedia للدقة
   function isMobile() {
+    if (window.GMLayout && typeof window.GMLayout.isCompactLayout === 'function') {
+      return window.GMLayout.isCompactLayout();
+    }
     const forced = (document.documentElement.getAttribute('data-ui-mode') || '').toLowerCase();
     if (forced === 'mobile' || forced === 'tablet') return true;
     if (forced === 'desktop') return false;
@@ -977,7 +1028,9 @@ handleBreakpointChange(desktopQuery, 'desktop');
   
   // تحسين الجداول للموبايل
   function enhanceTables() {
-    return;
+    if (window.GMMobileApp && typeof window.GMMobileApp.enhanceTables === 'function') {
+      window.GMMobileApp.enhanceTables(document);
+    }
   }
   
   // منع Zoom عند double-tap
@@ -1053,6 +1106,20 @@ handleBreakpointChange(desktopQuery, 'desktop');
     smoothScroll();
     lazyLoadImages();
     
+    window.addEventListener('gm:layout-change', function() {
+      if (isMobile()) {
+        initMobile();
+        enhanceTables();
+        initMobileBottomNavActive();
+      } else if (window.GMLayout && typeof window.GMLayout.cleanupCompactLayout === 'function') {
+        window.GMLayout.cleanupCompactLayout();
+      } else {
+        document.body.classList.remove('gm-mobile', 'sidebar-open');
+        const bd = document.getElementById('gm-sidebar-backdrop');
+        if (bd) bd.style.display = 'none';
+      }
+    });
+    
     // إعادة تهيئة عند تغيير حجم الشاشة
     let resizeTimer;
     window.addEventListener('resize', function() {
@@ -1062,6 +1129,13 @@ handleBreakpointChange(desktopQuery, 'desktop');
           initMobile();
           enhanceTables();
           initMobileBottomNavActive();
+        } else {
+          document.body.classList.remove('gm-mobile', 'sidebar-open');
+          const bd = document.getElementById('gm-sidebar-backdrop');
+          if (bd) bd.style.display = 'none';
+          if (typeof applySidebarPosition === 'function') {
+            applySidebarPosition(localStorage.getItem('sidebarPosition') || 'left');
+          }
         }
       }, 250);
     });

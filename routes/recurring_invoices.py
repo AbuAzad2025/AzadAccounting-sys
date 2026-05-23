@@ -5,6 +5,9 @@ from models import RecurringInvoiceTemplate, RecurringInvoiceSchedule, Invoice, 
 from datetime import datetime, date, timedelta
 from decimal import Decimal
 from sqlalchemy import or_
+import utils
+from permissions_config.enums import SystemPermissions
+from utils.tenant_ui import accessible_branches_query, resolve_branch_id
 
 recurring_bp = Blueprint('recurring', __name__, url_prefix='/recurring')
 
@@ -17,12 +20,8 @@ def _dec_from_form(field_name: str, default: str = "0") -> Decimal:
 
 @recurring_bp.route('/')
 @login_required
+@utils.permission_required(SystemPermissions.MANAGE_LEDGER)
 def index():
-    # الحماية: فقط للمالك والمطور (Level 0)
-    if not (current_user.is_system or current_user.role_name_l in ['owner', 'developer']):
-        flash('⛔ غير مصرح لك بالوصول لهذه الصفحة (تتطلب صلاحيات المالك)', 'danger')
-        return redirect(url_for('main.dashboard'))
-
     page = request.args.get('page', 1, type=int)
     status_filter = request.args.get('status', '').strip()
     customer_filter = request.args.get('customer', type=int)
@@ -62,6 +61,7 @@ def index():
 
 @recurring_bp.route('/add', methods=['GET', 'POST'])
 @login_required
+@utils.permission_required(SystemPermissions.MANAGE_LEDGER)
 def add_template():
     if request.method == 'POST':
         try:
@@ -74,10 +74,7 @@ def add_template():
             frequency = request.form.get('frequency', '').strip()
             start_date_str = request.form.get('start_date', '').strip()
             end_date_str = request.form.get('end_date', '').strip()
-            try:
-                branch_id = int(request.form.get('branch_id'))
-            except (ValueError, TypeError):
-                branch_id = 0
+            branch_id = resolve_branch_id(request.form.get('branch_id'), required=True)
             site_id = request.form.get('site_id', type=int)
             
             if not template_name:
@@ -126,7 +123,7 @@ def add_template():
             return redirect(url_for('recurring.add_template'))
     
     customers = Customer.query.filter_by(is_active=True).order_by(Customer.name).all()
-    branches = Branch.query.order_by(Branch.name).all()
+    branches = accessible_branches_query().all()
     sites = Site.query.order_by(Site.name).all()
     
     return render_template('recurring/form.html',
@@ -138,6 +135,7 @@ def add_template():
 
 @recurring_bp.route('/edit/<int:template_id>', methods=['GET', 'POST'])
 @login_required
+@utils.permission_required(SystemPermissions.MANAGE_LEDGER)
 def edit_template(template_id):
     template = db.session.get(RecurringInvoiceTemplate, template_id)
     if not template:
@@ -165,10 +163,7 @@ def edit_template(template_id):
                 template.end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date() if end_date_str else None
             except (ValueError, TypeError):
                 template.end_date = None
-            try:
-                template.branch_id = int(request.form.get('branch_id'))
-            except (ValueError, TypeError):
-                template.branch_id = 0
+            template.branch_id = resolve_branch_id(request.form.get('branch_id'), required=True)
             template.site_id = request.form.get('site_id', type=int)
             
             db.session.commit()
@@ -181,7 +176,7 @@ def edit_template(template_id):
             flash('حدث خطأ داخلي', 'danger')
     
     customers = Customer.query.filter_by(is_active=True).order_by(Customer.name).all()
-    branches = Branch.query.order_by(Branch.name).all()
+    branches = accessible_branches_query().all()
     sites = Site.query.order_by(Site.name).all()
     
     return render_template('recurring/form.html',
@@ -194,6 +189,7 @@ def edit_template(template_id):
 
 @recurring_bp.route('/toggle/<int:template_id>', methods=['POST'])
 @login_required
+@utils.permission_required(SystemPermissions.MANAGE_LEDGER)
 def toggle_template(template_id):
     template = db.session.get(RecurringInvoiceTemplate, template_id)
     if not template:
@@ -213,6 +209,7 @@ def toggle_template(template_id):
 
 @recurring_bp.route('/delete/<int:template_id>', methods=['POST'])
 @login_required
+@utils.permission_required(SystemPermissions.MANAGE_LEDGER)
 def delete_template(template_id):
     template = db.session.get(RecurringInvoiceTemplate, template_id)
     if not template:
@@ -231,6 +228,7 @@ def delete_template(template_id):
 
 @recurring_bp.route('/schedules/<int:template_id>')
 @login_required
+@utils.permission_required(SystemPermissions.MANAGE_LEDGER)
 def view_schedules(template_id):
     template = db.session.get(RecurringInvoiceTemplate, template_id)
     if not template:
@@ -389,6 +387,7 @@ def _generate_recurring_invoice(template, invoice_date=None):
 
 @recurring_bp.route('/generate-now/<int:template_id>', methods=['POST'])
 @login_required
+@utils.permission_required(SystemPermissions.MANAGE_LEDGER)
 def generate_now(template_id):
     template = db.session.get(RecurringInvoiceTemplate, template_id)
     if not template:

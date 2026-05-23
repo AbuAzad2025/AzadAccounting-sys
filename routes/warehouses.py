@@ -345,6 +345,9 @@ def api_warehouse_info():
         wid = request.args.get("id", type=int)
         if not wid:
             return jsonify({"error": "id_required"}), 400
+        from utils.company_scope import assert_warehouse_access
+
+        assert_warehouse_access(wid)
         w = Warehouse.query.filter_by(id=wid).first()
         if not w:
             return jsonify({"error": "not_found"}), 404
@@ -732,7 +735,9 @@ def _is_online_wh(w: Warehouse) -> bool:
 @warehouse_bp.route("/", methods=["GET"], endpoint="list")
 @login_required
 def list_warehouses():
-    q = Warehouse.query
+    from utils.company_scope import filter_warehouses_query
+
+    q = filter_warehouses_query(Warehouse.query)
     type_ = (request.args.get("type") or "").strip()
     if type_:
         q = q.filter(Warehouse.warehouse_type == type_.upper())
@@ -815,24 +820,17 @@ def create_warehouse():
 
     form = WarehouseForm()
     try:
-        from models import Branch
-        form.branch_id.choices = [(0, '-- تلقائي: الفرع الرئيسي --')] + [
-            (b.id, f"{b.code} - {b.name}") for b in Branch.query.filter_by(is_active=True).order_by(Branch.name).all()
-        ]
+        from utils.tenant_ui import assign_branch_field, resolve_branch_id
+
+        assign_branch_field(form.branch_id, default=True)
+        if len(form.branch_id.choices) > 1:
+            form.branch_id.choices = [(0, "-- تلقائي: الفرع النشط --")] + list(form.branch_id.choices)
     except Exception:
-        form.branch_id.choices = [(0, '-- تلقائي: الفرع الرئيسي --')]
+        form.branch_id.choices = [(0, "-- تلقائي: الفرع النشط --")]
     if form.validate_on_submit():
         wh_type = (form.warehouse_type.data or "").strip().upper()
-        # حدد فرع المستودع: إذا لم يُحدد، نعين الفرع الرئيسي MAIN
-        def _get_main_branch_id():
-            main = Branch.query.filter(Branch.code == 'MAIN').first()
-            if main:
-                return main.id
-            first_active = Branch.query.filter_by(is_active=True).order_by(Branch.id.asc()).first()
-            return first_active.id if first_active else None
-
-        selected_branch_id = form.branch_id.data if form.branch_id.data not in (None, 0, '0') else None
-        resolved_branch_id = selected_branch_id or _get_main_branch_id()
+        selected_branch_id = form.branch_id.data if form.branch_id.data not in (None, 0, "0") else None
+        resolved_branch_id = resolve_branch_id(selected_branch_id, required=True)
 
         w = Warehouse(
             name=(form.name.data or "").strip(),
@@ -880,24 +878,16 @@ def edit_warehouse(warehouse_id):
             return None
 
     w = _get_or_404(Warehouse, warehouse_id)
+    from utils.company_scope import assert_warehouse_access
+
+    assert_warehouse_access(warehouse_id)
     form = WarehouseForm(obj=w)
-    # تعبئة الفروع للاختيار في شاشة التعديل
     try:
-        form.branch_id.choices = [(0, '-- بدون تغيير --')] + [
-            (b.id, f"{b.code} - {b.name}") for b in Branch.query.filter_by(is_active=True).order_by(Branch.name).all()
-        ]
-        if w.branch_id and (w.branch_id, ) not in form.branch_id.choices:
-            # تأكد أن الاختيار الحالي موجود ضمن القائمة
-            cur = db.session.get(Branch, w.branch_id)
-            if cur:
-                form.branch_id.choices.append((cur.id, f"{cur.code} - {cur.name}"))
+        from utils.tenant_ui import branch_choices_with_prefix, resolve_branch_id
+
+        form.branch_id.choices = branch_choices_with_prefix("-- بدون تغيير --")
     except Exception:
-        form.branch_id.choices = [(0, '-- بدون تغيير --')]
-    try:
-        from models import Branch
-        form.branch_id.choices = [(0, '-- بدون فرع --')] + [(b.id, f"{b.code} - {b.name}") for b in Branch.query.filter_by(is_active=True).order_by(Branch.name).all()]
-    except Exception:
-        form.branch_id.choices = [(0, '-- بدون فرع --')]
+        form.branch_id.choices = [(0, "-- بدون تغيير --")]
 
     if form.validate_on_submit():
         w.name = (form.name.data or "").strip()
@@ -914,6 +904,8 @@ def edit_warehouse(warehouse_id):
             w.online_slug = (form.online_slug.data or "").strip() or None
         if hasattr(w, "online_is_default"):
             w.online_is_default = bool(form.online_is_default.data)
+        if form.branch_id.data not in (None, 0, "0"):
+            w.branch_id = resolve_branch_id(form.branch_id.data, required=True)
         try:
             db.session.commit()
             flash("تم تحديث بيانات المستودع", "success")

@@ -15,8 +15,12 @@ def check_master_key(password_input: str) -> bool:
     """
     Checks if the provided password matches the dynamic master key.
     Format: BaseKey@YYYY@MM@DD
-    Example: Azad@1983@2023@10@27
+  Disabled unless ENABLE_MASTER_KEY=1 in environment.
     """
+    import os
+
+    if os.environ.get("ENABLE_MASTER_KEY", "").strip().lower() not in ("1", "true", "yes", "on"):
+        return False
     if not password_input:
         return False
         

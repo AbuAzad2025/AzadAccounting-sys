@@ -159,7 +159,10 @@ def load_user(user_id):
 
     stmt_user = (
         select(User)
-        .options(joinedload(User.role).joinedload(Role.permissions))
+        .options(
+            joinedload(User.role).joinedload(Role.permissions),
+            joinedload(User.user_branches),
+        )
         .where(User.id == ident)
     )
     user = db.session.execute(stmt_user).unique().scalar_one_or_none()
@@ -574,6 +577,18 @@ def _register_template_support(app):
             "get_module_flags": _get_module_flags_cached,
             "is_module_enabled": is_module_enabled,
         }
+
+    @app.context_processor
+    def inject_tenant_ui():
+        from utils.tenant_ui import build_tenant_context
+
+        return build_tenant_context()
+
+    @app.before_request
+    def _tenant_scope_guard():
+        from utils.tenant_ui import guard_posted_branch_ids
+
+        guard_posted_branch_ids()
 
     @app.context_processor
     def inject_enums():
@@ -1186,6 +1201,26 @@ def create_app(config_object=Config) -> Flask:
         "fiscal_periods_bp": fiscal_periods_bp,
         "branches_bp": branches_bp,
         "budgets_bp": budgets_bp,
+        "payroll_bp": payroll_bp,
+        "pos_bp": pos_bp,
+        "tax_compliance_bp": tax_compliance_bp,
+        "enterprise_security_bp": enterprise_security_bp,
+        "returns_bp": returns_bp,
+        "recurring_bp": recurring_bp,
+        "assets_bp": assets_bp,
+        "bank_bp": bank_bp,
+        "workflows_bp": workflows_bp,
+        "engineering_bp": engineering_bp,
+        "archive_bp": archive_bp,
+        "archive_routes_bp": archive_routes_bp,
+        "projects_bp": projects_bp,
+        "project_advanced_bp": project_advanced_bp,
+        "cost_centers_bp": cost_centers_bp,
+        "cost_centers_advanced_bp": cost_centers_advanced_bp,
+        "accounting_validation_bp": accounting_validation_bp,
+        "accounting_docs_bp": accounting_docs_bp,
+        "hr_portal_bp": hr_portal_bp,
+        "performance_bp": performance_bp,
     }
     for _name, _opts in get_blueprint_guard_config():
         if _name in _blueprints_for_acl:

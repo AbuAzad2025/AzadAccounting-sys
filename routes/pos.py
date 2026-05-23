@@ -42,9 +42,10 @@ def _walkin_customer():
 @permission_required(SystemPermissions.USE_POS)
 def terminal():
     import json
+    from utils.company_scope import filter_warehouses_query
 
     products = Product.query.filter_by(is_active=True).order_by(Product.name).limit(300).all()
-    warehouses = Warehouse.query.filter_by(is_active=True).order_by(Warehouse.name).all()
+    warehouses = filter_warehouses_query(Warehouse.query.filter_by(is_active=True)).order_by(Warehouse.name).all()
     products_json = json.dumps(
         {
             str(p.id): {
@@ -97,8 +98,11 @@ def barcode_lookup():
 @permission_required(SystemPermissions.USE_POS)
 def checkout():
     try:
+        from utils.company_scope import assert_warehouse_access
+
         data = request.get_json(force=True) if request.is_json else request.form
         warehouse_id = int(data.get("warehouse_id") or 0)
+        assert_warehouse_access(warehouse_id)
         lines = data.get("lines") or []
         if not warehouse_id or not lines:
             return jsonify({"success": False, "error": "المستودع والبنود مطلوبان"}), 400

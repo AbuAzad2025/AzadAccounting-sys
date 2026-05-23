@@ -10,10 +10,10 @@ from utils.company_scope import _sale_ids_in_branches, branch_ids_for_company
 
 
 def resolve_branch_filter(company_id: Optional[int] = None) -> Optional[List[int]]:
-    """None = كل الفروع، [] = لا شيء، list = فروع محددة."""
-    if company_id:
-        return branch_ids_for_company(company_id)
-    return None
+    """None = كل الفروع (لمن يملك view_all فقط)، [] = لا شيء، list = فروع."""
+    from utils.company_scope import get_report_branch_ids
+
+    return get_report_branch_ids(company_id)
 
 
 def gl_entries_as_of(branch_filter_ids: Optional[List[int]], as_of_dt: datetime):

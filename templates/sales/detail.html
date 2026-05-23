@@ -1,6 +1,10 @@
 <!-- File: templates/sales/detail.html -->
 {% extends 'base.html' %}
+{% from 'macros/gm_mobile_ui.html' import scroll_table_start, scroll_table_end %}
+
 {% block title %}تفاصيل فاتورة {{ sale.sale_number }}{% endblock %}
+{% block page_title %}<i class="fas fa-file-invoice-dollar"></i> فاتورة {{ sale.sale_number }}{% endblock %}
+{% block body_class %}gm-invoice-detail{% endblock %}
 
 {% block head_extra %}
   {{ super() }}
@@ -12,21 +16,28 @@
 {% endblock %}
 
 {% block content %}
-{# مُنسّق أرقام آمن: يحوّل لأي قيمة float ويعرض بفواصل وعشريتين #}
 {% macro num(x) -%}
   {{ "{:,.2f}".format((x or 0)|float) }}
 {%- endmacro %}
 
+{% set display_total = sale.total if sale.total is defined else (sale.total_amount or 0) %}
+{% set ns = namespace(lines_sum=0.0, lines_discount_sum=0.0) %}
+{% for line in sale.lines %}
+  {% set gross = (line.quantity|float) * (line.unit_price|float) %}
+  {% set disc_amt = (gross|float) * ((line.discount_rate or 0)|float / 100.0) %}
+  {% set ns.lines_sum = ns.lines_sum + ((line.line_total_value or 0)|float) %}
+  {% set ns.lines_discount_sum = ns.lines_discount_sum + (disc_amt|float) %}
+{% endfor %}
+
 <div class="container py-4">
   <div class="card rounded">
-    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center gm-inv-desktop-only">
       <h3 class="mb-0">
         <i class="fas fa-file-invoice-dollar mr-2"></i>
         فاتورة {{ sale.sale_number }}
       </h3>
       <div class="d-flex align-items-center">
         <span class="badge badge-dark ml-2">{{ sale.currency }}</span>
-        {# دعم bg-* (BS5) + badge-* (BS4) #}
         <span class="badge {{ sale.status_class }} {{ sale.status_class|replace('bg-','badge-') }} ml-2">
           {{ sale.status_label }}
         </span>
@@ -34,108 +45,105 @@
     </div>
 
     <div class="card-body bg-light">
-      <div class="row mb-3">
-        <div class="col-md-4"><strong>التاريخ:</strong> {{ sale.date_iso }}</div>
-        <div class="col-md-4"><strong>الزبون:</strong> {{ sale.customer_name }}</div>
-        <div class="col-md-4"><strong>البائع:</strong> {{ sale.seller_name }}</div>
-        {% if sale.receiver_name %}
-        <div class="col-md-4"><strong><i class="fas fa-user-check mr-1"></i> مستلم البضاعة:</strong> {{ sale.receiver_name }}</div>
-        {% endif %}
-        <div class="col-md-4"><strong>نسبة الضريبة:</strong> {{ sale.tax_rate or 0 }}%</div>
-        <div class="col-md-4"><strong>تكلفة الشحن:</strong> {{ num(sale.shipping_cost) }} {{ sale.currency }}</div>
-      </div>
+      <div class="gm-inv-app">
+        {# ── واجهة تطبيق (موبايل/تابلت) ── #}
+        <div class="gm-inv-mobile-only">
+          <header class="gm-inv-hero">
+            <div class="gm-inv-hero-top">
+              <h2><i class="fas fa-file-invoice-dollar ml-1"></i> {{ sale.sale_number }}</h2>
+              <div class="gm-inv-hero-badges">
+                <span class="badge badge-light text-dark">{{ sale.currency }}</span>
+                <span class="badge {{ sale.status_class }} {{ sale.status_class|replace('bg-','badge-') }}">
+                  {{ sale.status_label }}
+                </span>
+              </div>
+            </div>
+            <div class="gm-inv-hero-total">
+              <div class="label">الإجمالي النهائي</div>
+              <div class="amount">{{ num(display_total) }} <small>{{ sale.currency }}</small></div>
+            </div>
+          </header>
 
-      <hr>
+          <section class="gm-inv-section">
+            <h3 class="gm-inv-section-title"><i class="fas fa-info-circle"></i> بيانات الفاتورة</h3>
+            <div class="gm-inv-meta">
+              <div class="gm-inv-meta-item">
+                <span class="k">التاريخ</span>
+                <span class="v">{{ sale.date_iso }}</span>
+              </div>
+              <div class="gm-inv-meta-item">
+                <span class="k">الزبون</span>
+                <span class="v">{{ sale.customer_name }}</span>
+              </div>
+              <div class="gm-inv-meta-item">
+                <span class="k">البائع</span>
+                <span class="v">{{ sale.seller_name }}</span>
+              </div>
+              <div class="gm-inv-meta-item">
+                <span class="k">الضريبة</span>
+                <span class="v">{{ sale.tax_rate or 0 }}%</span>
+              </div>
+              <div class="gm-inv-meta-item">
+                <span class="k">الشحن</span>
+                <span class="v">{{ num(sale.shipping_cost) }} {{ sale.currency }}</span>
+              </div>
+              {% if sale.receiver_name %}
+              <div class="gm-inv-meta-item full">
+                <span class="k">مستلم البضاعة</span>
+                <span class="v">{{ sale.receiver_name }}</span>
+              </div>
+              {% endif %}
+            </div>
+          </section>
 
-      <h5 class="mb-2"><i class="fas fa-list mr-2"></i> تفاصيل البنود</h5>
-
-      {% set ns = namespace(lines_sum=0.0, lines_discount_sum=0.0) %}
-
-      <div class="table-responsive">
-        <table class="table table-bordered table-hover align-middle">
-          <thead class="table-primary">
-            <tr>
-              <th>#</th>
-              <th>الصنف</th>
-              <th>المخزن</th>
-              <th>الكمية</th>
-              <th>سعر الوحدة</th>
-              <th>المستلم</th>
-              <th>ملاحظات</th>
-              <th>الإجمالي</th>
-            </tr>
-          </thead>
-          <tbody>
+          <section class="gm-inv-section">
+            <h3 class="gm-inv-section-title"><i class="fas fa-list"></i> البنود ({{ sale.lines|length }})</h3>
             {% for line in sale.lines %}
-              {% set gross = (line.quantity|float) * (line.unit_price|float) %}
-              {% set disc_amt = (gross|float) * ((line.discount_rate or 0)|float / 100.0) %}
-              {% set net = gross - disc_amt %}
-              {% set ns.lines_sum = ns.lines_sum + ((line.line_total_value or 0)|float) %}
-              {% set ns.lines_discount_sum = ns.lines_discount_sum + (disc_amt|float) %}
-              <tr>
-                <td>{{ loop.index }}</td>
-                <td>{{ line.product_name }}</td>
-                <td>{{ line.warehouse_name }}</td>
-                <td>{{ line.quantity }}</td>
-                <td>{{ num(line.unit_price) }} {{ sale.currency }}</td>
-                <td>{{ line.line_receiver or '—' }}</td>
-                <td>{{ line.note or '—' }}</td>
-                <td>{{ line.line_total_fmt }} {{ sale.currency }}</td>
-              </tr>
-            {% endfor %}
-          </tbody>
-          <tfoot>
-            <tr>
-              <td colspan="7" class="text-right">مجموع البنود:</td>
-              <td>{{ num(ns.lines_sum) }} {{ sale.currency }}</td>
-            </tr>
-            <tr>
-              <td colspan="7" class="text-right">خصم البنود:</td>
-              <td>{{ num(ns.lines_discount_sum) }} {{ sale.currency }}</td>
-            </tr>
-            <tr>
-              <td colspan="7" class="text-right">خصم الفاتورة:</td>
-              <td>{{ num(sale.discount_total) }} {{ sale.currency }}</td>
-            </tr>
-
-            <tr>
-              <td colspan="7" class="text-right">الشحن:</td>
-              <td>{{ num(sale.shipping_cost) }} {{ sale.currency }}</td>
-            </tr>
-
-            {% if sale.tax_amount is defined %}
-            <tr>
-              <td colspan="7" class="text-right">إجمالي الضريبة:</td>
-              <td>{{ num(sale.tax_amount) }} {{ sale.currency }}</td>
-            </tr>
-            {% endif %}
-
-            <tr class="table-success">
-              <td colspan="7" class="text-right font-weight-bold">الإجمالي النهائي:</td>
-              <td class="font-weight-bold">
-                {% if sale.total is defined %}
-                  {{ num(sale.total) }} {{ sale.currency }}
-                {% else %}
-                  {{ num(ns.lines_sum + (sale.shipping_cost or 0)) }} {{ sale.currency }}
+            <article class="gm-inv-line-card">
+              <div class="gm-inv-line-head">
+                <span class="gm-inv-line-name">{{ loop.index }}. {{ line.product_name }}</span>
+                <span class="gm-inv-line-total">{{ line.line_total_fmt }} {{ sale.currency }}</span>
+              </div>
+              <div class="gm-inv-line-grid">
+                <span>المخزن: <strong>{{ line.warehouse_name }}</strong></span>
+                <span>الكمية: <strong>{{ line.quantity }}</strong></span>
+                <span>السعر: <strong>{{ num(line.unit_price) }}</strong></span>
+                <span>المستلم: <strong>{{ line.line_receiver or '—' }}</strong></span>
+                {% if line.note %}
+                <span class="full" style="grid-column:1/-1">ملاحظة: <strong>{{ line.note }}</strong></span>
                 {% endif %}
-              </td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
+              </div>
+            </article>
+            {% else %}
+            <p class="text-muted text-center mb-0">لا توجد بنود</p>
+            {% endfor %}
+          </section>
 
-      <hr>
+          <section class="gm-inv-section">
+            <h3 class="gm-inv-section-title"><i class="fas fa-calculator"></i> الملخص المالي</h3>
+            <div class="gm-inv-totals-row"><span class="k">مجموع البنود</span><span class="v">{{ num(ns.lines_sum) }} {{ sale.currency }}</span></div>
+            <div class="gm-inv-totals-row"><span class="k">خصم البنود</span><span class="v">{{ num(ns.lines_discount_sum) }} {{ sale.currency }}</span></div>
+            <div class="gm-inv-totals-row"><span class="k">خصم الفاتورة</span><span class="v">{{ num(sale.discount_total) }} {{ sale.currency }}</span></div>
+            <div class="gm-inv-totals-row"><span class="k">الشحن</span><span class="v">{{ num(sale.shipping_cost) }} {{ sale.currency }}</span></div>
+            {% if sale.tax_amount is defined %}
+            <div class="gm-inv-totals-row"><span class="k">الضريبة</span><span class="v">{{ num(sale.tax_amount) }} {{ sale.currency }}</span></div>
+            {% endif %}
+            <div class="gm-inv-totals-row grand"><span class="k">الإجمالي النهائي</span><span class="v">{{ num(display_total) }} {{ sale.currency }}</span></div>
+            <div class="gm-inv-totals-row"><span class="k">الذمة (التزام المستند)</span><span class="v">{{ num(sale.total_amount) }} {{ sale.currency }}</span></div>
+            <div class="gm-inv-totals-row"><span class="k">مدفوع (قديم)</span><span class="v">{{ num(sale.total_paid or 0) }} {{ sale.currency }}</span></div>
+            {% if show_ils_display %}
+            <div class="gm-inv-totals-row"><span class="k">الذمة بالشيكل</span><span class="v">{{ num(grand_total_ils) }} ILS</span></div>
+            {% endif %}
+          </section>
 
-      <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
-        <h5 class="mb-2 mb-md-0">
-          <i class="fas fa-money-bill-wave mr-2"></i> سجل الدفعات
-        </h5>
-        <div class="d-flex align-items-center">
-          <a class="btn btn-outline-primary btn-sm ml-2" href="{{ url_for('payments.index', entity_type='CUSTOMER', entity_id=sale.customer_id) }}">
-            <i class="fas fa-list mr-1"></i> دفعات الزبون
-          </a>
-          {% if sale.total_amount and sale.total_amount > 0 %}
-          <a class="btn btn-success btn-sm" href="{{ url_for('payments.create_payment',
+          <section class="gm-inv-section">
+            <h3 class="gm-inv-section-title"><i class="fas fa-money-bill-wave"></i> الدفعات</h3>
+            <p class="text-muted small mb-2">الدفعات تُسجّل على حساب الزبون (بدون ربط تلقائي بهذه المبيعة)</p>
+            <a class="btn btn-outline-primary btn-block btn-sm mb-2" href="{{ url_for('payments.index', entity_type='CUSTOMER', entity_id=sale.customer_id) }}">
+              <i class="fas fa-list ml-1"></i> دفعات الزبون
+            </a>
+            {% if sale.total_amount and sale.total_amount > 0 %}
+            <a class="btn btn-success btn-block btn-sm" href="{{ url_for('payments.create_payment',
                                                            entity_type='CUSTOMER',
                                                            entity_id=sale.customer_id,
                                                            amount=sale.total_amount,
@@ -143,112 +151,265 @@
                                                            reference='دفع مبيعة من ' ~ (sale.customer.name if sale.customer else 'زبون') ~ ' - ' ~ (sale.sale_number or sale.id),
                                                            notes='دفع مبيعة: ' ~ (sale.sale_number or sale.id) ~ ' - الزبون: ' ~ (sale.customer.name if sale.customer else 'غير محدد'),
                                                            customer_id=sale.customer_id) }}">
-            <i class="fas fa-plus mr-1"></i> إضافة دفعة
-          </a>
-          {% endif %}
-        </div>
-      </div>
-
-      <div class="table-responsive">
-        <table class="table table-sm align-middle">
-          <thead>
-            <tr>
-              <th>التاريخ</th>
-              <th>المبلغ</th>
-              <th>طريقة الدفع</th>
-              <th>حالة الدفع</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr><td colspan="4" class="text-center text-muted py-3">الدفعات تُسجّل على حساب الزبون (بدون ربط تلقائي بهذه المبيعة)</td></tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div class="row justify-content-end mt-3">
-        <div class="col-md-5">
-          <table class="table table-bordered">
-            <tr>
-              <th class="text-right">الذمة (التزام المستند):</th>
-              <td>{{ num(sale.total_amount) }} {{ sale.currency }}</td>
-            </tr>
-            <tr>
-              <th class="text-right">مدفوع على المبيعة (قديم):</th>
-              <td>{{ num(sale.total_paid or 0) }} {{ sale.currency }}</td>
-            </tr>
-            {% if show_ils_display %}
-            <tr>
-              <th class="text-right">الذمة (بالشيكل):</th>
-              <td>
-                {{ num(grand_total_ils) }} ILS
-              </td>
-            </tr>
+              <i class="fas fa-plus ml-1"></i> إضافة دفعة
+            </a>
             {% endif %}
-          </table>
-        </div>
-      </div>
+          </section>
 
-      <hr>
+          {% if sale.notes %}
+          <section class="gm-inv-section">
+            <h3 class="gm-inv-section-title"><i class="fas fa-sticky-note"></i> ملاحظات</h3>
+            <div class="gm-inv-notes">{{ sale.notes }}</div>
+          </section>
+          {% endif %}
 
-      <div class="mb-4">
-        <label class="form-label font-weight-bold">ملاحظات</label>
-        <div class="border rounded p-3 bg-white">
-          {{ sale.notes or 'لا توجد ملاحظات' }}
-        </div>
-      </div>
-
-      <div class="d-flex justify-content-between mt-4">
-        <div class="d-flex flex-wrap">
-          <a href="{{ url_for('sales_bp.edit_sale', id=sale.id) }}" class="btn btn-warning ml-2 mb-2">
-            <i class="fas fa-edit mr-1"></i> تعديل
-          </a>
-
-          <div class="btn-group ml-2 mb-2" role="group">
+          <nav class="gm-inv-action-bar" aria-label="إجراءات الفاتورة">
+            <a href="{{ url_for('sales_bp.list_sales') }}" class="btn btn-outline-secondary btn-icon" title="العودة">
+              <i class="fas fa-arrow-right"></i>
+            </a>
+            <a href="{{ url_for('sales_bp.edit_sale', id=sale.id) }}" class="btn btn-warning">
+              <i class="fas fa-edit ml-1"></i> تعديل
+            </a>
             <a href="{{ url_for('sales_bp.generate_invoice', id=sale.id) }}" target="_blank" class="btn btn-info text-white">
-              <i class="fas fa-print mr-1"></i> فاتورة كاملة
+              <i class="fas fa-print ml-1"></i> طباعة
             </a>
-            <a href="{{ url_for('sales_bp.generate_invoice', id=sale.id, simple=1) }}" target="_blank" class="btn btn-outline-info">
-              <i class="fas fa-file-alt mr-1"></i> فاتورة مبسطة
+            {% if sale.status == 'CONFIRMED' %}
+            <a href="{{ url_for('returns.create_return', sale_id=sale.id) }}" class="btn btn-danger btn-icon" title="مرتجع" data-no-confirm="true" data-no-danger="true">
+              <i class="fas fa-undo-alt"></i>
             </a>
+            {% endif %}
+          </nav>
+        </div>
+
+        {# ── عرض سطح المكتب (الأصلي) ── #}
+        <div class="gm-inv-desktop-only">
+          <div class="row mb-3">
+            <div class="col-md-4"><strong>التاريخ:</strong> {{ sale.date_iso }}</div>
+            <div class="col-md-4"><strong>الزبون:</strong> {{ sale.customer_name }}</div>
+            <div class="col-md-4"><strong>البائع:</strong> {{ sale.seller_name }}</div>
+            {% if sale.receiver_name %}
+            <div class="col-md-4"><strong><i class="fas fa-user-check mr-1"></i> مستلم البضاعة:</strong> {{ sale.receiver_name }}</div>
+            {% endif %}
+            <div class="col-md-4"><strong>نسبة الضريبة:</strong> {{ sale.tax_rate or 0 }}%</div>
+            <div class="col-md-4"><strong>تكلفة الشحن:</strong> {{ num(sale.shipping_cost) }} {{ sale.currency }}</div>
           </div>
 
-          {% if sale.status == 'CONFIRMED' %}
-          <a href="{{ url_for('returns.create_return', sale_id=sale.id) }}" class="btn btn-danger ml-2 mb-2" data-no-confirm="true" data-no-danger="true">
-            <i class="fas fa-undo-alt mr-1"></i> إنشاء مرتجع
-          </a>
-          {% endif %}
+          <hr>
 
-          {% if sale.status == 'DRAFT' %}
-          <form method="post"
-                action="{{ url_for('sales_bp.change_status', id=sale.id, status='CONFIRMED') }}"
-                class="mb-2 ml-2 d-inline">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button type="submit" class="btn btn-success">
-              <i class="fas fa-check mr-1"></i> تأكيد
-            </button>
-          </form>
-          {% endif %}
+          <h5 class="mb-2"><i class="fas fa-list mr-2"></i> تفاصيل البنود</h5>
 
-          {% if sale.status in ['DRAFT','CONFIRMED'] %}
-          <form method="post"
-                action="{{ url_for('sales_bp.change_status', id=sale.id, status='CANCELLED') }}"
-                class="mb-2 d-inline"
-                onsubmit="return confirm('تأكيد إلغاء الفاتورة؟')">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button type="submit" class="btn btn-outline-danger">
-              <i class="fas fa-ban mr-1"></i> إلغاء
-            </button>
-          </form>
-          {% endif %}
+          <div class="gm-inv-lines-table-wrap">
+            {{ scroll_table_start('اسحب أفقياً لعرض كل أعمدة البنود') }}
+            <table class="table table-bordered table-hover align-middle no-mobile-cards">
+              <thead class="table-primary">
+                <tr>
+                  <th>#</th>
+                  <th>الصنف</th>
+                  <th>المخزن</th>
+                  <th>الكمية</th>
+                  <th>سعر الوحدة</th>
+                  <th>المستلم</th>
+                  <th>ملاحظات</th>
+                  <th>الإجمالي</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for line in sale.lines %}
+                <tr>
+                  <td>{{ loop.index }}</td>
+                  <td>{{ line.product_name }}</td>
+                  <td>{{ line.warehouse_name }}</td>
+                  <td>{{ line.quantity }}</td>
+                  <td>{{ num(line.unit_price) }} {{ sale.currency }}</td>
+                  <td>{{ line.line_receiver or '—' }}</td>
+                  <td>{{ line.note or '—' }}</td>
+                  <td>{{ line.line_total_fmt }} {{ sale.currency }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td colspan="7" class="text-right">مجموع البنود:</td>
+                  <td>{{ num(ns.lines_sum) }} {{ sale.currency }}</td>
+                </tr>
+                <tr>
+                  <td colspan="7" class="text-right">خصم البنود:</td>
+                  <td>{{ num(ns.lines_discount_sum) }} {{ sale.currency }}</td>
+                </tr>
+                <tr>
+                  <td colspan="7" class="text-right">خصم الفاتورة:</td>
+                  <td>{{ num(sale.discount_total) }} {{ sale.currency }}</td>
+                </tr>
+                <tr>
+                  <td colspan="7" class="text-right">الشحن:</td>
+                  <td>{{ num(sale.shipping_cost) }} {{ sale.currency }}</td>
+                </tr>
+                {% if sale.tax_amount is defined %}
+                <tr>
+                  <td colspan="7" class="text-right">إجمالي الضريبة:</td>
+                  <td>{{ num(sale.tax_amount) }} {{ sale.currency }}</td>
+                </tr>
+                {% endif %}
+                <tr class="table-success">
+                  <td colspan="7" class="text-right font-weight-bold">الإجمالي النهائي:</td>
+                  <td class="font-weight-bold">{{ num(display_total) }} {{ sale.currency }}</td>
+                </tr>
+              </tfoot>
+            </table>
+            {{ scroll_table_end() }}
+          </div>
 
-          <button type="button" class="btn btn-warning mb-2 ml-2" data-toggle="modal" data-target="#archiveModal">
-            <i class="fas fa-archive mr-1"></i> أرشفة المبيعة
-          </button>
+          <hr>
+
+          <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+            <h5 class="mb-2 mb-md-0">
+              <i class="fas fa-money-bill-wave mr-2"></i> سجل الدفعات
+            </h5>
+            <div class="d-flex align-items-center">
+              <a class="btn btn-outline-primary btn-sm ml-2" href="{{ url_for('payments.index', entity_type='CUSTOMER', entity_id=sale.customer_id) }}">
+                <i class="fas fa-list mr-1"></i> دفعات الزبون
+              </a>
+              {% if sale.total_amount and sale.total_amount > 0 %}
+              <a class="btn btn-success btn-sm" href="{{ url_for('payments.create_payment',
+                                                               entity_type='CUSTOMER',
+                                                               entity_id=sale.customer_id,
+                                                               amount=sale.total_amount,
+                                                               currency=sale.currency if sale.currency else 'ILS',
+                                                               reference='دفع مبيعة من ' ~ (sale.customer.name if sale.customer else 'زبون') ~ ' - ' ~ (sale.sale_number or sale.id),
+                                                               notes='دفع مبيعة: ' ~ (sale.sale_number or sale.id) ~ ' - الزبون: ' ~ (sale.customer.name if sale.customer else 'غير محدد'),
+                                                               customer_id=sale.customer_id) }}">
+                <i class="fas fa-plus mr-1"></i> إضافة دفعة
+              </a>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="table table-sm align-middle">
+              <thead>
+                <tr>
+                  <th>التاريخ</th>
+                  <th>المبلغ</th>
+                  <th>طريقة الدفع</th>
+                  <th>حالة الدفع</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td colspan="4" class="text-center text-muted py-3">الدفعات تُسجّل على حساب الزبون (بدون ربط تلقائي بهذه المبيعة)</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="row justify-content-end mt-3">
+            <div class="col-md-5">
+              <table class="table table-bordered">
+                <tr>
+                  <th class="text-right">الذمة (التزام المستند):</th>
+                  <td>{{ num(sale.total_amount) }} {{ sale.currency }}</td>
+                </tr>
+                <tr>
+                  <th class="text-right">مدفوع على المبيعة (قديم):</th>
+                  <td>{{ num(sale.total_paid or 0) }} {{ sale.currency }}</td>
+                </tr>
+                {% if show_ils_display %}
+                <tr>
+                  <th class="text-right">الذمة (بالشيكل):</th>
+                  <td>{{ num(grand_total_ils) }} ILS</td>
+                </tr>
+                {% endif %}
+              </table>
+            </div>
+          </div>
+
+          <hr>
+
+          <div class="mb-4">
+            <label class="form-label font-weight-bold">ملاحظات</label>
+            <div class="border rounded p-3 bg-white">
+              {{ sale.notes or 'لا توجد ملاحظات' }}
+            </div>
+          </div>
+
+          <div class="d-flex justify-content-between mt-4 gm-inv-actions-desktop">
+            <div class="d-flex flex-wrap">
+              <a href="{{ url_for('sales_bp.edit_sale', id=sale.id) }}" class="btn btn-warning ml-2 mb-2">
+                <i class="fas fa-edit mr-1"></i> تعديل
+              </a>
+
+              <div class="btn-group ml-2 mb-2" role="group">
+                <a href="{{ url_for('sales_bp.generate_invoice', id=sale.id) }}" target="_blank" class="btn btn-info text-white">
+                  <i class="fas fa-print mr-1"></i> فاتورة كاملة
+                </a>
+                <a href="{{ url_for('sales_bp.generate_invoice', id=sale.id, simple=1) }}" target="_blank" class="btn btn-outline-info">
+                  <i class="fas fa-file-alt mr-1"></i> فاتورة مبسطة
+                </a>
+              </div>
+
+              {% if sale.status == 'CONFIRMED' %}
+              <a href="{{ url_for('returns.create_return', sale_id=sale.id) }}" class="btn btn-danger ml-2 mb-2" data-no-confirm="true" data-no-danger="true">
+                <i class="fas fa-undo-alt mr-1"></i> إنشاء مرتجع
+              </a>
+              {% endif %}
+
+              {% if sale.status == 'DRAFT' %}
+              <form method="post"
+                    action="{{ url_for('sales_bp.change_status', id=sale.id, status='CONFIRMED') }}"
+                    class="mb-2 ml-2 d-inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-success">
+                  <i class="fas fa-check mr-1"></i> تأكيد
+                </button>
+              </form>
+              {% endif %}
+
+              {% if sale.status in ['DRAFT','CONFIRMED'] %}
+              <form method="post"
+                    action="{{ url_for('sales_bp.change_status', id=sale.id, status='CANCELLED') }}"
+                    class="mb-2 d-inline"
+                    onsubmit="return confirm('تأكيد إلغاء الفاتورة؟')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-outline-danger">
+                  <i class="fas fa-ban mr-1"></i> إلغاء
+                </button>
+              </form>
+              {% endif %}
+
+              <button type="button" class="btn btn-warning mb-2 ml-2" data-toggle="modal" data-target="#archiveModal">
+                <i class="fas fa-archive mr-1"></i> أرشفة المبيعة
+              </button>
+            </div>
+
+            <a href="{{ url_for('sales_bp.list_sales') }}" class="btn btn-outline-secondary mb-2">
+              <i class="fas fa-arrow-left mr-1"></i> العودة للقائمة
+            </a>
+          </div>
         </div>
 
-        <a href="{{ url_for('sales_bp.list_sales') }}" class="btn btn-outline-secondary mb-2">
-          <i class="fas fa-arrow-left mr-1"></i> العودة للقائمة
-        </a>
+        {# إجراءات الحالة على الموبايل (تحت الشريط الثابت) #}
+        <div class="gm-inv-mobile-only mt-2 px-1">
+          {% if sale.status == 'DRAFT' %}
+          <form method="post" action="{{ url_for('sales_bp.change_status', id=sale.id, status='CONFIRMED') }}" class="mb-2">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-success btn-block">
+              <i class="fas fa-check ml-1"></i> تأكيد الفاتورة
+            </button>
+          </form>
+          {% endif %}
+          {% if sale.status in ['DRAFT','CONFIRMED'] %}
+          <form method="post" action="{{ url_for('sales_bp.change_status', id=sale.id, status='CANCELLED') }}" class="mb-2" onsubmit="return confirm('تأكيد إلغاء الفاتورة؟')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-outline-danger btn-block">
+              <i class="fas fa-ban ml-1"></i> إلغاء
+            </button>
+          </form>
+          {% endif %}
+          <button type="button" class="btn btn-warning btn-block mb-2" data-toggle="modal" data-target="#archiveModal">
+            <i class="fas fa-archive ml-1"></i> أرشفة
+          </button>
+          <a href="{{ url_for('sales_bp.generate_invoice', id=sale.id, simple=1) }}" target="_blank" class="btn btn-outline-info btn-block mb-2">
+            <i class="fas fa-file-alt ml-1"></i> فاتورة مبسطة
+          </a>
+        </div>
       </div>
     </div>
   </div>

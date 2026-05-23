@@ -12,7 +12,7 @@ import io
 
 from extensions import db
 from models import Branch, Site, Employee, Expense, Warehouse, User, Company
-from utils.company_scope import default_company
+from utils.company_scope import default_company, filter_branches_query
 from utils import _get_or_404, permission_required
 import utils
 from permissions_config.enums import SystemPermissions
@@ -33,7 +33,7 @@ def list_branches():
     search = request.args.get('q', '').strip()
     active_filter = request.args.get('active', '')
     
-    query = Branch.query
+    query = filter_branches_query(Branch.query)
     
     if search:
         query = query.filter(

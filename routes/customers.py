@@ -469,6 +469,9 @@ def balances_recalculate():
 @customers_bp.route("/<int:customer_id>", methods=["GET"], endpoint="customer_detail")
 @login_required
 def customer_detail(customer_id):
+    from utils.company_scope import assert_customer_access
+
+    assert_customer_access(customer_id)
     customer = db.session.get(Customer, customer_id) or abort(404)
     balance_breakdown = None
     rights_items = []

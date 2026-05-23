@@ -18,6 +18,26 @@
     </div>
   {% endif %}
 
+  <div class="auth-tenant-hint card border-0 shadow-sm mb-4" style="background: rgba(102,126,234,0.08);">
+    <div class="card-body py-3">
+      <h6 class="mb-2 font-weight-bold text-primary"><i class="fas fa-building ml-1"></i> تسجيل الدخول حسب شركتك</h6>
+      <p class="small text-muted mb-2">
+        لا حاجة لاختيار الشركة هنا — كل مستخدم له <strong>اسم مستخدم فريد</strong> مربوط بفروع شركته.
+        بعد الدخول يوجّهك النظام تلقائياً إلى شركة وفروعك فقط.
+      </p>
+      {% if login_company_hints %}
+      <div class="row small">
+        {% for hint in login_company_hints %}
+        <div class="col-md-6 mb-1">
+          <i class="fas fa-check text-success"></i>
+          {{ hint.company }}{% if hint.branch %} — {{ hint.branch }}{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
   <form class="auth-form" method="post"
         action="{{ url_for('auth.login', next=request.args.get('next')) }}"
         novalidate>

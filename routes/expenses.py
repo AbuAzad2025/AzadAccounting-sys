@@ -324,13 +324,10 @@ def _ensure_expense_paid_on_create(expense: Expense, partial_entries: list) -> N
     return
 
 
-def _default_expense_branch_id():
-    branch = (
-        Branch.query.filter(Branch.is_active.is_(True))
-        .order_by(Branch.id.asc())
-        .first()
-    )
-    return branch.id if branch else None
+def _resolve_expense_branch_id(submitted=None):
+    from utils.tenant_ui import resolve_branch_id
+
+    return resolve_branch_id(submitted, required=True)
 
 
 def _ensure_expense_type_supplier(type_name: str):
@@ -729,8 +726,13 @@ def employees_list():
 def add_employee():
     form = EmployeeForm()
     try:
+        from utils.tenant_ui import assign_branch_field
+
+        assign_branch_field(form.branch_id, default=True)
+    except Exception:
+        form.branch_id.choices = []
+    try:
         from models import Branch, Site
-        form.branch_id.choices = [(b.id, f"{b.code} - {b.name}") for b in Branch.query.filter_by(is_active=True).order_by(Branch.name).all()]
         form.site_id.choices = [(0, '-- بدون موقع --')] + [
             (s.id, f"{s.code} - {s.name}") for s in Site.query.filter_by(is_active=True).order_by(Site.name).all()
         ]
@@ -757,8 +759,13 @@ def edit_employee(emp_id):
     e = _get_or_404(Employee, emp_id)
     form = EmployeeForm(obj=e)
     try:
+        from utils.tenant_ui import assign_branch_field
+
+        assign_branch_field(form.branch_id, default=True)
+    except Exception:
+        form.branch_id.choices = []
+    try:
         from models import Branch, Site
-        form.branch_id.choices = [(b.id, f"{b.code} - {b.name}") for b in Branch.query.filter_by(is_active=True).order_by(Branch.name).all()]
         form.site_id.choices = [(0, '-- بدون موقع --')] + [
             (s.id, f"{s.code} - {s.name}") for s in Site.query.filter_by(is_active=True).order_by(Site.name).all()
         ]
@@ -1949,7 +1956,11 @@ def add():
         if partner_service_type_id:
             form.type_id.data = partner_service_type_id
     try:
-        form.branch_id.choices = [(b.id, f"{b.code} - {b.name}") for b in Branch.query.filter_by(is_active=True).order_by(Branch.name).all()]
+        from models import Branch, Site
+        from utils.tenant_ui import assign_branch_field
+        from utils.company_scope import filter_warehouses_query, filter_customers_query
+
+        assign_branch_field(form.branch_id, default=True)
         form.site_id.choices = [(0, '-- بدون موقع --')] + [
             (s.id, f"{s.code} - {s.name}") for s in Site.query.filter_by(is_active=True).order_by(Site.name).all()
         ]
@@ -1958,7 +1969,13 @@ def add():
         form.site_id.choices = [(0, '-- بدون موقع --')]
     form.employee_id.choices = [(0, '-- اختر موظفاً --')] + [(e.id, e.name) for e in Employee.query.order_by(Employee.name).limit(200).all()]
     form.utility_account_id.choices = [(0, '-- اختر حساب --')] + [(u.id, f"{u.provider} - {u.account_no or u.alias or u.utility_type}") for u in UtilityAccount.query.filter_by(is_active=True).order_by(UtilityAccount.provider).limit(100).all()]
-    form.warehouse_id.choices = [(0, '-- اختر مستودع --')] + [(w.id, w.name) for w in Warehouse.query.filter_by(is_active=True).order_by(Warehouse.name).limit(100).all()]
+    form.warehouse_id.choices = [(0, '-- اختر مستودع --')] + [
+        (w.id, w.name)
+        for w in filter_warehouses_query(Warehouse.query.filter_by(is_active=True))
+        .order_by(Warehouse.name)
+        .limit(100)
+        .all()
+    ]
     form.partner_id.choices = [(0, '-- اختر شريك --')] + [(p.id, p.name) for p in Partner.query.filter_by(is_archived=False).order_by(Partner.name).limit(100).all()]
     form.supplier_id.choices = [(0, '-- اختر مورد --')] + [(s.id, s.name) for s in Supplier.query.filter_by(is_archived=False).order_by(Supplier.name).limit(100).all()]
     if service_supplier and all(choice_id != service_supplier.id for choice_id, _ in form.supplier_id.choices):
@@ -1969,9 +1986,7 @@ def add():
         form.partner_id.choices.append((service_partner.id, f"✓ {service_partner.name}"))
     if service_partner:
         form.partner_id.data = service_partner.id
-    customers_query = Customer.query
-    if hasattr(Customer, 'is_archived'):
-        customers_query = customers_query.filter_by(is_archived=False)
+    customers_query = filter_customers_query(Customer.query)
     customers = customers_query.order_by(Customer.name).limit(100).all()
     form.customer_id.choices = [(0, '-- اختر زبون --')] + [(c.id, c.name) for c in customers]
     form.shipment_id.choices = [(0, '-- اختر شحنة --')] + [(s.id, f"شحنة #{s.id}") for s in Shipment.query.order_by(Shipment.id.desc()).limit(50).all()]
@@ -1988,6 +2003,8 @@ def add():
 
     if form.validate_on_submit():
         exp = Expense()
+        from utils.tenant_ui import resolve_branch_id
+
         if hasattr(form, "apply_to"):
             form.apply_to(exp)
         else:
@@ -1996,35 +2013,26 @@ def add():
                 dt = _to_datetime(form.date.data)
                 if dt:
                     exp.date = dt
-            
-            if not exp.branch_id or exp.branch_id == 0:
-                flash("⚠️ يرجى اختيار الفرع من القائمة", "warning")
-                return _render_expense_form(form, is_edit=False, types_meta=types_meta, types_list=types_list, **render_kwargs)
-            
-            if not exp.amount or exp.amount <= 0:
-                flash("⚠️ يرجى إدخال مبلغ المصروف", "warning")
-                return _render_expense_form(form, is_edit=False, types_meta=types_meta, types_list=types_list, **render_kwargs)
-            
-            if not exp.disbursed_by or exp.disbursed_by.strip() == '':
-                flash("⚠️ يرجى إدخال اسم الشخص الذي سلم المال", "warning")
-                return _render_expense_form(form, is_edit=False, types_meta=types_meta, types_list=types_list, **render_kwargs)
-            
-            if not getattr(form.employee_id, "data", None) or form.employee_id.data == 0:
-                exp.employee_id = None
-            if not getattr(form, "utility_account_id", None) or form.utility_account_id.data == 0:
-                exp.utility_account_id = None
-            if not getattr(form, "warehouse_id", None) or form.warehouse_id.data == 0:
-                exp.warehouse_id = None
-            if not getattr(form, "shipment_id", None) or form.shipment_id.data == 0:
-                exp.shipment_id = None
-            if not getattr(form, "stock_adjustment_id", None) or form.stock_adjustment_id.data == 0:
-                exp.stock_adjustment_id = None
+        exp.branch_id = resolve_branch_id(exp.branch_id or form.branch_id.data, required=True)
 
-        if not exp.branch_id or exp.branch_id == 0:
-            exp.branch_id = _default_expense_branch_id() or (int(form.branch_id.data) if getattr(form, "branch_id", None) and form.branch_id.data else None)
-        if not exp.branch_id:
-            flash("⚠️ يرجى اختيار الفرع من القائمة أو إنشاء فرع نشط في النظام.", "warning")
+        if not exp.amount or exp.amount <= 0:
+            flash("⚠️ يرجى إدخال مبلغ المصروف", "warning")
             return _render_expense_form(form, is_edit=False, types_meta=types_meta, types_list=types_list, **render_kwargs)
+
+        if not exp.disbursed_by or exp.disbursed_by.strip() == '':
+            flash("⚠️ يرجى إدخال اسم الشخص الذي سلم المال", "warning")
+            return _render_expense_form(form, is_edit=False, types_meta=types_meta, types_list=types_list, **render_kwargs)
+
+        if not getattr(form.employee_id, "data", None) or form.employee_id.data == 0:
+            exp.employee_id = None
+        if not getattr(form, "utility_account_id", None) or form.utility_account_id.data == 0:
+            exp.utility_account_id = None
+        if not getattr(form, "warehouse_id", None) or form.warehouse_id.data == 0:
+            exp.warehouse_id = None
+        if not getattr(form, "shipment_id", None) or form.shipment_id.data == 0:
+            exp.shipment_id = None
+        if not getattr(form, "stock_adjustment_id", None) or form.stock_adjustment_id.data == 0:
+            exp.stock_adjustment_id = None
 
         if supplier_service_mode and service_supplier and (not exp.supplier_id or exp.supplier_id == 0):
             exp.supplier_id = service_supplier.id
@@ -2136,7 +2144,11 @@ def add():
             current_app.logger.warning(f"⚠️ فشل حساب الراتب الصافي التلقائي: {e}")
 
         if not exp.branch_id:
-            exp.branch_id = _default_expense_branch_id()
+            try:
+                exp.branch_id = _resolve_expense_branch_id(form.branch_id.data)
+            except Exception:
+                from flask import abort
+                abort(403)
         if not exp.branch_id:
             flash("⚠️ لا يوجد فرع نشط. يرجى إنشاء فرع من إدارة الفروع.", "warning")
             return _render_expense_form(form, is_edit=False, types_meta=types_meta, types_list=types_list, **render_kwargs)
@@ -2311,8 +2323,10 @@ def quick_supplier_service():
         branch_id = int(branch_id or 0)
     except (TypeError, ValueError):
         branch_id = 0
-    if not branch_id:
-        branch_id = _default_expense_branch_id()
+    try:
+        branch_id = _resolve_expense_branch_id(branch_id or None)
+    except Exception:
+        return jsonify({"success": False, "message": "branch_forbidden"}), 403
     branch = db.session.get(Branch, branch_id) if branch_id else None
     if not branch:
         return jsonify({"success": False, "message": "branch_not_found"}), 400
@@ -2458,8 +2472,10 @@ def quick_partner_service():
         branch_id = int(branch_id or 0)
     except (TypeError, ValueError):
         branch_id = 0
-    if not branch_id:
-        branch_id = _default_expense_branch_id()
+    try:
+        branch_id = _resolve_expense_branch_id(branch_id or None)
+    except Exception:
+        return jsonify({"success": False, "message": "branch_forbidden"}), 403
     branch = db.session.get(Branch, branch_id) if branch_id else None
     if not branch:
         return jsonify({"success": False, "message": "branch_not_found"}), 400
@@ -2585,9 +2601,17 @@ def quick_partner_service_pay():
 def edit(exp_id):
     from models import Branch, Site
     
-    exp = _get_or_404(Expense, exp_id)
+    from utils.company_scope import assert_expense_access, filter_warehouses_query
+
+    exp = assert_expense_access(exp_id)
     before_pairs = _expense_related_entity_pairs(exp)
     form = ExpenseForm(obj=exp)
+    try:
+        from utils.tenant_ui import assign_branch_field, resolve_branch_id
+
+        assign_branch_field(form.branch_id, default=False)
+    except Exception:
+        pass
     
     _types = ExpenseType.query.order_by(ExpenseType.name).all()
     types_list = [{'id': t.id, 'name': t.name, 'code': t.code, 'fields_meta': t.fields_meta} for t in _types]
@@ -2606,7 +2630,12 @@ def edit(exp_id):
         form.utility_account_id.choices.append((exp.utility_account.id, f"✓ {exp.utility_account.provider} - {exp.utility_account.account_no or exp.utility_account.alias}"))
     form.utility_account_id.choices += [(u.id, f"{u.provider} - {u.account_no or u.alias or u.utility_type}") for u in utilities]
     
-    warehouses = Warehouse.query.filter_by(is_active=True).order_by(Warehouse.name).limit(100).all()
+    warehouses = (
+        filter_warehouses_query(Warehouse.query.filter_by(is_active=True))
+        .order_by(Warehouse.name)
+        .limit(100)
+        .all()
+    )
     form.warehouse_id.choices = [(0, '-- اختر مستودع --')]
     if exp.warehouse_id and exp.warehouse and exp.warehouse not in warehouses:
         form.warehouse_id.choices.append((exp.warehouse.id, f"✓ {exp.warehouse.name or '—'}"))
@@ -2677,6 +2706,9 @@ def edit(exp_id):
                 exp.partner_id = None
             if not getattr(form, "stock_adjustment_id", None) or form.stock_adjustment_id.data == 0:
                 exp.stock_adjustment_id = None
+        from utils.tenant_ui import resolve_branch_id
+
+        exp.branch_id = resolve_branch_id(exp.branch_id or form.branch_id.data, required=True)
         try:
             db.session.flush()
             _create_partial_payments(exp, partial_entries)

@@ -9,6 +9,7 @@ from models import PayrollRun, PayrollLine, Branch, Employee
 from permissions_config.enums import SystemPermissions
 from utils import permission_required
 from utils.company_scope import filter_by_branches
+from utils.tenant_ui import accessible_branches_query
 from utils.payroll_service import build_payroll_run, post_payroll_gl
 
 payroll_bp = Blueprint("payroll_bp", __name__, url_prefix="/payroll")
@@ -21,7 +22,7 @@ def index():
     q = PayrollRun.query.order_by(PayrollRun.period_key.desc())
     q = filter_by_branches(q, PayrollRun.branch_id)
     runs = q.limit(100).all()
-    branches = Branch.query.filter_by(is_active=True).order_by(Branch.name).all()
+    branches = accessible_branches_query().all()
     return render_template("payroll/index.html", runs=runs, branches=branches)
 
 

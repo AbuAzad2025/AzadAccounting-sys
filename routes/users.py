@@ -6,6 +6,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import joinedload
 from extensions import db
 from forms import UserForm
+from services.user_branch_service import sync_user_branches, get_branch_ids_for_user, get_primary_branch_id
 from models import Permission, Role, User, AuditLog, Customer
 import utils
 from utils import _get_or_404
@@ -426,6 +427,11 @@ def create_user():
             db.session.add(user)
             db.session.flush()
 
+            branch_ids = [int(x) for x in (form.branch_ids.data or []) if x]
+            primary = int(form.primary_branch_id.data or 0) or None
+            if branch_ids:
+                sync_user_branches(user.id, branch_ids, primary_branch_id=primary)
+
             if selected_perm_ids:
                 user.extra_permissions = Permission.query.filter(
                     Permission.id.in_(selected_perm_ids)
@@ -516,6 +522,9 @@ def edit_user(user_id):
     if request.method == "GET":
         form.role_id.data = user.role_id
         form.is_active.data = bool(user.is_active)
+        form.branch_ids.data = get_branch_ids_for_user(user.id)
+        pb = get_primary_branch_id(user.id)
+        form.primary_branch_id.data = pb or 0
 
     if form.validate_on_submit():
         try:
@@ -545,6 +554,13 @@ def edit_user(user_id):
             user.extra_permissions = Permission.query.filter(
                 Permission.id.in_(selected_perm_ids)
             ).all() if selected_perm_ids else []
+
+            branch_ids = [int(x) for x in (form.branch_ids.data or []) if x]
+            primary = int(form.primary_branch_id.data or 0) or None
+            if branch_ids:
+                sync_user_branches(user.id, branch_ids, primary_branch_id=primary)
+            else:
+                sync_user_branches(user.id, [])
 
             db.session.add(AuditLog(
                 model_name="User",

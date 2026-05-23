@@ -155,13 +155,17 @@ def login():
             clear_attempts(ip, getattr(current_user, "email", None) or getattr(current_user, "username", None))
             actor = current_user._get_current_object()
             return _redirect_back_or("shop.catalog" if isinstance(actor, Customer) else "main.dashboard")
-        return render_template("auth/login.html", form=form)
+        from utils.tenant_ui import login_company_hints
+
+        return render_template("auth/login.html", form=form, login_company_hints=login_company_hints())
 
     identifier = _get_login_identifier(form)
     if is_blocked(ip, identifier):
         flash("❌ تم حظر محاولات الدخول مؤقتًا، حاول بعد 10 دقائق.", "danger")
         utils._audit("login.blocked", ok=False, note="blocked window")
-        return render_template("auth/login.html", form=form)
+        from utils.tenant_ui import login_company_hints
+
+        return render_template("auth/login.html", form=form, login_company_hints=login_company_hints())
 
     password = request.form.get("password", "") or ""
     user = None
@@ -241,7 +245,9 @@ def login():
             ok_sched, msg = user_may_login_now(user)
             if not ok_sched:
                 flash(msg or "خارج وقت الدخول المسموح.", "danger")
-                return render_template("auth/login.html", form=form)
+                from utils.tenant_ui import login_company_hints
+
+        return render_template("auth/login.html", form=form, login_company_hints=login_company_hints())
         remember = bool(getattr(form, "remember_me", None) and getattr(form.remember_me, "data", False))
         _secure_login_user(user, remember=remember, fresh=True)
         try:
@@ -253,6 +259,12 @@ def login():
             db.session.rollback()
         clear_attempts(ip, identifier)
         utils._audit("login.success", ok=True, user_id=user.id, note=f"ip={ip}")
+        try:
+            from utils.tenant_ui import sync_login_tenant_session
+
+            sync_login_tenant_session(user)
+        except Exception:
+            current_app.logger.debug("tenant session sync skipped", exc_info=True)
         return _redirect_back_or("main.dashboard")
 
     if customer and customer.check_password(password) and customer.is_online and customer.is_active:
@@ -272,6 +284,12 @@ def login():
 @login_required
 def logout():
     utils._audit("logout", ok=True, user_id=getattr(current_user, "id", None))
+    try:
+        from utils.tenant_ui import clear_tenant_session
+
+        clear_tenant_session()
+    except Exception:
+        pass
     logout_user()
     flash("تم تسجيل الخروج بنجاح.", "info")
     resp = redirect(url_for("auth.login", fresh=1))

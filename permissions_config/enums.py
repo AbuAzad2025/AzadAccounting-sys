@@ -73,6 +73,7 @@ class SystemPermissions(str, Enum):
 
     # Branches
     MANAGE_BRANCHES = 'manage_branches'
+    VIEW_ALL_BRANCHES = 'view_all_branches'
 
     # SaaS
     MANAGE_SAAS = 'manage_saas'

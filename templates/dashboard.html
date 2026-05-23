@@ -8,7 +8,7 @@
 {% block content %}
 <div class="container-fluid">
 
-  <div class="row mb-3">
+  <div class="row mb-3 gm-mobile-action-bar gm-stat-row">
     <div class="col-12 d-flex flex-wrap gap-2 justify-content-end">
       {% if has_perm('manage_shop') or has_perm('view_shop') %}
       <a href="{{ url_for('shop.catalog') }}" target="_blank" class="btn btn-sm text-white fw-bold shadow-sm px-3 bg-gradient-shop">
@@ -35,7 +35,7 @@
 
   <div class="gm-quick-actions d-lg-none mb-3">
     <div class="gm-quick-actions-title">الوصول السريع</div>
-    <div class="row g-2">
+    <div class="row g-2 gm-mobile-grid-3">
       {% if (is_module_enabled is not defined) or is_module_enabled('customers') %}
       {% if has_perm('view_customers') or has_perm('manage_customers') %}
       <div class="col-4">
@@ -164,7 +164,7 @@
   </div>
 
   {% if general_alerts %}
-  <div class="row g-3 mb-4">
+  <div class="row g-3 mb-4 gm-stat-row">
     {% for alert in general_alerts[:4] %}
     <div class="col-xl-3 col-lg-4 col-md-6">
       <div class="card border-0 shadow-sm alert-card h-100">

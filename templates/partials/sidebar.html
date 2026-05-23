@@ -84,15 +84,13 @@
               </a>
             </li>
             {% endif %}
-            {% if has_perm('manage_sales') %}
-            {% if current_user.role_name_l in ['owner', 'developer'] %}
+            {% if has_perm('manage_sales') or has_perm('manage_ledger') %}
             <li class="nav-item">
               <a href="{{ url_for('recurring.index') }}" class="nav-link {% if request.blueprint == 'recurring' %}active{% endif %}">
                 <i class="far fa-circle nav-icon text-primary"></i>
                 <p>الفواتير المتكررة</p>
               </a>
             </li>
-            {% endif %}
             {% endif %}
             {% endif %}
           </ul>
@@ -202,7 +200,7 @@
             </li>
             {% endif %}
             {% if is_module_enabled('payments') %}
-            {% if has_perm('manage_payments') %}
+            {% if has_perm('view_payments') or has_perm('manage_payments') %}
             <li class="nav-item">
               <a href="{{ url_for('payments.index') }}" class="nav-link {% if request.blueprint == 'payments' %}active{% endif %}">
                 <i class="far fa-circle nav-icon text-success"></i>

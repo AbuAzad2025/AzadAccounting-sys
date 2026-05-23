@@ -1,6 +1,9 @@
 {% extends 'base.html' %}
+{% from 'macros/gm_mobile_ui.html' import scroll_table_start, scroll_table_end %}
 
 {% block title %}قائمة التدفقات النقدية{% endblock %}
+{% block page_title %}قائمة التدفقات النقدية{% endblock %}
+{% block body_class %}gm-financial-report{% endblock %}
 
 {% block content %}
 <div class="container-fluid mt-4">
@@ -16,7 +19,7 @@
         <div class="card-body">
             
 
-            <div class="row mb-4">
+            <div class="row mb-4 gm-filter-row">
                 <div class="col-md-3">
                     <label for="company_id">الشركة</label>
                     <select id="company_id" class="form-control form-control-modern">
@@ -45,7 +48,8 @@
             <div class="alert alert-info py-2 small">عرض التدفق النقدي لفروع الشركة المحددة فقط.</div>
             {% endif %}
             
-            <table class="table table-bordered table-rounded table-hover">
+            {{ scroll_table_start() }}
+            <table class="table table-bordered table-rounded table-hover no-mobile-cards">
                 
 
                 <thead class="table-success">
@@ -135,6 +139,7 @@
                     </tr>
                 </tfoot>
             </table>
+            {{ scroll_table_end() }}
             
             
 

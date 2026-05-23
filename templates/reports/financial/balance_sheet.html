@@ -1,6 +1,9 @@
 {% extends 'base.html' %}
+{% from 'macros/gm_mobile_ui.html' import scroll_table_start, scroll_table_end %}
 
 {% block title %}الميزانية العمومية{% endblock %}
+{% block page_title %}الميزانية العمومية{% endblock %}
+{% block body_class %}gm-financial-report{% endblock %}
 
 {% block content %}
 <div class="container-fluid mt-4">
@@ -18,7 +21,7 @@
                 تقرير الميزانية العمومية يعرض الأصول والخصوم وحقوق الملكية كما في تاريخ محدد
             </div>
 
-            <div class="row mb-4">
+            <div class="row mb-4 gm-filter-row">
                 <div class="col-md-3">
                     <label for="company_id">الشركة</label>
                     <select id="company_id" class="form-control">
@@ -45,6 +48,7 @@
             
             <div class="row">
                 <div class="col-md-6">
+                    {{ scroll_table_start() }}
                     <table class="table table-bordered">
                         <thead class="table-primary">
                             <tr>
@@ -71,9 +75,11 @@
                             </tr>
                         </tfoot>
                     </table>
+                    {{ scroll_table_end() }}
                 </div>
                 
                 <div class="col-md-6">
+                    {{ scroll_table_start() }}
                     <table class="table table-bordered">
                         <thead class="table-warning">
                             <tr>
@@ -100,6 +106,7 @@
                             </tr>
                         </tfoot>
                     </table>
+                    {{ scroll_table_end() }}
                 </div>
             </div>
             

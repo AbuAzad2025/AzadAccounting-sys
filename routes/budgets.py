@@ -2,6 +2,8 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask_login import login_required, current_user
 from extensions import db
 from models import Budget, BudgetCommitment, Account, Branch, Site, SystemSettings, Expense, ExpenseType
+from utils.company_scope import filter_by_branches
+from utils.tenant_ui import accessible_branches_query, resolve_branch_id
 from sqlalchemy import func, extract
 from datetime import datetime, date
 from decimal import Decimal
@@ -48,15 +50,19 @@ def index():
     branch_id = request.args.get('branch', None, type=int)
     period_type = request.args.get('period_type', '').upper()
     
-    query = Budget.query.filter_by(fiscal_year=fiscal_year, is_active=True)
+    query = filter_by_branches(
+        Budget.query.filter_by(fiscal_year=fiscal_year, is_active=True),
+        Budget.branch_id,
+    )
     if branch_id:
+        resolve_branch_id(branch_id, required=False)
         query = query.filter_by(branch_id=branch_id)
     if period_type:
         query = query.filter(Budget.period_type == period_type)
     
     budgets = query.all()
     
-    branches = Branch.query.filter_by(is_active=True).all()
+    branches = accessible_branches_query().all()
     
     budget_data = []
     for budget in budgets:
@@ -133,7 +139,7 @@ def add():
             flash('حدث خطأ داخلي', 'danger')
     
     accounts = Account.query.filter_by(type='EXPENSE', is_active=True).all()
-    branches = Branch.query.filter_by(is_active=True).all()
+    branches = accessible_branches_query().all()
     sites = Site.query.filter_by(is_active=True).all()
     
     return render_template('budgets/form.html',
@@ -174,7 +180,7 @@ def edit(id):
             flash('حدث خطأ داخلي', 'danger')
     
     accounts = Account.query.filter_by(type='EXPENSE', is_active=True).all()
-    branches = Branch.query.filter_by(is_active=True).all()
+    branches = accessible_branches_query().all()
     sites = Site.query.filter_by(is_active=True).all()
     
     return render_template('budgets/form.html',
@@ -193,8 +199,12 @@ def budget_vs_actual():
     fiscal_year = request.args.get('year', datetime.now().year, type=int)
     branch_id = request.args.get('branch', None, type=int)
     
-    query = Budget.query.filter_by(fiscal_year=fiscal_year, is_active=True)
+    query = filter_by_branches(
+        Budget.query.filter_by(fiscal_year=fiscal_year, is_active=True),
+        Budget.branch_id,
+    )
     if branch_id:
+        resolve_branch_id(branch_id, required=False)
         query = query.filter_by(branch_id=branch_id)
     
     budgets = query.all()
@@ -225,7 +235,7 @@ def budget_vs_actual():
             'status': status
         })
     
-    branches = Branch.query.filter_by(is_active=True).all()
+    branches = accessible_branches_query().all()
     
     return render_template('budgets/report_vs_actual.html',
                          data=report_data,

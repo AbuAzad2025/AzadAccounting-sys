@@ -67,6 +67,9 @@ def add():
 @login_required
 @permission_required(SystemPermissions.MANAGE_BRANCHES)
 def edit(id):
+    from utils.company_scope import assert_company_access
+
+    assert_company_access(id)
     company = db.session.get(Company, id) or abort(404)
     if request.method == "POST":
         company.name = (request.form.get("name") or company.name).strip()

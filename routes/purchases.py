@@ -48,15 +48,15 @@ def index():
 @permission_required(SystemPermissions.MANAGE_SHIPMENTS)
 def add():
     suppliers = Supplier.query.filter(Supplier.is_archived == False).order_by(Supplier.name).all()  # noqa: E712
-    branches = Branch.query.filter_by(is_active=True).order_by(Branch.name).all()
+    from utils.tenant_ui import accessible_branches_query, resolve_branch_id
+
+    branches = accessible_branches_query().all()
     products = Product.query.filter_by(is_active=True).order_by(Product.name).limit(500).all()
 
     if request.method == "POST":
         try:
             supplier_id = request.form.get("supplier_id", type=int)
-            branch_id = request.form.get("branch_id", type=int)
-            if not supplier_id or not branch_id:
-                raise ValueError("المورد والفرع مطلوبان")
+            branch_id = resolve_branch_id(request.form.get("branch_id"), required=True)
             raw_date = request.form.get("order_date")
             if raw_date:
                 try:

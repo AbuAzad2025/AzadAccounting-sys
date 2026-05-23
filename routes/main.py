@@ -50,8 +50,23 @@ def login_alias():
         return redirect(url_for("auth.login", next=nxt))
     return redirect(url_for("auth.login"))
 
+
+@main_bp.route("/tenant/switch-branch", methods=["POST"], endpoint="switch_active_branch")
+@login_required
+def switch_active_branch():
+    from utils.tenant_ui import set_active_branch_id
+
+    bid = request.form.get("branch_id", type=int)
+    if bid and set_active_branch_id(bid):
+        flash("تم تبديل الفرع النشط.", "success")
+    else:
+        flash("لا يمكن التبديل إلى هذا الفرع.", "danger")
+    return redirect(request.referrer or url_for("main.dashboard"))
+
+
 @main_bp.route("/", methods=["GET"], endpoint="dashboard")
 @login_required
+@utils.permission_required(SystemPermissions.ACCESS_DASHBOARD)
 def dashboard():
     try:
         db.session.rollback()
@@ -93,7 +108,19 @@ def dashboard():
             targets = {str(code).strip().lower()}
         return bool(perms_set & targets)
 
-    cache_key_inv = 'dashboard_inventory_stats'
+    def _dash_scope_key() -> str:
+        from utils.company_scope import get_accessible_branch_ids
+        from utils.tenant_ui import get_active_branch_id
+
+        uid = getattr(current_user, "id", 0) or 0
+        aid = get_active_branch_id()
+        ids = get_accessible_branch_ids()
+        bid = ",".join(str(i) for i in (ids or []))
+        return f"u{uid}_a{aid}_b{bid}"
+
+    scope_key = _dash_scope_key()
+
+    cache_key_inv = f'dashboard_inventory_stats_{scope_key}'
     inv_stats = cache.get(cache_key_inv)
     if inv_stats is None:
         subq = (
@@ -122,13 +149,13 @@ def dashboard():
     low_stock_count = int((inv_stats or {}).get("low_stock_count") or 0)
     low_stock: list = []
 
-    cache_key_exch = 'dashboard_exchanges'
+    cache_key_exch = f'dashboard_exchanges_{scope_key}'
     pending_exchanges = cache.get(cache_key_exch)
     if pending_exchanges is None:
         pending_exchanges = ExchangeTransaction.query.filter_by(direction="OUT").count()
         cache.set(cache_key_exch, pending_exchanges, timeout=180)
     
-    cache_key_partner = 'dashboard_partner_stock'
+    cache_key_partner = f'dashboard_partner_stock_{scope_key}'
     partner_stock = cache.get(cache_key_partner)
     if partner_stock is None:
         partner_stock = (db.session.query(func.count(Product.id)).join(Supplier, Supplier.id == Product.supplier_local_id).scalar() or 0)
@@ -173,11 +200,14 @@ def dashboard():
             return value
 
     if _has_perm(SystemPermissions.MANAGE_SALES):
-        cache_key_recent = f'dashboard_recent_sales_{today}'
+        from utils.company_scope import filter_sales_query
+
+        cache_key_recent = f'dashboard_recent_sales_{today}_{scope_key}'
         recent_sales = cache.get(cache_key_recent)
         if recent_sales is None:
             recent_sales = (
-                Sale.query.options(
+                filter_sales_query(Sale.query)
+                .options(
                     load_only(
                         Sale.id,
                         Sale.sale_number,
@@ -196,7 +226,7 @@ def dashboard():
             )
             cache.set(cache_key_recent, recent_sales, timeout=180)
         
-        cache_key_srep = f'dashboard_sales_report_{start}_{end}'
+        cache_key_srep = f'dashboard_sales_report_{start}_{end}_{scope_key}'
         srep = cache.get(cache_key_srep)
         if srep is None:
             try:
@@ -216,12 +246,13 @@ def dashboard():
         revenue_values = srep.get("daily_values", [])
         week_revenue = float(srep.get("total_revenue", 0) or 0)
         
-        cache_key_today_rev = f'dashboard_today_revenue_{today}'
+        cache_key_today_rev = f'dashboard_today_revenue_{today}_{scope_key}'
         today_revenue = cache.get(cache_key_today_rev)
         if today_revenue is None:
             today_revenue = Decimal('0.00')
             today_sales_rows = (
-                db.session.query(
+                filter_sales_query(Sale.query)
+                .with_entities(
                     Sale.total_amount,
                     Sale.currency,
                     Sale.fx_rate_used,
@@ -245,14 +276,25 @@ def dashboard():
     def _sum_entity_balance(model):
         total = Decimal('0.00')
         try:
-            cache_key = f"dashboard_balance_{model.__tablename__}"
+            cache_key = f"dashboard_balance_{model.__tablename__}_{scope_key}"
             cached_total = cache.get(cache_key)
             if cached_total is not None:
                 return float(cached_total)
+
+            from utils.company_scope import (
+                filter_customers_query,
+                filter_partners_query,
+                filter_suppliers_query,
+            )
             
             if model.__name__ == 'Customer':
                 try:
-                    result = db.session.query(func.coalesce(func.sum(Customer.current_balance), 0)).scalar() or 0.0
+                    result = (
+                        filter_customers_query(
+                            db.session.query(func.coalesce(func.sum(Customer.current_balance), 0))
+                        ).scalar()
+                        or 0.0
+                    )
                     cache.set(cache_key, float(result), timeout=300)
                     return float(result)
                 except Exception:
@@ -260,7 +302,12 @@ def dashboard():
             
             if model.__name__ == 'Supplier':
                 try:
-                    result = db.session.query(func.coalesce(func.sum(Supplier.current_balance), 0)).scalar() or 0.0
+                    result = (
+                        filter_suppliers_query(
+                            db.session.query(func.coalesce(func.sum(Supplier.current_balance), 0))
+                        ).scalar()
+                        or 0.0
+                    )
                     cache.set(cache_key, float(result), timeout=300)
                     return float(result)
                 except Exception:
@@ -275,7 +322,14 @@ def dashboard():
             except Exception:
                 current_app.logger.warning('cache operation failed silently in main.py', exc_info=True)
             
-            entities = model.query.options(load_only(model.id)).limit(10000).all()
+            entities = model.query.options(load_only(model.id))
+            if model.__name__ == 'Customer':
+                entities = filter_customers_query(entities)
+            elif model.__name__ == 'Supplier':
+                entities = filter_suppliers_query(entities)
+            elif model.__name__ == 'Partner':
+                entities = filter_partners_query(entities)
+            entities = entities.limit(10000).all()
             for entity in entities:
                 try:
                     if model.__name__ == 'Supplier':
@@ -303,7 +357,9 @@ def dashboard():
     total_partner_balance = _sum_partner_smart_balance()
 
     def _aggregate_payments(start_dt, end_dt):
-        cache_key_pay = f'dashboard_payments_{start_dt.date()}_{end_dt.date()}'
+        from utils.company_scope import filter_expenses_query, filter_payments_query
+
+        cache_key_pay = f'dashboard_payments_{start_dt.date()}_{end_dt.date()}_{scope_key}'
         cached = cache.get(cache_key_pay)
         if cached is not None:
             return cached['incoming'], cached['outgoing']
@@ -311,12 +367,14 @@ def dashboard():
         incoming = Decimal('0.00')
         outgoing = Decimal('0.00')
         payments = (
-            db.session.query(
-                Payment.total_amount,
-                Payment.currency,
-                Payment.fx_rate_used,
-                Payment.payment_date,
-                Payment.direction,
+            filter_payments_query(
+                db.session.query(
+                    Payment.total_amount,
+                    Payment.currency,
+                    Payment.fx_rate_used,
+                    Payment.payment_date,
+                    Payment.direction,
+                )
             )
             .filter(
                 Payment.payment_date >= start_dt,
@@ -333,10 +391,12 @@ def dashboard():
                 outgoing += amt_ils
         
         expenses_without_payments = (
-            db.session.query(
-                Expense.amount,
-                Expense.currency,
-                Expense.date,
+            filter_expenses_query(
+                db.session.query(
+                    Expense.amount,
+                    Expense.currency,
+                    Expense.date,
+                )
             )
             .outerjoin(
                 Payment,
@@ -367,19 +427,23 @@ def dashboard():
     today_net = today_incoming - today_outgoing
     week_net = week_incoming - week_outgoing
 
-    cache_key_daily_pay = f'dashboard_daily_payments_{week_start_dt.date()}_{week_end_dt.date()}'
+    cache_key_daily_pay = f'dashboard_daily_payments_{week_start_dt.date()}_{week_end_dt.date()}_{scope_key}'
     daily_payments_data = cache.get(cache_key_daily_pay)
     if daily_payments_data is None:
         from collections import defaultdict
+        from utils.company_scope import filter_payments_query
+
         daily_payments = defaultdict(lambda: {'incoming': Decimal('0.00'), 'outgoing': Decimal('0.00')})
         
         all_week_payments = (
-            db.session.query(
-                Payment.total_amount,
-                Payment.currency,
-                Payment.fx_rate_used,
-                Payment.payment_date,
-                Payment.direction,
+            filter_payments_query(
+                db.session.query(
+                    Payment.total_amount,
+                    Payment.currency,
+                    Payment.fx_rate_used,
+                    Payment.payment_date,
+                    Payment.direction,
+                )
             )
             .filter(
             Payment.payment_date >= week_start_dt,
@@ -421,7 +485,9 @@ def dashboard():
         month = (base.month - 1 + offset) % 12 + 1
         return date(year, month, 1)
     
-    cache_key_monthly = f'dashboard_monthly_sales_{month_start_today}'
+    from utils.company_scope import filter_customers_query, filter_sales_query
+
+    cache_key_monthly = f'dashboard_monthly_sales_{month_start_today}_{scope_key}'
     monthly_data = cache.get(cache_key_monthly)
     if monthly_data is None:
         month_keys = []
@@ -436,7 +502,8 @@ def dashboard():
         sales_period_start = _shift_month(month_start_today, -5)
         sales_period_end = _shift_month(month_start_today, 1)
         monthly_sales_rows = (
-            Sale.query.options(
+            filter_sales_query(Sale.query)
+            .options(
                 load_only(
                     Sale.sale_date,
                     Sale.total_amount,
@@ -463,13 +530,13 @@ def dashboard():
     
     monthly_sales_labels = monthly_data['labels']
     monthly_sales_values = monthly_data['values']
-    cache_key_customers = f'dashboard_customers_{today}'
+    cache_key_customers = f'dashboard_customers_{today}_{scope_key}'
     customer_data = cache.get(cache_key_customers)
     if customer_data is None:
         thirty_days_ago = today - timedelta(days=30)
         ninety_days_ago = today - timedelta(days=90)
         new_count = int(
-            db.session.query(func.count(Customer.id))
+            filter_customers_query(db.session.query(func.count(Customer.id)))
             .filter(
                 Customer.created_at.isnot(None),
                 Customer.created_at >= datetime.combine(thirty_days_ago, time.min),
@@ -478,7 +545,7 @@ def dashboard():
             or 0
         )
         active_count = int(
-            db.session.query(func.count(func.distinct(Sale.customer_id)))
+            filter_sales_query(db.session.query(func.count(func.distinct(Sale.customer_id))))
             .filter(
                 Sale.customer_id.isnot(None),
                 Sale.sale_date >= datetime.combine(ninety_days_ago, time.min),
@@ -488,8 +555,10 @@ def dashboard():
             or 0
         )
         active_new_count = int(
-            db.session.query(func.count(func.distinct(Sale.customer_id)))
-            .join(Customer, Customer.id == Sale.customer_id)
+            filter_sales_query(
+                db.session.query(func.count(func.distinct(Sale.customer_id)))
+                .join(Customer, Customer.id == Sale.customer_id)
+            )
             .filter(
                 Sale.customer_id.isnot(None),
                 Sale.sale_date >= datetime.combine(ninety_days_ago, time.min),
@@ -500,7 +569,9 @@ def dashboard():
             .scalar()
             or 0
         )
-        total_customers_count = int(db.session.query(func.count(Customer.id)).scalar() or 0)
+        total_customers_count = int(
+            filter_customers_query(db.session.query(func.count(Customer.id))).scalar() or 0
+        )
         active_existing = max(active_count - active_new_count, 0)
         inactive_count = max(total_customers_count - (new_count + active_existing), 0)
         customer_data = {
@@ -826,6 +897,7 @@ def restore_db():
 
 @main_bp.route("/automated-backup-status", methods=["GET"], endpoint="automated_backup_status")
 @login_required
+@utils.permission_required(SystemPermissions.BACKUP_DATABASE)
 def automated_backup_status():
     if not utils.is_super():
         return jsonify({"enabled": False, "next_run": None, "schedule": "غير متاح"})
@@ -852,6 +924,7 @@ def automated_backup_status():
 
 @main_bp.route("/toggle-automated-backup", methods=["POST"], endpoint="toggle_automated_backup")
 @login_required
+@utils.permission_required(SystemPermissions.BACKUP_DATABASE)
 def toggle_automated_backup():
     if not utils.is_super():
         flash("❌ غير مسموح", "danger")

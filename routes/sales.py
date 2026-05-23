@@ -120,8 +120,11 @@ def _available_qty(product_id: int, warehouse_id: int) -> int:
     return int(row.avail or 0) if row else 0
 
 def _auto_pick_warehouse(product_id: int, required_qty: int, preferred_wid: Optional[int] = None) -> Optional[int]:
+    from utils.company_scope import filter_warehouses_query, assert_warehouse_access
+
     if preferred_wid:
         if _available_qty(product_id, preferred_wid) >= required_qty:
+            assert_warehouse_access(int(preferred_wid))
             return preferred_wid
     order_expr = case(
         (Warehouse.warehouse_type == "MAIN", 0),
@@ -131,8 +134,10 @@ def _auto_pick_warehouse(product_id: int, required_qty: int, preferred_wid: Opti
         else_=9,
     )
     row = (
-        db.session.query(StockLevel.warehouse_id, Warehouse.warehouse_type, _available_expr().label("avail"))
-        .join(Warehouse, Warehouse.id == StockLevel.warehouse_id)
+        filter_warehouses_query(
+            db.session.query(StockLevel.warehouse_id, Warehouse.warehouse_type, _available_expr().label("avail"))
+            .join(Warehouse, Warehouse.id == StockLevel.warehouse_id)
+        )
         .filter(StockLevel.product_id == product_id)
         .filter(_available_expr() >= required_qty)
         .order_by(order_expr.asc(), Warehouse.id.asc())
@@ -412,10 +417,11 @@ def restore_sale(id):
 def dashboard():
     from decimal import Decimal
     from models import convert_amount
+    from utils.company_scope import filter_warehouses_query, filter_customers_query, filter_sales_query
+
+    total_sales = filter_sales_query(db.session.query(Sale)).with_entities(func.count(Sale.id)).scalar() or 0
     
-    total_sales = db.session.query(func.count(Sale.id)).scalar() or 0
-    
-    all_sales = db.session.query(Sale).all()
+    all_sales = filter_sales_query(db.session.query(Sale)).all()
     total_revenue = Decimal('0.00')
     for s in all_sales:
         amt = Decimal(str(s.total_amount or 0))
@@ -428,9 +434,9 @@ def dashboard():
                 current_app.logger.debug('Currency conversion skipped')
     total_revenue = float(total_revenue)
     
-    pending_sales = db.session.query(func.count(Sale.id)).filter(Sale.status == SaleStatus.DRAFT.value).scalar() or 0
+    pending_sales = filter_sales_query(db.session.query(Sale)).filter(Sale.status == SaleStatus.DRAFT.value).with_entities(func.count(Sale.id)).scalar() or 0
     
-    customers = db.session.query(Customer).all()
+    customers = filter_customers_query(Customer.query).all()
     top_customers_data = []
     for cust in customers:
         cust_sales = db.session.query(Sale).filter(Sale.customer_id == cust.id).all()
@@ -1056,6 +1062,8 @@ def _resolve_unit_price(product_id: int, warehouse_id: Optional[int]) -> float:
 @sales_bp.route("/new", methods=["GET", "POST"], endpoint="create_sale")
 @login_required
 def create_sale():
+    from utils.company_scope import filter_warehouses_query, filter_customers_query, assert_customer_access, assert_warehouse_access
+
     form = SaleForm()
     if request.method == "POST" and not form.validate_on_submit():
         current_app.logger.warning("Sale form errors: %s", form.errors)
@@ -1071,10 +1079,18 @@ def create_sale():
                                        products=Product.query.options(
                                            load_only(Product.id, Product.name, Product.sku, Product.price, Product.currency, Product.is_active)
                                        ).filter(Product.is_active == True).order_by(Product.name).all(),
-                                       warehouses=Warehouse.query.options(
+                                       warehouses=filter_warehouses_query(Warehouse.query).options(
                                            load_only(Warehouse.id, Warehouse.name)
                                        ).order_by(Warehouse.name).all(),
                                        cost_centers=CostCenter.query.filter_by(is_active=True).order_by(CostCenter.code).all())
+            from utils.company_scope import assert_customer_access, assert_warehouse_access
+
+            if form.customer_id.data:
+                assert_customer_access(int(form.customer_id.data))
+            for d in lines_payload:
+                wid = d.get("warehouse_id")
+                if wid:
+                    assert_warehouse_access(int(wid))
             for d in lines_payload:
                 if (d.get("unit_price") or 0) <= 0:
                     d["unit_price"] = _resolve_unit_price(d["product_id"], d.get("warehouse_id"))
@@ -1143,12 +1159,15 @@ def create_sale():
             flash('❌ خطأ أثناء الحفظ', 'danger')
     return render_template("sales/form.html", form=form, title="إنشاء فاتورة جديدة",
                            products=Product.query.order_by(Product.name).all(),
-                           warehouses=Warehouse.query.order_by(Warehouse.name).all(),
+                           warehouses=filter_warehouses_query(Warehouse.query).order_by(Warehouse.name).all(),
                            cost_centers=CostCenter.query.filter_by(is_active=True).order_by(CostCenter.code).all())
 
 @sales_bp.route("/<int:id>", methods=["GET"], endpoint="sale_detail")
 @login_required
 def sale_detail(id: int):
+    from utils.company_scope import assert_sale_access
+
+    assert_sale_access(id)
     options = [
         joinedload(Sale.customer), joinedload(Sale.seller), joinedload(Sale.seller_employee),
         joinedload(Sale.lines).joinedload(SaleLine.product),
@@ -1265,6 +1284,14 @@ def sale_payments(id: int):
 @login_required
 @utils.permission_required(SystemPermissions.MANAGE_SALES)
 def edit_sale(id):
+    from utils.company_scope import (
+        assert_sale_access,
+        assert_customer_access,
+        assert_warehouse_access,
+        filter_warehouses_query,
+    )
+
+    assert_sale_access(id)
     sale = _get_or_404(Sale, id)
     if sale.status in ("CANCELLED", "REFUNDED"):
         flash("❌ لا يمكن تعديل فاتورة ملغاة/مرتجعة.", "danger")
@@ -1304,9 +1331,15 @@ def edit_sale(id):
                                        products=Product.query.options(
                                            load_only(Product.id, Product.name, Product.sku, Product.price, Product.currency, Product.is_active)
                                        ).filter(Product.is_active == True).order_by(Product.name).all(),
-                                       warehouses=Warehouse.query.options(
+                                       warehouses=filter_warehouses_query(Warehouse.query).options(
                                            load_only(Warehouse.id, Warehouse.name)
                                        ).order_by(Warehouse.name).all())
+            if form.customer_id.data:
+                assert_customer_access(int(form.customer_id.data))
+            for d in lines_payload:
+                wid = d.get("warehouse_id")
+                if wid:
+                    assert_warehouse_access(int(wid))
             # جلب السعر التلقائي فقط إذا كان 0 أو سالب
             for d in lines_payload:
                 if (d.get("unit_price") or 0) <= 0:
@@ -1364,7 +1397,7 @@ def edit_sale(id):
             flash('❌ خطأ أثناء التعديل', 'danger')
     return render_template("sales/form.html", form=form, sale=sale, title="تعديل الفاتورة",
                            products=Product.query.order_by(Product.name).all(),
-                           warehouses=Warehouse.query.order_by(Warehouse.name).all(),
+                           warehouses=filter_warehouses_query(Warehouse.query).order_by(Warehouse.name).all(),
                            cost_centers=CostCenter.query.filter_by(is_active=True).order_by(CostCenter.code).all())
 
 @sales_bp.route("/quick", methods=["POST"])

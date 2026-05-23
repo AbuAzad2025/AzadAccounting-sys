@@ -18,6 +18,8 @@ from models import (
 )
 from forms import SaleReturnForm, SaleReturnLineForm
 from utils import permission_required
+from permissions_config.enums import SystemPermissions
+from utils.company_scope import filter_sale_returns_query, assert_sale_access, assert_sale_return_access
 
 # إنشاء Blueprint
 returns_bp = Blueprint('returns', __name__, url_prefix='/returns')
@@ -87,7 +89,7 @@ def list_returns():
     search = request.args.get('search', '').strip()
     
     # Build query
-    query = SaleReturn.query
+    query = filter_sale_returns_query(SaleReturn.query)
     
     # Apply filters
     if status and status in ['DRAFT', 'CONFIRMED', 'CANCELLED']:
@@ -110,7 +112,9 @@ def list_returns():
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
     
     # Get all customers for filter
-    customers = Customer.query.filter_by(is_archived=False).order_by(Customer.name).all()
+    from utils.company_scope import filter_customers_query
+
+    customers = filter_customers_query(Customer.query.filter_by(is_archived=False)).order_by(Customer.name).all()
     
     return render_template(
         'sale_returns/list.html',
@@ -128,12 +132,14 @@ def list_returns():
 @login_required
 def create_return(sale_id=None):
     """إنشاء مرتجع جديد"""
-    
+    from utils.company_scope import assert_sale_access, assert_warehouse_access
+
     form = SaleReturnForm()
     sale = None
     
     # إذا تم تمرير sale_id، حمل بيانات البيع
     if sale_id:
+        assert_sale_access(sale_id)
         sale = db.get_or_404(Sale, sale_id)
         
         if request.method == 'GET':
@@ -165,6 +171,10 @@ def create_return(sale_id=None):
 
     if form.validate_on_submit():
         try:
+            if form.sale_id.data:
+                assert_sale_access(int(form.sale_id.data))
+            if form.warehouse_id.data:
+                assert_warehouse_access(int(form.warehouse_id.data))
             # إنشاء المرتجع
             sale_return = SaleReturn(
                 sale_id=form.sale_id.data if form.sale_id.data else None,
@@ -308,6 +318,7 @@ def view_return(return_id):
     """عرض تفاصيل مرتجع"""
     
     sale_return = db.get_or_404(SaleReturn, return_id)
+    assert_sale_return_access(return_id)
     breakdown = None
     try:
         if sale_return.sale_id and sale_return.sale:
@@ -362,6 +373,7 @@ def view_return(return_id):
 def edit_return(return_id):
     """تعديل مرتجع"""
     
+    assert_sale_return_access(return_id)
     sale_return = db.get_or_404(SaleReturn, return_id)
     
     if sale_return.status == 'CANCELLED':
@@ -527,6 +539,7 @@ def edit_return(return_id):
 def confirm_return(return_id):
     """تأكيد المرتجع"""
     
+    assert_sale_return_access(return_id)
     sale_return = db.get_or_404(SaleReturn, return_id)
     
     if sale_return.status == 'CONFIRMED':
@@ -574,6 +587,7 @@ def confirm_return(return_id):
 def cancel_return(return_id):
     """إلغاء المرتجع"""
     
+    assert_sale_return_access(return_id)
     sale_return = db.get_or_404(SaleReturn, return_id)
     
     if sale_return.status == 'CANCELLED':
@@ -620,6 +634,7 @@ def cancel_return(return_id):
 def delete_return(return_id):
     """حذف المرتجع"""
     
+    assert_sale_return_access(return_id)
     sale_return = db.get_or_404(SaleReturn, return_id)
     
     # فقط المسودات يمكن حذفها
@@ -664,6 +679,7 @@ def delete_return(return_id):
 def get_sale_items(sale_id):
     """الحصول على بنود البيع لتسهيل إنشاء المرتجع"""
     try:
+        assert_sale_access(sale_id)
         sale = db.get_or_404(Sale, sale_id)
 
         # احسب الكمية المتاحة للإرجاع = كمية البيع - مجموع المرتجعات المؤكدة
@@ -723,9 +739,12 @@ def get_sale_items(sale_id):
 @login_required
 def get_customer_sales(customer_id: int):
     """إرجاع آخر المبيعات المؤكدة لزبون محدد لتصفية قائمة الفواتير في المرتجع"""
+    from utils.company_scope import assert_customer_access, filter_sales_query
+
     try:
+        assert_customer_access(customer_id)
         sales = (
-            Sale.query
+            filter_sales_query(Sale.query)
             .filter_by(customer_id=customer_id, status='CONFIRMED')
             .order_by(Sale.id.desc())
             .limit(100)

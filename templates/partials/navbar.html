@@ -31,7 +31,51 @@
       </button>
     </li>
 
+    {% if current_user.is_authenticated %}
+    <li class="nav-item dropdown d-lg-none gm-navbar-info-dropdown">
+      <a class="nav-link nav-strong" data-toggle="dropdown" href="#" title="معلومات سريعة" aria-expanded="false">
+        <i class="fas fa-info-circle"></i>
+      </a>
+      <div class="dropdown-menu dropdown-menu-right gm-navbar-info-panel p-3" style="min-width: min(92vw, 360px); max-height: 70vh; overflow-y: auto;">
+        <div class="d-flex flex-wrap mb-2" style="gap: 6px;">
+          <span class="badge badge-warning"><i class="fas fa-clock"></i> <span class="gm-nav-time">--:--:--</span></span>
+          <span class="badge badge-info"><i class="fas fa-calendar"></i> <span class="gm-nav-date-gregorian">--/--/----</span></span>
+          <span class="badge badge-secondary"><i class="fas fa-moon"></i> <span class="gm-nav-date-hijri">--</span></span>
+          <span class="badge badge-success">$ <span class="gm-nav-usd-rate">--</span> ₪</span>
+          <span class="badge badge-light">JOD <span class="gm-nav-jod-rate">--</span> ₪</span>
+        </div>
+        {% if tenant_company_name %}
+        <div class="mb-2">
+          <span class="badge badge-primary tenant-scope-badge"><i class="fas fa-building"></i> {{ tenant_company_name }}{% if tenant_branch_name %} — {{ tenant_branch_name }}{% endif %}</span>
+        </div>
+        {% if tenant_can_switch_branch and tenant_branches %}
+        <form method="post" action="{{ url_for('main.switch_active_branch') }}" class="tenant-branch-switch-form mb-2">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <select name="branch_id" class="custom-select custom-select-sm tenant-branch-select w-100" onchange="this.form.submit()" title="تبديل الفرع النشط">
+            {% for b in tenant_branches %}
+            <option value="{{ b.id }}" {% if tenant_branch_id == b.id %}selected{% endif %}>{{ b.name }}{% if b.company %} ({{ b.company.name }}){% endif %}</option>
+            {% endfor %}
+          </select>
+        </form>
+        {% endif %}
+        {% endif %}
+        <div class="position-relative w-100">
+          <div class="input-group input-group-sm">
+            <div class="input-group-prepend"><span class="input-group-text bg-white"><i class="fas fa-search"></i></span></div>
+            <input type="search" class="form-control" name="gm_search_global_compact" placeholder="بحث سريع..." data-search="global" data-search-autofill="off" autocomplete="new-password" autocapitalize="off" spellcheck="false" inputmode="search">
+          </div>
+          <div class="list-group position-absolute w-100 shadow" data-search-target="global" style="z-index: 2000; top: 100%; display: none; max-height: 240px; overflow: auto;"></div>
+        </div>
+      </div>
+    </li>
+    {% endif %}
+
     {% if current_user.is_authenticated and (has_perm('view_shop') or has_perm('manage_shop')) %}
+    <li class="nav-item d-lg-none">
+      <a class="nav-link nav-strong" href="{{ url_for('shop.catalog') }}" target="_blank" title="المتجر">
+        <i class="fas fa-store"></i>
+      </a>
+    </li>
     <li class="nav-item d-none d-lg-block">
       <a class="nav-link nav-strong" href="{{ url_for('shop.catalog') }}" target="_blank" title="المتجر">
         <i class="fas fa-store"></i>
@@ -44,6 +88,11 @@
       {% set ai_enabled = (ai_enabled_value|string).lower() == 'true' %}
       {% if ai_enabled %}
         {% if can('access_ai_assistant') and current_user.is_system %}
+        <li class="nav-item d-lg-none">
+          <a class="nav-link nav-strong" href="{{ url_for('ai.assistant') }}" title="المساعد الذكي">
+            <i class="fas fa-robot"></i>
+          </a>
+        </li>
         <li class="nav-item d-none d-lg-block">
           <a class="nav-link nav-strong" href="{{ url_for('ai.assistant') }}" title="المساعد الذكي">
             <i class="fas fa-robot"></i>
@@ -77,6 +126,24 @@
       <span id="jod-rate">--</span>
       <span>₪</span>
     </span>
+    {% if current_user.is_authenticated and tenant_company_name %}
+    <span class="badge badge-primary tenant-scope-badge" title="سياق العمل الحالي">
+      <i class="fas fa-building"></i>
+      {{ tenant_company_name }}{% if tenant_branch_name %} — {{ tenant_branch_name }}{% endif %}
+    </span>
+    {% if tenant_can_switch_branch and tenant_branches %}
+    <form method="post" action="{{ url_for('main.switch_active_branch') }}" class="d-inline tenant-branch-switch-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <select name="branch_id" class="custom-select custom-select-sm tenant-branch-select" onchange="this.form.submit()" title="تبديل الفرع النشط">
+        {% for b in tenant_branches %}
+        <option value="{{ b.id }}" {% if tenant_branch_id == b.id %}selected{% endif %}>
+          {{ b.name }}{% if b.company %} ({{ b.company.name }}){% endif %}
+        </option>
+        {% endfor %}
+      </select>
+    </form>
+    {% endif %}
+    {% endif %}
     {% if current_user.is_authenticated %}
     <div class="position-relative" style="min-width: 240px; max-width: 340px;">
       <div class="input-group input-group-sm">
@@ -293,6 +360,7 @@ function updateDateTime() {
         const hijriEnglish = hijriDate.replace(/[٠-٩]/g, (d) => '0123456789'['٠١٢٣٤٥٦٧٨٩'.indexOf(d)]);
         
         document.getElementById('current-date-hijri').textContent = hijriEnglish;
+        document.querySelectorAll('.gm-nav-date-hijri').forEach(function(el) { el.textContent = hijriEnglish; });
     } catch (e) {
         // في حالة عدم دعم التقويم الهجري
         document.getElementById('current-date-hijri').textContent = 'Hijri N/A';
@@ -308,6 +376,8 @@ function updateDateTime() {
     if (gregorianElement) {
         gregorianElement.textContent = gregorianDate;
     }
+    document.querySelectorAll('.gm-nav-time').forEach(function(el) { el.textContent = timeString; });
+    document.querySelectorAll('.gm-nav-date-gregorian').forEach(function(el) { el.textContent = gregorianDate; });
 }
 
 // جلب أسعار الصرف
@@ -321,13 +391,17 @@ async function updateExchangeRates() {
             // تحديث سعر الدولار (كم شيقل يساوي دولار واحد)
             const usdElement = document.getElementById('usd-rate');
             if (usdElement && data.USD) {
-                usdElement.textContent = parseFloat(data.USD).toFixed(2);
+                const val = parseFloat(data.USD).toFixed(2);
+                usdElement.textContent = val;
+                document.querySelectorAll('.gm-nav-usd-rate').forEach(function(el) { el.textContent = val; });
             }
             
             // تحديث سعر الدينار (كم شيقل يساوي دينار واحد)
             const jodElement = document.getElementById('jod-rate');
             if (jodElement && data.JOD) {
-                jodElement.textContent = parseFloat(data.JOD).toFixed(2);
+                const val = parseFloat(data.JOD).toFixed(2);
+                jodElement.textContent = val;
+                document.querySelectorAll('.gm-nav-jod-rate').forEach(function(el) { el.textContent = val; });
             }
         } else {
             // في حالة الفشل، استخدام قيم افتراضية

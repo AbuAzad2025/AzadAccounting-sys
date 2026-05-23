@@ -1747,7 +1747,9 @@ def prepaid_accrual():
     from models import CostCenter, Branch
     from utils.prepaid_accrual_gl import post_prepaid_expense, post_accrual_expense
 
-    branches = Branch.query.filter_by(is_active=True).order_by(Branch.name).all()
+    from utils.tenant_ui import accessible_branches_query
+
+    branches = accessible_branches_query().all()
     cost_centers = CostCenter.query.filter_by(is_active=True).limit(200).all()
     if request.method == 'POST':
         try:

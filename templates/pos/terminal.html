@@ -1,51 +1,126 @@
 {% extends 'base.html' %}
 {% block title %}نقطة البيع{% endblock %}
+{% block body_class %}gm-pos-page{% endblock %}
 {% block content %}
-<div class="container-fluid py-3" dir="rtl">
-  <h4>نقطة البيع (POS)</h4>
-  <div class="row mb-2">
-    <div class="col-md-4"><label>المستودع</label><select id="warehouse_id" class="form-control">{% for w in warehouses %}<option value="{{ w.id }}">{{ w.name }}</option>{% endfor %}</select></div>
-    <div class="col-md-4"><label>معرف منتج</label><input id="scan_input" class="form-control" type="number"></div>
-    <div class="col-md-4 align-self-end"><button type="button" class="btn btn-primary" onclick="addLine()">إضافة</button></div>
+<div class="container-fluid gm-pos-terminal" dir="rtl">
+  <div class="gm-pos-scan-bar">
+    <label class="small text-muted font-weight-bold mb-2 d-block"><i class="fas fa-barcode ml-1"></i> مسح / إدخال رقم المنتج</label>
+    <div class="row gm-filter-row align-items-end">
+      <div class="col-12 col-md-4 mb-2 mb-md-0">
+        <label class="small text-muted">المستودع</label>
+        <select id="warehouse_id" class="form-control custom-select">
+          {% for w in warehouses %}
+          <option value="{{ w.id }}">{{ w.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-8 col-md-5 mb-2 mb-md-0">
+        <input id="scan_input" class="form-control" type="number" inputmode="numeric" placeholder="رقم المنتج..." autocomplete="off">
+      </div>
+      <div class="col-4 col-md-3">
+        <button type="button" class="btn btn-primary btn-block" onclick="addLine()">
+          <i class="fas fa-plus"></i>
+        </button>
+      </div>
+    </div>
   </div>
-  <table class="table table-bordered" id="cart"><thead><tr><th>منتج</th><th>كمية</th><th>سعر</th><th></th></tr></thead><tbody></tbody></table>
-  <h5>الإجمالي: <span id="total">0</span> ₪</h5>
-  <button class="btn btn-success btn-lg" onclick="checkout()">إتمام البيع النقدي</button>
+
+  <div id="pos-cart-list" class="gm-pos-cart-list"></div>
+  <div id="pos-empty" class="gm-pos-empty">
+    <div><i class="fas fa-shopping-basket d-block"></i></div>
+    <div>السلة فارغة — امسح أو أدخل رقم منتج</div>
+  </div>
+
+  <table class="table d-none no-mobile-cards" id="cart" aria-hidden="true"><tbody></tbody></table>
+
+  <div class="gm-pos-checkout-bar">
+    <div class="d-flex align-items-center justify-content-between mb-3">
+      <span class="text-muted font-weight-bold">الإجمالي</span>
+      <span class="h4 mb-0 font-weight-bold text-primary"><span id="total">0.00</span> ₪</span>
+    </div>
+    <button class="btn btn-success btn-block" onclick="checkout()" id="pos-checkout-btn" disabled>
+      <i class="fas fa-check-circle ml-1"></i> إتمام البيع النقدي
+    </button>
+  </div>
 </div>
 <script>
 const productMap = {{ products_json|safe }};
 let cart = [];
+
 function addLine() {
   const pid = document.getElementById('scan_input').value;
   const p = productMap[pid];
   if (!p) { alert('منتج غير معروف'); return; }
   cart.push({ product_id: p.id, name: p.name, quantity: 1, price: p.price });
+  document.getElementById('scan_input').value = '';
+  document.getElementById('scan_input').focus();
   renderCart();
 }
+
 function renderCart() {
-  const tb = document.querySelector('#cart tbody');
-  tb.innerHTML = '';
+  const list = document.getElementById('pos-cart-list');
+  const empty = document.getElementById('pos-empty');
+  const checkoutBtn = document.getElementById('pos-checkout-btn');
+  list.innerHTML = '';
   let t = 0;
+
   cart.forEach((row, i) => {
     t += row.quantity * row.price;
-    const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${row.name}</td><td><input type="number" min="1" value="${row.quantity}"></td><td>${row.price}</td><td><button type="button">×</button></td>`;
-    tr.querySelector('input').onchange = (e) => { cart[i].quantity = +e.target.value; renderCart(); };
-    tr.querySelector('button').onclick = () => { cart.splice(i,1); renderCart(); };
-    tb.appendChild(tr);
+    const item = document.createElement('div');
+    item.className = 'gm-pos-cart-item';
+    item.innerHTML =
+      '<div class="gm-pos-item-name">' + row.name + '</div>' +
+      '<input type="number" min="1" value="' + row.quantity + '" aria-label="الكمية">' +
+      '<div class="gm-pos-item-price">' + (row.quantity * row.price).toFixed(2) + ' ₪</div>' +
+      '<button type="button" class="gm-pos-remove" aria-label="حذف">×</button>';
+    item.querySelector('input').onchange = function(e) {
+      cart[i].quantity = Math.max(1, +e.target.value || 1);
+      renderCart();
+    };
+    item.querySelector('.gm-pos-remove').onclick = function() {
+      cart.splice(i, 1);
+      renderCart();
+    };
+    list.appendChild(item);
   });
+
   document.getElementById('total').textContent = t.toFixed(2);
+  empty.style.display = cart.length ? 'none' : 'block';
+  list.style.display = cart.length ? 'flex' : 'none';
+  checkoutBtn.disabled = cart.length === 0;
 }
+
+document.getElementById('scan_input').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') { e.preventDefault(); addLine(); }
+});
+
 async function checkout() {
+  if (!cart.length) return;
   const wh = document.getElementById('warehouse_id').value;
-  const res = await fetch('{{ url_for("pos_bp.checkout") }}', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}'},
-    body: JSON.stringify({ warehouse_id: wh, lines: cart, tax_rate: 16 })
-  });
-  const data = await res.json();
-  if (data.success) { alert('تم البيع #' + data.sale_id); cart = []; renderCart(); }
-  else alert(data.error || 'فشل');
+  const btn = document.getElementById('pos-checkout-btn');
+  btn.disabled = true;
+  try {
+    const res = await fetch('{{ url_for("pos_bp.checkout") }}', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}'},
+      body: JSON.stringify({ warehouse_id: wh, lines: cart, tax_rate: 16 })
+    });
+    const data = await res.json();
+    if (data.success) {
+      alert('تم البيع #' + data.sale_id);
+      cart = [];
+      renderCart();
+    } else {
+      alert(data.error || 'فشل البيع');
+    }
+  } finally {
+    btn.disabled = cart.length === 0;
+  }
 }
+
+document.addEventListener('DOMContentLoaded', function() {
+  renderCart();
+  document.getElementById('scan_input').focus();
+});
 </script>
 {% endblock %}

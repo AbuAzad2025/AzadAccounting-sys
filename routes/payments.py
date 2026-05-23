@@ -1431,6 +1431,10 @@ def create_payment():
                     return None
 
             target_id = _parse_optional_id(getattr(form, field_name).data if field_name and hasattr(form, field_name) else None)
+            from utils.company_scope import assert_payment_entity_scope
+
+            if etype and target_id:
+                assert_payment_entity_scope(etype, target_id)
             if etype and field_name and not target_id and etype not in ("MISCELLANEOUS", "OTHER", "EXPENSE"):
                 msg = "نوع الجهة محدد بدون رقم مرجع."
                 if _wants_json():
@@ -2551,6 +2555,7 @@ def delete_split(split_id):
 @login_required
 def view_payment(payment_id: str):
     """عرض تفاصيل الدفعة"""
+    from utils.company_scope import assert_payment_access
     # معالجة المعرفات المركبة (مثل 309_split_233)
     real_id = payment_id
     split_id = None
@@ -2571,6 +2576,7 @@ def view_payment(payment_id: str):
         flash("معرف السند غير صالح", "error")
         return redirect(url_for("payments.index"))
 
+    assert_payment_access(real_id)
     payment = _safe_get_payment(real_id, all_rels=True)
     if not payment:
         if _wants_json():

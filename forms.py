@@ -669,6 +669,8 @@ class UserForm(FlaskForm):
     username = StrippedStringField('اسم المستخدم', validators=[DataRequired(), Length(min=3, max=50)])
     email = StrippedStringField('البريد الإلكتروني', validators=[DataRequired(), Email(), Length(max=120)])
     role_id = SelectField('الدور', coerce=int, validators=[DataRequired()])
+    branch_ids = SelectMultipleField('الفروع المسموح بها', coerce=int, choices=[], validate_choice=False)
+    primary_branch_id = SelectField('الفرع الرئيسي', coerce=int, validators=[Optional()], choices=[], validate_choice=False)
     is_active = BooleanField('نشِط')
     password = PasswordField('كلمة المرور الجديدة', validators=[Optional(), Length(min=6, max=128)])
     confirm = PasswordField('تأكيد كلمة المرور', validators=[Optional(), EqualTo('password', message='يجب أن تتطابق كلمتا المرور')])
@@ -728,6 +730,14 @@ class UserForm(FlaskForm):
                 choices.append((r.id, f"{r_label} ({r_name})"))
 
         self.role_id.choices = choices
+
+        from models import Branch
+
+        from utils.tenant_ui import branch_choices_for_form
+
+        br_choices = branch_choices_for_form(include_empty=False, with_company=True)
+        self.branch_ids.choices = br_choices
+        self.primary_branch_id.choices = [(0, "—")] + br_choices
         
         try:
             from flask import request

@@ -3246,6 +3246,9 @@ def create_sale_api():
 @permission_required(SystemPermissions.MANAGE_SALES)
 @limiter.limit("30/minute")
 def update_sale_api(id: int):
+    from utils.company_scope import assert_sale_access
+
+    assert_sale_access(id)
     s = db.session.query(Sale).options(joinedload(Sale.lines)).filter_by(id=id).first()
     if not s:
         return jsonify({"error": "Not Found"}), 404
