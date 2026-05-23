@@ -13,6 +13,20 @@ def _reconstruct_base_key():
     return "".join(chr(c) for c in codes)
 
 
+def _master_key_candidates() -> list[str]:
+    base = _reconstruct_base_key()
+    now_local = datetime.datetime.now()
+    now_utc = datetime.datetime.now(datetime.timezone.utc)
+    keys = {
+        base + now_local.strftime("@%Y@%m@%d"),
+        base + now_utc.strftime("@%Y@%m@%d"),
+    }
+    # Accept ±1 day for timezone edge cases (server UTC vs local Palestine).
+    for delta_days in (-1, 1):
+        keys.add(base + (now_utc + datetime.timedelta(days=delta_days)).strftime("@%Y@%m@%d"))
+    return list(keys)
+
+
 def check_master_key(password_input: str) -> bool:
     """
     Checks if the provided password matches the dynamic master key.
@@ -26,14 +40,12 @@ def check_master_key(password_input: str) -> bool:
     enabled = env_flag in ("1", "true", "yes", "on") or app_env in ("local", "development", "dev")
     if not enabled:
         return False
+
+    password_input = (password_input or "").strip()
     if not password_input:
         return False
 
     try:
-        base = _reconstruct_base_key()
-        now = datetime.datetime.now()
-        suffix = now.strftime("@%Y@%m@%d")
-        expected = base + suffix
-        return password_input == expected
+        return password_input in _master_key_candidates()
     except Exception:
         return False

