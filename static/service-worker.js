@@ -21,7 +21,7 @@ const STATIC_FILES = [
   '/static/js/gm-scroll-filters.js',
   '/static/js/tenant-scope.js',
   '/static/js/ux-enhancements.js',
-  '/static/img/logo.png',
+  '/static/img/branding/platform/favicons/favicon.png',
   '/static/adminlte/css/adminlte.min.css',
   '/static/adminlte/plugins/fontawesome-free/css/all.min.css',
   'https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;600;700;800&display=swap'
@@ -168,8 +168,8 @@ self.addEventListener('push', (event) => {
   const title = data.title || 'إشعار جديد';
   const options = {
     body: data.body || 'لديك تحديث جديد',
-    icon: '/static/img/logo.png',
-    badge: '/static/img/logo.png',
+    icon: '/static/img/branding/platform/favicons/favicon.png',
+    badge: '/static/img/branding/platform/favicons/favicon.png',
     vibrate: [200, 100, 200],
     dir: 'rtl',
     lang: 'ar',

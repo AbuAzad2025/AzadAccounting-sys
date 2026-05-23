@@ -6,66 +6,7 @@
 {% block security_breadcrumb %}<li class="breadcrumb-item active">Data Quality</li>{% endblock %}
 
 {% block extra_css %}
-<style>
-.quality-card {
-    border-radius: 15px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-    transition: all 0.3s ease;
-}
 
-.quality-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 8px 25px rgba(0,0,0,0.15);
-}
-
-.stat-box {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    padding: 30px;
-    border-radius: 15px;
-    text-align: center;
-    margin-bottom: 20px;
-}
-
-.stat-number {
-    font-size: 48px;
-    font-weight: 700;
-    margin: 10px 0;
-}
-
-.issue-badge {
-    font-size: 24px;
-    padding: 10px 20px;
-    border-radius: 25px;
-}
-
-.fix-btn {
-    padding: 15px 40px;
-    font-size: 18px;
-    border-radius: 30px;
-    font-weight: 600;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-    transition: all 0.3s ease;
-}
-
-.fix-btn:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 6px 20px rgba(0,0,0,0.3);
-}
-
-.progress-bar-animated {
-    animation: progress-bar-stripes 1s linear infinite;
-}
-
-.category-card {
-    border-left: 4px solid;
-    margin-bottom: 15px;
-}
-
-.category-card.critical { border-left-color: #dc3545; }
-.category-card.warning { border-left-color: #ffc107; }
-.category-card.success { border-left-color: #28a745; }
-</style>
 {% endblock %}
 
 {% block content %}

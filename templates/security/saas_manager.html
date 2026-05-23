@@ -2,105 +2,12 @@
 {% block tour_name %}saas{% endblock %}
 {% block security_title %}SaaS Manager{% endblock %}
 {% block security_icon %}<i class="fas fa-cloud"></i>{% endblock %}
-{% block security_description %}إدارة الاشتراكات • الباقات • الفواتير المتكررة{% endblock %}
+{% block security_description %}اشتراكات وباقات{% endblock %}
 {% block security_breadcrumb %}<li class="breadcrumb-item active">SaaS Manager</li>{% endblock %}
 
 {% block head_extra %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<style>
-.saas-card {
-  border-radius: 12px;
-  border: none;
-  transition: all 0.3s ease;
-}
 
-.saas-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 10px 20px rgba(0,0,0,0.1) !important;
-}
-
-.plan-card {
-  border-radius: 16px;
-  border: 2px solid transparent;
-  transition: all 0.3s ease;
-  position: relative;
-  overflow: hidden;
-  background: #fff;
-}
-
-.plan-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 15px 30px rgba(0,0,0,0.1);
-}
-
-.plan-card.recommended {
-  border-color: #4e73df;
-  box-shadow: 0 0 20px rgba(78, 115, 223, 0.2);
-}
-
-.plan-header {
-  padding: 2rem;
-  text-align: center;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.plan-header h4 {
-    font-weight: 700;
-    margin-bottom: 1rem;
-}
-
-.plan-price {
-  font-size: 2.5rem;
-  font-weight: 800;
-  color: #2c3e50;
-  margin: 1rem 0;
-}
-
-.plan-price small {
-  font-size: 0.9rem;
-  color: #7f8c8d;
-  font-weight: normal;
-}
-
-.plan-features-list {
-    padding: 1.5rem;
-}
-
-.plan-feature {
-  padding: 0.5rem 0;
-  display: flex;
-  align-items: center;
-  color: #5a5c69;
-}
-
-.plan-feature i {
-  color: #1cc88a;
-  margin-right: 0.75rem;
-  min-width: 20px;
-}
-
-.plan-feature.disabled {
-    color: #b0b3b8;
-    text-decoration: line-through;
-}
-
-.plan-feature.disabled i {
-    color: #e74a3b;
-}
-
-.badge-popular {
-    position: absolute;
-    top: 20px;
-    right: -35px;
-    background: #4e73df;
-    color: white;
-    padding: 5px 40px;
-    transform: rotate(45deg);
-    font-size: 0.8rem;
-    font-weight: bold;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-}
-</style>
 {% endblock %}
 
 {% block security_content %}

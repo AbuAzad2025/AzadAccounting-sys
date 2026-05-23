@@ -3,48 +3,7 @@
 
 {% block head_extra %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/statement-print.css') }}">
-<style>
-.settlement-detail-card {
-    border-radius: 12px;
-    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
-    margin-bottom: 20px;
-}
 
-.settlement-header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white !important;
-    padding: 20px;
-    border-radius: 12px 12px 0 0;
-}
-
-.summary-box {
-    background: #f8f9fa;
-    border-left: 4px solid #667eea;
-    padding: 15px;
-    margin-bottom: 15px;
-    border-radius: 8px;
-}
-
-.summary-label {
-    font-size: 0.85rem;
-    color: #6c757d;
-    font-weight: 600;
-    text-transform: uppercase;
-}
-
-.summary-value {
-    font-size: 1.8rem;
-    font-weight: bold;
-    color: #343a40;
-}
-
-.status-badge {
-    padding: 8px 16px;
-    border-radius: 20px;
-    font-weight: 600;
-    font-size: 0.9rem;
-}
-</style>
 {% endblock %}
 
 {% block content %}
@@ -1111,7 +1070,7 @@
     });
     document.querySelectorAll('style').forEach(styleTag => {
       if (styleTag.innerHTML) {
-        doc.write('<style>' + styleTag.innerHTML + '</style>');
+        doc.write('');
       }
     });
     const bodyClass = (document.body.getAttribute('class') || '').replace(/"/g, '&quot;');
@@ -1173,17 +1132,7 @@
     
     const printWindow = window.open('', '', 'height=600,width=800');
     printWindow.document.write('<html><head><title>' + title + '</title>');
-    printWindow.document.write('<style>');
-    printWindow.document.write('body { font-family: Arial, sans-serif; direction: rtl; }');
-    printWindow.document.write('table { width: 100%; border-collapse: collapse; margin: 20px 0; }');
-    printWindow.document.write('th, td { border: 1px solid #ddd; padding: 8px; text-align: right; }');
-    printWindow.document.write('th { background-color: #f8f9fa; font-weight: bold; }');
-    printWindow.document.write('.text-end { text-align: left; }');
-    printWindow.document.write('h2 { text-align: center; color: #333; margin-bottom: 20px; }');
-    printWindow.document.write('.print-header { text-align: center; margin-bottom: 20px; }');
-    printWindow.document.write('.print-footer { text-align: center; margin-top: 20px; font-size: 12px; color: #666; }');
-    printWindow.document.write('@media print { .no-print { display: none; } }');
-    printWindow.document.write('</style></head><body>');
+    printWindow.document.write('</head><body>');
     printWindow.document.write('<div class="print-header">');
     printWindow.document.write('<h2>' + title + '</h2>');
     printWindow.document.write('<p>{{ supplier.name|default('—') }} | {{ ss.from_date.strftime("%Y-%m-%d") }} - {{ ss.to_date.strftime("%Y-%m-%d") }}</p>');

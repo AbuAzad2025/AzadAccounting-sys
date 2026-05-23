@@ -206,6 +206,9 @@
   }
 
   function enhanceDateInputs() {
+    if (document.body.classList.contains('erp-unified')) {
+      return;
+    }
     const dateInputs = document.querySelectorAll('input[type="date"], input[type="datetime-local"]');
     dateInputs.forEach(input => {
       if (!input.classList.contains('has-icon')) {

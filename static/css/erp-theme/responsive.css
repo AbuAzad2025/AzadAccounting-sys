@@ -1,0 +1,41 @@
+/**
+ * Responsive — desktop / tablet / mobile
+ */
+@media (max-width: 991.98px) {
+  body.erp-app .erp-footer__grid {
+    grid-template-columns: 1fr;
+    text-align: center !important;
+  }
+}
+
+@media (max-width: 575.98px) {
+  body.erp-app .content-wrapper .form-control,
+  body.erp-app .select2-container .select2-selection--single {
+    font-size: 16px !important;
+  }
+
+  body.erp-app .table thead th {
+    font-size: 0.8rem;
+    padding: 0.65rem 0.5rem !important;
+  }
+
+  body.erp-app .gm-mobile-bottom-nav {
+    background: var(--erp-surface);
+    border-top: 1px solid var(--erp-border);
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.08);
+  }
+
+  body.erp-app .gm-mobile-bottom-nav .gm-tab {
+    color: var(--erp-muted);
+  }
+
+  body.erp-app .gm-mobile-bottom-nav .gm-tab.active,
+  body.erp-app .gm-mobile-bottom-nav .gm-tab:hover {
+    color: var(--erp-primary);
+  }
+}
+
+/* بدون خلفيات legacy */
+body.erp-app {
+  background-image: none;
+}

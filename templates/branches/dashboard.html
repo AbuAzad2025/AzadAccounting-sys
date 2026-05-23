@@ -3,41 +3,7 @@
 
 {% block styles %}
 {{ super() }}
-<style>
-  .stat-card {
-    border-radius: 15px;
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
-  }
-  
-  .stat-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 10px 25px rgba(0,0,0,0.15);
-  }
-  
-  .chart-container {
-    position: relative;
-    height: 300px;
-  }
-  
-  .branch-info-card {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    border-radius: 15px;
-    padding: 2rem;
-    margin-bottom: 2rem;
-  }
-  
-  .quick-action-btn {
-    padding: 15px 25px;
-    border-radius: 10px;
-    transition: all 0.3s ease;
-  }
-  
-  .quick-action-btn:hover {
-    transform: scale(1.05);
-    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-  }
-</style>
+
 {% endblock %}
 
 {% block content %}

@@ -1,0 +1,28 @@
+/**
+ * وحدة الأمان — نفس tokens
+ */
+body.security-body.erp-app {
+  background: var(--erp-bg) !important;
+  color: var(--erp-text) !important;
+}
+
+body.security-body.erp-app .security-sidebar {
+  background: var(--erp-sidebar-bg) !important;
+}
+
+body.security-body.erp-app .security-header {
+  background: var(--erp-surface) !important;
+  border-bottom: 1px solid var(--erp-border);
+}
+
+body.security-body.erp-app .sec-card,
+body.security-body.erp-app .card:not([class*="bg-"]) {
+  background: var(--erp-surface) !important;
+  border: 1px solid var(--erp-border) !important;
+  color: var(--erp-text) !important;
+}
+
+body.security-body.erp-app .security-sidebar .nav-link.active {
+  background: var(--erp-sidebar-active) !important;
+  color: #fff !important;
+}

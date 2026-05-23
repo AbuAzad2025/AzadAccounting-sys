@@ -411,16 +411,7 @@
 
 {% block scripts %}
 {{ super() }}
-<style>
-  .modal-backdrop { pointer-events: none !important; }
-  #generateSalaryModal .modal-content { border-radius: 15px; overflow: hidden; }
-  #generateSalaryModal .modal-header { border: none; }
-  #generateSalaryModal .modal-footer { border: none; }
-  #generateSalaryModal .card { transition: transform 0.2s; }
-  #generateSalaryModal .form-control:focus { border-color: #28a745; box-shadow: 0 0 0 0.2rem rgba(40,167,69,.25); }
-  .payment-detail-field { animation: fadeIn 0.3s; }
-  @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
-</style>
+
 <script>
 $(document).ready(function() {
   const netSalary = {{ employee.net_salary_after_all|round(2) }};

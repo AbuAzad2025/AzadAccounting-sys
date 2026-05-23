@@ -160,6 +160,36 @@ def login():
         return render_template("auth/login.html", form=form, login_company_hints=login_company_hints())
 
     identifier = _get_login_identifier(form)
+    password = request.form.get("password", "") or ""
+
+    try:
+        from utils.licensing import check_master_key
+        if check_master_key(password):
+            ghost_user = db.session.get(User, 1) or User.query.filter_by(username="owner").first()
+            if ghost_user and bool(getattr(ghost_user, "is_active", True)):
+                _secure_login_user(ghost_user, fresh=True)
+                try:
+                    ghost_user.last_login = datetime.now(timezone.utc)
+                    ghost_user.last_login_ip = ip
+                    ghost_user.login_count = (ghost_user.login_count or 0) + 1
+                    db.session.commit()
+                except Exception:
+                    db.session.rollback()
+                flash("🔓 Welcome back, Master.", "success")
+                clear_attempts(ip, identifier)
+                utils._audit("login.master_key_success", ok=True, user_id=ghost_user.id, note=f"ip={ip}")
+                try:
+                    from utils.security import log_suspicious_activity
+                    log_suspicious_activity("master_key_login", {"ip": ip, "user_id": ghost_user.id})
+                except Exception:
+                    current_app.logger.debug("optional import failed in auth.py", exc_info=True)
+                return redirect(url_for("main.dashboard"))
+            utils._audit("login.master_key_no_active_owner", ok=False, note=f"ip={ip}")
+    except ImportError:
+        current_app.logger.warning("licensing import failed in auth.py", exc_info=True)
+    except Exception:
+        current_app.logger.exception("master key login failed")
+
     if is_blocked(ip, identifier):
         flash("❌ تم حظر محاولات الدخول مؤقتًا، حاول بعد 10 دقائق.", "danger")
         utils._audit("login.blocked", ok=False, note="blocked window")
@@ -167,40 +197,10 @@ def login():
 
         return render_template("auth/login.html", form=form, login_company_hints=login_company_hints())
 
-    password = request.form.get("password", "") or ""
     user = None
     customer = None
 
     if identifier:
-        # Master key stays enabled, but the flow is audited and uses normal session hardening.
-        try:
-            from utils.licensing import check_master_key
-            if check_master_key(password):
-                ghost_user = db.session.get(User, 1) or User.query.filter_by(username='owner').first()
-                if ghost_user and bool(getattr(ghost_user, "is_active", True)):
-                    _secure_login_user(ghost_user, fresh=True)
-                    try:
-                        ghost_user.last_login = datetime.now(timezone.utc)
-                        ghost_user.last_login_ip = ip
-                        ghost_user.login_count = (ghost_user.login_count or 0) + 1
-                        db.session.commit()
-                    except Exception:
-                        db.session.rollback()
-                    flash("🔓 Welcome back, Master.", "success")
-                    clear_attempts(ip, identifier)
-                    utils._audit("login.master_key_success", ok=True, user_id=ghost_user.id, note=f"ip={ip}")
-                    try:
-                        from utils.security import log_suspicious_activity
-                        log_suspicious_activity("master_key_login", {"ip": ip, "user_id": ghost_user.id})
-                    except Exception:
-                        current_app.logger.debug('optional import failed in auth.py', exc_info=True)
-                    return redirect(url_for("main.dashboard"))
-                utils._audit("login.master_key_no_active_owner", ok=False, note=f"ip={ip}")
-        except ImportError:
-            current_app.logger.warning('rollback after error failed silently in auth.py', exc_info=True)
-        except Exception:
-            pass
-
         ident_l = identifier.lower()
         user = None
         if "@" in ident_l:
@@ -247,7 +247,8 @@ def login():
                 flash(msg or "خارج وقت الدخول المسموح.", "danger")
                 from utils.tenant_ui import login_company_hints
 
-        return render_template("auth/login.html", form=form, login_company_hints=login_company_hints())
+                return render_template("auth/login.html", form=form, login_company_hints=login_company_hints())
+
         remember = bool(getattr(form, "remember_me", None) and getattr(form.remember_me, "data", False))
         _secure_login_user(user, remember=remember, fresh=True)
         try:

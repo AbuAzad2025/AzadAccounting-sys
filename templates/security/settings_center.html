@@ -4,7 +4,7 @@
 
 {% block security_title %}مركز الإعدادات والتخصيص{% endblock %}
 {% block security_icon %}<i class="fas fa-cogs"></i>{% endblock %}
-{% block security_description %}إعدادات شاملة • مظهر وهوية • ثيمات • فروع{% endblock %}
+{% block security_description %}إعدادات ومظهر وفروع{% endblock %}
 
 {% block security_breadcrumb %}
 <li class="breadcrumb-item active">مركز الإعدادات</li>
@@ -551,7 +551,7 @@
              role="tabpanel">
         <div class="container-fluid">
           <div class="row mb-4">
-            <div class="col-md-6">
+            <div class="col-md-4">
               <div class="card border-0 shadow-sm bg-info text-white">
                 <div class="card-body">
                   <h6 class="text-white-50 mb-1">إجمالي الفروع</h6>
@@ -559,7 +559,7 @@
                 </div>
               </div>
             </div>
-            <div class="col-md-6">
+            <div class="col-md-4">
               <div class="card border-0 shadow-sm bg-success text-white">
                 <div class="card-body">
                   <h6 class="text-white-50 mb-1">فروع نشطة</h6>
@@ -567,8 +567,33 @@
                 </div>
               </div>
             </div>
+            <div class="col-md-4">
+              <div class="card border-0 shadow-sm bg-primary text-white">
+                <div class="card-body">
+                  <h6 class="text-white-50 mb-1">مستخدمون بدون فرع</h6>
+                  <h3 class="mb-0 fw-bold">{{ branches_data.unlinked_users if branches_data else 0 }}</h3>
+                </div>
+              </div>
+            </div>
           </div>
           
+          {% if branches_data and branches_data.unlinked_users %}
+          <div class="alert alert-warning d-flex align-items-start justify-content-between flex-wrap gap-2 mb-4">
+            <div>
+              <strong>ربط ناقص:</strong> {{ branches_data.unlinked_users }} مستخدم تشغيلي غير مربوط بفرع/شركة.
+              الإصلاح التلقائي يعالج الحالات الافتراضية فقط ولا يغيّر الربط الموجود.
+            </div>
+            <form method="post" action="{{ url_for('security.settings_center', tab='branches') }}" class="m-0"
+                  onsubmit="return confirm('تشغيل إصلاح ربط المستخدمين بالفروع؟');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="action" value="repair_user_branch_links">
+              <button type="submit" class="btn btn-warning btn-sm">
+                <i class="fas fa-link"></i> إصلاح الربط
+              </button>
+            </form>
+          </div>
+          {% endif %}
+
           <div class="card shadow-sm">
             <div class="card-header bg-gradient-info text-white">
               <h5 class="mb-0"><i class="fas fa-code-branch"></i> قائمة الفروع</h5>
@@ -585,7 +610,9 @@
                             <h6 class="text-primary mb-1">
                               <i class="fas fa-map-marker-alt"></i> {{ branch.name }}
                             </h6>
-                            <p class="small text-muted mb-1">{{ branch.address or 'لا يوجد عنوان' }}</p>
+                            <p class="small text-muted mb-1">
+                              {% if branch.company %}{{ branch.company.name }} — {% endif %}{{ branch.address or 'لا يوجد عنوان' }}
+                            </p>
                             {% if branch.phone %}
                               <p class="small mb-0"><i class="fas fa-phone"></i> {{ branch.phone }}</p>
                             {% endif %}

@@ -19,9 +19,20 @@ def can_view_all_branches() -> bool:
         pass
     try:
         u = current_user
-        if not u or not getattr(u, "is_authenticated", False):
+        if not u:
+            return False
+        try:
+            if not u.is_authenticated:
+                return False
+        except Exception:
             return False
         if getattr(u, "is_system_account", False):
+            return True
+        role_l = (
+            getattr(u, "role_name_l", None)
+            or (getattr(getattr(u, "role", None), "name", None) or "")
+        ).strip().lower()
+        if role_l in {"owner", "developer", "super_admin", "super admin"}:
             return True
         fn = getattr(u, "has_permission", None)
         if callable(fn) and fn("view_all_branches"):
@@ -46,11 +57,22 @@ def get_accessible_branch_ids() -> Optional[List[int]]:
         return []
 
 
-def get_report_branch_ids(company_id: Optional[int] = None) -> Optional[List[int]]:
-    """فلتر التقارير — لا يُرجع None إلا لمن يرى كل الفروع."""
-    if company_id:
-        return branch_ids_for_company(company_id)
-    return get_accessible_branch_ids()
+def get_scoped_branch_ids() -> Optional[List[int]]:
+    """
+    فروع العرض الحالي — يُطبَّق الفرع النشط بعد التحويل.
+    None = كل الفروع (لمن يرى الكل ولم يُحدَّد فرع نشط).
+    """
+    from utils.tenant_ui import get_active_branch_id
+
+    allowed = get_accessible_branch_ids()
+    active = get_active_branch_id()
+    if active is not None:
+        aid = int(active)
+        if allowed is None:
+            return [aid]
+        if aid in allowed:
+            return [aid]
+    return allowed
 
 
 def get_accessible_company_ids() -> Optional[List[int]]:
@@ -71,11 +93,24 @@ def get_accessible_company_ids() -> Optional[List[int]]:
     return list({int(r[0]) for r in rows if r[0]})
 
 
+def get_report_branch_ids(company_id: Optional[int] = None) -> Optional[List[int]]:
+    """فلتر التقارير — يحترم الفرع النشط والشركة المختارة."""
+    scoped = get_scoped_branch_ids()
+    if company_id:
+        co_branches = branch_ids_for_company(company_id)
+        if scoped is None:
+            return co_branches
+        if co_branches is None:
+            return scoped
+        return [b for b in co_branches if b in scoped]
+    return scoped
+
+
 def branch_ids_for_company(company_id: Optional[int]) -> Optional[List[int]]:
     from models import Branch
 
     if not company_id:
-        return get_accessible_branch_ids()
+        return get_scoped_branch_ids()
     q = Branch.query.filter_by(company_id=int(company_id), is_active=True)
     allowed = get_accessible_branch_ids()
     if allowed is not None:
@@ -84,7 +119,7 @@ def branch_ids_for_company(company_id: Optional[int]) -> Optional[List[int]]:
 
 
 def filter_by_branches(query, branch_column):
-    ids = get_accessible_branch_ids()
+    ids = get_scoped_branch_ids()
     if ids is None:
         return query
     if not ids:
@@ -117,7 +152,7 @@ def filter_companies_query(query):
 def filter_warehouses_query(query):
     from models import Warehouse
 
-    ids = get_accessible_branch_ids()
+    ids = get_scoped_branch_ids()
     if ids is None:
         return query
     if not ids:
@@ -144,7 +179,7 @@ def _sale_ids_in_branches(branch_ids: List[int]):
 
 
 def filter_sales_query(query):
-    ids = get_accessible_branch_ids()
+    ids = get_scoped_branch_ids()
     if ids is None:
         return query
     if not ids:
@@ -186,7 +221,7 @@ def payment_ids_in_branches(branch_ids: List[int]):
 
 
 def filter_payments_query(query):
-    ids = get_accessible_branch_ids()
+    ids = get_scoped_branch_ids()
     if ids is None:
         return query
     if not ids:
@@ -209,7 +244,7 @@ def assert_expense_access(expense_id: int):
     from models import Expense
 
     exp = Expense.query.get_or_404(expense_id)
-    ids = get_accessible_branch_ids()
+    ids = get_scoped_branch_ids()
     if ids is None:
         return exp
     bid = getattr(exp, "branch_id", None)
@@ -219,7 +254,7 @@ def assert_expense_access(expense_id: int):
 
 
 def filter_shipments_query(query):
-    ids = get_accessible_branch_ids()
+    ids = get_scoped_branch_ids()
     if ids is None:
         return query
     if not ids:
@@ -236,7 +271,7 @@ def filter_service_requests_query(query):
     from extensions import db
     from models import ServiceRequest, ServicePart, Warehouse
 
-    ids = get_accessible_branch_ids()
+    ids = get_scoped_branch_ids()
     if ids is None:
         return query
     if not ids:
@@ -253,7 +288,7 @@ def filter_service_requests_query(query):
 def filter_sale_returns_query(query):
     from models import SaleReturn
 
-    ids = get_accessible_branch_ids()
+    ids = get_scoped_branch_ids()
     if ids is None:
         return query
     if not ids:
@@ -263,7 +298,7 @@ def filter_sale_returns_query(query):
 
 
 def filter_customers_query(query, branch_ids: Optional[List[int]] = None):
-    ids = branch_ids if branch_ids is not None else get_accessible_branch_ids()
+    ids = branch_ids if branch_ids is not None else get_scoped_branch_ids()
     if ids is None:
         return query
     if not ids:
@@ -292,7 +327,7 @@ def filter_customers_query(query, branch_ids: Optional[List[int]] = None):
 
 
 def filter_suppliers_query(query, branch_ids: Optional[List[int]] = None):
-    ids = branch_ids if branch_ids is not None else get_accessible_branch_ids()
+    ids = branch_ids if branch_ids is not None else get_scoped_branch_ids()
     if ids is None:
         return query
     if not ids:
@@ -315,7 +350,7 @@ def filter_suppliers_query(query, branch_ids: Optional[List[int]] = None):
 
 
 def filter_partners_query(query, branch_ids: Optional[List[int]] = None):
-    ids = branch_ids if branch_ids is not None else get_accessible_branch_ids()
+    ids = branch_ids if branch_ids is not None else get_scoped_branch_ids()
     if ids is None:
         return query
     if not ids:
@@ -346,7 +381,7 @@ def assert_project_access(project_id: int) -> None:
 
 
 def sale_id_in_accessible_branches(sale_id: int) -> bool:
-    ids = get_accessible_branch_ids()
+    ids = get_scoped_branch_ids()
     if ids is None:
         return True
     if not ids:
@@ -364,7 +399,7 @@ def assert_sale_access(sale_id: int) -> None:
 
 
 def payment_id_in_accessible_branches(payment_id: int) -> bool:
-    ids = get_accessible_branch_ids()
+    ids = get_scoped_branch_ids()
     if ids is None:
         return True
     if not ids:
@@ -384,7 +419,7 @@ def assert_payment_access(payment_id: int) -> None:
     from extensions import db
     from models import Payment
 
-    ids = get_accessible_branch_ids()
+    ids = get_scoped_branch_ids()
     if ids is None:
         return
     if not ids:
@@ -397,7 +432,7 @@ def assert_payment_access(payment_id: int) -> None:
 
 
 def warehouse_id_in_accessible_branches(warehouse_id: int) -> bool:
-    ids = get_accessible_branch_ids()
+    ids = get_scoped_branch_ids()
     if ids is None:
         return True
     if not ids:
@@ -422,7 +457,7 @@ def assert_company_access(company_id: int) -> None:
 
 
 def customer_id_in_accessible_branches(customer_id: int) -> bool:
-    ids = get_accessible_branch_ids()
+    ids = get_scoped_branch_ids()
     if ids is None:
         return True
     if not ids:
@@ -434,6 +469,43 @@ def customer_id_in_accessible_branches(customer_id: int) -> bool:
 
 def assert_customer_access(customer_id: int) -> None:
     if not customer_id_in_accessible_branches(int(customer_id)):
+        abort(404)
+
+
+def filter_invoices_query(query):
+    ids = get_scoped_branch_ids()
+    if ids is None:
+        return query
+    if not ids:
+        from models import Invoice
+
+        return query.filter(Invoice.id == -1)
+    from extensions import db
+    from models import Customer, Invoice, Sale
+
+    sale_ids_sub = db.session.query(Sale.id).filter(Sale.id.in_(_sale_ids_in_branches(ids)))
+    customer_ids_sub = filter_customers_query(Customer.query).with_entities(Customer.id)
+    return query.filter(
+        or_(
+            Invoice.sale_id.in_(sale_ids_sub),
+            Invoice.customer_id.in_(customer_ids_sub),
+        )
+    )
+
+
+def assert_invoice_access(invoice_id: int) -> None:
+    from models import Invoice
+
+    inv = Invoice.query.filter_by(id=int(invoice_id)).first()
+    if not inv:
+        abort(404)
+    if inv.sale_id:
+        assert_sale_access(int(inv.sale_id))
+        return
+    if inv.customer_id:
+        assert_customer_access(int(inv.customer_id))
+        return
+    if not filter_invoices_query(Invoice.query.filter_by(id=int(invoice_id))).first():
         abort(404)
 
 
@@ -456,8 +528,10 @@ def assert_payment_entity_scope(entity_type: str, entity_id: Optional[int]) -> N
     eid = entity_id
     if not eid:
         return
-    if et in ("SALE", "INVOICE"):
+    if et == "SALE":
         assert_sale_access(int(eid))
+    elif et == "INVOICE":
+        assert_invoice_access(int(eid))
     elif et == "EXPENSE":
         assert_expense_access(int(eid))
     elif et == "CUSTOMER":
@@ -465,7 +539,7 @@ def assert_payment_entity_scope(entity_type: str, entity_id: Optional[int]) -> N
     elif et == "SHIPMENT":
         from models import Shipment, Warehouse
 
-        ids = get_accessible_branch_ids()
+        ids = get_scoped_branch_ids()
         if ids is None:
             return
         shp = Shipment.query.filter_by(id=int(eid)).first()

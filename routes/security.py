@@ -1691,7 +1691,8 @@ def settings_center():
     - الوضع الليلي
     - الفروع والمواقع
     """
-    from models import SystemSettings, Branch
+    from models import SystemSettings, Branch, Company
+    from services.user_branch_service import count_unlinked_operational_users
     from constants import DEFAULT_CURRENCY
     
     allowed_tabs = {'system', 'constants', 'config', 'branding', 'theme', 'logos', 'darkmode', 'branches'}
@@ -1777,6 +1778,29 @@ def settings_center():
             SystemSettings.set_setting('CURRENCY_SYMBOL', request.form.get('currency_symbol'))
             SystemSettings.set_setting('TIMEZONE', request.form.get('timezone'))
             flash('✅ تم حفظ بيانات الشركة بنجاح', 'success')
+
+        elif action == 'repair_user_branch_links':
+            from services.user_branch_service import repair_missing_user_branch_links
+
+            try:
+                report = repair_missing_user_branch_links()
+                db.session.commit()
+                fixed = report.get('fixed') or []
+                errors = report.get('errors') or []
+                if fixed:
+                    flash('✅ تم إصلاح الربط: ' + '؛ '.join(fixed[:8]) + ('…' if len(fixed) > 8 else ''), 'success')
+                if errors:
+                    flash('⚠️ لم يُصلَح: ' + '؛ '.join(errors[:5]), 'warning')
+                if not fixed and not errors:
+                    flash('✔️ كل المستخدمين التشغيليين مربوطين بفروع — لا حاجة لإصلاح.', 'info')
+                remaining = int(report.get('unlinked_count') or 0)
+                if remaining:
+                    flash(f'⚠️ ما زال {remaining} مستخدم(ين) بدون فرع — عيّنهم يدوياً من المستخدمون.', 'warning')
+            except Exception:
+                db.session.rollback()
+                current_app.logger.exception('repair_user_branch_links failed')
+                flash('حدث خطأ أثناء إصلاح الربط', 'danger')
+            return redirect(url_for('security.settings_center', tab='branches'))
         
         try:
             db.session.commit()
@@ -1830,9 +1854,15 @@ def settings_center():
     branches_data = {
         'total': Branch.query.count(),
         'active': Branch.query.filter_by(is_active=True).count(),
+        'companies': Company.query.filter_by(is_active=True).count(),
+        'unlinked_users': count_unlinked_operational_users(),
     }
     
-    branches_list = Branch.query.all()
+    branches_list = (
+        Branch.query.options(db.joinedload(Branch.company))
+        .order_by(Branch.company_id, Branch.name)
+        .all()
+    )
     
     constants_data = {
         'default_currency': DEFAULT_CURRENCY,
@@ -2158,15 +2188,42 @@ def theme_editor():
 def logo_manager():
     """مدير الشعارات - رفع وتعديل الشعارات"""
     import os
+    import tempfile
     import time
     from werkzeug.utils import secure_filename
     from models import SystemSettings
-    
+    from utils.branding_assets import (
+        LOGO_UPLOAD_MAP,
+        tenant_asset_paths,
+        tenant_slug_for_code,
+        save_tenant_logo_upload,
+    )
+    from utils.tenant_ui import build_tenant_context
+
+    company_code = ""
+    try:
+        tctx = build_tenant_context()
+        if tctx.get("tenant_company_id"):
+            from models import Company
+            co = Company.query.get(int(tctx["tenant_company_id"]))
+            if co and co.code:
+                company_code = co.code.strip().upper()
+    except Exception:
+        pass
+    if not company_code:
+        from models import Company
+        co = Company.query.filter_by(code="PHE").first() or Company.query.order_by(Company.id).first()
+        if co and co.code:
+            company_code = co.code.strip().upper()
+
+    slug = tenant_slug_for_code(company_code) or "phe"
+    asset_paths = tenant_asset_paths(slug)
+
     if request.method == 'POST':
         if 'logo_file' in request.files:
             file = request.files['logo_file']
             logo_type = request.form.get('logo_type', 'main')
-            
+
             if file and file.filename:
                 filename = secure_filename(file.filename)
                 allowed_exts = {'.png', '.jpg', '.jpeg', '.gif', '.webp'}
@@ -2174,53 +2231,50 @@ def logo_manager():
                 if ext not in allowed_exts:
                     flash('⚠️ نوع ملف غير مدعوم (استخدم: png, jpg, jpeg, gif, webp)', 'warning')
                     return redirect(url_for('security.logo_manager'))
-                upload_path = os.path.join(current_app.root_path, 'static', 'img')
-                
-                logo_mapping = {
-                    'main': 'logo_main.png',
-                    'emblem': 'logo_emblem.png',
-                    'white': 'logo_white.png',
-                    'favicon': 'favicon.png'
-                }
-                
-                target_name = logo_mapping.get(logo_type, 'logo_main.png')
-                filepath = os.path.join(upload_path, target_name)
-                
-                # تحديث SystemSettings للمسار الجديد
-                key_map = {
-                    'main': 'custom_logo',
-                    'emblem': 'custom_logo_emblem',
-                    'white': 'custom_logo_white',
-                    'favicon': 'custom_favicon'
-                }
-                
-                # حفظ الملف
-                try:
-                    file.save(filepath)
-                    
-                    # تحديث الإعداد
-                    setting_key = key_map.get(logo_type)
-                    if setting_key:
-                        rel_path = f"static/img/{target_name}"
-                        SystemSettings.set_setting(setting_key, rel_path, data_type='string', commit=False)
-                        SystemSettings.set_setting('assets_version', int(time.time()), data_type='number', commit=False)
-                        db.session.commit()
+                if logo_type not in LOGO_UPLOAD_MAP:
+                    flash('⚠️ نوع شعار غير معروف', 'warning')
+                    return redirect(url_for('security.logo_manager'))
 
-                    flash(f'✅ تم رفع {target_name} بنجاح!', 'success')
-                except Exception as e:
+                try:
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
+                        file.save(tmp.name)
+                        tmp_path = tmp.name
+                    result = save_tenant_logo_upload(
+                        current_app.root_path,
+                        company_code,
+                        logo_type,
+                        tmp_path,
+                    )
+                    os.unlink(tmp_path)
+                    if not result:
+                        flash('⚠️ تعذّر حفظ الشعار — تحقق من رمز الشركة', 'warning')
+                        return redirect(url_for('security.logo_manager'))
+
+                    rel_path, setting_key = result
+                    SystemSettings.set_setting(setting_key, rel_path, data_type='string', commit=False)
+                    if logo_type == 'main':
+                        SystemSettings.set_setting('custom_logo', rel_path, data_type='string', commit=False)
+                    SystemSettings.set_setting('assets_version', int(time.time()), data_type='number', commit=False)
+                    db.session.commit()
+                    flash(f'✅ تم رفع الشعار بنجاح إلى {rel_path}', 'success')
+                except Exception:
                     db.session.rollback()
-                    current_app.logger.exception('internal error')
+                    current_app.logger.exception('logo_manager upload failed')
                     flash('حدث خطأ داخلي', 'danger')
-    
-    # استرجاع القيم الحالية من الإعدادات أو القيم الافتراضية
+
     logos = {
-        'main': SystemSettings.get_setting('custom_logo', 'static/img/logo.png').split('/')[-1],
-        'emblem': SystemSettings.get_setting('custom_logo_emblem', 'static/img/logo_emblem.png').split('/')[-1],
-        'white': SystemSettings.get_setting('custom_logo_white', 'static/img/logo_white.png').split('/')[-1],
-        'favicon': SystemSettings.get_setting('custom_favicon', 'static/img/favicon.png').split('/')[-1]
+        'main': asset_paths['logo'],
+        'emblem': asset_paths['emblem'],
+        'white': asset_paths['white'],
+        'favicon': asset_paths['favicon'],
     }
-    
-    return render_template('security/logo_manager.html', logos=logos)
+
+    return render_template(
+        'security/logo_manager.html',
+        logos=logos,
+        company_code=company_code,
+        branding_slug=slug,
+    )
 
 
 @security_bp.route('/advanced-analytics')
@@ -4638,21 +4692,24 @@ def system_settings():
                 if file and file.filename:
                     from werkzeug.utils import secure_filename
                     import os
+                    import time
                     filename = secure_filename(file.filename)
                     allowed_exts = {'.png', '.jpg', '.jpeg', '.gif', '.webp'}
                     ext = os.path.splitext(filename)[1].lower()
                     if ext not in allowed_exts:
                         flash('⚠️ نوع ملف الشعار غير مدعوم (استخدم: png, jpg, jpeg, gif, webp)', 'warning')
                         return redirect(url_for('security.settings_center', tab='branding'))
-                    # حفظ في static/img/uploads
-                    upload_folder = os.path.join(current_app.root_path, 'static', 'img', 'uploads')
-                    os.makedirs(upload_folder, exist_ok=True)
-                    
-                    file_path = os.path.join(upload_folder, filename)
-                    file.save(file_path)
-                    
-                    # حفظ المسار النسبي
-                    _set_system_setting('custom_logo', f'static/img/uploads/{filename}')
+                    upload_path = os.path.join(current_app.root_path, 'static', 'img')
+                    target_name = 'logo_main.png'
+                    filepath = os.path.join(upload_path, target_name)
+                    try:
+                        file.save(filepath)
+                        _set_system_setting('custom_logo', f'static/img/{target_name}')
+                        _set_system_setting('assets_version', int(time.time()))
+                    except Exception:
+                        current_app.logger.exception('branding logo upload failed')
+                        flash('حدث خطأ أثناء رفع الشعار', 'danger')
+                        return redirect(url_for('security.settings_center', tab='branding'))
             
             flash('✅ تم تحديث هوية النظام بنجاح', 'success')
             

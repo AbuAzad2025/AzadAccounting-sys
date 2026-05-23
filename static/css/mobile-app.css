@@ -623,8 +623,8 @@ html[data-ui-mode="tablet"] body.gm-compact-app .select2-container--open .select
 }
 
 /* ── Dark mode ── */
-html[data-ui-mode="mobile"] body.gm-compact-app.electric-theme.dark-mode,
-html[data-ui-mode="tablet"] body.gm-compact-app.electric-theme.dark-mode,
+html[data-ui-mode="mobile"] body.gm-compact-app.erp-app.dark-mode,
+html[data-ui-mode="tablet"] body.gm-compact-app.erp-app.dark-mode,
 html[data-ui-mode="mobile"] body.gm-compact-app[data-theme="dark"],
 html[data-ui-mode="tablet"] body.gm-compact-app[data-theme="dark"] {
   --gm-app-bg: #0f172a;
@@ -634,8 +634,8 @@ html[data-ui-mode="tablet"] body.gm-compact-app[data-theme="dark"] {
   --gm-app-border: rgba(255, 255, 255, 0.08);
 }
 
-html[data-ui-mode="mobile"] body.gm-compact-app.electric-theme.dark-mode .gm-mobile-bottom-nav,
-html[data-ui-mode="tablet"] body.gm-compact-app.electric-theme.dark-mode .gm-mobile-bottom-nav {
+html[data-ui-mode="mobile"] body.gm-compact-app.erp-app.dark-mode .gm-mobile-bottom-nav,
+html[data-ui-mode="tablet"] body.gm-compact-app.erp-app.dark-mode .gm-mobile-bottom-nav {
   background: rgba(30, 41, 59, 0.92) !important;
   border-top-color: rgba(255, 255, 255, 0.06) !important;
 }

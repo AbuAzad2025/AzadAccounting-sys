@@ -1,5 +1,5 @@
 """إدارة الشركات (كيان قانوني) — قاعدة واحدة."""
-from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
+from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, url_for
 from flask_login import login_required
 
 from extensions import db
@@ -57,8 +57,12 @@ def add():
             is_active=True,
         )
         db.session.add(c)
+        db.session.flush()
+        from utils.branding_assets import ensure_company_branding_dirs
+
+        ensure_company_branding_dirs(current_app.root_path, c.code)
         db.session.commit()
-        flash("تمت إضافة الشركة", "success")
+        flash("تمت إضافة الشركة — تم إنشاء مجلد أصول الشعارات تلقائياً", "success")
         return redirect(url_for("companies_bp.index"))
     return render_template("companies/form.html", company=None)
 

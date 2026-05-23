@@ -52,6 +52,7 @@ from models import (
     WarehouseType,
     UtilityAccount,
     StockAdjustment,
+    run_sale_gl_sync_after_commit,
 )
 from markupsafe import escape
 
@@ -1528,7 +1529,14 @@ def api_customers():
         Customer.is_archived == False,
         Customer.is_active == True
     ]
-    return utils.search_model(Customer, ["name", "phone", "email"], label_attr="name", extra_filters=extra_filters)
+    from utils.company_scope import filter_customers_query
+    return utils.search_model(
+        Customer,
+        ["name", "phone", "email"],
+        label_attr="name",
+        extra_filters=extra_filters,
+        base_query=filter_customers_query(Customer.query),
+    )
 
 @bp.post("/customers")
 @login_required
@@ -1921,11 +1929,14 @@ def create_category():
 @login_required
 @limiter.limit("60/minute")
 def api_warehouses():
+    from utils.company_scope import assert_warehouse_access, filter_warehouses_query
+
     wid = (request.args.get("id") or "").strip()
     if wid.isdigit():
         w = db.session.get(Warehouse, int(wid))
         if not w:
             return jsonify({"results": []})
+        assert_warehouse_access(int(wid))
         wt = getattr(w.warehouse_type, "value", w.warehouse_type)
         wt = str(wt or "")
         return jsonify({
@@ -1946,7 +1957,7 @@ def api_warehouses():
     active_only_arg = (request.args.get("active_only") or "1").strip()
     limit = _limit_from_request(20, 50)
 
-    qry = Warehouse.query
+    qry = filter_warehouses_query(Warehouse.query)
     if active_only_arg in {"1", "true", "True"}:
         qry = qry.filter(Warehouse.is_active.is_(True))
     if type_param:
@@ -2540,8 +2551,10 @@ def update_partner_shares(warehouse_id: int):
 @login_required
 @limiter.limit("60/minute")
 def invoices():
+    from utils.company_scope import filter_invoices_query
+
     q = utils.q
-    qry = Invoice.query
+    qry = filter_invoices_query(Invoice.query)
     if q:
         like = f"%{q}%"
         qry = qry.filter(or_(Invoice.invoice_number.ilike(like), Invoice.currency.ilike(like)))
@@ -2563,8 +2576,10 @@ def invoices():
 @login_required
 @limiter.limit("60/minute")
 def services():
+    from utils.company_scope import filter_service_requests_query
+
     q = utils.q
-    qry = ServiceRequest.query
+    qry = filter_service_requests_query(ServiceRequest.query)
     if q:
         like = f"%{q}%"
         qry = qry.filter(
@@ -3105,8 +3120,10 @@ def online_preorders():
 @login_required
 @limiter.limit("60/minute")
 def expenses():
+    from utils.company_scope import filter_expenses_query
+
     q = utils.q
-    qry = Expense.query
+    qry = filter_expenses_query(Expense.query)
     if q:
         like = f"%{q}%"
         qry = qry.filter(or_(Expense.tax_invoice_number.ilike(like), Expense.description.ilike(like)))
@@ -3169,6 +3186,8 @@ def payments():
 @permission_required(SystemPermissions.MANAGE_SALES)
 @limiter.limit("30/minute")
 def create_sale_api():
+    from utils.company_scope import assert_customer_access, assert_warehouse_access
+
     d = request.get_json(silent=True) or {}
     errors = {}
 
@@ -3179,6 +3198,7 @@ def create_sale_api():
     if errors:
         return _err("validation_error", "Invalid input", 422, errors)
 
+    assert_customer_access(customer_id)
     s = Sale(
         sale_number=None,
         customer_id=customer_id,
@@ -3206,6 +3226,8 @@ def create_sale_api():
         if not (pid and qty and qty > 0):
             continue
         chosen = wid or _auto_pick_warehouse(pid, qty, preferred_wid=None)
+        if chosen:
+            assert_warehouse_access(chosen)
         if status == "CONFIRMED":
             if not chosen or _available_qty(pid, chosen) < qty:
                 db.session.rollback()
@@ -3235,6 +3257,7 @@ def create_sale_api():
 
     try:
         db.session.commit()
+        run_sale_gl_sync_after_commit(s.id)
         return _created(f"/api/sales/{s.id}", {"id": s.id, "sale_number": s.sale_number})
     except Exception as e:
         db.session.rollback()
@@ -3317,6 +3340,7 @@ def update_sale_api(id: int):
         elif old_status == "CONFIRMED" and new_status == "CONFIRMED" and replace_lines:
             _reserve_stock(s)
         db.session.commit()
+        run_sale_gl_sync_after_commit(s.id)
         return jsonify({"success": True, "id": s.id})
     except Exception as e:
         db.session.rollback()
@@ -3328,6 +3352,9 @@ def update_sale_api(id: int):
 @permission_required(SystemPermissions.MANAGE_SALES)
 @limiter.limit("30/minute")
 def change_sale_status_api(id: int):
+    from utils.company_scope import assert_sale_access
+
+    assert_sale_access(id)
     s = db.session.query(Sale).options(joinedload(Sale.lines)).filter_by(id=id).first()
     if not s:
         return jsonify({"error": "Not Found"}), 404
@@ -3352,6 +3379,7 @@ def change_sale_status_api(id: int):
             _release_stock(s)
             s.status = target
         db.session.commit()
+        run_sale_gl_sync_after_commit(s.id)
         return jsonify({"success": True})
     except Exception as e:
         db.session.rollback()
@@ -3364,6 +3392,9 @@ def change_sale_status_api(id: int):
 @login_required
 @limiter.limit("60/minute")
 def sale_payments_api(id: int):
+    from utils.company_scope import assert_sale_access
+
+    assert_sale_access(id)
     rows = (
         db.session.query(Payment)
         .filter(Payment.sale_id == id)
@@ -3393,6 +3424,8 @@ def sale_payments_api(id: int):
 @permission_required(SystemPermissions.MANAGE_SALES)
 @limiter.limit("30/minute")
 def quick_sell_api():
+    from utils.company_scope import assert_customer_access, assert_warehouse_access
+
     d = request.get_json(silent=True) or {}
     pid = int(d.get("product_id") or 0)
     qty = int(float(d.get("quantity") or 0))
@@ -3405,7 +3438,10 @@ def quick_sell_api():
     status = (d.get("status") or "DRAFT").upper()
     if not (pid and qty > 0 and customer_id and seller_id):
         return jsonify({"success": False, "error": "invalid"}), 400
+    assert_customer_access(customer_id)
     chosen = wid or _auto_pick_warehouse(pid, qty, preferred_wid=None)
+    if chosen:
+        assert_warehouse_access(chosen)
     if status == "CONFIRMED":
         if not chosen or _available_qty(pid, chosen) < qty:
             return jsonify({"success": False, "error": "insufficient_stock"}), 400
@@ -3429,6 +3465,7 @@ def quick_sell_api():
         _reserve_stock(s)
     try:
         db.session.commit()
+        run_sale_gl_sync_after_commit(s.id)
         return jsonify({"success": True, "id": s.id, "sale_number": s.sale_number}), 201
     except Exception as e:
         db.session.rollback()

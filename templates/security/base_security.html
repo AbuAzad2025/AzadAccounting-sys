@@ -1,485 +1,23 @@
 {% extends 'base.html' %}
-{% block body_class %}security-body sidebar-hidden{% endblock %}
+{% block body_class %}security-body sidebar-hidden erp-app{% endblock %}
 {% block styles %}
-<!-- Fonts: نستخدم نفس خط النظام (Tajawal) فقط لتوحيد المظهر -->
-<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
-
-<style>
-    :root {
-        /* نستخدم ألوان النظام العامة قدر الإمكان لتفادي ثيم مختلف للأمان */
-        --sec-sidebar-bg: {{ system_settings.sidebar_bg or '#111827' }};
-        --sec-sidebar-border: rgba(255, 255, 255, 0.1);
-        
-        --sec-text-main: {{ system_settings.sidebar_text or '#f9fafb' }};
-        --sec-text-muted: #cbd5e1;
-        
-        /* مشتقات من primary/secondary العامة للنظام */
-        --sec-primary: {{ system_settings.primary_color or '#06b6d4' }};
-        --sec-primary-hover: #22d3ee;
-        --sec-accent: {{ system_settings.secondary_color or '#ec4899' }};
-        
-        --sec-danger: #ef4444;
-        --sec-success: #22c55e;
-        --sec-warning: #eab308;
-        
-        --sec-card-bg: rgba(17, 24, 39, 0.98);
-        --sec-card-border: rgba(148, 163, 184, 0.35);
-        
-        --sidebar-width: 260px; /* Unified width */
-        --header-height: 64px;
-        --main-navbar_height: 57px;
-        
-        --font-main: 'Tajawal', sans-serif;
-        --font-mono: 'Fira Code', monospace;
-        
-        --glass-shadow: 0 4px 12px 0 rgba(0, 0, 0, 0.2);
-        --glass-blur: none; /* Performance: disabled blur */
-    }
-
-    /* Global Overrides */
-    body.security-body {
-        background-color: #0b1220;
-        background-image: none;
-        background-attachment: scroll;
-        background-size: auto;
-        font-family: var(--font-main);
-        color: #ffffff;
-        overflow-x: hidden;
-        padding-top: var(--main-navbar_height);
-        min-height: 100vh;
-    }
-
-    /* Sidebar Styling - Glassmorphism Optimized */
-    .security-sidebar {
-        position: fixed;
-        top: var(--main-navbar_height);
-        right: 0;
-        width: var(--sidebar-width);
-        height: calc(100vh - var(--main-navbar_height));
-        background: var(--sec-sidebar-bg);
-        border-left: 1px solid var(--sec-sidebar-border);
-        z-index: 1040;
-        transition: transform 0.3s ease-in-out;
-        box-shadow: -5px 0 18px rgba(0,0,0,0.55);
-        color: var(--sec-text-main);
-    }
-    
-    .security-sidebar.collapsed {
-        transform: translateX(100%);
-    }
-
-    .security-brand {
-        height: var(--header-height);
-        display: flex;
-        align-items: center;
-        padding: 0 1.5rem;
-        background: rgba(255, 255, 255, 0.05);
-        border-bottom: 1px solid var(--sec-sidebar-border);
-    }
-    
-    .security-brand h5 {
-        font-family: 'Tajawal', sans-serif;
-        font-weight: 800;
-        color: #fff;
-        margin: 0;
-        font-size: 1.2rem;
-        letter-spacing: 0.5px;
-    }
-    
-    .security-brand .brand-badge {
-        background: rgba(239, 68, 68, 0.14);
-        color: rgba(254, 202, 202, 0.95);
-        border: 1px solid rgba(239, 68, 68, 0.55);
-        font-size: 0.65rem;
-        padding: 2px 8px;
-        border-radius: 12px;
-        margin-right: 10px;
-        font-weight: bold;
-        letter-spacing: 1px;
-    }
-
-    /* Navigation */
-    .security-nav {
-        padding: 1rem 0.75rem;
-        overflow-y: auto;
-        height: calc(100% - var(--header-height) - 60px);
-    }
-
-    .sec-nav-section {
-        margin-bottom: 0.75rem;
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 12px;
-        overflow: hidden;
-        background: rgba(15, 23, 42, 0.35);
-    }
-
-    .sec-nav-section-toggle {
-        width: 100%;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 0.85rem 1rem;
-        border: 0;
-        background: rgba(255, 255, 255, 0.03);
-        color: rgba(255, 255, 255, 0.92);
-        font-weight: 700;
-        letter-spacing: 0.4px;
-        cursor: pointer;
-        text-align: start;
-    }
-
-    .sec-nav-section-toggle:focus {
-        outline: none;
-        box-shadow: 0 0 0 0.2rem rgba(6, 182, 212, 0.2);
-    }
-
-    .sec-nav-section-title {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.6rem;
-        font-size: 0.85rem;
-    }
-
-    .sec-nav-caret {
-        transition: transform 0.2s ease;
-        opacity: 0.8;
-        font-size: 0.9rem;
-    }
-
-    .sec-nav-section-toggle[aria-expanded="true"] .sec-nav-caret {
-        transform: rotate(180deg);
-    }
-
-    .sec-nav-section--danger {
-        border-color: rgba(239, 68, 68, 0.35);
-        background: rgba(127, 29, 29, 0.18);
-    }
-
-    .sec-nav-section--danger .sec-nav-section-toggle {
-        background: rgba(239, 68, 68, 0.1);
-    }
-
-    .security-sidebar .nav-link {
-        display: flex;
-        align-items: center;
-        padding: 0.85rem 1rem;
-        color: rgba(226, 232, 240, 0.92);
-        border-radius: 8px;
-        margin-bottom: 6px;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        border: 1px solid transparent;
-        font-weight: 500;
-        position: relative;
-        overflow: hidden;
-    }
-
-    .security-sidebar .nav-link:hover {
-        background: rgba(6, 182, 212, 0.12);
-        color: #ffffff;
-        transform: translateX(-4px);
-        border-color: rgba(6, 182, 212, 0.35);
-        box-shadow: 0 10px 24px rgba(0,0,0,0.35);
-    }
-    
-    .security-sidebar .nav-link.active {
-        background: linear-gradient(90deg, rgba(6, 182, 212, 0.22) 0%, rgba(15, 23, 42, 0.88) 100%);
-        color: #ffffff;
-        border: 1px solid rgba(6, 182, 212, 0.35);
-        box-shadow: 0 0 0 1px rgba(6, 182, 212, 0.14);
-        font-weight: 600;
-    }
-
-    .security-sidebar .nav-link.active i {
-        color: rgba(125, 211, 252, 0.95);
-        filter: none;
-    }
-
-    .security-sidebar .nav-link i {
-        width: 24px;
-        text-align: center;
-        margin-left: 12px;
-        font-size: 1.2rem;
-        color: rgba(148, 163, 184, 0.95);
-    }
-    
-    /* Danger Zone Links */
-    .security-sidebar .nav-link.danger-link {
-        color: rgba(254, 202, 202, 0.95);
-    }
-    .security-sidebar .nav-link.danger-link:hover {
-        background: rgba(239, 68, 68, 0.14);
-        color: #fff;
-        border-color: rgba(239, 68, 68, 0.35);
-    }
-    .security-sidebar .nav-link.danger-link.active {
-        background: linear-gradient(90deg, rgba(239, 68, 68, 0.22) 0%, rgba(15, 23, 42, 0.88) 100%);
-        color: #fff;
-        border-color: rgba(239, 68, 68, 0.5);
-        box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.14);
-    }
-
-    /* Main Content Area */
-    .security-main {
-        margin-right: var(--sidebar-width);
-        min-height: calc(100vh - var(--main-navbar_height));
-        transition: margin-right 0.3s ease-in-out;
-        background: transparent; /* Let body gradient show */
-        display: flex;
-        flex-direction: column;
-    }
-    
-    .security-main.expanded {
-        margin-right: 0;
-    }
-
-    /* Header - Glassmorphism */
-    .security-header {
-        height: var(--header-height);
-        background: rgba(15, 23, 42, 0.92);
-        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-        display: flex;
-        align-items: center;
-        padding: 0 1.5rem;
-        position: sticky;
-        top: var(--main-navbar_height);
-        z-index: 1030;
-    }
-
-    .breadcrumb-item a {
-        color: rgba(255,255,255,0.7);
-        text-decoration: none;
-    }
-    .breadcrumb-item a:hover {
-        color: #fff;
-    }
-    .breadcrumb-item.active {
-        color: #fff;
-        font-weight: 600;
-    }
-
-    /* Cards - Glassmorphism */
-    .sec-card {
-        background: var(--sec-card-bg);
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
-        border: 1px solid var(--sec-card-border);
-        border-radius: 12px;
-        box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
-        overflow: hidden;
-    }
-    
-    .sec-card-header {
-        border-bottom: 1px solid var(--sec-card-border);
-        padding: 1.25rem 1.5rem;
-        background: rgba(255, 255, 255, 0.03);
-    }
-    
-    .sec-card-body {
-        padding: 1.5rem;
-        color: #f1f5f9;
-    }
-
-    /* Typography & Utilities */
-    h1, h2, h3, h4, h5, h6 {
-        font-family: 'Tajawal', sans-serif;
-        color: var(--text-main, #f9fafb);
-        text-shadow: none;
-    }
-    
-    .btn-glass {
-        background: rgba(15, 23, 42, 0.9);
-        border: 1px solid rgba(148, 163, 184, 0.5);
-        color: var(--text-main, #f9fafb);
-        transition: all 0.2s ease;
-        border-radius: 999px;
-    }
-    .btn-glass:hover {
-        background: var(--primary-cyan, #06b6d4);
-        border-color: var(--primary-cyan, #06b6d4);
-        color: #fff;
-        transform: translateY(-1px);
-        box-shadow: 0 4px 10px rgba(6, 182, 212, 0.35);
-    }
-
-    /* Scrollbar */
-    ::-webkit-scrollbar {
-        width: 6px;
-        height: 6px;
-    }
-    ::-webkit-scrollbar-track {
-        background: rgba(0,0,0,0.2);
-    }
-    ::-webkit-scrollbar-thumb {
-        background: rgba(255,255,255,0.2);
-        border-radius: 3px;
-    }
-    ::-webkit-scrollbar-thumb:hover {
-        background: rgba(255,255,255,0.4);
-    }
-    
-    /* Footer */
-    footer {
-        background: rgba(15, 23, 42, 0.8) !important;
-        backdrop-filter: blur(5px);
-        border-top: 1px solid var(--sec-sidebar-border) !important;
-        color: rgba(255,255,255,0.5) !important;
-    }
-
-    .security-body .text-muted { color: rgba(255, 255, 255, 0.72) !important; }
-    .security-body .text-white-50 { color: rgba(255, 255, 255, 0.5) !important; }
-    .security-body .opacity-10 { opacity: 0.1 !important; }
-    .security-body .border-opacity-10 { border-color: rgba(255, 255, 255, 0.1) !important; }
-    .security-body .text-gray-800 { color: rgba(255, 255, 255, 0.92) !important; }
-    .security-body .text-xs { font-size: 0.75rem !important; }
-
-    .security-body .card:not([class*="bg-"]) {
-        background: rgba(15, 23, 42, 0.92);
-        border: 1px solid rgba(148, 163, 184, 0.25);
-        color: rgba(255, 255, 255, 0.92);
-    }
-    .security-body .card:not([class*="bg-"]) .card-header {
-        background: rgba(255, 255, 255, 0.05);
-        border-bottom: 1px solid rgba(148, 163, 184, 0.2);
-        color: rgba(255, 255, 255, 0.92);
-    }
-    .security-body .card:not([class*="bg-"]) .card-title,
-    .security-body .card:not([class*="bg-"]) .card-text { color: rgba(255, 255, 255, 0.9); }
-    .security-body .card:not([class*="bg-"]) .text-muted { color: rgba(255, 255, 255, 0.68) !important; }
-
-    .ms-0 { margin-inline-start: 0 !important; }
-    .ms-1 { margin-inline-start: 0.25rem !important; }
-    .ms-2 { margin-inline-start: 0.5rem !important; }
-    .ms-3 { margin-inline-start: 1rem !important; }
-    .ms-4 { margin-inline-start: 1.5rem !important; }
-    .ms-5 { margin-inline-start: 3rem !important; }
-    .me-0 { margin-inline-end: 0 !important; }
-    .me-1 { margin-inline-end: 0.25rem !important; }
-    .me-2 { margin-inline-end: 0.5rem !important; }
-    .me-3 { margin-inline-end: 1rem !important; }
-    .me-4 { margin-inline-end: 1.5rem !important; }
-    .me-5 { margin-inline-end: 3rem !important; }
-
-    .gap-0 { gap: 0 !important; }
-    .gap-1 { gap: 0.25rem !important; }
-    .gap-2 { gap: 0.5rem !important; }
-    .gap-3 { gap: 1rem !important; }
-    .gap-4 { gap: 1.5rem !important; }
-    .gap-5 { gap: 3rem !important; }
-
-    .fw-bold { font-weight: 700 !important; }
-    .fw-semibold { font-weight: 600 !important; }
-    .fw-normal { font-weight: 400 !important; }
-    .font-monospace { font-family: var(--font-mono) !important; }
-
-    .d-grid { display: grid !important; }
-    .form-label { display: inline-block; margin-bottom: 0.5rem; }
-
-    .row.g-0 { margin-right: 0; margin-left: 0; }
-    .row.g-0 > [class^="col"], .row.g-0 > [class*=" col"] { padding-right: 0; padding-left: 0; }
-    .row.g-1 { margin-right: -0.125rem; margin-left: -0.125rem; }
-    .row.g-1 > [class^="col"], .row.g-1 > [class*=" col"] { padding-right: 0.125rem; padding-left: 0.125rem; }
-    .row.g-2 { margin-right: -0.25rem; margin-left: -0.25rem; }
-    .row.g-2 > [class^="col"], .row.g-2 > [class*=" col"] { padding-right: 0.25rem; padding-left: 0.25rem; }
-    .row.g-3 { margin-right: -0.5rem; margin-left: -0.5rem; }
-    .row.g-3 > [class^="col"], .row.g-3 > [class*=" col"] { padding-right: 0.5rem; padding-left: 0.5rem; }
-    .row.g-4 { margin-right: -0.75rem; margin-left: -0.75rem; }
-    .row.g-4 > [class^="col"], .row.g-4 > [class*=" col"] { padding-right: 0.75rem; padding-left: 0.75rem; }
-    .row.g-5 { margin-right: -1.5rem; margin-left: -1.5rem; }
-    .row.g-5 > [class^="col"], .row.g-5 > [class*=" col"] { padding-right: 1.5rem; padding-left: 1.5rem; }
-
-    .dropdown-menu-end { right: 0; left: auto; }
-    .end-0 { right: 0 !important; left: auto !important; }
-    .start-0 { left: 0 !important; right: auto !important; }
-    .top-0 { top: 0 !important; }
-    .bottom-0 { bottom: 0 !important; }
-    .border-1 { border-width: 1px !important; }
-
-    .vr { width: 1px; align-self: stretch; background-color: currentColor; opacity: 0.2; }
-    .badge.bg-secondary, .badge.bg-primary, .badge.bg-success, .badge.bg-danger, .badge.bg-warning, .badge.bg-info, .badge.bg-dark { color: #fff; }
-    .badge.bg-warning { color: #111827; }
-
-    .visually-hidden { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; border: 0 !important; }
-
-    .form-switch { padding-left: 0; padding-right: 0; }
-    .form-switch .form-check-input {
-        width: 2.5rem;
-        height: 1.25rem;
-        border-radius: 2rem;
-        background-color: #6b7280;
-        border: 1px solid rgba(255,255,255,0.25);
-        position: relative;
-        appearance: none;
-        -webkit-appearance: none;
-        outline: none;
-        cursor: pointer;
-        transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out;
-        direction: ltr;
-    }
-    .form-switch .form-check-input::before {
-        content: "";
-        position: absolute;
-        top: 50%;
-        left: 0.15rem;
-        width: 0.95rem;
-        height: 0.95rem;
-        border-radius: 999px;
-        background: #fff;
-        transform: translateY(-50%);
-        transition: transform 0.15s ease-in-out;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.35);
-    }
-    .form-switch .form-check-input:checked { background-color: #16a34a; border-color: rgba(255,255,255,0.25); }
-    .form-switch .form-check-input:checked::before { transform: translate(1.2rem, -50%); }
-    .form-switch .form-check-input:focus { box-shadow: 0 0 0 0.2rem rgba(6, 182, 212, 0.35); }
-    
-    /* Responsive */
-    @media (max-width: 992px) {
-        .security-sidebar { transform: translateX(100%); }
-        .security-sidebar.show { transform: translateX(0); }
-        .security-main { margin-right: 0; }
-    }
-
-    .security-body .modal-content {
-        background: rgba(15, 23, 42, 0.98);
-        border: 1px solid rgba(255, 255, 255, 0.12);
-        color: rgba(255, 255, 255, 0.92);
-    }
-
-    .security-body .modal-header,
-    .security-body .modal-footer {
-        background: rgba(255, 255, 255, 0.03);
-        border-color: rgba(255, 255, 255, 0.08) !important;
-    }
-
-    .security-body .modal .form-control {
-        background: rgba(2, 6, 23, 0.65);
-        border: 1px solid rgba(255, 255, 255, 0.12);
-        color: rgba(255, 255, 255, 0.92);
-    }
-
-    .security-body .modal .form-control::placeholder {
-        color: rgba(148, 163, 184, 0.85);
-    }
-
-    .security-body .modal .input-group-text {
-        color: rgba(148, 163, 184, 0.95);
-    }
-</style>
+<link rel="stylesheet" href="{{ static_url('css/erp-security-layout.css') }}">
+<link rel="stylesheet" href="{{ static_url('css/erp-security.css') }}">
+<link rel="stylesheet" href="{{ static_url('css/security_responsive.css') }}">
+<link rel="stylesheet" href="{{ static_url('css/erp-security-migrated.css') }}">
 {% block extra_css %}{% endblock %}
 {% endblock %}
 {% block content %}
 <div class="security-wrapper">
     <aside class="security-sidebar" id="securitySidebar">
-        <div class="security-brand">
-            <i class="fas fa-user-secret text-danger fa-lg ms-3"></i>
+        <div class="security-brand d-flex align-items-center">
+            <img src="{{ system_settings.tenant_logo_emblem_url or system_settings.platform_logo_emblem_url }}" alt="" class="security-brand-logo" loading="lazy" onerror="this.hidden=true">
             <div>
-                <h5>الكونسول السري</h5>
-                <span class="brand-badge">TOP SECRET</span>
+                <h5>{{ system_settings.tenant_company_name or system_settings.system_name or 'إدارة النظام' }}</h5>
+                <span class="brand-badge">لوحة الأمان والإعدادات</span>
                 {% if system_settings and system_settings.maintenance_mode %}
-                    <div class="mt-1">
-                        <span class="badge badge-danger">وضع الصيانة مفعّل</span>
-                    </div>
+                <div class="mt-1"><span class="badge badge-danger">وضع الصيانة مفعّل</span></div>
                 {% endif %}
             </div>
         </div>
@@ -681,27 +219,44 @@
         <header class="security-header d-flex align-items-center justify-content-between px-4">
             <!-- Right Side: Sidebar Toggle & Breadcrumb -->
             <div class="d-flex align-items-center gap-3">
-                <button class="btn btn-glass btn-sm border-0" id="sidebarToggle" title="Toggle Menu">
-                    <i class="fas fa-bars fa-lg text-white"></i>
+                <button class="btn btn-glass btn-sm border-0" id="sidebarToggle" title="إظهار/إخفاء القائمة">
+                    <i class="fas fa-bars fa-lg"></i>
                 </button>
                 
                 <nav aria-label="breadcrumb" class="d-none d-md-block">
                     <ol class="breadcrumb m-0 bg-transparent p-0 align-items-center">
                         <li class="breadcrumb-item">
-                            <a href="{{ url_for('security.index') }}" class="text-white-50 text-decoration-none hover-text-white">
-                                <i class="fas fa-shield-alt me-1"></i> الكونسول
+                            <a href="{{ url_for('security.index') }}" class="text-decoration-none">
+                                <i class="fas fa-shield-alt me-1"></i> الأمان
                             </a>
                         </li>
-                        {% block security_breadcrumb %}<li class="breadcrumb-item active text-white" aria-current="page">لوحة التحكم</li>{% endblock %}
+                        {% block security_breadcrumb %}<li class="breadcrumb-item active" aria-current="page">لوحة التحكم</li>{% endblock %}
                     </ol>
                 </nav>
             </div>
 
-            <!-- Left Side: Actions, CMD, User -->
-            <div class="d-flex align-items-center gap-3">
-                <button class="btn btn-glass btn-sm d-flex align-items-center px-3 py-1 rounded-pill" data-toggle="modal" data-target="#commandPaletteModal">
-                    <i class="fas fa-terminal me-2 text-info"></i> 
-                    <span class="d-none d-lg-inline font-monospace small text-white-50">_CMD</span>
+            <!-- Left Side: Theme, Actions, User -->
+            <div class="d-flex align-items-center gap-2 flex-wrap justify-content-end">
+                <div class="dropdown d-none d-md-block">
+                    <button class="btn btn-glass btn-sm" data-toggle="dropdown" title="الستايل"><i class="fas fa-palette"></i></button>
+                    <div class="dropdown-menu dropdown-menu-left p-2 erp-theme-switcher" style="min-width: 220px;">
+                        <div class="small text-muted px-2 mb-1">الستايل</div>
+                        <div class="btn-group btn-group-sm w-100 mb-2">
+                            <button type="button" class="btn btn-outline-light" data-erp-theme-variant="palestinian">فلسطيني</button>
+                            <button type="button" class="btn btn-outline-light" data-erp-theme-variant="gulf">خليجي</button>
+                        </div>
+                        <div class="small text-muted px-2 mb-1">الوضع</div>
+                        <div class="btn-group btn-group-sm w-100">
+                            <button type="button" class="btn btn-outline-light" data-erp-theme-mode="light">فاتح</button>
+                            <button type="button" class="btn btn-outline-light" data-erp-theme-mode="dark">داكن</button>
+                        </div>
+                    </div>
+                </div>
+                <button type="button" class="btn btn-glass btn-sm border-0" onclick="toggleErpThemeMode()" title="الوضع الليلي"><i class="fas fa-moon"></i></button>
+
+                <button class="btn btn-glass btn-sm d-flex align-items-center px-3 py-1" data-toggle="modal" data-target="#commandPaletteModal" title="بحث سريع (Ctrl+K)">
+                    <i class="fas fa-search me-2"></i>
+                    <span class="d-none d-lg-inline small">بحث سريع</span>
                 </button>
                 
                 <div class="vr h-50 my-auto bg-white opacity-10 mx-1"></div>
@@ -715,26 +270,34 @@
                 {% block security_actions %}{% endblock %}
                 
                 <div class="dropdown">
-                    <a href="#" class="d-flex align-items-center text-decoration-none dropdown-toggle no-caret" id="userDropdown" data-toggle="dropdown" aria-expanded="false">
-                        <div class="rounded-circle d-flex align-items-center justify-content-center border border-1 border-secondary bg-dark position-relative" style="width: 36px; height: 36px;">
-                            <span class="text-white font-weight-bold small">{{ current_user.username[0]|upper }}</span>
-                            <span class="position-absolute bottom-0 end-0 bg-success border border-dark rounded-circle" style="width: 10px; height: 10px;"></span>
-                        </div>
+                    <a href="#" class="nav-link d-flex align-items-center py-0 px-2 dropdown-toggle" data-toggle="dropdown" aria-expanded="false">
+                        {% if current_user.avatar_url %}
+                        <img src="{{ current_user.avatar_url }}" class="erp-user-avatar rounded-circle mr-2" width="36" height="36" alt="">
+                        {% else %}
+                        <div class="avatar-placeholder erp-user-avatar rounded-circle d-flex align-items-center justify-content-center mr-2">{{ current_user.avatar_or_initials }}</div>
+                        {% endif %}
+                        <span class="d-none d-lg-inline text-right">
+                            <span class="d-block erp-header-user-name small">{{ current_user.display_name or current_user.username }}</span>
+                            <span class="d-block erp-header-user-role">{{ current_user.role.name if current_user.role else 'مدير نظام' }}</span>
+                        </span>
                     </a>
-                    <ul class="dropdown-menu dropdown-menu-end shadow-lg border-0 bg-dark text-light mt-2" aria-labelledby="userDropdown" style="min-width: 200px; border: 1px solid rgba(255,255,255,0.1);">
-                        <li><h6 class="dropdown-header text-muted font-monospace text-uppercase small">User: {{ current_user.username }}</h6></li>
-                        <li><a class="dropdown-item text-light hover-bg-secondary" href="#"><i class="fas fa-user-shield me-2 text-info"></i> الملف الأمني</a></li>
-                        <li><hr class="dropdown-divider bg-secondary opacity-25"></li>
-                        <li><a class="dropdown-item text-danger fw-bold" href="{{ url_for('auth.logout') }}"><i class="fas fa-power-off me-2"></i> خروج آمن</a></li>
-                    </ul>
+                    <div class="dropdown-menu dropdown-menu-left shadow">
+                        <a class="dropdown-item" href="{{ url_for('main.dashboard') }}"><i class="fas fa-home ml-2"></i> لوحة ERP</a>
+                        <a class="dropdown-item" href="{{ url_for('users_bp.profile') }}"><i class="fas fa-user ml-2"></i> الملف الشخصي</a>
+                        <div class="dropdown-divider"></div>
+                        <form action="{{ url_for('auth.logout') }}" method="post" class="px-3 py-2">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-danger btn-sm btn-block">تسجيل خروج</button>
+                        </form>
+                    </div>
                 </div>
             </div>
         </header>
         <div class="p-4">
             <div class="mb-4 d-flex align-items-end justify-content-between animate-fade-in">
                 <div>
-                    <h2 class="fw-bold mb-1 text-white" style="text-shadow: 0 0 10px rgba(255,255,255,0.2);">{% block security_title %}نظرة عامة{% endblock %}</h2>
-                    <p class="text-muted mb-0 font-monospace">{% block security_description %}SYSTEM_STATUS: ONLINE{% endblock %}</p>
+                    <h2 class="fw-bold mb-1 erp-page-title">{% block security_title %}نظرة عامة{% endblock %}</h2>
+                    <p class="erp-page-desc text-muted mb-0 small d-none d-md-block">{% block security_description %}مركز إدارة النظام والأمان{% endblock %}</p>
                 </div>
                 <div class="text-end">
                     {% block header_actions %}{% endblock %}
@@ -744,8 +307,8 @@
                 {% if messages %}
                     {% for category, message in messages %}
                         {% set tone = 'danger' if category in ['danger','error'] else ('warning' if category == 'warning' else ('success' if category == 'success' else 'primary')) %}
-                        <div class="alert alert-{{ category }} alert-dismissible fade show shadow-lg border-0 mb-4" style="background: rgba(20,20,20,0.9); border-left: 4px solid var(--sec-{{ tone }}); color: #fff;" role="alert">
-                            <i class="fas fa-terminal me-2"></i> <span class="font-monospace">{{ message }}</span>
+                        <div class="alert alert-{{ category }} alert-dismissible fade show shadow-sm mb-3" role="alert">
+                            <i class="fas fa-info-circle me-2"></i><span>{{ message }}</span>
                             <button type="button" class="close text-white" data-dismiss="alert">&times;</button>
                         </div>
                     {% endfor %}
@@ -753,12 +316,9 @@
             {% endwith %}
             {% block security_content %}{% endblock %}
         </div>
-        <footer class="mt-auto py-3 px-4 border-top">
-            <div class="d-flex justify-content-between align-items-center text-muted small font-monospace">
-                <div><i class="fas fa-code text-primary me-1"></i> GARAGE_OS v3.0 [SECURE_SHELL]</div>
-                <div>SERVER_TIME: {{ now().strftime('%Y-%m-%d %H:%M:%S') if now else '' }} UTC</div>
-            </div>
-        </footer>
+        <div class="security-footer-unified">
+          {% include 'partials/footer.html' %}
+        </div>
     </main>
 </div>
 <div class="modal fade" id="commandPaletteModal" tabindex="-1" aria-hidden="true">
@@ -789,14 +349,43 @@
     const sidebar = document.getElementById('securitySidebar');
     const main = document.getElementById('securityMain');
     const toggle = document.getElementById('sidebarToggle');
-    if (localStorage.getItem('secSidebarCollapsed') === 'true') {
+    const mqMobile = window.matchMedia('(max-width: 991.98px)');
+
+    function isSecMobile() { return mqMobile.matches; }
+
+    function closeMobileSidebar() {
+        sidebar.classList.remove('show');
+        document.body.classList.remove('sec-sidebar-open');
+    }
+
+    if (!isSecMobile() && localStorage.getItem('secSidebarCollapsed') === 'true') {
         sidebar.classList.add('collapsed');
         main.classList.add('expanded');
     }
+
     toggle.addEventListener('click', () => {
+        if (isSecMobile()) {
+            sidebar.classList.toggle('show');
+            document.body.classList.toggle('sec-sidebar-open', sidebar.classList.contains('show'));
+            return;
+        }
         sidebar.classList.toggle('collapsed');
         main.classList.toggle('expanded');
         localStorage.setItem('secSidebarCollapsed', sidebar.classList.contains('collapsed'));
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!isSecMobile() || !sidebar.classList.contains('show')) return;
+        if (sidebar.contains(e.target) || toggle.contains(e.target)) return;
+        closeMobileSidebar();
+    });
+
+    mqMobile.addEventListener('change', () => {
+        closeMobileSidebar();
+        if (isSecMobile()) {
+            sidebar.classList.remove('collapsed');
+            main.classList.remove('expanded');
+        }
     });
     document.addEventListener('keydown', (e) => {
         if (e.ctrlKey && e.key === 'k') {

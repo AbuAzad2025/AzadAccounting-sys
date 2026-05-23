@@ -767,6 +767,19 @@ class UserForm(FlaskForm):
             raise ValidationError("البريد الإلكتروني مستخدم بالفعل.")
         field.data = email_l
 
+    def validate_branch_ids(self, field):
+        from services.user_branch_service import validate_branch_assignment
+
+        branch_ids = [int(x) for x in (field.data or []) if x]
+        primary = int(self.primary_branch_id.data or 0) or None
+        err = validate_branch_assignment(
+            branch_ids,
+            primary_branch_id=primary,
+            role_id=self.role_id.data,
+        )
+        if err:
+            raise ValidationError(err)
+
     def apply_to(self, user: User) -> User:
         user.username = (self.username.data or '').strip()
         user.email = (self.email.data or '').strip().lower()

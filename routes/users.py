@@ -6,7 +6,13 @@ from sqlalchemy import func
 from sqlalchemy.orm import joinedload
 from extensions import db
 from forms import UserForm
-from services.user_branch_service import sync_user_branches, get_branch_ids_for_user, get_primary_branch_id
+from services.user_branch_service import (
+    sync_user_branches,
+    get_branch_ids_for_user,
+    get_primary_branch_id,
+    apply_user_branch_assignment,
+    load_users_branch_display,
+)
 from models import Permission, Role, User, AuditLog, Customer
 import utils
 from utils import _get_or_404
@@ -249,6 +255,8 @@ def list_users():
     per_page = request.args.get("per_page", 20, type=int)
     pagination = q.order_by(User.username).paginate(page=page, per_page=per_page, error_out=False)
     users = pagination.items
+    users_by_id = {u.id: u for u in users}
+    user_branch_display = load_users_branch_display([u.id for u in users], users_by_id)
     visible_extra_permissions_by_user: dict[int, list[Permission]] = {}
     for u in users:
         try:
@@ -271,6 +279,8 @@ def list_users():
                     "last_seen": (u.last_seen.isoformat() if getattr(u, "last_seen", None) else None),
                     "last_login_ip": getattr(u, "last_login_ip", None),
                     "login_count": getattr(u, "login_count", None),
+                    "companies": user_branch_display.get(u.id, {}).get("companies", []),
+                    "branch_scope": user_branch_display.get(u.id, {}).get("label", "—"),
                     "extra_permissions": [p.name for p in (visible_extra_permissions_by_user.get(u.id) or [])]
                 }
                 for u in users
@@ -292,6 +302,7 @@ def list_users():
         pagination=pagination,
         search=term,
         args=args,
+        user_branch_display=user_branch_display,
         visible_extra_permissions_by_user=visible_extra_permissions_by_user,
     )
 
@@ -429,14 +440,16 @@ def create_user():
 
             branch_ids = [int(x) for x in (form.branch_ids.data or []) if x]
             primary = int(form.primary_branch_id.data or 0) or None
-            if branch_ids:
-                sync_user_branches(user.id, branch_ids, primary_branch_id=primary)
-            else:
-                from utils.company_scope import can_view_all_branches
-                if not utils.is_super() and not can_view_all_branches():
-                    db.session.rollback()
-                    flash("يجب تعيين فرع واحد على الأقل للمستخدم.", "danger")
-                    return redirect(request.url)
+            err = apply_user_branch_assignment(
+                user.id,
+                branch_ids,
+                primary_branch_id=primary,
+                role_id=form.role_id.data,
+            )
+            if err:
+                db.session.rollback()
+                flash(err, "danger")
+                return redirect(request.url)
 
             if selected_perm_ids:
                 user.extra_permissions = Permission.query.filter(
@@ -563,10 +576,16 @@ def edit_user(user_id):
 
             branch_ids = [int(x) for x in (form.branch_ids.data or []) if x]
             primary = int(form.primary_branch_id.data or 0) or None
-            if branch_ids:
-                sync_user_branches(user.id, branch_ids, primary_branch_id=primary)
-            else:
-                sync_user_branches(user.id, [])
+            err = apply_user_branch_assignment(
+                user.id,
+                branch_ids,
+                primary_branch_id=primary,
+                role_id=form.role_id.data,
+            )
+            if err:
+                db.session.rollback()
+                flash(err, "danger")
+                return redirect(request.url)
 
             db.session.add(AuditLog(
                 model_name="User",

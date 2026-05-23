@@ -1,6 +1,7 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar" dir="rtl" data-erp-variant="palestinian" data-erp-mode="light"{% if system_settings.primary_color %} data-erp-tenant-color="1"{% endif %}>
 <head>
+  {% include 'partials/erp_theme_head_early.html' %}
   <meta charset="utf-8">
   <title>{% block title %}{{ system_settings.system_name or 'شركة ازاد' }} - {{ system_settings.company_name or 'شركة ازاد' }}{% endblock %}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -9,7 +10,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="{{ system_settings.system_name or 'شركة ازاد' }}">
   <meta name="format-detection" content="telephone=yes">
-  <meta name="theme-color" content="{{ system_settings.primary_color or '#667eea' }}">
+  <meta name="theme-color" content="{{ system_settings.primary_color or '#062A5A' }}">
 
   <meta name="description" content="{{ system_settings.system_name or 'نظام إدارة الكراج المتكامل' }} - {{ system_settings.company_name or 'شركة ازاد للأنظمة الذكية' }}">
   <meta name="keywords" content="نظام إدارة الكراج، إدارة المركبات، صيانة السيارات، {{ system_settings.company_name or 'شركة ازاد' }}">
@@ -117,76 +118,21 @@
   <link rel="apple-touch-icon" sizes="180x180" href="{{ system_settings.custom_favicon_url }}">
   {% else %}
   <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
-  <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/logo.png') }}">
-  <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='img/logo.png') }}">
+  <link rel="apple-touch-icon" href="{{ system_settings.tenant_favicon_url or system_settings.custom_favicon_url or url_for('static', filename='img/branding/platform/favicons/favicon.png') }}">
+  <link rel="apple-touch-icon" sizes="180x180" href="{{ system_settings.tenant_favicon_url or system_settings.custom_favicon_url or url_for('static', filename='img/branding/platform/favicons/favicon.png') }}">
   {% endif %}
 
   <meta name="gm-company-name" content="{{ system_settings.company_name or system_settings.system_name or 'النظام' }}">
-  <meta name="gm-logo-url" content="{% if system_settings.custom_logo_url %}{{ system_settings.custom_logo_url }}{% else %}{{ url_for('static', filename='img/logo.png') }}{% endif %}">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
-  <link rel="preload" href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;600;700;800&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
-  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;600;700;800&display=swap"></noscript>
-  <link rel="preload" href="{{ static_url('adminlte/css/adminlte.min.css') }}" as="style">
-  <link rel="preload" href="{{ static_url('adminlte/plugins/fontawesome-free/css/all.min.css') }}" as="style">
-  <link rel="stylesheet" href="{{ static_url('adminlte/plugins/fontawesome-free/css/all.min.css') }}">
-  <link rel="stylesheet" href="{{ static_url('adminlte/plugins/overlayScrollbars/css/OverlayScrollbars.min.css') }}">
-  <link rel="stylesheet" href="{{ static_url('adminlte/css/adminlte.min.css') }}">
-  <link rel="stylesheet" href="{{ static_url('adminlte/plugins/select2/css/select2.min.css') }}">
-  <link rel="preload" href="{{ static_url('css/ui.css') }}" as="style">
-  <link rel="stylesheet" href="{{ static_url('css/ui.css') }}">
-  <link rel="preload" href="{{ static_url('css/style.css') }}" as="style">
-  <link rel="stylesheet" href="{{ static_url('css/style.css') }}">
-  <link rel="stylesheet" href="{{ static_url('css/mobile.css') }}" id="mobile-css" data-default-media="(max-width: 575.98px)" media="(max-width: 575.98px)">
-  <link rel="stylesheet" href="{{ static_url('css/mobile-app.css') }}" id="mobile-app-css" data-default-media="(max-width: 575.98px)" media="(max-width: 575.98px)">
-  <link rel="stylesheet" href="{{ static_url('css/gm-scroll-filters.css') }}" id="gm-scroll-filters-css">
-  <link rel="stylesheet" href="{{ static_url('css/gm-financial-pages.css') }}" id="gm-financial-css" data-default-media="(max-width: 575.98px)" media="(max-width: 575.98px)">
-  <link rel="stylesheet" href="{{ static_url('css/gm-invoice-detail.css') }}" id="gm-invoice-detail-css" data-default-media="(max-width: 575.98px)" media="(max-width: 575.98px)">
-  <script>
-    (function() {
-      const html = document.documentElement;
-      const link = document.getElementById('mobile-css');
-      const appLink = document.getElementById('mobile-app-css');
-      const finLink = document.getElementById('gm-financial-css');
-      const invLink = document.getElementById('gm-invoice-detail-css');
-      const stored = (function() {
-        try { return localStorage.getItem('ui_mode') || 'auto'; } catch (e) { return 'auto'; }
-      })();
-      const mode = stored === 'mobile' || stored === 'tablet' || stored === 'desktop' ? stored : 'auto';
-      const autoMode = (function() {
-        try {
-          if (window.matchMedia('(max-width: 575.98px)').matches) return 'mobile';
-          if (window.matchMedia('(min-width: 576px) and (max-width: 991.98px)').matches) return 'tablet';
-          return 'desktop';
-        } catch (_) {
-          return 'desktop';
-        }
-      })();
-      const effective = mode === 'auto' ? autoMode : mode;
-      html.setAttribute('data-ui-mode', effective);
-      const compactMedia = (effective === 'mobile' || effective === 'tablet') ? 'all' : (link && link.getAttribute('data-default-media')) || '(max-width: 575.98px)';
-      if (link) link.media = compactMedia;
-      if (appLink) appLink.media = compactMedia;
-      if (finLink) finLink.media = compactMedia;
-      if (invLink) invLink.media = compactMedia;
-    })();
-  </script>
-  <link rel="stylesheet" href="{{ static_url('css/security_dark_mode.css') }}">
-  <link rel="stylesheet" href="{{ static_url('css/numbers-fix.css') }}">
-  <link rel="stylesheet" href="{{ static_url('css/bs5-utils.css') }}">
-  <link rel="stylesheet" href="{{ static_url('css/ux-unified.css') }}">
-  <link rel="stylesheet" href="{{ static_url('css/tenant-scope.css') }}">
-  <link rel="stylesheet" href="{{ static_url('css/ux-contrast.css') }}">
-  <link rel="stylesheet" href="{{ static_url('css/ux-messages.css') }}">
-  <link rel="stylesheet" href="{{ static_url('css/print.css') }}" media="print">
+  <meta name="gm-logo-url" content="{% if system_settings.custom_logo_url %}{{ system_settings.custom_logo_url }}{% else %}{{ url_for('static', filename='img/branding/tenants/phe/logos/primary.png') }}{% endif %}">
+  {% set erp_head_mode = 'app' %}
+  {% include 'partials/erp_head_assets.html' %}
   
   <!-- NProgress for loading indicator -->
   <link rel="stylesheet" href="{{ static_url('vendor/nprogress/nprogress.min.css') }}" />
   <style>
     /* Customize NProgress Color */
     #nprogress .bar {
-      background: {{ system_settings.primary_color or '#667eea' }} !important;
+      background: var(--erp-primary, {{ system_settings.primary_color or '#006b3f' }}) !important;
       height: 3px !important;
     }
     #nprogress .peg {
@@ -264,30 +210,7 @@
       }
     });
   </script>
-  {% if system_settings.primary_color %}
-  <style>
-    /* System Dynamic Colors - Root variables only to prevent UI breakage */
-    :root {
-      --primary-color: {{ system_settings.primary_color }};
-      --theme-primary: {{ system_settings.primary_color }};
-      /* Overriding Electric Theme primary with user choice if needed */
-      --primary-cyan: {{ system_settings.primary_color }};
-    }
-    
-    /* Subtle overrides without !important to allow style.css to take precedence */
-    .btn-primary:not(.btn-electric) {
-      background-color: var(--primary-color);
-      border-color: var(--primary-color);
-    }
-    
-    .text-primary {
-      color: var(--primary-color);
-    }
-  </style>
-  {% endif %}
-  
   {% block styles %}{% endblock %}
-  {% block head_extra %}{% endblock %}
   {% block extra_head %}{% endblock %}
   
   <style>
@@ -313,8 +236,6 @@
     
   </style>
   
-  <!-- Safe Enhancements Styles -->
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/enhancements.css') }}">
   <style>
     /* Global Layout Fixes */
     body {
@@ -323,14 +244,13 @@
     }
     
     .content-wrapper {
-        min-height: calc(100vh - 57px);
+        min-height: calc(100vh - var(--erp-header-h, 56px));
         transition: margin 0.3s ease-in-out, width 0.3s ease-in-out;
         overflow-x: auto !important;
-        padding-top: 65px !important;
+        padding-top: 0 !important;
     }
 
     body.gm-compact-app .content-wrapper {
-        padding-top: 0 !important;
         overflow-x: hidden !important;
     }
     
@@ -351,37 +271,12 @@
         transition: margin 0.3s ease-in-out, width 0.3s ease-in-out;
     }
     
-    /* Fix for Select2 and Inputs Height globally */
-    .form-control, .form-select, .select2-container .select2-selection--single, .select2-container--default .select2-selection--multiple {
-        min-height: 45px !important;
-        height: auto !important;
-        padding-top: 0.5rem;
-        padding-bottom: 0.5rem;
-        font-size: 1rem;
-    }
-    
-    .select2-container--default .select2-selection--single .select2-selection__rendered {
-        line-height: 30px !important;
-        padding-top: 0;
-        padding-bottom: 0;
-    }
-    
-    .select2-container--default .select2-selection--single .select2-selection__arrow {
-        height: 43px !important;
-        top: 1px !important;
-    }
-
-    textarea.form-control {
-        height: auto !important;
-        min-height: 100px !important;
-    }
-
-    /* RTL Sidebar Fixes are now handled in style.css */
+    /* ارتفاع الحقول: erp-forms-spacing.css + erp-conflict-fixes.css */
   </style>
   {% block extra_css %}{% endblock %}
   <!-- Bootstrap shim already defined at top of <head>; no duplicate needed here. -->
 </head>
-<body class="hold-transition sidebar-mini layout-fixed text-sm layout-navbar-fixed ui-v2 electric-theme {% block body_class %}{% endblock %}"{% if tenant_company_id %} data-tenant-scoped="1"{% endif %}>
+<body class="hold-transition sidebar-mini layout-fixed text-sm layout-navbar-fixed ui-v2 erp-app {% block body_class %}{% endblock %}"{% if tenant_company_id %} data-tenant-scoped="1"{% endif %}>
 <div class="wrapper">
   {% include 'partials/navbar.html' %}
   <div id="gm-open-in-app-banner" class="gm-open-in-app-banner d-none" role="banner" aria-label="فتح كتطبيق">
@@ -397,7 +292,7 @@
       <div class="container-fluid">
         <div class="row align-items-center">
           <div class="col-sm-6">
-            <h1 class="m-0 font-weight-bold text-primary">{% block page_title %}{% endblock %}</h1>
+            <h1 class="m-0 font-weight-bold">{% block page_title %}{% endblock %}</h1>
           </div>
           <div class="col-sm-6">
             <ol class="breadcrumb float-sm-left small m-0">
@@ -420,30 +315,30 @@
 {% if current_user.is_authenticated %}
 <nav class="gm-mobile-bottom-nav d-lg-none" aria-label="التنقل السريع">
   {% if 'main.dashboard' in current_app.view_functions %}
-  <a class="gm-tab" href="{{ url_for('main.dashboard') }}">
+  <a class="gm-tab" href="{{ url_for('main.dashboard') }}" aria-label="الرئيسية">
     <i class="fas fa-home"></i>
     <span>الرئيسية</span>
   </a>
   {% endif %}
   {% if (has_perm('view_sales') or has_perm('manage_sales')) and ('sales_bp.list_sales' in current_app.view_functions) %}
-  <a class="gm-tab" href="{{ url_for('sales_bp.list_sales') }}">
+  <a class="gm-tab" href="{{ url_for('sales_bp.list_sales') }}" aria-label="المبيعات">
     <i class="fas fa-shopping-cart"></i>
     <span>المبيعات</span>
   </a>
   {% endif %}
   {% if (has_perm('view_customers') or has_perm('manage_customers')) and ('customers_bp.list_customers' in current_app.view_functions) %}
-  <a class="gm-tab" href="{{ url_for('customers_bp.list_customers') }}">
+  <a class="gm-tab" href="{{ url_for('customers_bp.list_customers') }}" aria-label="الزبائن">
     <i class="fas fa-users"></i>
     <span>الزبائن</span>
   </a>
   {% endif %}
   {% if (has_perm('view_payments') or has_perm('manage_payments')) and ('payments.index' in current_app.view_functions) %}
-  <a class="gm-tab" href="{{ url_for('payments.index') }}">
+  <a class="gm-tab" href="{{ url_for('payments.index') }}" aria-label="الدفعات">
     <i class="fas fa-money-bill-wave"></i>
     <span>الدفعات</span>
   </a>
   {% elif (has_perm('view_service') or has_perm('manage_service')) and ('service.list_requests' in current_app.view_functions) %}
-  <a class="gm-tab" href="{{ url_for('service.list_requests') }}">
+  <a class="gm-tab" href="{{ url_for('service.list_requests') }}" aria-label="الصيانة">
     <i class="fas fa-wrench"></i>
     <span>الصيانة</span>
   </a>
@@ -726,6 +621,28 @@ document.addEventListener('DOMContentLoaded', function() {
   applyUIMode();
   const savedPosition = localStorage.getItem('sidebarPosition') || 'left';
   applySidebarPosition(savedPosition);
+
+  function isCompactUiMode() {
+    const mode = (document.documentElement.getAttribute('data-ui-mode') || '').toLowerCase();
+    if (mode === 'mobile' || mode === 'tablet') return true;
+    if (mode === 'desktop') return false;
+    return !!(window.matchMedia && window.matchMedia('(max-width: 991.98px)').matches);
+  }
+
+  document.querySelectorAll('[data-widget="pushmenu"]').forEach(function(btn) {
+    if (btn.dataset.erpPushmenuDesktop === '1') return;
+    btn.addEventListener('click', function(e) {
+      if (isCompactUiMode()) return;
+      if (document.body.classList.contains('sidebar-hidden')) return;
+      try { e.preventDefault(); } catch (_) {}
+      document.body.classList.toggle('sidebar-collapse');
+      if (typeof applySidebarPosition === 'function') {
+        applySidebarPosition(localStorage.getItem('sidebarPosition') || 'left');
+      }
+      try { window.dispatchEvent(new Event('resize')); } catch (_) {}
+    });
+    btn.dataset.erpPushmenuDesktop = '1';
+  });
   
   // تحديث النص في الزر
   const badge = document.getElementById('sidebar-position-badge');
@@ -1018,7 +935,11 @@ handleBreakpointChange(desktopQuery, 'desktop');
       } catch (e) {}
     });
     links.forEach(a => a.classList.remove('active'));
-    if (best) best.classList.add('active');
+    if (best) {
+      best.classList.add('active');
+      best.setAttribute('aria-current', 'page');
+    }
+    links.forEach(a => { if (a !== best) a.removeAttribute('aria-current'); });
   }
   
   // تحسينات اللمس
@@ -1234,44 +1155,8 @@ handleBreakpointChange(desktopQuery, 'desktop');
 
 
 {% block scripts %}{% endblock %}
-<script>
-(function(){
-  try{
-    var g=window; var b=g.bootstrap||(g.bootstrap={});
-    b.Modal=function(el){ var id=el&&el.id?('#'+el.id):null; return {
-      show:function(){ if(id&&g.$&&$.fn&&$.fn.modal){ try{$(id).modal('show');}catch(e){} } },
-      hide:function(){ if(id&&g.$&&$.fn&&$.fn.modal){ try{$(id).modal('hide');}catch(e){} } }
-    }; };
-    b.Tab=function(el){ var id=el&&el.id?('#'+el.id):null; return {
-      show:function(){ if(id&&g.$&&$.fn&&$.fn.tab){ try{$(id).tab('show');}catch(e){} } }
-    }; };
-    b.Modal.getOrCreateInstance=function(el){ return b.Modal(el); };
-    b.Tab.getOrCreateInstance=function(el){ return b.Tab(el); };
-  }catch(e){}
-})();
-</script>
 <script src="{{ static_url('js/enhanced-tabs.js') }}" defer></script>
 <script src="{{ static_url('js/security-favorites.js') }}" defer></script>
 <script src="{{ static_url('js/security_mega_enhancements.js') }}" defer></script>
 </body>
-<script>
-(function(){
-  if (typeof window.getOrCreateModal !== 'function') {
-    window.getOrCreateModal = function(el){
-      try {
-        if (window.$ && $.fn && $.fn.modal) {
-          var id = el && el.id ? ('#' + el.id) : null;
-          if (id) {
-            return {
-              show: function(){ try { $(id).modal('show'); } catch(e){} },
-              hide: function(){ try { $(id).modal('hide'); } catch(e){} }
-            };
-          }
-        }
-      } catch(e) {}
-      return null;
-    };
-  }
-})();
-</script>
 </html>

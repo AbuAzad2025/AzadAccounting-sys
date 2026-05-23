@@ -165,6 +165,7 @@ def search_model(
     limit_default: int = 20,
     serializer: Optional[Callable[[Any], Dict[str, Any]]] = None,
     q_param: str = "q",
+    base_query=None,
     **kwargs,
 ):
     qtxt = (request.args.get(q_param) or "").strip()
@@ -177,7 +178,7 @@ def search_model(
     except Exception:
         page = 1
 
-    query = db.session.query(model)
+    query = base_query if base_query is not None else db.session.query(model)
     if extra_filters:
         query = query.filter(*extra_filters)
 

@@ -1,175 +1,180 @@
 {% extends 'security/base_security.html' %}
 
-{% block security_title %}لوحة التحكم{% endblock %}
+{% block security_title %}لوحة المتابعة{% endblock %}
 {% block security_icon %}<i class="fas fa-tachometer-alt"></i>{% endblock %}
-{% block security_description %}مركز التحكم الشامل للوحدة السرية - {{ stats.total_modules }} وحدة • {{ stats.total_apis }} API{% endblock %}
+{% block security_description %}{{ stats.total_modules }} وحدة • {{ stats.total_apis }} واجهة API • {{ stats.total_users }} مستخدم{% endblock %}
 
 {% block security_breadcrumb %}
-<li class="breadcrumb-item active">لوحة التحكم</li>
+<li class="breadcrumb-item active">لوحة المتابعة</li>
 {% endblock %}
 
 {% block security_actions %}
-<div class="d-flex gap-2 flex-wrap">
-  <a href="{{ url_for('security.help_page') }}" class="btn btn-glass btn-sm">
-    <i class="fas fa-question-circle"></i> مساعدة
-  </a>
-  <a href="{{ url_for('security.sitemap') }}" class="btn btn-glass btn-sm">
-    <i class="fas fa-sitemap"></i> خريطة
-  </a>
-</div>
+<a href="{{ url_for('security.help_page') }}" class="btn btn-glass btn-sm"><i class="fas fa-question-circle"></i> مساعدة</a>
+<a href="{{ url_for('security.sitemap') }}" class="btn btn-glass btn-sm"><i class="fas fa-sitemap"></i> خريطة</a>
 {% endblock %}
 
 {% block security_content %}
+<div class="erp-security-dashboard">
+
+  <h2 class="erp-section-title mt-0"><i class="fas fa-bolt ms-1"></i> إجراءات سريعة</h2>
   <div class="sec-card mb-4">
-    <div class="sec-card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
-      <div>
-        <h5 class="mb-1 fw-bold text-white"><i class="fas fa-bolt text-info ms-2"></i> إجراءات سريعة</h5>
-        <div class="text-muted small">اختصارات لأكثر المراكز استخداماً داخل الكونسول</div>
-      </div>
-      <div class="text-muted small font-monospace">CTRL+K</div>
-    </div>
     <div class="sec-card-body">
-      <div class="row g-2">
+      <div class="row g-2 erp-sec-actions-grid">
         <div class="col-lg-4 col-md-6">
-          <a href="{{ url_for('security.settings_center') }}" class="btn btn-glass w-100 py-3 d-flex align-items-center justify-content-between">
-            <span class="d-flex align-items-center"><i class="fas fa-satellite-dish text-info ms-2"></i> مركز العمليات</span>
-            <i class="fas fa-arrow-left text-white-50"></i>
+          <a href="{{ url_for('security.settings_center') }}" class="erp-sec-action">
+            <span class="d-flex align-items-center gap-2">
+              <span class="erp-sec-action__icon"><i class="fas fa-satellite-dish"></i></span>
+              <span>مركز العمليات</span>
+            </span>
+            <i class="fas fa-chevron-left text-muted"></i>
           </a>
         </div>
         <div class="col-lg-4 col-md-6">
-          <a href="{{ url_for('security.monitoring_dashboard') }}" class="btn btn-glass w-100 py-3 d-flex align-items-center justify-content-between">
-            <span class="d-flex align-items-center"><i class="fas fa-chart-line text-info ms-2"></i> لوحة المراقبة</span>
-            <i class="fas fa-arrow-left text-white-50"></i>
+          <a href="{{ url_for('security.monitoring_dashboard') }}" class="erp-sec-action">
+            <span class="d-flex align-items-center gap-2">
+              <span class="erp-sec-action__icon"><i class="fas fa-chart-line"></i></span>
+              <span>لوحة المراقبة</span>
+            </span>
+            <i class="fas fa-chevron-left text-muted"></i>
           </a>
         </div>
         <div class="col-lg-4 col-md-6">
-          <a href="{{ url_for('security.users_center') }}" class="btn btn-glass w-100 py-3 d-flex align-items-center justify-content-between">
-            <span class="d-flex align-items-center"><i class="fas fa-users text-info ms-2"></i> مركز المستخدمين</span>
-            <i class="fas fa-arrow-left text-white-50"></i>
+          <a href="{{ url_for('security.users_center') }}" class="erp-sec-action">
+            <span class="d-flex align-items-center gap-2">
+              <span class="erp-sec-action__icon"><i class="fas fa-users"></i></span>
+              <span>مركز المستخدمين</span>
+            </span>
+            <i class="fas fa-chevron-left text-muted"></i>
           </a>
         </div>
         <div class="col-lg-4 col-md-6">
-          <a href="{{ url_for('security.database_manager') }}" class="btn btn-glass w-100 py-3 d-flex align-items-center justify-content-between">
-            <span class="d-flex align-items-center"><i class="fas fa-database text-info ms-2"></i> مدير قاعدة البيانات</span>
-            <i class="fas fa-arrow-left text-white-50"></i>
+          <a href="{{ url_for('security.database_manager') }}" class="erp-sec-action">
+            <span class="d-flex align-items-center gap-2">
+              <span class="erp-sec-action__icon"><i class="fas fa-database"></i></span>
+              <span>مدير قاعدة البيانات</span>
+            </span>
+            <i class="fas fa-chevron-left text-muted"></i>
           </a>
         </div>
         <div class="col-lg-4 col-md-6">
-          <a href="{{ url_for('security.integrations') }}" class="btn btn-glass w-100 py-3 d-flex align-items-center justify-content-between">
-            <span class="d-flex align-items-center"><i class="fas fa-plug text-info ms-2"></i> التكاملات</span>
-            <i class="fas fa-arrow-left text-white-50"></i>
+          <a href="{{ url_for('security.integrations') }}" class="erp-sec-action">
+            <span class="d-flex align-items-center gap-2">
+              <span class="erp-sec-action__icon"><i class="fas fa-plug"></i></span>
+              <span>التكاملات</span>
+            </span>
+            <i class="fas fa-chevron-left text-muted"></i>
           </a>
         </div>
         <div class="col-lg-4 col-md-6">
-          <a href="{{ url_for('security.emergency_tools') }}" class="btn btn-glass w-100 py-3 d-flex align-items-center justify-content-between border border-1 border-opacity-10">
-            <span class="d-flex align-items-center"><i class="fas fa-exclamation-triangle text-danger ms-2"></i> أدوات الطوارئ</span>
-            <i class="fas fa-arrow-left text-white-50"></i>
+          <a href="{{ url_for('security.emergency_tools') }}" class="erp-sec-action erp-sec-action--danger">
+            <span class="d-flex align-items-center gap-2">
+              <span class="erp-sec-action__icon"><i class="fas fa-exclamation-triangle"></i></span>
+              <span>أدوات الطوارئ</span>
+            </span>
+            <i class="fas fa-chevron-left text-muted"></i>
           </a>
         </div>
       </div>
     </div>
   </div>
 
-  <div class="sec-card mb-4">
-    <div class="sec-card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
-      <div>
-        <h5 class="mb-0 fw-bold text-white"><i class="fas fa-signal text-info ms-2"></i> الحالة الحية</h5>
-      </div>
-      <div>
-        {% if system_settings and system_settings.maintenance_mode %}
-          <a href="{{ url_for('security.emergency_tools') }}" class="badge badge-danger text-decoration-none">وضع الصيانة مفعّل</a>
-        {% endif %}
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+    <h2 class="erp-section-title mb-0"><i class="fas fa-signal ms-1"></i> مؤشرات الأمان</h2>
+    {% if system_settings and system_settings.maintenance_mode %}
+    <a href="{{ url_for('security.emergency_tools') }}" class="badge badge-danger text-decoration-none">وضع الصيانة مفعّل</a>
+    {% endif %}
+  </div>
+  <div class="row g-3 mb-4">
+    <div class="col-lg-3 col-md-6">
+      <div class="small-box security-summary-box security-summary-box--blue erp-sec-kpi" data-total-users="{{ stats.total_users }}">
+        <div class="inner p-3">
+          <h3 class="mb-1">{{ stats.total_users }}</h3>
+          <p class="mb-2">إجمالي المستخدمين</p>
+          <div style="height: 36px;"><canvas id="usersTrendChart"></canvas></div>
+        </div>
+        <div class="icon"><i class="fas fa-users"></i></div>
       </div>
     </div>
-    <div class="sec-card-body">
-      <div class="row">
-        <div class="col-lg-3 col-md-6 mb-3">
-          <div class="small-box security-summary-box security-summary-box--blue" data-total-users="{{ stats.total_users }}">
-            <div class="inner">
-              <h3>{{ stats.total_users }}</h3>
-              <p>إجمالي المستخدمين</p>
-              <div style="height: 40px; margin-top: 10px;">
-                <canvas id="usersTrendChart"></canvas>
-              </div>
-            </div>
-            <div class="icon"><i class="fas fa-users"></i></div>
-          </div>
+    <div class="col-lg-3 col-md-6">
+      <div class="small-box security-summary-box security-summary-box--green erp-sec-kpi erp-sec-kpi--success" data-active-users="{{ stats.active_users }}">
+        <div class="inner p-3">
+          <h3 class="mb-1">{{ stats.active_users }}</h3>
+          <p class="mb-2">مستخدمون نشطون</p>
+          <div style="height: 36px;"><canvas id="activitySparkline"></canvas></div>
         </div>
-        <div class="col-lg-3 col-md-6 mb-3">
-          <div class="small-box security-summary-box security-summary-box--green" data-active-users="{{ stats.active_users }}">
-            <div class="inner">
-              <h3>{{ stats.active_users }}</h3>
-              <p>مستخدمين نشطين</p>
-              <div style="height: 40px; margin-top: 10px;">
-                <canvas id="activitySparkline"></canvas>
-              </div>
-            </div>
-            <div class="icon"><i class="fas fa-user-check"></i></div>
-          </div>
+        <div class="icon"><i class="fas fa-user-check"></i></div>
+      </div>
+    </div>
+    <div class="col-lg-3 col-md-6">
+      <div class="small-box security-summary-box security-summary-box--red erp-sec-kpi erp-sec-kpi--danger" data-blocked-users="{{ stats.blocked_users }}">
+        <div class="inner p-3">
+          <h3 class="mb-1">{{ stats.blocked_users }}</h3>
+          <p class="mb-2">محظورون</p>
+          <div style="height: 36px;"><canvas id="systemHealthChart"></canvas></div>
         </div>
-        <div class="col-lg-3 col-md-6 mb-3">
-          <div class="small-box security-summary-box security-summary-box--red" data-blocked-users="{{ stats.blocked_users }}">
-            <div class="inner">
-              <h3>{{ stats.blocked_users }}</h3>
-              <p>مستخدمين محظورين</p>
-              <div style="height: 40px; margin-top: 10px;">
-                <canvas id="systemHealthChart"></canvas>
-              </div>
-            </div>
-            <div class="icon"><i class="fas fa-user-lock"></i></div>
-          </div>
+        <div class="icon"><i class="fas fa-user-lock"></i></div>
+      </div>
+    </div>
+    <div class="col-lg-3 col-md-6">
+      <div class="small-box security-summary-box security-summary-box--amber erp-sec-kpi erp-sec-kpi--warning">
+        <div class="inner p-3">
+          <h3 class="mb-1">{{ stats.failed_logins_24h }}</h3>
+          <p class="mb-2">محاولات فاشلة (24 ساعة)</p>
+          <div style="height: 36px;"><canvas id="failedLoginsChart"></canvas></div>
         </div>
-        <div class="col-lg-3 col-md-6 mb-3">
-          <div class="small-box security-summary-box security-summary-box--amber">
-            <div class="inner">
-              <h3>{{ stats.failed_logins_24h }}</h3>
-              <p>محاولات فاشلة (24 ساعة)</p>
-              <div style="height: 40px; margin-top: 10px;">
-                <canvas id="failedLoginsChart"></canvas>
-              </div>
-            </div>
-            <div class="icon"><i class="fas fa-exclamation-triangle"></i></div>
-          </div>
-        </div>
+        <div class="icon"><i class="fas fa-exclamation-triangle"></i></div>
       </div>
     </div>
   </div>
 
+  <h2 class="erp-section-title"><i class="fas fa-history ms-1"></i> آخر الإجراءات</h2>
   <div class="sec-card">
     <div class="sec-card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
-      <h5 class="mb-0 fw-bold text-white"><i class="fas fa-history text-info ms-2"></i> آخر الإجراءات</h5>
-      <a href="{{ url_for('security.audit_log_viewer') }}" class="btn btn-glass btn-sm">عرض السجل</a>
+      <span class="small text-muted">آخر 10 أحداث في سجل التدقيق</span>
+      <a href="{{ url_for('security.audit_log_viewer') }}" class="btn btn-primary btn-sm">عرض السجل الكامل</a>
     </div>
     <div class="sec-card-body p-0">
-      <div class="timeline" id="auditTimeline" style="max-height: 280px; overflow-y: auto;">
-        {% if recent %}
-          {% for audit in recent[:10] %}
-          <div class="timeline-item" style="padding: 12px 20px; border-bottom: 1px solid rgba(255,255,255,0.08);">
-            <div class="d-flex justify-content-between align-items-start">
-              <div class="d-flex align-items-start">
-                <i class="fas fa-circle text-{% if audit.success %}success{% else %}danger{% endif %} mt-1" style="font-size: 0.5rem; margin-left: 10px;"></i>
-                <div>
-                  <strong class="text-white">{{ audit.event or 'نشاط' }}</strong>
-                  <br><small class="text-muted">
-                    <i class="fas fa-user"></i> {{ audit.user.username if audit.user else 'غير معروف' }}
-                    {% if audit.ip %} | <i class="fas fa-network-wired"></i> {{ audit.ip }}{% endif %}
-                  </small>
-                </div>
-              </div>
-              <small class="text-muted" title="{{ audit.created_at }}">
-                <i class="fas fa-clock"></i> {{ audit.created_at.strftime('%H:%M') if audit.created_at else 'غير معروف' }}
-              </small>
-            </div>
-          </div>
-          {% endfor %}
-        {% else %}
-          <div class="text-center p-4 text-muted">
-            <i class="fas fa-inbox ms-2"></i> لا توجد إجراءات حديثة
-          </div>
-        {% endif %}
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead>
+            <tr>
+              <th>الحدث</th>
+              <th>المستخدم</th>
+              <th>عنوان IP</th>
+              <th>الحالة</th>
+              <th>الوقت</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% if recent %}
+              {% for audit in recent[:10] %}
+              <tr>
+                <td class="fw-semibold">{{ audit.event or 'نشاط' }}</td>
+                <td>{{ audit.user.username if audit.user else '—' }}</td>
+                <td class="font-monospace small">{{ audit.ip or '—' }}</td>
+                <td>
+                  {% if audit.success %}
+                  <span class="badge badge-success">ناجح</span>
+                  {% else %}
+                  <span class="badge badge-danger">فشل</span>
+                  {% endif %}
+                </td>
+                <td class="text-muted small">{{ audit.created_at.strftime('%Y-%m-%d %H:%M') if audit.created_at else '—' }}</td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td colspan="5" class="text-center text-muted py-4">
+                  <i class="fas fa-inbox ms-1"></i> لا توجد إجراءات حديثة
+                </td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
       </div>
     </div>
   </div>
+</div>
 {% endblock security_content %}
 
 {% block scripts %}

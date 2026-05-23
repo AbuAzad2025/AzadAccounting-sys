@@ -5,30 +5,7 @@
 {% block head_extra %}
   {{ super() }}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/warehouses.css') }}">
-  <style>
-    /* طباعة محسنة */
-    @media print {
-      body * { visibility: hidden; }
-      .print-area, .print-area * { visibility: visible; }
-      .print-area { position: absolute; left: 0; top: 0; width: 100%; }
-      .no-print { display: none !important; }
-      table { page-break-inside: auto; }
-      tr { page-break-inside: avoid; page-break-after: auto; }
-      thead { display: table-header-group; }
-      tfoot { display: table-footer-group; }
-    }
-    .table thead th { position: sticky; top: 0; z-index: 2; }
-    .table-responsive { max-height: 70vh; }
-    .cell-saving{opacity:.6}
-    td input.form-control{min-width:110px}
-    td input.qty{max-width:90px;text-align:center}
-    td input.price{max-width:110px}
-    td input.text{max-width:180px}
-    .expanded-col{display:none}
-    .expanded-on .expanded-col{display:table-cell}
-    .edited{outline:2px solid rgba(255,193,7,.6)}
-    #pendingCount.badge{font-size:.85rem}
-  </style>
+  
 {% endblock %}
 
 {% block content %}

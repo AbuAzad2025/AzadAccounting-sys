@@ -1,0 +1,138 @@
+/**
+ * تخطيط ERP — RTL، سايدبار، مسافات آمنة (نافبار / فوتر / موبايل)
+ * يعوّض قواعد style.css التي أُزيلت من base.html
+ */
+:root {
+  --erp-sidebar-w: 260px;
+  --erp-sidebar-mini-w: 4.6rem;
+}
+
+/* ── Navbar: أزرار التحكم قابلة للنقر ── */
+body.erp-app:not(.security-body) .main-header.navbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  min-height: var(--erp-header-h);
+}
+
+body.erp-app:not(.security-body) .main-header .navbar-nav.erp-nav-controls {
+  position: relative;
+  z-index: 1062;
+  flex: 0 0 auto;
+}
+
+body.erp-app:not(.security-body) .navbar-info-center {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  pointer-events: none;
+}
+
+body.erp-app:not(.security-body) .navbar-info-center > * {
+  pointer-events: auto;
+}
+
+body.erp-app:not(.security-body) .erp-tenant-brand {
+  flex: 0 0 auto;
+  z-index: 1061;
+}
+
+body.erp-app:not(.security-body) .main-header .navbar-nav.ml-auto {
+  flex: 0 0 auto;
+  z-index: 1062;
+}
+
+/* ── Sidebar RTL ── */
+html[dir="rtl"] body.erp-app:not(.security-body) .main-sidebar {
+  right: 0 !important;
+  left: auto !important;
+  width: var(--erp-sidebar-w) !important;
+}
+
+html[dir="rtl"] body.erp-app:not(.security-body).sidebar-hidden .main-sidebar {
+  display: none !important;
+  width: 0 !important;
+  visibility: hidden !important;
+}
+
+/* ── Desktop: هوامش المحتوى مع السايدبار ── */
+@media (min-width: 992px) {
+  html[dir="rtl"] body.erp-app:not(.security-body).layout-navbar-fixed .main-header {
+    position: fixed;
+    top: 0;
+    right: 0;
+    left: 0;
+    z-index: 1030;
+    margin-right: 0;
+    margin-left: 0;
+    width: auto;
+  }
+
+  html[dir="rtl"] body.erp-app:not(.security-body):not(.sidebar-collapse):not(.sidebar-hidden) .main-header,
+  html[dir="rtl"] body.erp-app:not(.security-body):not(.sidebar-collapse):not(.sidebar-hidden) .content-wrapper,
+  html[dir="rtl"] body.erp-app:not(.security-body):not(.sidebar-collapse):not(.sidebar-hidden) .main-footer {
+    margin-right: var(--erp-sidebar-w) !important;
+    margin-left: 0 !important;
+    width: auto !important;
+    transition: margin-right 0.3s ease-in-out;
+  }
+
+  html[dir="rtl"] body.erp-app:not(.security-body).sidebar-collapse:not(.sidebar-hidden) .main-header,
+  html[dir="rtl"] body.erp-app:not(.security-body).sidebar-collapse:not(.sidebar-hidden) .content-wrapper,
+  html[dir="rtl"] body.erp-app:not(.security-body).sidebar-collapse:not(.sidebar-hidden) .main-footer {
+    margin-right: var(--erp-sidebar-mini-w) !important;
+    margin-left: 0 !important;
+    width: auto !important;
+  }
+
+  html[dir="rtl"] body.erp-app:not(.security-body).sidebar-hidden .main-header,
+  html[dir="rtl"] body.erp-app:not(.security-body).sidebar-hidden .content-wrapper,
+  html[dir="rtl"] body.erp-app:not(.security-body).sidebar-hidden .main-footer {
+    margin-right: 0 !important;
+    margin-left: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  html[dir="rtl"] body.erp-app:not(.security-body).layout-navbar-fixed .content-wrapper {
+    margin-top: calc(var(--erp-header-h) + env(safe-area-inset-top, 0px)) !important;
+    padding-top: 0 !important;
+    min-height: calc(100vh - var(--erp-header-h));
+  }
+
+  html[dir="rtl"] body.erp-app:not(.security-body) .main-footer.erp-footer {
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* ── Tablet/Mobile: لا هوامش جانبية (overlay) — mobile.css يكمّل ── */
+@media (max-width: 991.98px) {
+  html[dir="rtl"] body.erp-app:not(.security-body) .content-wrapper,
+  html[dir="rtl"] body.erp-app:not(.security-body) .main-footer,
+  html[dir="rtl"] body.erp-app:not(.security-body) .main-header {
+    margin-right: 0 !important;
+    margin-left: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  html[dir="rtl"] body.erp-app:not(.security-body).sidebar-open .main-sidebar {
+    right: 0 !important;
+    left: auto !important;
+    width: var(--erp-sidebar-w) !important;
+    z-index: 1045 !important;
+  }
+}
+
+/* محتوى لا يختبئ تحت الشريط السفلي على الموبايل */
+html[data-ui-mode="mobile"] body.erp-app:not(.security-body) .content-wrapper .content,
+html[data-ui-mode="tablet"] body.erp-app:not(.security-body) .content-wrapper .content {
+  padding-bottom: calc(
+    var(--gm-gutter, 16px) + var(--gm-bottom-nav-height, 64px) + env(safe-area-inset-bottom, 0px)
+  ) !important;
+}
+
+html[data-ui-mode="mobile"] body.erp-app:not(.security-body) .gm-mobile-bottom-nav,
+html[data-ui-mode="tablet"] body.erp-app:not(.security-body) .gm-mobile-bottom-nav {
+  display: flex !important;
+}

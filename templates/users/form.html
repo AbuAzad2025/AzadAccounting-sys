@@ -88,7 +88,7 @@
                 <div class="form-group mb-3">
                   {{ form.branch_ids.label(class="form-label") }}
                   {{ form.branch_ids(class="custom-select", multiple=true, size="4") }}
-                  <small class="text-muted d-block">حدّد الفروع التي يرى بياناتها هذا المستخدم.</small>
+                  <small class="text-muted d-block">كل مستخدم تشغيلي يجب أن يرتبط بفرع واحد على الأقل (شركة + فرع). أدوار المالك/عرض كل الفروع فقط يمكن تركها بدون ربط.</small>
                 </div>
               </div>
               <div class="col-md-5">
@@ -99,7 +99,7 @@
               </div>
             </div>
 
-            <div class="form-text text-muted">إن تركت كلمة المرور فارغة أثناء التعديل فلن تتغيّر.</div>
+            <div class="form-text text-muted erp-keep-hint">اتركها فارغة عند التعديل إن لم تُرد التغيير.</div>
           </div>
         </div>
 
@@ -166,7 +166,7 @@
               </div>
               {% endif %}
             </div>
-            <div class="small text-muted">هذه الحقول معلوماتية فقط ولا يمكن تعديلها.</div>
+            <div class="small text-muted erp-card-hint">للعرض فقط.</div>
           </div>
         </div>
 

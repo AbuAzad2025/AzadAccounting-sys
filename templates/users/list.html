@@ -9,47 +9,7 @@
 {% block styles %}
 <!-- DataTables CSS محمّل في base.html -->
 <link rel="stylesheet" href="{{ url_for('static', filename='css/users.css') }}">
-<style>
-    /* إصلاح ألوان الجدول */
-    .table td, .table th {
-        vertical-align: middle !important;
-        color: inherit;
-    }
-    
-    /* دعم الوضع الداكن */
-    body.dark-mode .table {
-        color: #e1e1e1;
-        background-color: transparent;
-    }
-    body.dark-mode .table thead th {
-        background-color: #3f474e;
-        color: #fff;
-        border-color: #4b545c;
-    }
-    body.dark-mode .table-striped tbody tr:nth-of-type(odd) {
-        background-color: rgba(255,255,255,.05);
-    }
-    body.dark-mode .table-bordered td, 
-    body.dark-mode .table-bordered th {
-        border-color: #4b545c;
-    }
-    
-    /* تحسين مظهر DataTables */
-    .dataTables_wrapper .dt-buttons .btn {
-        margin-left: 5px;
-        border-radius: 4px !important;
-    }
-    .dataTables_wrapper .dataTables_filter input {
-        border-radius: 20px;
-        padding: 5px 15px;
-        border: 1px solid #ced4da;
-    }
-    body.dark-mode .dataTables_wrapper .dataTables_filter input {
-        background-color: #3f474e;
-        border-color: #6c757d;
-        color: #fff;
-    }
-</style>
+
 {% endblock %}
 
 {% block content %}
@@ -81,6 +41,8 @@
       <tr class="text-center">
         <th>اسم المستخدم</th>
         <th>البريد الإلكتروني</th>
+        <th>الشركة</th>
+        <th>الفرع / النطاق</th>
         <th>الدور</th>
         <th>الحالة</th>
         <th>آخر ظهور</th>
@@ -97,12 +59,33 @@
         {% set perms = (visible_extra_permissions_by_user.get(user.id) if visible_extra_permissions_by_user is defined else []) | list %}
         {% set role = user.role.name|lower if user.role else 'unknown' %}
 
+        {% set scope = user_branch_display.get(user.id, {}) if user_branch_display is defined else {} %}
         <tr class="role-row {{ role }}">
           <td class="text-nowrap">{{ user.username }}</td>
           <td class="text-nowrap">
             {% if user.email %}
               <a href="mailto:{{ user.email }}" dir="ltr">{{ user.email }}</a>
             {% else %}—{% endif %}
+          </td>
+          <td class="text-center">
+            {% if scope.companies %}
+              {% for co in scope.companies %}
+                <span class="badge badge-primary mb-1">{{ co }}</span>
+              {% endfor %}
+            {% elif scope.view_all %}
+              <span class="badge badge-dark">كل الشركات</span>
+            {% else %}
+              <span class="text-danger">غير مربوط</span>
+            {% endif %}
+          </td>
+          <td class="text-center">
+            {% if scope.branches %}
+              <span>{{ scope.label }}</span>
+            {% elif scope.view_all %}
+              <span class="text-muted">يُحدد عند التحويل</span>
+            {% else %}
+              <span class="text-danger">—</span>
+            {% endif %}
           </td>
           <td class="text-center">
             {% if user.role %}

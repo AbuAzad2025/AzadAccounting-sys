@@ -4,38 +4,7 @@
 
 {% block head_extra %}
 {{ super() }}
-<style>
-.platform-card {
-  transition: all 0.3s ease;
-  cursor: pointer;
-  border: 3px solid transparent;
-}
-.platform-card:hover {
-  transform: scale(1.05);
-  box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-}
-.platform-card.selected {
-  border-color: #0056b3;
-  background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
-}
-.tech-badge {
-  padding: 0.5rem 1rem;
-  border-radius: 20px;
-  font-weight: 600;
-  display: inline-block;
-  margin: 0.25rem;
-}
-.category-section {
-  margin-bottom: 1.5rem;
-}
-.category-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  padding: 0.75rem 1rem;
-  border-radius: 0.5rem;
-  margin-bottom: 0.75rem;
-}
-</style>
+
 {% endblock %}
 
 {% block content %}

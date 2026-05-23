@@ -5912,8 +5912,23 @@ def _sale_clear_balance_cache(mapper, connection, target: "Sale"):
 def _sale_create_tax_entry(mapper, connection, target: "Sale"):
     """إنشاء/تحديث سجل ضريبي للبيع تلقائياً"""
     if target.status != SaleStatus.CONFIRMED.value:
+        _gl_reverse_posted_batches(
+            connection,
+            source_type="SALE",
+            source_id=target.id,
+            reversal_source_type="SALE_REVERSAL",
+            memo_prefix=f"Reversal - sale status {target.status}",
+            purposes=["REVENUE"],
+        )
+        _gl_reverse_posted_batches(
+            connection,
+            source_type="SALE_PARTNER_SHARE",
+            source_id=target.id,
+            reversal_source_type="SALE_PARTNER_SHARE_REVERSAL",
+            memo_prefix=f"Reversal - partner share sale status {target.status}",
+        )
         return
-    
+
     tax_rate = float(target.tax_rate or 0)
     if tax_rate <= 0:
         return
@@ -6205,13 +6220,8 @@ def _sale_gl_upsert_core(connection, target: "Sale") -> None:
         entries.append((GL_ACCOUNTS.get("INVENTORY", "1200_INVENTORY"), Decimal(0), total_cogs_inv_amt))
     customer_name = getattr(getattr(target, "customer", None), "name", None) or "Customer"
     memo = f"Sale #{target.sale_number or target.id} - {customer_name}"
-    batch_ids = connection.execute(
-        sa_text("SELECT id FROM gl_batches WHERE source_type = 'SALE' AND source_id = :sid AND purpose = 'REVENUE'"),
-        {"sid": target.id},
-    ).fetchall()
-    for (bid,) in batch_ids:
-        connection.execute(sa_text("DELETE FROM gl_entries WHERE batch_id = :bid"), {"bid": int(bid)})
-        connection.execute(sa_text("DELETE FROM gl_batches WHERE id = :bid"), {"bid": int(bid)})
+    _gl_delete_batches(connection, source_type="SALE_REVERSAL", source_id=target.id, purposes=["REVENUE"])
+    _gl_delete_batches(connection, source_type="SALE", source_id=target.id, purposes=["REVENUE"])
     _gl_upsert_batch_and_entries(
         connection,
         source_type="SALE",
@@ -6225,13 +6235,8 @@ def _sale_gl_upsert_core(connection, target: "Sale") -> None:
         entity_id=target.customer_id,
     )
 
-    batch_ids_ps = connection.execute(
-        sa_text("SELECT id FROM gl_batches WHERE source_type = 'SALE_PARTNER_SHARE' AND source_id = :sid"),
-        {"sid": target.id},
-    ).fetchall()
-    for (bid,) in batch_ids_ps:
-        connection.execute(sa_text("DELETE FROM gl_entries WHERE batch_id = :bid"), {"bid": int(bid)})
-        connection.execute(sa_text("DELETE FROM gl_batches WHERE id = :bid"), {"bid": int(bid)})
+    _gl_delete_batches(connection, source_type="SALE_PARTNER_SHARE_REVERSAL", source_id=target.id)
+    _gl_delete_batches(connection, source_type="SALE_PARTNER_SHARE", source_id=target.id)
     for partner_id, amount in total_revenue_partners.items():
         amt = _q2(Decimal(amount))
         if amt > 0:
@@ -6489,18 +6494,8 @@ def _sale_line_touch_sale_total(mapper, connection, target: "SaleLine"):
             {"id": sid}
         ).first()
         
-        if sale_data and sale_data[2] > 0 and sale_data[3] == 'CONFIRMED':  # total > 0 and CONFIRMED
-            # استدعاء _sale_gl_batch_upsert يدوياً
-            from models import Sale as SaleModel
-            sale_obj = SaleModel()
-            sale_obj.id = sale_data[0]
-            sale_obj.sale_number = sale_data[1]
-            sale_obj.total_amount = sale_data[2]
-            sale_obj.status = sale_data[3]
-            sale_obj.customer_id = sale_data[4]
-            sale_obj.currency = sale_data[5]
-            
-            _sale_gl_batch_upsert(None, connection, sale_obj)
+        if sale_data and sale_data[2] > 0 and sale_data[3] == 'CONFIRMED':
+            pass  # GL يُزامَن بعد commit عبر run_sale_gl_sync_after_commit من مسارات البيع
 
 class SaleReturn(db.Model, TimestampMixin, AuditMixin):
     __tablename__ = "sale_returns"
@@ -7337,55 +7332,38 @@ def _invoice_delete_tax_entry(mapper, connection, target: "Invoice"):
 def _invoice_gl_upsert_core(connection, target: "Invoice") -> None:
     """منطق إنشاء/تحديث قيد GL للفاتورة (يُستدعى من معاملة منفصلة بعد commit)."""
     if target.cancelled_at:
-        amount = float(target.total_amount or 0)
-        if amount <= 0:
-            return
-        amount_ils = amount
-        if target.currency and target.currency != "ILS":
-            try:
-                rate = _fx_rate_local_via_connection(connection, target.currency, "ILS", target.invoice_date or datetime.now(timezone.utc))
-                if rate and rate > 0:
-                    amount_ils = float(amount * float(rate))
-            except Exception:
-                pass
-        entity_type = "CUSTOMER" if target.customer_id else ("SUPPLIER" if target.supplier_id else "PARTNER")
-        entity_id = target.customer_id or target.supplier_id or target.partner_id
-        if entity_type == "CUSTOMER":
-            ar_account = GL_ACCOUNTS.get("AR", "1100_AR")
-            revenue_account = (
-                GL_ACCOUNTS.get("SERVICE_REV", "4100_SERVICE_REVENUE")
-                if target.service_id
-                else GL_ACCOUNTS.get("SALES", "4000_SALES")
-            )
-            entries = [(revenue_account, amount_ils, 0), (ar_account, 0, amount_ils)]
-        else:
-            ap_account = GL_ACCOUNTS.get("AP", "2000_AP")
-            purchase_account = GL_ACCOUNTS.get("PURCHASES", "5100_PURCHASES")
-            entries = [(purchase_account, amount_ils, 0), (ap_account, 0, amount_ils)]
-        _gl_upsert_batch_and_entries(
+        _gl_reverse_posted_batches(
             connection,
-            source_type="INVOICE_REVERSAL",
+            source_type="INVOICE",
             source_id=target.id,
-            purpose="REVERSAL",
-            currency="ILS",
-            memo=f"Reversal - cancelled invoice #{target.id}",
-            entries=entries,
-            ref=f"REV-INV-{target.id}",
-            entity_type=entity_type,
-            entity_id=entity_id,
+            reversal_source_type="INVOICE_REVERSAL",
+            memo_prefix=f"Reversal - cancelled invoice #{target.id}",
+            purposes=["INVOICE"],
         )
         return
     amount = float(target.total_amount or 0)
     if amount <= 0:
         return
+    inv_at = target.invoice_date or datetime.now(timezone.utc)
     amount_ils = amount
-    if target.currency and target.currency != "ILS":
+    if target.currency and target.currency != DEFAULT_CURRENCY:
         try:
-            rate = _fx_rate_local_via_connection(connection, target.currency, "ILS", target.invoice_date or datetime.now(timezone.utc))
+            rate = _fx_rate_local_via_connection(connection, target.currency, DEFAULT_CURRENCY, inv_at)
             if rate and rate > 0:
                 amount_ils = float(amount * float(rate))
         except Exception:
             pass
+    tax_amount = float(target.tax_amount or 0)
+    tax_amount_ils = tax_amount
+    if target.currency and target.currency != DEFAULT_CURRENCY:
+        try:
+            rate = _fx_rate_local_via_connection(connection, target.currency, DEFAULT_CURRENCY, inv_at)
+            if rate and rate > 0:
+                tax_amount_ils = float(tax_amount * float(rate))
+        except Exception:
+            pass
+    tax_amount_ils = max(0.0, min(round(tax_amount_ils, 2), round(amount_ils, 2)))
+    net_amount_ils = round(amount_ils - tax_amount_ils, 2)
     entity_type = "CUSTOMER"
     entity_id = target.customer_id
     ar_account = GL_ACCOUNTS.get("AR", "1100_AR")
@@ -7403,17 +7381,28 @@ def _invoice_gl_upsert_core(connection, target: "Invoice") -> None:
             if target.service_id
             else GL_ACCOUNTS.get("REV", "4000_SALES")
         )
-        entries = [(ar_account, amount_ils, 0), (revenue_account, 0, amount_ils)]
+        entries = [(ar_account, amount_ils, 0)]
+        if net_amount_ils > 0:
+            entries.append((revenue_account, 0, net_amount_ils))
+        if tax_amount_ils > 0:
+            entries.append((GL_ACCOUNTS.get("VAT", "2100_VAT_PAYABLE"), 0, tax_amount_ils))
         memo = f"Invoice sale - {target.invoice_number}"
     else:
-        entries = [(GL_ACCOUNTS.get("PURCHASES", "5100_PURCHASES"), amount_ils, 0), (ar_account, 0, amount_ils)]
+        entries = []
+        if net_amount_ils > 0:
+            entries.append((GL_ACCOUNTS.get("PURCHASES", "5100_COGS"), net_amount_ils, 0))
+        if tax_amount_ils > 0:
+            entries.append((GL_ACCOUNTS.get("VAT_INPUT", "1500_VAT_INPUT"), tax_amount_ils, 0))
+        entries.append((ar_account, 0, amount_ils))
         memo = f"Invoice purchase - {target.invoice_number}"
+    _gl_delete_batches(connection, source_type="INVOICE_REVERSAL", source_id=target.id, purposes=["INVOICE"])
+    _gl_delete_batches(connection, source_type="INVOICE", source_id=target.id, purposes=["INVOICE"])
     _gl_upsert_batch_and_entries(
         connection,
         source_type="INVOICE",
         source_id=target.id,
         purpose="INVOICE",
-        currency="ILS",
+        currency=DEFAULT_CURRENCY,
         memo=memo,
         entries=entries,
         ref=target.invoice_number,
@@ -14258,12 +14247,99 @@ GL_ACCOUNTS = {
     "DISCOUNT_ALLOWED": "4050_SALES_DISCOUNT",
     "SHIPPING_INCOME": "4200_SHIPPING_INCOME",
     "PURCHASES": "5100_COGS",
+    "COGS": "5100_COGS",
+    "INVENTORY": "1200_INVENTORY",
+    "TAX_OUT": "2100_VAT_PAYABLE",
     "VAT_INPUT": "1500_VAT_INPUT",
     "PAYROLL_EXP": "6100_PAYROLL_EXPENSE",
     "PAYROLL_PAYABLE": "2100_PAYROLL_PAYABLE",
     "PREPAID": "1400_PREPAID_EXP",
     "ACCRUED_EXP": "2205_ACCRUED_EXP",
 }
+
+
+def _gl_table_names(connection):
+    dialect_name = getattr(getattr(connection, "dialect", None), "name", "")
+    if dialect_name == "postgresql":
+        return "public.gl_batches", "public.gl_entries"
+    return "gl_batches", "gl_entries"
+
+
+def _gl_delete_batches(connection, *, source_type: str, source_id: int, purposes=None) -> None:
+    """Delete generated GL batches for a source before rebuilding them."""
+    if not source_type or not source_id:
+        return
+    batch_table, entry_table = _gl_table_names(connection)
+    purpose_set = {str(p) for p in (purposes or [])}
+    rows = connection.execute(
+        sa_text(f"""
+            SELECT id, purpose FROM {batch_table}
+             WHERE source_type = :st AND source_id = :sid
+        """),
+        {"st": source_type, "sid": int(source_id)},
+    ).mappings().all()
+    for row in rows:
+        purpose = str(row.get("purpose") or "")
+        if purpose_set and purpose not in purpose_set:
+            continue
+        batch_id = int(row["id"])
+        connection.execute(sa_text(f"DELETE FROM {entry_table} WHERE batch_id = :bid"), {"bid": batch_id})
+        connection.execute(sa_text(f"DELETE FROM {batch_table} WHERE id = :bid"), {"bid": batch_id})
+
+
+def _gl_reverse_posted_batches(
+    connection,
+    *,
+    source_type: str,
+    source_id: int,
+    reversal_source_type: str,
+    memo_prefix: str,
+    purposes=None,
+) -> None:
+    """Create idempotent reversing batches from existing POSTED batches."""
+    if not source_type or not source_id or not reversal_source_type:
+        return
+    batch_table, entry_table = _gl_table_names(connection)
+    purpose_set = {str(p) for p in (purposes or [])}
+    batches = connection.execute(
+        sa_text(f"""
+            SELECT id, purpose, currency, entity_type, entity_id, memo
+              FROM {batch_table}
+             WHERE source_type = :st AND source_id = :sid
+               AND status = 'POSTED'
+             ORDER BY id
+        """),
+        {"st": source_type, "sid": int(source_id)},
+    ).mappings().all()
+    for batch in batches:
+        purpose = str(batch.get("purpose") or "REVERSAL")[:30]
+        if purpose_set and purpose not in purpose_set:
+            continue
+        entries = connection.execute(
+            sa_text(f"SELECT account, debit, credit FROM {entry_table} WHERE batch_id = :bid ORDER BY id"),
+            {"bid": int(batch["id"])},
+        ).mappings().all()
+        reversed_entries = []
+        for entry in entries:
+            debit = float(entry.get("debit") or 0)
+            credit = float(entry.get("credit") or 0)
+            if debit <= 0 and credit <= 0:
+                continue
+            reversed_entries.append((str(entry.get("account") or "").strip().upper(), credit, debit))
+        if not reversed_entries:
+            continue
+        _gl_upsert_batch_and_entries(
+            connection,
+            source_type=reversal_source_type,
+            source_id=int(source_id),
+            purpose=purpose,
+            currency=(batch.get("currency") or DEFAULT_CURRENCY),
+            memo=f"{memo_prefix}: {batch.get('memo') or source_type}"[:255],
+            entries=reversed_entries,
+            ref=f"REV-{source_type}-{source_id}-{purpose}"[:50],
+            entity_type=batch.get("entity_type"),
+            entity_id=batch.get("entity_id"),
+        )
 
 
 def _gl_upsert_batch_and_entries(
@@ -14282,13 +14358,7 @@ def _gl_upsert_batch_and_entries(
 ):
     if not entries:
         raise ValueError("entries required")
-    dialect_name = getattr(getattr(connection, "dialect", None), "name", "")
-    if dialect_name == "postgresql":
-        batch_table = "public.gl_batches"
-        entry_table = "public.gl_entries"
-    else:
-        batch_table = "gl_batches"
-        entry_table = "gl_entries"
+    batch_table, entry_table = _gl_table_names(connection)
     parsed = []
     for item in entries:
         if len(item) >= 4:

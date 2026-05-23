@@ -1615,7 +1615,7 @@ def index():
                 """
 <div id="expenses-summary-wrapper">
 {% if summary %}
-  <div class="summary-cards mb-4 no-print">
+  <div class="summary-cards erp-summary-grid no-print">
     <div class="summary-card summary-card--total">
       <div class="summary-card__row">
         <div>

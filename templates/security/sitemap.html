@@ -11,77 +11,8 @@
 {% endblock %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/security_responsive.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/security_dark_mode.css') }}">
-<style>
-  .sitemap-tree {
-    list-style: none;
-    padding-right: 0;
-  }
-  
-  .sitemap-tree ul {
-    list-style: none;
-    padding-right: 25px;
-    margin-top: 10px;
-  }
-  
-  .sitemap-tree li {
-    margin: 8px 0;
-    padding: 8px 12px;
-    border-right: 3px solid #667eea;
-    transition: all 0.2s;
-  }
-  
-  .sitemap-tree li:hover {
-    background: #f8f9fa;
-    border-right-width: 5px;
-  }
-  
-  .sitemap-tree a {
-    text-decoration: none;
-    color: #333;
-    font-weight: 500;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  
-  .sitemap-tree a:hover {
-    color: #667eea !important;
-  }
-  
-  .sitemap-tree .badge {
-    font-size: 0.7rem;
-  }
-  
-  .sitemap-section {
-    margin-bottom: 30px;
-    padding: 20px;
-    background: white;
-    border-radius: 10px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-  }
-  
-  .sitemap-section h4 {
-    color: #667eea;
-    margin-bottom: 15px;
-    padding-bottom: 10px;
-    border-bottom: 2px solid #667eea;
-  }
-  
-  /* Dark Mode */
-  body.dark-mode .sitemap-tree li:hover {
-    background: #1a2942 !important;
-  }
-  
-  body.dark-mode .sitemap-tree a {
-    color: #e0e0e0 !important;
-  }
-  
-  body.dark-mode .sitemap-section {
-    background: #0f3460 !important;
-  }
-</style>
+
 {% endblock %}
 
 {% block content %}

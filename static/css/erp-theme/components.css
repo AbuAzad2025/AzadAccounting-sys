@@ -1,0 +1,519 @@
+/**
+ * مكوّنات ERP — كل العناصر عبر tokens فقط
+ */
+body.erp-app {
+  font-family: var(--erp-font);
+  background: var(--erp-bg);
+  color: var(--erp-text);
+  line-height: 1.55;
+}
+
+body.erp-app .content-wrapper {
+  background: var(--erp-bg) !important;
+  color: var(--erp-text);
+}
+
+body.erp-app .content-header h1,
+body.erp-app .erp-section-title {
+  color: var(--erp-primary-dark);
+  font-weight: 700;
+}
+
+body.erp-app .text-muted,
+body.erp-app .form-text {
+  color: var(--erp-muted) !important;
+}
+
+/* ── Header / Navbar ── */
+body.erp-app .main-header.navbar {
+  background: var(--erp-header-bg) !important;
+  border-bottom: 2px solid var(--erp-gold);
+  min-height: var(--erp-header-h);
+}
+
+body.erp-app .main-header .nav-link,
+body.erp-app .main-header .navbar-text {
+  color: rgba(255, 255, 255, 0.92) !important;
+}
+
+body.erp-app .erp-topbar-meta .erp-meta-chip {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #fff;
+  border-radius: 999px;
+  padding: 0.25rem 0.65rem;
+  font-size: 0.8rem;
+}
+
+body.erp-app .erp-user-avatar {
+  width: 36px;
+  height: 36px;
+  background: var(--erp-gold);
+  color: var(--erp-primary-dark);
+  font-weight: 800;
+  font-size: 0.9rem;
+}
+
+body.erp-app .erp-user-avatar--lg {
+  width: 52px;
+  height: 52px;
+  font-size: 1.15rem;
+}
+
+body.erp-app .erp-header-user-name {
+  font-weight: 700;
+  color: #fff;
+}
+
+body.erp-app .erp-header-user-role {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+body.erp-app .company-logo-image {
+  max-height: 40px;
+  width: auto;
+  object-fit: contain;
+}
+
+body.erp-app .company-logo-text {
+  color: #fff;
+  font-weight: 700;
+  margin-inline-start: 0.5rem;
+}
+
+body.erp-app .erp-topbar-search .form-control {
+  border-radius: 999px;
+  text-align: start;
+  background: rgba(255, 255, 255, 0.95);
+  border: none;
+  min-height: 38px;
+}
+
+/* ── Sidebar ── */
+body.erp-app .main-sidebar {
+  background: var(--erp-sidebar-bg) !important;
+  width: var(--erp-sidebar-w) !important;
+  border-left: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow: -4px 0 20px rgba(0, 0, 0, 0.12) !important;
+}
+
+body.erp-app .main-sidebar .brand-link {
+  background: rgba(0, 0, 0, 0.15) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+  min-height: var(--erp-header-h);
+}
+
+body.erp-app .nav-sidebar > .nav-item > .nav-link {
+  color: var(--erp-sidebar-text) !important;
+  border-radius: var(--erp-radius);
+  margin: 3px 10px;
+  padding: 0.65rem 1rem;
+  font-weight: 500;
+}
+
+body.erp-app .nav-sidebar > .nav-item > .nav-link.active {
+  background: var(--erp-sidebar-active) !important;
+  color: #fff !important;
+  box-shadow: inset 3px 0 0 var(--erp-gold);
+}
+
+body.erp-app .nav-sidebar > .nav-item > .nav-link:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #fff !important;
+}
+
+/* ── Footer ── */
+body.erp-app .main-footer.erp-footer {
+  margin-inline: 0;
+  text-align: initial;
+  float: none;
+}
+
+body.erp-app .erp-footer {
+  background: var(--erp-surface);
+  border-top: 1px solid var(--erp-border);
+  padding: 1rem 1.25rem;
+  min-height: var(--erp-footer-min-h);
+  color: var(--erp-text);
+}
+
+body.erp-app .erp-tenant-brand .company-logo-link {
+  text-decoration: none;
+}
+
+body.erp-app .erp-footer__grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  align-items: center;
+  text-align: center;
+}
+
+@media (min-width: 768px) {
+  body.erp-app .erp-footer__grid {
+    grid-template-columns: 1fr 1.2fr 1fr;
+    text-align: center;
+  }
+  body.erp-app .erp-footer__tenant { text-align: start; }
+  body.erp-app .erp-footer__developer { text-align: end; }
+}
+
+body.erp-app .erp-footer__platform-title {
+  font-weight: 800;
+  font-size: 1rem;
+  color: var(--erp-primary);
+}
+
+body.erp-app .erp-footer__platform-tagline {
+  font-size: 0.85rem;
+  color: var(--erp-muted);
+}
+
+body.erp-app .erp-footer__logo {
+  max-height: 44px;
+  width: auto;
+  object-fit: contain;
+}
+
+body.erp-app .erp-footer__dev-logo {
+  max-height: 36px;
+}
+
+body.erp-app .erp-footer__meta {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--erp-border);
+  font-size: 0.8rem;
+  color: var(--erp-muted);
+  text-align: center;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem 1.25rem;
+}
+
+/* ── Cards & KPI ── */
+body.erp-app .card {
+  background: var(--erp-surface) !important;
+  border: 1px solid var(--erp-border) !important;
+  border-radius: var(--erp-radius-lg) !important;
+  box-shadow: var(--erp-shadow-sm) !important;
+  color: var(--erp-text) !important;
+}
+
+body.erp-app .card-header {
+  background: var(--erp-surface-alt) !important;
+  border-bottom: 1px solid var(--erp-border) !important;
+  color: var(--erp-primary-dark) !important;
+  font-weight: 700;
+  padding: 1rem 1.25rem;
+}
+
+body.erp-app .card-body {
+  padding: var(--erp-gap-lg);
+}
+
+body.erp-app .erp-kpi-card,
+body.erp-app .dashboard-stats-card.erp-kpi-card {
+  position: relative;
+  overflow: hidden;
+}
+
+body.erp-app .erp-kpi-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 4px;
+  height: 100%;
+  background: var(--erp-primary);
+}
+
+body.erp-app .erp-kpi-value {
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: var(--erp-primary-dark);
+  font-variant-numeric: tabular-nums;
+}
+
+body.erp-app .erp-kpi-label {
+  color: var(--erp-muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+body.erp-app .erp-kpi-icon {
+  color: var(--erp-primary);
+  opacity: 0.35;
+}
+
+/* ── Forms / Inputs ── */
+body.erp-app .content-wrapper .form-control,
+body.erp-app .content-wrapper .custom-select,
+body.erp-app .content-wrapper select.form-control,
+body.erp-app.security-body .form-control {
+  min-height: var(--erp-input-h);
+  height: var(--erp-input-h);
+  padding: 0 var(--erp-pad-inline);
+  text-align: center !important;
+  line-height: calc(var(--erp-input-h) - 2px);
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius);
+  background: var(--erp-surface);
+  color: var(--erp-text);
+  font-size: 0.95rem;
+}
+
+body.erp-app textarea.form-control {
+  height: auto !important;
+  min-height: 100px;
+  line-height: 1.55;
+  text-align: start !important;
+  padding: 0.65rem var(--erp-pad-inline);
+}
+
+body.erp-app .form-label,
+body.erp-app label.col-form-label {
+  font-weight: 600;
+  color: var(--erp-text);
+  margin-bottom: 0.45rem;
+  display: block;
+}
+
+body.erp-app .form-group {
+  margin-bottom: var(--erp-gap);
+}
+
+body.erp-app .form-control:focus,
+body.erp-app .custom-select:focus {
+  border-color: var(--erp-primary);
+  box-shadow: 0 0 0 0.2rem color-mix(in srgb, var(--erp-primary) 25%, transparent);
+}
+
+/* Select2 */
+body.erp-app .select2-container {
+  width: 100% !important;
+}
+
+body.erp-app .select2-container .select2-selection--single {
+  min-height: var(--erp-input-h) !important;
+  height: var(--erp-input-h) !important;
+  border: 1px solid var(--erp-border) !important;
+  border-radius: var(--erp-radius) !important;
+  background: var(--erp-surface) !important;
+  display: flex;
+  align-items: center;
+}
+
+body.erp-app .select2-selection__rendered {
+  line-height: calc(var(--erp-input-h) - 4px) !important;
+  text-align: center !important;
+  padding: 0 2rem 0 var(--erp-pad-inline) !important;
+  color: var(--erp-text) !important;
+  width: 100%;
+}
+
+body.erp-app .select2-selection__arrow {
+  height: 100% !important;
+  left: 0.65rem !important;
+  right: auto !important;
+}
+
+.select2-dropdown {
+  border: 1px solid var(--erp-border) !important;
+  border-radius: var(--erp-radius) !important;
+  background: var(--erp-surface) !important;
+  z-index: var(--erp-z-dropdown) !important;
+  box-shadow: var(--erp-shadow) !important;
+}
+
+.select2-results__option {
+  min-height: var(--erp-input-h);
+  padding: 0.65rem var(--erp-pad-inline) !important;
+  text-align: center !important;
+  line-height: 1.4;
+  color: var(--erp-text);
+}
+
+.select2-container--default .select2-results__option--highlighted[aria-selected] {
+  background: var(--erp-primary) !important;
+  color: #fff !important;
+}
+
+.select2-container--default .select2-results__option[aria-selected="true"] {
+  background: color-mix(in srgb, var(--erp-primary) 12%, var(--erp-surface)) !important;
+  font-weight: 700;
+}
+
+/* ── Buttons ── */
+body.erp-app .btn {
+  min-height: var(--erp-btn-h);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0 1.25rem;
+  font-weight: 700;
+  font-size: 0.95rem;
+  border-radius: var(--erp-radius);
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+body.erp-app .btn-primary {
+  background: var(--erp-primary) !important;
+  border-color: var(--erp-primary) !important;
+  color: #fff !important;
+}
+
+body.erp-app .btn-primary:hover {
+  background: var(--erp-primary-dark) !important;
+  border-color: var(--erp-primary-dark) !important;
+}
+
+body.erp-app .btn-success { background: var(--erp-success) !important; border-color: var(--erp-success) !important; }
+body.erp-app .btn-danger { background: var(--erp-danger) !important; border-color: var(--erp-danger) !important; }
+body.erp-app .btn-warning { background: var(--erp-warning) !important; border-color: var(--erp-warning) !important; color: #fff !important; }
+body.erp-app .btn-info { background: var(--erp-info) !important; border-color: var(--erp-info) !important; }
+body.erp-app .btn-outline-primary {
+  color: var(--erp-primary) !important;
+  border-color: var(--erp-primary) !important;
+}
+
+/* ── Tables ── */
+body.erp-app .table {
+  color: var(--erp-text);
+  background: var(--erp-surface);
+}
+
+body.erp-app .table thead th {
+  background: var(--erp-surface-alt) !important;
+  color: var(--erp-primary-dark) !important;
+  font-weight: 700;
+  text-align: center !important;
+  vertical-align: middle;
+  padding: 0.85rem 1rem !important;
+  min-height: var(--erp-table-head-h);
+  border-bottom: 2px solid var(--erp-border) !important;
+  white-space: nowrap;
+}
+
+body.erp-app .table td {
+  text-align: center !important;
+  vertical-align: middle !important;
+  padding: 0.85rem 1rem !important;
+  min-height: var(--erp-table-row-h);
+  border-color: var(--erp-border) !important;
+}
+
+body.erp-app .table-hover tbody tr:hover {
+  background: color-mix(in srgb, var(--erp-primary) 6%, var(--erp-surface)) !important;
+}
+
+body.erp-app .table-responsive {
+  border-radius: var(--erp-radius);
+  border: 1px solid var(--erp-border);
+}
+
+/* ── Badges ── */
+body.erp-app .badge-success, body.erp-app .badge.badge-success { background: var(--erp-success) !important; }
+body.erp-app .badge-warning, body.erp-app .badge.badge-warning { background: var(--erp-warning) !important; color: #fff !important; }
+body.erp-app .badge-danger, body.erp-app .badge.badge-danger { background: var(--erp-danger) !important; }
+body.erp-app .badge-info, body.erp-app .badge.badge-info { background: var(--erp-info) !important; }
+body.erp-app .badge-primary, body.erp-app .badge.badge-primary { background: var(--erp-primary) !important; }
+
+body.erp-app .badge {
+  padding: 0.35em 0.75em;
+  font-weight: 600;
+  border-radius: 999px;
+}
+
+/* ── Modals ── */
+body.erp-app .modal-content {
+  background: var(--erp-surface);
+  color: var(--erp-text);
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius-lg);
+}
+
+body.erp-app .modal-header,
+body.erp-app .modal-footer {
+  background: var(--erp-surface-alt);
+  border-color: var(--erp-border);
+}
+
+/* ── Alerts / Empty / Loading ── */
+body.erp-app .alert {
+  border-radius: var(--erp-radius);
+  border: 1px solid var(--erp-border);
+}
+
+body.erp-app .erp-empty-state {
+  text-align: center;
+  padding: 2.5rem 1rem;
+  color: var(--erp-muted);
+}
+
+body.erp-app .erp-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 2rem;
+  color: var(--erp-muted);
+}
+
+/* ── Filters / Pagination ── */
+body.erp-app .erp-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--erp-gap);
+  margin-bottom: var(--erp-gap-lg);
+  padding: var(--erp-gap);
+  background: var(--erp-surface);
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius-lg);
+}
+
+body.erp-app .pagination .page-link {
+  min-height: 40px;
+  min-width: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--erp-primary);
+  border-color: var(--erp-border);
+}
+
+body.erp-app .pagination .page-item.active .page-link {
+  background: var(--erp-primary);
+  border-color: var(--erp-primary);
+}
+
+/* ── Quick actions ── */
+body.erp-app .gm-quick-actions {
+  background: var(--erp-surface);
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius-lg);
+  padding: var(--erp-gap);
+}
+
+body.erp-app .gm-action-tile {
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius);
+  background: var(--erp-surface-alt);
+}
+
+/* Theme switcher */
+body.erp-app .erp-theme-switcher .btn {
+  min-height: 36px;
+  padding: 0 0.65rem;
+  font-size: 0.8rem;
+}
+
+body.erp-app .erp-theme-switcher .btn.active {
+  background: var(--erp-gold) !important;
+  border-color: var(--erp-gold) !important;
+  color: var(--erp-primary-dark) !important;
+}

@@ -48,13 +48,13 @@ small.text-muted {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #667eea 0%, #5a67d8 100%);
-  border-color: #5a67d8;
+  background: var(--erp-blue, #0b68ff);
+  border-color: var(--erp-blue, #0b68ff);
 }
 
 .btn-primary:hover {
-  background: linear-gradient(135deg, #5a67d8 0%, #4c51bf 100%);
-  border-color: #4c51bf;
+  background: #0952cc;
+  border-color: #0952cc;
 }
 
 .btn-secondary,

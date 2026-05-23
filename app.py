@@ -347,6 +347,13 @@ def _init_extensions_stack(app):
     except Exception:
         pass
     try:
+        from utils.branding_assets import register_branding_cli, register_company_branding_hooks
+
+        register_branding_cli(app)
+        register_company_branding_hooks(app)
+    except Exception:
+        pass
+    try:
         with app.app_context():
             _ensure_minimum_postgres_schema(app)
     except Exception as _e:
@@ -1619,7 +1626,7 @@ def create_app(config_object=Config) -> Flask:
         def _get(key, default=None):
             return _coerce(raw_settings.get(key, raw_settings.get(str(key).upper())), default)
 
-        def _safe_static_path(value, default='img/azad_logo.png'):
+        def _safe_static_path(value, default='img/branding/platform/logos/primary.png'):
             s = str(value or '').strip().replace('\\', '/')
             if not s:
                 return default
@@ -1651,9 +1658,6 @@ def create_app(config_object=Config) -> Flask:
                 return default
             return '/'.join(parts)
 
-        system_name_val = _get('system_name') or _get('SystemName') or 'أزاد لإدارة الكراج'
-        company_name_val = _get('company_name') or _get('CompanyName') or 'شركة أزاد للأنظمة الذكية'
-
         assets_version = _get('assets_version', '') or ''
 
         def _with_ver(u: str) -> str:
@@ -1663,13 +1667,35 @@ def create_app(config_object=Config) -> Flask:
             sep = '&' if '?' in u else '?'
             return f"{u}{sep}v={v}"
 
-        custom_logo = _get('custom_logo')
-        logo_filename = _safe_static_path(custom_logo)
-        logo_url = _with_ver(url_for('static', filename=logo_filename))
+        def _static_file_exists(rel_filename: str) -> bool:
+            rel = str(rel_filename or '').strip().replace('\\', '/').lstrip('/')
+            if rel.startswith('static/'):
+                rel = rel[len('static/'):]
+            if not rel:
+                return False
+            abs_path = os.path.join(current_app.root_path, 'static', rel.replace('/', os.sep))
+            return os.path.isfile(abs_path)
 
-        favicon_val = _get('custom_favicon', '') or ''
-        favicon_filename = _safe_static_path_allow_root(favicon_val, default='favicon.ico')
-        favicon_url = _with_ver(url_for('static', filename=favicon_filename))
+        from utils.branding import resolve_branding_bundle
+
+        branding = resolve_branding_bundle(
+            raw_settings=raw_settings,
+            get_setting=_get,
+            with_ver=_with_ver,
+            safe_static_path=_safe_static_path,
+            safe_static_path_allow_root=_safe_static_path_allow_root,
+            static_file_exists=_static_file_exists,
+        )
+
+        system_name_val = branding['tenant_system_name']
+        tenant_company_name_val = branding['tenant_company_name']
+        company_name_val = branding['platform_company_name']
+        logo_url = branding['tenant_logo_url']
+        emblem_url = branding['tenant_logo_emblem_url']
+        white_logo_url = branding['tenant_logo_white_url']
+        favicon_url = branding['tenant_favicon_url']
+        custom_logo = branding['custom_logo']
+        favicon_val = branding['custom_favicon']
 
         try:
             tenancy_enabled = SystemSettings.get_setting('multi_tenancy_enabled', False)
@@ -1701,33 +1727,50 @@ def create_app(config_object=Config) -> Flask:
                 if tenant_name:
                     tenant_logo = SystemSettings.get_setting(f'tenant_{tenant_name}_logo', '') or ''
                     tenant_logo_filename = _safe_static_path(tenant_logo, default='')
-                    if tenant_logo_filename:
+                    if tenant_logo_filename and _static_file_exists(tenant_logo_filename):
                         logo_url = _with_ver(url_for('static', filename=tenant_logo_filename))
 
-                    tenant_company_name = SystemSettings.get_setting(f'tenant_{tenant_name}_company_name', '') or ''
-                    if str(tenant_company_name).strip():
-                        company_name_val = str(tenant_company_name).strip()
+                    domain_company_name = SystemSettings.get_setting(f'tenant_{tenant_name}_company_name', '') or ''
+                    if str(domain_company_name).strip():
+                        tenant_company_name_val = str(domain_company_name).strip()
 
-                    tenant_system_name = SystemSettings.get_setting(f'tenant_{tenant_name}_system_name', '') or ''
-                    if str(tenant_system_name).strip():
-                        system_name_val = str(tenant_system_name).strip()
+                    domain_system_name = SystemSettings.get_setting(f'tenant_{tenant_name}_system_name', '') or ''
+                    if str(domain_system_name).strip():
+                        system_name_val = str(domain_system_name).strip()
 
                     tenant_favicon = SystemSettings.get_setting(f'tenant_{tenant_name}_favicon', '') or ''
                     if str(tenant_favicon).strip():
                         favicon_val = str(tenant_favicon).strip()
-                        favicon_filename = _safe_static_path_allow_root(favicon_val, default=favicon_filename)
-                        favicon_url = _with_ver(url_for('static', filename=favicon_filename))
+                        favicon_filename = _safe_static_path_allow_root(favicon_val, default='img/branding/platform/favicons/favicon.png')
+                        if _static_file_exists(favicon_filename):
+                            favicon_url = _with_ver(url_for('static', filename=favicon_filename))
         except Exception:
             pass
 
         settings = {
             'system_name': system_name_val,
             'company_name': company_name_val,
+            'platform_company_name': branding['platform_company_name'],
+            'platform_product_name': branding['platform_product_name'],
+            'platform_logo_url': branding['platform_logo_url'],
+            'platform_logo_emblem_url': branding['platform_logo_emblem_url'],
+            'platform_logo_white_url': branding['platform_logo_white_url'],
+            'platform_favicon_url': branding['platform_favicon_url'],
+            'platform_login_bg_url': branding.get('platform_login_bg_url', ''),
+            'tenant_company_name': tenant_company_name_val,
+            'tenant_system_name': system_name_val,
+            'tenant_logo_url': logo_url,
+            'tenant_logo_emblem_url': emblem_url,
+            'tenant_logo_white_url': white_logo_url,
+            'tenant_favicon_url': favicon_url,
+            'tenant_company_code': branding.get('tenant_company_code', ''),
             'login_title': _get('login_title', 'مرحباً بك'),
             'login_subtitle': _get('login_subtitle', 'سجل دخولك للمتابعة'),
             'footer_text': _get('footer_text', 'جميع الحقوق محفوظة'),
             'custom_logo': custom_logo or '',
             'custom_logo_url': logo_url,
+            'custom_logo_emblem_url': emblem_url,
+            'custom_logo_white_url': white_logo_url,
             'custom_favicon': favicon_val,
             'custom_favicon_url': favicon_url,
             'assets_version': assets_version,
@@ -1786,6 +1829,13 @@ def create_app(config_object=Config) -> Flask:
 
     from cli import register_cli
     register_cli(app)
+    try:
+        from utils.branding_assets import register_branding_cli, register_company_branding_hooks
+
+        register_branding_cli(app)
+        register_company_branding_hooks(app)
+    except Exception:
+        pass
 
     # ========== إضافة العملات الافتراضية تلقائياً ==========
     with app.app_context():

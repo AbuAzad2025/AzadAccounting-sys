@@ -4,64 +4,7 @@
 
 {% block head_extra %}
   {{ super() }}
-  <style>
-    .warehouse-type-card {
-      border: 2px solid transparent;
-      transition: all 0.3s ease;
-      cursor: pointer;
-      height: 100%;
-    }
-    .warehouse-type-card:hover {
-      border-color: #007bff;
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(0,123,255,0.2);
-    }
-    .warehouse-type-card.selected {
-      border-color: #28a745;
-      background-color: #f0f9ff;
-    }
-    .warehouse-type-icon {
-      font-size: 2.5rem;
-      margin-bottom: 0.5rem;
-    }
-    .info-tooltip {
-      cursor: help;
-      border-bottom: 1px dotted #6c757d;
-    }
-    .was-validated .form-control:valid {
-      border-color: #28a745;
-    }
-    .was-validated .form-control:invalid {
-      border-color: #dc3545;
-    }
-    #btn-submit:disabled {
-      cursor: not-allowed;
-      opacity: 0.6;
-    }
-    .field-group {
-      background: #f8f9fa;
-      padding: 1rem;
-      border-radius: 0.5rem;
-      border: 1px solid #e9ecef;
-      margin-bottom: 1rem;
-    }
-    .field-help {
-      font-size: 0.85rem;
-      color: #6c757d;
-      margin-top: 0.25rem;
-    }
-    .field-help i {
-      color: #007bff;
-    }
-    @keyframes shake {
-      0%, 100% { transform: translateX(0); }
-      10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
-      20%, 40%, 60%, 80% { transform: translateX(5px); }
-    }
-    .shake {
-      animation: shake 0.5s;
-    }
-  </style>
+  
 {% endblock %}
 
 {% block content %}

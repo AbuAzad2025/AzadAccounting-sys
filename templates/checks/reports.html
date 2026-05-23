@@ -12,42 +12,7 @@
 
 {% block extra_css %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<style>
-/* 🔥 Force visible tables - Critical Fix */
-.table { 
-    display: table !important;
-    visibility: visible !important;
-}
 
-.table tbody { 
-    display: table-row-group !important; 
-}
-
-.table tr { 
-    display: table-row !important; 
-}
-
-.table td, .table th { 
-    display: table-cell !important; 
-}
-
-.table-responsive {
-    display: block !important;
-    visibility: visible !important;
-}
-
-/* 🔥 Force visible charts */
-.card-body {
-    display: block !important;
-    visibility: visible !important;
-}
-
-canvas {
-    display: block !important;
-    visibility: visible !important;
-    min-height: 250px !important;
-}
-</style>
 {% endblock %}
 
 {% block content %}

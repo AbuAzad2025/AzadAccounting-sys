@@ -1,8 +1,9 @@
 <aside class="main-sidebar sidebar-dark-primary elevation-4" dir="rtl">
-  <div class="garage-brand-area" style="text-align: center; padding: 10px 0; border-bottom: 1px solid #4b545c;">
-    <a href="{{ url_for('main.dashboard') }}" class="garage-brand-link" style="display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%;">
-      <img src="{{ system_settings.custom_logo_url }}" alt="{{ system_settings.company_name or system_settings.system_name or 'النظام' }}" class="garage-brand-image" loading="lazy" decoding="async" style="height: 60px; max-width: 150px; object-fit: contain; margin-bottom: 5px;">
-      <span class="garage-brand-text" style="font-size: 1.1rem; font-weight: bold; color: #fff;">{{ system_settings.company_name or system_settings.system_name or 'النظام' }}</span>
+  <div class="garage-brand-area">
+    <a href="{{ url_for('main.dashboard') }}" class="garage-brand-link">
+      <img src="{{ system_settings.tenant_logo_white_url or system_settings.tenant_logo_url }}" alt="" class="garage-brand-image garage-brand-image--full" loading="lazy" decoding="async" onerror="this.hidden=true">
+      <img src="{{ system_settings.tenant_logo_emblem_url or system_settings.tenant_logo_url }}" alt="" class="garage-brand-image garage-brand-image--emblem" loading="lazy" decoding="async" onerror="this.hidden=true">
+      <span class="garage-brand-text">{{ tenant_company_name or system_settings.tenant_company_name or system_settings.system_name or 'النظام' }}</span>
     </a>
     <button type="button" class="gm-sidebar-close" aria-label="إغلاق القائمة" style="position: absolute; left: 10px; top: 15px;">
       <i class="fas fa-times"></i>
@@ -10,14 +11,17 @@
   </div>
   
   <div class="sidebar">
-    <div class="user-panel mt-3 pb-3 mb-3 d-flex justify-content-end">
-      <div class="info text-right">
-        <a href="{{ url_for('users_bp.profile') }}" class="d-block">
-          {{ current_user.username if current_user.is_authenticated else "ضيف" }}
-        </a>
+    <div class="user-panel mt-3 pb-3 mb-3 d-flex align-items-center justify-content-end px-3">
+      <div class="info text-right flex-grow-1 ml-2">
+        <a href="{{ url_for('users_bp.profile') }}" class="d-block erp-header-user-name text-white">{{ current_user.display_name or current_user.username if current_user.is_authenticated else 'ضيف' }}</a>
+        <small class="d-block erp-header-user-role">{{ current_user.role.name if current_user.is_authenticated and current_user.role else 'مستخدم' }}</small>
       </div>
       <div class="image">
-        <i class="fas fa-user-circle fa-2x text-light"></i>
+        {% if current_user.is_authenticated and current_user.avatar_url %}
+        <img src="{{ current_user.avatar_url }}" class="erp-user-avatar rounded-circle" width="40" height="40" alt="">
+        {% else %}
+        <div class="erp-user-avatar rounded-circle d-flex align-items-center justify-content-center">{{ current_user.avatar_or_initials if current_user.is_authenticated else '?' }}</div>
+        {% endif %}
       </div>
     </div>
 

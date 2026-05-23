@@ -4,7 +4,7 @@
 
 {% block security_title %}مركز التحكم بقواعد البيانات{% endblock %}
 {% block security_icon %}<i class="fas fa-database"></i>{% endblock %}
-{% block security_description %}أدوات شاملة لإدارة وصيانة قاعدة البيانات - 11 أداة احترافية (للمالك فقط){% endblock %}
+{% block security_description %}إدارة وصيانة قاعدة البيانات{% endblock %}
 
 {% block security_breadcrumb %}
 <li class="breadcrumb-item active">إدارة قواعد البيانات</li>
@@ -23,48 +23,7 @@
 {% endblock %}
 
 {% block security_content %}
-<style>
-  /* Custom Styles for Database Manager */
-  .nav-pills .nav-link {
-    border-radius: 50px;
-    margin: 0 5px;
-    font-weight: 500;
-    transition: all 0.3s ease;
-  }
-  .nav-pills .nav-link.active {
-    background-color: #0d6efd;
-    box-shadow: 0 4px 6px rgba(13, 110, 253, 0.3);
-  }
-  .nav-pills .nav-link:hover:not(.active) {
-    background-color: #e9ecef;
-  }
-  .code-editor {
-    font-family: 'Tajawal', 'Consolas', 'Monaco', monospace;
-    background-color: #1e1e1e !important;
-    color: #d4d4d4 !important;
-    border: 1px solid #333;
-    border-radius: 8px;
-    padding: 15px;
-    line-height: 1.6;
-    font-size: 14px;
-    resize: vertical;
-    direction: ltr; /* Code is always LTR */
-    box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
-  }
-  .code-editor:focus {
-    outline: none;
-    border-color: #0d6efd;
-    box-shadow: inset 0 2px 4px rgba(0,0,0,0.5), 0 0 0 2px rgba(13, 110, 253, 0.25);
-  }
-  .table-hover tbody tr:hover {
-    background-color: rgba(13, 110, 253, 0.05);
-  }
-  .action-btn-group {
-    display: flex;
-    gap: 5px;
-    justify-content: center;
-  }
-</style>
+
 
   <div class="card shadow-lg border-0">
     <div class="card-body p-3">

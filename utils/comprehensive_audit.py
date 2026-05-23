@@ -298,6 +298,22 @@ def run_comprehensive_audit(app, *, project_root: str | None = None) -> Dict[str
 
     sections["integration"] = run_integration_audit(app)
 
+    try:
+        from audit_service_gl import audit_service_gl_section
+
+        sections["service_gl"] = audit_service_gl_section(app)
+    except Exception as exc:
+        sections["service_gl"] = {
+            "missing_gl_count": 0,
+            "issues": [
+                {
+                    "level": "warning",
+                    "category": "service_gl",
+                    "msg": f"service GL audit skipped: {exc}",
+                }
+            ],
+        }
+
     all_issues: List[Dict[str, Any]] = []
     for name, data in sections.items():
         if isinstance(data, dict):

@@ -1,0 +1,55 @@
+/**
+ * هيكل التطبيق — إخفاء الشريط الرئيسي في الأمان
+ */
+body.security-body.erp-app > .wrapper > .main-header,
+body.security-body.erp-app > .wrapper > .main-sidebar,
+body.security-body.erp-app > .wrapper > #gm-open-in-app-banner,
+body.security-body.erp-app .gm-mobile-bottom-nav {
+  display: none !important;
+}
+
+body.security-body.erp-app > .wrapper > .content-wrapper {
+  margin: 0 !important;
+  width: 100% !important;
+  padding-top: 0 !important;
+  min-height: 100vh;
+}
+
+body.security-body.erp-app > .wrapper > .content-wrapper > .content-header {
+  display: none !important;
+}
+
+body.security-body.erp-app > .wrapper > .content-wrapper > .content {
+  padding: 0 !important;
+}
+
+body.security-body.erp-app > .wrapper > .main-footer {
+  display: none !important;
+}
+
+body.security-body.erp-app .security-wrapper {
+  min-height: 100vh;
+}
+
+body.security-body.erp-app .security-header {
+  min-height: var(--erp-header-h);
+  background: var(--erp-header-bg) !important;
+  border-bottom: 2px solid var(--erp-gold);
+  color: #fff;
+}
+
+body.security-body.erp-app .security-header .breadcrumb-item a,
+body.security-body.erp-app .security-header .breadcrumb-item.active {
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+
+body.security-body.erp-app .security-header .btn-glass {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff !important;
+}
+
+body.security-body.erp-app .security-footer-unified {
+  border-top: 1px solid var(--erp-border);
+  background: var(--erp-surface);
+}

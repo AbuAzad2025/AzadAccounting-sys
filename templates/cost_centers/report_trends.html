@@ -3,22 +3,7 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/print.css') }}">
-<style>
-  .trend-up {
-    color: #dc3545;
-  }
-  .trend-down {
-    color: #28a745;
-  }
-  .trend-stable {
-    color: #ffc107;
-  }
-  .chart-container {
-    position: relative;
-    height: 300px;
-    margin-bottom: 20px;
-  }
-</style>
+
 {% endblock %}
 {% block page_title %}<i class="fas fa-chart-line text-info"></i> تقرير الاتجاهات الشهرية{% endblock %}
 

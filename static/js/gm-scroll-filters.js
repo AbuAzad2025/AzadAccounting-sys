@@ -97,11 +97,12 @@
     var rail = document.createElement("div");
     rail.className = "gm-scroll-rail gm-scroll-rail-" + position;
     rail.setAttribute("role", "toolbar");
+    rail.setAttribute("aria-label", "تمرير الجدول");
     rail.innerHTML =
-      '<button type="button" class="gm-scroll-btn" data-gm-scroll-dir="start" title="بداية الجدول"><i class="fas fa-chevron-right"></i></button>' +
+      '<button type="button" class="gm-scroll-btn" data-gm-scroll-dir="start" title="بداية الجدول" aria-label="بداية الجدول"><i class="fas fa-chevron-right"></i></button>' +
       '<div class="gm-scroll-rail-center"><i class="fas fa-arrows-alt-h gm-scroll-rail-icon"></i>' +
       '<span class="gm-scroll-hint-text">' + hint + '</span><span class="gm-scroll-position"></span></div>' +
-      '<button type="button" class="gm-scroll-btn" data-gm-scroll-dir="end" title="نهاية الجدول"><i class="fas fa-chevron-left"></i></button>';
+      '<button type="button" class="gm-scroll-btn" data-gm-scroll-dir="end" title="نهاية الجدول" aria-label="نهاية الجدول"><i class="fas fa-chevron-left"></i></button>';
     return rail;
   }
 

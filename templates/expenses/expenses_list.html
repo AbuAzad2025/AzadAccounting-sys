@@ -20,126 +20,7 @@
 
 {% block styles %}
 {{ super() }}
-<style>
-  /* يظهر شريط التمرير حتى مع تغليف DataTables */
-  .table-responsive{overflow-x:auto}
 
-  /* عند استخدام DataTables مع scrollX */
-  .dataTables_wrapper .dataTables_scrollBody{
-    overflow-x:auto !important;
-    overflow-y:hidden;
-  }
-
-  /* اجعل عمود الإجراءات دائمًا ظاهرًا */
-  table.table-sticky th:last-child,
-  table.table-sticky td:last-child{
-    position:sticky;
-    right:0;
-    z-index:3;
-    box-shadow:-4px 0 6px rgba(0,0,0,.06);
-  }
-  
-  /* خلفية الخلايا العادية بيضاء */
-  table.table-sticky tbody td:last-child {
-      background: var(--bs-body-bg, #fff);
-  }
-
-  /* خلفية الترويسة يجب أن تطابق لون الترويسة */
-  table.table-sticky thead th:last-child {
-      background-color: #0d6efd; /* Primary Color */
-      color: white;
-  }
-  
-  /* إذا كان الجدول striped، نحتاج لتعديل الصفوف الفردية/الزوجية في العمود اللاصق */
-  table.table-striped.table-sticky tbody tr:nth-of-type(odd) td:last-child {
-      background-color: var(--bs-table-striped-bg);
-  }
-
-  /* منع سحق الأعمدة على الشاشات الصغيرة */
-  table.table-sticky{min-width:1200px}
-  
-  /* تحسين النافيجيشن */
-  .expense-nav {
-    background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);
-    border-radius: 12px;
-    padding: 1.5rem;
-    margin-bottom: 1.5rem;
-    box-shadow: 0 4px 15px rgba(78, 115, 223, 0.3);
-    direction: rtl;
-  }
-  
-  .expense-nav .nav-link {
-    color: white;
-    font-weight: 600;
-    padding: 0.75rem 1.5rem;
-    border-radius: 8px;
-    transition: all 0.3s ease;
-    background: rgba(255, 255, 255, 0.1);
-    margin: 0 0.25rem;
-    text-align: center;
-  }
-  
-  .expense-nav .nav-link:hover {
-    background: rgba(255, 255, 255, 0.2);
-    transform: translateY(-2px);
-  }
-  
-  .expense-nav .nav-link.active {
-    background: white;
-    color: #667eea;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-  }
-  
-  /* تكيّف الـ tabs مع اتجاه الـ sidebar */
-  body[data-sidebar-position="right"] .expense-nav {
-    direction: ltr;
-  }
-  
-  body[data-sidebar-position="left"] .expense-nav {
-    direction: rtl;
-  }
-  
-  .summary-cards{display:flex;gap:1.25rem;flex-wrap:wrap;align-items:stretch}
-  .summary-card{flex:1 1 240px;border-radius:16px;padding:1.25rem;box-shadow:0 8px 20px rgba(0,0,0,.08);color:#1f2937;position:relative;overflow:hidden;transition:transform .3s ease,box-shadow .3s ease}
-  .summary-card:hover{transform:translateY(-4px);box-shadow:0 14px 28px rgba(0,0,0,.12)}
-  .summary-card__row{display:flex;justify-content:space-between;align-items:center}
-  .summary-card h6{font-size:.85rem;margin:0 0 .35rem;letter-spacing:.5px;text-transform:uppercase;opacity:.8;font-weight:600}
-  .summary-card h3{margin:0;font-size:1.9rem;font-weight:700}
-  .summary-card small{display:block;margin-top:.35rem;font-size:.85rem;opacity:.75}
-  .summary-card__icon{font-size:2.4rem;opacity:.25;transition:transform .3s ease}
-  .summary-card:hover .summary-card__icon{transform:scale(1.05)}
-  .summary-card--total{background:linear-gradient(135deg,#f5365c 0%,#fb8c00 100%);color:#fff}
-  .summary-card--count{background:linear-gradient(135deg,#43a047 0%,#26c6da 100%);color:#fff}
-  .summary-card--average{background:linear-gradient(135deg,#3949ab 0%,#5c6bc0 100%);color:#fff}
-  .summary-card--latest{background:linear-gradient(135deg,#4a148c 0%,#7b1fa2 100%);color:#fff}
-  .summary-card--latest .latest-meta{margin-top:1rem;font-size:.9rem;opacity:.9}
-  .summary-card--latest .latest-meta div{margin-bottom:.25rem}
-  .summary-card--latest .latest-meta .text-uppercase{opacity:.75;letter-spacing:.6px}
-  .payee-chip{display:inline-flex;align-items:center;padding:.25rem .7rem;font-size:.92rem;font-weight:600;border-radius:999px;margin-left:.35rem}
-  .payee-chip--employee{background:rgba(13,202,240,.2);color:#04505c;border:1px solid rgba(13,202,240,.45)}
-  .payee-chip--utility{background:rgba(111,66,193,.18);color:#301a68;border:1px solid rgba(111,66,193,.35)}
-  .payee-chip--other{background:rgba(108,117,125,.18);color:#343a40;border:1px solid rgba(108,117,125,.35)}
-.payee-chip--supplier{background:rgba(255,193,7,.2);color:#7a4d00;border:1px solid rgba(255,193,7,.4)}
-.payee-chip--partner{background:rgba(23,162,184,.18);color:#0b4b58;border:1px solid rgba(23,162,184,.35)}
-.payee-chip--customer{background:rgba(40,167,69,.2);color:#0f5132;border:1px solid rgba(40,167,69,.4)}
-  .payee-chip-guess{border-style:dashed;opacity:.85}
-.payment-badge{border:1px solid rgba(0,0,0,.12);background:#fff;color:#212529;font-size:.85rem;font-weight:500;padding:.25rem .55rem;border-radius:999px}
-.payment-badge .method{color:#495057;margin-left:.35rem}
-.payment-badge .amount{font-weight:600;margin-left:.25rem}
-.payment-badge .currency{color:#6c757d;font-weight:500;margin-right:.25rem}
-  @media print{
-    body{background:#fff}
-    .card,.card-body{box-shadow:none!important;border:none!important}
-    .print-header{display:block!important;margin-bottom:1.5rem}
-    table{width:100%!important;border-collapse:collapse!important}
-    table thead{display:table-header-group!important}
-    table thead th{background:#f4f5f7!important;color:#000!important;border:1px solid #ccc!important;padding:.6rem!important;font-size:1rem!important}
-    table tbody td{border:1px solid #ddd!important;padding:.55rem!important;font-size:.95rem!important;color:#000!important}
-    .payee-chip{border:1px solid #666!important;color:#000!important;background:#f1f1f1!important}
-    .summary-cards,.no-print{display:none!important}
-    .table-responsive{overflow:visible!important}
-  }
-</style>
 {% endblock %}
 
 {% macro type_details(expense) %}
@@ -381,7 +262,7 @@
       <!-- الملخصات المالية -->
       <div id="expenses-summary-wrapper">
       {% if summary %}
-        <div class="summary-cards mb-4 no-print">
+        <div class="summary-cards erp-summary-grid no-print">
           <div class="summary-card summary-card--total card-hover">
             <div class="summary-card__row">
               <div>
@@ -534,16 +415,13 @@
                 </div>
                 <div class="badge bg-white text-dark border p-2 shadow-sm rounded-pill">
                   <i class="fas fa-list-ol text-muted me-1"></i>
-                  <span>النتائج: {{ pagination.total if pagination else (summary.expenses_count if summary else expenses|length) }}</span>
+                  <span id="expenses-search-summary">النتائج: {{ pagination.total if pagination else (summary.expenses_count if summary else expenses|length) }}</span>
                 </div>
               </div>
             </div>
           </div>
         </div>
       </div>
-      
-      {# … نفس فورم الفلاتر كما هو … #}
-      {{ super() }}
     </div>
   </div>
 

@@ -1,0 +1,418 @@
+/**
+ * وحدة الأمان — توحيد مع واجهة ERP العربية (ثيم فاتح مؤسسي)
+ */
+body.security-body.erp-app {
+  background: var(--erp-bg, #f5f7fb) !important;
+  color: var(--erp-text, #1f2937) !important;
+}
+
+body.security-body.erp-app .security-sidebar {
+  background: var(--erp-navy, #062a5a) !important;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: -4px 0 24px rgba(6, 42, 90, 0.08);
+}
+
+body.security-body.erp-app .security-brand {
+  background: rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+body.security-body.erp-app .security-brand h5 {
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+body.security-body.erp-app .security-brand .brand-badge {
+  background: rgba(34, 197, 94, 0.2);
+  color: #bbf7d0;
+  border-color: rgba(34, 197, 94, 0.35);
+  font-size: 0.7rem;
+  letter-spacing: 0;
+}
+
+body.security-body.erp-app .security-brand-logo {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  margin-left: 0.75rem;
+}
+
+body.security-body.erp-app .sec-nav-section {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+body.security-body.erp-app .sec-nav-section-toggle {
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.92);
+}
+
+body.security-body.erp-app .sec-nav-section--danger {
+  border-color: rgba(239, 68, 68, 0.35);
+  background: rgba(127, 29, 29, 0.15);
+}
+
+body.security-body.erp-app .security-sidebar .nav-link.danger-link {
+  color: rgba(254, 202, 202, 0.95);
+}
+
+body.security-body.erp-app .security-sidebar .nav-link.danger-link:hover,
+body.security-body.erp-app .security-sidebar .nav-link.danger-link.active {
+  background: rgba(239, 68, 68, 0.2);
+  color: #fff;
+}
+
+body.security-body.erp-app .security-sidebar .nav-link {
+  color: rgba(255, 255, 255, 0.85);
+  border-radius: 10px;
+}
+
+body.security-body.erp-app .security-sidebar .nav-link:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+body.security-body.erp-app .security-sidebar .nav-link.active {
+  background: var(--erp-success, #22c55e) !important;
+  color: #fff !important;
+  box-shadow: none;
+  border: none;
+}
+
+body.security-body.erp-app .security-main {
+  background: var(--erp-bg, #f5f7fb);
+}
+
+body.security-body.erp-app .security-header {
+  background: #fff !important;
+  border-bottom: 1px solid var(--erp-border, #e5e7eb);
+  box-shadow: var(--erp-shadow-sm);
+}
+
+body.security-body.erp-app .security-header .breadcrumb-item a {
+  color: var(--erp-muted, #6b7280);
+}
+
+body.security-body.erp-app .security-header .breadcrumb-item.active {
+  color: var(--erp-navy, #062a5a);
+}
+
+body.security-body.erp-app .security-header h2,
+body.security-body.erp-app .security-header .text-white {
+  color: var(--erp-navy, #062a5a) !important;
+  text-shadow: none !important;
+}
+
+body.security-body.erp-app .security-header .text-muted,
+body.security-body.erp-app .text-muted {
+  color: var(--erp-muted, #6b7280) !important;
+}
+
+body.security-body.erp-app .sec-card {
+  background: #fff !important;
+  border: 1px solid var(--erp-border, #e5e7eb) !important;
+  border-radius: var(--erp-radius, 16px);
+  box-shadow: var(--erp-shadow-sm);
+  backdrop-filter: none;
+}
+
+body.security-body.erp-app .sec-card-header {
+  background: #fff !important;
+  border-bottom: 1px solid var(--erp-border, #e5e7eb);
+  padding: 1rem 1.25rem;
+}
+
+body.security-body.erp-app .sec-card-header h5,
+body.security-body.erp-app .sec-card-header .text-white {
+  color: var(--erp-navy, #062a5a) !important;
+  font-weight: 700;
+}
+
+body.security-body.erp-app .sec-card-body {
+  color: var(--erp-text, #1f2937) !important;
+  padding: 1.25rem;
+}
+
+body.security-body.erp-app .btn-glass {
+  background: #fff;
+  border: 1px solid var(--erp-border, #e5e7eb);
+  color: var(--erp-navy, #062a5a);
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+body.security-body.erp-app .btn-glass:hover {
+  background: var(--erp-blue, #0b68ff);
+  border-color: var(--erp-blue, #0b68ff);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(11, 104, 255, 0.2);
+  transform: none;
+}
+
+body.security-body.erp-app .erp-sec-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--erp-border, #e5e7eb);
+  border-radius: 12px;
+  background: var(--erp-bg, #f5f7fb);
+  color: var(--erp-text, #1f2937);
+  text-decoration: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+body.security-body.erp-app .erp-sec-action:hover {
+  border-color: var(--erp-blue, #0b68ff);
+  box-shadow: 0 4px 12px rgba(11, 104, 255, 0.08);
+  color: var(--erp-navy, #062a5a);
+  text-decoration: none;
+}
+
+body.security-body.erp-app .erp-sec-action__icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(11, 104, 255, 0.1);
+  color: var(--erp-blue, #0b68ff);
+  flex-shrink: 0;
+}
+
+body.security-body.erp-app .erp-sec-action--danger .erp-sec-action__icon {
+  background: rgba(220, 38, 38, 0.1);
+  color: var(--erp-danger, #dc2626);
+}
+
+body.security-body.erp-app .security-summary-box,
+body.security-body.erp-app .erp-sec-kpi {
+  background: #fff !important;
+  border: 1px solid var(--erp-border, #e5e7eb);
+  border-radius: var(--erp-radius, 16px);
+  box-shadow: var(--erp-shadow-sm);
+  color: var(--erp-text, #1f2937) !important;
+  position: relative;
+  overflow: hidden;
+  min-height: 120px;
+}
+
+body.security-body.erp-app .security-summary-box::before,
+body.security-body.erp-app .erp-sec-kpi::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 4px;
+  height: 100%;
+  background: var(--erp-blue, #0b68ff);
+}
+
+body.security-body.erp-app .security-summary-box--green::before,
+body.security-body.erp-app .erp-sec-kpi--success::before {
+  background: var(--erp-success, #22c55e);
+}
+
+body.security-body.erp-app .security-summary-box--red::before,
+body.security-body.erp-app .erp-sec-kpi--danger::before {
+  background: var(--erp-danger, #dc2626);
+}
+
+body.security-body.erp-app .security-summary-box--amber::before,
+body.security-body.erp-app .erp-sec-kpi--warning::before {
+  background: var(--erp-warning, #ea580c);
+}
+
+body.security-body.erp-app .security-summary-box .inner h3,
+body.security-body.erp-app .erp-sec-kpi__value {
+  color: var(--erp-navy, #062a5a) !important;
+  font-size: 1.75rem;
+  font-weight: 800;
+}
+
+body.security-body.erp-app .security-summary-box .inner p,
+body.security-body.erp-app .erp-sec-kpi__label {
+  color: var(--erp-muted, #6b7280) !important;
+  font-weight: 500;
+}
+
+body.security-body.erp-app .security-summary-box .icon {
+  color: var(--erp-blue, #0b68ff);
+  opacity: 0.25;
+}
+
+body.security-body.erp-app .timeline-item {
+  border-bottom: 1px solid var(--erp-border, #e5e7eb) !important;
+  padding: 0.85rem 1.25rem !important;
+}
+
+body.security-body.erp-app .timeline-item strong,
+body.security-body.erp-app .timeline-item .text-white {
+  color: var(--erp-text, #1f2937) !important;
+}
+
+body.security-body.erp-app footer {
+  background: #fff !important;
+  border-top: 1px solid var(--erp-border, #e5e7eb) !important;
+  color: var(--erp-muted, #6b7280) !important;
+}
+
+body.security-body.erp-app .alert {
+  background: #fff !important;
+  color: var(--erp-text, #1f2937) !important;
+  border-radius: 12px;
+  border: 1px solid var(--erp-border, #e5e7eb);
+}
+
+body.security-body.erp-app .table {
+  color: var(--erp-text, #1f2937);
+}
+
+body.security-body.erp-app .table thead th {
+  background: var(--erp-bg, #f5f7fb);
+  color: var(--erp-navy, #062a5a);
+}
+
+body.security-body.erp-app ::-webkit-scrollbar-track {
+  background: #eef2f7;
+}
+
+body.security-body.erp-app ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+}
+
+body.security-body.erp-app #sidebarToggle i {
+  color: var(--erp-navy, #062a5a) !important;
+}
+
+body.security-body.erp-app .dropdown-menu.bg-dark {
+  background: #fff !important;
+  color: var(--erp-text, #1f2937);
+  border: 1px solid var(--erp-border, #e5e7eb);
+}
+
+body.security-body.erp-app .dropdown-menu .dropdown-item.text-light {
+  color: var(--erp-text, #1f2937) !important;
+}
+
+/* إلغاء تناقض الثيم الداكن المضمّن في base_security */
+body.security-body.erp-app {
+  background: var(--erp-bg, #f5f7fb) !important;
+  color: var(--erp-text, #1f2937) !important;
+}
+
+body.security-body.erp-app .security-header {
+  background: #fff !important;
+  border-bottom: 1px solid var(--erp-border, #e5e7eb) !important;
+  box-shadow: 0 1px 3px rgba(6, 42, 90, 0.06);
+}
+
+body.security-body.erp-app .security-header .breadcrumb-item a {
+  color: var(--erp-muted, #6b7280) !important;
+}
+
+body.security-body.erp-app .security-header .breadcrumb-item a:hover,
+body.security-body.erp-app .security-header .breadcrumb-item.active {
+  color: var(--erp-navy, #062a5a) !important;
+}
+
+body.security-body.erp-app .security-main h1,
+body.security-body.erp-app .security-main h2,
+body.security-body.erp-app .security-main h3,
+body.security-body.erp-app .security-main h4,
+body.security-body.erp-app .security-main h5,
+body.security-body.erp-app .security-main h6 {
+  color: var(--erp-navy, #062a5a) !important;
+  text-shadow: none !important;
+}
+
+body.security-body.erp-app .security-main .text-muted {
+  color: var(--erp-muted, #6b7280) !important;
+}
+
+body.security-body.erp-app .card:not([class*="bg-"]) {
+  background: #fff !important;
+  border: 1px solid var(--erp-border, #e5e7eb) !important;
+  color: var(--erp-text, #1f2937) !important;
+  box-shadow: var(--erp-shadow-sm, 0 1px 3px rgba(6, 42, 90, 0.08)) !important;
+}
+
+body.security-body.erp-app .card:not([class*="bg-"]) .card-header {
+  background: var(--erp-bg, #f5f7fb) !important;
+  border-bottom: 1px solid var(--erp-border, #e5e7eb) !important;
+  color: var(--erp-navy, #062a5a) !important;
+}
+
+body.security-body.erp-app .card:not([class*="bg-"]) .card-title,
+body.security-body.erp-app .card:not([class*="bg-"]) .card-text {
+  color: var(--erp-text, #1f2937) !important;
+}
+
+body.security-body.erp-app .btn-glass {
+  background: #fff !important;
+  border: 1px solid var(--erp-border, #e5e7eb) !important;
+  color: var(--erp-navy, #062a5a) !important;
+}
+
+body.security-body.erp-app .btn-glass:hover {
+  background: var(--erp-blue, #0b68ff) !important;
+  border-color: var(--erp-blue, #0b68ff) !important;
+  color: #fff !important;
+  box-shadow: none !important;
+}
+
+body.security-body.erp-app .modal-content {
+  background: #fff !important;
+  color: var(--erp-text, #1f2937) !important;
+  border: 1px solid var(--erp-border, #e5e7eb) !important;
+}
+
+body.security-body.erp-app .modal-header,
+body.security-body.erp-app .modal-footer {
+  background: var(--erp-bg, #f5f7fb) !important;
+  border-color: var(--erp-border, #e5e7eb) !important;
+}
+
+body.security-body.erp-app .modal .form-control {
+  background: #fff !important;
+  border: 1px solid var(--erp-border, #e5e7eb) !important;
+  color: var(--erp-text, #1f2937) !important;
+}
+
+body.security-body.erp-app .sec-card {
+  background: #fff !important;
+  border: 1px solid var(--erp-border, #e5e7eb) !important;
+  color: var(--erp-text, #1f2937) !important;
+}
+
+body.security-body.erp-app .sec-card-body {
+  color: var(--erp-text, #1f2937) !important;
+}
+
+/* موبايل: قائمة جانبية منزلقة + خلفية */
+@media (max-width: 991.98px) {
+  body.security-body.erp-app .security-sidebar {
+    transform: translateX(100%);
+    box-shadow: -8px 0 32px rgba(6, 42, 90, 0.15);
+  }
+
+  body.security-body.erp-app .security-sidebar.show {
+    transform: translateX(0);
+  }
+
+  body.security-body.erp-app.sec-sidebar-open::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    top: var(--main-navbar_height, 57px);
+    background: rgba(6, 42, 90, 0.35);
+    z-index: 1035;
+  }
+
+  body.security-body.erp-app .security-main {
+    margin-right: 0 !important;
+  }
+}

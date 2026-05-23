@@ -10,6 +10,7 @@ from flask_login import current_user
 def sync_login_tenant_session(user) -> None:
     """بعد تسجيل الدخول: حفظ الفروع المسموحة والفرع النشط."""
     from services.user_branch_service import get_branch_ids_for_user, get_primary_branch_id
+    from utils.company_scope import can_view_all_branches
 
     if not user or not getattr(user, "id", None):
         session.pop("accessible_branch_ids", None)
@@ -18,7 +19,21 @@ def sync_login_tenant_session(user) -> None:
     ids = get_branch_ids_for_user(int(user.id))
     session["accessible_branch_ids"] = ids
     primary = get_primary_branch_id(int(user.id))
-    session["active_branch_id"] = primary if primary in ids else (ids[0] if ids else None)
+    if primary and primary in ids:
+        session["active_branch_id"] = primary
+    elif ids:
+        session["active_branch_id"] = ids[0]
+    elif can_view_all_branches():
+        from models import Branch
+
+        first = (
+            Branch.query.filter_by(is_active=True)
+            .order_by(Branch.company_id.asc(), Branch.id.asc())
+            .first()
+        )
+        session["active_branch_id"] = int(first.id) if first else None
+    else:
+        session["active_branch_id"] = None
 
 
 def clear_tenant_session() -> None:
@@ -130,6 +145,26 @@ def resolve_branch_id(submitted: Any, *, required: bool = False) -> Optional[int
     return int(bid)
 
 
+def switchable_branches_for_user() -> List[Any]:
+    """
+    فروع يُسمح بعرضها في محوّل النافبار فقط.
+    لا نعرض كل الشركات لمن يرى الكل — فقط فروعه المربوطة صراحةً.
+    """
+    from models import Branch
+    from services.user_branch_service import get_branch_ids_for_user
+
+    linked = sorted({int(b) for b in get_branch_ids_for_user(int(current_user.id)) if b})
+    if len(linked) <= 1:
+        return []
+
+    rows = (
+        Branch.query.filter(Branch.id.in_(linked), Branch.is_active.is_(True))
+        .order_by(Branch.name)
+        .all()
+    )
+    return rows if len(rows) > 1 else []
+
+
 def build_tenant_context() -> Dict[str, Any]:
     from models import Branch, Company
     from utils.company_scope import can_view_all_branches, get_accessible_branch_ids, get_accessible_company_ids
@@ -141,6 +176,7 @@ def build_tenant_context() -> Dict[str, Any]:
         "tenant_company_id": None,
         "tenant_branches": [],
         "tenant_can_switch_branch": False,
+        "tenant_show_nav_scope": False,
         "tenant_view_all": False,
         "tenant_isolated": True,
     }
@@ -149,8 +185,10 @@ def build_tenant_context() -> Dict[str, Any]:
 
     ctx["tenant_view_all"] = can_view_all_branches()
     branches = accessible_branches_query().all()
-    ctx["tenant_branches"] = branches
-    ctx["tenant_can_switch_branch"] = len(branches) > 1 or ctx["tenant_view_all"]
+    switchable = switchable_branches_for_user()
+    ctx["tenant_branches"] = switchable
+    ctx["tenant_can_switch_branch"] = len(switchable) > 1
+    ctx["tenant_show_nav_scope"] = ctx["tenant_can_switch_branch"]
 
     active_id = get_active_branch_id()
     active_branch = None

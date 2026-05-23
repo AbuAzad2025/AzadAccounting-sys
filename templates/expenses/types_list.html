@@ -11,48 +11,7 @@
 
 {% block styles %}
 {{ super() }}
-<style>
-  /* تحسين النافيجيشن */
-  .expense-nav {
-    background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);
-    border-radius: 12px;
-    padding: 1.5rem;
-    margin-bottom: 1.5rem;
-    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
-    direction: rtl;
-  }
-  
-  .expense-nav .nav-link {
-    color: white;
-    font-weight: 600;
-    padding: 0.75rem 1.5rem;
-    border-radius: 8px;
-    transition: all 0.3s ease;
-    background: rgba(255, 255, 255, 0.1);
-    margin: 0 0.25rem;
-    text-align: center;
-  }
-  
-  .expense-nav .nav-link:hover {
-    background: rgba(255, 255, 255, 0.2);
-    transform: translateY(-2px);
-  }
-  
-  .expense-nav .nav-link.active {
-    background: white;
-    color: #667eea;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-  }
-  
-  /* تكيّف الـ tabs مع اتجاه الـ sidebar */
-  body[data-sidebar-position="right"] .expense-nav {
-    direction: ltr;
-  }
-  
-  body[data-sidebar-position="left"] .expense-nav {
-    direction: rtl;
-  }
-</style>
+
 {% endblock %}
 
 {% block content %}

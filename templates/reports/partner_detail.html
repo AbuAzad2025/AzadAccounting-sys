@@ -3,53 +3,7 @@
 {% block title %}كشف مفصل للشريك - {{ partner.name or '—' }}{% endblock %}
 
 {% block head_extra %}
-<style>
-/* تنسيقات الطباعة */
-@media print {
-    .no-print { display: none !important; }
-    .print-section { page-break-after: always; }
-    .print-section:last-child { page-break-after: auto; }
-    body { font-size: 12pt; }
-    .card { border: 1px solid #000 !important; box-shadow: none !important; }
-}
 
-/* تنسيقات الأقسام القابلة للطي */
-.collapsible-section {
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-.collapsible-section:hover {
-    background-color: rgba(0,0,0,0.03);
-}
-.section-content {
-    max-height: 0;
-    overflow: hidden;
-    transition: max-height 0.3s ease;
-}
-.section-content.show {
-    max-height: 2000px;
-}
-.collapse-icon {
-    transition: transform 0.3s ease;
-}
-.collapsed .collapse-icon {
-    transform: rotate(-90deg);
-}
-
-/* ألوان الأقسام */
-.bg-sales { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
-.bg-services { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
-.bg-preorders { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
-.bg-service-parts { background: linear-gradient(135deg, #ff9a56 0%, #ff6a88 100%); }
-.bg-payments-in { background: linear-gradient(135deg, #30cfd0 0%, #330867 100%); }
-.bg-payments-out { background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); }
-.bg-expenses { background: linear-gradient(135deg, #ff9a56 0%, #ff6a88 100%); }
-
-.detail-row {
-    background-color: #f8f9fa;
-    font-size: 0.9em;
-}
-</style>
 {% endblock %}
 
 {% block content %}
@@ -805,25 +759,7 @@ function printPartnerFullReport() {
     const printWindow = window.open('', '', 'height=800,width=1000');
     printWindow.document.write('<html><head><title>كشف مفصل - {{ partner.name or '—' }}</title>');
     printWindow.document.write('<meta charset="UTF-8">');
-    printWindow.document.write('<style>');
-    printWindow.document.write('* { margin: 0; padding: 0; box-sizing: border-box; }');
-    printWindow.document.write('body { font-family: Arial, sans-serif; direction: rtl; padding: 10px; font-size: 7pt; line-height: 1.2; }');
-    printWindow.document.write('h2 { text-align: center; color: #333; margin-bottom: 8px; border-bottom: 2px solid #000; padding-bottom: 5px; font-size: 12pt; }');
-    printWindow.document.write('h3 { font-size: 9pt; margin: 8px 0 4px 0; padding: 3px 5px; background-color: #e0e0e0; border-right: 4px solid #667eea; }');
-    printWindow.document.write('.partner-info { border: 1px solid #000; padding: 6px; margin: 8px 0; background-color: #f8f9fa; font-size: 6.5pt; }');
-    printWindow.document.write('.partner-info table { width: 100%; border-collapse: collapse; }');
-    printWindow.document.write('.partner-info td { padding: 2px 4px; border: none; vertical-align: top; }');
-    printWindow.document.write('.partner-info strong { font-weight: bold; }');
-    printWindow.document.write('.balance-box { background-color: #e0ffe0; border: 1px solid #000; padding: 3px; margin-top: 3px; font-size: 7pt; }');
-    printWindow.document.write('.balance-box.negative { background-color: #ffe0e0; }');
-    printWindow.document.write('table { width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 6.5pt; }');
-    printWindow.document.write('th, td { border: 1px solid #999; padding: 2px 3px; text-align: right; line-height: 1.1; }');
-    printWindow.document.write('th { background-color: #e0e0e0; font-weight: bold; text-align: center; font-size: 7pt; }');
-    printWindow.document.write('tfoot th, tfoot td { background-color: #f0f0f0; font-weight: bold; padding: 3px; }');
-    printWindow.document.write('.section { margin-bottom: 10px; page-break-inside: avoid; }');
-    printWindow.document.write('.footer { text-align: center; font-size: 6pt; color: #666; margin-top: 10px; border-top: 1px solid #ccc; padding-top: 5px; }');
-    printWindow.document.write('@page { margin: 0.8cm; size: A4 portrait; }');
-    printWindow.document.write('</style></head><body>');
+    printWindow.document.write('</head><body>');
     
     // الترويسة
     printWindow.document.write('<h2>كشف مفصل للشريك: {{ partner.name or '—' }}</h2>');
