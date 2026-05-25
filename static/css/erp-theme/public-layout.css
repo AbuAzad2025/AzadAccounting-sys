@@ -82,6 +82,20 @@ body.erp-layout-public .erp-auth-title {
   margin-bottom: 1.25rem;
 }
 
+@media (max-width: 575.98px) {
+  body.erp-layout-public .erp-public-main {
+    padding: 1rem 0.75rem 1.5rem;
+  }
+
+  body.erp-layout-public .erp-auth-card {
+    padding: 1.25rem 1rem;
+  }
+
+  body.erp-layout-public .erp-public-content {
+    max-width: 100%;
+  }
+}
+
 body.erp-layout-public .main-footer.erp-footer {
   position: relative;
   z-index: 1;

@@ -145,7 +145,7 @@
 
   <!-- جدول المستخدمين المحسّن -->
   <div class="card shadow-lg">
-    <div class="card-header bg-gradient-primary text-white">
+    <div class="card-header card-header-primary text-white erp-card-header-row bg-gradient-primary text-white">
       <div class="d-flex justify-content-between align-items-center">
         <h5 class="mb-0"><i class="fas fa-users-cog"></i> قائمة المستخدمين - {{ stats.total_users }} مستخدم</h5>
         <div class="btn-group">
@@ -167,7 +167,7 @@
     <div class="card-body p-0">
       <div class="table-responsive">
         <table class="table table-hover table-striped mb-0" id="usersTable">
-          <thead class="table-dark">
+          <thead class="table-header-primary text-white ">
             <tr>
               <th style="width: 30px;">
                 <input type="checkbox" id="selectAll" onchange="toggleAll(this)">
@@ -640,7 +640,7 @@ function renderUserDetails(user) {
     <div class="row g-3">
       <div class="col-md-6">
         <div class="card">
-          <div class="card-header bg-primary text-white">
+          <div class="card-header erp-card-header-row erp-theme-header--primary">
             <i class="fas fa-info-circle"></i> معلومات أساسية
           </div>
           <div class="card-body">
@@ -658,7 +658,7 @@ function renderUserDetails(user) {
       
       <div class="col-md-6">
         <div class="card">
-          <div class="card-header bg-success text-white">
+          <div class="card-header erp-card-header-row erp-theme-header--primary bg-success text-white">
             <i class="fas fa-chart-line"></i> إحصائيات الأداء
           </div>
           <div class="card-body">
@@ -675,7 +675,7 @@ function renderUserDetails(user) {
       
       <div class="col-md-6">
         <div class="card">
-          <div class="card-header bg-info text-white">
+          <div class="card-header erp-card-header-row erp-theme-header--primary bg-info text-white">
             <i class="fas fa-clock"></i> سجل الدخول
           </div>
           <div class="card-body">
@@ -691,7 +691,7 @@ function renderUserDetails(user) {
       
       <div class="col-md-6">
         <div class="card">
-          <div class="card-header bg-warning text-dark">
+          <div class="card-header erp-card-header-row erp-theme-header--primary bg-warning text-dark">
             <i class="fas fa-history"></i> آخر الأنشطة (10)
           </div>
           <div class="card-body">

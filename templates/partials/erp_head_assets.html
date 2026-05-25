@@ -48,6 +48,9 @@
 {% endif %}
 <link rel="stylesheet" href="{{ static_url('css/ux-messages.css') }}">
 <link rel="stylesheet" href="{{ static_url('css/erp-theme/index.css') }}">
+{% if erp_head_mode == 'app' %}
+<link rel="stylesheet" href="{{ static_url('css/erp-calculator.css') }}">
+{% endif %}
 <script src="{{ static_url('js/erp-theme.js') }}"></script>
 {% if erp_head_mode == 'app' %}
 <link rel="stylesheet" href="{{ static_url('css/print.css') }}" media="print">

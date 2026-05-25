@@ -291,7 +291,7 @@
   } %}
 
   <div class="card shadow-sm rounded">
-    <div class="card-header bg-primary text-white">
+    <div class="card-header erp-card-header-row erp-theme-header--primary">
       <h5 class="card-title m-0">
         <i class="fas fa-file-invoice ms-2"></i> كشف حساب: {{ partner.name }}
       </h5>
@@ -312,7 +312,7 @@
       </div>
       <div class="table-responsive">
         <table class="table table-bordered table-sm table-striped align-middle" id="partnerStatementTable" data-realtime-statement-partner="{{ partner.id }}">
-          <thead class="table-light">
+          <thead class="table-header-primary text-white table-light">
             <tr>
               <th style="width: 110px">التاريخ</th>
               <th style="width: 110px">النوع</th>
@@ -382,7 +382,7 @@
                     </button>
                     <div class="collapse mt-2" id="details-{{ loop.index }}">
                       <table class="table table-sm table-bordered mb-0" style="font-size: 0.7rem;">
-                        <thead class="bg-light">
+                        <thead class="table-header-primary text-white bg-light">
                           <tr>
                             <th>النوع</th>
                             <th>الاسم</th>
@@ -434,7 +434,7 @@
               <td colspan="7" class="p-0">
                 <div class="payment-split-details" style="background-color:#f9fbff; padding:10px; margin:5px;">
                   <table class="table table-sm table-bordered mb-0" style="font-size:0.85em; border:1px solid #ced4da;">
-                    <thead style="background-color:#e9ecef;">
+                    <thead class="table-header-primary text-white" style="background-color:#e9ecef;">
                       <tr>
                         <th style="width:22%; text-align:start;">الطريقة</th>
                         <th style="width:18%; text-align:end;">المبلغ</th>
@@ -492,7 +492,7 @@
   <div class="row mt-4">
     <div class="col-md-6">
       <div class="card shadow-sm">
-        <div class="card-header bg-info text-white">
+        <div class="card-header erp-card-header-row erp-theme-header--primary bg-info text-white">
           <h5 class="mb-0"><i class="fas fa-info-circle ml-2"></i>معلومات الشريك</h5>
         </div>
         <div class="card-body">
@@ -528,7 +528,7 @@
     
     <div class="col-md-6">
       <div class="card shadow-sm">
-        <div class="card-header bg-secondary text-white">
+        <div class="card-header erp-card-header-row erp-theme-header--primary bg-secondary text-white">
           <h5 class="mb-0"><i class="fas fa-chart-line ml-2"></i>ملخص الحساب</h5>
         </div>
         <div class="card-body">
@@ -569,13 +569,13 @@
 
   {% if inventory_items %}
   <div class="card shadow-sm mt-4">
-    <div class="card-header bg-warning text-dark">
+    <div class="card-header erp-card-header-row erp-theme-header--primary bg-warning text-dark">
       <h5 class="mb-0"><i class="fas fa-boxes ml-2"></i>مخزون الشريك (القطع غير المباعة)</h5>
     </div>
     <div class="card-body">
       <div class="table-responsive">
         <table class="table table-sm table-bordered table-striped align-middle">
-          <thead class="table-light">
+          <thead class="table-header-primary text-white table-light">
             <tr>
               <th>اسم المنتج</th>
               <th>SKU</th>
@@ -625,13 +625,13 @@
 
   {% if all_partner_products %}
   <div class="card shadow-sm mt-4">
-    <div class="card-header bg-primary text-white">
+    <div class="card-header erp-card-header-row erp-theme-header--primary">
       <h5 class="mb-0"><i class="fas fa-list-check ml-2"></i>جميع القطع التي للشريك نسبة بها (مباعة وغير مباعة)</h5>
     </div>
     <div class="card-body">
       <div class="table-responsive">
         <table class="table table-sm table-bordered table-striped align-middle">
-          <thead class="table-light">
+          <thead class="table-header-primary text-white table-light">
             <tr>
               <th>اسم المنتج</th>
               <th>SKU</th>

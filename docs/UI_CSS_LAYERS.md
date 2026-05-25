@@ -1,56 +1,95 @@
 # نظام الثيم — Arabic ERP Theme System
 
-## المصدر الوحيد (من مايو 2026)
+## المصدر الوحيد للألوان
 
 - **JSON:** `docs/arabic_erp_theme_system.json`
-- **CSS:** `static/css/erp-theme/index.css` (tokens + components + patterns + responsive + security-bridge)
+- **Tokens + مكوّنات:** `static/css/erp-theme/index.css`
+- **بطاقات KPI (طبقة واحدة):** `static/css/erp-theme/kpi-cards-global.css`
 - **JS:** `static/js/erp-theme.js`
 
-## القوالب الموحّدة
+---
 
-| القالب | الاستخدام |
-|--------|-----------|
-| `templates/base.html` | ERP بعد الدخول (مالك، مبيعات، تقارير…) |
-| `templates/layouts/erp_public.html` | دخول، أخطاء، صفحات عامة |
-| `templates/security/base_security.html` | وحدة الأمان (شريط/سايدبار ERP مخفيان) |
+## ترتيب التحميل (بدون تكدس)
 
-## Partials مشتركة
+### صفحات التطبيق (`base.html`)
 
-- `partials/erp_theme_head_early.html` — منع وميض الثيم
-- `partials/erp_head_assets.html` — CSS/JS موحّد (`erp_head_mode`: app \| public)
-- `partials/erp_public_navbar.html` + `erp_public_drawer.html`
-- `partials/navbar.html` + `sidebar.html` + `footer.html`
+| # | ملف | دور |
+|---|-----|-----|
+| 1 | AdminLTE + Bootstrap + Select2 | هيكل فقط |
+| 2 | `ui.css` | تخطيط sidebar، `card-header-blue` (يُلغى لاحقاً بثيم) |
+| 3 | `mobile.css`, `mobile-app.css`, `gm-*` | جداول/موبايل فقط |
+| 4 | `numbers-fix`, `bs5-utils`, `tenant-scope`, `ux-messages` | مساعدات |
+| 5 | **`erp-theme/index.css`** | tokens, components, layouts, pages-financial, pages-dashboard |
+| 6 | `{% block styles %}` / `{% block extra_head %}` | **CSS صفحة** مثل `service.css`, `sales.css`, `reporting.css` |
+| 7 | **`kpi-cards-global.css`** (آخر `<head>`) | **يفرض ألوان البطاقات من الثيم** — يتجاوز تعارض (6) |
 
-## الترتيب في `base.html`
+> القاعدة: لا تضع ألوان `!important` لـ `.small-box` / `.erp-kpi-card` / `.summary-card` في CSS الصفحة. استخدم الثيم أو عدّل `kpi-cards-global.css` فقط.
 
-1. AdminLTE + Select2 (هيكل فقط)
-2. `ui.css` (تخطيط sidebar)
-3. `mobile.css`, `mobile-app.css`, `gm-*` (صفحات متخصصة)
-4. `numbers-fix`, `bs5-utils`, `tenant-scope`, `ux-messages`
-5. **`erp-theme/index.css`** — كل الألوان والمكوّنات
-6. `{% block styles %}` / `extra_css`
+### صفحات عامة (`erp_public.html`)
 
-## تم إيقافه (لا يُحمَّل)
+نفس (1–5) عبر `erp_head_assets`، ثم `{% block head %}`، ثم **`kpi-cards-global.css`** مرة واحدة.
 
-`style.css`, `enhancements.css`, `ux-unified.css`, `ux-contrast.css`, `erp-arabic-ui.css`, `erp-forms-spacing.css`, `erp-conflict-fixes.css`, `erp-content-migrated.css`
+---
 
-## وحدة الأمان
+## ملفات **لا** تُحمَّل (تجنّب إعادة إضافتها)
 
-`erp-security-layout.css` + `erp-security-migrated.css` + نفس `erp-theme` من `base.html`
+`style.css`, `enhancements.css`, `ux-unified.css`, `ux-contrast.css`, **`erp-arabic-ui.css`**, `erp-forms-spacing.css`, `erp-conflict-fixes.css`, `erp-content-migrated.css`
 
-## وحدة الأمان
+> `erp-arabic-ui.css` ما زال على القرص لكنه **غير مربوط** — قواعد KPI فيه legacy ومكررة.
 
-- `erp-security-layout.css` — هيكل فقط
-- `erp-security.css` — ألوان فاتحة
-- `security_responsive.css`
+---
 
-## JavaScript
+## من يملك ماذا؟ (لا تكرار)
 
-- `safe-enhancements.js` — يتخطى تزيين حقول التاريخ عند `body.erp-unified`
-- `base.html` — `applySidebarPosition()` يضبط هوامش الشريط (لا تغيّر ارتفاع الحقول)
+| المكوّن | الملف الوحيد |
+|---------|----------------|
+| `--erp-primary`, variants | `tokens.css` |
+| `.card`, `.form-control`, أزرار | `components.css` |
+| جداول مالية، `erp-kpi-row` | `pages-financial.css` |
+| تنبيهات الداشبورد | `pages-dashboard.css` |
+| `erp-kpi-card`, `small-box`, `summary-card`, `info-box`, رؤوس ثيم، `erp-chart-host` | **`kpi-cards-global.css`** |
+
+---
+
+## تعارضات معروفة ومُعالجة
+
+| ملف صفحة | الخطر | الحل |
+|----------|--------|-----|
+| `service.css` | ألوان `small-box` ثابتة | عُدّلت لـ `var(--erp-*)` + الطبقة الأخيرة تفوز |
+| `ui.css` | `card-header-blue` hex | `kpi-cards-global` + `!important` على `body.erp-app` |
+| `reporting.css` | hover على summary فقط | لا تعارض لون |
+| AdminLTE | `small-box` افتراضي | مُغطى بـ `body.erp-app .small-box.bg-*` |
+
+---
 
 ## عند إضافة CSS جديد
 
-- لا تضع `!important` على `.form-control` / `.table thead` بعد طبقة ERP
-- استخدم `body.erp-unified .content-wrapper` للنطاق
-- صفحات خاصة: `{% block extra_css %}` فقط للاستثناءات
+1. **لا** تكرار قواعد KPI في ملف صفحة — عدّل `kpi-cards-global.css`.
+2. **لا** `!important` على `.card` عامة بعد الطبقة (7).
+3. صفحات خاصة: تخطيط فقط (مسافات، جداول)، ليس ألوان البطاقات.
+4. دفعات قوالب: تعديل القوالب مباشرة أو عبر `kpi-cards-global.css` — لا سكربت دفعي في `scripts/`.
+
+---
+
+## موبايل / تابلت (`data-ui-mode`)
+
+| ملف | متى يُحمَّل | دور |
+|-----|-------------|-----|
+| `mobile.css` | عرض ≤991px أو وضع mobile/tablet | شريط، سايدبار، جداول، `gm-action-tile` |
+| `mobile-app.css` | نفس الشرط + `body.gm-compact-app` | بطاقات قوائم، فلاتر — **لا يُسطّح** `erp-kpi-card` بعد التحديث |
+| `kpi-cards-global.css` | آخر `<head>` | قواعد `html[data-ui-mode="mobile\|tablet"]` بأولوية أعلى |
+| `layout-app.css` (ضمن erp-theme) | مع الحزمة | نافبار، سايدبار RTL، overlay موبايل (`sidebar-open`, `#gm-sidebar-backdrop`) |
+| `erp-navbar.js` | بعد `layout-responsive.js` | زر القائمة `data-erp-pushmenu`، أسعار `/api/exchange-rates` — **ليس** `data-widget="pushmenu"` |
+
+- `mobile-app.js` يضيف `gm-compact-app` على `<body>` تلقائياً.
+- متغيرات `--gm-app-*` مربوطة بـ `--erp-*` (نفس الثيم).
+- `charts.js`: ارتفاع أصغر + وسيلة إيضاح أسفل على الموبايل (`isCompact`).
+
+---
+
+## JavaScript
+
+- `charts.js` — ألوان من `--erp-*`، `ensureChartHost()`، `erp-theme-change`
+- `erp-navbar.js` — `data-erp-pushmenu`، drawer موبايل، `/api/exchange-rates` (بعد `layout-responsive.js`)
+- `safe-enhancements.js` — لا يغيّر ألوان البطاقات
+- `mobile-app.js` — `gm-compact-app` + بطاقات جداول فقط

@@ -107,6 +107,17 @@ def _is_super_admin_user(user: User) -> bool:
     except Exception:
         return False
 
+
+def _actor_can_edit_extra_permissions() -> bool:
+    """من يمكنه تعديل الصلاحيات الإضافية في نموذج المستخدم."""
+    if _actor_level() <= 1:
+        return True
+    try:
+        caps = PermissionsRegistry.ROLES.get(_actor_role_name(), {}).get("capabilities") or {}
+        return bool(caps.get("can_manage_any_user_permissions"))
+    except Exception:
+        return False
+
 @users_bp.route("/profile", methods=["GET"], endpoint="profile")
 @login_required
 def profile():
@@ -218,6 +229,31 @@ def change_password():
     
     return render_template("users/change_password.html", form=form)
 
+@users_bp.route("/repair-branch-links", methods=["POST"], endpoint="repair_branch_links")
+@login_required
+@utils.permission_required(SystemPermissions.MANAGE_USERS)
+def repair_branch_links():
+    """ربط المستخدمين التشغيليين بفرع افتراضي (MAIN) دون المساس بالمربوطين."""
+    from services.user_branch_service import repair_missing_user_branch_links
+
+    try:
+        report = repair_missing_user_branch_links()
+        db.session.commit()
+        fixed = report.get("fixed") or []
+        errors = report.get("errors") or []
+        if fixed:
+            flash(f"تم ربط {len(fixed)} مستخدم(ين) بالفروع.", "success")
+        if errors:
+            flash("؛ ".join(errors[:3]), "warning")
+        if not fixed and not errors:
+            flash("لا يوجد مستخدمون يحتاجون ربطاً جديداً.", "info")
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception("repair_branch_links failed")
+        flash("فشل ربط المستخدمين بالفروع.", "danger")
+    return redirect(url_for("users_bp.list_users"))
+
+
 @users_bp.route("/", methods=["GET"], endpoint="list_users")
 @login_required
 @utils.permission_required(SystemPermissions.MANAGE_USERS)
@@ -296,6 +332,10 @@ def list_users():
         })
     args = request.args.to_dict(flat=True)
     args.pop("page", None)
+    try:
+        repair_branch_url = url_for("users_bp.repair_branch_links")
+    except Exception:
+        repair_branch_url = "/users/repair-branch-links"
     return render_template(
         "users/list.html",
         users=users,
@@ -304,6 +344,8 @@ def list_users():
         args=args,
         user_branch_display=user_branch_display,
         visible_extra_permissions_by_user=visible_extra_permissions_by_user,
+        can_edit_extra_permissions=_actor_can_edit_extra_permissions(),
+        repair_branch_url=repair_branch_url,
     )
 
 
@@ -364,10 +406,13 @@ def user_detail(user_id):
     except Exception:
         perms = []
     visible_extra_permissions = _filter_permissions_assignable_by_actor(perms)
+    user_branch_display = load_users_branch_display([user.id], {user.id: user})
+    scope = user_branch_display.get(user.id, {})
     return render_template(
         "users/detail.html",
         user=user,
         visible_extra_permissions=visible_extra_permissions,
+        user_scope=scope,
     )
 
 @users_bp.route("/api", methods=["GET"], endpoint="api_users")
@@ -492,6 +537,7 @@ def create_user():
         user_id=None,
         all_permissions=all_permissions,
         selected_perm_ids=selected_perm_ids,
+        can_edit_extra_permissions=_actor_can_edit_extra_permissions(),
     )
 
 
@@ -620,6 +666,7 @@ def edit_user(user_id):
         user_id=user_id,
         all_permissions=all_permissions,
         selected_perm_ids=selected_perm_ids,
+        can_edit_extra_permissions=_actor_can_edit_extra_permissions(),
     )
 
 @users_bp.route("/<int:user_id>/delete", methods=["POST"], endpoint="delete_user")

@@ -26,3 +26,20 @@ body.security-body.erp-app .security-sidebar .nav-link.active {
   background: var(--erp-sidebar-active) !important;
   color: #fff !important;
 }
+
+body.security-body.erp-app .btn-glass {
+  border: 1px solid color-mix(in srgb, var(--erp-primary) 35%, transparent);
+  color: var(--erp-primary);
+  background: color-mix(in srgb, var(--erp-primary) 8%, var(--erp-surface));
+}
+
+body.security-body.erp-app .btn-glass:hover {
+  background: color-mix(in srgb, var(--erp-primary) 16%, var(--erp-surface));
+  color: var(--erp-primary-dark);
+}
+
+body.security-body.erp-app .badge.bg-primary,
+body.security-body.erp-app .badge.badge-primary {
+  background: var(--erp-primary) !important;
+  color: #fff !important;
+}

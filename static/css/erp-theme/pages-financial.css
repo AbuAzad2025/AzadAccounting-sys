@@ -305,3 +305,62 @@ body.erp-app .action-btns .btn:hover {
     display: none !important;
   }
 }
+
+/* ── Extended KPI grid (customers, reports) ── */
+body.erp-app .erp-summary-grid--5col {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+@media (max-width: 1399.98px) {
+  body.erp-app .erp-summary-grid--5col {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 991.98px) {
+  body.erp-app .erp-summary-grid--5col {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* summary-card / erp-kpi-tile: kpi-cards-global.css */
+
+body.erp-app .summary-card.summary-card--primary {
+  padding: 1.25rem;
+}
+
+/* ── Expense module nav: tablet/mobile ── */
+@media (max-width: 991.98px) {
+  body.erp-app .expense-nav .nav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+    padding-bottom: 0.25rem;
+  }
+
+  body.erp-app .expense-nav .nav-link {
+    white-space: nowrap;
+    flex: 0 0 auto;
+  }
+}
+
+/* ── Sales list header ── */
+body.erp-app .sales-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+@media (max-width: 767.98px) {
+  body.erp-app .sales-header-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  body.erp-app .sales-header-actions .btn {
+    flex: 1 1 auto;
+    min-width: calc(50% - 0.25rem);
+  }
+}

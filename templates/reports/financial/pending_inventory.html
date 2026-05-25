@@ -11,7 +11,7 @@
   <p>إجمالي وحدات محجوزة: <strong>{{ total_pending }}</strong></p>
   {{ scroll_table_start() }}
   <table class="table table-sm table-bordered">
-    <thead><tr><th>منتج</th><th>SKU</th><th>مستودع</th><th>كمية</th><th>محجوز</th><th>متاح</th></tr></thead>
+    <thead class="table-header-primary text-white"><tr><th>منتج</th><th>SKU</th><th>مستودع</th><th>كمية</th><th>محجوز</th><th>متاح</th></tr></thead>
     <tbody>
       {% for i in items %}
       <tr><td>{{ i.name }}</td><td>{{ i.sku }}</td><td>{{ i.warehouse }}</td><td>{{ i.quantity }}</td><td>{{ i.reserved }}</td><td>{{ i.available }}</td></tr>

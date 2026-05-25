@@ -25,7 +25,7 @@ def get_primary_branch_id(user_id: int) -> Optional[int]:
 
 
 def role_can_skip_branch_assignment(role_id: int | None) -> bool:
-    """أدوار المنصة (مالك/عرض كل الفروع) — الفروع اختيارية."""
+    """أدوار المنصة (مالك/مدير أعلى/عرض كل الفروع) — الفروع اختيارية."""
     from models import Role
     from permissions_config.permissions import PermissionsRegistry
 
@@ -37,6 +37,11 @@ def role_can_skip_branch_assignment(role_id: int | None) -> bool:
     name = (role.name or "").strip().lower()
     if name in {"owner", "developer"}:
         return True
+    try:
+        if PermissionsRegistry.is_role_super(name):
+            return True
+    except Exception:
+        pass
     info = PermissionsRegistry.ROLES.get(name, {})
     if int(info.get("level", 999)) == 0:
         return True
@@ -44,6 +49,18 @@ def role_can_skip_branch_assignment(role_id: int | None) -> bool:
         return bool(role.has_permission("view_all_branches"))
     except Exception:
         return False
+
+
+def _resolve_default_branch(branches_by_code: dict) -> "Branch | None":
+    """أول فرع نشط حسب أولوية الرموز ثم أي فرع."""
+    from models import Branch
+
+    for code in ("MAIN", "RAMALLAH", "SHARJAH", "DEFAULT"):
+        br = branches_by_code.get(code.upper())
+        if br:
+            return br
+    first = Branch.query.filter_by(is_active=True).order_by(Branch.id.asc()).first()
+    return first
 
 
 def validate_branch_assignment(
@@ -202,10 +219,10 @@ def repair_missing_user_branch_links() -> dict:
     """
     from models import User, Branch
 
-    sharjah_usernames = {"naser"}
-    default_branch_code = "RAMALLAH"
-
-    branches_by_code = {b.code.upper(): b for b in Branch.query.filter_by(is_active=True).all()}
+    branches_by_code = {
+        (b.code or "").upper(): b for b in Branch.query.filter_by(is_active=True).all()
+    }
+    default_br = _resolve_default_branch(branches_by_code)
     report: dict = {"fixed": [], "skipped": [], "unlinked": [], "errors": []}
 
     for u in User.query.filter(User.is_system_account.is_(False)).order_by(User.username).all():
@@ -216,16 +233,16 @@ def repair_missing_user_branch_links() -> dict:
             if uname_l == "owner" and not u.is_active:
                 u.is_active = True
                 report["fixed"].append(f"{uname}: تم تفعيل حساب المالك")
+            report["skipped"].append(uname)
             continue
 
         if get_branch_ids_for_user(int(u.id)):
             report["skipped"].append(uname)
             continue
 
-        code = "SHARJAH" if uname_l in sharjah_usernames else default_branch_code
-        br = branches_by_code.get(code)
+        br = default_br
         if not br:
-            msg = f"{uname}: فرع {code} غير موجود"
+            msg = f"{uname}: لا يوجد فرع نشط في النظام"
             report["errors"].append(msg)
             report["unlinked"].append(uname)
             continue

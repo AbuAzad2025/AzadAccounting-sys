@@ -22,7 +22,7 @@
         
         <!-- Navigation Tabs -->
         <div class="card">
-            <div class="card-header p-0">
+            <div class="card-header erp-card-header-row erp-theme-header--primary p-0">
                 <ul class="nav nav-tabs nav-justified" id="ledgerTabs" role="tablist">
                     <li class="nav-item">
                         <a class="nav-link active" id="dashboard-tab" data-toggle="tab" href="#dashboard" role="tab">
@@ -70,28 +70,28 @@
             <!-- إحصائيات سريعة - الصف الأول -->
             <div class="row">
                 <div class="col-lg-3 col-md-6">
-                    <div class="stat-card position-relative" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                    <div class="stat-card erp-kpi-tile erp-kpi-tile--primary position-relative">
                         <i class="fas fa-shopping-cart stat-icon"></i>
                         <h3 id="total-sales">0.00 ₪</h3>
                         <p>إجمالي المبيعات</p>
                     </div>
                 </div>
                 <div class="col-lg-3 col-md-6">
-                    <div class="stat-card position-relative" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                    <div class="stat-card erp-kpi-tile erp-kpi-tile--primary position-relative">
                         <i class="fas fa-tools stat-icon"></i>
                         <h3 id="total-services">0.00 ₪</h3>
                         <p>الصيانة والخدمات</p>
                     </div>
                 </div>
                 <div class="col-lg-3 col-md-6">
-                    <div class="stat-card position-relative" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);">
+                    <div class="stat-card erp-kpi-tile erp-kpi-tile--primary position-relative">
                         <i class="fas fa-calendar-check stat-icon"></i>
                         <h3 id="total-preorders">0.00 ₪</h3>
                         <p>الحجوزات المسبقة</p>
                     </div>
                 </div>
                 <div class="col-lg-3 col-md-6">
-                    <div class="stat-card position-relative" style="background: linear-gradient(135deg, #89f7fe 0%, #66a6ff 100%);">
+                    <div class="stat-card erp-kpi-tile erp-kpi-tile--primary position-relative">
                         <i class="fas fa-warehouse stat-icon"></i>
                         <h3 id="total-stock">0.00 ₪</h3>
                         <p>قيمة المخزون</p>
@@ -102,28 +102,28 @@
             <!-- صف ثاني للإحصائيات -->
             <div class="row mt-3" id="stats-row-2">
                 <div class="col-lg-3 col-md-6">
-                    <div class="stat-card position-relative" style="background: linear-gradient(135deg, #ff9966 0%, #ff5e62 100%);">
+                    <div class="stat-card erp-kpi-tile erp-kpi-tile--primary position-relative">
                         <i class="fas fa-boxes stat-icon"></i>
                         <h3 id="total-cogs">0.00 ₪</h3>
                         <p>تكلفة البضاعة المباعة</p>
                     </div>
                 </div>
                 <div class="col-lg-3 col-md-6">
-                    <div class="stat-card position-relative" style="background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);">
+                    <div class="stat-card erp-kpi-tile erp-kpi-tile--primary position-relative">
                         <i class="fas fa-receipt stat-icon"></i>
                         <h3 id="total-expenses">0.00 ₪</h3>
                         <p>إجمالي النفقات</p>
                     </div>
                 </div>
                 <div class="col-lg-3 col-md-6">
-                    <div class="stat-card position-relative" style="background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);">
+                    <div class="stat-card erp-kpi-tile erp-kpi-tile--primary position-relative">
                         <i class="fas fa-chart-line stat-icon"></i>
                         <h3 id="gross-profit">0.00 ₪</h3>
                         <p>إجمالي الربح</p>
                     </div>
                 </div>
                 <div class="col-lg-3 col-md-6">
-                    <div class="stat-card position-relative" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                    <div class="stat-card erp-kpi-tile erp-kpi-tile--primary position-relative">
                         <i class="fas fa-hand-holding-usd stat-icon"></i>
                         <h3 id="net-profit">0.00 ₪</h3>
                         <p>صافي الربح</p>
@@ -135,7 +135,7 @@
             <div class="row mt-4">
                 <div class="col-md-6">
                     <div class="card ledger-card">
-                        <div class="card-header bg-primary text-white">
+                        <div class="card-header erp-card-header-row erp-theme-header--primary">
                             <h5 class="mb-0"><i class="fas fa-chart-line"></i> الإيرادات vs المصاريف</h5>
                         </div>
                         <div class="card-body">
@@ -145,7 +145,7 @@
                 </div>
                 <div class="col-md-6">
                     <div class="card ledger-card">
-                        <div class="card-header bg-success text-white">
+                        <div class="card-header erp-card-header-row erp-theme-header--primary bg-success text-white">
                             <h5 class="mb-0"><i class="fas fa-chart-pie"></i> توزيع الإيرادات</h5>
                         </div>
                         <div class="card-body">
@@ -158,7 +158,7 @@
             <!-- أزرار إدارة القطع غير المسعرة - بديل للتنبيهات المزعجة -->
             <div class="row mt-3" id="cost-warnings" style="display: none;">
                 <div class="col-12">
-                    <div class="card border-0 shadow-lg" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                    <div class="card border-0 shadow-lg erp-kpi-tile erp-kpi-tile--danger text-white">
                         <div class="card-body">
                             <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
                                 <div class="text-white">
@@ -218,7 +218,7 @@
             <div class="row" id="advanced-filters" style="display: none;">
                 <div class="col-12">
                     <div class="card ledger-card">
-                        <div class="card-header ledger-header">
+                        <div class="card-header erp-card-header-row erp-theme-header--primary ledger-header">
                             <h4 class="mb-0">
                                 <i class="fas fa-filter"></i>
                                 فلاتر البحث المتقدمة
@@ -297,7 +297,7 @@
             <div class="row">
                 <div class="col-12">
                     <div class="card ledger-card">
-                        <div class="card-header ledger-header d-flex justify-content-between align-items-center">
+                        <div class="card-header erp-card-header-row erp-theme-header--primary ledger-header d-flex justify-content-between align-items-center">
                             <h4 class="mb-0">
                                 <i class="fas fa-book-open"></i>
                                 سجل القيود المحاسبية
@@ -339,7 +339,7 @@
                             </div>
                             {{ scroll_table_start('اسحب لعرض التاريخ، المدين، الدائن وجميع الأعمدة') }}
                                 <table class="table table-bordered table-hover table-sm no-mobile-cards gm-ledger-table" id="ledger-table">
-                                    <thead class="table-light">
+                                    <thead class="table-header-primary text-white table-light">
                                         <tr>
                                             <th style="width: 7%;">
                                               التاريخ
@@ -439,7 +439,7 @@
                 <!-- الجدول -->
                 <div class="col-md-6">
                     <div class="card ledger-card">
-                        <div class="card-header" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white;">
+                        <div class="card-header erp-card-header-row erp-theme-header--primary card-header-success text-white erp-card-header-row">
                             <h4 class="mb-0">
                                 <i class="fas fa-chart-line"></i>
                                 قائمة الدخل (P&L)
@@ -519,7 +519,7 @@
                                         </tr>
                                         
                                         <!-- صافي الربح -->
-                                        <tr class="table-dark">
+                                        <tr class=" ">
                                             <td><strong style="font-size: 1.2rem;"><i class="fas fa-hand-holding-usd"></i> صافي الربح (Net Profit)</strong></td>
                                             <td class="text-end"><strong style="font-size: 1.2rem;" id="pnl-net-profit">0.00 ₪</strong></td>
                                         </tr>
@@ -537,7 +537,7 @@
                 <!-- Waterfall Chart -->
                 <div class="col-md-6">
                     <div class="card ledger-card">
-                        <div class="card-header bg-info text-white">
+                        <div class="card-header erp-card-header-row erp-theme-header--primary bg-info text-white">
                             <h5 class="mb-0"><i class="fas fa-chart-bar"></i> رسم الشلال - تدفق الأرباح</h5>
                         </div>
                         <div class="card-body">
@@ -556,7 +556,7 @@
             <div class="row">
                 <div class="col-12">
                     <div class="card ledger-card">
-                        <div class="card-header" style="background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%); color: white;">
+                        <div class="card-header erp-card-header-row erp-theme-header--primary">
                             <h4 class="mb-0">
                                 <i class="fas fa-users"></i>
                                 كشف الذمم التفصيلي (Accounts Receivable & Payable)
@@ -565,7 +565,7 @@
                         <div class="card-body">
                             <div class="table-responsive">
                                 <table class="table table-bordered table-hover table-sm" id="receivables-detailed-table">
-                                    <thead>
+                                    <thead class="table-header-primary text-white">
                                         <tr>
                                             <th>الجهة</th>
                                             <th>النوع</th>
@@ -608,7 +608,7 @@
             <div class="row">
                 <div class="col-12">
                     <div class="card ledger-card">
-                        <div class="card-header ledger-header">
+                        <div class="card-header erp-card-header-row erp-theme-header--primary ledger-header">
                             <h4 class="mb-0">
                                 <i class="fas fa-chart-pie"></i>
                                 ميزان المراجعة (Trial Balance)
@@ -618,7 +618,7 @@
                             <div id="trial-balance-unbalanced-warning" class="alert alert-danger py-2 mb-2" style="display: none;" role="alert"></div>
                             <div class="table-responsive">
                                 <table class="table table-bordered table-hover table-sm">
-                                    <thead class="table-light">
+                                    <thead class="table-header-primary text-white table-light">
                                         <tr>
                                             <th>الحساب</th>
                                             <th class="text-center">النوع</th>
@@ -674,7 +674,7 @@
                     
                     <!-- النموذج -->
                     <div class="card ledger-card">
-                        <div class="card-header" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white;">
+                        <div class="card-header erp-card-header-row erp-theme-header--primary card-header-danger text-white erp-card-header-row">
                             <h4 class="mb-0">
                                 <i class="fas fa-pen-alt"></i>
                                 إضافة قيد يدوي جديد
@@ -804,7 +804,7 @@
                                         <div class="alert alert-light border">
                                             <h6 class="mb-3"><i class="fas fa-eye"></i> معاينة القيد:</h6>
                                             <table class="table table-sm table-bordered mb-0">
-                                                <thead class="table-dark">
+                                                <thead class="table-header-primary text-white ">
                                                     <tr>
                                                         <th>الحساب</th>
                                                         <th class="text-end">مدين (منه)</th>
@@ -827,13 +827,13 @@
             <div class="row mt-4">
                 <div class="col-12">
                     <div class="card ledger-card">
-                        <div class="card-header bg-secondary text-white">
+                        <div class="card-header erp-card-header-row erp-theme-header--primary bg-secondary text-white">
                             <h5 class="mb-0"><i class="fas fa-history"></i> القيود اليدوية السابقة</h5>
                         </div>
                         <div class="card-body">
                             <div class="table-responsive">
                                 <table class="table table-bordered table-hover table-sm" id="manual-entries-table">
-                                    <thead>
+                                    <thead class="table-header-primary text-white">
                                         <tr>
                                             <th>التاريخ</th>
                                             <th>الوصف</th>
@@ -864,7 +864,7 @@
                         <div class="row">
                             <div class="col-12">
                                 <div class="card ledger-card">
-                                    <div class="card-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                                    <div class="card-header erp-card-header-row erp-theme-header--primary">
                                         <h4 class="mb-0">
                                             <i class="fas fa-search-dollar"></i>
                                             فحص تكلفة البضاعة المباعة (COGS Audit)
@@ -931,7 +931,7 @@
                                         
                                         <div class="table-responsive" id="cogs-table-container" style="display: none;">
                                             <table class="table table-bordered table-hover table-sm" id="cogs-audit-table">
-                                                <thead class="table-dark">
+                                                <thead class="table-header-primary text-white ">
                                                     <tr>
                                                         <th>المنتج</th>
                                                         <th>SKU</th>
@@ -1347,6 +1347,15 @@ let revenueExpenseChart = null;
 let revenueDistributionChart = null;
 let waterfallChart = null;
 
+var LEDGER_KPI_VARIANTS = ['primary', 'success', 'danger', 'warning', 'neutral', 'info'];
+function setLedgerKpiVariant($card, variant) {
+    if (!$card || !$card.length) return;
+    LEDGER_KPI_VARIANTS.forEach(function(v) {
+        $card.removeClass('erp-kpi-tile--' + v);
+    });
+    $card.addClass('erp-kpi-tile--' + variant);
+}
+
 function updateStatistics(stats) {
     // الإيرادات
     $('#total-sales').text(formatCurrency(stats.total_sales || 0) + ' ₪');
@@ -1372,34 +1381,35 @@ function updateStatistics(stats) {
     $('#gross-profit').text(formatCurrency(Math.abs(grossProfit)) + ' ₪');
     $('#net-profit').text(formatCurrency(Math.abs(netProfit)) + ' ₪');
     
-    // تغيير اللون حسب الربح/الخسارة
+    // تغيير لون البطاقات حسب الربح/الخسارة (erp-kpi-tile variants)
     const netProfitCard = $('#net-profit').closest('.stat-card');
     const grossProfitCard = $('#gross-profit').closest('.stat-card');
-    
+
     if (netProfit < 0) {
-        netProfitCard.css('background', 'linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%)');
+        setLedgerKpiVariant(netProfitCard, 'danger');
         netProfitCard.find('p').text('صافي الخسارة');
     } else {
-        netProfitCard.css('background', 'linear-gradient(135deg, #56ab2f 0%, #a8e6cf 100%)');
+        setLedgerKpiVariant(netProfitCard, 'success');
         netProfitCard.find('p').text('صافي الربح');
     }
-    
+
     if (grossProfit < 0) {
-        grossProfitCard.css('background', 'linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%)');
+        setLedgerKpiVariant(grossProfitCard, 'danger');
         grossProfitCard.find('p').text('إجمالي الخسارة');
     } else {
-        grossProfitCard.css('background', 'linear-gradient(135deg, #56ab2f 0%, #a8e6cf 100%)');
+        setLedgerKpiVariant(grossProfitCard, 'success');
         grossProfitCard.find('p').text('إجمالي الربح');
     }
-    
-    // تنبيه إذا كان هامش الربح منخفض
+
     const marginCard = $('#profit-margin').closest('.stat-card');
-    if (profitMargin < 10) {
-        marginCard.css('background', 'linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%)');
-    } else if (profitMargin < 20) {
-        marginCard.css('background', 'linear-gradient(135deg, #ffd89b 0%, #19547b 100%)');
-    } else {
-        marginCard.css('background', 'linear-gradient(135deg, #56ab2f 0%, #a8e6cf 100%)');
+    if (marginCard.length) {
+        if (profitMargin < 10) {
+            setLedgerKpiVariant(marginCard, 'danger');
+        } else if (profitMargin < 20) {
+            setLedgerKpiVariant(marginCard, 'warning');
+        } else {
+            setLedgerKpiVariant(marginCard, 'success');
+        }
     }
     
     // عرض أزرار القطع غير المسعرة
@@ -1443,7 +1453,7 @@ function showEstimatedProducts() {
     html += '<small><i class="fas fa-info-circle"></i> <strong>ملاحظة:</strong> يمكنك تحديث التكلفة مباشرة من هنا أو الذهاب إلى صفحة المنتج.</small>';
     html += '</div>';
     html += '<div class="table-responsive"><table class="table table-sm table-bordered table-hover" id="estimated-products-table">';
-    html += '<thead class="table-dark"><tr><th>المنتج</th><th>الكمية</th><th>سعر البيع</th><th>التكلفة المقدرة</th><th>التكلفة الفعلية</th><th>إجراءات</th></tr></thead><tbody>';
+    html += '<thead class="table-header-primary text-white "><tr><th>المنتج</th><th>الكمية</th><th>سعر البيع</th><th>التكلفة المقدرة</th><th>التكلفة الفعلية</th><th>إجراءات</th></tr></thead><tbody>';
     
     window.estimatedProducts.forEach(p => {
         html += `<tr data-product-id="${p.id}">
@@ -1514,7 +1524,7 @@ function showNoCostProducts() {
     html += '<small><i class="fas fa-info-circle"></i> <strong>ملاحظة:</strong> يمكنك تسعير المنتجات مباشرة من هنا أو الذهاب إلى صفحة المنتج.</small>';
     html += '</div>';
     html += '<div class="table-responsive"><table class="table table-sm table-bordered table-hover" id="no-cost-products-table">';
-    html += '<thead class="table-dark"><tr><th>المنتج</th><th>الكمية المباعة</th><th>سعر البيع</th><th>سعر الشراء (التكلفة)</th><th>إجراءات</th></tr></thead><tbody>';
+    html += '<thead class="table-header-primary text-white "><tr><th>المنتج</th><th>الكمية المباعة</th><th>سعر البيع</th><th>سعر الشراء (التكلفة)</th><th>إجراءات</th></tr></thead><tbody>';
     
     window.productsWithoutCost.forEach(p => {
         html += `<tr data-product-id="${p.id}">
@@ -2653,7 +2663,7 @@ function displayBatchDetails(data) {
         <hr>
         <h6 class="text-success"><i class="fas fa-list"></i> القيود الفرعية:</h6>
         <table class="table table-sm table-hover">
-            <thead class="table-dark">
+            <thead class="table-header-primary text-white ">
                 <tr>
                     <th>الحساب</th>
                     <th class="text-end">مدين</th>

@@ -214,39 +214,7 @@ body.erp-app .card-body {
   padding: var(--erp-gap-lg);
 }
 
-body.erp-app .erp-kpi-card,
-body.erp-app .dashboard-stats-card.erp-kpi-card {
-  position: relative;
-  overflow: hidden;
-}
-
-body.erp-app .erp-kpi-card::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: 4px;
-  height: 100%;
-  background: var(--erp-primary);
-}
-
-body.erp-app .erp-kpi-value {
-  font-size: 1.75rem;
-  font-weight: 800;
-  color: var(--erp-primary-dark);
-  font-variant-numeric: tabular-nums;
-}
-
-body.erp-app .erp-kpi-label {
-  color: var(--erp-muted);
-  font-size: 0.9rem;
-  font-weight: 600;
-}
-
-body.erp-app .erp-kpi-icon {
-  color: var(--erp-primary);
-  opacity: 0.35;
-}
+/* KPI cards: see kpi-cards-global.css */
 
 /* ── Forms / Inputs ── */
 body.erp-app .content-wrapper .form-control,
@@ -380,6 +348,135 @@ body.erp-app .btn-outline-primary {
   color: var(--erp-primary) !important;
   border-color: var(--erp-primary) !important;
 }
+body.erp-app .btn-outline-primary:hover,
+body.erp-app .btn-outline-primary:focus {
+  background: var(--erp-primary) !important;
+  color: #fff !important;
+}
+
+body.erp-app .btn-secondary {
+  background: var(--erp-secondary) !important;
+  border-color: var(--erp-secondary) !important;
+  color: #fff !important;
+}
+body.erp-app .btn-secondary:hover {
+  filter: brightness(1.08);
+}
+
+body.erp-app .btn-outline-secondary {
+  color: var(--erp-text) !important;
+  background: var(--erp-surface) !important;
+  border-color: var(--erp-border) !important;
+}
+body.erp-app .btn-outline-secondary:hover,
+body.erp-app .btn-outline-secondary:focus {
+  background: var(--erp-surface-alt) !important;
+  color: var(--erp-primary) !important;
+  border-color: var(--erp-primary) !important;
+}
+
+/* أزرار تصدير DataTables — نص وأيقونات ظاهرة دائماً */
+body.erp-app .dataTables_wrapper div.dt-buttons {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+body.erp-app .dataTables_wrapper div.dt-buttons .btn,
+body.erp-app .dataTables_wrapper div.dt-buttons button.dt-button {
+  background: var(--erp-surface) !important;
+  color: var(--erp-text) !important;
+  border: 1px solid var(--erp-border) !important;
+  opacity: 1 !important;
+  box-shadow: none !important;
+}
+
+body.erp-app .dataTables_wrapper div.dt-buttons .btn i,
+body.erp-app .dataTables_wrapper div.dt-buttons .btn .fas,
+body.erp-app .dataTables_wrapper div.dt-buttons .btn .far {
+  color: inherit !important;
+  opacity: 1 !important;
+}
+
+body.erp-app .dataTables_wrapper div.dt-buttons .btn:hover,
+body.erp-app .dataTables_wrapper div.dt-buttons .btn:focus,
+body.erp-app .dataTables_wrapper div.dt-buttons button.dt-button:hover {
+  background: var(--erp-primary) !important;
+  color: #fff !important;
+  border-color: var(--erp-primary) !important;
+}
+
+body.erp-app .dataTables_wrapper div.dt-buttons .btn:hover i,
+body.erp-app .dataTables_wrapper div.dt-buttons .btn:focus i {
+  color: #fff !important;
+}
+
+body.erp-app .btn-outline-success {
+  color: var(--erp-success) !important;
+  border-color: var(--erp-success) !important;
+}
+body.erp-app .btn-outline-success:hover {
+  background: var(--erp-success) !important;
+  color: #fff !important;
+}
+
+body.erp-app .btn-outline-danger {
+  color: var(--erp-danger) !important;
+  border-color: var(--erp-danger) !important;
+}
+body.erp-app .btn-outline-danger:hover {
+  background: var(--erp-danger) !important;
+  color: #fff !important;
+}
+
+body.erp-app .btn-outline-warning {
+  color: var(--erp-warning) !important;
+  border-color: var(--erp-warning) !important;
+}
+body.erp-app .btn-outline-warning:hover {
+  background: var(--erp-warning) !important;
+  color: #fff !important;
+}
+
+body.erp-app .btn-outline-info {
+  color: var(--erp-info) !important;
+  border-color: var(--erp-info) !important;
+}
+body.erp-app .btn-outline-info:hover {
+  background: var(--erp-info) !important;
+  color: #fff !important;
+}
+
+body.erp-app .btn-light {
+  background: var(--erp-surface-alt) !important;
+  border-color: var(--erp-border) !important;
+  color: var(--erp-text) !important;
+}
+
+body.erp-app .btn-dark {
+  background: var(--erp-secondary) !important;
+  border-color: var(--erp-secondary) !important;
+  color: #fff !important;
+}
+
+body.erp-app .btn:disabled,
+body.erp-app .btn.disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+body.erp-app .card-header-primary .btn-tool,
+body.erp-app .card-header-success .btn-tool,
+body.erp-app .card-header-danger .btn-tool,
+body.erp-app .card-header-warning .btn-tool,
+body.erp-app .card-header-info .btn-tool {
+  color: rgba(255, 255, 255, 0.92) !important;
+}
+
+body.erp-app .btn-group .btn {
+  min-height: calc(var(--erp-btn-h) - 4px);
+}
 
 /* ── Tables ── */
 body.erp-app .table {
@@ -416,18 +513,93 @@ body.erp-app .table-responsive {
   border: 1px solid var(--erp-border);
 }
 
-/* ── Badges ── */
-body.erp-app .badge-success, body.erp-app .badge.badge-success { background: var(--erp-success) !important; }
-body.erp-app .badge-warning, body.erp-app .badge.badge-warning { background: var(--erp-warning) !important; color: #fff !important; }
-body.erp-app .badge-danger, body.erp-app .badge.badge-danger { background: var(--erp-danger) !important; }
-body.erp-app .badge-info, body.erp-app .badge.badge-info { background: var(--erp-info) !important; }
-body.erp-app .badge-primary, body.erp-app .badge.badge-primary { background: var(--erp-primary) !important; }
-
+/* ── Badges (BS4 badge-* + BS5 badge bg-*) ── */
 body.erp-app .badge {
   padding: 0.35em 0.75em;
   font-weight: 600;
+  font-size: 0.8rem;
   border-radius: 999px;
+  line-height: 1.25;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  vertical-align: middle;
 }
+
+body.erp-app .badge-primary,
+body.erp-app .badge.badge-primary,
+body.erp-app .badge.bg-primary {
+  background: var(--erp-primary) !important;
+  color: #fff !important;
+}
+
+body.erp-app .badge-secondary,
+body.erp-app .badge.badge-secondary,
+body.erp-app .badge.bg-secondary {
+  background: var(--erp-muted) !important;
+  color: #fff !important;
+}
+
+body.erp-app .badge-success,
+body.erp-app .badge.badge-success,
+body.erp-app .badge.bg-success {
+  background: var(--erp-success) !important;
+  color: #fff !important;
+}
+
+body.erp-app .badge-warning,
+body.erp-app .badge.badge-warning,
+body.erp-app .badge.bg-warning {
+  background: var(--erp-warning) !important;
+  color: #fff !important;
+}
+
+body.erp-app .badge-danger,
+body.erp-app .badge.badge-danger,
+body.erp-app .badge.bg-danger {
+  background: var(--erp-danger) !important;
+  color: #fff !important;
+}
+
+body.erp-app .badge-info,
+body.erp-app .badge.badge-info,
+body.erp-app .badge.bg-info {
+  background: var(--erp-info) !important;
+  color: #fff !important;
+}
+
+body.erp-app .badge-light,
+body.erp-app .badge.badge-light,
+body.erp-app .badge.bg-light {
+  background: var(--erp-surface-alt) !important;
+  color: var(--erp-text) !important;
+  border: 1px solid var(--erp-border);
+}
+
+body.erp-app .badge-dark,
+body.erp-app .badge.badge-dark,
+body.erp-app .badge.bg-dark {
+  background: var(--erp-secondary) !important;
+  color: #fff !important;
+}
+
+body.erp-app .badge.bg-light.text-dark,
+body.erp-app .badge.bg-light .text-dark {
+  color: var(--erp-text) !important;
+}
+
+body.erp-app .text-bg-primary { background: var(--erp-primary) !important; color: #fff !important; }
+body.erp-app .text-bg-secondary { background: var(--erp-muted) !important; color: #fff !important; }
+body.erp-app .text-bg-success { background: var(--erp-success) !important; color: #fff !important; }
+body.erp-app .text-bg-warning { background: var(--erp-warning) !important; color: #fff !important; }
+body.erp-app .text-bg-danger { background: var(--erp-danger) !important; color: #fff !important; }
+body.erp-app .text-bg-info { background: var(--erp-info) !important; color: #fff !important; }
+body.erp-app .text-bg-light {
+  background: var(--erp-surface-alt) !important;
+  color: var(--erp-text) !important;
+  border: 1px solid var(--erp-border);
+}
+body.erp-app .text-bg-dark { background: var(--erp-secondary) !important; color: #fff !important; }
 
 /* ── Modals ── */
 body.erp-app .modal-content {
@@ -447,6 +619,54 @@ body.erp-app .modal-footer {
 body.erp-app .alert {
   border-radius: var(--erp-radius);
   border: 1px solid var(--erp-border);
+}
+
+body.erp-app .alert .close,
+body.erp-app .alert .btn-close {
+  padding: 0.65rem 0.85rem;
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1;
+  color: inherit;
+  opacity: 0.55;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+body.erp-app .alert .close:hover,
+body.erp-app .alert .btn-close:hover {
+  opacity: 0.85;
+}
+
+body.erp-app .alert-success {
+  background: color-mix(in srgb, var(--erp-success) 12%, var(--erp-surface));
+  border-color: color-mix(in srgb, var(--erp-success) 35%, var(--erp-border));
+  color: var(--erp-primary-dark);
+}
+
+body.erp-app .alert-warning {
+  background: color-mix(in srgb, var(--erp-warning) 14%, var(--erp-surface));
+  border-color: color-mix(in srgb, var(--erp-warning) 40%, var(--erp-border));
+  color: #854d0e;
+}
+
+body.erp-app .alert-danger {
+  background: color-mix(in srgb, var(--erp-danger) 10%, var(--erp-surface));
+  border-color: color-mix(in srgb, var(--erp-danger) 35%, var(--erp-border));
+  color: #7f1d1d;
+}
+
+body.erp-app .alert-info {
+  background: color-mix(in srgb, var(--erp-info) 12%, var(--erp-surface));
+  border-color: color-mix(in srgb, var(--erp-info) 35%, var(--erp-border));
+  color: var(--erp-text);
+}
+
+body.erp-app .alert-primary {
+  background: color-mix(in srgb, var(--erp-primary) 10%, var(--erp-surface));
+  border-color: color-mix(in srgb, var(--erp-primary) 30%, var(--erp-border));
+  color: var(--erp-primary-dark);
 }
 
 body.erp-app .erp-empty-state {
@@ -516,4 +736,204 @@ body.erp-app .erp-theme-switcher .btn.active {
   background: var(--erp-gold) !important;
   border-color: var(--erp-gold) !important;
   color: var(--erp-primary-dark) !important;
+}
+
+/* ── Shared page patterns ── */
+body.erp-app .card-header-primary,
+body.erp-app .gradient-header,
+body.erp-app .erp-advanced-nav {
+  background: linear-gradient(135deg, var(--erp-primary) 0%, var(--erp-primary-dark) 100%) !important;
+  color: #fff !important;
+  border-bottom: none !important;
+}
+
+body.erp-app .erp-advanced-nav {
+  border-radius: var(--erp-radius-lg);
+  box-shadow: var(--erp-shadow);
+}
+
+body.erp-app .card-header-success {
+  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%) !important;
+  color: #fff !important;
+  border-bottom: none !important;
+}
+
+body.erp-app .card-header-warning {
+  background: linear-gradient(135deg, #f12711 0%, #f5af19 100%) !important;
+  color: #fff !important;
+  border-bottom: none !important;
+}
+
+body.erp-app .card-header-danger {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%) !important;
+  color: #fff !important;
+  border-bottom: none !important;
+}
+
+body.erp-app .card-header-secondary {
+  background: linear-gradient(135deg, #6c757d 0%, #5c636a 100%) !important;
+  color: #fff !important;
+  border-bottom: none !important;
+}
+
+body.erp-app .card-header-info {
+  background: linear-gradient(135deg, #0dcaf0 0%, #0aa2c0 100%) !important;
+  color: #fff !important;
+  border-bottom: none !important;
+}
+
+body.erp-app .card-header-warning.card-header-warning--dark-text,
+body.erp-app .card-header-warning.text-dark {
+  color: #212529 !important;
+}
+
+body.erp-app thead.table-header-primary,
+body.erp-app .table thead.table-header-primary th {
+  background: linear-gradient(135deg, var(--erp-primary) 0%, var(--erp-primary-dark) 100%) !important;
+  color: #fff !important;
+  border-color: transparent !important;
+}
+
+body.erp-app .modal-header.card-header-primary {
+  border-radius: var(--erp-radius-lg) var(--erp-radius-lg) 0 0;
+}
+
+body.erp-app .card-header-primary .card-title,
+body.erp-app .card-header-primary h1,
+body.erp-app .card-header-primary h2,
+body.erp-app .card-header-primary h3,
+body.erp-app .card-header-primary h4 {
+  color: #fff !important;
+}
+
+body.erp-app .erp-card-header-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+body.erp-app .erp-card-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+body.erp-app .erp-nav-icon-btn {
+  border: none !important;
+  background: none !important;
+  box-shadow: none !important;
+  padding: 0.5rem 0.75rem;
+}
+
+body.erp-app .erp-dropdown-panel {
+  min-width: 220px;
+}
+
+body.erp-app .erp-dropdown-panel--wide {
+  min-width: min(92vw, 360px);
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+body.erp-app .erp-badge-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+body.erp-app .erp-search-wrap {
+  position: relative;
+  max-width: 340px;
+}
+
+body.erp-app .erp-search-results {
+  position: absolute;
+  z-index: 2000;
+  top: 100%;
+  right: 0;
+  left: 0;
+  display: none;
+  max-height: 360px;
+  overflow: auto;
+}
+
+body.erp-app .erp-search-results--compact {
+  max-height: 240px;
+}
+
+body.erp-app .erp-table-col-actions {
+  width: 170px;
+  min-width: 140px;
+}
+
+body.erp-app .erp-table-col-truncate {
+  max-width: 220px;
+}
+
+body.erp-app .erp-progress-sm {
+  height: 20px;
+}
+
+body.erp-app .erp-form-check-click {
+  cursor: pointer;
+}
+
+body.erp-app .gm-sidebar-close {
+  position: absolute;
+  left: 10px;
+  top: 15px;
+  border: none;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--erp-radius);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+
+body.erp-app.gm-mobile .gm-sidebar-close,
+body.erp-app.sidebar-open .gm-sidebar-close {
+  display: inline-flex;
+}
+
+body.erp-app .erp-page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: var(--erp-gap-lg);
+}
+
+body.erp-app .erp-page-head__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+body.erp-app .gm-navbar-dropdown .dropdown-header h6 {
+  color: var(--erp-text) !important;
+}
+
+body.erp-app .gm-navbar-dropdown .dropdown-header small {
+  color: var(--erp-muted) !important;
+}
+
+body.erp-app .badge-link-supplier {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+  color: #fff !important;
+}
+
+body.erp-app .badge-link-partner {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%) !important;
+  color: #fff !important;
 }

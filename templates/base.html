@@ -156,62 +156,10 @@
   <script src="{{ static_url('js/performance-utils.js') }}" defer></script>
   <script src="{{ static_url('js/safe-enhancements.js') }}" defer></script>
   <script src="{{ static_url('vendor/nprogress/nprogress.min.js') }}" defer></script>
-  <script>
-    document.addEventListener('DOMContentLoaded', function() {
-      // Configure NProgress
-      if (typeof NProgress !== 'undefined') {
-        NProgress.configure({ 
-          showSpinner: false,
-          minimum: 0.1,
-          speed: 500,
-          trickleSpeed: 200
-        });
-        
-        // Start on load
-        // NProgress.start(); 
-        // window.addEventListener('load', function() { NProgress.done(); });
-
-        // Bind to jQuery Ajax events if jQuery is present
-        if (typeof $ !== 'undefined') {
-          $(document).ajaxStart(function() { NProgress.start(); });
-          $(document).ajaxStop(function() { NProgress.done(); });
-        }
-
-        // Bind to Fetch API
-        const originalFetch = window.fetch;
-        window.fetch = function() {
-          NProgress.start();
-          return originalFetch.apply(this, arguments).then(res => {
-            NProgress.done();
-            return res;
-          }).catch(err => {
-            NProgress.done();
-            throw err;
-          });
-        };
-        
-        // Bind to page transitions (simple click handler for links)
-        document.body.addEventListener('click', function(e) {
-            const link = e.target.closest('a');
-            if (link && 
-                link.href && 
-                !link.href.startsWith('#') && 
-                !link.href.startsWith('javascript:') && 
-                link.target !== '_blank' &&
-                !e.ctrlKey && !e.metaKey &&
-                link.hostname === window.location.hostname
-            ) {
-                // Check if it's a download link or has special class to ignore
-                if (!link.hasAttribute('download') && !link.classList.contains('no-nprogress')) {
-                    NProgress.start();
-                }
-            }
-        });
-      }
-    });
-  </script>
   {% block styles %}{% endblock %}
   {% block extra_head %}{% endblock %}
+  {# إعادة طبقة البطاقات بعد CSS الصفحة لتفادي تعارض sales.css / service.css #}
+  <link rel="stylesheet" href="{{ static_url('css/erp-theme/kpi-cards-global.css') }}" id="erp-kpi-cards-final">
   
   <style>
     /* إصلاح Sidebar في RTL */
@@ -246,8 +194,9 @@
     .content-wrapper {
         min-height: calc(100vh - var(--erp-header-h, 56px));
         transition: margin 0.3s ease-in-out, width 0.3s ease-in-out;
-        overflow-x: auto !important;
+        overflow-x: hidden !important;
         padding-top: 0 !important;
+        box-sizing: border-box;
     }
 
     body.gm-compact-app .content-wrapper {
@@ -311,6 +260,8 @@
   </div>
   {% include 'partials/footer.html' %}
 </div>
+
+{% block report_print_modal %}{% endblock %}
 
 {% if current_user.is_authenticated %}
 <nav class="gm-mobile-bottom-nav d-lg-none" aria-label="التنقل السريع">
@@ -387,9 +338,13 @@
 </script>
 
 <script src="{{ static_url('js/dom-safe.js') }}"></script>
+<script src="{{ static_url('js/export-helpers.js') }}" defer></script>
 <script src="{{ static_url('js/ux-forms.js') }}"></script>
+<script>window.UX_MSG = {{ UX_MSG | tojson }};</script>
 <script src="{{ static_url('js/ux-messages.js') }}"></script>
 <script src="{{ static_url('js/layout-responsive.js') }}"></script>
+<script src="{{ static_url('js/erp-navbar.js') }}"></script>
+<script src="{{ static_url('js/erp-calculator.js') }}" defer></script>
 <script src="{{ static_url('js/mobile-app.js') }}"></script>
 <script src="{{ static_url('js/gm-scroll-filters.js') }}"></script>
 <script src="{{ static_url('js/tenant-scope.js') }}"></script>
@@ -444,7 +399,7 @@ function applyUIMode(mode, silent) {
   syncUIModeButton(next);
   if (typeof applySidebarPosition === 'function' && document.body) {
     const currentPos = (function() {
-      try { return localStorage.getItem('sidebarPosition') || 'left'; } catch (e) { return 'left'; }
+      try { return typeof getSidebarPosition === 'function' ? getSidebarPosition() : (localStorage.getItem('sidebarPosition') || 'right'); } catch (e) { return 'right'; }
     })();
     applySidebarPosition(currentPos);
   }
@@ -478,26 +433,50 @@ function syncUIModeButton(mode) {
 }
 
 // ========== تبديل موقع Sidebar يمين/يسار ==========
+function getSidebarPosition() {
+  try {
+    const v = localStorage.getItem('sidebarPosition');
+    if (v === 'left' || v === 'right') return v;
+  } catch (_) {}
+  const dir = (document.documentElement.getAttribute('dir') || 'rtl').toLowerCase();
+  return dir === 'rtl' ? 'right' : 'left';
+}
+
+function syncSidebarPositionButton(position) {
+  const btn = document.getElementById('sidebar-position-toggle-btn');
+  if (!btn) return;
+  const onRight = position === 'right';
+  btn.setAttribute('title', onRight ? 'القائمة على اليمين — انقر للنقل لليسار' : 'القائمة على اليسار — انقر للنقل لليمين');
+  btn.setAttribute('aria-pressed', onRight ? 'true' : 'false');
+  btn.classList.toggle('erp-sidebar-pos-active', true);
+  const icon = btn.querySelector('i');
+  if (icon) {
+    icon.className = onRight ? 'fas fa-arrow-alt-circle-left' : 'fas fa-arrow-alt-circle-right';
+  }
+}
+
 function toggleSidebarPosition() {
   const body = document.body;
-  const currentPosition = localStorage.getItem('sidebarPosition') || 'left';
+  const currentPosition = getSidebarPosition();
   const newPosition = currentPosition === 'left' ? 'right' : 'left';
-  
-  // حفظ الموقع الجديد
+
   localStorage.setItem('sidebarPosition', newPosition);
-  
-  // تحديث data attribute
   body.setAttribute('data-sidebar-position', newPosition);
-  
-  // تطبيق التغيير
   applySidebarPosition(newPosition);
-  
-  // تحديث النص في الزر
+  syncSidebarPositionButton(newPosition);
+
   const badge = document.getElementById('sidebar-position-badge');
   if (badge) {
     badge.textContent = newPosition === 'left' ? 'يسار' : 'يمين';
   }
+  try { window.dispatchEvent(new Event('resize')); } catch (_) {}
+  if (window.ErpNavbar && typeof window.ErpNavbar.syncPushmenuState === 'function') {
+    window.ErpNavbar.syncPushmenuState();
+  }
 }
+window.toggleSidebarPosition = toggleSidebarPosition;
+window.getSidebarPosition = getSidebarPosition;
+window.applySidebarPosition = applySidebarPosition;
 
 function applySidebarPosition(position) {
   const body = document.body;
@@ -612,42 +591,26 @@ function applySidebarPosition(position) {
 
 // تطبيق الموقع المحفوظ قبل تحميل الصفحة لمنع الـ flash
 (function() {
-  const savedPosition = localStorage.getItem('sidebarPosition') || 'left';
+  const savedPosition = (typeof getSidebarPosition === 'function' ? getSidebarPosition() : 'right');
   document.body.setAttribute('data-sidebar-position', savedPosition);
 })();
 
 // تطبيق الموقع المحفوظ عند تحميل الصفحة
 document.addEventListener('DOMContentLoaded', function() {
   applyUIMode();
-  const savedPosition = localStorage.getItem('sidebarPosition') || 'left';
+  const savedPosition = (typeof getSidebarPosition === 'function' ? getSidebarPosition() : 'right');
   applySidebarPosition(savedPosition);
 
-  function isCompactUiMode() {
-    const mode = (document.documentElement.getAttribute('data-ui-mode') || '').toLowerCase();
-    if (mode === 'mobile' || mode === 'tablet') return true;
-    if (mode === 'desktop') return false;
-    return !!(window.matchMedia && window.matchMedia('(max-width: 991.98px)').matches);
+  if (window.ErpNavbar && typeof window.ErpNavbar.bindPushmenu === 'function') {
+    window.ErpNavbar.bindPushmenu();
   }
 
-  document.querySelectorAll('[data-widget="pushmenu"]').forEach(function(btn) {
-    if (btn.dataset.erpPushmenuDesktop === '1') return;
-    btn.addEventListener('click', function(e) {
-      if (isCompactUiMode()) return;
-      if (document.body.classList.contains('sidebar-hidden')) return;
-      try { e.preventDefault(); } catch (_) {}
-      document.body.classList.toggle('sidebar-collapse');
-      if (typeof applySidebarPosition === 'function') {
-        applySidebarPosition(localStorage.getItem('sidebarPosition') || 'left');
-      }
-      try { window.dispatchEvent(new Event('resize')); } catch (_) {}
-    });
-    btn.dataset.erpPushmenuDesktop = '1';
-  });
-  
-  // تحديث النص في الزر
   const badge = document.getElementById('sidebar-position-badge');
   if (badge) {
     badge.textContent = savedPosition === 'left' ? 'يسار' : 'يمين';
+  }
+  if (typeof syncSidebarPositionButton === 'function') {
+    syncSidebarPositionButton(savedPosition);
   }
 });
 
@@ -664,8 +627,11 @@ window.addEventListener('resize', function() {
         if (currentMode === 'auto') applyUIMode('auto', true);
       } catch (_) {}
     }
-    const savedPosition = localStorage.getItem('sidebarPosition') || 'left';
+    const savedPosition = (typeof getSidebarPosition === 'function' ? getSidebarPosition() : 'right');
     applySidebarPosition(savedPosition);
+    if (window.ErpNavbar && typeof window.ErpNavbar.syncPushmenuState === 'function') {
+      window.ErpNavbar.syncPushmenuState();
+    }
     if (window.GMLayout && typeof window.GMLayout.isCompactLayout === 'function' && !window.GMLayout.isCompactLayout()) {
       document.body.classList.remove('sidebar-open', 'gm-mobile');
       const bd = document.getElementById('gm-sidebar-backdrop');
@@ -682,7 +648,7 @@ const desktopQuery = window.matchMedia('(min-width: 992px)');
 function handleBreakpointChange(query, name) {
   query.addEventListener('change', function(e) {
     if (e.matches) {
-      const savedPosition = localStorage.getItem('sidebarPosition') || 'left';
+      const savedPosition = (typeof getSidebarPosition === 'function' ? getSidebarPosition() : 'right');
       applySidebarPosition(savedPosition);
     }
   });
@@ -734,95 +700,32 @@ handleBreakpointChange(desktopQuery, 'desktop');
     };
   }
   
+  function closeMobileSidebar() {
+    if (window.ErpNavbar && typeof window.ErpNavbar.closeCompactSidebar === 'function') {
+      window.ErpNavbar.closeCompactSidebar();
+      return;
+    }
+    document.body.classList.remove('sidebar-open');
+    const bd = document.getElementById('gm-sidebar-backdrop');
+    if (bd) bd.style.display = 'none';
+  }
+
   // تهيئة للموبايل
   function initMobile() {
     if (!isMobile()) return;
-    
+
     const body = document.body;
     const sidebar = document.querySelector('.main-sidebar');
-    const pushmenuBtns = Array.from(document.querySelectorAll('[data-widget="pushmenu"]'));
-    const navbar = document.querySelector('.main-header.navbar');
-    const ensureBackdrop = function() {
-      let el = document.getElementById('gm-sidebar-backdrop');
-      if (el) return el;
-      el = document.createElement('div');
-      el.id = 'gm-sidebar-backdrop';
-      el.style.position = 'fixed';
-      el.style.left = '0';
-      el.style.right = '0';
-      el.style.bottom = '0';
-      el.style.top = 'var(--gm-navbar-height, 60px)';
-      el.style.background = 'rgba(0, 0, 0, 0.5)';
-      el.style.zIndex = '1039';
-      el.style.display = 'none';
-      el.style.pointerEvents = 'auto';
-      el.addEventListener('click', function(e) {
-        if (!isMobile()) return;
-        try { e.preventDefault(); } catch (_) {}
-        try { e.stopPropagation(); } catch (_) {}
-        body.classList.remove('sidebar-open');
-        el.style.display = 'none';
-      });
-      document.body.appendChild(el);
-      return el;
-    };
-    if (navbar) {
-      document.documentElement.style.setProperty('--gm-navbar-height', `${navbar.offsetHeight}px`);
+
+    if (window.ErpNavbar && typeof window.ErpNavbar.initCompactLayout === 'function') {
+      window.ErpNavbar.initCompactLayout();
     }
-    body.classList.add('gm-mobile');
-    const backdrop = ensureBackdrop();
-    
-    // إغلاق Sidebar افتراضياً على الموبايل
+
     if (sidebar && !body.classList.contains('sidebar-open')) {
       sidebar.style.display = 'block';
     }
-    backdrop.style.display = body.classList.contains('sidebar-open') ? 'block' : 'none';
-    
-    // التعامل مع فتح/إغلاق Sidebar
-    pushmenuBtns.forEach(btn => {
-      if (!btn || btn.dataset.gmPushmenuBound === '1') return;
-      let lastToggleAt = 0;
-      const toggleSidebar = function(e) {
-        if (!isMobile()) {
-          return;
-        }
-        const now = Date.now();
-        if (now - lastToggleAt < 450) {
-          try { e.preventDefault(); } catch (_) {}
-          try { e.stopImmediatePropagation(); } catch (_) {}
-          try { e.stopPropagation(); } catch (_) {}
-          return;
-        }
-        lastToggleAt = now;
-        try { e.preventDefault(); } catch (_) {}
-        try { e.stopImmediatePropagation(); } catch (_) {}
-        try { e.stopPropagation(); } catch (_) {}
-        body.classList.remove('sidebar-collapse');
-        body.classList.remove('sidebar-hidden');
-        body.classList.toggle('sidebar-open');
-        backdrop.style.display = body.classList.contains('sidebar-open') ? 'block' : 'none';
-      };
-      btn.addEventListener('click', toggleSidebar, { capture: true });
-      btn.addEventListener('touchend', toggleSidebar, { passive: false, capture: true });
-      btn.addEventListener('pointerup', toggleSidebar, { capture: true });
-      btn.dataset.gmPushmenuBound = '1';
-    });
-    
-    // إغلاق Sidebar عند النقر على الـ Overlay
-    if (body.dataset.gmMobileListeners !== '1') {
-      body.addEventListener('click', function(e) {
-        if (!isMobile()) {
-          return;
-        }
-        const currentBtns = Array.from(document.querySelectorAll('[data-widget="pushmenu"]'));
-        const clickedPush = currentBtns.some(btn => btn && btn.contains(e.target));
-        const currentSidebar = document.querySelector('.main-sidebar');
-        if (body.classList.contains('sidebar-open') && currentSidebar && !currentSidebar.contains(e.target) && !clickedPush) {
-          body.classList.remove('sidebar-open');
-          backdrop.style.display = 'none';
-        }
-      });
 
+    if (body.dataset.gmMobileListeners !== '1') {
       const treeviewToggles = Array.from(document.querySelectorAll('.main-sidebar .nav-item.has-treeview > .nav-link'));
       treeviewToggles.forEach(link => {
         if (!link || link.dataset.gmTreeBound === '1') return;
@@ -863,29 +766,21 @@ handleBreakpointChange(desktopQuery, 'desktop');
           if (!isMobile()) return;
           const href = (this.getAttribute('href') || '').trim();
           if (!href || href === '#') return;
-          setTimeout(() => {
-            body.classList.remove('sidebar-open');
-            backdrop.style.display = 'none';
-          }, 200);
+          setTimeout(closeMobileSidebar, 200);
         });
       });
 
       const closeBtn = document.querySelector('.main-sidebar .gm-sidebar-close');
-      if (closeBtn) {
-        closeBtn.addEventListener('click', function(e) {
+      if (closeBtn && closeBtn.dataset.gmCloseBound !== '1') {
+        const onClose = function(e) {
           if (!isMobile()) return;
           try { e.preventDefault(); } catch (_) {}
           try { e.stopPropagation(); } catch (_) {}
-          body.classList.remove('sidebar-open');
-          backdrop.style.display = 'none';
-        });
-        closeBtn.addEventListener('touchend', function(e) {
-          if (!isMobile()) return;
-          try { e.preventDefault(); } catch (_) {}
-          try { e.stopPropagation(); } catch (_) {}
-          body.classList.remove('sidebar-open');
-          backdrop.style.display = 'none';
-        }, { passive: false });
+          closeMobileSidebar();
+        };
+        closeBtn.addEventListener('click', onClose);
+        closeBtn.addEventListener('touchend', onClose, { passive: false });
+        closeBtn.dataset.gmCloseBound = '1';
       }
       body.dataset.gmMobileListeners = '1';
     }
@@ -1034,8 +929,11 @@ handleBreakpointChange(desktopQuery, 'desktop');
         initMobileBottomNavActive();
       } else if (window.GMLayout && typeof window.GMLayout.cleanupCompactLayout === 'function') {
         window.GMLayout.cleanupCompactLayout();
+      }
+      if (window.ErpNavbar && typeof window.ErpNavbar.initCompactLayout === 'function') {
+        window.ErpNavbar.initCompactLayout();
       } else {
-        document.body.classList.remove('gm-mobile', 'sidebar-open');
+        document.body.classList.remove('gm-mobile', 'sidebar-open', 'erp-sidebar-drawer-open');
         const bd = document.getElementById('gm-sidebar-backdrop');
         if (bd) bd.style.display = 'none';
       }
@@ -1051,11 +949,14 @@ handleBreakpointChange(desktopQuery, 'desktop');
           enhanceTables();
           initMobileBottomNavActive();
         } else {
-          document.body.classList.remove('gm-mobile', 'sidebar-open');
+          if (window.ErpNavbar && typeof window.ErpNavbar.closeCompactSidebar === 'function') {
+            window.ErpNavbar.closeCompactSidebar();
+          }
+          document.body.classList.remove('gm-mobile', 'sidebar-open', 'erp-sidebar-drawer-open');
           const bd = document.getElementById('gm-sidebar-backdrop');
           if (bd) bd.style.display = 'none';
           if (typeof applySidebarPosition === 'function') {
-            applySidebarPosition(localStorage.getItem('sidebarPosition') || 'left');
+            applySidebarPosition((typeof getSidebarPosition === 'function' ? getSidebarPosition() : 'right'));
           }
         }
       }, 250);
@@ -1157,6 +1058,5 @@ handleBreakpointChange(desktopQuery, 'desktop');
 {% block scripts %}{% endblock %}
 <script src="{{ static_url('js/enhanced-tabs.js') }}" defer></script>
 <script src="{{ static_url('js/security-favorites.js') }}" defer></script>
-<script src="{{ static_url('js/security_mega_enhancements.js') }}" defer></script>
 </body>
 </html>

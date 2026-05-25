@@ -6,8 +6,8 @@ from typing import Any
 
 FLASH_TITLES: dict[str, str] = {
     "success": "تم بنجاح",
-    "danger": "خطأ",
-    "error": "خطأ",
+    "danger": "تعذّر الإكمال",
+    "error": "تعذّر الإكمال",
     "warning": "تنبيه",
     "info": "معلومة",
     "primary": "إشعار",
@@ -55,14 +55,29 @@ STANDARD_MESSAGES: dict[str, str] = {
 _MESSAGE_ALIASES: dict[str, str] = {
     "حدث خطأ داخلي": "internal_error",
     "حدث خطأ": "internal_error",
+    "حدث خطأ داخلي في الخادم. تم تسجيل الخطأ للمراجعة.": "internal_error",
+    "حدث خطأ غير متوقع": "internal_error",
+    "حدث خطأ غير متوقع!": "internal_error",
+    "فشل الاستعادة": "internal_error",
     "خطأ في إنشاء الفرع": "internal_error",
     "خطأ في تحديث الفرع": "internal_error",
+    "حدث خطأ أثناء الحفظ": "internal_error",
+    "حدث خطأ أثناء إصلاح الربط": "internal_error",
+    "حدث خطأ أثناء رفع الشعار": "internal_error",
+    "فشل جلب الشيكات": "network_error",
     "يرجى ملء جميع الحقول المطلوبة": "required_fields",
     "يرجى تصحيح الحقول المظللة أدناه.": "validation_error",
     "ليس لديك صلاحية": "permission_denied",
+    "غير مصرح لك بهذا الإجراء": "permission_denied",
+    "not found": "not_found",
+    "bad request": "validation_error",
+    "unauthorized": "session_expired",
+    "too many requests": "network_error",
+    "internal server error": "internal_error",
 }
 
 _EMOJI_PREFIX = re.compile(r"^[\s✅❌⚠️ℹ️🔴🟢🟡🔵⭐📌💡]+")
+_EMOJI_ANYWHERE = re.compile(r"[\u2705\u274c\u26a0\ufe0f\u2139\ufe0f\U0001f4a1\U0001f4cc\U0001f534\U0001f7e2\U0001f7e1\U0001f535]+")
 
 
 def normalize_flash_category(category: str | None) -> str:
@@ -103,12 +118,32 @@ def clean_flash_text(text: str | None) -> str:
     if not t:
         return ""
     t = _EMOJI_PREFIX.sub("", t).strip()
+    t = _EMOJI_ANYWHERE.sub("", t).strip()
+    t = re.sub(r"\s{2,}", " ", t)
+    low = t.lower()
     if t in _MESSAGE_ALIASES:
         return msg(_MESSAGE_ALIASES[t])
+    if low in _MESSAGE_ALIASES:
+        return msg(_MESSAGE_ALIASES[low])
     for prefix, key in _MESSAGE_ALIASES.items():
-        if t == prefix or t.startswith(prefix + "."):
+        if t == prefix or t.startswith(prefix + ".") or t.startswith(prefix + ":"):
             return msg(key)
     return t
+
+
+def resolve_user_message(
+    message: str | None = None,
+    *,
+    key: str | None = None,
+    default_key: str = "internal_error",
+) -> str:
+    """رسالة واحدة واضحة للمستخدم — للـ API والواجهة."""
+    if key:
+        return msg(key)
+    cleaned = clean_flash_text(message)
+    if cleaned:
+        return cleaned
+    return msg(default_key)
 
 
 def prepare_flash(category: str | None, message: str | None) -> dict[str, str]:
@@ -131,9 +166,9 @@ def api_payload(
     **extra: Any,
 ) -> dict[str, Any]:
     """استجابة JSON موحّدة للواجهة."""
-    text = msg(key) if key else clean_flash_text(message or "")
-    if not text and not success:
-        text = msg("internal_error")
+    text = resolve_user_message(message, key=key, default_key="internal_error" if not success else "")
+    if not text and success:
+        text = msg("saved")
     payload: dict[str, Any] = {
         "success": success,
         "message": text,
@@ -143,6 +178,19 @@ def api_payload(
         payload["errors"] = errors
     payload.update(extra)
     return payload
+
+
+def json_error(
+    status: int = 400,
+    *,
+    key: str = "internal_error",
+    message: str | None = None,
+    **extra: Any,
+):
+    """استجابة JSON للأخطاء — نص عربي موحّد."""
+    from flask import jsonify
+
+    return jsonify(api_payload(success=False, key=key, message=message, **extra)), status
 
 
 def flash_msg(category: str, message: str | None = None, *, key: str | None = None) -> None:

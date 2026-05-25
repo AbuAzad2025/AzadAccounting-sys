@@ -2,14 +2,211 @@
  * وحدة الأمان — توحيد مع واجهة ERP العربية (ثيم فاتح مؤسسي)
  */
 body.security-body.erp-app {
+  --erp-blue: var(--erp-primary, #006b3f);
+  --erp-navy: var(--erp-primary-dark, #004c2f);
+  --main-navbar_height: 0px;
   background: var(--erp-bg, #f5f7fb) !important;
   color: var(--erp-text, #1f2937) !important;
+  padding-top: 0 !important;
+}
+
+/* هيكل مستقل — إخفاء نافبار/سايدبار ERP العام */
+body.security-body.erp-app .main-header.navbar,
+body.security-body.erp-app .main-sidebar,
+body.security-body.erp-app .content-header,
+body.security-body.erp-app > .wrapper > .main-footer,
+body.security-body.erp-app .gm-mobile-bottom-nav,
+body.security-body.erp-app #gm-open-in-app-banner {
+  display: none !important;
+}
+
+body.security-body.erp-app .content-wrapper {
+  margin: 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  padding: 0 !important;
+  min-height: 100vh !important;
+  background: transparent !important;
+}
+
+body.security-body.erp-app .content-wrapper > .content,
+body.security-body.erp-app .content-wrapper .container-fluid {
+  padding: 0 !important;
+  max-width: 100% !important;
+}
+
+body.security-body.erp-app .security-wrapper {
+  min-height: 100vh;
 }
 
 body.security-body.erp-app .security-sidebar {
-  background: var(--erp-navy, #062a5a) !important;
+  top: 0 !important;
+  height: 100vh !important;
+}
+
+body.security-body.erp-app .security-main {
+  min-height: 100vh;
+}
+
+body.security-body.erp-app .security-header {
+  top: 0 !important;
+}
+
+/* ── قائمة جانبية: إلغاء صندوق أبيض من erp-security-migrated (.collapse) ── */
+body.security-body.erp-app .security-sidebar .collapse,
+body.security-body.erp-app .security-sidebar .collapse.show,
+body.security-body.erp-app .security-sidebar .sec-nav-section > .collapse {
+  background: transparent !important;
+  background-color: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  box-shadow: none !important;
+  color: inherit !important;
+  border-radius: 0 !important;
+}
+
+body.security-body.erp-app .security-sidebar .collapse > .p-2 {
+  padding: 0.35rem 0.5rem 0.5rem !important;
+  background: transparent !important;
+}
+
+/* روابط القائمة — داكنة دائماً، واضحة عند hover/active */
+body.security-body.erp-app .security-sidebar .nav-link,
+body.security-body.erp-app .security-sidebar .collapse .nav-link,
+body.security-body.erp-app .security-sidebar .collapse.show .nav-link,
+body.security-body.erp-app .security-sidebar .sec-nav-section .nav-link {
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+
+body.security-body.erp-app .security-sidebar .nav-link span,
+body.security-body.erp-app .security-sidebar .collapse .nav-link span,
+body.security-body.erp-app .security-sidebar .sec-nav-section .nav-link span {
+  color: inherit !important;
+}
+
+body.security-body.erp-app .security-sidebar .nav-link i,
+body.security-body.erp-app .security-sidebar .collapse .nav-link i,
+body.security-body.erp-app .security-sidebar .sec-nav-section .nav-link i {
+  color: rgba(255, 255, 255, 0.75) !important;
+}
+
+body.security-body.erp-app .security-sidebar .nav-link:hover,
+body.security-body.erp-app .security-sidebar .nav-link:focus,
+body.security-body.erp-app .security-sidebar .collapse .nav-link:hover,
+body.security-body.erp-app .security-sidebar .collapse .nav-link:focus {
+  background: rgba(255, 255, 255, 0.14) !important;
+  color: #fff !important;
+}
+
+body.security-body.erp-app .security-sidebar .nav-link:hover span,
+body.security-body.erp-app .security-sidebar .nav-link:hover i,
+body.security-body.erp-app .security-sidebar .nav-link:focus span,
+body.security-body.erp-app .security-sidebar .nav-link:focus i {
+  color: #fff !important;
+}
+
+body.security-body.erp-app .security-sidebar .nav-link.active,
+body.security-body.erp-app .security-sidebar .collapse .nav-link.active {
+  background: var(--erp-success, #22c55e) !important;
+  color: #fff !important;
+}
+
+body.security-body.erp-app .security-sidebar .nav-link.active span,
+body.security-body.erp-app .security-sidebar .nav-link.active i {
+  color: #fff !important;
+}
+
+/* شريط الأمان — أزرار واضحة (لا outline-light على أبيض) */
+body.security-body.erp-app .security-header .btn-outline-light,
+body.security-body.erp-app .security-header .erp-theme-switcher .btn-outline-light,
+body.security-body.erp-app .security-header .erp-theme-switcher .btn-outline-secondary {
+  color: var(--erp-primary-dark) !important;
+  border-color: var(--erp-border) !important;
+  background: var(--erp-surface, #fff) !important;
+  font-weight: 600;
+}
+
+body.security-body.erp-app .security-header .btn-outline-light:hover,
+body.security-body.erp-app .security-header .btn-outline-light.active,
+body.security-body.erp-app .security-header .erp-theme-switcher .btn.active {
+  background: var(--erp-primary) !important;
+  border-color: var(--erp-primary) !important;
+  color: #fff !important;
+}
+
+body.security-body.erp-app .security-header .vr,
+body.security-body.erp-app .security-header .bg-white.opacity-10 {
+  background: var(--erp-border) !important;
+  opacity: 1 !important;
+}
+
+/* شريط علوي — أزرار وأيقونات داكنة (أولوية على layout-shell) */
+body.security-body.erp-app .security-header .btn-glass,
+body.security-body.erp-app .security-header .btn-glass.btn-sm {
+  background: var(--erp-surface, #fff) !important;
+  border: 1px solid var(--erp-border) !important;
+  color: var(--erp-primary-dark) !important;
+}
+
+body.security-body.erp-app .security-header .btn-glass i,
+body.security-body.erp-app .security-header .btn-glass .fas,
+body.security-body.erp-app .security-header .btn-glass .far {
+  color: var(--erp-primary) !important;
+}
+
+body.security-body.erp-app .security-header .btn-glass:hover,
+body.security-body.erp-app .security-header .btn-glass:focus {
+  background: var(--erp-primary) !important;
+  border-color: var(--erp-primary) !important;
+  color: #fff !important;
+}
+
+body.security-body.erp-app .security-header .btn-glass:hover i {
+  color: #fff !important;
+}
+
+body.security-body.erp-app .security-header .nav-link.dropdown-toggle {
+  color: var(--erp-text) !important;
+}
+
+body.security-body.erp-app .security-header .erp-header-user-name {
+  color: var(--erp-text) !important;
+  font-weight: 600;
+}
+
+body.security-body.erp-app .security-header .erp-header-user-role {
+  color: var(--erp-muted) !important;
+}
+
+body.security-body.erp-app .security-header .erp-header-user-name {
+  color: var(--erp-text) !important;
+}
+
+body.security-body.erp-app .security-header .erp-header-user-role {
+  color: var(--erp-muted) !important;
+}
+
+body.security-body.erp-app .security-header .dropdown-menu {
+  background: var(--erp-surface) !important;
+  border: 1px solid var(--erp-border) !important;
+}
+
+body.security-body.erp-app .erp-section-title {
+  color: var(--erp-primary-dark) !important;
+  font-weight: 700;
+  font-size: 1.05rem;
+  margin: 1.25rem 0 0.75rem;
+}
+
+body.security-body.erp-app .erp-page-title {
+  color: var(--erp-primary-dark) !important;
+}
+
+body.security-body.erp-app .security-sidebar {
+  background: var(--erp-sidebar-bg, var(--erp-primary-dark)) !important;
   border-left: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: -4px 0 24px rgba(6, 42, 90, 0.08);
+  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.12);
 }
 
 body.security-body.erp-app .security-brand {
@@ -155,37 +352,70 @@ body.security-body.erp-app .erp-sec-action {
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  padding: 0.85rem 1rem;
+  padding: 0.9rem 1.1rem;
   border: 1px solid var(--erp-border, #e5e7eb);
-  border-radius: 12px;
-  background: var(--erp-bg, #f5f7fb);
+  border-radius: var(--erp-radius, 12px);
+  border-inline-start: 4px solid var(--erp-primary);
+  background: var(--erp-surface, #fff) !important;
   color: var(--erp-text, #1f2937);
+  font-weight: 600;
   text-decoration: none;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  box-shadow: var(--erp-shadow-sm);
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
 }
 
 body.security-body.erp-app .erp-sec-action:hover {
-  border-color: var(--erp-blue, #0b68ff);
-  box-shadow: 0 4px 12px rgba(11, 104, 255, 0.08);
-  color: var(--erp-navy, #062a5a);
+  border-color: var(--erp-primary);
+  border-inline-start-color: var(--erp-primary);
+  box-shadow: var(--erp-shadow);
+  color: var(--erp-primary-dark);
   text-decoration: none;
+  transform: translateY(-1px);
 }
 
 body.security-body.erp-app .erp-sec-action__icon {
-  width: 40px;
-  height: 40px;
+  width: 42px;
+  height: 42px;
   border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(11, 104, 255, 0.1);
-  color: var(--erp-blue, #0b68ff);
+  background: color-mix(in srgb, var(--erp-primary) 14%, transparent);
+  color: var(--erp-primary);
   flex-shrink: 0;
+  font-size: 1.1rem;
 }
 
+body.security-body.erp-app .erp-sec-action--info {
+  border-inline-start-color: var(--erp-info);
+}
+body.security-body.erp-app .erp-sec-action--info .erp-sec-action__icon {
+  background: color-mix(in srgb, var(--erp-info) 14%, transparent);
+  color: var(--erp-info);
+}
+
+body.security-body.erp-app .erp-sec-action--success {
+  border-inline-start-color: var(--erp-success);
+}
+body.security-body.erp-app .erp-sec-action--success .erp-sec-action__icon {
+  background: color-mix(in srgb, var(--erp-success) 14%, transparent);
+  color: var(--erp-success);
+}
+
+body.security-body.erp-app .erp-sec-action--warning {
+  border-inline-start-color: var(--erp-warning);
+}
+body.security-body.erp-app .erp-sec-action--warning .erp-sec-action__icon {
+  background: color-mix(in srgb, var(--erp-warning) 14%, transparent);
+  color: var(--erp-warning);
+}
+
+body.security-body.erp-app .erp-sec-action--danger {
+  border-inline-start-color: var(--erp-danger);
+}
 body.security-body.erp-app .erp-sec-action--danger .erp-sec-action__icon {
-  background: rgba(220, 38, 38, 0.1);
-  color: var(--erp-danger, #dc2626);
+  background: color-mix(in srgb, var(--erp-danger) 14%, transparent);
+  color: var(--erp-danger);
 }
 
 body.security-body.erp-app .security-summary-box,
@@ -240,8 +470,47 @@ body.security-body.erp-app .erp-sec-kpi__label {
 }
 
 body.security-body.erp-app .security-summary-box .icon {
-  color: var(--erp-blue, #0b68ff);
-  opacity: 0.25;
+  color: var(--erp-primary);
+  opacity: 0.4;
+}
+
+body.security-body.erp-app .security-summary-box--blue::before {
+  background: var(--erp-info);
+}
+
+body.security-body.erp-app .security-summary-box--blue .icon {
+  color: var(--erp-info);
+}
+
+body.security-body.erp-app .security-summary-box--green .icon {
+  color: var(--erp-success);
+}
+
+body.security-body.erp-app .security-summary-box--red .icon {
+  color: var(--erp-danger);
+}
+
+body.security-body.erp-app .security-summary-box--amber .icon {
+  color: var(--erp-warning);
+}
+
+body.security-body.erp-app .btn-primary {
+  background: var(--erp-primary) !important;
+  border-color: var(--erp-primary) !important;
+  color: #fff !important;
+  font-weight: 600;
+}
+
+body.security-body.erp-app .btn-primary:hover {
+  background: var(--erp-primary-dark) !important;
+  border-color: var(--erp-primary-dark) !important;
+  color: #fff !important;
+}
+
+body.security-body.erp-app .table thead.table-header-primary th {
+  background: linear-gradient(135deg, var(--erp-primary) 0%, var(--erp-primary-dark) 100%) !important;
+  color: #fff !important;
+  border-color: transparent !important;
 }
 
 body.security-body.erp-app .timeline-item {
@@ -407,7 +676,7 @@ body.security-body.erp-app .sec-card-body {
     content: "";
     position: fixed;
     inset: 0;
-    top: var(--main-navbar_height, 57px);
+    top: 0;
     background: rgba(6, 42, 90, 0.35);
     z-index: 1035;
   }
@@ -415,4 +684,21 @@ body.security-body.erp-app .sec-card-body {
   body.security-body.erp-app .security-main {
     margin-right: 0 !important;
   }
+}
+
+body.security-body.erp-app .security-header .sec-header-divider {
+  background: var(--erp-border) !important;
+  opacity: 1 !important;
+  width: 1px;
+  min-height: 1.5rem;
+}
+
+/* أولوية نهائية: القائمة الجانبية لا تُلوَّن بخلفية collapse عامة */
+body.security-body.erp-app .security-sidebar .sec-nav-section .collapse,
+body.security-body.erp-app .security-sidebar .sec-nav-section .collapsing {
+  background: none !important;
+  background-color: transparent !important;
+  border: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
 }

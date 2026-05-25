@@ -62,7 +62,7 @@
                 <!-- الشيكات -->
                 <div class="col-md-4">
                     <div class="card quality-card {% if stats.checks.no_entity > 0 or stats.checks.no_bank > 0 %}category-card warning{% else %}category-card success{% endif %}">
-                        <div class="card-header {% if stats.checks.no_entity > 0 or stats.checks.no_bank > 0 %}bg-warning{% else %}bg-success{% endif %} text-white">
+                        <div class="card-header erp-card-header-row erp-theme-header--primary {% if stats.checks.no_entity > 0 or stats.checks.no_bank > 0 %}bg-warning{% else %}bg-success{% endif %} text-white">
                             <h5 class="mb-0">
                                 <i class="fas fa-file-invoice ml-2"></i>
                                 الشيكات
@@ -92,7 +92,7 @@
                 <!-- الدفعات -->
                 <div class="col-md-4">
                     <div class="card quality-card {% if stats.payments.no_bank > 0 or stats.payments.no_due_date > 0 %}category-card warning{% else %}category-card success{% endif %}">
-                        <div class="card-header {% if stats.payments.no_bank > 0 or stats.payments.no_due_date > 0 %}bg-warning{% else %}bg-success{% endif %} text-white">
+                        <div class="card-header erp-card-header-row erp-theme-header--primary {% if stats.payments.no_bank > 0 or stats.payments.no_due_date > 0 %}bg-warning{% else %}bg-success{% endif %} text-white">
                             <h5 class="mb-0">
                                 <i class="fas fa-money-bill-wave ml-2"></i>
                                 الدفعات
@@ -122,7 +122,7 @@
                 <!-- الأرصدة -->
                 <div class="col-md-4">
                     <div class="card quality-card {% if stats.balances.customers_null > 0 or stats.balances.suppliers_null > 0 or stats.balances.partners_null > 0 %}category-card warning{% else %}category-card success{% endif %}">
-                        <div class="card-header {% if stats.balances.customers_null > 0 or stats.balances.suppliers_null > 0 or stats.balances.partners_null > 0 %}bg-warning{% else %}bg-success{% endif %} text-white">
+                        <div class="card-header erp-card-header-row erp-theme-header--primary {% if stats.balances.customers_null > 0 or stats.balances.suppliers_null > 0 or stats.balances.partners_null > 0 %}bg-warning{% else %}bg-success{% endif %} text-white">
                             <h5 class="mb-0">
                                 <i class="fas fa-balance-scale ml-2"></i>
                                 الأرصدة
@@ -155,7 +155,7 @@
             <!-- أزرار الإصلاح -->
             {% if total_issues > 0 %}
             <div class="card quality-card">
-                <div class="card-header bg-primary text-white">
+                <div class="card-header erp-card-header-row erp-theme-header--primary">
                     <h5 class="mb-0">
                         <i class="fas fa-magic ml-2"></i>
                         خيارات الإصلاح التلقائي
@@ -230,7 +230,7 @@
 
             <!-- كيفية العمل -->
             <div class="card quality-card mt-4">
-                <div class="card-header bg-info text-white">
+                <div class="card-header erp-card-header-row erp-theme-header--primary bg-info text-white">
                     <h5 class="mb-0">
                         <i class="fas fa-graduation-cap ml-2"></i>
                         كيف يعمل الإصلاح التلقائي الذكي؟
@@ -268,7 +268,7 @@
 
             <!-- الإحصائيات التفصيلية -->
             <div class="card quality-card mt-4 collapsed-card">
-                <div class="card-header bg-secondary text-white">
+                <div class="card-header erp-card-header-row erp-theme-header--primary bg-secondary text-white">
                     <h5 class="mb-0">
                         <i class="fas fa-chart-bar ml-2"></i>
                         إحصائيات تفصيلية للنظام

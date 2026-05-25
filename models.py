@@ -1301,37 +1301,27 @@ def _fx_rate_local_via_connection(connection, base: str, quote: str, at: datetim
         return Decimal("0")
 
 def fx_rate(base: str, quote: str, at: datetime | None = None, raise_on_missing: bool = False) -> Decimal:
-    """سعر الصرف الذكي - محلي أولاً، ثم عالمي
-    
-    Args:
-        base: العملة الأساسية
-        quote: العملة المقابلة
-        at: التاريخ (اختياري)
-        raise_on_missing: إذا True، يرمي استثناء بدلاً من إرجاع صفر
-    
-    Returns:
-        سعر الصرف أو Decimal("0") أو يرمي استثناء
-    """
+    """سعر لتاريخ الحركة — يُثبت على القيد عند الإنشاء (fx_rate_used) ولا يُحدَّث يومياً."""
     b = ensure_currency(base)
     qv = ensure_currency(quote)
     if b == qv:
         return Decimal("1")
-    
+
     t = at or datetime.now(timezone.utc)
-    # استخدام التاريخ كـ Key للكاش (يومياً)
-    date_key = t.strftime("%Y-%m-%d")
-    
     try:
-        rate = _get_rate_cached(b, qv, date_key)
-        if rate is not None:
-            return rate
+        from services.fx_resolution import resolve_fx_rate_for_date
+
+        info = resolve_fx_rate_for_date(b, qv, t)
+        if info.get("success") and info.get("rate"):
+            return Decimal(str(info["rate"]))
     except Exception:
         pass
 
-    # إذا فشل الكاش أو لم يجد نتيجة
     if raise_on_missing:
-        raise ValueError(f"⚠️ سعر الصرف غير متوفر لـ {b}/{qv}. يرجى:\n1. إدخال سعر يدوي من إعدادات العملات\n2. تفعيل السيرفر الأونلاين\n3. إعادة المحاولة لاحقاً")
-    
+        raise ValueError(
+            f"⚠️ سعر الصرف غير متوفر لـ {b}/{qv} بتاريخ {t.date()}. "
+            "أدخل سعراً يدوياً لذلك اليوم أو فعّل الأونلاين."
+        )
     return Decimal("0")
 
 def _fetch_external_fx_rate(base: str, quote: str, at: datetime) -> Decimal:
@@ -1352,10 +1342,10 @@ def _fetch_external_fx_rate(base: str, quote: str, at: datetime) -> Decimal:
     
     # قائمة السيرفرات العالمية (بترتيب الأولوية)
     fx_services = [
-        _fetch_from_fixer_io,
         _fetch_from_exchangerate_api,
+        _fetch_from_exchangerate_host,
+        _fetch_from_fixer_io,
         _fetch_from_currencylayer,
-        _fetch_from_exchangerate_host
     ]
     
     for service in fx_services:
@@ -1540,92 +1530,20 @@ def auto_update_missing_rates():
         }
 
 def get_fx_rate_with_fallback(base: str, quote: str, at: datetime | None = None) -> dict:
-    """الحصول على سعر الصرف مع معلومات المصدر والبديل الذكي - يدوي أولاً، ثم أونلاين"""
+    """سعر لتاريخ محدد (at) — يدوي أولاً عند تعذّر الأونلاين. انظر services.fx_resolution."""
     try:
-        b = ensure_currency(base)
-        qv = ensure_currency(quote)
-        if b == qv:
-            return {
-                'rate': 1.0,
-                'source': 'same_currency',
-                'base': base,
-                'quote': quote,
-                'timestamp': at or datetime.now(timezone.utc),
-                'success': True
-            }
-        
-        t = at or datetime.now(timezone.utc)
-        
-        local_rate_value = None
-        try:
-            with db.session.no_autoflush:
-                q = (
-                    db.session.query(ExchangeRate.rate, ExchangeRate.source)
-                    .filter(
-                        ExchangeRate.base_code == b,
-                        ExchangeRate.quote_code == qv,
-                        ExchangeRate.is_active.is_(True),
-                        ExchangeRate.valid_from <= t,
-                    )
-                    .order_by(ExchangeRate.valid_from.desc())
-                )
-                v = q.first()
-            if v:
-                local_rate_value = Decimal(str(v[0]))
-                rate_source = v[1]
-                
-                if local_rate_value and local_rate_value > Decimal("0"):
-                    is_manual = (rate_source != 'External API')
-                    return {
-                        'rate': float(local_rate_value),
-                        'source': 'manual' if is_manual else 'online_cached',
-                        'base': base,
-                        'quote': quote,
-                        'timestamp': at or datetime.now(timezone.utc),
-                        'success': True
-                    }
-        except Exception:
-            pass
-        
-        try:
-            online_rate = _fetch_external_fx_rate(b, qv, t)
-            if online_rate and online_rate > Decimal("0"):
-                return {
-                    'rate': float(online_rate),
-                    'source': 'online',
-                    'base': base,
-                    'quote': quote,
-                    'timestamp': at or datetime.now(timezone.utc),
-                    'success': True
-                }
-        except Exception:
-            pass
-        
-        return {
-            'rate': 0.0,
-            'source': 'unavailable',
-            'base': base,
-            'quote': quote,
-            'timestamp': at or datetime.now(timezone.utc),
-            'success': False,
-            'error': f'سعر الصرف غير متوفر لـ {b}/{qv}. يرجى إدخال سعر يدوي من صفحة إدارة العملات أو تفعيل السيرفر الأونلاين.',
-            'message_ar': f'⚠️ سعر الصرف غير متوفر لـ {b}/{qv}',
-            'instructions': [
-                '1. إدخال سعر يدوي من صفحة إدارة العملات',
-                '2. تفعيل السيرفر الأونلاين من إعدادات العملات',
-                '3. التحقق من اتصال الإنترنت إذا كان الأونلاين مفعّل'
-            ]
-        }
-        
+        from services.fx_resolution import resolve_fx_rate_for_date
+
+        return resolve_fx_rate_for_date(base, quote, at)
     except Exception as e:
         return {
-            'rate': 0.0,
-            'source': 'failed',
-            'base': base,
-            'quote': quote,
-            'timestamp': at or datetime.now(timezone.utc),
-            'success': False,
-            'error': str(e)
+            "rate": None,
+            "source": "failed",
+            "base": base,
+            "quote": quote,
+            "timestamp": at or datetime.now(timezone.utc),
+            "success": False,
+            "error": str(e),
         }
 
 def _payment_fk_column_for_type(PaymentModel, et: PaymentEntityType | str):
@@ -5827,10 +5745,12 @@ def _sale_before_insert_ref(mapper, connection, target: "Sale"):
     if sale_currency != default_currency:
         try:
             at = getattr(target, "sale_date", None) or getattr(target, "created_at", None) or datetime.now(timezone.utc)
-            rate = _fx_rate_local_via_connection(connection, sale_currency, default_currency, at)
-            if rate and rate > 0:
-                target.fx_rate_used = Decimal(str(rate))
-                target.fx_rate_source = "manual"
+            from services.fx_resolution import resolve_fx_rate_for_date
+
+            info = resolve_fx_rate_for_date(sale_currency, default_currency, at)
+            if info.get("success") and info.get("rate"):
+                target.fx_rate_used = Decimal(str(info["rate"]))
+                target.fx_rate_source = info.get("source") or "manual"
                 target.fx_rate_timestamp = datetime.now(timezone.utc)
                 target.fx_base_currency = sale_currency
                 target.fx_quote_currency = DEFAULT_CURRENCY
@@ -13542,10 +13462,12 @@ def _sale_normalize_insert(mapper, connection, target: "Sale"):
     if sale_currency != default_currency:
         try:
             at = getattr(target, "sale_date", None) or getattr(target, "created_at", None) or datetime.now(timezone.utc)
-            rate = _fx_rate_local_via_connection(connection, sale_currency, default_currency, at)
-            if rate and rate > 0:
-                target.fx_rate_used = Decimal(str(rate))
-                target.fx_rate_source = "manual"
+            from services.fx_resolution import resolve_fx_rate_for_date
+
+            info = resolve_fx_rate_for_date(sale_currency, default_currency, at)
+            if info.get("success") and info.get("rate"):
+                target.fx_rate_used = Decimal(str(info["rate"]))
+                target.fx_rate_source = info.get("source") or "manual"
                 target.fx_rate_timestamp = datetime.now(timezone.utc)
                 target.fx_base_currency = sale_currency
                 target.fx_quote_currency = default_currency

@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import datetime, time, timezone
 from decimal import Decimal
 
-from flask import Blueprint, flash, redirect, render_template, request, url_for, current_app
+from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for, current_app
 from flask_login import current_user, login_required
 from sqlalchemy import desc, func, or_
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
@@ -15,6 +15,36 @@ import utils
 from forms import ExchangeRateForm
 
 currencies_bp = Blueprint("currencies", __name__, url_prefix="/currencies")
+
+_FX_SOURCE_LABELS_AR = {
+    "manual": "يدوي",
+    "online": "أونلاين (حي)",
+    "online_cached": "محفوظ في السجل",
+    "database_stored": "من السجل",
+    "investing": "Investing",
+    "external": "خارجي",
+    "unavailable": "غير متوفر",
+    "same_currency": "نفس العملة",
+}
+
+
+def _fx_source_label_ar(source: str | None) -> str:
+    if not source:
+        return "—"
+    s = str(source).strip()
+    if s in _FX_SOURCE_LABELS_AR:
+        return _FX_SOURCE_LABELS_AR[s]
+    if s.lower() in ("manual", "يدوي", "local"):
+        return "يدوي"
+    if s == "External API":
+        return "جلب تلقائي"
+    return s
+
+
+def _record_source_label_ar(source: str | None) -> str:
+    if not source:
+        return "يدوي"
+    return _fx_source_label_ar(source)
 
 
 @currencies_bp.route("/", endpoint="list")
@@ -98,35 +128,21 @@ def list_exchange_rates():
         ExchangeRate.quote_code,
     ).paginate(page=page, per_page=per_page, error_out=False)
 
-    market_rates = {}
-    pair_cache: dict[tuple[str, str], dict] = {}
+    from services.fx_resolution import is_online_fx_enabled, resolve_fx_rate_for_date
+
+    online_fx_enabled = is_online_fx_enabled()
+    resolved_rates: dict[int, dict] = {}
+    live_rates: dict[int, dict] = {}
     now = datetime.now(timezone.utc)
     for rate in exchange_rates.items:
-        pair_key = (rate.base_code, rate.quote_code)
-        if pair_key not in pair_cache:
-            try:
-                from models import _fetch_external_fx_rate
-
-                external_rate = _fetch_external_fx_rate(rate.base_code, rate.quote_code, now)
-                if external_rate and external_rate > 0:
-                    pair_cache[pair_key] = {
-                        "success": True,
-                        "rate": float(external_rate),
-                        "source": "external",
-                        "base": rate.base_code,
-                        "quote": rate.quote_code,
-                        "timestamp": now,
-                    }
-                else:
-                    pair_cache[pair_key] = {"success": False, "rate": 0, "source": "failed"}
-            except Exception:
-                pair_cache[pair_key] = {
-                    "success": False,
-                    "rate": 0,
-                    "source": "error",
-                    "error": "حدث خطأ داخلي",
-                }
-        market_rates[rate.id] = pair_cache[pair_key]
+        at = rate.valid_from or now
+        if getattr(at, "tzinfo", None) is None:
+            at = at.replace(tzinfo=timezone.utc)
+        info = resolve_fx_rate_for_date(rate.base_code, rate.quote_code, at)
+        resolved_rates[rate.id] = info
+        if online_fx_enabled:
+            live_info = resolve_fx_rate_for_date(rate.base_code, rate.quote_code, now)
+            live_rates[rate.id] = live_info
     
     # دالة للحصول على اسم العملة بالعربي
     def get_currency_name(code):
@@ -145,8 +161,12 @@ def list_exchange_rates():
     return render_template(
         "currencies/exchange_rates.html",
         exchange_rates=exchange_rates,
-        market_rates=market_rates,
+        resolved_rates=resolved_rates,
+        live_rates=live_rates,
+        online_fx_enabled=online_fx_enabled,
         get_currency_name=get_currency_name,
+        fx_source_label_ar=_fx_source_label_ar,
+        record_source_label_ar=_record_source_label_ar,
         currency_filter=currency_filter,
     )
 
@@ -337,31 +357,46 @@ def update_exchange_rates():
 @currencies_bp.route("/test-rate", methods=["POST"], endpoint="test_rate")
 @login_required
 def test_exchange_rate():
-    """اختبار سعر الصرف"""
+    """اختبار سعر الصرف (نفس منطق fx_resolution)"""
     try:
         from models import get_fx_rate_with_fallback
-        from flask import request, jsonify
-        
-        data = request.get_json()
-        base = data.get('base', 'USD')
-        quote = data.get('quote', 'ILS')
-        
+        from services.fx_resolution import is_online_fx_enabled
+
+        data = request.get_json(silent=True) or {}
+        base = (data.get("base") or "USD").strip().upper()
+        quote = (data.get("quote") or "ILS").strip().upper()
+
         rate_info = get_fx_rate_with_fallback(base, quote)
-        
+        src = rate_info.get("source") or "unavailable"
+        src_ar = _fx_source_label_ar(src)
+
+        if rate_info.get("success") and rate_info.get("rate"):
+            return jsonify({
+                "success": True,
+                "rate": rate_info["rate"],
+                "source": src,
+                "source_label_ar": src_ar,
+                "online_enabled": is_online_fx_enabled(),
+                "message": f"السعر: {rate_info['rate']} — المصدر: {src_ar}",
+            })
+
         return jsonify({
-            'success': rate_info['success'],
-            'rate': rate_info['rate'],
-            'source': rate_info['source'],
-            'message': f"السعر: {rate_info['rate']} (مصدر: {'محلي' if rate_info['source'] == 'local' else 'عالمي'})"
+            "success": False,
+            "rate": None,
+            "source": src,
+            "source_label_ar": src_ar,
+            "online_enabled": is_online_fx_enabled(),
+            "message": rate_info.get("message_ar")
+            or f"لا يوجد سعر لـ {base}/{quote}. أدخل سعراً يدوياً أو فعّل الأونلاين من الإعدادات.",
         })
-        
-    except Exception as e:
-        current_app.logger.exception('API error')
+
+    except Exception:
+        current_app.logger.exception("API error")
         return jsonify({
-            'success': False,
-            'error': 'حدث خطأ داخلي',
-            'message': 'حدث خطأ داخلي'
-        })
+            "success": False,
+            "error": "حدث خطأ داخلي",
+            "message": "حدث خطأ داخلي",
+        }), 500
 
 @currencies_bp.route("/settings", endpoint="settings")
 @login_required

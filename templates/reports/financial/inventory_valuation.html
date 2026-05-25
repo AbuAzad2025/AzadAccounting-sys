@@ -11,7 +11,7 @@
   <p class="lead">الإجمالي: <strong>{{ "{:,.2f}".format(total_value) }}</strong> ₪</p>
   {{ scroll_table_start() }}
   <table class="table table-sm table-bordered">
-    <thead><tr><th>منتج</th><th>مستودع</th><th>كمية</th><th>تكلفة</th><th>قيمة</th></tr></thead>
+    <thead class="table-header-primary text-white"><tr><th>منتج</th><th>مستودع</th><th>كمية</th><th>تكلفة</th><th>قيمة</th></tr></thead>
     <tbody>{% for it in items %}<tr><td>{{ it.name }}</td><td>{{ it.warehouse }}</td><td>{{ it.quantity }}</td><td>{{ it.unit_cost }}</td><td>{{ it.value }}</td></tr>{% endfor %}</tbody>
   </table>
   {{ scroll_table_end() }}

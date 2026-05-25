@@ -37,7 +37,7 @@
   } %}
 
   {% if current_user.has_permission('manage_service') %}
-  <div class="card border-0 shadow-lg mb-4 no-print" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+  <div class="card border-0 shadow-lg mb-4 no-print erp-kpi-tile erp-kpi-tile--primary text-white">
     <div class="card-body text-white">
       <div class="d-flex flex-wrap gap-3 align-items-center">
         <div class="d-flex gap-2">
@@ -65,7 +65,7 @@
   <!-- إحصائيات سريعة -->
   <div class="row g-3 mb-4 no-print">
     <div class="col-lg-3 col-md-6">
-      <div class="card stat-card text-white" style="background: linear-gradient(135deg, #f09819 0%, #edde5d 100%);">
+      <div class="card stat-card erp-kpi-tile erp-kpi-tile--warning text-white">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center">
             <div>
@@ -81,7 +81,7 @@
     </div>
     
     <div class="col-lg-3 col-md-6">
-      <div class="card stat-card text-white" style="background: linear-gradient(135deg, #ff9966 0%, #ff5e62 100%);">
+      <div class="card stat-card erp-kpi-tile erp-kpi-tile--danger text-white">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center">
             <div>
@@ -97,7 +97,7 @@
     </div>
     
     <div class="col-lg-3 col-md-6">
-      <div class="card stat-card text-white" style="background: linear-gradient(135deg, #4e54c8 0%, #8f94fb 100%);">
+      <div class="card stat-card erp-kpi-tile erp-kpi-tile--info text-white">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center">
             <div>
@@ -113,7 +113,7 @@
     </div>
     
     <div class="col-lg-3 col-md-6">
-      <div class="card stat-card text-white" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);">
+      <div class="card stat-card erp-kpi-tile erp-kpi-tile--success text-white">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center">
             <div>
@@ -267,7 +267,7 @@
     <div class="card-body p-0">
       <div class="table-responsive">
         <table id="servicesTable" class="table service-table table-hover align-middle mb-0">
-          <thead>
+          <thead class="table-header-primary text-white">
             <tr>
               <th class="py-3 ps-3">رقم الطلب</th>
               <th class="py-3">الزبون</th>

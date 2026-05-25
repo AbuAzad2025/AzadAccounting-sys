@@ -1443,7 +1443,10 @@ def create_payment():
                 return render_template("payments/form.html", form=form, entity_info=None)
             target_currency = "ILS"
             split_entries = getattr(form, "splits", []).entries
-            parsed_splits, sum_converted, has_split_error = _parse_split_forms(split_entries, target_currency)
+            pay_at = form.payment_date.data or _utc_now_naive()
+            parsed_splits, sum_converted, has_split_error = _parse_split_forms(
+                split_entries, target_currency, pay_at
+            )
             if has_split_error:
                 if _wants_json():
                     return jsonify(status="error", errors=form.errors), 400
@@ -2402,7 +2405,10 @@ def create_expense_payment(exp_id):
     try:
         target_currency = "ILS"
         split_entries = getattr(form, "splits", []).entries
-        parsed_splits, sum_converted, has_split_error = _parse_split_forms(split_entries, target_currency)
+        pay_at = form.payment_date.data or _utc_now_naive()
+        parsed_splits, sum_converted, has_split_error = _parse_split_forms(
+            split_entries, target_currency, pay_at
+        )
         if has_split_error:
             if _wants_json():
                 return jsonify(status="error", errors=form.errors), 400
@@ -2880,7 +2886,7 @@ def _sum_splits_decimal(splits=None, parsed_splits=None) -> Decimal:
         total += q0(getattr(s, "amount", 0))
     return q0(total)
 
-def _parse_split_forms(split_entries, target_currency: str):
+def _parse_split_forms(split_entries, target_currency: str, payment_at: datetime | None = None):
     parsed = []
     total_converted = Decimal("0")
     has_error = False
@@ -2923,7 +2929,9 @@ def _parse_split_forms(split_entries, target_currency: str):
                 rate_source = "manual"
             else:
                 try:
-                    rate_info = get_fx_rate_with_fallback(split_currency, target_currency)
+                    rate_info = get_fx_rate_with_fallback(
+                        split_currency, target_currency, payment_at or _utc_now_naive()
+                    )
                 except Exception:
                     rate_info = {"success": False, "rate": 0}
                 rate_val = Decimal(str(rate_info.get("rate", 0) or 0))
@@ -2975,17 +2983,30 @@ def fx_rate_lookup():
     quote = ensure_currency(request.args.get("quote") or "ILS")
     if base == quote:
         return jsonify(success=True, rate=1.0, source="same", base=base, quote=quote)
+    at = _utc_now_naive()
+    date_raw = (request.args.get("date") or request.args.get("at") or "").strip()
+    if date_raw:
+        try:
+            if len(date_raw) <= 10:
+                at = datetime.combine(
+                    datetime.strptime(date_raw[:10], "%Y-%m-%d").date(), datetime.max.time()
+                )
+            else:
+                at = datetime.fromisoformat(date_raw.replace("Z", "+00:00")).replace(tzinfo=None)
+        except Exception:
+            pass
     try:
-        rate_info = get_fx_rate_with_fallback(base, quote)
+        rate_info = get_fx_rate_with_fallback(base, quote, at)
     except Exception as e:
         current_app.logger.exception('fx rate lookup error')
         return jsonify(success=False, rate=0, base=base, quote=quote, message="حدث خطأ داخلي"), 500
-    rate = float(rate_info.get("rate", 0) or 0)
-    success_flag = bool(rate_info.get("success"))
+    raw_rate = rate_info.get("rate")
+    rate = float(raw_rate) if raw_rate is not None else 0.0
+    success_flag = bool(rate_info.get("success")) and rate > 0
     source = rate_info.get("source")
     if rate <= 0 or not success_flag:
         try:
-            inverse_info = get_fx_rate_with_fallback(quote, base)
+            inverse_info = get_fx_rate_with_fallback(quote, base, at)
         except Exception:
             inverse_info = None
         inv_rate = float(inverse_info.get("rate", 0) or 0) if inverse_info else 0

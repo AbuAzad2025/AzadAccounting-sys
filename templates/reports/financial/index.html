@@ -111,7 +111,7 @@
 
   <div id="reportResults" class="mt-4" style="display: none;">
     <div class="card shadow-sm">
-      <div class="card-header text-white bg-primary">
+      <div class="card-header erp-card-header-row erp-theme-header--primary text-white bg-primary">
         <h5 id="reportTitle" class="mb-0">نتائج التقرير</h5>
       </div>
       <div class="card-body">
@@ -129,7 +129,6 @@
 
 {% block scripts %}
   {{ super() }}
-  <script src="{{ url_for('static', filename='js/dom-safe.js') }}"></script>
   <script>
     function setDefaultDateRange() {
       const today = new Date();

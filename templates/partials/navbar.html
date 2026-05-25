@@ -1,21 +1,21 @@
 <nav class="main-header navbar navbar-expand navbar-primary navbar-dark" dir="rtl">
   
-  <ul class="navbar-nav erp-nav-controls">
+  <ul class="navbar-nav erp-nav-controls align-items-center">
     <li class="nav-item">
-      <a class="nav-link nav-strong" data-widget="pushmenu" href="#" role="button" title="تصغير القائمة">
-        <i class="fas fa-bars"></i>
+      <a class="nav-link nav-strong erp-pushmenu-btn" id="erp-sidebar-toggle" data-erp-pushmenu href="#" role="button" title="القائمة الجانبية" aria-label="فتح أو إغلاق القائمة" aria-expanded="false">
+        <i class="fas fa-bars" aria-hidden="true"></i>
       </a>
     </li>
     
     <li class="nav-item d-none d-lg-block">
-      <button class="nav-link btn btn-link text-white nav-strong" onclick="toggleSidebarFull()" title="إخفاء/إظهار القائمة بالكامل" style="border: none; background: none;">
+      <button class="nav-link btn btn-link text-white nav-strong erp-nav-icon-btn" onclick="toggleSidebarFull()" title="إخفاء/إظهار القائمة بالكامل">
         <i class="fas fa-expand-arrows-alt" id="sidebar-full-toggle-icon"></i>
       </button>
     </li>
     
     <li class="nav-item d-none d-lg-block">
-      <button class="nav-link btn btn-link text-white nav-strong" onclick="toggleSidebarPosition()" title="تبديل موقع القائمة" style="border: none; background: none;">
-        <i class="fas fa-exchange-alt"></i>
+      <button type="button" class="nav-link btn btn-link text-white nav-strong erp-nav-icon-btn" id="sidebar-position-toggle-btn" onclick="toggleSidebarPosition()" title="تبديل موقع القائمة (يمين/يسار)" aria-pressed="true">
+        <i class="fas fa-arrow-alt-circle-left" aria-hidden="true"></i>
       </button>
     </li>
 
@@ -23,7 +23,7 @@
       <a class="nav-link nav-strong" data-toggle="dropdown" href="#" title="الستايل البصري">
         <i class="fas fa-palette"></i>
       </a>
-      <div class="dropdown-menu dropdown-menu-right p-2 erp-theme-switcher" style="min-width: 220px;">
+      <div class="dropdown-menu dropdown-menu-right p-2 erp-theme-switcher erp-dropdown-panel">
         <div class="small text-muted px-2 mb-1">الستايل</div>
         <div class="btn-group btn-group-sm w-100 mb-2" role="group">
           <button type="button" class="btn btn-outline-light active" data-erp-theme-variant="palestinian">فلسطيني</button>
@@ -37,14 +37,14 @@
       </div>
     </li>
 
-    <li class="nav-item">
-      <button class="nav-link btn btn-link text-white nav-strong" onclick="toggleErpThemeMode()" title="تبديل الوضع الليلي" style="border: none; background: none;" id="darkModeToggleNavbar">
+    <li class="nav-item d-none d-sm-block">
+      <button class="nav-link btn btn-link text-white nav-strong erp-nav-icon-btn" onclick="toggleErpThemeMode()" title="تبديل الوضع الليلي" id="darkModeToggleNavbar">
         <i class="fas fa-moon"></i>
       </button>
     </li>
 
-    <li class="nav-item">
-      <button class="nav-link btn btn-link text-white nav-strong" onclick="toggleUIMode()" id="ui-mode-toggle-btn" title="وضع العرض: تلقائي" style="border: none; background: none;">
+    <li class="nav-item d-none d-sm-block">
+      <button class="nav-link btn btn-link text-white nav-strong erp-nav-icon-btn" onclick="toggleUIMode()" id="ui-mode-toggle-btn" title="وضع العرض: تلقائي">
         <i class="fas fa-magic" id="ui-mode-toggle-icon"></i>
       </button>
     </li>
@@ -54,7 +54,7 @@
       <a class="nav-link nav-strong" data-toggle="dropdown" href="#" title="معلومات سريعة" aria-expanded="false">
         <i class="fas fa-info-circle"></i>
       </a>
-      <div class="dropdown-menu dropdown-menu-right gm-navbar-info-panel p-3" style="min-width: min(92vw, 360px); max-height: 70vh; overflow-y: auto;">
+      <div class="dropdown-menu dropdown-menu-right gm-navbar-info-panel p-3 erp-dropdown-panel erp-dropdown-panel--wide">
         <div class="erp-theme-switcher mb-3">
           <div class="small text-muted mb-1">الستايل والوضع</div>
           <div class="btn-group btn-group-sm w-100 mb-2">
@@ -66,12 +66,15 @@
             <button type="button" class="btn btn-outline-secondary" data-erp-theme-mode="dark">داكن</button>
           </div>
         </div>
-        <div class="d-flex flex-wrap mb-2" style="gap: 6px;">
+        <div class="d-flex flex-wrap mb-2 erp-badge-row">
           <span class="badge badge-warning"><i class="fas fa-clock"></i> <span class="gm-nav-time">--:--:--</span></span>
           <span class="badge badge-info"><i class="fas fa-calendar"></i> <span class="gm-nav-date-gregorian">--/--/----</span></span>
           <span class="badge badge-secondary"><i class="fas fa-moon"></i> <span class="gm-nav-date-hijri">--</span></span>
-          <span class="badge badge-success">$ <span class="gm-nav-usd-rate">--</span> ₪</span>
-          <span class="badge badge-light">JOD <span class="gm-nav-jod-rate">--</span> ₪</span>
+          <span class="badge badge-success erp-fx-chip erp-fx-rates erp-fx-rates--loading" data-fx="USD">USD <strong class="gm-nav-usd-rate erp-fx-rate">--</strong> ₪ <small class="erp-fx-range-line gm-nav-usd-range d-block"></small></span>
+          <span class="badge badge-light erp-fx-chip erp-fx-rates erp-fx-rates--loading" data-fx="JOD">د.أ <strong class="gm-nav-jod-rate erp-fx-rate">--</strong> ₪ <small class="erp-fx-range-line gm-nav-jod-range d-block"></small></span>
+          <button type="button" class="btn btn-sm btn-outline-light erp-calc-mobile-btn" data-erp-calc-mobile-open title="حاسبة">
+            <i class="fas fa-calculator"></i> حاسبة
+          </button>
         </div>
         {% if tenant_show_nav_scope and tenant_company_name %}
         <div class="mb-2">
@@ -93,7 +96,7 @@
             <div class="input-group-prepend"><span class="input-group-text bg-white"><i class="fas fa-search"></i></span></div>
             <input type="search" class="form-control" name="gm_search_global_compact" placeholder="بحث سريع..." data-search="global" data-search-autofill="off" autocomplete="new-password" autocapitalize="off" spellcheck="false" inputmode="search">
           </div>
-          <div class="list-group position-absolute w-100 shadow" data-search-target="global" style="z-index: 2000; top: 100%; display: none; max-height: 240px; overflow: auto;"></div>
+          <div class="list-group erp-search-results erp-search-results--compact shadow" data-search-target="global"></div>
         </div>
       </div>
     </li>
@@ -132,21 +135,30 @@
     {% endif %}
   </ul>
   
-  <div class="navbar-info-center d-flex align-items-center justify-content-center flex-grow-1 flex-wrap">
-    <div class="erp-topbar-meta d-none d-lg-flex">
-      <span class="erp-meta-chip"><i class="fas fa-clock"></i><span id="current-time">--:--:--</span></span>
-      <span class="erp-meta-chip"><i class="fas fa-calendar"></i><span id="current-date-gregorian">--/--/----</span></span>
-      <span class="erp-meta-chip"><i class="fas fa-moon"></i><span id="current-date-hijri">--</span></span>
-      <span class="erp-meta-chip erp-meta-chip--rates"><i class="fas fa-dollar-sign"></i><span id="usd-rate">--</span> ₪</span>
-      <span class="erp-meta-chip erp-meta-chip--rates">JOD <span id="jod-rate">--</span> ₪</span>
+  <div class="navbar-info-center d-flex align-items-center justify-content-center flex-grow-1 flex-wrap gap-2">
+    <div class="erp-topbar-meta d-none d-lg-flex flex-wrap align-items-center justify-content-center">
+      <span class="erp-meta-chip erp-meta-chip--time"><i class="fas fa-clock" aria-hidden="true"></i><span id="current-time">--:--:--</span></span>
+      <span class="erp-meta-chip erp-meta-chip--date"><i class="fas fa-calendar" aria-hidden="true"></i><span id="current-date-gregorian">--/--/----</span></span>
+      <span class="erp-meta-chip erp-meta-chip--date"><i class="fas fa-moon" aria-hidden="true"></i><span id="current-date-hijri">--</span></span>
+      <span class="erp-meta-chip erp-meta-chip--rates erp-fx-chip erp-fx-rates erp-fx-rates--loading" data-fx="USD" title="سعر الدولار — يوم/أسبوع">
+        <i class="fas fa-dollar-sign" aria-hidden="true"></i>
+        <span class="erp-fx-main">USD <strong class="erp-fx-rate" id="usd-rate">--</strong></span>
+        <span class="erp-fx-range-mini d-none d-xl-inline-flex"><span class="erp-fx-day" data-fx-day="USD"></span><span class="erp-fx-week" data-fx-week="USD"></span></span>
+      </span>
+      <span class="erp-meta-chip erp-meta-chip--rates erp-fx-chip erp-fx-rates erp-fx-rates--loading" data-fx="JOD" title="سعر الدينار — يوم/أسبوع">
+        <i class="fas fa-coins" aria-hidden="true"></i>
+        <span class="erp-fx-main">د.أ <strong class="erp-fx-rate" id="jod-rate">--</strong></span>
+        <span class="erp-fx-range-mini d-none d-xl-inline-flex"><span class="erp-fx-day" data-fx-day="JOD"></span><span class="erp-fx-week" data-fx-week="JOD"></span></span>
+      </span>
+      {% include 'partials/erp_nav_calculator.html' %}
     </div>
     {% if current_user.is_authenticated and tenant_show_nav_scope and tenant_company_name %}
-    <span class="badge badge-primary tenant-scope-badge" title="سياق العمل الحالي">
+    <span class="badge badge-primary tenant-scope-badge d-none d-lg-inline-flex" title="سياق العمل الحالي">
       <i class="fas fa-building"></i>
       {{ tenant_company_name }}{% if tenant_branch_name %} — {{ tenant_branch_name }}{% endif %}
     </span>
     {% if tenant_can_switch_branch and tenant_branches %}
-    <form method="post" action="{{ url_for('main.switch_active_branch') }}" class="d-inline tenant-branch-switch-form">
+    <form method="post" action="{{ url_for('main.switch_active_branch') }}" class="d-none d-lg-inline tenant-branch-switch-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <select name="branch_id" class="custom-select custom-select-sm tenant-branch-select" onchange="this.form.submit()" title="تبديل الفرع النشط">
         {% for b in tenant_branches %}
@@ -166,7 +178,7 @@
         </div>
         <input type="search" class="form-control" name="gm_search_global" placeholder="بحث سريع..." data-search="global" data-search-autofill="off" autocomplete="new-password" autocapitalize="off" spellcheck="false" inputmode="search" readonly>
       </div>
-      <div class="list-group position-absolute w-100 shadow" data-search-target="global" style="z-index: 2000; top: 100%; display: none; max-height: 360px; overflow: auto;"></div>
+      <div class="list-group erp-search-results shadow" data-search-target="global"></div>
     </div>
     {% endif %}
   </div>
@@ -208,8 +220,8 @@
                 {{ current_user.avatar_or_initials }}
               </div>
             {% endif %}
-            <h6 class="mb-0 font-weight-bold" style="color: #212529;">{{ current_user.username }}</h6>
-            <small style="color: #6c757d;">{{ current_user.role.name if current_user.role else 'مستخدم' }}</small>
+            <h6 class="mb-0 font-weight-bold">{{ current_user.username }}</h6>
+            <small>{{ current_user.role.name if current_user.role else 'مستخدم' }}</small>
           </div>
         </div>
         
@@ -312,11 +324,13 @@ function toggleSidebarFull() {
     }
 
     // إجبار إعادة حساب المخطط (Layout) بشكل متكرر لضمان استجابة المكتبات
+    if (window.ErpNavbar && typeof window.ErpNavbar.syncPushmenuState === 'function') {
+        window.ErpNavbar.syncPushmenuState();
+    }
     const triggerResize = () => window.dispatchEvent(new Event('resize'));
     triggerResize();
     setTimeout(triggerResize, 100);
     setTimeout(triggerResize, 300);
-    setTimeout(triggerResize, 500);
 }
 
 // استعادة حالة القائمة عند التحميل
@@ -388,55 +402,12 @@ function updateDateTime() {
     document.querySelectorAll('.gm-nav-date-gregorian').forEach(function(el) { el.textContent = gregorianDate; });
 }
 
-// جلب أسعار الصرف
-async function updateExchangeRates() {
-    try {
-        // جلب أسعار الصرف من API أو من قاعدة البيانات
-        const response = await fetch('/api/exchange-rates');
-        if (response.ok) {
-            const data = await response.json();
-            
-            // تحديث سعر الدولار (كم شيقل يساوي دولار واحد)
-            const usdElement = document.getElementById('usd-rate');
-            if (usdElement && data.USD) {
-                const val = parseFloat(data.USD).toFixed(2);
-                usdElement.textContent = val;
-                document.querySelectorAll('.gm-nav-usd-rate').forEach(function(el) { el.textContent = val; });
-            }
-            
-            // تحديث سعر الدينار (كم شيقل يساوي دينار واحد)
-            const jodElement = document.getElementById('jod-rate');
-            if (jodElement && data.JOD) {
-                const val = parseFloat(data.JOD).toFixed(2);
-                jodElement.textContent = val;
-                document.querySelectorAll('.gm-nav-jod-rate').forEach(function(el) { el.textContent = val; });
-            }
-        } else {
-            // في حالة الفشل، استخدام قيم افتراضية
-            document.getElementById('usd-rate').textContent = '3.65';
-            document.getElementById('jod-rate').textContent = '5.15';
-        }
-    } catch (error) {
-        // قيم افتراضية تقريبية
-        document.getElementById('usd-rate').textContent = '3.65';
-        document.getElementById('jod-rate').textContent = '5.15';
-    }
-}
-
 // انتظار تحميل DOM
 document.addEventListener('DOMContentLoaded', function() {
-    // تحديث الوقت والتاريخ
     updateDateTime();
     setInterval(updateDateTime, 1000);
-    
-    // تحديث أسعار الصرف
-    updateExchangeRates();
-    // تحديث أسعار الصرف كل 5 دقائق
-    setInterval(updateExchangeRates, 5 * 60 * 1000);
 });
 
-// تحديث فوري أيضاً
 updateDateTime();
-updateExchangeRates();
 
 </script>

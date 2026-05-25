@@ -79,7 +79,7 @@
           <col style="width:10%">
           <col style="width:10%">
         </colgroup>
-        <thead>
+        <thead class="table-header-primary text-white">
           <tr>
             <th>#</th>
             <th>التاريخ</th>
@@ -163,7 +163,7 @@
   {% if total_incoming is defined and total_outgoing is defined %}
   <div id="payments-summary-wrapper" class="row erp-kpi-row mb-4 no-print">
     <div class="col-lg-3 col-md-6 col-6 mb-3">
-      <div class="card erp-kpi-card h-100 shadow-sm border-0">
+      <div class="card erp-kpi-card erp-kpi-card--primary h-100 shadow-sm border-0">
         <div class="card-body d-flex justify-content-between align-items-start">
           <div>
             <div class="erp-kpi-label text-success">دفعات واردة</div>
@@ -174,7 +174,7 @@
       </div>
     </div>
     <div class="col-lg-3 col-md-6 col-6 mb-3">
-      <div class="card erp-kpi-card h-100 shadow-sm border-0">
+      <div class="card erp-kpi-card erp-kpi-card--primary h-100 shadow-sm border-0">
         <div class="card-body d-flex justify-content-between align-items-start">
           <div>
             <div class="erp-kpi-label text-danger">دفعات صادرة</div>
@@ -185,7 +185,7 @@
       </div>
     </div>
     <div class="col-lg-3 col-md-6 col-6 mb-3">
-      <div class="card erp-kpi-card h-100 shadow-sm border-0">
+      <div class="card erp-kpi-card erp-kpi-card--primary h-100 shadow-sm border-0">
         <div class="card-body d-flex justify-content-between align-items-start">
           <div>
             <div class="erp-kpi-label {% if net_total >= 0 %}text-primary{% else %}text-warning{% endif %}">صافي التدفق</div>
@@ -197,7 +197,7 @@
       </div>
     </div>
     <div class="col-lg-3 col-md-6 col-6 mb-3">
-      <div class="card erp-kpi-card h-100 shadow-sm border-0">
+      <div class="card erp-kpi-card erp-kpi-card--primary h-100 shadow-sm border-0">
         <div class="card-body d-flex justify-content-between align-items-start">
           <div>
             <div class="erp-kpi-label text-info">إجمالي الدفعات</div>
@@ -334,7 +334,7 @@
       <div class="px-3 pt-3 pb-2 border-bottom bg-white">
         <div class="row erp-kpi-row">
           <div class="col-lg-3 col-md-6 col-6 mb-3">
-            <div class="card erp-kpi-card h-100 shadow-sm border-0">
+            <div class="card erp-kpi-card erp-kpi-card--primary h-100 shadow-sm border-0">
               <div class="card-body py-3">
                 <div class="erp-kpi-label">إجمالي الحقوق (له)</div>
                 <div class="erp-kpi-value text-success">{{ '%.2f'|format(ledger_rights_total) }} ₪</div>
@@ -343,7 +343,7 @@
             </div>
           </div>
           <div class="col-lg-3 col-md-6 col-6 mb-3">
-            <div class="card erp-kpi-card h-100 shadow-sm border-0">
+            <div class="card erp-kpi-card erp-kpi-card--primary h-100 shadow-sm border-0">
               <div class="card-body py-3">
                 <div class="erp-kpi-label">إجمالي الالتزامات (عليه)</div>
                 <div class="erp-kpi-value text-danger">{{ '%.2f'|format(ledger_obligations_total) }} ₪</div>
@@ -352,7 +352,7 @@
             </div>
           </div>
           <div class="col-lg-3 col-md-6 col-6 mb-3">
-            <div class="card erp-kpi-card h-100 shadow-sm border-0">
+            <div class="card erp-kpi-card erp-kpi-card--primary h-100 shadow-sm border-0">
               <div class="card-body py-3">
                 <div class="erp-kpi-label">صافي الحركة</div>
                 <div class="erp-kpi-value {{ ledger_net_class }}">{{ '%.2f'|format(ledger_net_total) }} ₪</div>
@@ -361,7 +361,7 @@
             </div>
           </div>
           <div class="col-lg-3 col-md-6 col-6 mb-3">
-            <div class="card erp-kpi-card h-100 shadow-sm border-0">
+            <div class="card erp-kpi-card erp-kpi-card--primary h-100 shadow-sm border-0">
               <div class="card-body py-3">
                 <div class="erp-kpi-label">الرصيد الحالي</div>
                 <div class="erp-kpi-value {{ ledger_closing_class }}">{{ '%.2f'|format(ledger_closing) }} ₪</div>
@@ -373,7 +373,7 @@
       </div>
       {{ scroll_table_start('اسحب أفقياً لعرض كشف الشريك') }}
         <table class="table table-striped mb-0 table-sm printable-table" id="partnerLedgerTable">
-          <thead class="table-light">
+          <thead class="table-header-primary text-white table-light">
             <tr>
               <th style="width:140px">التاريخ</th>
               <th>البيان</th>
@@ -427,14 +427,14 @@
   {% endif %}
   {% endif %}
 
-      <div class="card shadow-sm rounded-4" id="paymentsCard" {% if not payments %}style="display:none"{% endif %}>
+      <div class="card shadow-sm rounded-4{% if not payments %} d-none{% endif %}" id="paymentsCard">
     <div class="card-body p-0">
       <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom bg-light no-print">
         <h5 class="mb-0">سندات الدفع</h5>
       </div>
       {{ scroll_table_start('اسحب أفقياً لعرض كل أعمدة الدفعات') }}
       <table id="paymentsTable" class="table table-hover table-bordered align-middle mb-0 table-sm printable-table">
-        <thead class="table-dark">
+        <thead class="table-header-primary text-white ">
           <tr>
             <th style="width:50px" class="text-center">#</th>
             <th style="width:95px" class="text-center">
@@ -596,7 +596,6 @@
     </script>
     {% endif %}
   {% else %}
-  <script src="{{ url_for('static', filename='js/fx_utils.js') }}"></script>
   <script src="{{ url_for('static', filename='js/payments.js') }}"></script>
   <script src="{{ url_for('static', filename='js/vendors.js') }}"></script>
   <script>

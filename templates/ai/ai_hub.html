@@ -35,7 +35,7 @@
 
   <!-- Main Card -->
   <div class="card ai-card shadow-lg">
-    <div class="card-header text-white" style="background: var(--gradient-primary);">
+    <div class="card-header erp-card-header-row erp-theme-header--primary text-white" style="background: var(--gradient-primary);">
       <div class="d-flex justify-content-between align-items-center">
         <h5 class="mb-0"><i class="fas fa-robot"></i> AI Control Panel</h5>
         <div>
@@ -357,7 +357,7 @@
             <div class="card-body">
               <div class="table-responsive">
                 <table class="table table-hover">
-                  <thead>
+                  <thead class="table-header-primary text-white">
                     <tr>
                       <th>المقياس</th>
                       <th>القيمة</th>
@@ -575,7 +575,7 @@
           
           <!-- Training Progress -->
           <div class="card ai-card mt-4" id="training-progress-card" style="display: none;">
-            <div class="card-header bg-primary text-white">
+            <div class="card-header erp-card-header-row erp-theme-header--primary">
               <i class="fas fa-spinner fa-spin"></i> حالة التدريب
             </div>
             <div class="card-body">
@@ -678,7 +678,7 @@
             ] %}
             <div class="col-lg-4">
               <div class="card ai-card">
-                <div class="card-header bg-{{ api.color }} text-white">
+                <div class="card-header erp-card-header-row erp-theme-header--primary bg-{{ api.color }} text-white">
                   <i class="fas {{ api.icon }}"></i> {{ api.name }}
                 </div>
                 <div class="card-body">
@@ -754,7 +754,7 @@
           
           <!-- AI Alerts Control -->
           <div class="card ai-card mt-4">
-            <div class="card-header bg-gradient text-white" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+            <div class="card-header card-header-primary text-white erp-card-header-row bg-gradient text-white">
               <i class="fas fa-bell"></i> تحذيرات أزاد الذكية
             </div>
             <div class="card-body">

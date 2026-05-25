@@ -188,7 +188,7 @@
           <div class="row">
             <div class="col-md-3">
               <div class="card border-primary">
-                <div class="card-header bg-primary text-white">
+                <div class="card-header erp-card-header-row erp-theme-header--primary">
                   <strong><i class="fas fa-list"></i> الجداول ({{ tables|length }})</strong>
                 </div>
                 <div class="card-body p-0">
@@ -218,7 +218,7 @@
                 <div class="card-body p-0">
                   <div class="table-responsive border rounded" style="max-height: 600px;">
                     <table class="table table-sm table-striped table-hover mb-0">
-                      <thead class="table-dark sticky-top">
+                      <thead class="table-header-primary text-white sticky-top">
                         <tr>
                           {% for col in columns %}
                           <th>{{ col }}</th>
@@ -256,7 +256,7 @@
           <div class="row">
             <div class="col-md-3">
               <div class="card border-success">
-                <div class="card-header bg-success text-white">
+                <div class="card-header erp-card-header-row erp-theme-header--primary bg-success text-white">
                   <strong><i class="fas fa-list"></i> الجداول</strong>
                 </div>
                 <div class="card-body p-0">
@@ -299,7 +299,7 @@
               <!-- جدول البيانات -->
               <div class="table-responsive shadow-sm border rounded" style="max-height: 600px; overflow-y: auto;">
                 <table id="db-edit-table" class="table table-bordered table-hover table-striped mb-0">
-                  <thead class="table-dark sticky-top">
+                  <thead class="table-header-primary text-white sticky-top">
                     <tr>
                       <th style="width: 50px;">#</th>
                       {% for col in columns %}
@@ -388,7 +388,7 @@
           <div class="row">
             <div class="col-md-3">
               <div class="card border-warning">
-                <div class="card-header bg-warning text-dark">
+                <div class="card-header erp-card-header-row erp-theme-header--primary bg-warning text-dark">
                   <strong><i class="fas fa-list"></i> الجداول</strong>
                 </div>
                 <div class="card-body p-0">
@@ -407,7 +407,7 @@
             <div class="col-md-9">
               {% if selected_table and table_info %}
               <div class="card">
-                <div class="card-header bg-warning text-dark">
+                <div class="card-header erp-card-header-row erp-theme-header--primary bg-warning text-dark">
                   <h6 class="mb-0">
                     <i class="fas fa-sitemap"></i> هيكل جدول: {{ selected_table }}
                   </h6>
@@ -415,7 +415,7 @@
                 <div class="card-body">
                   <div class="table-responsive border rounded">
                     <table class="table table-bordered table-striped table-hover mb-0">
-                      <thead class="table-dark">
+                      <thead class="table-header-primary text-white ">
                         <tr>
                           <th>اسم العمود</th>
                           <th>النوع</th>
@@ -543,7 +543,7 @@
                   {% if table.indexes and table.indexes|length > 0 %}
                   <div class="table-responsive border rounded">
                     <table class="table table-sm table-striped table-hover mb-0">
-                      <thead>
+                      <thead class="table-header-primary text-white">
                         <tr>
                           <th>اسم الفهرس</th>
                           <th>الأعمدة</th>
@@ -663,7 +663,7 @@
               {% if audit_logs and audit_logs|length > 0 %}
               <div class="table-responsive">
                 <table class="table table-striped table-hover">
-                  <thead class="table-dark">
+                  <thead class="table-header-primary text-white ">
                     <tr>
                       <th>المستخدم</th>
                       <th>الإجراء</th>
@@ -700,7 +700,7 @@
             
             <div class="log-pane fade {% if log_type == 'system' %}show active{% endif %}" id="log-system" role="tabpanel" aria-labelledby="log-type-trigger-system">
               <div class="card">
-                <div class="card-header bg-dark text-white">
+                <div class="card-header erp-card-header-row erp-theme-header--primary bg-dark text-white">
                   <i class="fas fa-server"></i> سجلات النظام
                 </div>
                 <div class="card-body p-0">
@@ -733,7 +733,7 @@
               </div>
               <div class="table-responsive">
                 <table class="table table-striped table-hover">
-                  <thead class="table-dark">
+                  <thead class="table-header-primary text-white ">
                     <tr>
                       <th>المستخدم</th>
                       <th>الإجراء</th>
@@ -806,7 +806,7 @@
         {% if sql_result.columns %}
         <div class="table-responsive">
           <table class="table table-bordered table-sm">
-            <thead class="table-dark">
+            <thead class="table-header-primary text-white ">
               <tr>
                 {% for col in sql_result.columns %}
                 <th>{{ col }}</th>
@@ -877,7 +877,7 @@
         <div class="row mb-4">
           <div class="col-md-4">
             <div class="card border-warning">
-              <div class="card-header bg-warning text-white">
+              <div class="card-header erp-card-header-row erp-theme-header--primary bg-warning text-white">
                 <h5><i class="fas fa-broom"></i> VACUUM</h5>
               </div>
               <div class="card-body text-center">
@@ -891,7 +891,7 @@
           </div>
           <div class="col-md-4">
             <div class="card border-info">
-              <div class="card-header bg-info text-white">
+              <div class="card-header erp-card-header-row erp-theme-header--primary bg-info text-white">
                 <h5><i class="fas fa-chart-line"></i> ANALYZE</h5>
               </div>
               <div class="card-body text-center">
@@ -905,7 +905,7 @@
           </div>
           <div class="col-md-4">
             <div class="card border-success">
-              <div class="card-header bg-success text-white">
+              <div class="card-header erp-card-header-row erp-theme-header--primary bg-success text-white">
                 <h5><i class="fas fa-save"></i> Backup</h5>
               </div>
               <div class="card-body text-center">
@@ -921,7 +921,7 @@
         <div class="row">
           <div class="col-md-6">
             <div class="card">
-              <div class="card-header bg-dark text-white">
+              <div class="card-header erp-card-header-row erp-theme-header--primary bg-dark text-white">
                 <h5><i class="fas fa-sync"></i> Checkpoint</h5>
               </div>
               <div class="card-body text-center">
@@ -935,7 +935,7 @@
           </div>
           <div class="col-md-6">
             <div class="card">
-              <div class="card-header bg-primary text-white">
+              <div class="card-header erp-card-header-row erp-theme-header--primary">
                 <h5><i class="fas fa-database"></i> معلومات قاعدة البيانات</h5>
               </div>
               <div class="card-body">
@@ -1019,7 +1019,7 @@
           </div>
           
           <div class="card shadow-lg border-0">
-            <div class="card-header bg-danger text-white d-flex align-items-center">
+            <div class="card-header erp-card-header-row erp-theme-header--primary bg-danger text-white d-flex align-items-center">
               <i class="fas fa-database ml-2"></i>
               <h5 class="mb-0">استعادة قاعدة البيانات</h5>
             </div>
@@ -1087,7 +1087,7 @@
         <div class="row">
           <div class="col-md-6">
             <div class="card">
-              <div class="card-header bg-info text-white">
+              <div class="card-header erp-card-header-row erp-theme-header--primary bg-info text-white">
                 <h5><i class="fas fa-lock-open"></i> فك التشفير</h5>
               </div>
               <div class="card-body">
@@ -1122,7 +1122,7 @@
           
           <div class="col-md-6">
             <div class="card">
-              <div class="card-header bg-danger text-white">
+              <div class="card-header erp-card-header-row erp-theme-header--primary bg-danger text-white">
                 <h5><i class="fas fa-bug"></i> تتبع الأخطاء</h5>
               </div>
               <div class="card-body">
@@ -1150,7 +1150,7 @@
              role="tabpanel" aria-labelledby="tab-trigger-archive">
         <div class="container-fluid p-4">
           <div class="card border-success">
-            <div class="card-header bg-success text-white">
+            <div class="card-header erp-card-header-row erp-theme-header--primary bg-success text-white">
               <i class="fas fa-archive"></i> إدارة الأرشيفات - Archived Data
             </div>
             <div class="card-body text-center">

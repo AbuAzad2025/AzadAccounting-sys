@@ -33,20 +33,44 @@ body.security-body.erp-app .security-wrapper {
 
 body.security-body.erp-app .security-header {
   min-height: var(--erp-header-h);
-  background: var(--erp-header-bg) !important;
-  border-bottom: 2px solid var(--erp-gold);
-  color: #fff;
+  background: var(--erp-surface) !important;
+  border-bottom: 1px solid var(--erp-border);
+  color: var(--erp-text);
+  box-shadow: var(--erp-shadow-sm);
 }
 
-body.security-body.erp-app .security-header .breadcrumb-item a,
+body.security-body.erp-app .security-header .breadcrumb-item a {
+  color: var(--erp-muted) !important;
+}
+
 body.security-body.erp-app .security-header .breadcrumb-item.active {
-  color: rgba(255, 255, 255, 0.9) !important;
+  color: var(--erp-primary-dark) !important;
+  font-weight: 600;
 }
 
 body.security-body.erp-app .security-header .btn-glass {
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: var(--erp-surface) !important;
+  border: 1px solid var(--erp-border) !important;
+  color: var(--erp-primary-dark) !important;
+}
+
+body.security-body.erp-app .security-header .btn-glass i {
+  color: var(--erp-primary) !important;
+}
+
+body.security-body.erp-app .security-header .btn-glass:hover {
+  background: var(--erp-primary) !important;
+  border-color: var(--erp-primary) !important;
   color: #fff !important;
+}
+
+body.security-body.erp-app .security-header .btn-glass:hover i {
+  color: #fff !important;
+}
+
+body.security-body.erp-app .security-header #sidebarToggle,
+body.security-body.erp-app .security-header #sidebarToggle i {
+  color: var(--erp-primary-dark) !important;
 }
 
 body.security-body.erp-app .security-footer-unified {

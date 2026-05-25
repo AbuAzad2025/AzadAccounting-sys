@@ -26,7 +26,7 @@
     <div class="col-md-3"><div class="card"><div class="card-body text-center"><h5>{% if auto_allocate %}نعم{% else %}لا{% endif %}</h5><small>توزيع تلقائي</small></div></div></div>
   </div>
   {% endif %}
-  <div class="card mt-3"><div class="card-header">اختصارات</div><div class="card-body row text-center">
+  <div class="card mt-3"><div class="card-header erp-card-header-row erp-theme-header--primary">اختصارات</div><div class="card-body row text-center">
     <div class="col"><a href="{{ url_for('companies_bp.index') }}">الشركات</a></div>
     <div class="col"><a href="{{ url_for('purchases_bp.index') }}">أوامر شراء</a></div>
     <div class="col"><a href="{{ url_for('ledger_control.index') }}">مراقبة الدفتر</a></div>

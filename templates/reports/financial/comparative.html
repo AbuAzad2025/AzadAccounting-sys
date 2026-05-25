@@ -25,7 +25,7 @@
   </div>
   {{ scroll_table_start('جدول المقارنة — اسحب أفقياً') }}
   <table class="table table-sm table-bordered">
-    <thead><tr><th>حساب</th><th>الاسم</th><th>{{ year_a }}</th><th>{{ year_b }}</th><th>فرق</th><th>%</th></tr></thead>
+    <thead class="table-header-primary text-white"><tr><th>حساب</th><th>الاسم</th><th>{{ year_a }}</th><th>{{ year_b }}</th><th>فرق</th><th>%</th></tr></thead>
     <tbody>
       {% for row in data.lines %}
       <tr>

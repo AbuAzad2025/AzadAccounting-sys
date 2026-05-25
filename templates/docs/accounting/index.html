@@ -174,7 +174,7 @@
                 <!-- Documentation Content -->
                 <div id="docContent" class="mt-4" style="display: none;">
                     <div class="card">
-                        <div class="card-header">
+                        <div class="card-header erp-card-header-row erp-theme-header--primary">
                             <h5 id="docTitle">التوثيق</h5>
                         </div>
                         <div class="card-body">
@@ -297,13 +297,13 @@
                     ${Object.entries(accountsByType).map(([type, accounts]) => `
                         <div class="col-md-6 mb-3">
                             <div class="card">
-                                <div class="card-header">
+                                <div class="card-header erp-card-header-row erp-theme-header--primary">
                                     <h6 class="mb-0">${type} (${accounts.length})</h6>
                                 </div>
                                 <div class="card-body">
                                     <div class="table-responsive" style="max-height: 300px;">
                                         <table class="table table-sm">
-                                            <thead>
+                                            <thead class="table-header-primary text-white">
                                                 <tr><th>الكود</th><th>الاسم</th><th>الحالة</th></tr>
                                             </thead>
                                             <tbody>
@@ -338,7 +338,7 @@
                     ${Object.entries(standards).map(([key, standard]) => `
                         <div class="col-md-6 mb-4">
                             <div class="card h-100">
-                                <div class="card-header">
+                                <div class="card-header erp-card-header-row erp-theme-header--primary">
                                     <h6 class="mb-0">${standard.title}</h6>
                                 </div>
                                 <div class="card-body">
@@ -371,7 +371,7 @@
                     ${Object.entries(policies).map(([key, policy]) => `
                         <div class="col-md-6 mb-4">
                             <div class="card h-100">
-                                <div class="card-header">
+                                <div class="card-header erp-card-header-row erp-theme-header--primary">
                                     <h6 class="mb-0">
                                         <i class="fas fa-check-circle text-success ml-2"></i>
                                         ${policy.title}
@@ -417,7 +417,7 @@
                     ${Object.entries(procedures).map(([key, procedure]) => `
                         <div class="col-md-6 mb-4">
                             <div class="card h-100">
-                                <div class="card-header">
+                                <div class="card-header erp-card-header-row erp-theme-header--primary">
                                     <h6 class="mb-0">
                                         <i class="fas fa-tools text-danger ml-2"></i>
                                         ${procedure.title}
@@ -462,7 +462,7 @@
                 <div class="row mb-4">
                     <div class="col-md-12">
                         <div class="card">
-                            <div class="card-header">
+                            <div class="card-header erp-card-header-row erp-theme-header--primary">
                                 <h6 class="mb-0">حسابات GL الأساسية</h6>
                             </div>
                             <div class="card-body">
@@ -483,13 +483,13 @@
                     ${Object.entries(accountsByCategory).map(([category, accounts]) => `
                         <div class="col-md-6 mb-3">
                             <div class="card">
-                                <div class="card-header">
+                                <div class="card-header erp-card-header-row erp-theme-header--primary">
                                     <h6 class="mb-0">${category.toUpperCase()} (${accounts.length})</h6>
                                 </div>
                                 <div class="card-body">
                                     <div class="table-responsive" style="max-height: 300px;">
                                         <table class="table table-sm">
-                                            <thead>
+                                            <thead class="table-header-primary text-white">
                                                 <tr><th>الكود</th><th>الاسم</th><th>الاستخدام</th></tr>
                                             </thead>
                                             <tbody>
@@ -523,7 +523,7 @@
                     ${Object.entries(healthGuide.indicators).map(([level, indicator]) => `
                         <div class="col-md-4 mb-3">
                             <div class="card h-100">
-                                <div class="card-header bg-${level === 'green' ? 'success' : level === 'yellow' ? 'warning' : 'danger'} text-white">
+                                <div class="card-header erp-card-header-row erp-theme-header--primary bg-${level === 'green' ? 'success' : level === 'yellow' ? 'warning' : 'danger'} text-white">
                                     <h6 class="mb-0">
                                         <i class="fas fa-circle ml-2"></i>
                                         ${indicator.description}
@@ -547,7 +547,7 @@
                     ${Object.entries(healthGuide.maintenance_tasks).map(([period, tasks]) => `
                         <div class="col-md-4 mb-3">
                             <div class="card h-100">
-                                <div class="card-header">
+                                <div class="card-header erp-card-header-row erp-theme-header--primary">
                                     <h6 class="mb-0">
                                         <i class="fas fa-calendar-alt ml-2"></i>
                                         ${period === 'daily' ? 'يومياً' : period === 'weekly' ? 'أسبوعياً' : 'شهرياً'}
@@ -566,7 +566,7 @@
                 <div class="row">
                     <div class="col-md-12">
                         <div class="card">
-                            <div class="card-header">
+                            <div class="card-header erp-card-header-row erp-theme-header--primary">
                                 <h6 class="mb-0">
                                     <i class="fas fa-question-circle ml-2"></i>
                                     استكشاف الأخطاء وإصلاحها

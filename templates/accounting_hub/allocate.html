@@ -5,7 +5,7 @@
   <h4>توزيع يدوي — دفعة #{{ payment.id }} ({{ payment.total_amount }})</h4>
   <form method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <table class="table table-sm"><thead><tr><th>مستند</th><th>متبقي</th><th>توزيع</th></tr></thead>
+    <table class="table table-sm"><thead class="table-header-primary text-white"><tr><th>مستند</th><th>متبقي</th><th>توزيع</th></tr></thead>
     <tbody>
       {% for d in open_docs %}
       <tr>

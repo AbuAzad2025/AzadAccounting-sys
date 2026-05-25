@@ -3,9 +3,9 @@
 {% block styles %}
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
 <link rel="stylesheet" href="{{ static_url('css/erp-security-layout.css') }}">
-<link rel="stylesheet" href="{{ static_url('css/erp-security.css') }}">
 <link rel="stylesheet" href="{{ static_url('css/security_responsive.css') }}">
 <link rel="stylesheet" href="{{ static_url('css/erp-security-migrated.css') }}">
+<link rel="stylesheet" href="{{ static_url('css/erp-security.css') }}" id="erp-security-theme-final">
 {% block extra_css %}{% endblock %}
 {% endblock %}
 {% block content %}
@@ -242,13 +242,13 @@
                     <div class="dropdown-menu dropdown-menu-left p-2 erp-theme-switcher" style="min-width: 220px;">
                         <div class="small text-muted px-2 mb-1">الستايل</div>
                         <div class="btn-group btn-group-sm w-100 mb-2">
-                            <button type="button" class="btn btn-outline-light" data-erp-theme-variant="palestinian">فلسطيني</button>
-                            <button type="button" class="btn btn-outline-light" data-erp-theme-variant="gulf">خليجي</button>
+                            <button type="button" class="btn btn-outline-secondary" data-erp-theme-variant="palestinian">فلسطيني</button>
+                            <button type="button" class="btn btn-outline-secondary" data-erp-theme-variant="gulf">خليجي</button>
                         </div>
                         <div class="small text-muted px-2 mb-1">الوضع</div>
                         <div class="btn-group btn-group-sm w-100">
-                            <button type="button" class="btn btn-outline-light" data-erp-theme-mode="light">فاتح</button>
-                            <button type="button" class="btn btn-outline-light" data-erp-theme-mode="dark">داكن</button>
+                            <button type="button" class="btn btn-outline-secondary" data-erp-theme-mode="light">فاتح</button>
+                            <button type="button" class="btn btn-outline-secondary" data-erp-theme-mode="dark">داكن</button>
                         </div>
                     </div>
                 </div>
@@ -259,7 +259,7 @@
                     <span class="d-none d-lg-inline small">بحث سريع</span>
                 </button>
                 
-                <div class="vr h-50 my-auto bg-white opacity-10 mx-1"></div>
+                <div class="vr h-50 my-auto mx-1 sec-header-divider"></div>
                 
                 {% if system_settings and system_settings.maintenance_mode %}
                     <a href="{{ url_for('security.emergency_tools') }}" class="badge badge-danger text-decoration-none">
@@ -410,5 +410,6 @@
         });
     }
 </script>
+<script src="{{ static_url('js/security-tour-guide.js') }}" defer></script>
 {% block scripts %}{% endblock %}
 {% endblock %}

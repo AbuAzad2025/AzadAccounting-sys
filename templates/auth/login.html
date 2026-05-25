@@ -45,23 +45,11 @@
   </form>
 
   <div class="mt-3 row">
-    <div class="col-6"><a href="{{ url_for('auth.customer_register') }}" class="btn btn-outline-primary btn-sm btn-block">إنشاء حساب</a></div>
-    <div class="col-6"><a href="{{ url_for('auth.customer_password_reset_request') }}" class="btn btn-outline-secondary btn-sm btn-block">نسيت كلمة المرور</a></div>
+    <div class="col-12 col-sm-6"><a href="{{ url_for('auth.customer_register') }}" class="btn btn-outline-primary btn-sm btn-block">إنشاء حساب</a></div>
+    <div class="col-12 col-sm-6"><a href="{{ url_for('auth.customer_password_reset_request') }}" class="btn btn-outline-secondary btn-sm btn-block">نسيت كلمة المرور</a></div>
   </div>
 {% endblock %}
 
 {% block auth_scripts %}
-<script>
-(function() {
-  var btn = document.getElementById('login-toggle-pass');
-  var input = document.getElementById('login-password');
-  if (btn && input) {
-    btn.addEventListener('click', function() {
-      var show = input.type === 'password';
-      input.type = show ? 'text' : 'password';
-      btn.querySelector('i').className = show ? 'fas fa-eye-slash' : 'fas fa-eye';
-    });
-  }
-})();
-</script>
+<script src="{{ static_url('js/auth.js') }}" defer></script>
 {% endblock %}

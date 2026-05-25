@@ -7,7 +7,7 @@
     <a href="{{ url_for('purchases_bp.add') }}" class="btn btn-primary btn-sm">أمر شراء جديد</a>
   </div>
   <table class="table table-sm table-bordered">
-    <thead class="table-light"><tr><th>الرقم</th><th>المورد</th><th>التاريخ</th><th>الإجمالي</th><th>الحالة</th><th></th></tr></thead>
+    <thead class="table-header-primary text-white table-light"><tr><th>الرقم</th><th>المورد</th><th>التاريخ</th><th>الإجمالي</th><th>الحالة</th><th></th></tr></thead>
     <tbody>
       {% for o in orders %}
       <tr>

@@ -11,3 +11,5 @@
 @import url("responsive.css");
 @import url("security-bridge.css");
 @import url("pages-financial.css");
+@import url("pages-dashboard.css");
+/* بطاقات KPI: تُحمَّل مرة واحدة آخر <head> — انظر erp_head_assets + base.html */

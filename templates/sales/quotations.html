@@ -5,7 +5,7 @@
   <h4>عروض أسعار / Proforma</h4>
   <a href="{{ url_for('sales_bp.create_quotation') }}" class="btn btn-primary btn-sm mb-2">عرض سعر جديد</a>
   <table class="table table-bordered table-sm">
-    <thead><tr><th>رقم</th><th>زبون</th><th>تاريخ</th><th>مبلغ</th><th></th></tr></thead>
+    <thead class="table-header-primary text-white"><tr><th>رقم</th><th>زبون</th><th>تاريخ</th><th>مبلغ</th><th></th></tr></thead>
     <tbody>
       {% for q in quotes %}
       <tr>

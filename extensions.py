@@ -901,6 +901,43 @@ def restore_database(app, backup_path):
                         return False
                     return True
 
+                def _is_plain_sql_backup(path: str) -> bool:
+                    if path.lower().endswith(".sql"):
+                        return True
+                    try:
+                        with open(path, "rb") as f:
+                            return f.read(5) != b"PGDMP"
+                    except OSError:
+                        return False
+
+                if _is_plain_sql_backup(backup_path):
+                    if not _reset_schema():
+                        return False, "فشل الاستعادة: تعذر إعادة تهيئة المخطط"
+                    apply_cmd = [
+                        psql_bin,
+                        "-h", u.host or "localhost",
+                        "-p", str(u.port or 5432),
+                        "-U", u.username or "postgres",
+                        "-d", u.database,
+                        "-v", "ON_ERROR_STOP=1",
+                        "-f", backup_path,
+                    ]
+                    app.logger.info(f"Starting PostgreSQL plain-SQL restore from {backup_path}")
+                    process = subprocess.run(apply_cmd, env=env, capture_output=True, text=True)
+                    try:
+                        db.session.remove()
+                    except Exception:
+                        pass
+                    try:
+                        db.engine.dispose()
+                    except Exception:
+                        pass
+                    if process.returncode == 0:
+                        app.logger.info("PostgreSQL plain-SQL restore completed successfully")
+                        return True, "تمت استعادة قاعدة البيانات بنجاح"
+                    app.logger.error(f"PostgreSQL plain-SQL restore failed: {process.stderr}")
+                    return False, f"فشل الاستعادة: {process.stderr}"
+
                 if fast_restore:
                     if not _reset_schema():
                         fast_restore = False

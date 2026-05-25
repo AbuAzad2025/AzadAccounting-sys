@@ -771,8 +771,9 @@
         line-height: 1.2;
     }
     
-    /* 5. Bottom Section (Tax, Payroll, etc) */
-    .collapse {
+    /* 5. Bottom Section (Tax, Payroll, etc) — لا تُطبَّق على قائمة الأمان الجانبية */
+    body.security-body.erp-app .security-main .tab-content > .collapse,
+    body.security-body.erp-app .security-main .card .collapse:not(.security-sidebar .collapse) {
         background-color: var(--erp-bg, #f5f7fb);
         color: #212529;
         border: 1px solid #dee2e6;
@@ -780,17 +781,21 @@
         padding: 20px;
         margin-top: 15px;
     }
-    .collapse label { color: #212529; font-weight: bold; }
-    .collapse h4 { color: var(--erp-blue, #0b68ff); }
+    body.security-body.erp-app .security-main .tab-content > .collapse label,
+    body.security-body.erp-app .security-main .card .collapse label { color: #212529; font-weight: bold; }
+    body.security-body.erp-app .security-main .tab-content > .collapse h4,
+    body.security-body.erp-app .security-main .card .collapse h4 { color: var(--erp-primary, #006b3f); }
     
-    /* Dark Mode Support for Bottom Section */
-    body.dark-mode .collapse {
+    body.dark-mode.security-body.erp-app .security-main .tab-content > .collapse,
+    body.dark-mode.security-body.erp-app .security-main .card .collapse:not(.security-sidebar .collapse) {
         background-color: #2c3034;
         color: #fff;
         border-color: #454d55;
     }
-    body.dark-mode .collapse label { color: #fff; }
-    body.dark-mode .collapse .form-control {
+    body.dark-mode.security-body.erp-app .security-main .tab-content > .collapse label,
+    body.dark-mode.security-body.erp-app .security-main .card .collapse label { color: #fff; }
+    body.dark-mode.security-body.erp-app .security-main .tab-content > .collapse .form-control,
+    body.dark-mode.security-body.erp-app .security-main .card .collapse .form-control {
         background-color: #343a40;
         color: #fff;
         border-color: #6c757d;

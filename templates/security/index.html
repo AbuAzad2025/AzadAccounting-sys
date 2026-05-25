@@ -9,6 +9,9 @@
 {% endblock %}
 
 {% block security_actions %}
+<button type="button" class="btn btn-glass btn-sm" onclick="window.SecurityTourGuide && SecurityTourGuide.start('dashboard')">
+  <i class="fas fa-route"></i> جولة تعريفية
+</button>
 <a href="{{ url_for('security.help_page') }}" class="btn btn-glass btn-sm"><i class="fas fa-question-circle"></i> مساعدة</a>
 <a href="{{ url_for('security.sitemap') }}" class="btn btn-glass btn-sm"><i class="fas fa-sitemap"></i> خريطة</a>
 {% endblock %}
@@ -21,7 +24,7 @@
     <div class="sec-card-body">
       <div class="row g-2 erp-sec-actions-grid">
         <div class="col-lg-4 col-md-6">
-          <a href="{{ url_for('security.settings_center') }}" class="erp-sec-action">
+          <a href="{{ url_for('security.settings_center') }}" class="erp-sec-action erp-sec-action--primary">
             <span class="d-flex align-items-center gap-2">
               <span class="erp-sec-action__icon"><i class="fas fa-satellite-dish"></i></span>
               <span>مركز العمليات</span>
@@ -30,7 +33,7 @@
           </a>
         </div>
         <div class="col-lg-4 col-md-6">
-          <a href="{{ url_for('security.monitoring_dashboard') }}" class="erp-sec-action">
+          <a href="{{ url_for('security.monitoring_dashboard') }}" class="erp-sec-action erp-sec-action--info">
             <span class="d-flex align-items-center gap-2">
               <span class="erp-sec-action__icon"><i class="fas fa-chart-line"></i></span>
               <span>لوحة المراقبة</span>
@@ -39,7 +42,7 @@
           </a>
         </div>
         <div class="col-lg-4 col-md-6">
-          <a href="{{ url_for('security.users_center') }}" class="erp-sec-action">
+          <a href="{{ url_for('security.users_center') }}" class="erp-sec-action erp-sec-action--success">
             <span class="d-flex align-items-center gap-2">
               <span class="erp-sec-action__icon"><i class="fas fa-users"></i></span>
               <span>مركز المستخدمين</span>
@@ -48,7 +51,7 @@
           </a>
         </div>
         <div class="col-lg-4 col-md-6">
-          <a href="{{ url_for('security.database_manager') }}" class="erp-sec-action">
+          <a href="{{ url_for('security.database_manager') }}" class="erp-sec-action erp-sec-action--warning">
             <span class="d-flex align-items-center gap-2">
               <span class="erp-sec-action__icon"><i class="fas fa-database"></i></span>
               <span>مدير قاعدة البيانات</span>
@@ -57,7 +60,7 @@
           </a>
         </div>
         <div class="col-lg-4 col-md-6">
-          <a href="{{ url_for('security.integrations') }}" class="erp-sec-action">
+          <a href="{{ url_for('security.integrations') }}" class="erp-sec-action erp-sec-action--primary">
             <span class="d-flex align-items-center gap-2">
               <span class="erp-sec-action__icon"><i class="fas fa-plug"></i></span>
               <span>التكاملات</span>
@@ -136,7 +139,7 @@
     <div class="sec-card-body p-0">
       <div class="table-responsive">
         <table class="table table-hover mb-0">
-          <thead>
+          <thead class="table-header-primary text-white">
             <tr>
               <th>الحدث</th>
               <th>المستخدم</th>

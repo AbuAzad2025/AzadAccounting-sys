@@ -38,7 +38,7 @@
     {% endif %}
     <div class="print-table-wrapper">
       <table class="print-table">
-        <thead>
+        <thead class="table-header-primary text-white">
           <tr>
             <th>#</th>
             <th>تاريخ الإنشاء</th>
@@ -88,9 +88,9 @@
     {% endif %}
   {% endwith %}
 
-  <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2 class="h4 m-0 text-dark"><i class="fas fa-users ml-2"></i> قائمة الزبائن</h2>
-    <div class="btn-group-actions-end no-print">
+  <div class="erp-page-head">
+    <h2 class="h4 m-0 erp-section-title"><i class="fas fa-users ml-2"></i> قائمة الزبائن</h2>
+    <div class="erp-page-head__actions no-print">
       <div class="no-print-inline">
         <a href="{{ url_for('customers_bp.create_form') }}" class="btn btn-primary mr-2">
           <i class="fas fa-user-plus"></i> إضافة زبون
@@ -126,72 +126,53 @@
     </div>
   </div>
 
-  <div class="row mb-4 g-3">
-    <div class="col-lg-2 col-md-4 col-sm-6">
-      <div class="dashboard-stats-card text-white h-100 card-hover shadow-sm border-0" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%); border-radius: 15px;">
-        <div class="card-body d-flex justify-content-between align-items-center">
-          <div>
-            <h6 class="text-white-50 mb-1">إجمالي الزبائن</h6>
-            <h3 class="mb-0 fw-bold">{{ summary.total_customers }}</h3>
-          </div>
-          <i class="fas fa-users fa-2x opacity-50"></i>
+  <div class="summary-cards erp-summary-grid erp-summary-grid--5col no-print mb-4">
+    <div class="summary-card summary-card--primary card-hover">
+      <div class="summary-card__row">
+        <div>
+          <h6>إجمالي الزبائن</h6>
+          <h3>{{ summary.total_customers }}</h3>
         </div>
+        <i class="fas fa-users summary-card__icon"></i>
       </div>
     </div>
-    <div class="col-lg-2 col-md-4 col-sm-6">
-      <div class="card border-0 shadow-sm card-hover {% if summary.total_balance > 0 %}bg-success{% elif summary.total_balance < 0 %}bg-danger{% else %}bg-secondary{% endif %} text-white h-100" style="border-radius: 15px;">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <h6 class="text-white-50 mb-1">الرصيد الصافي</h6>
-              <h3 class="mb-0 fw-bold">{{ "%.2f"|format(summary.total_balance) }} ₪</h3>
-            </div>
-            <i class="fas fa-balance-scale fa-2x opacity-50"></i>
-          </div>
+    <div class="summary-card summary-card--{% if summary.total_balance > 0 %}success{% elif summary.total_balance < 0 %}danger{% else %}neutral{% endif %} card-hover">
+      <div class="summary-card__row">
+        <div>
+          <h6>الرصيد الصافي</h6>
+          <h3>{{ "%.2f"|format(summary.total_balance) }} ₪</h3>
         </div>
+        <i class="fas fa-balance-scale summary-card__icon"></i>
       </div>
     </div>
-    <div class="col-lg-2 col-md-4 col-sm-6">
-      <div class="card border-0 shadow-sm card-hover bg-info text-white h-100" style="border-radius: 15px;">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <h6 class="text-white-50 mb-1">زبائن لهم رصيد</h6>
-              <h3 class="mb-0 fw-bold">{{ summary.customers_with_credit }}</h3>
-            </div>
-            <i class="fas fa-hand-holding-heart fa-2x opacity-50"></i>
-          </div>
+    <div class="summary-card summary-card--info card-hover">
+      <div class="summary-card__row">
+        <div>
+          <h6>زبائن لهم رصيد</h6>
+          <h3>{{ summary.customers_with_credit }}</h3>
         </div>
+        <i class="fas fa-hand-holding-heart summary-card__icon"></i>
       </div>
     </div>
-    <div class="col-lg-2 col-md-4 col-sm-6">
-      <div class="card border-0 shadow-sm card-hover bg-danger text-white h-100" style="border-radius: 15px;">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <h6 class="text-white-50 mb-1">زبائن بذمة</h6>
-              <h3 class="mb-0 fw-bold">{{ summary.customers_with_debt }}</h3>
-            </div>
-            <i class="fas fa-exclamation-triangle fa-2x opacity-50"></i>
-          </div>
+    <div class="summary-card summary-card--danger card-hover">
+      <div class="summary-card__row">
+        <div>
+          <h6>زبائن بذمة</h6>
+          <h3>{{ summary.customers_with_debt }}</h3>
         </div>
+        <i class="fas fa-exclamation-triangle summary-card__icon"></i>
       </div>
     </div>
-    <div class="col-lg-2 col-md-4 col-sm-6">
-      <div class="card border-0 shadow-sm card-hover text-white h-100" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%); border-radius: 15px;">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <h6 class="text-white-50 mb-1">متوسط الرصيد</h6>
-              <h3 class="mb-0 fw-bold">{{ "%.2f"|format(summary.average_balance) }} ₪</h3>
-            </div>
-            <i class="fas fa-chart-line fa-2x opacity-50"></i>
-          </div>
+    <div class="summary-card summary-card--primary card-hover">
+      <div class="summary-card__row">
+        <div>
+          <h6>متوسط الرصيد</h6>
+          <h3>{{ "%.2f"|format(summary.average_balance) }} ₪</h3>
         </div>
+        <i class="fas fa-chart-line summary-card__icon"></i>
       </div>
     </div>
   </div>
-
   <div class="card shadow-sm rounded table-rounded">
     <div class="card-body p-0">
       <div class="p-3 border-bottom bg-light">

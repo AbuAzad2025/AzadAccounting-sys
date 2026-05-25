@@ -4,7 +4,7 @@
 <div class="container py-3" dir="rtl">
   <h4>{{ order.number }} — {{ order.status }}</h4>
   <p>المورد: {{ order.supplier.name if order.supplier else '—' }} | الإجمالي: {{ order.total_amount }} {{ order.currency }}</p>
-  <table class="table table-sm table-bordered"><thead><tr><th>منتج</th><th>كمية</th><th>سعر</th><th>مستلم</th></tr></thead>
+  <table class="table table-sm table-bordered"><thead class="table-header-primary text-white"><tr><th>منتج</th><th>كمية</th><th>سعر</th><th>مستلم</th></tr></thead>
   <tbody>{% for ln in order.lines %}<tr><td>{{ ln.product.name if ln.product else ln.product_id }}</td><td>{{ ln.quantity }}</td><td>{{ ln.unit_price }}</td><td>{{ ln.received_qty }}</td></tr>{% endfor %}</tbody>
   </table>
   <form method="post" action="{{ url_for('purchases_bp.set_status', id=order.id) }}" class="form-inline d-inline-flex align-items-center gap-2">

@@ -256,7 +256,7 @@
   } %}
 
   <div class="card shadow-sm rounded card-hover" style="overflow-x:auto;">
-    <div class="card-header bg-primary text-white">
+    <div class="card-header erp-card-header-row erp-theme-header--primary">
       <h5 class="card-title m-0">
         <i class="fas fa-file-invoice ms-2"></i> كشف حساب: {{ customer.name }}
       </h5>
@@ -270,7 +270,7 @@
       </div>
       <div class="table-responsive table-rounded">
         <table class="table table-bordered table-sm align-middle" id="statementTable" data-no-export="true" data-realtime-statement-customer="{{ customer.id }}" style="border: 2px solid #dee2e6; border-collapse: collapse;">
-          <thead class="table-light" style="background-color: #f8f9fa;">
+          <thead class="table-header-primary text-white table-light" style="background-color: #f8f9fa;">
             <tr>
               <th style="width: 100px; border: 1px solid #dee2e6; padding: 12px; font-weight: bold; text-align: center;">التاريخ</th>
               <th style="border: 1px solid #dee2e6; padding: 12px; font-weight: bold; text-align: center;">البيان</th>
@@ -485,7 +485,7 @@
               <td colspan="6" class="p-0">
                 <div class="sale-items-details" style="background-color: #f8f9fa; padding: 10px; margin: 5px;">
                   <table class="table table-sm table-bordered mb-0" data-no-export="true" style="font-size: 0.85em; border: 1px solid #dee2e6;">
-                    <thead style="background-color: #e9ecef;">
+                    <thead class="table-header-primary text-white" style="background-color: #e9ecef;">
                       <tr>
                         <th style="width: 35%; border: 1px solid #dee2e6; padding: 8px; text-align: center;">البند</th>
                         <th style="width: 10%; border: 1px solid #dee2e6; padding: 8px; text-align: center;">الكمية</th>

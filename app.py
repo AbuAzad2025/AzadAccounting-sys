@@ -1008,8 +1008,8 @@ def _register_app_handlers(app):
     def _forbidden(e):
         app.logger.error("403 FORBIDDEN: %s", request.path)
         if request.path.startswith("/api/") or request.accept_mimetypes.best == "application/json" or request.headers.get("X-Requested-With") == "XMLHttpRequest":
-            from flask import jsonify
-            return jsonify({"error": "غير مصرح لك بهذا الإجراء", "message": "غير مصرح لك بهذا الإجراء"}), 403
+            from utils.ux_messages import json_error
+            return json_error(403, key="permission_denied")
         try:
             return render_template("errors/403.html", path=request.path), 403
         except Exception:
@@ -1018,8 +1018,9 @@ def _register_app_handlers(app):
     @app.errorhandler(404)
     def _not_found(e):
         app.logger.error("404 NOT FOUND: %s", request.path)
-        if request.path.startswith("/api/") or request.accept_mimetypes.best == "application/json":
-            return {"error": "Not Found"}, 404
+        if request.path.startswith("/api/") or request.accept_mimetypes.best == "application/json" or request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            from utils.ux_messages import json_error
+            return json_error(404, key="not_found")
         try:
             return render_template("errors/404.html", path=request.path), 404
         except Exception:
@@ -1472,8 +1473,9 @@ def create_app(config_object=Config) -> Flask:
     @app.errorhandler(400)
     def _bad_request(e):
         app.logger.warning("400 BAD REQUEST: %s - %s", request.path, str(e))
-        if request.path.startswith("/api/") or request.accept_mimetypes.best == "application/json":
-            return {"error": "Bad Request", "message": "طلب غير صالح"}, 400
+        if request.path.startswith("/api/") or request.accept_mimetypes.best == "application/json" or request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            from utils.ux_messages import json_error
+            return json_error(400, key="validation_error")
         try:
             return render_template("errors/400.html", path=request.path, error="طلب غير صالح"), 400
         except Exception:
@@ -1482,8 +1484,9 @@ def create_app(config_object=Config) -> Flask:
     @app.errorhandler(401)
     def _unauthorized(e):
         app.logger.warning("401 UNAUTHORIZED: %s", request.path)
-        if request.path.startswith("/api/") or request.accept_mimetypes.best == "application/json":
-            return {"error": "Unauthorized"}, 401
+        if request.path.startswith("/api/") or request.accept_mimetypes.best == "application/json" or request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            from utils.ux_messages import json_error
+            return json_error(401, key="session_expired")
         try:
             return render_template("errors/401.html", path=request.path), 401
         except Exception:
@@ -1492,8 +1495,9 @@ def create_app(config_object=Config) -> Flask:
     @app.errorhandler(429)
     def _too_many_requests(e):
         app.logger.warning("429 TOO MANY REQUESTS: %s", request.path)
-        if request.path.startswith("/api/") or request.accept_mimetypes.best == "application/json":
-            return {"error": "Too Many Requests"}, 429
+        if request.path.startswith("/api/") or request.accept_mimetypes.best == "application/json" or request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            from utils.ux_messages import json_error
+            return json_error(429, key="network_error", message="طلبات كثيرة. انتظر قليلاً ثم أعد المحاولة.")
         try:
             return render_template("errors/429.html", path=request.path), 429
         except Exception:
@@ -1523,12 +1527,9 @@ def create_app(config_object=Config) -> Flask:
             import traceback
             return f"500 Internal Server Error: {str(e)}\n\n{traceback.format_exc()}", 500
         request_id = getattr(g, "request_id", None)
-        if request.path.startswith("/api/") or request.accept_mimetypes.best == "application/json":
-            return {
-                "error": "Internal Server Error",
-                "message": "حدث خطأ داخلي في الخادم. تم تسجيل الخطأ للمراجعة.",
-                "request_id": request_id,
-            }, 500
+        if request.path.startswith("/api/") or request.accept_mimetypes.best == "application/json" or request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            from utils.ux_messages import json_error
+            return json_error(500, key="internal_error", request_id=request_id)
         try:
             return render_template("errors/500.html", path=request.path, request_id=request_id), 500
         except Exception:

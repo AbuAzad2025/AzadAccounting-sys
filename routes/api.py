@@ -62,81 +62,50 @@ bp = Blueprint("api", __name__, url_prefix="/api")
 
 @bp.errorhandler(404)
 def api_not_found(error):
-    return jsonify({
-        'success': False,
-        'error': 'المورد غير موجود',
-        'code': 404
-    }), 404
+    from utils.ux_messages import json_error
+    return json_error(404, key="not_found", code=404)
 
 @bp.errorhandler(400)
 def api_bad_request(error):
-    return jsonify({
-        'success': False,
-        'error': 'طلب غير صحيح',
-        'code': 400
-    }), 400
+    from utils.ux_messages import json_error
+    return json_error(400, key="validation_error", code=400)
 
 @bp.errorhandler(401)
 def api_unauthorized(error):
-    return jsonify({
-        'success': False,
-        'error': 'غير مصرح لك بالوصول',
-        'code': 401
-    }), 401
+    from utils.ux_messages import json_error
+    return json_error(401, key="session_expired", code=401)
 
 @bp.errorhandler(403)
 def api_forbidden(error):
-    return jsonify({
-        'success': False,
-        'error': 'غير مصرح لك بهذا الإجراء',
-        'code': 403
-    }), 403
+    from utils.ux_messages import json_error
+    return json_error(403, key="permission_denied", code=403)
 
 @bp.errorhandler(500)
 def api_internal_error(error):
     logging.error(f"API Internal Error: {str(error)}")
-    
-    return jsonify({
-        'success': False,
-        'error': 'خطأ داخلي في الخادم',
-        'code': 500
-    }), 500
+    from utils.ux_messages import json_error
+    return json_error(500, key="internal_error", code=500)
 
 @bp.errorhandler(SQLAlchemyError)
 def api_database_error(error):
     logging.error(f"API Database Error: {str(error)}")
-    
     db.session.rollback()
-    
-    return jsonify({
-        'success': False,
-        'error': 'خطأ في قاعدة البيانات',
-        'code': 500
-    }), 500
+    from utils.ux_messages import json_error
+    return json_error(500, key="internal_error", code=500)
 
 @bp.errorhandler(IntegrityError)
 def api_integrity_error(error):
     logging.error(f"API Integrity Error: {str(error)}")
-    
     db.session.rollback()
-    
-    return jsonify({
-        'success': False,
-        'error': 'انتهاك قيود قاعدة البيانات',
-        'code': 400
-    }), 400
+    from utils.ux_messages import json_error
+    return json_error(400, key="duplicate", code=400)
 
 @bp.errorhandler(OperationalError)
 def api_operational_error(error):
     logging.error(f"API Operational Error: {str(error)}")
-    
     db.session.rollback()
-    
-    return jsonify({
-        'success': False,
-        'error': 'خطأ في تشغيل قاعدة البيانات',
-        'code': 500
-    }), 500
+    from utils.ux_messages import json_error
+    return json_error(500, key="internal_error", code=500)
 
 @bp.route("/", methods=["GET"], endpoint="index")
 @bp.route("/docs", methods=["GET"], endpoint="docs")
@@ -189,63 +158,50 @@ def get_current_exchange_rates():
         import time
         
         # محاولة الحصول على القيم من Cache
-        cache_key = 'exchange_rates_cache'
-        cached_data = current_app.config.get('_exchange_rates_cache', {})
-        cache_time = current_app.config.get('_exchange_rates_cache_time', 0)
+        cache_key = '_exchange_rates_cache_v4'
+        cached_data = current_app.config.get(cache_key, {})
+        cache_time = current_app.config.get('_exchange_rates_cache_v4_time', 0)
         
         # إذا كانت البيانات محفوظة وصالحة (أقل من 5 دقائق)
         if cached_data and (time.time() - cache_time) < 300:
             return jsonify(cached_data)
         
         # جلب سعر الدولار مقابل الشيقل
-        try:
-            online_enabled = SystemSettings.get_setting('online_fx_enabled', True)
-        except Exception:
-            online_enabled = True
+        from services.fx_resolution import is_online_fx_enabled
+        online_enabled = is_online_fx_enabled()
 
-        if online_enabled:
-            usd_rate = None
-            jod_rate = None
-            try:
-                r = _fetch_external_fx_rate('USD', 'ILS', datetime.now(timezone.utc))
-                if r and r > 0:
-                    usd_rate = float(r)
-            except Exception:
-                usd_rate = None
-            try:
-                r = _fetch_external_fx_rate('JOD', 'ILS', datetime.now(timezone.utc))
-                if r and r > 0:
-                    jod_rate = float(r)
-            except Exception:
-                jod_rate = None
-            if usd_rate is None:
-                usd_rate = float(get_fx_rate_with_fallback('USD', 'ILS').get('rate', 3.65))
-            if jod_rate is None:
-                jod_rate = float(get_fx_rate_with_fallback('JOD', 'ILS').get('rate', 5.15))
-        else:
-            usd_rate = float(get_fx_rate_with_fallback('USD', 'ILS').get('rate', 3.65))
-            jod_rate = float(get_fx_rate_with_fallback('JOD', 'ILS').get('rate', 5.15))
-        
-        # تجهيز الاستجابة (بدون معلومات حساسة)
+        from services.fx_navbar_provider import fetch_navbar_fx_bundle
+
+        bundle = fetch_navbar_fx_bundle(online_enabled=online_enabled)
+        usd = bundle.get('USD') or {}
+        jod = bundle.get('JOD') or {}
+
         response_data = {
-            'success': True,
-            'USD': float(usd_rate),
-            'JOD': float(jod_rate)
+            'success': bool(bundle.get('success')),
+            'online_enabled': online_enabled,
+            'fetched_at': bundle.get('fetched_at'),
+            'USD': usd,
+            'JOD': jod,
+            'USD_rate': usd.get('rate'),
+            'JOD_rate': jod.get('rate'),
         }
-        
+
         # حفظ في Cache
-        current_app.config['_exchange_rates_cache'] = response_data
-        current_app.config['_exchange_rates_cache_time'] = time.time()
+        current_app.config[cache_key] = response_data
+        current_app.config['_exchange_rates_cache_v4_time'] = time.time()
         
         return jsonify(response_data)
         
-    except Exception as e:
-        # في حالة الخطأ، إرجاع قيم افتراضية
+    except Exception:
+        from services.fx_resolution import is_online_fx_enabled
         return jsonify({
             'success': False,
-            'USD': 3.65,
-            'JOD': 5.15
-        }), 200  # نرجع 200 حتى لا يعتقد المتصفح أن هناك خطأ
+            'online_enabled': is_online_fx_enabled(),
+            'USD': {'rate': None, 'source': 'unavailable', 'success': False},
+            'JOD': {'rate': None, 'source': 'unavailable', 'success': False},
+            'USD_rate': None,
+            'JOD_rate': None,
+        }), 200
 
 from utils import D as _D, _q2
 
@@ -3781,21 +3737,25 @@ def search_supplier_loans():
 
 @bp.app_errorhandler(403)
 def forbidden(e):
-    return jsonify({"error": "Forbidden"}), 403
+    from utils.ux_messages import json_error
+    return json_error(403, key="permission_denied")
 
 @bp.app_errorhandler(429)
 def ratelimit_handler(e):
-    return jsonify({"error": "Too Many Requests", "detail": str(e.description)}), 429
+    from utils.ux_messages import json_error
+    return json_error(429, key="network_error", message="طلبات كثيرة. انتظر قليلاً ثم أعد المحاولة.", detail=str(e.description))
 
 @bp.app_errorhandler(404)
 def not_found(e):
-    return jsonify({"error": "Not Found"}), 404
+    from utils.ux_messages import json_error
+    return json_error(404, key="not_found")
 
 @bp.app_errorhandler(500)
 def server_error(e):
     db.session.rollback()
     current_app.logger.exception("API 500: %s", getattr(e, "description", e))
-    return jsonify({"error": "Server Error"}), 500
+    from utils.ux_messages import json_error
+    return json_error(500, key="internal_error")
 
 # =============================================================================
 # Users search

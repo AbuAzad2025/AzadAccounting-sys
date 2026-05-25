@@ -216,7 +216,7 @@
             <!-- 1. المخزون الحالي -->
             {% if balance_data.rights.inventory.get('items', [])|length > 0 %}
             <div class="card settlement-detail-card">
-                <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                <div class="card-header erp-card-header-row erp-theme-header--primary bg-success text-white d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">
                         <i class="fas fa-boxes"></i> المخزون الحالي (نصيبه من التكلفة)
                         <span class="badge bg-light text-dark">{{ balance_data.rights.inventory.count }}</span>
@@ -228,7 +228,7 @@
                 <div class="card-body">
                     <div class="table-responsive">
                         <table class="table table-sm table-hover" id="inventoryTable">
-                            <thead>
+                            <thead class="table-header-primary text-white">
                                 <tr>
                                     <th>القطعة</th>
                                     <th>SKU</th>
@@ -267,7 +267,7 @@
             <!-- 2. المبيعات -->
             {% if balance_data.rights.sales_share.get('items', [])|length > 0 %}
             <div class="card settlement-detail-card">
-                <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                <div class="card-header erp-card-header-row erp-theme-header--primary bg-success text-white d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">
                         <i class="fas fa-chart-line"></i> نصيبه من المبيعات (من سعر البيع)
                         <span class="badge bg-light text-dark">{{ balance_data.rights.sales_share.count }}</span>
@@ -279,7 +279,7 @@
                 <div class="card-body">
                     <div class="table-responsive">
                         <table class="table table-sm table-hover" id="salesShareTable">
-                            <thead>
+                            <thead class="table-header-primary text-white">
                                 <tr>
                                     <th>النوع</th>
                                     <th>الرقم</th>
@@ -325,7 +325,7 @@
             <!-- 2.5 المرتجعات (تُخصم) -->
             {% if balance_data.rights.sales_returns and balance_data.rights.sales_returns.get('items', [])|length > 0 %}
             <div class="card settlement-detail-card">
-                <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+                <div class="card-header erp-card-header-row erp-theme-header--primary bg-warning text-dark d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">
                         <i class="fas fa-undo"></i> مرتجعات المبيعات (تُخصم من الحقوق)
                         <span class="badge bg-dark text-white">{{ balance_data.rights.sales_returns.count }}</span>
@@ -337,7 +337,7 @@
                 <div class="card-body">
                     <div class="table-responsive">
                         <table class="table table-sm table-hover" id="salesReturnsTable">
-                            <thead>
+                            <thead class="table-header-primary text-white">
                                 <tr>
                                     <th>التاريخ</th>
                                     <th>رقم المرتجع</th>
@@ -380,7 +380,7 @@
             {# ✅ نصيب الحجوزات المسبقة #}
             {% if balance_data.rights.preorders_share and balance_data.rights.preorders_share.get('items', [])|length > 0 %}
             <div class="card settlement-detail-card">
-                <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                <div class="card-header erp-card-header-row erp-theme-header--primary bg-success text-white d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">
                         <i class="fas fa-shopping-bag"></i> نصيب الحجوزات المسبقة
                         <span class="badge bg-light text-dark">{{ balance_data.rights.preorders_share.count }}</span>
@@ -392,7 +392,7 @@
                 <div class="card-body">
                     <div class="table-responsive">
                         <table class="table table-sm table-hover" id="preordersShareTable">
-                            <thead>
+                            <thead class="table-header-primary text-white">
                                 <tr>
                                     <th>رقم الحجز</th>
                                     <th>التاريخ</th>
@@ -439,7 +439,7 @@
             <!-- مبيعات للشريك (كزبون) -->
             {% if balance_data.obligations.sales_to_partner.get('items', [])|length > 0 %}
             <div class="card settlement-detail-card">
-                <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
+                <div class="card-header erp-card-header-row erp-theme-header--primary bg-danger text-white d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">
                         <i class="fas fa-shopping-cart"></i> مبيعات للشريك (كزبون)
                         <span class="badge bg-light text-dark">{{ balance_data.obligations.sales_to_partner.count }}</span>
@@ -451,7 +451,7 @@
                 <div class="card-body">
                     <div class="table-responsive">
                         <table class="table table-sm table-hover" id="salesToPartnerTable">
-                            <thead>
+                            <thead class="table-header-primary text-white">
                                 <tr>
                                     <th>رقم الفاتورة</th>
                                     <th>التاريخ</th>
@@ -493,7 +493,7 @@
             <!-- دفعنا له (OUT) -->
             {% if balance_data.payments.paid_to_partner.get('items', [])|length > 0 %}
             <div class="card settlement-detail-card">
-                <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+                <div class="card-header erp-card-header-row erp-theme-header--primary bg-warning text-dark d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">
                         <i class="fas fa-money-check-alt"></i> دفعنا له (OUT) - تُحسب له
                         <span class="badge bg-light text-dark">{{ balance_data.payments.paid_to_partner.count }}</span>
@@ -505,7 +505,7 @@
                 <div class="card-body">
                     <div class="table-responsive">
                         <table class="table table-sm table-hover" id="paymentOutTable">
-                            <thead>
+                            <thead class="table-header-primary text-white">
                                 <tr>
                                     <th>رقم السند</th>
                                     <th>التاريخ</th>
@@ -547,7 +547,7 @@
             <!-- دفع لنا (IN) -->
             {% if balance_data.payments.received_from_partner.get('items', [])|length > 0 %}
             <div class="card settlement-detail-card">
-                <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+                <div class="card-header erp-card-header-row erp-theme-header--primary bg-warning text-dark d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">
                         <i class="fas fa-hand-holding-usd"></i> دفع لنا (IN) - تُحسب له
                         <span class="badge bg-light text-dark">{{ balance_data.payments.received_from_partner.count }}</span>
@@ -559,7 +559,7 @@
                 <div class="card-body">
                     <div class="table-responsive">
                         <table class="table table-sm table-hover" id="paymentInTable">
-                            <thead>
+                            <thead class="table-header-primary text-white">
                                 <tr>
                                     <th>رقم السند</th>
                                     <th>التاريخ</th>
@@ -601,7 +601,7 @@
             <!-- رسوم صيانة -->
             {% if balance_data.obligations.service_fees.get('items', [])|length > 0 %}
             <div class="card settlement-detail-card">
-                <div class="card-header bg-danger text-white">
+                <div class="card-header erp-card-header-row erp-theme-header--primary bg-danger text-white">
                     <h5 class="mb-0">
                         <i class="fas fa-wrench"></i> رسوم صيانة على الشريك
                         <span class="badge bg-light text-dark">{{ balance_data.obligations.service_fees.count }}</span>
@@ -610,7 +610,7 @@
                 <div class="card-body">
                     <div class="table-responsive">
                         <table class="table table-sm table-hover">
-                            <thead>
+                            <thead class="table-header-primary text-white">
                                 <tr>
                                     <th>رقم الصيانة</th>
                                     <th>التاريخ</th>
@@ -647,7 +647,7 @@
             <!-- قطع تالفة -->
             {% if balance_data.obligations.damaged_items.get('items', [])|length > 0 %}
             <div class="card settlement-detail-card">
-                <div class="card-header bg-danger text-white">
+                <div class="card-header erp-card-header-row erp-theme-header--primary bg-danger text-white">
                     <h5 class="mb-0">
                         <i class="fas fa-trash-alt"></i> قطع تالفة (نصيبه من الخسارة)
                         <span class="badge bg-light text-dark">{{ balance_data.obligations.damaged_items.count }}</span>
@@ -656,7 +656,7 @@
                 <div class="card-body">
                     <div class="table-responsive">
                         <table class="table table-sm table-hover">
-                            <thead>
+                            <thead class="table-header-primary text-white">
                                 <tr>
                                     <th>التاريخ</th>
                                     <th>القطعة</th>
@@ -701,7 +701,7 @@
             {% if balance_data.expenses and balance_data.expenses.get('items', [])|length > 0 %}
             <div class="col-md-6">
                 <div class="card settlement-detail-card">
-                    <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                    <div class="card-header erp-card-header-row erp-theme-header--primary bg-success text-white d-flex justify-content-between align-items-center">
                         <h5 class="mb-0">
                             <i class="fas fa-file-invoice-dollar"></i> توريد خدمة (مصروفات)
                             <span class="badge bg-light text-dark">{{ balance_data.expenses.get('count', 0) }}</span>
@@ -713,7 +713,7 @@
                     <div class="card-body">
                         <div class="table-responsive">
                             <table class="table table-sm table-hover" id="expensesTable">
-                                <thead>
+                                <thead class="table-header-primary text-white">
                                     <tr>
                                         <th>المرجع</th>
                                         <th>التاريخ</th>
@@ -769,7 +769,7 @@
             <!-- التسويات السابقة -->
             {% if balance_data.previous_settlements|length > 0 %}
             <div class="card settlement-detail-card">
-                <div class="card-header bg-secondary text-white">
+                <div class="card-header erp-card-header-row erp-theme-header--primary bg-secondary text-white">
                     <h5 class="mb-0">
                         <i class="fas fa-history"></i> التسويات السابقة
                     </h5>
@@ -777,7 +777,7 @@
                 <div class="card-body">
                     <div class="table-responsive">
                         <table class="table table-sm">
-                            <thead>
+                            <thead class="table-header-primary text-white">
                                 <tr>
                                     <th>الرمز</th>
                                     <th>الفترة</th>

@@ -46,6 +46,10 @@
     if (typeof window.showNotification !== 'function') {
         window.showNotification = function(message, type = 'info') {
             const normalizedType = (type || 'info').toLowerCase();
+            if (window.AzadUX && typeof window.AzadUX.notify === 'function') {
+                window.AzadUX.notify(normalizedType, message);
+                return;
+            }
             if (window.toastr && typeof window.toastr[normalizedType === 'danger' ? 'error' : normalizedType] === 'function') {
                 const toastType = normalizedType === 'danger' ? 'error' : normalizedType;
                 window.toastr[toastType](message);
@@ -179,7 +183,7 @@
                 // فقط عرض الرسالة مرة واحدة وليس لكل محاولة
                 if (!checksLoadErrorShown && xhr.status !== 0) {
                     checksLoadErrorShown = true;
-                    showNotification('فشل جلب الشيكات', 'danger');
+                    showNotification('تعذّر تحميل الشيكات. حدّث الصفحة أو تحقق من الاتصال.', 'danger');
                 }
             }
         });
