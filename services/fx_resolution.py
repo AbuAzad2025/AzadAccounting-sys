@@ -63,6 +63,35 @@ def _fail(base: str, quote: str, at: datetime) -> dict[str, Any]:
     }
 
 
+FX_UPDATE_INTERVAL_MIN = 300
+FX_UPDATE_INTERVAL_MAX = 86400
+FX_UPDATE_INTERVAL_DEFAULT = 3600
+
+
+def get_fx_update_interval_seconds() -> int:
+    """فترة تحديث نافبار FX وكاش /api/exchange-rates (من system_settings)."""
+    try:
+        from models import SystemSettings
+
+        raw = SystemSettings.get_setting("fx_update_interval", FX_UPDATE_INTERVAL_DEFAULT)
+        seconds = int(raw)
+    except (TypeError, ValueError):
+        seconds = FX_UPDATE_INTERVAL_DEFAULT
+    return max(FX_UPDATE_INTERVAL_MIN, min(FX_UPDATE_INTERVAL_MAX, seconds))
+
+
+def clear_fx_navbar_api_cache(app=None) -> None:
+    """إبطال كاش أسعار النافبار بعد تغيير الإعدادات."""
+    try:
+        from flask import current_app
+
+        flask_app = app or current_app
+        flask_app.config.pop("_exchange_rates_cache_v4", None)
+        flask_app.config.pop("_exchange_rates_cache_v4_time", None)
+    except Exception:
+        pass
+
+
 def is_online_fx_enabled() -> bool:
     try:
         from models import SystemSettings

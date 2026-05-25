@@ -42,7 +42,9 @@
                 <div class="row align-items-end mb-4">
                     <div class="col-md-8">
                         <h5 class="mb-1">فترة تحديث أسعار الصرف</h5>
-                        <p class="text-muted mb-0 small">المدة بين التحديثات التلقائية (بالثواني).</p>
+                        <p class="text-muted mb-0 small">
+                            تُطبَّق على الشريط العلوي وواجهة <code>/api/exchange-rates</code> (بالثواني).
+                        </p>
                     </div>
                     <div class="col-md-4 mt-2 mt-md-0">
                         <form method="POST" action="{{ url_for('currencies.update_interval') }}">

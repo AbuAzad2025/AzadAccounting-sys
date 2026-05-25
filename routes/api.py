@@ -150,24 +150,26 @@ def get_current_exchange_rates():
     """
     """جلب أسعار الصرف الحالية - متاح للجميع لعرضها في navbar
     
-    محمي بـ Rate Limiting (20 طلب/دقيقة) والنتائج محفوظة مؤقتاً (5 دقائق)
+    محمي بـ Rate Limiting (20 طلب/دقيقة) والنتائج محفوظة مؤقتاً حسب fx_update_interval.
     """
     try:
-        from models import get_fx_rate_with_fallback, _fetch_external_fx_rate, SystemSettings
         from flask import current_app
         import time
-        
+
+        from services.fx_resolution import get_fx_update_interval_seconds, is_online_fx_enabled
+
+        cache_ttl = get_fx_update_interval_seconds()
+
         # محاولة الحصول على القيم من Cache
         cache_key = '_exchange_rates_cache_v4'
         cached_data = current_app.config.get(cache_key, {})
         cache_time = current_app.config.get('_exchange_rates_cache_v4_time', 0)
-        
-        # إذا كانت البيانات محفوظة وصالحة (أقل من 5 دقائق)
-        if cached_data and (time.time() - cache_time) < 300:
+
+        if cached_data and (time.time() - cache_time) < cache_ttl:
+            if 'refresh_interval_seconds' not in cached_data:
+                cached_data = {**cached_data, 'refresh_interval_seconds': cache_ttl}
             return jsonify(cached_data)
-        
-        # جلب سعر الدولار مقابل الشيقل
-        from services.fx_resolution import is_online_fx_enabled
+
         online_enabled = is_online_fx_enabled()
 
         from services.fx_navbar_provider import fetch_navbar_fx_bundle
@@ -180,6 +182,7 @@ def get_current_exchange_rates():
             'success': bool(bundle.get('success')),
             'online_enabled': online_enabled,
             'fetched_at': bundle.get('fetched_at'),
+            'refresh_interval_seconds': cache_ttl,
             'USD': usd,
             'JOD': jod,
             'USD_rate': usd.get('rate'),
@@ -193,10 +196,11 @@ def get_current_exchange_rates():
         return jsonify(response_data)
         
     except Exception:
-        from services.fx_resolution import is_online_fx_enabled
+        from services.fx_resolution import get_fx_update_interval_seconds, is_online_fx_enabled
         return jsonify({
             'success': False,
             'online_enabled': is_online_fx_enabled(),
+            'refresh_interval_seconds': get_fx_update_interval_seconds(),
             'USD': {'rate': None, 'source': 'unavailable', 'success': False},
             'JOD': {'rate': None, 'source': 'unavailable', 'success': False},
             'USD_rate': None,

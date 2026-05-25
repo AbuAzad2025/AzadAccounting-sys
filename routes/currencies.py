@@ -402,13 +402,20 @@ def test_exchange_rate():
 @login_required
 def currency_settings():
     """إعدادات أسعار الصرف"""
-    # إعدادات العملات
+    from services.fx_resolution import get_fx_update_interval_seconds
+
     online_fx_enabled = SystemSettings.get_setting('online_fx_enabled', True)
-    fx_update_interval = SystemSettings.get_setting('fx_update_interval', 3600)  # ساعة
-    
-    return render_template('currencies/settings.html', 
-                         online_fx_enabled=online_fx_enabled,
-                         fx_update_interval=fx_update_interval)
+    fx_update_interval = get_fx_update_interval_seconds()
+    currencies_count = Currency.query.filter_by(is_active=True).count()
+    rates_count = ExchangeRate.query.filter_by(is_active=True).count()
+
+    return render_template(
+        'currencies/settings.html',
+        online_fx_enabled=online_fx_enabled,
+        fx_update_interval=fx_update_interval,
+        currencies_count=currencies_count,
+        rates_count=rates_count,
+    )
 
 @currencies_bp.route("/settings/toggle-online", methods=['POST'], endpoint="toggle_online")
 @login_required
@@ -424,7 +431,10 @@ def toggle_online_fx():
             'تشغيل/إيقاف جلب أسعار الصرف من السيرفرات الأونلاين',
             'boolean'
         )
-        
+        from services.fx_resolution import clear_fx_navbar_api_cache
+
+        clear_fx_navbar_api_cache()
+
         flash(f"تم {'تشغيل' if new_value else 'إيقاف'} جلب أسعار الصرف الأونلاين", 'success')
         return redirect(url_for('currencies.settings'))
     except Exception as e:
@@ -443,14 +453,20 @@ def update_fx_interval():
             flash('فترة التحديث يجب أن تكون 5 دقائق على الأقل', 'error')
             return redirect(url_for('currencies.settings'))
         
+        from services.fx_resolution import clear_fx_navbar_api_cache, get_fx_update_interval_seconds
+
         SystemSettings.set_setting(
             'fx_update_interval',
             interval,
             'فترة تحديث أسعار الصرف بالثواني',
             'number'
         )
-        
-        flash('تم تحديث فترة التحديث بنجاح', 'success')
+        clear_fx_navbar_api_cache()
+
+        flash(
+            f'تم تحديث فترة التحديث بنجاح ({get_fx_update_interval_seconds()} ثانية — النافبار وواجهة API)',
+            'success',
+        )
         return redirect(url_for('currencies.settings'))
     except Exception as e:
         current_app.logger.exception('internal error')

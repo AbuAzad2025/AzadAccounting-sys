@@ -275,6 +275,20 @@
     });
   }
 
+  var fxRefreshTimer = null;
+  var fxRefreshFallbackMs = 5 * 60 * 1000;
+
+  function scheduleFxRefresh(intervalMs) {
+    var ms = Number(intervalMs);
+    if (isNaN(ms) || ms < 300000) {
+      ms = fxRefreshFallbackMs;
+    }
+    if (fxRefreshTimer) {
+      clearInterval(fxRefreshTimer);
+    }
+    fxRefreshTimer = window.setInterval(updateExchangeRates, ms);
+  }
+
   function updateExchangeRates() {
     return fetch("/api/exchange-rates", {
       headers: { Accept: "application/json" },
@@ -296,6 +310,9 @@
           normalizeFxPayload(data, "JOD") ||
             (data.JOD_rate > 0 ? { rate: data.JOD_rate, source: data.source } : null)
         );
+        if (data.refresh_interval_seconds) {
+          scheduleFxRefresh(Number(data.refresh_interval_seconds) * 1000);
+        }
         try {
           window.dispatchEvent(new CustomEvent("erp:fx-rates-updated", { detail: data }));
         } catch (_) {}
@@ -337,7 +354,6 @@
     bindPushmenu();
     initCompactLayout();
     updateExchangeRates();
-    window.setInterval(updateExchangeRates, 5 * 60 * 1000);
     window.addEventListener("resize", onLayoutChange);
     window.addEventListener("orientationchange", function () {
       setTimeout(onLayoutChange, 200);
