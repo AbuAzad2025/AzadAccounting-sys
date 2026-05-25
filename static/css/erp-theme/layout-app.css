@@ -215,9 +215,11 @@ html[dir="rtl"] body.erp-app:not(.security-body).sidebar-hidden .main-sidebar {
   }
 
   html[dir="rtl"] body.erp-app:not(.security-body).layout-navbar-fixed .content-wrapper {
-    margin-top: calc(var(--erp-header-h) + env(safe-area-inset-top, 0px)) !important;
+    margin-top: calc(
+      var(--gm-navbar-height, var(--erp-header-h, 56px)) + env(safe-area-inset-top, 0px)
+    ) !important;
     padding-top: 0 !important;
-    min-height: calc(100vh - var(--erp-header-h));
+    min-height: calc(100vh - var(--gm-navbar-height, var(--erp-header-h, 56px)));
   }
 
   html[dir="rtl"] body.erp-app:not(.security-body) .main-footer.erp-footer {

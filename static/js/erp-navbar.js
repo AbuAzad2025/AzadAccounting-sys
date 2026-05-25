@@ -21,10 +21,9 @@
   function updateNavbarHeight() {
     var navbar = document.querySelector(".main-header.navbar");
     if (navbar) {
-      document.documentElement.style.setProperty(
-        "--gm-navbar-height",
-        navbar.offsetHeight + "px"
-      );
+      var h = navbar.offsetHeight + "px";
+      document.documentElement.style.setProperty("--gm-navbar-height", h);
+      document.documentElement.style.setProperty("--erp-header-h", h);
     }
   }
 

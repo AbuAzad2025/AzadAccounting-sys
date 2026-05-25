@@ -13,7 +13,7 @@
 
 {% endblock %}
 
-{% block breadcrumb %}
+{% block breadcrumb_extra %}
 <li class="breadcrumb-item"><a href="{{ url_for('warehouse_bp.preorders_list') }}">الحجوزات المسبقة</a></li>
 <li class="breadcrumb-item active">{{ edit_mode and 'تعديل' or 'جديد' }}</li>
 {% endblock %}

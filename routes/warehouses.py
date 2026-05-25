@@ -3278,6 +3278,15 @@ def preorders_list():
     per_page = min(100, max(1, request.args.get("per_page", 25, type=int)))
     pagination = q.paginate(page=page, per_page=per_page, error_out=False)
     preorders = pagination.items
+    prepaid_total = (
+        q.with_entities(func.coalesce(func.sum(PreOrder.prepaid_amount), 0)).scalar() or 0
+    )
+    preorder_stats = {
+        "total": pagination.total,
+        "pending": q.filter(PreOrder.status == "PENDING").count(),
+        "fulfilled": q.filter(PreOrder.status == "FULFILLED").count(),
+        "prepaid_total": float(prepaid_total),
+    }
     wants_json = (request.args.get("format") == "json") or ("application/json" in request.headers.get("Accept", ""))
     if wants_json:
         def _entity_info(p):
@@ -3307,7 +3316,13 @@ def preorders_list():
                 }
             )
         return jsonify({"data": data, "meta": {"page": pagination.page, "per_page": pagination.per_page, "total": pagination.total, "pages": pagination.pages}})
-    return render_template("parts/preorders_list.html", preorders=preorders, pagination=pagination, filters={"status": status or None, "code": code or None, "date_from": df or None, "date_to": dt or None})
+    return render_template(
+        "parts/preorders_list.html",
+        preorders=preorders,
+        pagination=pagination,
+        preorder_stats=preorder_stats,
+        filters={"status": status or None, "code": code or None, "date_from": df or None, "date_to": dt or None},
+    )
 
 
 @warehouse_bp.route("/preorders/create", methods=["GET", "POST"], endpoint="preorder_create")
