@@ -22,6 +22,12 @@ def _fd(**kw):
 FORM_META = {"csrf": False}
 
 
+def _is_fallback_qsf():
+    """Check if QuerySelectField is the fallback class (not wtforms_sqlalchemy)."""
+    import forms as _fm
+    return not hasattr(_fm.QuerySelectField, '_wtforms_sqlalchemy')
+
+
 class TestDateTimeLocalField:
     def test_imported_class(self):
         from wtforms.fields import DateTimeLocalField
@@ -58,7 +64,10 @@ class TestCurrencyChoices:
 
     def test_db_exception(self, mocker):
         from forms import currency_choices, CURRENCY_CHOICES
-        mocker.patch("forms.CurrencyModel.query.filter", side_effect=Exception("DB down"))
+        from models import Currency as CurrencyModel
+        mock_q = mock.MagicMock()
+        mock_q.filter.side_effect = Exception("DB down")
+        mocker.patch.object(CurrencyModel, 'query', mock_q)
         assert currency_choices(include_blank=False) == CURRENCY_CHOICES
 
     def test_no_blank(self, app):
@@ -99,24 +108,34 @@ class TestQuerySelectFieldFallback:
         return self._make_form(**field_kw).q
 
     def test_init_defaults(self):
+        if not _is_fallback_qsf():
+            pytest.skip("Real wtforms_sqlalchemy.QuerySelectField in use")
         f = self._make_field(query_factory=lambda: [])
         assert f.allow_blank is False
 
     def test_init_with_blank(self):
+        if not _is_fallback_qsf():
+            pytest.skip("Real wtforms_sqlalchemy.QuerySelectField in use")
         f = self._make_field(query_factory=lambda: [], allow_blank=True, blank_text="---")
         assert f.allow_blank is True and f.blank_text == "---"
 
     def test_refresh_choices_with_query(self):
+        if not _is_fallback_qsf():
+            pytest.skip("Real wtforms_sqlalchemy.QuerySelectField in use")
         o1, o2 = mock.MagicMock(id=1), mock.MagicMock(id=2)
         o1.name = "A"; o2.name = "B"
         f = self._make_field(query_factory=lambda: [o1, o2], get_label="name")
         assert ("1", "A") in f.choices and ("2", "B") in f.choices
 
     def test_refresh_choices_with_blank(self):
+        if not _is_fallback_qsf():
+            pytest.skip("Real wtforms_sqlalchemy.QuerySelectField in use")
         f = self._make_field(query_factory=lambda: [], allow_blank=True)
         assert ("", "—") in f.choices
 
     def test_refresh_choices_fallback_label(self):
+        if not _is_fallback_qsf():
+            pytest.skip("Real wtforms_sqlalchemy.QuerySelectField in use")
         class FakeObj:
             id = 5
             name = "Item"
@@ -124,49 +143,71 @@ class TestQuerySelectFieldFallback:
         assert ("5", "Item") in f.choices
 
     def test_refresh_choices_callable_get_label(self):
+        if not _is_fallback_qsf():
+            pytest.skip("Real wtforms_sqlalchemy.QuerySelectField in use")
         f = self._make_field(query_factory=lambda: [mock.MagicMock(id=3, code="XYZ")], get_label=lambda o: o.code)
         assert ("3", "XYZ") in f.choices
 
     def test_process_formdata_blank_allowed(self):
+        if not _is_fallback_qsf():
+            pytest.skip("Real wtforms_sqlalchemy.QuerySelectField in use")
         f = self._make_field(query_factory=lambda: [mock.MagicMock(id=10)], allow_blank=True)
         f.process_formdata([""]); assert f.data is None
 
     def test_process_formdata_blank_allowed_none_string(self):
+        if not _is_fallback_qsf():
+            pytest.skip("Real wtforms_sqlalchemy.QuerySelectField in use")
         f = self._make_field(query_factory=lambda: [], allow_blank=True)
         f.process_formdata(["None"]); assert f.data is None
 
     def test_process_formdata_maps_to_obj(self):
+        if not _is_fallback_qsf():
+            pytest.skip("Real wtforms_sqlalchemy.QuerySelectField in use")
         obj = mock.MagicMock(id=10, name="Item")
         f = self._make_field(query_factory=lambda: [obj], get_label="name")
         f.process_formdata(["10"]); assert f.data is obj
 
     def test_process_formdata_no_valuelist(self):
+        if not _is_fallback_qsf():
+            pytest.skip("Real wtforms_sqlalchemy.QuerySelectField in use")
         f = self._make_field(query_factory=lambda: [])
         f.process_formdata([]); assert f.data is None
 
     def test_process_data_none(self):
+        if not _is_fallback_qsf():
+            pytest.skip("Real wtforms_sqlalchemy.QuerySelectField in use")
         f = self._make_field(query_factory=lambda: [])
         f.process_data(None); assert f.data is None
 
     def test_process_data_empty_string(self):
+        if not _is_fallback_qsf():
+            pytest.skip("Real wtforms_sqlalchemy.QuerySelectField in use")
         f = self._make_field(query_factory=lambda: [])
         f.process_data(""); assert f.data is None
 
     def test_process_data_has_id(self):
+        if not _is_fallback_qsf():
+            pytest.skip("Real wtforms_sqlalchemy.QuerySelectField in use")
         obj = mock.MagicMock(id=7)
         f = self._make_field(query_factory=lambda: [obj])
         f.process_data(obj); assert f.data is obj
 
     def test_process_data_str_id_maps(self):
+        if not _is_fallback_qsf():
+            pytest.skip("Real wtforms_sqlalchemy.QuerySelectField in use")
         obj = mock.MagicMock(id=7)
         f = self._make_field(query_factory=lambda: [obj])
         f.process_data("7"); assert f.data is obj
 
     def test_pre_validate_blank_allowed_none(self):
+        if not _is_fallback_qsf():
+            pytest.skip("Real wtforms_sqlalchemy.QuerySelectField in use")
         f = self._make_field(query_factory=lambda: [], allow_blank=True)
         f.data = None; f.pre_validate(None)
 
     def test_pre_validate_raises_when_none(self):
+        if not _is_fallback_qsf():
+            pytest.skip("Real wtforms_sqlalchemy.QuerySelectField in use")
         from wtforms import ValidationError
         f = self._make_field(query_factory=lambda: [])
         f.data = None
@@ -174,11 +215,15 @@ class TestQuerySelectFieldFallback:
             f.pre_validate(None)
 
     def test_pre_validate_has_obj_with_id(self):
+        if not _is_fallback_qsf():
+            pytest.skip("Real wtforms_sqlalchemy.QuerySelectField in use")
         obj = mock.MagicMock(id=10)
         f = self._make_field(query_factory=lambda: [obj])
         f.process_data(obj); f.pre_validate(None)
 
     def test_pre_validate_unknown_id_raises(self):
+        if not _is_fallback_qsf():
+            pytest.skip("Real wtforms_sqlalchemy.QuerySelectField in use")
         from wtforms import ValidationError
         f = self._make_field(query_factory=lambda: [mock.MagicMock(id=1)])
         f.data = mock.MagicMock(id=99)
@@ -186,6 +231,8 @@ class TestQuerySelectFieldFallback:
             f.pre_validate(None)
 
     def test_pre_validate_unknown_str_raises(self):
+        if not _is_fallback_qsf():
+            pytest.skip("Real wtforms_sqlalchemy.QuerySelectField in use")
         from wtforms import ValidationError
         f = self._make_field(query_factory=lambda: [mock.MagicMock(id=1)])
         f.data = "99"
@@ -441,8 +488,9 @@ class TestSupplierLoanSettlementForm:
     def test_supplier_mismatch_with_loan(self, mocker):
         from forms import SupplierLoanSettlementForm
         from datetime import datetime
+        from extensions import db as _db
         loan_mock = mock.MagicMock(supplier_id=2)
-        mocker.patch("forms.db.session.get", return_value=loan_mock)
+        mocker.patch.object(_db.session, 'get', return_value=loan_mock)
         form = SupplierLoanSettlementForm(
             _fd(loan_id="5", supplier_id="1", settled_price="100"),
             meta=FORM_META,
@@ -462,7 +510,8 @@ class TestSupplierLoanSettlementForm:
 class TestInvoiceRefundForm:
     def test_refund_amount_exceeds_refundable(self, mocker):
         from forms import InvoiceRefundForm
-        mocker.patch("forms.db.session.get", return_value=mock.MagicMock(refundable_amount=Decimal("50")))
+        from extensions import db as _db
+        mocker.patch.object(_db.session, 'get', return_value=mock.MagicMock(refundable_amount=Decimal("50")))
         form = InvoiceRefundForm(_fd(invoice_id="1", amount="100", reason="Test"), meta=FORM_META)
         assert form.validate() is False
         assert "amount" in form.errors
@@ -477,21 +526,24 @@ class TestInvoiceRefundForm:
 class TestInvoiceCancelForm:
     def test_invoice_not_found(self, mocker):
         from forms import InvoiceCancelForm
-        mocker.patch("forms.db.session.get", return_value=None)
+        from extensions import db as _db
+        mocker.patch.object(_db.session, 'get', return_value=None)
         form = InvoiceCancelForm(_fd(invoice_id="99", cancel_reason="Duplicate"), meta=FORM_META)
         assert form.validate() is False
         assert "invoice_id" in form.errors
 
     def test_invoice_already_cancelled(self, mocker):
         from forms import InvoiceCancelForm
-        mocker.patch("forms.db.session.get", return_value=mock.MagicMock(status="CANCELLED"))
+        from extensions import db as _db
+        mocker.patch.object(_db.session, 'get', return_value=mock.MagicMock(status="CANCELLED"))
         form = InvoiceCancelForm(_fd(invoice_id="1", cancel_reason="Duplicate"), meta=FORM_META)
         assert form.validate() is False
         assert "invoice_id" in form.errors
 
     def test_db_exception_graceful(self, mocker):
         from forms import InvoiceCancelForm
-        mocker.patch("forms.db.session.get", side_effect=Exception("DB down"))
+        from extensions import db as _db
+        mocker.patch.object(_db.session, 'get', side_effect=Exception("DB down"))
         form = InvoiceCancelForm(_fd(invoice_id="1", cancel_reason="Duplicate"), meta=FORM_META)
         assert form.validate() is True
 
@@ -583,7 +635,8 @@ class TestLoanSettlementPaymentForm:
 class TestPaymentFormInit:
     def test_init_default_direction_for_expense(self, app, mocker):
         from forms import PaymentForm
-        mocker.patch("forms.utils.prepare_payment_form_choices")
+        import utils
+        mocker.patch.object(utils, 'prepare_payment_form_choices')
         with app.test_request_context():
             admin = mock.MagicMock(is_system_account=True)
             admin.username = "admin"; admin.role.name = "admin"
@@ -596,7 +649,8 @@ class TestPaymentFormHelpers:
     @staticmethod
     def _make_form(app, mocker):
         from forms import PaymentForm
-        mocker.patch("forms.utils.prepare_payment_form_choices")
+        import utils
+        mocker.patch.object(utils, 'prepare_payment_form_choices')
         with app.test_request_context():
             admin = mock.MagicMock(is_system_account=True)
             admin.username = "admin"; admin.role.name = "admin"
@@ -617,7 +671,8 @@ class TestPaymentFormHelpers:
 
     def test_sync_entity_id_known(self, app, mocker):
         from forms import PaymentForm
-        mocker.patch("forms.utils.prepare_payment_form_choices")
+        import utils
+        mocker.patch.object(utils, 'prepare_payment_form_choices')
         with app.test_request_context():
             admin = mock.MagicMock(is_system_account=True)
             admin.username = "admin"; admin.role.name = "admin"
@@ -628,7 +683,8 @@ class TestPaymentFormHelpers:
 
     def test_sync_entity_id_unknown(self, app, mocker):
         from forms import PaymentForm
-        mocker.patch("forms.utils.prepare_payment_form_choices")
+        import utils
+        mocker.patch.object(utils, 'prepare_payment_form_choices')
         with app.test_request_context():
             admin = mock.MagicMock(is_system_account=True)
             admin.username = "admin"; admin.role.name = "admin"
@@ -639,7 +695,8 @@ class TestPaymentFormHelpers:
 
     def test_push_entity_id_to_specific(self, app, mocker):
         from forms import PaymentForm
-        mocker.patch("forms.utils.prepare_payment_form_choices")
+        import utils
+        mocker.patch.object(utils, 'prepare_payment_form_choices')
         with app.test_request_context():
             admin = mock.MagicMock(is_system_account=True)
             admin.username = "admin"; admin.role.name = "admin"
@@ -653,7 +710,8 @@ class TestPaymentFormHelpers:
 
     def test_push_entity_id_unknown_type(self, app, mocker):
         from forms import PaymentForm
-        mocker.patch("forms.utils.prepare_payment_form_choices")
+        import utils
+        mocker.patch.object(utils, 'prepare_payment_form_choices')
         with app.test_request_context():
             admin = mock.MagicMock(is_system_account=True)
             admin.username = "admin"; admin.role.name = "admin"
@@ -665,7 +723,8 @@ class TestPaymentFormHelpers:
 class TestPaymentFormValidate:
     def test_unknown_entity_type(self, app, mocker):
         from forms import PaymentForm
-        mocker.patch("forms.utils.prepare_payment_form_choices")
+        import utils
+        mocker.patch.object(utils, 'prepare_payment_form_choices')
         with app.test_request_context():
             admin = mock.MagicMock(is_system_account=True)
             admin.username = "admin"; admin.role.name = "admin"
@@ -680,7 +739,8 @@ class TestPaymentFormValidate:
 
     def test_bad_direction(self, app, mocker):
         from forms import PaymentForm
-        mocker.patch("forms.utils.prepare_payment_form_choices")
+        import utils
+        mocker.patch.object(utils, 'prepare_payment_form_choices')
         with app.test_request_context():
             admin = mock.MagicMock(is_system_account=True)
             admin.username = "admin"; admin.role.name = "admin"
@@ -695,7 +755,8 @@ class TestPaymentFormValidate:
 
     def test_missing_customer(self, app, mocker):
         from forms import PaymentForm
-        mocker.patch("forms.utils.prepare_payment_form_choices")
+        import utils
+        mocker.patch.object(utils, 'prepare_payment_form_choices')
         with app.test_request_context():
             admin = mock.MagicMock(is_system_account=True)
             admin.username = "admin"; admin.role.name = "admin"
@@ -709,7 +770,8 @@ class TestPaymentFormValidate:
 
     def test_duplicate_references_fails(self, app, mocker):
         from forms import PaymentForm
-        mocker.patch("forms.utils.prepare_payment_form_choices")
+        import utils
+        mocker.patch.object(utils, 'prepare_payment_form_choices')
         with app.test_request_context():
             admin = mock.MagicMock(is_system_account=True)
             admin.username = "admin"; admin.role.name = "admin"
@@ -724,8 +786,10 @@ class TestPaymentFormValidate:
 
     def test_direction_not_allowed_fails(self, app, mocker):
         from forms import PaymentForm
-        mocker.patch("forms.utils.prepare_payment_form_choices")
-        mocker.patch("models.is_direction_allowed", return_value=False)
+        import utils
+        mocker.patch.object(utils, 'prepare_payment_form_choices')
+        from models import is_direction_allowed
+        mocker.patch.object(is_direction_allowed, '__call__', return_value=False)
         with app.test_request_context():
             admin = mock.MagicMock(is_system_account=True)
             admin.username = "admin"; admin.role.name = "admin"
@@ -740,7 +804,8 @@ class TestPaymentFormValidate:
 
     def test_cheque_method_validates(self, app, mocker):
         from forms import PaymentForm
-        mocker.patch("forms.utils.prepare_payment_form_choices")
+        import utils
+        mocker.patch.object(utils, 'prepare_payment_form_choices')
         with app.test_request_context():
             admin = mock.MagicMock(is_system_account=True)
             admin.username = "admin"; admin.role.name = "admin"
@@ -767,7 +832,8 @@ class TestPaymentFormValidate:
 
     def test_card_method_validates(self, app, mocker):
         from forms import PaymentForm
-        mocker.patch("forms.utils.prepare_payment_form_choices")
+        import utils
+        mocker.patch.object(utils, 'prepare_payment_form_choices')
         with app.test_request_context():
             admin = mock.MagicMock(is_system_account=True)
             admin.username = "admin"; admin.role.name = "admin"
@@ -791,14 +857,13 @@ class TestPaymentFormValidate:
                 split.card_holder.data = "Test"
                 split.card_expiry.data = "12/28"
                 v = form.validate()
-                if not v:
-                    print(f"CARD errors: {form.errors}", flush=True)
                 assert v is True
                 assert len(form.card_number.data) == 4
 
     def test_bank_method_validates(self, app, mocker):
         from forms import PaymentForm
-        mocker.patch("forms.utils.prepare_payment_form_choices")
+        import utils
+        mocker.patch.object(utils, 'prepare_payment_form_choices')
         with app.test_request_context():
             admin = mock.MagicMock(is_system_account=True)
             admin.username = "admin"; admin.role.name = "admin"
@@ -821,7 +886,8 @@ class TestPaymentFormValidate:
 
     def test_online_method_validates(self, app, mocker):
         from forms import PaymentForm
-        mocker.patch("forms.utils.prepare_payment_form_choices")
+        import utils
+        mocker.patch.object(utils, 'prepare_payment_form_choices')
         with app.test_request_context():
             admin = mock.MagicMock(is_system_account=True)
             admin.username = "admin"; admin.role.name = "admin"
