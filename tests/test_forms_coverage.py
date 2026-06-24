@@ -25,7 +25,7 @@ FORM_META = {"csrf": False}
 def _is_fallback_qsf():
     """Check if QuerySelectField is the fallback class (not wtforms_sqlalchemy)."""
     import forms as _fm
-    return not hasattr(_fm.QuerySelectField, '_wtforms_sqlalchemy')
+    return _fm.QuerySelectField.__module__ == 'forms'
 
 
 class TestDateTimeLocalField:
@@ -64,10 +64,7 @@ class TestCurrencyChoices:
 
     def test_db_exception(self, mocker):
         from forms import currency_choices, CURRENCY_CHOICES
-        from models import Currency as CurrencyModel
-        mock_q = mock.MagicMock()
-        mock_q.filter.side_effect = Exception("DB down")
-        mocker.patch.object(CurrencyModel, 'query', mock_q)
+        mocker.patch("models.Currency.query.filter", side_effect=Exception("DB down"))
         assert currency_choices(include_blank=False) == CURRENCY_CHOICES
 
     def test_no_blank(self, app):
@@ -488,9 +485,8 @@ class TestSupplierLoanSettlementForm:
     def test_supplier_mismatch_with_loan(self, mocker):
         from forms import SupplierLoanSettlementForm
         from datetime import datetime
-        from extensions import db as _db
         loan_mock = mock.MagicMock(supplier_id=2)
-        mocker.patch.object(_db.session, 'get', return_value=loan_mock)
+        mocker.patch("extensions.db.session.get", return_value=loan_mock)
         form = SupplierLoanSettlementForm(
             _fd(loan_id="5", supplier_id="1", settled_price="100"),
             meta=FORM_META,
@@ -510,8 +506,7 @@ class TestSupplierLoanSettlementForm:
 class TestInvoiceRefundForm:
     def test_refund_amount_exceeds_refundable(self, mocker):
         from forms import InvoiceRefundForm
-        from extensions import db as _db
-        mocker.patch.object(_db.session, 'get', return_value=mock.MagicMock(refundable_amount=Decimal("50")))
+        mocker.patch("extensions.db.session.get", return_value=mock.MagicMock(refundable_amount=Decimal("50")))
         form = InvoiceRefundForm(_fd(invoice_id="1", amount="100", reason="Test"), meta=FORM_META)
         assert form.validate() is False
         assert "amount" in form.errors
@@ -526,24 +521,21 @@ class TestInvoiceRefundForm:
 class TestInvoiceCancelForm:
     def test_invoice_not_found(self, mocker):
         from forms import InvoiceCancelForm
-        from extensions import db as _db
-        mocker.patch.object(_db.session, 'get', return_value=None)
+        mocker.patch("extensions.db.session.get", return_value=None)
         form = InvoiceCancelForm(_fd(invoice_id="99", cancel_reason="Duplicate"), meta=FORM_META)
         assert form.validate() is False
         assert "invoice_id" in form.errors
 
     def test_invoice_already_cancelled(self, mocker):
         from forms import InvoiceCancelForm
-        from extensions import db as _db
-        mocker.patch.object(_db.session, 'get', return_value=mock.MagicMock(status="CANCELLED"))
+        mocker.patch("extensions.db.session.get", return_value=mock.MagicMock(status="CANCELLED"))
         form = InvoiceCancelForm(_fd(invoice_id="1", cancel_reason="Duplicate"), meta=FORM_META)
         assert form.validate() is False
         assert "invoice_id" in form.errors
 
     def test_db_exception_graceful(self, mocker):
         from forms import InvoiceCancelForm
-        from extensions import db as _db
-        mocker.patch.object(_db.session, 'get', side_effect=Exception("DB down"))
+        mocker.patch("extensions.db.session.get", side_effect=Exception("DB down"))
         form = InvoiceCancelForm(_fd(invoice_id="1", cancel_reason="Duplicate"), meta=FORM_META)
         assert form.validate() is True
 
@@ -788,8 +780,7 @@ class TestPaymentFormValidate:
         from forms import PaymentForm
         import utils
         mocker.patch.object(utils, 'prepare_payment_form_choices')
-        from models import is_direction_allowed
-        mocker.patch.object(is_direction_allowed, '__call__', return_value=False)
+        mocker.patch("models.is_direction_allowed", return_value=False)
         with app.test_request_context():
             admin = mock.MagicMock(is_system_account=True)
             admin.username = "admin"; admin.role.name = "admin"
@@ -1135,9 +1126,8 @@ class TestWarehouseForm:
 
     def test_circular_parent_detected(self, mocker):
         from forms import WarehouseForm
-        from extensions import db as _db
         parent = mock.MagicMock(id=2, parent_id=1)
-        mocker.patch.object(_db.session, 'get', return_value=parent)
+        mocker.patch("extensions.db.session.get", return_value=parent)
         fd = _fd(name="WH", warehouse_type="MAIN", id="1", parent_id="2")
         form = WarehouseForm(fd, meta=FORM_META)
         assert form.validate() is False
