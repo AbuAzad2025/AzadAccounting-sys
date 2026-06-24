@@ -909,3 +909,331 @@ class TestPaymentFormValidate:
                 split.online_gateway.data = "Stripe"
                 split.online_ref.data = "pi_123"
                 assert form.validate() is True
+
+
+class TestBulkPaymentForm:
+    """BulkPaymentForm: allocation validation, amount matching, payer validation."""
+
+    def _bd(self):
+        """Return a fresh MultiDict with required BulkPaymentForm fields."""
+        md = MultiDict()
+        md["payer_type"] = "customer"
+        md["payer_id"] = "1"
+        md["total_amount"] = "100"
+        md["method"] = "CASH"
+        md["currency"] = "ILS"
+        return md
+
+    def test_valid_form(self):
+        from forms import BulkPaymentForm
+        md = self._bd()
+        md.setlist("allocations-0-invoice_ids", ["5"])
+        md.setlist("allocations-0-allocation_amounts-0", ["100"])
+        form = BulkPaymentForm(md, meta=FORM_META)
+        assert form.validate() is True
+
+    def test_total_mismatch(self):
+        from forms import BulkPaymentForm
+        md = self._bd()
+        md.setlist("allocations-0-invoice_ids", ["5"])
+        md.setlist("allocations-0-allocation_amounts-0", ["50"])
+        form = BulkPaymentForm(md, meta=FORM_META)
+        assert form.validate() is False
+        assert "total_amount" in form.errors
+
+    def test_no_allocations_nonempty(self):
+        from forms import BulkPaymentForm
+        md = self._bd()
+        md.setlist("allocations-0-invoice_ids", ["5"])
+        md.setlist("allocations-0-allocation_amounts-0", ["0"])
+        form = BulkPaymentForm(md, meta=FORM_META)
+        assert form.validate() is False
+        assert "allocations" in form.errors
+
+    def test_invalid_payer_id(self):
+        from forms import BulkPaymentForm
+        md = self._bd()
+        md["payer_id"] = "abc"
+        md.setlist("allocations-0-invoice_ids", ["5"])
+        md.setlist("allocations-0-allocation_amounts-0", ["100"])
+        form = BulkPaymentForm(md, meta=FORM_META)
+        assert form.validate() is False
+        assert "payer_id" in form.errors
+
+    def test_supplier_with_service_ids(self):
+        from forms import BulkPaymentForm
+        md = self._bd()
+        md["payer_type"] = "supplier"
+        md.setlist("allocations-0-invoice_ids", ["5"])
+        md.setlist("allocations-0-allocation_amounts-0", ["100"])
+        md.setlist("allocations-0-service_ids", ["1"])
+        form = BulkPaymentForm(md, meta=FORM_META)
+        assert form.validate() is False
+        assert "allocations" in form.errors
+
+    def test_multiple_allocations(self):
+        from forms import BulkPaymentForm
+        md = self._bd()
+        md["total_amount"] = "150"
+        md.setlist("allocations-0-invoice_ids", ["5"])
+        md.setlist("allocations-0-allocation_amounts-0", ["100"])
+        md.setlist("allocations-1-invoice_ids", ["6"])
+        md.setlist("allocations-1-allocation_amounts-0", ["50"])
+        form = BulkPaymentForm(md, meta=FORM_META)
+        assert form.validate() is True
+
+
+class TestSplitEntryForm:
+    """SplitEntryForm: payment method validation for each method type."""
+
+    def test_amount_zero_without_details(self):
+        from forms import SplitEntryForm
+        form = SplitEntryForm(_fd(currency="ILS"), meta=FORM_META)
+        assert form.validate() is True
+
+    def test_amount_zero_with_details_errors(self):
+        from forms import SplitEntryForm
+        fd = _fd(currency="ILS", amount="0", check_number="123", check_bank="TestBank")
+        form = SplitEntryForm(fd, meta=FORM_META)
+        assert form.validate() is False
+        assert "amount" in form.errors
+
+    def test_amount_positive_without_method_errors(self):
+        from forms import SplitEntryForm
+        fd = _fd(currency="ILS", amount="100")
+        form = SplitEntryForm(fd, meta=FORM_META)
+        assert form.validate() is False
+        assert "method" in form.errors
+
+    def test_cheque_valid(self):
+        from forms import SplitEntryForm
+        fd = _fd(currency="ILS", amount="100", method="CHEQUE",
+                 check_number="123", check_bank="TestBank", check_due_date="2026-07-01")
+        form = SplitEntryForm(fd, meta=FORM_META)
+        assert form.validate() is True
+
+    def test_cheque_missing_fields_raises(self, mocker):
+        from forms import SplitEntryForm
+        from wtforms import ValidationError
+        mocker.patch.object(SplitEntryForm, '_validate_cheque',
+                            side_effect=ValidationError("Cheque error"))
+        fd = _fd(currency="ILS", amount="100", method="CHEQUE")
+        form = SplitEntryForm(fd, meta=FORM_META)
+        assert form.validate() is False
+        assert "method" in form.errors
+
+    def test_bank_valid(self):
+        from forms import SplitEntryForm
+        fd = _fd(currency="ILS", amount="100", method="BANK",
+                 bank_transfer_ref="TRF001")
+        form = SplitEntryForm(fd, meta=FORM_META)
+        assert form.validate() is True
+
+    def test_card_valid(self, mocker):
+        from forms import SplitEntryForm
+        mocker.patch.object(SplitEntryForm, '_validate_card_payload', return_value="1234")
+        fd = _fd(currency="ILS", amount="100", method="CARD",
+                 card_number="4111111111111111", card_holder="Test", card_expiry="12/28")
+        form = SplitEntryForm(fd, meta=FORM_META)
+        assert form.validate() is True
+        assert form.card_number.data == "1234"
+
+    def test_online_valid(self):
+        from forms import SplitEntryForm
+        fd = _fd(currency="ILS", amount="100", method="ONLINE",
+                 online_gateway="Stripe", online_ref="pi_123")
+        form = SplitEntryForm(fd, meta=FORM_META)
+        assert form.validate() is True
+
+
+class TestWarehouseForm:
+    """WarehouseForm: type-specific validation, online slug, parent hierarchy."""
+
+    def test_main_warehouse_simple(self):
+        from forms import WarehouseForm
+        fd = _fd(name="Main WH", warehouse_type="MAIN")
+        form = WarehouseForm(fd, meta=FORM_META)
+        assert form.validate() is True
+        assert form.partner_id.data is None
+        assert form.supplier_id.data is None
+
+    def test_online_warehouse_requires_unique_slug(self, mocker):
+        from forms import WarehouseForm
+        from models import Warehouse as W
+        mock_q = mock.MagicMock()
+        mock_q.filter.return_value.first.return_value = mock.MagicMock(id=99)
+        mocker.patch.object(W, 'query', mock_q)
+        fd = _fd(name="Online WH", warehouse_type="ONLINE", online_slug="my-shop")
+        form = WarehouseForm(fd, meta=FORM_META)
+        assert form.validate() is False
+        assert "online_slug" in form.errors
+
+    def test_online_warehouse_unique_slug_ok(self, mocker):
+        from forms import WarehouseForm
+        from models import Warehouse as W
+        mock_q = mock.MagicMock()
+        mock_q.filter.return_value.first.return_value = None
+        mocker.patch.object(W, 'query', mock_q)
+        fd = _fd(name="Online WH", warehouse_type="ONLINE", online_slug="my-shop")
+        form = WarehouseForm(fd, meta=FORM_META)
+        assert form.validate() is True
+
+    def test_online_is_default_unique(self, mocker):
+        from forms import WarehouseForm
+        from models import Warehouse as W
+        mock_q = mock.MagicMock()
+        mock_q.filter.return_value.first.side_effect = [
+            None,
+            mock.MagicMock(id=99),
+        ]
+        mocker.patch.object(W, 'query', mock_q)
+        fd = _fd(name="Online WH", warehouse_type="ONLINE",
+                 online_slug="my-shop", online_is_default="y")
+        form = WarehouseForm(fd, meta=FORM_META)
+        assert form.validate() is False
+        assert "online_is_default" in form.errors
+
+    def test_online_slug_not_allowed_for_non_online(self):
+        from forms import WarehouseForm
+        fd = _fd(name="WH", warehouse_type="MAIN", online_slug="sluggy")
+        form = WarehouseForm(fd, meta=FORM_META)
+        assert form.validate() is False
+        assert "online_slug" in form.errors
+
+    def test_exchange_warehouse_requires_supplier(self):
+        from forms import WarehouseForm
+        fd = _fd(name="Exchange WH", warehouse_type="EXCHANGE")
+        form = WarehouseForm(fd, meta=FORM_META)
+        assert form.validate() is False
+        assert "supplier_id" in form.errors
+
+    def test_exchange_with_supplier_ok(self):
+        from forms import WarehouseForm
+        fd = _fd(name="Exchange WH", warehouse_type="EXCHANGE", supplier_id="5")
+        form = WarehouseForm(fd, meta=FORM_META)
+        assert form.validate() is True
+
+    def test_partner_warehouse_requires_partner(self):
+        from forms import WarehouseForm
+        fd = _fd(name="Partner WH", warehouse_type="PARTNER")
+        form = WarehouseForm(fd, meta=FORM_META)
+        assert form.validate() is False
+        assert "partner_id" in form.errors
+
+    def test_partner_with_partner_ok(self):
+        from forms import WarehouseForm
+        fd = _fd(name="Partner WH", warehouse_type="PARTNER", partner_id="3")
+        form = WarehouseForm(fd, meta=FORM_META)
+        assert form.validate() is True
+
+    def test_self_parent_rejected(self):
+        from forms import WarehouseForm
+        fd = _fd(name="WH", warehouse_type="MAIN", id="7", parent_id="7")
+        form = WarehouseForm(fd, meta=FORM_META)
+        assert form.validate() is False
+        assert "parent_id" in form.errors
+
+    def test_circular_parent_detected(self, mocker):
+        from forms import WarehouseForm
+        from extensions import db as _db
+        parent = mock.MagicMock(id=2, parent_id=1)
+        mocker.patch.object(_db.session, 'get', return_value=parent)
+        fd = _fd(name="WH", warehouse_type="MAIN", id="1", parent_id="2")
+        form = WarehouseForm(fd, meta=FORM_META)
+        assert form.validate() is False
+        assert "parent_id" in form.errors
+
+    def test_inventory_clears_partner_supplier(self):
+        from forms import WarehouseForm
+        fd = _fd(name="Inv WH", warehouse_type="INVENTORY", partner_id="3", supplier_id="5")
+        form = WarehouseForm(fd, meta=FORM_META)
+        assert form.validate() is True
+        assert form.partner_id.data is None
+        assert form.supplier_id.data is None
+
+
+class TestSaleForm:
+    """SaleForm: line validation, at least one valid line required."""
+
+    def _sd(self, **kw):
+        md = MultiDict()
+        for k, v in kw.items():
+            if v is not None:
+                md[k] = str(v)
+        return md
+
+    def test_no_lines_fails(self):
+        from forms import SaleForm
+        fd = self._sd(customer_id="1", seller_employee_id="1", currency="ILS")
+        form = SaleForm(fd, meta=FORM_META)
+        assert form.validate() is False
+
+    def test_valid_line(self):
+        from forms import SaleForm
+        fd = self._sd(customer_id="1", seller_employee_id="1", currency="ILS")
+        fd.setlist("lines-0-product_id", ["10"])
+        fd.setlist("lines-0-warehouse_id", ["5"])
+        fd.setlist("lines-0-quantity", ["2"])
+        fd.setlist("lines-0-unit_price", ["50"])
+        form = SaleForm(fd, meta=FORM_META)
+        assert form.validate() is True
+
+    def test_line_missing_product_fails(self):
+        from forms import SaleForm
+        fd = self._sd(customer_id="1", seller_employee_id="1", currency="ILS")
+        fd.setlist("lines-0-quantity", ["2"])
+        fd.setlist("lines-0-unit_price", ["50"])
+        form = SaleForm(fd, meta=FORM_META)
+        assert form.validate() is False
+        assert "lines" in form.errors
+
+    def test_line_quantity_zero_fails(self):
+        from forms import SaleForm
+        fd = self._sd(customer_id="1", seller_employee_id="1", currency="ILS")
+        fd.setlist("lines-0-product_id", ["10"])
+        fd.setlist("lines-0-warehouse_id", ["5"])
+        fd.setlist("lines-0-quantity", ["0"])
+        fd.setlist("lines-0-unit_price", ["50"])
+        form = SaleForm(fd, meta=FORM_META)
+        assert form.validate() is False
+        assert "lines" in form.errors
+
+
+class TestInvoiceForm:
+    """InvoiceForm: basic validation, field presence."""
+
+    def _id(self, **kw):
+        md = MultiDict()
+        for k, v in kw.items():
+            if v is not None:
+                md[k] = str(v)
+        return md
+
+    def test_valid_invoice(self):
+        from forms import InvoiceForm
+        fd = self._id(invoice_number="INV-001", invoice_date="2026-06-25 10:00",
+                      source="SALE", kind="INVOICE", currency="ILS", total_amount="500")
+        fd.setlist("lines-0-product_id", ["1"])
+        fd.setlist("lines-0-description", ["Widget"])
+        fd.setlist("lines-0-quantity", ["1.00"])
+        fd.setlist("lines-0-unit_price", ["500"])
+        form = InvoiceForm(fd, meta=FORM_META)
+        assert form.validate() is True
+
+    def test_missing_required_fields(self):
+        from forms import InvoiceForm
+        fd = self._id(invoice_number="INV-001")
+        form = InvoiceForm(fd, meta=FORM_META)
+        assert form.validate() is False
+        assert "invoice_date" in form.errors or "source" in form.errors
+
+    def test_invoice_type_credit_note(self):
+        from forms import InvoiceForm
+        fd = self._id(invoice_number="CN-001", invoice_date="2026-06-25 10:00",
+                      source="SALE", kind="CREDIT_NOTE", currency="ILS", total_amount="100")
+        fd.setlist("lines-0-product_id", ["1"])
+        fd.setlist("lines-0-description", ["Return"])
+        fd.setlist("lines-0-quantity", ["1.00"])
+        fd.setlist("lines-0-unit_price", ["100"])
+        form = InvoiceForm(fd, meta=FORM_META)
+        assert form.validate() is True
