@@ -909,7 +909,7 @@ class ProductSupplierLoanForm(FlaskForm):
         ok = super().validate(extra_validators=extra_validators)
         if not ok:
             return False
-        if self.is_settled.data and (self.deferred_price.data is None or str(self.deferred_price.data).strip() in ("", "0", "0.0")):
+        if self.is_settled.data and (self.deferred_price.data is None or str(self.deferred_price.data).strip() in ("", "0", "0.0", "0.00")):
             self.deferred_price.errors.append("❌ عند تحديد التسوية يجب إدخال السعر المؤجل.")
             ok = False
         return ok

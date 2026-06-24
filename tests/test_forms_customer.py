@@ -328,6 +328,15 @@ class TestCustomerForm:
         )
         assert form.validate() is True
 
+    def test_phone_empty_after_normalize_raises(self, db_session):
+        form = CustomerForm(
+            _formdata(name="Test", phone="   ",
+                      category="عادي", currency="ILS"),
+            meta=self.FORM_META,
+        )
+        assert form.validate() is False
+        assert "phone" in form.errors
+
 
 class TestCustomerFormOnline:
     def test_customer_form_online_imports(self):

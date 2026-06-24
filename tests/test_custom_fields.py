@@ -7,6 +7,20 @@ from wtforms.validators import ValidationError, StopValidation
 
 # ─── Helper functions tests ────────────────────────────────────────────────
 
+class TestUtcNowNaive:
+    def test_returns_naive_datetime(self):
+        from forms import _utc_now_naive
+        dt = _utc_now_naive()
+        assert dt.tzinfo is None
+
+    def test_returns_recent_time(self):
+        from forms import _utc_now_naive
+        dt = _utc_now_naive()
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        diff = abs((now - dt).total_seconds())
+        assert diff < 5
+
+
 class TestQ2:
     def test_quantizes_string(self):
         from forms import Q2
@@ -141,6 +155,10 @@ class TestCleanImagePath:
         from forms import _clean_image_path
         assert _clean_image_path("   ") is None
 
+    def test_relative_path_uses_basename(self):
+        from forms import _clean_image_path
+        assert _clean_image_path("subdir/image.jpg") == "image.jpg"
+
 
 class TestNormalizePhone:
     def test_basic_normalize(self):
@@ -223,6 +241,15 @@ class TestEnumChoices:
         result = enum_choices(42)
         assert result == [] or result == [("", "— اختر —")]
 
+    def test_broken_enum_raises_exception(self, app):
+        from forms import enum_choices
+        class Broken:
+            @property
+            def __members__(self):
+                raise RuntimeError("broken")
+        result = enum_choices(Broken)
+        assert result == [] or result == [("", "— اختر —")]
+
 
 class TestCurrencyChoices:
     def test_fallback_when_no_db(self, app):
@@ -300,7 +327,15 @@ class TestMoneyField:
         from wtforms.form import Form
         class F(Form):
             amount = MoneyField()
-        form = F(MultiDict([("amount", "abc")]))
+        form = F(MultiDict([("amount", "not-a-number")]))
+        assert form.amount.data is None
+
+    def test_non_decimal_exception_caught(self, app):
+        from forms import MoneyField
+        from wtforms.form import Form
+        class F(Form):
+            amount = MoneyField()
+        form = F(MultiDict([("amount", "1.2.3")]))
         assert form.amount.data is None
 
     def test_empty_returns_none(self, app):
@@ -368,7 +403,15 @@ class TestPercentField:
         from wtforms.form import Form
         class F(Form):
             rate = PercentField()
-        form = F(MultiDict([("rate", "abc")]))
+        form = F(MultiDict([("rate", "not-a-number")]))
+        assert form.rate.data is None
+
+    def test_garbled_input_sets_none(self, app):
+        from forms import PercentField
+        from wtforms.form import Form
+        class F(Form):
+            rate = PercentField()
+        form = F(MultiDict([("rate", "12x")]))
         assert form.rate.data is None
 
 
@@ -409,7 +452,39 @@ class TestEnumSelectField:
         class F(Form):
             cat = EnumSelectField(CustomerCategory)
         form = F()
-        assert form.cat.data in (None, "None", "")
+        assert form.cat.data in (None, "", "None")
+
+    def test_enum_member_without_label(self, app):
+        import enum
+        from forms import EnumSelectField
+        from wtforms.form import Form
+        class Simple(str, enum.Enum):
+            A = "alpha"
+            B = "beta"
+        class F(Form):
+            val = EnumSelectField(Simple)
+        form = F(MultiDict([("val", "alpha")]))
+        assert form.validate()
+        assert form.val.data == "alpha"
+
+    def test_non_enum_input(self, app):
+        from forms import EnumSelectField
+        from wtforms.form import Form
+        class F(Form):
+            val = EnumSelectField(["x", "y"])
+        form = F(MultiDict([("val", "x")]))
+        assert form.validate()
+        assert form.val.data == "x"
+
+    def test_broken_enum_fallback(self, app):
+        from forms import EnumSelectField
+        from wtforms.form import Form
+        class BrokenEnum:
+            __members__ = property(lambda _: (_ for _ in ()).throw(RuntimeError()))
+        class F(Form):
+            val = EnumSelectField(BrokenEnum)
+        form = F()
+        assert form.val.data in (None, "", "None")
 
 
 class TestCurrencySelectField:
@@ -458,6 +533,18 @@ class TestPaymentDetailsMixin:
         obj = PaymentDetailsMixin()
         result = obj._validate_card_payload("4111111111111111", "Test User", "12/28")
         assert result == "1111"
+
+    def test_validate_card_payload_missing_holder(self, app):
+        from forms import PaymentDetailsMixin
+        obj = PaymentDetailsMixin()
+        with pytest.raises(ValidationError, match="اسم حامل البطاقة"):
+            obj._validate_card_payload("4111111111111111", "", "12/28")
+
+    def test_validate_card_payload_invalid_expiry(self, app):
+        from forms import PaymentDetailsMixin
+        obj = PaymentDetailsMixin()
+        with pytest.raises(ValidationError, match="تاريخ الانتهاء غير صالح"):
+            obj._validate_card_payload("4111111111111111", "Test", "13/99")
 
     def test_validate_cheque_missing_number(self, app):
         from forms import PaymentDetailsMixin
@@ -610,6 +697,117 @@ class TestAjaxSelectMultipleField:
         form = F()
         assert form.ids.data == []
 
+    def test_process_formdata_skips_empty(self, app):
+        from forms import AjaxSelectMultipleField
+        from wtforms.form import Form
+        class F(Form):
+            ids = AjaxSelectMultipleField("Products", endpoint="api.search")
+        form = F(MultiDict([("ids", ""), ("ids", "1")]))
+        assert form.ids.data == [1]
+
+    def test_process_formdata_skips_null_strings(self, app):
+        from forms import AjaxSelectMultipleField
+        from wtforms.form import Form
+        class F(Form):
+            ids = AjaxSelectMultipleField("Products", endpoint="api.search")
+        form = F(MultiDict([("ids", "none"), ("ids", "null"), ("ids", "0")]))
+        assert form.ids.data == []
+
+    def test_process_formdata_bad_coerce(self, app):
+        from forms import AjaxSelectMultipleField
+        from wtforms.form import Form
+        class F(Form):
+            ids = AjaxSelectMultipleField("Products", endpoint="api.search", coerce=int)
+        form = F(MultiDict([("ids", "not-a-number")]))
+        assert form.ids.data == ["not-a-number"]
+
+    def test_process_data_with_obj(self, app):
+        from forms import AjaxSelectMultipleField
+        from wtforms.form import Form
+        class Obj:
+            id = 42
+        class F(Form):
+            ids = AjaxSelectMultipleField("Products", endpoint="api.search", coerce=int)
+        form = F()
+        form.ids.process_data([Obj()])
+        assert form.ids.data == [42]
+
+    def test_process_data_with_list_of_scalars(self, app):
+        from forms import AjaxSelectMultipleField
+        from wtforms.form import Form
+        class F(Form):
+            ids = AjaxSelectMultipleField("Products", endpoint="api.search")
+        form = F()
+        form.ids.process_data([1, 2, 3])
+        assert form.ids.data == [1, 2, 3]
+
+    def test_process_data_empty(self, app):
+        from forms import AjaxSelectMultipleField
+        from wtforms.form import Form
+        class F(Form):
+            ids = AjaxSelectMultipleField("Products", endpoint="api.search")
+        form = F()
+        form.ids.process_data(None)
+        assert form.ids.data == []
+
+    def test_process_data_single_value(self, app):
+        from forms import AjaxSelectMultipleField
+        from wtforms.form import Form
+        class F(Form):
+            ids = AjaxSelectMultipleField("Products", endpoint="api.search", coerce=int)
+        form = F()
+        form.ids.process_data(99)
+        assert form.ids.data == [99]
+
+    def test_process_data_coerce_fallback(self, app):
+        from forms import AjaxSelectMultipleField
+        from wtforms.form import Form
+        class F(Form):
+            ids = AjaxSelectMultipleField("Products", endpoint="api.search", coerce=int)
+        form = F()
+        form.ids.process_data([object()])
+        assert len(form.ids.data) == 1
+
+
+class TestAjaxSelectFieldProcessData:
+    def test_process_data_with_obj(self, app):
+        from forms import AjaxSelectField
+        from wtforms.form import Form
+        class Obj:
+            id = 7
+        class F(Form):
+            pid = AjaxSelectField("Product", endpoint="api.search")
+        form = F()
+        form.pid.process_data(Obj())
+        assert form.pid.data == 7
+
+    def test_process_data_with_raw(self, app):
+        from forms import AjaxSelectField
+        from wtforms.form import Form
+        class F(Form):
+            pid = AjaxSelectField("Product", endpoint="api.search")
+        form = F()
+        form.pid.process_data("42")
+        assert form.pid.data == 42
+
+    def test_process_data_coerce_fallback(self, app):
+        from forms import AjaxSelectField
+        from wtforms.form import Form
+        class F(Form):
+            pid = AjaxSelectField("Product", endpoint="api.search", coerce=int)
+        form = F()
+        form.pid.process_data(object())
+        assert isinstance(form.pid.data, object)
+
+    def test_process_data_none(self, app):
+        from forms import AjaxSelectField
+        from wtforms.form import Form
+        class F(Form):
+            pid = AjaxSelectField("Product", endpoint="api.search", allow_blank=True)
+        form = F()
+        form.pid.process_data(None)
+        assert form.pid.data is None
+
 
 class TestUnifiedDateTimeField:
     def test_parses_iso_format(self, app):
@@ -639,6 +837,59 @@ class TestUnifiedDateTimeField:
         assert not form.validate()
         assert "dt" in form.errors
 
+    def test_empty_valuelist_sets_none(self, app):
+        from forms import UnifiedDateTimeField
+        from wtforms.form import Form
+        class F(Form):
+            dt = UnifiedDateTimeField()
+        form = F()
+        assert form.dt.data is None
+
+    def test_formats_list_init(self, app):
+        from forms import UnifiedDateTimeField
+        from wtforms.form import Form
+        class F(Form):
+            dt = UnifiedDateTimeField(formats=["%d/%m/%Y %H:%M", "%Y-%m-%d %H:%M"])
+        form = F(MultiDict([("dt", "15/01/2025 10:30")]))
+        assert form.validate()
+
+    def test_format_as_list_init(self, app):
+        from forms import UnifiedDateTimeField
+        from wtforms.form import Form
+        class F(Form):
+            dt = UnifiedDateTimeField(format=["%d/%m/%Y %H:%M", "%Y-%m-%d %H:%M"])
+        form = F(MultiDict([("dt", "15/01/2025 10:30")]))
+        assert form.validate()
+
+    def test_value_without_raw_data(self, app):
+        from forms import UnifiedDateTimeField
+        from wtforms.form import Form
+        class F(Form):
+            dt = UnifiedDateTimeField()
+        dt = datetime(2025, 6, 15, 10, 30)
+        form = F()
+        form.dt.data = dt
+        assert form.dt._value() == "2025-06-15 10:30"
+
+    def test_value_with_output_format(self, app):
+        from forms import UnifiedDateTimeField
+        from wtforms.form import Form
+        class F(Form):
+            dt = UnifiedDateTimeField(output_format="%d/%m/%Y %H:%M")
+        dt = datetime(2025, 6, 15, 10, 30)
+        form = F()
+        form.dt.data = dt
+        assert form.dt._value() == "15/06/2025 10:30"
+
+    def test_timestamp_exception(self, app):
+        from forms import UnifiedDateTimeField
+        from wtforms.form import Form
+        class F(Form):
+            dt = UnifiedDateTimeField()
+        form = F(MultiDict([("dt", "ts:not-a-number")]))
+        assert not form.validate()
+        assert "dt" in form.errors
+
 
 class TestUnifiedDateField:
     def test_parses_iso_format(self, app):
@@ -663,6 +914,67 @@ class TestUnifiedDateField:
         class F(Form):
             d = UnifiedDateField()
         form = F(MultiDict([("d", "not-a-date")]))
+        assert not form.validate()
+        assert "d" in form.errors
+
+    def test_date_empty_valuelist(self, app):
+        from forms import UnifiedDateField
+        from wtforms.form import Form
+        class F(Form):
+            d = UnifiedDateField()
+        form = F()
+        assert form.d.data is None
+
+    def test_date_value_with_raw_data(self, app):
+        from forms import UnifiedDateField
+        from wtforms.form import Form
+        class F(Form):
+            d = UnifiedDateField()
+        form = F(MultiDict([("d", "2025-06-15")]))
+        assert form.d._value() == "2025-06-15"
+
+    def test_date_value_without_raw_data(self, app):
+        from forms import UnifiedDateField
+        from wtforms.form import Form
+        from datetime import date
+        class F(Form):
+            d = UnifiedDateField()
+        form = F()
+        form.d.data = date(2025, 6, 15)
+        assert form.d._value() == "2025-06-15"
+
+    def test_date_value_with_output_format(self, app):
+        from forms import UnifiedDateField
+        from wtforms.form import Form
+        from datetime import date
+        class F(Form):
+            d = UnifiedDateField(output_format="%d/%m/%Y")
+        form = F()
+        form.d.data = date(2025, 6, 15)
+        assert form.d._value() == "15/06/2025"
+
+    def test_date_format_as_list(self, app):
+        from forms import UnifiedDateField
+        from wtforms.form import Form
+        class F(Form):
+            d = UnifiedDateField(format=["%d/%m/%Y", "%Y-%m-%d"])
+        form = F(MultiDict([("d", "15/01/2025")]))
+        assert form.validate()
+
+    def test_date_formats_list_init(self, app):
+        from forms import UnifiedDateField
+        from wtforms.form import Form
+        class F(Form):
+            d = UnifiedDateField(formats=["%d/%m/%Y"])
+        form = F(MultiDict([("d", "15/01/2025")]))
+        assert form.validate()
+
+    def test_date_timestamp_exception(self, app):
+        from forms import UnifiedDateField
+        from wtforms.form import Form
+        class F(Form):
+            d = UnifiedDateField()
+        form = F(MultiDict([("d", "ts:not-a-number")]))
         assert not form.validate()
         assert "d" in form.errors
 
