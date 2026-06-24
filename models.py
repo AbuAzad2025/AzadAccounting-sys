@@ -13804,7 +13804,7 @@ class AuditLog(db.Model, TimestampMixin):
     customer_id = db.Column(db.Integer, db.ForeignKey('customers.id', ondelete='SET NULL'), index=True, nullable=True)
     user_id     = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), index=True, nullable=True)
 
-    action      = db.Column(db.String(20), nullable=False, index=True)
+    action      = db.Column(db.String(100), nullable=False, index=True)
     old_data    = db.Column(db.Text)
     new_data    = db.Column(db.Text)
 
