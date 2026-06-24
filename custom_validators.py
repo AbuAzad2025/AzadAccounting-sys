@@ -20,7 +20,8 @@ class Unique:
         data = field.data
         if self.normalizer:
             data = self.normalizer(data)
-            field.data = data  # ✅ تحديث field.data بالقيمة المُعدّلة
+            if data is not None:
+                field.data = data
         if not data:
             return
 
