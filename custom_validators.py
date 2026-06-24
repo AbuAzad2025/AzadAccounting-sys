@@ -24,7 +24,12 @@ class Unique:
         if not data:
             return
 
-        model = self.model() if callable(self.model) else self.model
+        if isinstance(self.model, type):
+            model = self.model
+        elif callable(self.model):
+            model = self.model()
+        else:
+            model = self.model
         query = model.query
         column = getattr(model, self.field)
 
