@@ -71,8 +71,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Database create
-        run: |
-          python -m flask shell -c "from extensions import db; db.create_all(); print('OK: tables created')"
+        run: python -c "from app import create_app; a = create_app(); a.app_context().push(); from extensions import db; db.create_all(); print('OK')"
 
       - name: Comprehensive audit
         run: python -m flask comprehensive-audit
