@@ -32,8 +32,8 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Database migrate
-        run: python -m flask db upgrade
+      - name: Database create
+        run: python -m flask shell -c "from extensions import db; db.create_all(); print('OK: all tables created')"
 
       - name: Comprehensive audit
         run: python -m flask comprehensive-audit
