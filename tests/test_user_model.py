@@ -358,13 +358,14 @@ class TestUserModel:
         db_session.commit()
         assert u.has_permission("some_permission") is False
 
-    def test_has_permission_with_role_permission(self, mocker):
+    def test_has_permission_with_role_permission(self):
         """Verify has_permission delegates to _get_user_permissions for non-super users."""
+        from unittest.mock import patch
         from models import User
         u = User(username="u", email="u@u.com", password_hash="x")
-        mocker.patch("utils._get_user_permissions", return_value={"test_code"})
-        assert u.has_permission("test_code") is True
-        assert u.has_permission("other_code") is False
+        with patch("utils._get_user_permissions", return_value={"test_code"}):
+            assert u.has_permission("test_code") is True
+            assert u.has_permission("other_code") is False
 
     def test_touch(self):
         from models import User
