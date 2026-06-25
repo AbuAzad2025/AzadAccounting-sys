@@ -4631,3 +4631,940 @@ class TestSaleReturnFormValidate:
             ])
             form = SaleReturnForm(fd, meta=FORM_META)
             assert form.validate() is True
+
+
+class TestProductFormIval:
+    """Tests for ProductForm._ival() static helper."""
+
+    def test_valid_int_string_returns_int(self):
+        from forms import ProductForm
+        assert ProductForm._ival("123") == 123
+
+    def test_non_int_returns_none(self):
+        from forms import ProductForm
+        assert ProductForm._ival("abc") is None
+
+    def test_none_returns_none(self):
+        from forms import ProductForm
+        assert ProductForm._ival(None) is None
+
+
+class TestProductFormValidateBarcode:
+    """Tests for ProductForm.validate_barcode()."""
+
+    def test_valid_barcode_passes(self):
+        from forms import ProductForm
+        form = ProductForm(meta=FORM_META)
+        field = mock.MagicMock()
+        field.data = "123456789012"
+        form.validate_barcode(field)
+        assert len(field.data) == 13
+
+    def test_empty_barcode_returns(self):
+        from forms import ProductForm
+        form = ProductForm(meta=FORM_META)
+        field = mock.MagicMock()
+        field.data = ""
+        form.validate_barcode(field)
+
+    def test_invalid_barcode_raises(self):
+        from forms import ProductForm
+        form = ProductForm(meta=FORM_META)
+        field = mock.MagicMock()
+        field.data = "abc!@#$"
+        with pytest.raises(ValidationError):
+            form.validate_barcode(field)
+
+    def test_too_long_barcode_raises(self):
+        from forms import ProductForm
+        form = ProductForm(meta=FORM_META)
+        field = mock.MagicMock()
+        field.data = "12345678901234"
+        with pytest.raises(ValidationError):
+            form.validate_barcode(field)
+
+
+class TestProductFormCleanImage:
+    """Tests for ProductForm._clean_image()."""
+
+    def test_url_returns_as_is(self):
+        from forms import ProductForm
+        form = ProductForm(meta=FORM_META)
+        url = "https://example.com/img.jpg"
+        assert form._clean_image(url) == url
+
+    def test_path_returns_basename(self):
+        from forms import ProductForm
+        form = ProductForm(meta=FORM_META)
+        with mock.patch("os.path.basename", return_value="photo.png"):
+            assert form._clean_image("subdir/photo.png") == "photo.png"
+
+    def test_http_url_returns_as_is(self):
+        from forms import ProductForm
+        form = ProductForm(meta=FORM_META)
+        url = "http://example.com/img.jpg"
+        assert form._clean_image(url) == url
+
+    def test_leading_slash_returns_as_is(self):
+        from forms import ProductForm
+        form = ProductForm(meta=FORM_META)
+        assert form._clean_image("/uploads/img.jpg") == "/uploads/img.jpg"
+
+    def test_none_returns_none(self):
+        from forms import ProductForm
+        form = ProductForm(meta=FORM_META)
+        assert form._clean_image(None) is None
+
+    def test_whitespace_returns_none(self):
+        from forms import ProductForm
+        form = ProductForm(meta=FORM_META)
+        assert form._clean_image("   ") is None
+
+
+class TestProductFormValidate:
+    """Tests for ProductForm.validate()."""
+
+    def _mock_queries(self, mocker):
+        mock_q = mock.MagicMock()
+        mock_q.filter.return_value.first.return_value = None
+        mock_q.filter_by.return_value.first.return_value = None
+        mocker.patch("forms.Product.query", mock_q)
+
+    def test_super_validate_fails_no_formdata(self, app, mocker):
+        from forms import ProductForm
+        self._mock_queries(mocker)
+        form = ProductForm(meta=FORM_META)
+        assert form.validate() is False
+
+    def test_purchase_greater_than_price(self, app, mocker):
+        from forms import ProductForm
+        self._mock_queries(mocker)
+        fd = _fd(
+            name="Test", price="50", purchase_price="100",
+            selling_price="60", currency="ILS", category_id="1",
+        )
+        form = ProductForm(fd, meta=FORM_META)
+        assert form.validate() is False
+        assert "price" in form.errors
+
+    def test_selling_less_than_purchase(self, app, mocker):
+        from forms import ProductForm
+        self._mock_queries(mocker)
+        fd = _fd(
+            name="Test", price="100", purchase_price="50",
+            selling_price="30", currency="ILS", category_id="1",
+        )
+        form = ProductForm(fd, meta=FORM_META)
+        assert form.validate() is False
+        assert "selling_price" in form.errors
+
+    def test_online_price_less_than_purchase(self, app, mocker):
+        from forms import ProductForm
+        self._mock_queries(mocker)
+        fd = _fd(
+            name="Test", price="100", purchase_price="50",
+            online_price="30", currency="ILS", category_id="1",
+        )
+        form = ProductForm(fd, meta=FORM_META)
+        assert form.validate() is False
+        assert "online_price" in form.errors
+
+    def test_min_greater_than_max_price(self, app, mocker):
+        from forms import ProductForm
+        self._mock_queries(mocker)
+        fd = _fd(
+            name="Test", price="100", purchase_price="50",
+            min_price="200", max_price="100",
+            currency="ILS", category_id="1",
+        )
+        form = ProductForm(fd, meta=FORM_META)
+        assert form.validate() is False
+        assert "max_price" in form.errors
+
+    def test_price_less_than_min(self, app, mocker):
+        from forms import ProductForm
+        self._mock_queries(mocker)
+        fd = _fd(
+            name="Test", price="50", purchase_price="30",
+            min_price="100", currency="ILS", category_id="1",
+        )
+        form = ProductForm(fd, meta=FORM_META)
+        assert form.validate() is False
+        assert "price" in form.errors
+
+    def test_price_greater_than_max(self, app, mocker):
+        from forms import ProductForm
+        self._mock_queries(mocker)
+        fd = _fd(
+            name="Test", price="200", purchase_price="30",
+            max_price="100", currency="ILS", category_id="1",
+        )
+        form = ProductForm(fd, meta=FORM_META)
+        assert form.validate() is False
+        assert "price" in form.errors
+
+    def test_selling_less_than_min(self, app, mocker):
+        from forms import ProductForm
+        self._mock_queries(mocker)
+        fd = _fd(
+            name="Test", price="100", purchase_price="50",
+            selling_price="30", min_price="80",
+            currency="ILS", category_id="1",
+        )
+        form = ProductForm(fd, meta=FORM_META)
+        assert form.validate() is False
+        assert "selling_price" in form.errors
+
+    def test_selling_greater_than_max(self, app, mocker):
+        from forms import ProductForm
+        self._mock_queries(mocker)
+        fd = _fd(
+            name="Test", price="100", purchase_price="50",
+            selling_price="200", max_price="150",
+            currency="ILS", category_id="1",
+        )
+        form = ProductForm(fd, meta=FORM_META)
+        assert form.validate() is False
+        assert "selling_price" in form.errors
+
+    def test_reorder_point_less_than_min_qty(self, app, mocker):
+        from forms import ProductForm
+        self._mock_queries(mocker)
+        fd = _fd(
+            name="Test", price="100", purchase_price="50",
+            reorder_point="5", min_qty="10",
+            currency="ILS", category_id="1",
+        )
+        form = ProductForm(fd, meta=FORM_META)
+        assert form.validate() is False
+        assert "reorder_point" in form.errors
+
+    def test_valid_passes(self, app, mocker):
+        from forms import ProductForm
+        self._mock_queries(mocker)
+        fd = _fd(
+            name="Test", price="100", purchase_price="50",
+            selling_price="120", min_price="40", max_price="200",
+            currency="ILS", category_id="1",
+        )
+        form = ProductForm(fd, meta=FORM_META)
+        assert form.validate() is True
+
+
+class TestProductFormApplyTo:
+    """Tests for ProductForm.apply_to()."""
+
+    def test_apply_to_sets_attributes(self):
+        from forms import ProductForm
+        fd = _fd(
+            name="Test Product", sku="TST-001", part_number="PN-001",
+            brand="BrandX", commercial_name="CommName",
+            chassis_number="CH-001", serial_no="SN-001",
+            description="A test", barcode="123456789012",
+            cost_before_shipping="10", cost_after_shipping="15",
+            unit_price_before_tax="20", currency="USD",
+            price="100", purchase_price="50", selling_price="120",
+            min_price="40", max_price="200", online_price="110",
+            tax_rate="10", unit="pcs", min_qty="5",
+            reorder_point="10", condition="NEW",
+            origin_country="Palestine", warranty_period="12",
+            weight="1.5", dimensions="10x10x10",
+            image="photo.png", online_name="Online Test",
+            online_image="online_photo.png",
+            is_active="y", is_exchange="y",
+            category_id="1", category_name="Test Cat",
+            supplier_id="2", supplier_international_id="3",
+            supplier_local_id="4", vehicle_type_id="5",
+            notes="Some notes",
+        )
+        form = ProductForm(fd, meta=FORM_META)
+        product = mock.MagicMock()
+        result = form.apply_to(product)
+
+        assert result is product
+        assert product.name == "Test Product"
+        assert product.sku == "TST-001"
+        assert product.part_number == "PN-001"
+        assert product.price == 100
+        assert product.purchase_price == 50
+        assert product.selling_price == 120
+        assert product.min_price == 40
+        assert product.max_price == 200
+        assert product.supplier_id == 2
+        assert product.supplier_international_id == 3
+        assert product.supplier_local_id == 4
+        assert product.category_id == 1
+        assert product.vehicle_type_id == 5
+        assert product.is_active is True
+        assert product.is_digital is False
+        assert product.is_exchange is True
+
+
+class TestServiceRequestFormValidate:
+    def test_expected_delivery_date_before_plan_start_date(self):
+        from forms import ServiceRequestForm
+        form = ServiceRequestForm(
+            _fd(customer_id="1", vehicle_vrn="ABC123",
+                start_time="2025-06-15",
+                expected_delivery="2025-06-14 10:00",
+                currency="ILS"),
+            meta=FORM_META,
+        )
+        assert form.validate() is False
+
+    def test_completed_at_date_before_plan_start_date(self):
+        from forms import ServiceRequestForm
+        form = ServiceRequestForm(
+            _fd(customer_id="1", vehicle_vrn="ABC123",
+                start_time="2025-06-15",
+                completed_at="2025-06-14 10:00",
+                currency="ILS"),
+            meta=FORM_META,
+        )
+        assert form.validate() is False
+
+    def test_total_cost_none_sets_base(self):
+        from forms import ServiceRequestForm
+        form = ServiceRequestForm(
+            _fd(customer_id="1", vehicle_vrn="ABC123",
+                parts_total="100", labor_total="50", discount_total="0",
+                tax_rate="0", total_amount="150",
+                currency="ILS"),
+            meta=FORM_META,
+        )
+        assert form.validate() is True
+        assert form.total_cost.data == Decimal("150")
+
+    def test_base_with_discount_floor_at_zero(self):
+        from forms import ServiceRequestForm
+        form = ServiceRequestForm(
+            _fd(customer_id="1", vehicle_vrn="ABC123",
+                parts_total="50", labor_total="30", discount_total="200",
+                tax_rate="0", total_amount="0",
+                currency="ILS"),
+            meta=FORM_META,
+        )
+        assert form.validate() is True
+
+
+class TestShipmentFormValidate:
+    def test_valid_shipment_passes(self, db_session):
+        from forms import ShipmentForm
+        from models import Warehouse
+        wh = Warehouse(name="MainWH", warehouse_type="PHYSICAL")
+        db_session.add(wh)
+        db_session.commit()
+        fd = MultiDict([
+            ("shipment_number", "SHP-VALID"),
+            ("currency", "USD"),
+            ("status", "DRAFT"),
+            ("destination_id", str(wh.id)),
+            ("items-0-product_id", "1"),
+            ("items-0-warehouse_id", "1"),
+            ("items-0-quantity", "10"),
+            ("items-0-unit_cost", "50"),
+            ("partners-0-partner_id", "1"),
+            ("partners-0-share_percentage", "30"),
+        ])
+        form = ShipmentForm(fd, meta=FORM_META)
+        assert form.validate() is True
+
+    def test_partner_cumulative_percentage_exceeds_100(self, db_session):
+        from forms import ShipmentForm
+        from models import Warehouse
+        wh = Warehouse(name="MainWH", warehouse_type="PHYSICAL")
+        db_session.add(wh)
+        db_session.commit()
+        fd = MultiDict([
+            ("shipment_number", "SHP-CUM"),
+            ("currency", "USD"),
+            ("status", "DRAFT"),
+            ("destination_id", str(wh.id)),
+            ("items-0-product_id", "1"),
+            ("items-0-warehouse_id", "1"),
+            ("items-0-quantity", "10"),
+            ("items-0-unit_cost", "50"),
+            ("partners-0-partner_id", "1"),
+            ("partners-0-share_percentage", "60"),
+            ("partners-1-partner_id", "2"),
+            ("partners-1-share_percentage", "50"),
+        ])
+        form = ShipmentForm(fd, meta=FORM_META)
+        assert form.validate() is False
+        assert "partners" in form.errors
+
+    def test_partner_percentage_exactly_100(self, db_session):
+        from forms import ShipmentForm
+        from models import Warehouse
+        wh = Warehouse(name="MainWH", warehouse_type="PHYSICAL")
+        db_session.add(wh)
+        db_session.commit()
+        fd = MultiDict([
+            ("shipment_number", "SHP-100PCT"),
+            ("currency", "USD"),
+            ("status", "DRAFT"),
+            ("destination_id", str(wh.id)),
+            ("items-0-product_id", "1"),
+            ("items-0-warehouse_id", "1"),
+            ("items-0-quantity", "10"),
+            ("items-0-unit_cost", "50"),
+            ("partners-0-partner_id", "1"),
+            ("partners-0-share_percentage", "40"),
+            ("partners-1-partner_id", "2"),
+            ("partners-1-share_percentage", "60"),
+        ])
+        form = ShipmentForm(fd, meta=FORM_META)
+        assert form.validate() is True
+
+    def test_partner_without_partner_id_skipped(self, db_session):
+        from forms import ShipmentForm
+        from models import Warehouse
+        wh = Warehouse(name="MainWH", warehouse_type="PHYSICAL")
+        db_session.add(wh)
+        db_session.commit()
+        fd = MultiDict([
+            ("shipment_number", "SHP-NOID"),
+            ("currency", "USD"),
+            ("status", "DRAFT"),
+            ("destination_id", str(wh.id)),
+            ("items-0-product_id", "1"),
+            ("items-0-warehouse_id", "1"),
+            ("items-0-quantity", "10"),
+            ("items-0-unit_cost", "50"),
+        ])
+        form = ShipmentForm(fd, meta=FORM_META)
+        for entry in form.partners.entries:
+            entry.form.partner_id.data = None
+        assert form.validate() is True
+
+
+class TestUserFormRemainingBranches:
+
+    def test_init_with_obj_sets_editing(self, app, mocker):
+        from forms import UserForm
+        mocker.patch("forms.Role.query.all", return_value=[])
+        mocker.patch("utils.tenant_ui.branch_choices_for_form", return_value=[])
+        obj = mock.MagicMock(spec=["last_login", "last_seen", "last_login_ip", "login_count"])
+        obj.last_login = None
+        obj.last_seen = None
+        obj.last_login_ip = ""
+        obj.login_count = ""
+        with app.test_request_context():
+            from flask import request
+            request.view_args = {"user_id": "5"}
+            admin = mock.MagicMock(is_system_account=True)
+            admin.username = "admin"
+            admin.role.name = "OWNER"
+            with mock.patch("flask_login.utils._get_user", return_value=admin):
+                form = UserForm(obj=obj, meta=FORM_META)
+                assert form._editing_user_id == "5"
+                assert form.last_login.data is None
+                assert form.last_login_ip.data == ""
+
+    def test_validate_username_exists(self, app, mocker):
+        from forms import UserForm
+        from wtforms.validators import ValidationError
+        mocker.patch("forms.Role.query.all", return_value=[])
+        mocker.patch("utils.tenant_ui.branch_choices_for_form", return_value=[])
+        with app.test_request_context():
+            admin = mock.MagicMock(is_system_account=True)
+            admin.username = "admin"
+            admin.role.name = "OWNER"
+            with mock.patch("flask_login.utils._get_user", return_value=admin):
+                form = UserForm(meta=FORM_META)
+                form._editing_user_id = None
+                form.username.data = "existing_user"
+                mock_q = mock.MagicMock()
+                mock_q.filter.return_value.first.return_value = mock.MagicMock(id=99)
+                with mock.patch("forms.User.query", mock_q):
+                    with pytest.raises(ValidationError, match="مستخدم بالفعل"):
+                        form.validate_username(form.username)
+
+    def test_validate_email_exists(self, app, mocker):
+        from forms import UserForm
+        from wtforms.validators import ValidationError
+        mocker.patch("forms.Role.query.all", return_value=[])
+        mocker.patch("utils.tenant_ui.branch_choices_for_form", return_value=[])
+        with app.test_request_context():
+            admin = mock.MagicMock(is_system_account=True)
+            admin.username = "admin"
+            admin.role.name = "OWNER"
+            with mock.patch("flask_login.utils._get_user", return_value=admin):
+                form = UserForm(meta=FORM_META)
+                form._editing_user_id = None
+                form.email.data = "existing@test.com"
+                mock_q = mock.MagicMock()
+                mock_q.filter.return_value.first.return_value = mock.MagicMock(id=99)
+                with mock.patch("forms.User.query", mock_q):
+                    with pytest.raises(ValidationError, match="مستخدم بالفعل"):
+                        form.validate_email(form.email)
+
+    def test_validate_branch_ids_invalid(self, app, mocker):
+        from forms import UserForm
+        from wtforms.validators import ValidationError
+        mocker.patch("forms.Role.query.all", return_value=[])
+        mocker.patch("utils.tenant_ui.branch_choices_for_form", return_value=[])
+        with app.test_request_context():
+            admin = mock.MagicMock(is_system_account=True)
+            admin.username = "admin"
+            admin.role.name = "OWNER"
+            with mock.patch("flask_login.utils._get_user", return_value=admin):
+                form = UserForm(meta=FORM_META)
+                form.branch_ids.data = [1, 2]
+                form.primary_branch_id.data = 1
+                form.role_id.data = 2
+                with mock.patch("services.user_branch_service.validate_branch_assignment", return_value="خطأ في تعيين الفروع"):
+                    with pytest.raises(ValidationError, match="خطأ في تعيين الفروع"):
+                        form.validate_branch_ids(form.branch_ids)
+
+    def test_apply_to_sets_username_email(self, app, mocker):
+        from forms import UserForm
+        mocker.patch("forms.Role.query.all", return_value=[])
+        mocker.patch("utils.tenant_ui.branch_choices_for_form", return_value=[])
+        with app.test_request_context():
+            admin = mock.MagicMock(is_system_account=True)
+            admin.username = "admin"
+            admin.role.name = "OWNER"
+            with mock.patch("flask_login.utils._get_user", return_value=admin):
+                form = UserForm(meta=FORM_META)
+                form.username.data = "  testuser  "
+                form.email.data = "  Test@Example.COM  "
+                form.role_id.data = 2
+                form.is_active.data = True
+                form.password.data = None
+                user = mock.MagicMock()
+                result = form.apply_to(user)
+                assert result is user
+                assert user.username == "testuser"
+                assert user.email == "test@example.com"
+                assert user.role_id == 2
+                assert user.is_active is True
+
+    def test_validate_email_during_edit_skips_existing_check(self, app, mocker):
+        from forms import UserForm
+        mocker.patch("forms.Role.query.all", return_value=[])
+        mocker.patch("utils.tenant_ui.branch_choices_for_form", return_value=[])
+        with app.test_request_context():
+            admin = mock.MagicMock(is_system_account=True)
+            admin.username = "admin"
+            admin.role.name = "OWNER"
+            with mock.patch("flask_login.utils._get_user", return_value=admin):
+                form = UserForm(meta=FORM_META)
+                form._editing_user_id = 5
+                form.email.data = "edit@test.com"
+                mock_q = mock.MagicMock()
+                mock_q.filter.return_value.filter.return_value.first.return_value = None
+                with mock.patch("forms.User.query", mock_q):
+                    form.validate_email(form.email)
+                    assert form.email.data == "edit@test.com"
+
+
+class TestCustomerFormApplyTo:
+
+    def test_apply_to_sets_fields(self, app):
+        from forms import CustomerForm
+        with app.app_context():
+            form = CustomerForm(_fd(
+                name="  Test Customer  ",
+                phone="  050-123-4567  ",
+                email="  CUSTOMER@TEST.COM  ",
+                address="  Main Street  ",
+                category="NORMAL",
+                currency="ILS",
+                is_active="y",
+                is_online="y",
+                is_archived="",
+                notes="  Some notes  ",
+                credit_limit="1000",
+                discount_rate="5",
+                whatsapp="",
+            ), meta=FORM_META)
+            customer = mock.MagicMock()
+            form.apply_to(customer)
+            assert customer.name == "Test Customer"
+            assert customer.phone == "0501234567"
+            assert customer.whatsapp == "0501234567"
+            assert customer.email == "customer@test.com"
+            assert customer.address == "Main Street"
+            assert customer.category == "NORMAL"
+            assert customer.currency == "ILS"
+            assert customer.is_active is True
+            assert customer.is_online is True
+            assert customer.is_archived is False
+            assert customer.notes == "Some notes"
+            assert customer.credit_limit == Decimal("1000.00")
+            assert customer.discount_rate == Decimal("5.00")
+
+    def test_apply_to_whatsapp_falls_back_to_phone(self, app):
+        from forms import CustomerForm
+        with app.app_context():
+            form = CustomerForm(_fd(
+                name="Test", phone="0501234567",
+                email="", category="NORMAL", currency="ILS",
+                whatsapp="",
+            ), meta=FORM_META)
+            customer = mock.MagicMock()
+            form.apply_to(customer)
+            assert customer.whatsapp == "0501234567"
+
+    def test_validate_password_required_for_new(self):
+        from forms import CustomerForm
+        from wtforms.validators import ValidationError
+        form = CustomerForm(meta=FORM_META)
+        form.id.data = ""
+        field = mock.MagicMock()
+        field.data = ""
+        with pytest.raises(ValidationError, match="كلمة المرور مطلوبة"):
+            form.validate_password(field)
+
+    def test_validate_password_optional_for_edit(self):
+        from forms import CustomerForm
+        form = CustomerForm(meta=FORM_META)
+        form.id.data = "5"
+        field = mock.MagicMock()
+        field.data = ""
+        form.validate_password(field)
+
+    def test_validate_email_normalizes(self):
+        from forms import CustomerForm
+        form = CustomerForm(meta=FORM_META)
+        field = mock.MagicMock()
+        field.data = "  USER@DOMAIN.COM  "
+        form.validate_email(field)
+        assert field.data == "user@domain.com"
+
+    def test_validate_whatsapp_uses_phone_fallback(self):
+        from forms import CustomerForm
+        form = CustomerForm(meta=FORM_META)
+        form.phone.data = " 0501234567 "
+        field = mock.MagicMock()
+        field.data = ""
+        form.validate_whatsapp(field)
+        assert field.data == "0501234567"
+
+    def test_validate_whatsapp_uses_own_value(self):
+        from forms import CustomerForm
+        form = CustomerForm(meta=FORM_META)
+        form.phone.data = " 0500000000 "
+        field = mock.MagicMock()
+        field.data = " 0599999999 "
+        form.validate_whatsapp(field)
+        assert field.data == "0599999999"
+
+
+class TestSupplierFormApplyTo:
+
+    def test_apply_to_sets_fields(self, app):
+        from forms import SupplierForm
+        with app.app_context():
+            form = SupplierForm(_fd(
+                name="  Test Supplier  ",
+                is_local="y",
+                identity_number="  ID-123  ",
+                contact="  John Doe  ",
+                phone="  050-111-2222  ",
+                email="  SUPPLIER@TEST.COM  ",
+                address="  Supplier St  ",
+                notes="  Supplier notes  ",
+                opening_balance="500",
+                payment_terms="  Net 30  ",
+                currency="ILS",
+            ), meta=FORM_META)
+            supplier = mock.MagicMock()
+            form.apply_to(supplier)
+            assert supplier.name == "Test Supplier"
+            assert supplier.is_local is True
+            assert supplier.identity_number == "ID-123"
+            assert supplier.contact == "John Doe"
+            assert supplier.phone == "0501112222"
+            assert supplier.email == "supplier@test.com"
+            assert supplier.address == "Supplier St"
+            assert supplier.notes == "Supplier notes"
+            assert supplier.opening_balance == Decimal("500.00")
+            assert supplier.payment_terms == "Net 30"
+            assert supplier.currency == "ILS"
+
+    def test_apply_to_empty_fields_become_none(self, app):
+        from forms import SupplierForm
+        with app.app_context():
+            form = SupplierForm(_fd(
+                name="Test", currency="ILS",
+            ), meta=FORM_META)
+            supplier = mock.MagicMock()
+            form.apply_to(supplier)
+            assert supplier.identity_number is None
+            assert supplier.contact is None
+            assert supplier.address is None
+            assert supplier.notes is None
+            assert supplier.payment_terms is None
+
+    def test_validate_phone_normalizes(self):
+        from forms import SupplierForm
+        form = SupplierForm(meta=FORM_META)
+        field = mock.MagicMock()
+        field.data = "  050-333-4444  "
+        form.validate_phone(field)
+        assert field.data == "0503334444"
+
+    def test_validate_phone_none_skips(self):
+        from forms import SupplierForm
+        form = SupplierForm(meta=FORM_META)
+        field = mock.MagicMock()
+        field.data = None
+        form.validate_phone(field)
+
+    def test_validate_email_normalizes(self):
+        from forms import SupplierForm
+        form = SupplierForm(meta=FORM_META)
+        field = mock.MagicMock()
+        field.data = "  VENDOR@EXAMPLE.COM  "
+        form.validate_email(field)
+        assert field.data == "vendor@example.com"
+
+    def test_validate_email_none_skips(self):
+        from forms import SupplierForm
+        form = SupplierForm(meta=FORM_META)
+        field = mock.MagicMock()
+        field.data = None
+        form.validate_email(field)
+
+
+class TestPartnerFormApplyTo:
+
+    def test_apply_to_sets_fields(self, app):
+        from forms import PartnerForm
+        with app.app_context():
+            form = PartnerForm(_fd(
+                name="  Test Partner  ",
+                contact_info="  Partner Contact  ",
+                identity_number="  PID-456  ",
+                phone_number="  050-555-6666  ",
+                email="  PARTNER@TEST.COM  ",
+                address="  Partner Address  ",
+                opening_balance="1000",
+                share_percentage="25",
+                currency="ILS",
+                notes="  Partner notes  ",
+            ), meta=FORM_META)
+            partner = mock.MagicMock()
+            form.apply_to(partner)
+            assert partner.name == "Test Partner"
+            assert partner.contact_info == "Partner Contact"
+            assert partner.identity_number == "PID-456"
+            assert partner.phone_number == "0505556666"
+            assert partner.email == "partner@test.com"
+            assert partner.address == "Partner Address"
+            assert partner.opening_balance == Decimal("1000.00")
+            assert partner.share_percentage == Decimal("25.00")
+            assert partner.currency == "ILS"
+            assert partner.notes == "Partner notes"
+
+    def test_apply_to_empty_fields_become_none(self, app):
+        from forms import PartnerForm
+        with app.app_context():
+            form = PartnerForm(_fd(
+                name="Test", currency="ILS",
+            ), meta=FORM_META)
+            partner = mock.MagicMock()
+            form.apply_to(partner)
+            assert partner.contact_info is None
+            assert partner.identity_number is None
+            assert partner.address is None
+            assert partner.notes is None
+
+    def test_validate_phone_number_normalizes(self):
+        from forms import PartnerForm
+        form = PartnerForm(meta=FORM_META)
+        field = mock.MagicMock()
+        field.data = "  050-777-8888  "
+        form.validate_phone_number(field)
+        assert field.data == "0507778888"
+
+    def test_validate_phone_number_none_skips(self):
+        from forms import PartnerForm
+        form = PartnerForm(meta=FORM_META)
+        field = mock.MagicMock()
+        field.data = None
+        form.validate_phone_number(field)
+
+    def test_validate_email_normalizes(self):
+        from forms import PartnerForm
+        form = PartnerForm(meta=FORM_META)
+        field = mock.MagicMock()
+        field.data = "  PARNTER@MAIL.COM  "
+        form.validate_email(field)
+        assert field.data == "parnter@mail.com"
+
+    def test_validate_email_none_skips(self):
+        from forms import PartnerForm
+        form = PartnerForm(meta=FORM_META)
+        field = mock.MagicMock()
+        field.data = None
+        form.validate_email(field)
+
+
+class TestPaymentFormValidateBranches:
+
+    def test_method_set_from_split(self, app, mocker):
+        from forms import PaymentForm
+        import utils
+        mocker.patch.object(utils, "prepare_payment_form_choices")
+        mocker.patch("models.is_direction_allowed", return_value=True)
+        with app.test_request_context():
+            admin = mock.MagicMock(is_system_account=True)
+            admin.username = "admin"
+            admin.role.name = "admin"
+            with mock.patch("flask_login.utils._get_user", return_value=admin):
+                form = PaymentForm(
+                    MultiDict([
+                        ("entity_type", "CUSTOMER"),
+                        ("direction", "IN"),
+                        ("total_amount", "100"),
+                        ("currency", "ILS"),
+                        ("payment_date", "2025-06-15 10:30"),
+                        ("status", "COMPLETED"),
+                        ("customer_id", "5"),
+                        ("splits-0-amount", "100"),
+                        ("splits-0-method", "CASH"),
+                    ]),
+                    meta=FORM_META,
+                )
+                form.method.data = ""
+                assert form.validate() is True
+                assert form.method.data == "CASH"
+
+    def test_no_positive_split_amounts_fails(self, app, mocker):
+        from forms import PaymentForm
+        import utils
+        mocker.patch.object(utils, "prepare_payment_form_choices")
+        with app.test_request_context():
+            admin = mock.MagicMock(is_system_account=True)
+            admin.username = "admin"
+            admin.role.name = "admin"
+            with mock.patch("flask_login.utils._get_user", return_value=admin):
+                form = PaymentForm(
+                    MultiDict([
+                        ("entity_type", "CUSTOMER"),
+                        ("direction", "IN"),
+                        ("total_amount", "100"),
+                        ("currency", "ILS"),
+                        ("payment_date", "2025-06-15 10:30"),
+                        ("status", "COMPLETED"),
+                        ("splits-0-amount", "0"),
+                        ("splits-0-method", "CASH"),
+                    ]),
+                    meta=FORM_META,
+                )
+                assert form.validate() is False
+                assert "splits" in form.errors
+
+    def test_supplier_entity_validates(self, app, mocker):
+        from forms import PaymentForm
+        import utils
+        mocker.patch.object(utils, "prepare_payment_form_choices")
+        mocker.patch("models.is_direction_allowed", return_value=True)
+        with app.test_request_context():
+            admin = mock.MagicMock(is_system_account=True)
+            admin.username = "admin"
+            admin.role.name = "admin"
+            with mock.patch("flask_login.utils._get_user", return_value=admin):
+                form = PaymentForm(
+                    MultiDict([
+                        ("entity_type", "SUPPLIER"),
+                        ("direction", "OUT"),
+                        ("total_amount", "200"),
+                        ("currency", "ILS"),
+                        ("payment_date", "2025-06-15 10:30"),
+                        ("status", "COMPLETED"),
+                        ("supplier_id", "3"),
+                        ("splits-0-amount", "200"),
+                        ("splits-0-method", "CASH"),
+                    ]),
+                    meta=FORM_META,
+                )
+                assert form.validate() is True
+                assert form.entity_id.data == "3"
+
+    def test_bank_method_main_no_ref_fails(self, app, mocker):
+        from forms import PaymentForm
+        import utils
+        mocker.patch.object(utils, "prepare_payment_form_choices")
+        mocker.patch("models.is_direction_allowed", return_value=True)
+        with app.test_request_context():
+            admin = mock.MagicMock(is_system_account=True)
+            admin.username = "admin"
+            admin.role.name = "admin"
+            with mock.patch("flask_login.utils._get_user", return_value=admin):
+                form = PaymentForm(
+                    MultiDict([
+                        ("entity_type", "SUPPLIER"),
+                        ("direction", "OUT"),
+                        ("total_amount", "200"),
+                        ("currency", "ILS"),
+                        ("payment_date", "2025-06-15 10:30"),
+                        ("status", "COMPLETED"),
+                        ("supplier_id", "3"),
+                        ("method", "BANK"),
+                        ("bank_transfer_ref", ""),
+                        ("splits-0-amount", "200"),
+                        ("splits-0-method", "CASH"),
+                    ]),
+                    meta=FORM_META,
+                )
+                assert form.validate() is False
+                assert "bank_transfer_ref" in form.errors
+
+    def test_expense_missing_reference_allowed(self, app, mocker):
+        from forms import PaymentForm
+        import utils
+        mocker.patch.object(utils, "prepare_payment_form_choices")
+        mocker.patch("models.is_direction_allowed", return_value=True)
+        with app.test_request_context():
+            admin = mock.MagicMock(is_system_account=True)
+            admin.username = "admin"
+            admin.role.name = "admin"
+            with mock.patch("flask_login.utils._get_user", return_value=admin):
+                form = PaymentForm(
+                    MultiDict([
+                        ("entity_type", "EXPENSE"),
+                        ("direction", "OUT"),
+                        ("total_amount", "150"),
+                        ("currency", "ILS"),
+                        ("payment_date", "2025-06-15 10:30"),
+                        ("status", "COMPLETED"),
+                        ("splits-0-amount", "150"),
+                        ("splits-0-method", "CASH"),
+                    ]),
+                    meta=FORM_META,
+                )
+                assert form.validate() is True
+
+    def test_idempotency_key_generated_on_validate(self, app, mocker):
+        from forms import PaymentForm
+        import utils
+        mocker.patch.object(utils, "prepare_payment_form_choices")
+        mocker.patch("models.is_direction_allowed", return_value=True)
+        mocker.patch("models.generate_idempotency_key", return_value="key-pay-xyz")
+        with app.test_request_context():
+            admin = mock.MagicMock(is_system_account=True)
+            admin.username = "admin"
+            admin.role.name = "admin"
+            with mock.patch("flask_login.utils._get_user", return_value=admin):
+                form = PaymentForm(
+                    MultiDict([
+                        ("entity_type", "CUSTOMER"),
+                        ("direction", "IN"),
+                        ("total_amount", "100"),
+                        ("currency", "ILS"),
+                        ("payment_date", "2025-06-15 10:30"),
+                        ("status", "COMPLETED"),
+                        ("customer_id", "5"),
+                        ("splits-0-amount", "100"),
+                        ("splits-0-method", "CASH"),
+                    ]),
+                    meta=FORM_META,
+                )
+                assert form.idempotency_key.data is None or form.idempotency_key.data == ""
+                result = form.validate()
+                assert result is True
+                assert form.idempotency_key.data is not None
