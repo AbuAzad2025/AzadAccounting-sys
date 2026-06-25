@@ -47,9 +47,15 @@ def user_may_login_now(user) -> tuple[bool, str]:
                 sh, sm = map(int, start_s.split(":")[:2])
                 eh, em = map(int, end_s.split(":")[:2])
                 now_t = datetime.now().time()
-                if not (time(sh, sm) <= now_t <= time(eh, em)):
+                start_t = time(sh, sm)
+                end_t = time(eh, em)
+                if start_t <= end_t:
+                    allowed = start_t <= now_t <= end_t
+                else:
+                    allowed = now_t >= start_t or now_t <= end_t
+                if not allowed:
                     return False, "خارج ساعات الدخول المسموحة"
-        except Exception:
+        except (json.JSONDecodeError, ValueError, TypeError, KeyError):
             pass
     stations_raw = getattr(user, "allowed_stations_json", None)
     if stations_raw:
@@ -59,6 +65,6 @@ def user_may_login_now(user) -> tuple[bool, str]:
                 station = (request.headers.get("X-Station-Id") or request.remote_addr or "").strip()
                 if station and station not in allowed:
                     return False, "محطة غير مصرح بها"
-        except Exception:
+        except (json.JSONDecodeError, ValueError, TypeError):
             pass
     return True, ""

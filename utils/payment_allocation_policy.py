@@ -14,13 +14,20 @@ def payment_auto_allocate_enabled() -> bool:
     """هل يُسمح بتخصيص الدفعات تلقائياً على مستندات مفتوحة؟"""
     try:
         from flask import current_app
-        if bool(current_app.config.get("PAYMENT_ALLOCATION_ENABLED", False)):
+        val = current_app.config.get("PAYMENT_ALLOCATION_ENABLED", False)
+        if isinstance(val, str):
+            if val.strip().lower() in ("1", "true", "yes", "on"):
+                return True
+        elif bool(val):
             return True
     except Exception:
         pass
     try:
         from models import SystemSettings
-        return bool(SystemSettings.get_setting("auto_allocate", False))
+        val = SystemSettings.get_setting("auto_allocate", False)
+        if isinstance(val, str):
+            return val.strip().lower() in ("1", "true", "yes", "on")
+        return bool(val)
     except Exception:
         return False
 

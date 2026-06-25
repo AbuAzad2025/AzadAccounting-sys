@@ -645,14 +645,14 @@ class TestPaymentAllocationPolicy:
 
     @patch("flask.current_app")
     def test_auto_allocate_enabled_via_config(self, mock_app):
-        mock_app.config.get.return_value = True
+        mock_app.config.get.return_value = "true"
         from utils.payment_allocation_policy import payment_auto_allocate_enabled
         result = payment_auto_allocate_enabled()
         assert result is True
 
     @patch("models.SystemSettings")
     def test_auto_allocate_enabled_via_settings(self, MockS):
-        MockS.get_setting.return_value = True
+        MockS.get_setting.return_value = "true"
         from utils.payment_allocation_policy import payment_auto_allocate_enabled
         result = payment_auto_allocate_enabled()
         assert result is True
@@ -1837,7 +1837,7 @@ class TestCompanyReportsExtra:
             session.query.return_value.join.return_value.join.return_value.filter.return_value.distinct.return_value.limit.return_value = [(5,)]
             mock_bcv.return_value = {
                 "success": True,
-                "balance": {"net": "1500.00"},
+                "balance": {"amount": "1500.00"},
             }
             result = company_dashboard(1)
 

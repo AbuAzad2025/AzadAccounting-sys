@@ -1,5 +1,4 @@
 ﻿import datetime
-import hashlib
 
 
 def _get_secret_codes():

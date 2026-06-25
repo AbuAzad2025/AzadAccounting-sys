@@ -77,7 +77,7 @@ def post_accrual_expense(
     batch_id = _gl_upsert_batch_and_entries(
         conn,
         source_type="JOURNAL",
-        source_id=int(datetime.now().timestamp()) % 1000001,
+        source_id=int(datetime.now().timestamp()) % 1000000,
         purpose="ACCRUAL_EXP",
         currency="ILS",
         memo=memo or "مصروف مستحق",

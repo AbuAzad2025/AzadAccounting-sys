@@ -10,7 +10,6 @@ from sqlalchemy import func
 from extensions import db
 from models import Branch, Customer, Supplier, Company, FiscalPeriod
 from utils.balance_calculator import build_customer_balance_view
-from utils.supplier_balance_updater import build_supplier_balance_view
 
 
 def company_dashboard(company_id: int) -> Dict[str, Any]:
@@ -42,7 +41,7 @@ def company_dashboard(company_id: int) -> Dict[str, Any]:
         for cid in customer_ids:
             view = build_customer_balance_view(cid, db.session)
             if view.get("success"):
-                net = Decimal(str((view.get("balance") or {}).get("net", 0)))
+                net = Decimal(str((view.get("balance") or {}).get("amount", 0)))
                 if net != 0:
                     customers_ar += net
                     customers_count += 1
