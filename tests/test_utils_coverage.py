@@ -988,3 +988,1203 @@ class TestAuditServiceGL:
         assert result["missing_service_ids"] == [1]
         assert len(result["issues"]) == 1
         assert "SRV-001" in result["issues"][0]["msg"]
+
+    @patch("app.create_app")
+    @patch("audit_service_gl.audit_service_gl_section")
+    def test_audit_service_gl_cli_with_missing(self, mock_section, mock_create):
+        app = MagicMock()
+        mock_create.return_value = app
+        mock_section.return_value = {
+            "completed_count": 5,
+            "missing_gl_count": 2,
+            "missing_service_ids": [10, 20],
+            "issues": [{"level": "warning", "msg": "Service 10 missing GL"}],
+        }
+        from audit_service_gl import audit_service_gl
+        result = audit_service_gl()
+        assert result == [10, 20]
+
+    @patch("app.create_app")
+    @patch("audit_service_gl.audit_service_gl_section")
+    def test_audit_service_gl_cli_all_good(self, mock_section, mock_create):
+        app = MagicMock()
+        mock_create.return_value = app
+        mock_section.return_value = {
+            "completed_count": 3,
+            "missing_gl_count": 0,
+            "missing_service_ids": [],
+            "issues": [],
+        }
+        from audit_service_gl import audit_service_gl
+        result = audit_service_gl()
+        assert result == []
+
+
+# =============================================================================
+# utils/arabic_ux.py  (4 stmts, 0% → 100%)
+# =============================================================================
+
+class TestArabicUX:
+    def test_zb_dict_keys(self):
+        from utils.arabic_ux import ZB
+        assert ZB["singular"] == "زبون"
+        assert ZB["plural_def"] == "الزبائن"
+        assert ZB["ar_aging"] == "أعمار الذمم (زبائن)"
+
+    def test_customer_term_replacements(self):
+        from utils.arabic_ux import CUSTOMER_TERM_REPLACEMENTS
+        assert len(CUSTOMER_TERM_REPLACEMENTS) > 0
+        assert all(isinstance(t, tuple) and len(t) == 2 for t in CUSTOMER_TERM_REPLACEMENTS)
+
+    def test_ui_labels(self):
+        from utils.arabic_ux import UI_LABELS
+        assert UI_LABELS["save"] == "حفظ"
+        assert UI_LABELS["cancel"] == "إلغاء"
+        assert "loading" in UI_LABELS
+
+
+# =============================================================================
+# utils/document_approval_service.py  (23 stmts, 0% → 100%)
+# =============================================================================
+
+class TestDocumentApproval:
+    @patch("utils.document_approval_service.DocumentApproval")
+    @patch("utils.document_approval_service.db")
+    def test_request_approval_new(self, MockDB, MockDA):
+        MockDA.query.filter_by.return_value.first.return_value = None
+        from utils.document_approval_service import request_approval
+        result = request_approval("SALE", 1, 42)
+        MockDB.session.add.assert_called_once()
+        MockDB.session.flush.assert_called_once()
+        assert result is not None
+
+    @patch("utils.document_approval_service.DocumentApproval")
+    @patch("utils.document_approval_service.db")
+    def test_request_approval_exists(self, MockDB, MockDA):
+        existing = MagicMock(status="PENDING")
+        MockDA.query.filter_by.return_value.first.return_value = existing
+        from utils.document_approval_service import request_approval
+        result = request_approval("SALE", 1, 42)
+        MockDB.session.add.assert_not_called()
+        assert result == existing
+
+    @patch("utils.document_approval_service.DocumentApproval")
+    @patch("utils.document_approval_service.db")
+    def test_approve_document_found(self, MockDB, MockDA):
+        row = MagicMock(status="PENDING")
+        MockDA.query.filter_by.return_value.first.return_value = row
+        from utils.document_approval_service import approve_document
+        result = approve_document("SALE", 1, 99)
+        assert result is True
+        assert row.status == "APPROVED"
+        assert row.approved_by_id == 99
+        MockDB.session.commit.assert_called_once()
+
+    @patch("utils.document_approval_service.DocumentApproval")
+    def test_approve_document_not_found(self, MockDA):
+        MockDA.query.filter_by.return_value.first.return_value = None
+        from utils.document_approval_service import approve_document
+        result = approve_document("SALE", 999, 99)
+        assert result is False
+
+    @patch("utils.document_approval_service.DocumentApproval")
+    def test_is_approved_true(self, MockDA):
+        MockDA.query.filter_by.return_value.first.return_value = MagicMock()
+        from utils.document_approval_service import is_approved
+        assert is_approved("SALE", 1) is True
+
+    @patch("utils.document_approval_service.DocumentApproval")
+    def test_is_approved_false(self, MockDA):
+        MockDA.query.filter_by.return_value.first.return_value = None
+        from utils.document_approval_service import is_approved
+        assert is_approved("SALE", 1) is False
+
+
+# =============================================================================
+# utils/integration_audit.py  (26 stmts, 0% → 100%)
+# =============================================================================
+
+class TestIntegrationAudit:
+    def test_run_integration_audit_ok(self):
+        from utils.integration_audit import run_integration_audit
+        from flask import Flask
+        app = Flask(__name__)
+        with patch("extensions.db"), \
+             patch("models.Company"), \
+             patch("models.Branch"), \
+             patch("models.GLBatch"), \
+             patch("models.PaymentAllocation"), \
+             patch("utils.payment_allocation_policy.payment_auto_allocate_enabled", return_value=False):
+            result = run_integration_audit(app)
+        assert result["ok"] is True
+        assert len(result["issues"]) == 2
+
+    def test_run_integration_audit_critical(self):
+        from utils.integration_audit import run_integration_audit
+        from flask import Flask
+        app = Flask(__name__)
+        with patch("extensions.db"), \
+             patch("models.Company") as MockCo, \
+             patch("models.Branch") as MockBr, \
+             patch("models.GLBatch"), \
+             patch("models.PaymentAllocation"), \
+             patch("utils.payment_allocation_policy.payment_auto_allocate_enabled", return_value=True):
+            MockCo.query.limit.return_value.all.side_effect = Exception("connection lost")
+            MockBr.query.filter.return_value.count.return_value = 5
+            result = run_integration_audit(app)
+        assert result["ok"] is False
+        assert any(i["level"] == "critical" for i in result["issues"])
+
+
+# =============================================================================
+# utils/goods_receipt_service.py  (31 stmts, 0% → 100%)
+# =============================================================================
+
+class TestGoodsReceiptService:
+    @patch("utils.goods_receipt_service.GoodsReceipt")
+    @patch("utils.goods_receipt_service.db")
+    def test_next_grn_number(self, MockDB, MockGR):
+        MockGR.query.count.return_value = 0
+        from utils.goods_receipt_service import _next_grn_number
+        result = _next_grn_number()
+        assert result.startswith("GRN-")
+
+    @patch("utils.goods_receipt_service.GoodsReceipt")
+    @patch("utils.goods_receipt_service.PurchaseOrder")
+    @patch("utils.goods_receipt_service.Warehouse")
+    @patch("utils.goods_receipt_service.db")
+    def test_create_grn_from_po_no_warehouse_id(
+        self, MockDB, MockWh, MockPO, MockGR
+    ):
+        po = MagicMock()
+        po.id = 1
+        po.branch_id = 10
+        po.number = "PO-001"
+
+        wh = MagicMock()
+        wh.id = 99
+        MockWh.query.filter_by.return_value.order_by.return_value.first.return_value = wh
+
+        MockGR.query.count.return_value = 0
+
+        ln = MagicMock()
+        ln.product_id = 5
+        ln.unit_price = "100.00"
+        ln.quantity = "2"
+        ln.received_qty = "2"
+        po.lines = [ln]
+
+        from utils.goods_receipt_service import create_grn_from_po
+        result = create_grn_from_po(po)
+        MockDB.session.add.assert_called()
+        MockDB.session.flush.assert_called()
+
+    @patch("utils.goods_receipt_service.GoodsReceipt")
+    @patch("utils.goods_receipt_service.PurchaseOrder")
+    @patch("utils.goods_receipt_service.Warehouse")
+    @patch("utils.goods_receipt_service.db")
+    def test_create_grn_from_po_no_lines(
+        self, MockDB, MockWh, MockPO, MockGR
+    ):
+        po = MagicMock()
+        po.id = 1
+        po.branch_id = 10
+        po.number = "PO-001"
+
+        MockWh.query.filter_by.return_value.order_by.return_value.first.return_value = None
+        MockGR.query.count.return_value = 0
+
+        ln = MagicMock()
+        ln.received_qty = "0"
+        ln.quantity = "2"
+        po.lines = [ln]
+
+        from utils.goods_receipt_service import create_grn_from_po
+        with pytest.raises(ValueError, match="لا بنود"):
+            create_grn_from_po(po)
+
+    @patch("utils.goods_receipt_service.GoodsReceipt")
+    @patch("utils.goods_receipt_service.PurchaseOrder")
+    @patch("utils.goods_receipt_service.Warehouse")
+    @patch("utils.goods_receipt_service.db")
+    def test_create_grn_from_po_with_line_qtys(
+        self, MockDB, MockWh, MockPO, MockGR
+    ):
+        po = MagicMock()
+        po.id = 1
+        po.branch_id = 10
+        po.number = "PO-001"
+
+        wh = MagicMock()
+        wh.id = 99
+        MockDB.session.get.return_value = wh
+
+        MockGR.query.count.return_value = 0
+
+        ln = MagicMock()
+        ln.id = 100
+        ln.product_id = 5
+        ln.unit_price = "100.00"
+        ln.quantity = "5"
+        ln.received_qty = "3"
+        po.lines = [ln]
+
+        from utils.goods_receipt_service import create_grn_from_po
+        result = create_grn_from_po(po, line_qtys={100: Decimal("4")})
+        MockDB.session.add.assert_called()
+        MockDB.session.flush.assert_called()
+
+
+# =============================================================================
+# utils/po_gl_service.py  (32 stmts, 0% → 100%)
+# =============================================================================
+
+class TestPoGlService:
+    def test_run_po_gl_sync_no_id(self):
+        from utils.po_gl_service import run_po_gl_sync_after_commit
+        assert run_po_gl_sync_after_commit(0) is None
+
+    def test_run_po_gl_sync_received(self):
+        session = MagicMock()
+        po = MagicMock()
+        po.id = 1
+        po.status = "RECEIVED"
+        po.total_amount = 1000.0
+        po.currency = "ILS"
+        po.number = "PO-001"
+        po.supplier_id = 7
+        session.get.return_value = po
+        from utils.po_gl_service import run_po_gl_sync_after_commit
+        with patch("extensions.db") as MockDB, \
+             patch("models.PurchaseOrder"), \
+             patch("models.GL_ACCOUNTS", {"PURCHASES": "5100_P", "AP": "2000_AP"}), \
+             patch("models._ensure_account_exists"), \
+             patch("models._gl_upsert_batch_and_entries") as mock_gl, \
+             patch("sqlalchemy.orm.Session", return_value=session):
+            MockDB.engine = MagicMock()
+            run_po_gl_sync_after_commit(1)
+        mock_gl.assert_called_once()
+        session.commit.assert_called_once()
+
+    def test_run_po_gl_sync_not_received(self):
+        session = MagicMock()
+        po = MagicMock()
+        po.status = "DRAFT"
+        session.get.return_value = po
+        from utils.po_gl_service import run_po_gl_sync_after_commit
+        with patch("extensions.db") as MockDB, \
+             patch("models.PurchaseOrder"), \
+             patch("models.GL_ACCOUNTS", {"PURCHASES": "5100_P", "AP": "2000_AP"}), \
+             patch("models._ensure_account_exists"), \
+             patch("models._gl_upsert_batch_and_entries") as mock_gl, \
+             patch("sqlalchemy.orm.Session", return_value=session):
+            MockDB.engine = MagicMock()
+            run_po_gl_sync_after_commit(1)
+        mock_gl.assert_not_called()
+
+
+# =============================================================================
+# utils/prepaid_accrual_gl.py  (36 stmts, 0% → 100%)
+# =============================================================================
+
+class TestPrepaidAccrualGL:
+    @patch("utils.prepaid_accrual_gl.GL_ACCOUNTS", {"PREPAID": "1400_PRE", "ACCRUED_EXP": "2205_ACR"})
+    @patch("utils.prepaid_accrual_gl._ensure_account_exists")
+    @patch("utils.prepaid_accrual_gl._gl_upsert_batch_and_entries")
+    @patch("utils.prepaid_accrual_gl.assert_posting_date_allowed")
+    @patch("utils.prepaid_accrual_gl.db")
+    def test_post_prepaid_expense_ok(
+        self, MockDB, mock_assert, mock_gl, mock_ensure
+    ):
+        mock_gl.return_value = 42
+        MockDB.session.connection.return_value = MagicMock()
+        from utils.prepaid_accrual_gl import post_prepaid_expense
+        result = post_prepaid_expense(amount=500.0, expense_account="6000_RENT", memo="rent")
+        assert result == 42
+        MockDB.session.commit.assert_called_once()
+
+    def test_post_prepaid_expense_zero(self):
+        from utils.prepaid_accrual_gl import post_prepaid_expense
+        with patch("utils.prepaid_accrual_gl.assert_posting_date_allowed"):
+            with pytest.raises(ValueError, match="موجباً"):
+                post_prepaid_expense(amount=0, expense_account="6000_RENT", memo="x")
+
+    @patch("utils.prepaid_accrual_gl.GL_ACCOUNTS", {"PREPAID": "1400_PRE", "ACCRUED_EXP": "2205_ACR"})
+    @patch("utils.prepaid_accrual_gl._ensure_account_exists")
+    @patch("utils.prepaid_accrual_gl._gl_upsert_batch_and_entries")
+    @patch("utils.prepaid_accrual_gl.assert_posting_date_allowed")
+    @patch("utils.prepaid_accrual_gl.db")
+    def test_post_accrual_expense_ok(
+        self, MockDB, mock_assert, mock_gl, mock_ensure
+    ):
+        mock_gl.return_value = 77
+        MockDB.session.connection.return_value = MagicMock()
+        from utils.prepaid_accrual_gl import post_accrual_expense
+        result = post_accrual_expense(amount=300.0, expense_account="6000_UTIL", memo="util")
+        assert result == 77
+        MockDB.session.commit.assert_called_once()
+
+    def test_post_accrual_expense_zero(self):
+        from utils.prepaid_accrual_gl import post_accrual_expense
+        with patch("utils.prepaid_accrual_gl.assert_posting_date_allowed"):
+            with pytest.raises(ValueError, match="موجباً"):
+                post_accrual_expense(amount=-1, expense_account="6000_UTIL", memo="x")
+
+
+# =============================================================================
+# utils/erp_readiness.py  (53 stmts, 0% → 100%)
+# =============================================================================
+
+class TestErpReadiness:
+    def test_score_erp_readiness(self):
+        from flask import Flask
+        app = Flask(__name__)
+        app.url_map.iter_rules = MagicMock(return_value=[])
+        from utils.erp_readiness import score_erp_readiness
+        with patch("extensions.db") as MockDB, \
+             patch("models.Account"), \
+             patch("models.GLBatch"), \
+             patch("models.GLEntry"), \
+             patch("models.PayrollRun"), \
+             patch("models.SupplierInvoice"), \
+             patch("models.GoodsReceipt"), \
+             patch("models.Sale"), \
+             patch("models.TaxEntry"), \
+             patch("models.User"), \
+             patch("models.DocumentApproval") as MockDA, \
+             patch("models.StockLevel"), \
+             patch("models.SystemSettings"), \
+             patch("utils.erp_readiness.importlib.import_module", side_effect=ImportError):
+            MockDA.query.filter_by.return_value.count.return_value = 0
+            MockDB.session.query.return_value.limit.return_value.count.return_value = 0
+            result = score_erp_readiness(app)
+        assert "overall" in result
+        assert "modules" in result
+        assert result["pass_all_90"] is False
+
+    def test_has_route_true(self):
+        from utils.erp_readiness import _has_route
+        app = MagicMock()
+        rule1 = MagicMock()
+        rule1.rule = "/sales"
+        rule2 = MagicMock()
+        rule2.rule = "/reports/financial"
+        app.url_map.iter_rules.return_value = [rule1, rule2]
+        assert _has_route(app, "/sales") is True
+        assert _has_route(app, "/nonexistent") is False
+
+    def test_module_exists(self):
+        from utils.erp_readiness import _module_exists
+        assert _module_exists("os") is True
+        assert _module_exists("nonexistent_module_xyz123") is False
+
+
+# =============================================================================
+# utils/comparative_financial.py  (56 stmts, 0% → 100%)
+# =============================================================================
+
+class TestComparativeFinancial:
+    def test_period_bounds_default(self):
+        from utils.comparative_financial import _period_bounds
+        start, end = _period_bounds(2024)
+        assert start.year == 2024 and start.month == 1 and start.day == 1
+        assert end.year == 2024 and end.month == 12 and end.day == 31
+
+    def test_period_bounds_partial(self):
+        from utils.comparative_financial import _period_bounds
+        start, end = _period_bounds(2024, month_start=4, month_end=6)
+        assert start.month == 4
+        assert end.month == 6
+
+    def test_account_balances_for_period_no_prefix(self):
+        session = MagicMock()
+        q = MagicMock()
+        session.query.return_value = q
+        q.join.return_value = q
+        q.filter.return_value = q
+        q.group_by.return_value = q
+        q.all.return_value = [("4000_SALES", 1000.0, 0.0)]
+        q2 = MagicMock()
+        q2.all.return_value = []
+        from utils.comparative_financial import account_balances_for_period
+        with patch("utils.comparative_financial.resolve_branch_filter", return_value=None):
+            with patch("utils.comparative_financial.db") as MockDB:
+                MockDB.session = session
+                result = account_balances_for_period(
+                    datetime(2024, 1, 1), datetime(2024, 12, 31)
+                )
+        assert "4000_SALES" in result
+
+    def test_account_balances_for_period_with_branches(self):
+        session = MagicMock()
+        q = MagicMock()
+        session.query.return_value = q
+        q.join.return_value = q
+        q.filter.return_value = q
+        q.group_by.return_value = q
+        q.all.return_value = []
+        from utils.comparative_financial import account_balances_for_period
+        with patch("utils.comparative_financial.resolve_branch_filter", return_value=[1, 2]):
+            with patch("utils.comparative_financial.db") as MockDB:
+                MockDB.session = session
+                result = account_balances_for_period(
+                    datetime(2024, 1, 1), datetime(2024, 12, 31)
+                )
+        assert result == {}
+
+    def test_account_balances_for_period_empty_branches(self):
+        session = MagicMock()
+        q = MagicMock()
+        session.query.return_value = q
+        q.join.return_value = q
+        q.filter.return_value = q
+        q.group_by.return_value = q
+        q.all.return_value = []
+        from utils.comparative_financial import account_balances_for_period
+        with patch("utils.comparative_financial.resolve_branch_filter", return_value=[]):
+            with patch("utils.comparative_financial.db") as MockDB:
+                MockDB.session = session
+                result = account_balances_for_period(
+                    datetime(2024, 1, 1), datetime(2024, 12, 31)
+                )
+        assert result == {}
+
+
+# =============================================================================
+# utils/ux_messages.py  (69 stmts, 0% → 100%)
+# =============================================================================
+
+class TestUxMessages:
+    def test_normalize_flash_category(self):
+        from utils.ux_messages import normalize_flash_category
+        assert normalize_flash_category("error") == "danger"
+        assert normalize_flash_category("success") == "success"
+        assert normalize_flash_category("warn") == "warning"
+        assert normalize_flash_category("info") == "info"
+        assert normalize_flash_category(None) == "info"
+
+    def test_msg(self):
+        from utils.ux_messages import msg
+        assert "تعذّر" in msg("internal_error")
+        assert msg("nonexistent_key_xyz", default="fallback") == "fallback"
+        assert msg("unknown_key") == "unknown_key"
+
+    def test_flash_title(self):
+        from utils.ux_messages import flash_title
+        assert flash_title("success") == "تم بنجاح"
+        assert flash_title("danger") == "تعذّر الإكمال"
+
+    def test_flash_icon(self):
+        from utils.ux_messages import flash_icon
+        assert flash_icon("success") == "fa-check-circle"
+        assert flash_icon("unknown") == "fa-info-circle"
+
+    def test_clean_flash_text_none(self):
+        from utils.ux_messages import clean_flash_text
+        assert clean_flash_text(None) == ""
+
+    def test_clean_flash_text_empty(self):
+        from utils.ux_messages import clean_flash_text
+        assert clean_flash_text("  ") == ""
+
+    def test_clean_flash_text_alias(self):
+        from utils.ux_messages import clean_flash_text
+        result = clean_flash_text("حدث خطأ داخلي")
+        assert "تعذّر" in result
+
+    def test_clean_flash_text_alias_lower(self):
+        from utils.ux_messages import clean_flash_text
+        result = clean_flash_text("ليس لديك صلاحية")
+        assert "صلاحية" in result
+
+    def test_clean_flash_text_alias_prefix(self):
+        from utils.ux_messages import clean_flash_text
+        result = clean_flash_text("ليس لديك صلاحية. اتصل بالمسؤول")
+        assert "صلاحية" in result
+
+    def test_clean_flash_text_strip_emoji(self):
+        from utils.ux_messages import clean_flash_text
+        result = clean_flash_text("✅ تم بنجاح")
+        assert "تم بنجاح" in result
+
+    def test_resolve_user_message_key(self):
+        from utils.ux_messages import resolve_user_message
+        assert "تعذّر" in resolve_user_message(key="internal_error")
+
+    def test_resolve_user_message_clean(self):
+        from utils.ux_messages import resolve_user_message
+        result = resolve_user_message(message="حذف بنجاح")
+        assert "حذف" in result
+
+    def test_resolve_user_message_default(self):
+        from utils.ux_messages import resolve_user_message
+        result = resolve_user_message(message="")
+        assert "تعذّر" in result
+
+    def test_prepare_flash(self):
+        from utils.ux_messages import prepare_flash
+        result = prepare_flash("success", "تم الحفظ")
+        assert result["category"] == "success"
+        assert result["title"] == "تم بنجاح"
+        assert "الحفظ" in result["message"]
+
+    def test_prepare_flash_none(self):
+        from utils.ux_messages import prepare_flash
+        result = prepare_flash(None, None)
+        assert result["category"] == "info"
+
+    def test_api_payload_success(self):
+        from utils.ux_messages import api_payload
+        result = api_payload(success=True)
+        assert result["success"] is True
+        assert "تم" in result["message"]
+
+    def test_api_payload_error(self):
+        from utils.ux_messages import api_payload
+        result = api_payload(success=False, key="permission_denied")
+        assert result["success"] is False
+
+    def test_api_payload_with_errors(self):
+        from utils.ux_messages import api_payload
+        result = api_payload(success=False, key="validation_error", errors={"field": ["error"]})
+        assert "errors" in result
+        assert result["errors"] == {"field": ["error"]}
+
+
+# =============================================================================
+# utils/supplier_invoice_service.py  (87 stmts, 0% → 100%)
+# =============================================================================
+
+class TestSupplierInvoiceService:
+    @patch("utils.supplier_invoice_service.SupplierInvoice")
+    @patch("utils.supplier_invoice_service.db")
+    def test_next_si_number(self, MockDB, MockSI):
+        MockSI.query.count.return_value = 5
+        from utils.supplier_invoice_service import _next_si_number
+        assert _next_si_number().startswith("SINV-")
+
+    @patch("utils.supplier_invoice_service.SupplierInvoice")
+    @patch("utils.supplier_invoice_service.db")
+    def test_create_from_purchase_order_bad_status(self, MockDB, MockSI):
+        po = MagicMock()
+        po.status = "DRAFT"
+        from utils.supplier_invoice_service import create_from_purchase_order
+        with pytest.raises(ValueError, match="مستلماً"):
+            create_from_purchase_order(po)
+
+    @patch("utils.supplier_invoice_service.SupplierInvoiceLine")
+    @patch("utils.supplier_invoice_service.SupplierInvoice")
+    @patch("utils.supplier_invoice_service.db")
+    def test_create_from_purchase_order_already_posted(self, MockDB, MockSI, MockSIL):
+        po = MagicMock()
+        po.status = "RECEIVED"
+        existing = MagicMock()
+        MockSI.query.filter_by.return_value.first.return_value = existing
+        from utils.supplier_invoice_service import create_from_purchase_order
+        result = create_from_purchase_order(po)
+        assert result == existing
+
+    @patch("utils.supplier_invoice_service.SupplierInvoiceLine")
+    @patch("utils.supplier_invoice_service.SupplierInvoice")
+    @patch("utils.supplier_invoice_service.db")
+    def test_create_from_purchase_order_no_lines(self, MockDB, MockSI, MockSIL):
+        po = MagicMock()
+        po.status = "RECEIVED"
+        MockSI.query.filter_by.return_value.first.return_value = None
+        MockSI.query.count.return_value = 1
+        ln = MagicMock()
+        ln.received_qty = "0"
+        po.lines = [ln]
+        from utils.supplier_invoice_service import create_from_purchase_order
+        with pytest.raises(ValueError, match="كميات"):
+            create_from_purchase_order(po)
+
+    @patch("utils.supplier_invoice_service.SupplierInvoiceLine")
+    @patch("utils.supplier_invoice_service.SupplierInvoice")
+    @patch("utils.supplier_invoice_service.db")
+    def test_create_from_purchase_order_ok(self, MockDB, MockSI, MockSIL):
+        po = MagicMock()
+        po.status = "RECEIVED"
+        po.id = 1
+        po.supplier_id = 5
+        po.branch_id = 10
+        po.currency = "ILS"
+        po.number = "PO-001"
+
+        MockSI.query.filter_by.return_value.first.return_value = None
+        MockSI.query.count.return_value = 1
+
+        ln = MagicMock()
+        ln.received_qty = "2"
+        ln.unit_price = "100.00"
+        ln.product_id = 7
+        ln.product.name = "Widget"
+        po.lines = [ln]
+
+        from utils.supplier_invoice_service import create_from_purchase_order
+        result = create_from_purchase_order(po)
+        MockDB.session.add.assert_called()
+
+    @patch("utils.supplier_invoice_service._gl_upsert_batch_and_entries")
+    @patch("utils.supplier_invoice_service._ensure_account_exists")
+    @patch("utils.supplier_invoice_service.GL_ACCOUNTS",
+           {"AP": "2000_AP", "PURCHASES": "5000_PUR", "VAT_INPUT": "1500_VAT"})
+    @patch("utils.supplier_invoice_service.SupplierInvoice")
+    @patch("utils.supplier_invoice_service.db")
+    def test_post_supplier_invoice_gl(
+        self, MockDB, MockSI, mock_ensure, mock_gl
+    ):
+        inv = MagicMock()
+        inv.id = 1
+        inv.status = "DRAFT"
+        inv.total_amount = Decimal("232.00")
+        inv.subtotal = Decimal("200.00")
+        inv.vat_amount = Decimal("32.00")
+        inv.currency = "ILS"
+        inv.number = "SINV-001"
+        inv.supplier_id = 5
+        inv.branch_id = 10
+        MockDB.session.get.return_value = inv
+        mock_gl.return_value = 42
+
+        from utils.supplier_invoice_service import post_supplier_invoice_gl
+        result = post_supplier_invoice_gl(1)
+        assert result == 42
+        assert inv.status == "POSTED"
+
+    @patch("utils.supplier_invoice_service._gl_upsert_batch_and_entries")
+    @patch("utils.supplier_invoice_service._ensure_account_exists")
+    @patch("utils.supplier_invoice_service.GL_ACCOUNTS",
+           {"AP": "2000_AP", "PURCHASES": "5000_PUR"})
+    @patch("utils.supplier_invoice_service.SupplierInvoice")
+    @patch("utils.supplier_invoice_service.db")
+    def test_post_supplier_invoice_no_vat(
+        self, MockDB, MockSI, mock_ensure, mock_gl
+    ):
+        inv = MagicMock()
+        inv.id = 2
+        inv.status = "DRAFT"
+        inv.total_amount = Decimal("100.00")
+        inv.subtotal = Decimal("100.00")
+        inv.vat_amount = Decimal("0")
+        inv.currency = "ILS"
+        inv.number = "SINV-002"
+        inv.supplier_id = 5
+        inv.branch_id = 10
+        MockDB.session.get.return_value = inv
+        mock_gl.return_value = 43
+
+        from utils.supplier_invoice_service import post_supplier_invoice_gl
+        result = post_supplier_invoice_gl(2)
+        assert result == 43
+
+    @patch("utils.supplier_invoice_service.SupplierInvoice")
+    @patch("utils.supplier_invoice_service.db")
+    def test_post_supplier_invoice_not_found(self, MockDB, MockSI):
+        MockDB.session.get.return_value = None
+        from utils.supplier_invoice_service import post_supplier_invoice_gl
+        with pytest.raises(ValueError, match="غير موجودة"):
+            post_supplier_invoice_gl(999)
+
+    @patch("utils.supplier_invoice_service.SupplierInvoice")
+    @patch("utils.supplier_invoice_service.db")
+    def test_post_supplier_invoice_zero(self, MockDB, MockSI):
+        inv = MagicMock()
+        inv.status = "DRAFT"
+        inv.total_amount = Decimal("0")
+        MockDB.session.get.return_value = inv
+        from utils.supplier_invoice_service import post_supplier_invoice_gl
+        with pytest.raises(ValueError, match="صفر"):
+            post_supplier_invoice_gl(1)
+
+    @patch("models.Payment")
+    @patch("utils.supplier_invoice_service._gl_upsert_batch_and_entries")
+    @patch("utils.supplier_invoice_service._ensure_account_exists")
+    @patch("utils.supplier_invoice_service.GL_ACCOUNTS",
+           {"AP": "2000_AP", "BANK": "1010_BANK"})
+    @patch("utils.supplier_invoice_service.SupplierInvoice")
+    @patch("utils.supplier_invoice_service.db")
+    def test_pay_supplier_invoice_ok(
+        self, MockDB, MockSI, mock_ensure, mock_gl, MockPay
+    ):
+        inv = MagicMock()
+        inv.status = "POSTED"
+        inv.total_amount = Decimal("500.00")
+        inv.amount_paid = Decimal("0")
+        inv.currency = "ILS"
+        inv.number = "SINV-001"
+        inv.supplier_id = 5
+        inv.branch_id = 10
+        inv.id = 1
+        MockPay.query.count.return_value = 1
+        mock_gl.return_value = 55
+
+        from utils.supplier_invoice_service import pay_supplier_invoice
+        result = pay_supplier_invoice(inv, 500.0)
+        assert result == 55
+        MockDB.session.add.assert_called()
+        MockDB.session.flush.assert_called()
+
+    def test_pay_supplier_invoice_not_posted(self):
+        inv = MagicMock()
+        inv.status = "DRAFT"
+        from utils.supplier_invoice_service import pay_supplier_invoice
+        with pytest.raises(ValueError, match="ترحيل"):
+            pay_supplier_invoice(inv, 100.0)
+
+    def test_pay_supplier_invoice_bad_amount(self):
+        inv = MagicMock()
+        inv.status = "POSTED"
+        inv.total_amount = Decimal("100.00")
+        inv.amount_paid = Decimal("0")
+        from utils.supplier_invoice_service import pay_supplier_invoice
+        with pytest.raises(ValueError, match="غير صالح"):
+            pay_supplier_invoice(inv, 200.0)
+
+
+# =============================================================================
+# utils/branding.py  (94 stmts, 0% → 100%)
+# =============================================================================
+
+class TestBranding:
+    @patch("utils.branding.url_for")
+    @patch("utils.branding.current_user")
+    @patch("utils.branding.PLATFORM", {"logo": "img/logo.png", "favicon": "img/favicon.ico",
+                                        "emblem": "img/emblem.png", "white": "img/white.png",
+                                        "login_bg": "img/login_bg.png"})
+    def test_resolve_branding_bundle_basic(self, mock_cu, mock_url):
+        mock_url.return_value = "/static/img/logo.png"
+        mock_cu.is_authenticated = False
+        get_setting = MagicMock(side_effect=lambda k, *a: {
+            "company_name": "TestCo",
+        }.get(k, a[0] if a else ""))
+        with_ver = lambda x: x + "?v=1"
+        safe_static_path = lambda p, **kw: p
+        safe_path_root = lambda p, **kw: p
+
+        from utils.branding import resolve_branding_bundle
+        result = resolve_branding_bundle(
+            raw_settings={},
+            get_setting=get_setting,
+            with_ver=with_ver,
+            safe_static_path=safe_static_path,
+            safe_static_path_allow_root=safe_path_root,
+            static_file_exists=MagicMock(return_value=True),
+        )
+        assert result["platform_company_name"] == "TestCo"
+        assert result["platform_logo_url"] == "/static/img/logo.png?v=1"
+
+    @patch("utils.branding.url_for")
+    @patch("utils.branding.current_user")
+    @patch("utils.branding.PLATFORM", {"logo": "img/logo.png", "favicon": "img/favicon.ico",
+                                        "emblem": "img/emblem.png", "white": "img/white.png",
+                                        "login_bg": "img/login_bg.png"})
+    def test_resolve_branding_bundle_no_file(self, mock_cu, mock_url):
+        mock_url.return_value = "/static/img/default.png"
+        mock_cu.is_authenticated = False
+        get_setting = MagicMock(return_value=None)
+        with_ver = lambda x: x
+        safe_static_path = lambda p, **kw: "fallback.png"
+        safe_path_root = lambda p, **kw: "fallback.png"
+
+        from utils.branding import resolve_branding_bundle
+        result = resolve_branding_bundle(
+            raw_settings={},
+            get_setting=get_setting,
+            with_ver=with_ver,
+            safe_static_path=safe_static_path,
+            safe_static_path_allow_root=safe_path_root,
+            static_file_exists=MagicMock(return_value=False),
+        )
+        assert result["platform_company_name"] == "شركة أزاد للأنظمة الذكية"
+
+
+# =============================================================================
+# utils/company_reports.py  (extra coverage for remaining lines)
+# =============================================================================
+
+class TestCompanyReportsExtra:
+    @patch("utils.company_reports.build_customer_balance_view")
+    @patch("utils.company_reports.Branch")
+    @patch("utils.company_reports.FiscalPeriod")
+    @patch("utils.company_reports.db")
+    def test_company_dashboard_with_balance(
+        self, MockDB, MockFP, MockBr, mock_bcv
+    ):
+        from utils.company_reports import company_dashboard
+        session = MagicMock()
+        company = MagicMock()
+        company.id = 1
+        company.name = "TestCo"
+        company.code = "TC"
+        company.tax_id = "123"
+        company.currency = "ILS"
+        session.get.return_value = company
+
+        MockBr.query.filter_by.return_value.all.return_value = [
+            MagicMock(id=10),
+        ]
+
+        MockFP.query.filter_by.return_value.count.return_value = 2
+        MockFP.query.filter.return_value.count.return_value = 1
+
+        MockDB.session = session
+
+        with patch("models.Sale") as MockSale:
+            MockSale.customer_id = MagicMock()
+            MockSale.customer_id.isnot.return_value = True
+            MockSale.id = MagicMock()
+            session.query.return_value.join.return_value.join.return_value.filter.return_value.distinct.return_value.limit.return_value = [(5,)]
+            mock_bcv.return_value = {
+                "success": True,
+                "balance": {"net": "1500.00"},
+            }
+            result = company_dashboard(1)
+
+        assert result["customers_with_balance"] == 1
+        assert result["customers_balance_net"] == 1500.0
+
+
+# =============================================================================
+# barcodes.py  (83 stmts, 40% → 100%)
+# =============================================================================
+
+class TestBarcodes:
+    @patch("barcodes.QR_AVAILABLE", False)
+    def test_generate_qr_not_available(self):
+        from barcodes import generate_qr_code
+        assert generate_qr_code("test") is None
+
+    @patch("barcodes.QR_AVAILABLE", False)
+    def test_generate_barcode_image_not_available(self):
+        from barcodes import generate_barcode_image
+        assert generate_barcode_image("test") is None
+
+    def test_compute_ean13_check_digit(self):
+        from barcodes import compute_ean13_check_digit
+        assert compute_ean13_check_digit("590123456789") == 3
+
+    def test_compute_ean13_check_digit_bad_input(self):
+        from barcodes import compute_ean13_check_digit
+        with pytest.raises(ValueError, match="12 digits"):
+            compute_ean13_check_digit("123")
+
+    def test_normalize_barcode_none(self):
+        from barcodes import normalize_barcode
+        assert normalize_barcode(None) is None
+
+    def test_normalize_barcode_empty(self):
+        from barcodes import normalize_barcode
+        assert normalize_barcode("") is None
+
+    def test_normalize_barcode_no_digits(self):
+        from barcodes import normalize_barcode
+        assert normalize_barcode("ABC") is None
+
+    def test_normalize_barcode_12(self):
+        from barcodes import normalize_barcode
+        result = normalize_barcode("590123456789")
+        assert result == "5901234567893"
+
+    def test_normalize_barcode_13(self):
+        from barcodes import normalize_barcode
+        result = normalize_barcode("5901234567893")
+        assert result == "5901234567893"
+
+    def test_is_valid_ean13_true(self):
+        from barcodes import is_valid_ean13
+        assert is_valid_ean13("5901234567893") is True
+
+    def test_is_valid_ean13_false(self):
+        from barcodes import is_valid_ean13
+        assert is_valid_ean13("5901234567891") is False
+
+    def test_is_valid_ean13_bad_format(self):
+        from barcodes import is_valid_ean13
+        assert is_valid_ean13("abc") is False
+
+    def test_validate_barcode_empty(self):
+        from barcodes import validate_barcode
+        result = validate_barcode("")
+        assert result["valid"] is False
+
+    def test_validate_barcode_12(self):
+        from barcodes import validate_barcode
+        result = validate_barcode("590123456789")
+        assert result["valid"] is True
+        assert len(result["normalized"]) == 13
+
+    def test_validate_barcode_13_good(self):
+        from barcodes import validate_barcode
+        result = validate_barcode("5901234567893")
+        assert result["valid"] is True
+        assert result["suggested"] is None
+
+    def test_validate_barcode_13_bad(self):
+        from barcodes import validate_barcode
+        result = validate_barcode("5901234567891")
+        assert result["valid"] is False
+        assert result["suggested"] is not None
+
+    def test_validate_barcode_other_len(self):
+        from barcodes import validate_barcode
+        result = validate_barcode("12345")
+        assert result["valid"] is False
+
+    @patch("barcodes.QR_AVAILABLE", True)
+    @patch("barcodes.qrcode")
+    def test_generate_qr_code_ok(self, mock_qr):
+        mock_qr_instance = MagicMock()
+        mock_qr.QRCode.return_value = mock_qr_instance
+        mock_img = MagicMock()
+        mock_qr_instance.make_image.return_value = mock_img
+        from barcodes import generate_qr_code
+        result = generate_qr_code("test data")
+        assert result is not None
+        assert result.startswith("data:image/png;base64,")
+
+    @patch("barcodes.QR_AVAILABLE", True)
+    @patch("barcodes.qrcode")
+    def test_generate_barcode_image_ok(self, mock_qr):
+        mock_qr_instance = MagicMock()
+        mock_qr.QRCode.return_value = mock_qr_instance
+        mock_img = MagicMock()
+        mock_qr_instance.make_image.return_value = mock_img
+        from barcodes import generate_barcode_image
+        result = generate_barcode_image("1234567890123")
+        assert result is not None
+        assert result.startswith("data:image/png;base64,")
+
+    @patch("barcodes.generate_qr_code")
+    @patch("barcodes.generate_barcode_image")
+    def test_create_printable_label(self, mock_bc, mock_qr):
+        mock_qr.return_value = "data:qr"
+        mock_bc.return_value = "data:bc"
+        from barcodes import create_printable_label
+        html = create_printable_label("Product X", "1234567890123", price=99.90)
+        assert "Product X" in html
+        assert "99.9" in html
+
+    @patch("barcodes.generate_qr_code")
+    @patch("barcodes.generate_barcode_image")
+    def test_create_printable_label_no_price(self, mock_bc, mock_qr):
+        mock_qr.return_value = "data:qr"
+        mock_bc.return_value = "data:bc"
+        from barcodes import create_printable_label
+        html = create_printable_label("Product X", "1234567890123")
+        assert "السعر" not in html
+
+    @patch("barcodes.generate_qr_code")
+    @patch("barcodes.generate_barcode_image")
+    def test_print_label(self, mock_bc, mock_qr):
+        mock_qr.return_value = "data:qr"
+        mock_bc.return_value = "data:bc"
+        from barcodes import print_label
+        result = print_label("Product X", "1234567890123", price=50.0)
+        assert "window.print" in result
+        assert "Product X" in result
+
+
+# =============================================================================
+# acl.py  (55 stmts, 33% → 100%)
+# =============================================================================
+
+class TestAcl:
+    @patch("acl.utils")
+    def test_has_perm_not_callable(self, mock_utils):
+        from acl import _has_perm
+        user = MagicMock()
+        user.has_permission = None
+        assert _has_perm(user, "some_perm") is False
+
+    def test_has_perm_callable(self):
+        from acl import _has_perm
+        user = MagicMock()
+        user.has_permission.return_value = True
+        assert _has_perm(user, "some_perm") is True
+
+    def test_has_perm_callable_returns_false(self):
+        from acl import _has_perm
+        user = MagicMock()
+        user.has_permission.return_value = False
+        assert _has_perm(user, "some_perm") is False
+
+    def test_has_perm_callable_raises(self):
+        from acl import _has_perm
+        user = MagicMock()
+        user.has_permission.side_effect = Exception("fail")
+        assert _has_perm(user, "some_perm") is False
+
+    def _call_guard(self, bp, **kwargs):
+        """Helper: call attach_acl and return the registered guard function."""
+        from acl import attach_acl
+        attach_acl(bp, **kwargs)
+        guard = bp.before_request.call_args[0][0]
+        return guard
+
+    def test_attach_acl_options(self):
+        bp = MagicMock()
+        bp._acl_attached = False
+        guard = self._call_guard(bp, read_perm="r", write_perm="w")
+        with patch("acl.request") as mock_req:
+            mock_req.method = "OPTIONS"
+            assert guard() is None
+
+    def test_attach_acl_public_read(self):
+        bp = MagicMock()
+        bp._acl_attached = False
+        guard = self._call_guard(bp, read_perm="r", write_perm="w", public_read=True)
+        with patch("acl.request") as mock_req:
+            mock_req.method = "GET"
+            mock_req.path = "/api/public"
+            assert guard() is None
+
+    def test_attach_acl_exempt_prefix(self):
+        bp = MagicMock()
+        bp._acl_attached = False
+        guard = self._call_guard(bp, read_perm="r", write_perm="w")
+        with patch("acl.request") as mock_req:
+            mock_req.method = "POST"
+            mock_req.path = "/static/css/style.css"
+            assert guard() is None
+
+    def test_attach_acl_already_attached(self):
+        bp = MagicMock()
+        bp._acl_attached = True
+        from acl import attach_acl
+        attach_acl(bp, read_perm="r", write_perm="w")
+        bp.before_request.assert_not_called()
+
+    def test_attach_acl_read_like_prefix(self):
+        bp = MagicMock()
+        bp._acl_attached = False
+        mock_cu = MagicMock()
+        mock_cu.is_authenticated = True
+        guard = self._call_guard(bp, read_perm="r", write_perm="w",
+                                 read_like_prefixes=["/api/export"])
+        with patch("acl.request") as mock_req, \
+             patch("acl.current_user", mock_cu), \
+             patch("acl.utils.is_super", return_value=False), \
+             patch("acl._has_perm", return_value=True):
+            mock_req.method = "POST"
+            mock_req.path = "/api/export/data"
+            assert guard() is None
+
+    def test_attach_acl_not_auth_api(self):
+        bp = MagicMock()
+        bp._acl_attached = False
+        mock_cu = MagicMock()
+        mock_cu.is_authenticated = False
+        guard = self._call_guard(bp, read_perm="r", write_perm="w")
+        with patch("acl.request") as mock_req, \
+             patch("acl.current_user", mock_cu), \
+             patch("acl.abort") as mock_abort:
+            mock_req.method = "GET"
+            mock_req.path = "/api/data"
+            mock_req.accept_mimetypes.best = "application/json"
+            guard()
+            mock_abort.assert_called_once_with(401)
+
+    def test_attach_acl_not_auth_non_api(self):
+        bp = MagicMock()
+        bp._acl_attached = False
+        mock_cu = MagicMock()
+        mock_cu.is_authenticated = False
+        mock_lm = MagicMock()
+        guard = self._call_guard(bp, read_perm="r", write_perm="w")
+        with patch("acl.request") as mock_req, \
+             patch("acl.current_user", mock_cu), \
+             patch("acl.login_manager", mock_lm):
+            mock_req.method = "GET"
+            mock_req.path = "/html/page"
+            mock_req.accept_mimetypes.best = "text/html"
+            guard()
+            mock_lm.unauthorized.assert_called_once()
+
+    def test_attach_acl_is_super(self):
+        bp = MagicMock()
+        bp._acl_attached = False
+        mock_cu = MagicMock()
+        mock_cu.is_authenticated = True
+        guard = self._call_guard(bp, read_perm="r", write_perm="w")
+        with patch("acl.request") as mock_req, \
+             patch("acl.current_user", mock_cu), \
+             patch("acl.utils.is_super", return_value=True):
+            mock_req.method = "DELETE"
+            mock_req.path = "/admin/delete"
+            assert guard() is None
+
+    def test_attach_acl_is_read_forbidden(self):
+        bp = MagicMock()
+        bp._acl_attached = False
+        mock_cu = MagicMock()
+        mock_cu.is_authenticated = True
+        guard = self._call_guard(bp, read_perm="r", write_perm="w")
+        with patch("acl.request") as mock_req, \
+             patch("acl.current_user", mock_cu), \
+             patch("acl.utils.is_super", return_value=False), \
+             patch("acl._has_perm", return_value=False), \
+             patch("acl.abort") as mock_abort:
+            mock_req.method = "GET"
+            mock_req.path = "/api/secret"
+            guard()
+            mock_abort.assert_called_once_with(403)
+
+    def test_attach_acl_write_forbidden(self):
+        bp = MagicMock()
+        bp._acl_attached = False
+        mock_cu = MagicMock()
+        mock_cu.is_authenticated = True
+        guard = self._call_guard(bp, read_perm=None, write_perm="w")
+        with patch("acl.request") as mock_req, \
+             patch("acl.current_user", mock_cu), \
+             patch("acl.utils.is_super", return_value=False), \
+             patch("acl._has_perm", return_value=False), \
+             patch("acl.abort") as mock_abort:
+            mock_req.method = "POST"
+            mock_req.path = "/api/data"
+            guard()
+            mock_abort.assert_called_once_with(403)
+
+    def test_require_perm_super(self):
+        with patch("acl.login_required", lambda f: f):
+            from acl import require_perm
+
+            def view():
+                return "ok"
+
+            wrapped = require_perm("admin_access")(view)
+            with patch("acl.utils.is_super", return_value=True):
+                assert wrapped() == "ok"
+
+    def test_require_perm_has_perm(self):
+        with patch("acl.login_required", lambda f: f):
+            from acl import require_perm
+
+            def view():
+                return "ok"
+
+            wrapped = require_perm("admin_access")(view)
+            mock_cu = MagicMock()
+            mock_cu.is_authenticated = True
+            with patch("acl.utils.is_super", return_value=False), \
+                 patch("acl.current_user", mock_cu), \
+                 patch("acl._has_perm", return_value=True):
+                assert wrapped() == "ok"
+
+    def test_require_perm_forbidden(self):
+        with patch("acl.login_required", lambda f: f):
+            from acl import require_perm
+
+            def view():
+                return "ok"
+
+            wrapped = require_perm("admin_access")(view)
+            mock_cu = MagicMock()
+            mock_cu.is_authenticated = True
+            with patch("acl.utils.is_super", return_value=False), \
+                 patch("acl.current_user", mock_cu), \
+                 patch("acl._has_perm", return_value=False), \
+                 patch("acl.abort") as mock_abort:
+                wrapped()
+                mock_abort.assert_called_once_with(403)
