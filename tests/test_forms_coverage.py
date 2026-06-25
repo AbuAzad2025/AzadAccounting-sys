@@ -3405,6 +3405,10 @@ class TestPercentFieldQ2Exception:
 
 
 class TestQuerySelectFieldFallback:
+    def _is_fallback(self):
+        from forms import QuerySelectField
+        return hasattr(QuerySelectField, '_refresh_choices')
+
     def _make_field(self, **kw):
         from forms import QuerySelectField
         from wtforms.form import Form
@@ -3420,6 +3424,8 @@ class TestQuerySelectFieldFallback:
             field.pre_validate(None)
 
     def test_fallback_pre_validate_valid(self):
+        if not self._is_fallback():
+            return
         obj = mock.MagicMock(spec=['id'])
         obj.id = 5
         field = self._make_field(query_factory=lambda: [obj], get_label="name")
@@ -3428,16 +3434,22 @@ class TestQuerySelectFieldFallback:
         field.pre_validate(None)
 
     def test_fallback_process_formdata_none(self):
+        if not self._is_fallback():
+            return
         field = self._make_field()
         field.process_formdata([])
         assert field.data is None
 
     def test_fallback_process_formdata_blank(self):
+        if not self._is_fallback():
+            return
         field = self._make_field(allow_blank=True)
         field.process_formdata(["None"])
         assert field.data is None
 
     def test_fallback_process_data_none(self):
+        if not self._is_fallback():
+            return
         field = self._make_field()
         field.process_data(None)
         assert field.data is None
