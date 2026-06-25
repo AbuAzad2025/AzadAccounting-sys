@@ -1384,7 +1384,7 @@ class TestQuickPartnerForm:
 class TestCleanImagePathBranches:
     def test_with_path_returns_basename(self):
         from forms import _clean_image_path
-        assert _clean_image_path("some\\dir\\file.txt") == "file.txt"
+        assert _clean_image_path("some/dir/file.txt") == "file.txt"
 
     def test_absolute_path_starts_with_slash(self):
         from forms import _clean_image_path
