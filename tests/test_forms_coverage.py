@@ -3649,3 +3649,985 @@ class TestExpenseFormApplyTo:
         form.apply_to(exp)
         assert exp.payee_type == "OTHER"
         assert exp.branch_id == 1
+
+
+class TestSaleFormApplyTo:
+    """SaleForm.apply_to() — full test including line calculation."""
+
+    def test_apply_to_simple(self):
+        from forms import SaleForm
+        fd = MultiDict([
+            ("customer_id", "1"), ("seller_employee_id", "1"),
+            ("currency", "usd"), ("tax_rate", "17"),
+            ("discount_total", "10"), ("shipping_cost", "20"),
+            ("lines-0-product_id", "1"), ("lines-0-warehouse_id", "1"),
+            ("lines-0-quantity", "2"), ("lines-0-unit_price", "100"),
+            ("lines-0-discount_rate", "10"),
+        ])
+        form = SaleForm(fd, meta=FORM_META)
+        sale = mock.MagicMock()
+        form.apply_to(sale)
+        assert sale.currency == "USD"
+        assert sale.tax_rate == 17
+        assert sale.discount_total == 10
+        assert sale.total_amount >= 0
+
+    def test_apply_to_sets_lines_and_total(self):
+        from forms import SaleForm
+        fd = MultiDict([
+            ("customer_id", "1"), ("seller_employee_id", "1"),
+            ("currency", "ils"), ("sale_number", "S-001"),
+            ("lines-0-product_id", "1"), ("lines-0-warehouse_id", "1"),
+            ("lines-0-quantity", "3"), ("lines-0-unit_price", "50"),
+        ])
+        form = SaleForm(fd, meta=FORM_META)
+        sale = mock.MagicMock()
+        result = form.apply_to(sale)
+        assert result.lines is not None
+        assert len(result.lines) == 1
+
+    def test_apply_to_negative_subtotal_clamped(self):
+        from forms import SaleForm
+        fd = MultiDict([
+            ("customer_id", "1"), ("seller_employee_id", "1"),
+            ("currency", "ils"), ("discount_total", "999999"),
+            ("lines-0-product_id", "1"), ("lines-0-warehouse_id", "1"),
+            ("lines-0-quantity", "1"), ("lines-0-unit_price", "10"),
+        ])
+        form = SaleForm(fd, meta=FORM_META)
+        sale = mock.MagicMock()
+        form.apply_to(sale)
+        assert sale.total_amount == 0
+
+
+class TestProductCategoryForm:
+    """ProductCategoryForm: validate_name, validate, apply_to."""
+
+    def test_self_parent_rejected(self):
+        from forms import ProductCategoryForm
+        form = ProductCategoryForm(_fd(name="Cat", id="5", parent_id="5"), meta=FORM_META)
+        assert form.validate() is False
+        assert "parent_id" in form.errors
+
+    def test_circular_reference_detected(self, mocker):
+        from forms import ProductCategoryForm
+        from models import ProductCategory
+        node = mock.MagicMock(id=7, parent_id=5)
+        mocker.patch("extensions.db.session.get", return_value=node)
+        form = ProductCategoryForm(_fd(name="Cat", id="5", parent_id="7"), meta=FORM_META)
+        assert form.validate() is False
+        assert "parent_id" in form.errors
+
+    def test_circular_reference_root_node(self, mocker):
+        from forms import ProductCategoryForm
+        from models import ProductCategory
+        root = mock.MagicMock(id=7, parent_id=None)
+        mocker.patch("extensions.db.session.get", return_value=root)
+        form = ProductCategoryForm(_fd(name="Cat", id="5", parent_id="7"), meta=FORM_META)
+        assert form.validate() is True
+
+    def test_circular_db_exception_does_not_block(self, mocker):
+        from forms import ProductCategoryForm
+        mocker.patch("extensions.db.session.get", side_effect=Exception("DB down"))
+        form = ProductCategoryForm(_fd(name="Cat", id="5", parent_id="7"), meta=FORM_META)
+        assert form.validate() is True
+
+    def test_image_url_cleaned(self, mocker):
+        from forms import ProductCategoryForm
+        form = ProductCategoryForm(_fd(name="Cat", image_url="subdir/photo.png"), meta=FORM_META)
+        assert form.validate() is True
+        assert form.image_url.data is not None
+
+    def test_validate_name_duplicate_raises(self, mocker):
+        from forms import ProductCategoryForm
+        from wtforms.validators import ValidationError
+        mock_q = mock.MagicMock()
+        mock_q.filter.return_value.first.return_value = mock.MagicMock(id=99)
+        mocker.patch("forms.ProductCategory.query", mock_q)
+        form = ProductCategoryForm(_fd(name="Existing"), meta=FORM_META)
+        with pytest.raises(ValidationError):
+            form.validate_name(form.name)
+
+    def test_validate_name_unique_ok(self, mocker):
+        from forms import ProductCategoryForm
+        mock_q = mock.MagicMock()
+        mock_q.filter.return_value.first.return_value = None
+        mocker.patch("forms.ProductCategory.query", mock_q)
+        form = ProductCategoryForm(_fd(name="Unique"), meta=FORM_META)
+        form.validate_name(form.name)
+
+    def test_validate_name_db_exception_passes(self, mocker):
+        from forms import ProductCategoryForm
+        mock_q = mock.MagicMock()
+        mock_q.filter.side_effect = Exception("DB down")
+        mocker.patch("forms.ProductCategory.query", mock_q)
+        form = ProductCategoryForm(_fd(name="Unique"), meta=FORM_META)
+        form.validate_name(form.name)
+
+    def test_apply_to(self):
+        from forms import ProductCategoryForm
+        form = ProductCategoryForm(
+            _fd(name="NewCat", parent_id="3", description="Desc", image_url="img.png", is_active="y"),
+            meta=FORM_META,
+        )
+        cat = mock.MagicMock()
+        result = form.apply_to(cat)
+        assert result.name == "NewCat"
+        assert result.parent_id == 3
+
+
+class TestImportFormValidate:
+    """ImportForm.validate() — file extension, dry_run, warehouse check."""
+
+    def test_super_validate_fails(self, app):
+        with app.app_context():
+            from forms import ImportForm
+            assert ImportForm(_fd(), meta=FORM_META).validate() is False
+
+    def test_invalid_extension(self, app):
+        import io
+        from werkzeug.datastructures import FileStorage
+        from forms import ImportForm
+        with app.app_context():
+            form = ImportForm(_fd(warehouse_id="1", duplicate_strategy="skip"), meta=FORM_META)
+            form.file.data = FileStorage(stream=io.BytesIO(b"test"), filename="data.pdf")
+            assert form.validate() is False
+            assert "file" in form.errors
+
+    def test_dry_run_clears_continue_after_warnings(self, app, mocker):
+        import io
+        from werkzeug.datastructures import FileStorage
+        from forms import ImportForm
+        mocker.patch("extensions.db.session.get", return_value=mock.MagicMock(id=1))
+        with app.app_context():
+            form = ImportForm(_fd(warehouse_id="1", duplicate_strategy="skip", dry_run="y", continue_after_warnings="y"), meta=FORM_META)
+            form.file.data = FileStorage(stream=io.BytesIO(b"test"), filename="data.csv")
+            assert form.validate() is True
+            assert form.continue_after_warnings.data is False
+
+    def test_warehouse_not_found(self, app, mocker):
+        import io
+        from werkzeug.datastructures import FileStorage
+        from forms import ImportForm
+        mocker.patch("extensions.db.session.get", return_value=None)
+        with app.app_context():
+            form = ImportForm(_fd(warehouse_id="99", duplicate_strategy="skip"), meta=FORM_META)
+            form.file.data = FileStorage(stream=io.BytesIO(b"test"), filename="data.csv")
+            assert form.validate() is False
+            assert "warehouse_id" in form.errors
+
+    def test_warehouse_valid(self, app, mocker):
+        import io
+        from werkzeug.datastructures import FileStorage
+        from forms import ImportForm
+        mocker.patch("extensions.db.session.get", return_value=mock.MagicMock(id=1))
+        with app.app_context():
+            form = ImportForm(_fd(warehouse_id="1", duplicate_strategy="skip"), meta=FORM_META)
+            form.file.data = FileStorage(stream=io.BytesIO(b"test"), filename="data.xlsx")
+            assert form.validate() is True
+
+    def test_warehouse_check_db_exception(self, app, mocker):
+        import io
+        from werkzeug.datastructures import FileStorage
+        from forms import ImportForm
+        mocker.patch("extensions.db.session.get", side_effect=Exception("DB down"))
+        with app.app_context():
+            form = ImportForm(_fd(warehouse_id="1", duplicate_strategy="skip"), meta=FORM_META)
+            form.file.data = FileStorage(stream=io.BytesIO(b"test"), filename="data.csv")
+            assert form.validate() is True
+
+
+class TestWarehouseOnlineDefaultFormValidate:
+    """WarehouseOnlineDefaultForm.validate()."""
+
+    def test_super_validate_fails(self):
+        from forms import WarehouseOnlineDefaultForm
+        assert WarehouseOnlineDefaultForm(_fd(), meta=FORM_META).validate() is False
+
+    def test_confirm_not_checked(self):
+        from forms import WarehouseOnlineDefaultForm
+        form = WarehouseOnlineDefaultForm(_fd(warehouse_id="1"), meta=FORM_META)
+        form.confirm.data = False
+        assert form.validate() is False
+        assert "confirm" in form.errors
+
+    def test_warehouse_not_found(self, mocker):
+        from forms import WarehouseOnlineDefaultForm
+        mocker.patch("extensions.db.session.get", return_value=None)
+        form = WarehouseOnlineDefaultForm(_fd(warehouse_id="1"), meta=FORM_META)
+        form.confirm.data = True
+        assert form.validate() is False
+        assert "warehouse_id" in form.errors
+
+    def test_warehouse_not_online(self, mocker):
+        from forms import WarehouseOnlineDefaultForm
+        w = mock.MagicMock(warehouse_type="MAIN")
+        mocker.patch("extensions.db.session.get", return_value=w)
+        form = WarehouseOnlineDefaultForm(_fd(warehouse_id="1"), meta=FORM_META)
+        form.confirm.data = True
+        assert form.validate() is False
+        assert "warehouse_id" in form.errors
+
+    def test_warehouse_online_and_valid(self, mocker):
+        from forms import WarehouseOnlineDefaultForm
+        from models import Warehouse
+        w = mock.MagicMock(warehouse_type="ONLINE")
+        mocker.patch("extensions.db.session.get", return_value=w)
+        mock_q = mock.MagicMock()
+        mock_q.filter.return_value.first.return_value = None
+        mocker.patch.object(Warehouse, "query", mock_q)
+        form = WarehouseOnlineDefaultForm(_fd(warehouse_id="1"), meta=FORM_META)
+        form.confirm.data = True
+        assert form.validate() is True
+
+    def test_db_exception_passes(self, mocker):
+        from forms import WarehouseOnlineDefaultForm
+        mocker.patch("extensions.db.session.get", side_effect=Exception("DB down"))
+        form = WarehouseOnlineDefaultForm(_fd(warehouse_id="1"), meta=FORM_META)
+        form.confirm.data = True
+        assert form.validate() is True
+
+
+class TestCheckoutFormValidate:
+    """CheckoutForm.validate()."""
+
+    def test_empty_valid(self):
+        from forms import CheckoutForm
+        assert CheckoutForm(_fd(), meta=FORM_META).validate() is True
+
+    def test_invalid_json(self):
+        from forms import CheckoutForm
+        form = CheckoutForm(_fd(shipping_address="addr", transaction_data="{bad json}"), meta=FORM_META)
+        assert form.validate() is False
+        assert "transaction_data" in form.errors
+
+    def test_valid_no_transaction_data(self):
+        from forms import CheckoutForm
+        form = CheckoutForm(_fd(shipping_address="addr"), meta=FORM_META)
+        assert form.validate() is True
+
+    def test_valid_with_transaction_data(self):
+        from forms import CheckoutForm
+        form = CheckoutForm(_fd(shipping_address="addr", transaction_data='{"key":"value"}'), meta=FORM_META)
+        assert form.validate() is True
+
+
+class TestWarehouseFormRemainingBranches:
+    """WarehouseForm: remaining branches (partner share_percent < 0, apply_to)."""
+
+    def test_partner_negative_share(self):
+        from forms import WarehouseForm
+        form = WarehouseForm(
+            _fd(name="Partner WH", warehouse_type="PARTNER", partner_id="3", share_percent="-5"),
+            meta=FORM_META,
+        )
+        assert form.validate() is False
+        assert "share_percent" in form.errors
+
+    def test_warehouse_apply_to(self):
+        from forms import WarehouseForm
+        form = WarehouseForm(
+            _fd(name="Test WH", warehouse_type="MAIN", location="Loc",
+                partner_id="", supplier_id="", is_active="y"),
+            meta=FORM_META,
+        )
+        w = mock.MagicMock()
+        result = form.apply_to(w)
+        assert result.name == "Test WH"
+        assert result.warehouse_type == "MAIN"
+
+    def test_non_online_clears_online_default(self):
+        from forms import WarehouseForm
+        form = WarehouseForm(
+            _fd(name="Main WH", warehouse_type="MAIN", online_is_default="y"),
+            meta=FORM_META,
+        )
+        assert form.validate() is True
+        assert form.online_is_default.data is False
+
+    def test_online_warehouse_apply_to(self, mocker):
+        from forms import WarehouseForm
+        from models import Warehouse
+        mock_q = mock.MagicMock()
+        mock_q.filter.return_value.first.return_value = None
+        mocker.patch.object(Warehouse, "query", mock_q)
+        form = WarehouseForm(
+            _fd(name="Online", warehouse_type="ONLINE", online_slug="shop", online_is_default="y"),
+            meta=FORM_META,
+        )
+        assert form.validate() is True
+        w = mock.MagicMock()
+        w.warehouse_type = "ONLINE"
+        form.apply_to(w)
+        assert w.online_is_default is True
+
+
+class TestPartnerShareForm:
+    """PartnerShareForm: validate_partner_phone, validate."""
+
+    def test_super_validate_fails(self):
+        from forms import PartnerShareForm
+        assert PartnerShareForm(_fd(), meta=FORM_META).validate() is False
+
+    def test_share_percentage_zero(self):
+        from forms import PartnerShareForm
+        form = PartnerShareForm(_fd(partner_id="1", share_percentage="0"), meta=FORM_META)
+        assert form.validate() is False
+        assert "share_percentage" in form.errors
+
+    def test_valid(self):
+        from forms import PartnerShareForm
+        form = PartnerShareForm(_fd(partner_id="1", share_percentage="50"), meta=FORM_META)
+        assert form.validate() is True
+
+    def test_validate_phone_invalid_short(self):
+        from forms import PartnerShareForm
+        form = PartnerShareForm(meta=FORM_META)
+        field = mock.MagicMock()
+        field.data = "123"
+        from wtforms.validators import ValidationError
+        with pytest.raises(ValidationError):
+            form.validate_partner_phone(field)
+
+    def test_validate_phone_valid(self):
+        from forms import PartnerShareForm
+        form = PartnerShareForm(meta=FORM_META)
+        field = mock.MagicMock()
+        field.data = "0501234567"
+        form.validate_partner_phone(field)
+
+    def test_validate_phone_empty(self):
+        from forms import PartnerShareForm
+        form = PartnerShareForm(meta=FORM_META)
+        field = mock.MagicMock()
+        field.data = ""
+        form.validate_partner_phone(field)
+        assert field.data is None
+
+
+class TestExchangeVendorForm:
+    """ExchangeVendorForm: validate_vendor_phone, validate."""
+
+    def test_empty_valid(self):
+        from forms import ExchangeVendorForm
+        assert ExchangeVendorForm(_fd(), meta=FORM_META).validate() is True
+
+    def test_valid_with_supplier(self):
+        from forms import ExchangeVendorForm
+        form = ExchangeVendorForm(_fd(supplier_id="1"), meta=FORM_META)
+        assert form.validate() is True
+
+    def test_validate_vendor_phone(self):
+        from forms import ExchangeVendorForm
+        form = ExchangeVendorForm(meta=FORM_META)
+        field = mock.MagicMock()
+        field.data = "  0501234567  "
+        form.validate_vendor_phone(field)
+        assert field.data is not None
+
+
+class TestInventoryAdjustmentFormValidate:
+    """InventoryAdjustmentForm.validate()."""
+
+    def test_super_validate_fails(self):
+        from forms import InventoryAdjustmentForm
+        assert InventoryAdjustmentForm(_fd(), meta=FORM_META).validate() is False
+
+    def test_unknown_adjustment_type(self):
+        from forms import InventoryAdjustmentForm
+        form = InventoryAdjustmentForm(
+            _fd(product_id="1", warehouse_id="1", adjustment_type="UNKNOWN", quantity="5", reason="Test"),
+            meta=FORM_META,
+        )
+        assert form.validate() is False
+        assert "adjustment_type" in form.errors
+
+    def test_out_insufficient_stock(self, mocker):
+        from forms import InventoryAdjustmentForm
+        sl = mock.MagicMock(quantity=3, reserved_quantity=1)
+        mock_q = mock.MagicMock()
+        mock_q.filter_by.return_value.first.return_value = sl
+        mocker.patch("forms.StockLevel.query", mock_q)
+        form = InventoryAdjustmentForm(
+            _fd(product_id="1", warehouse_id="1", adjustment_type="OUT", quantity="10", reason="Test"),
+            meta=FORM_META,
+        )
+        assert form.validate() is False
+        assert "quantity" in form.errors
+
+    def test_out_sufficient_stock(self, mocker):
+        from forms import InventoryAdjustmentForm
+        sl = mock.MagicMock(quantity=20, reserved_quantity=2)
+        mock_q = mock.MagicMock()
+        mock_q.filter_by.return_value.first.return_value = sl
+        mocker.patch("forms.StockLevel.query", mock_q)
+        form = InventoryAdjustmentForm(
+            _fd(product_id="1", warehouse_id="1", adjustment_type="OUT", quantity="5", reason="Test"),
+            meta=FORM_META,
+        )
+        assert form.validate() is True
+
+    def test_in_adjustment_no_stock_check(self):
+        from forms import InventoryAdjustmentForm
+        form = InventoryAdjustmentForm(
+            _fd(product_id="1", warehouse_id="1", adjustment_type="IN", quantity="5", reason="Test"),
+            meta=FORM_META,
+        )
+        assert form.validate() is True
+
+    def test_out_stock_check_exception(self, mocker):
+        from forms import InventoryAdjustmentForm
+        mock_q = mock.MagicMock()
+        mock_q.filter_by.side_effect = Exception("DB down")
+        mocker.patch("forms.StockLevel.query", mock_q)
+        form = InventoryAdjustmentForm(
+            _fd(product_id="1", warehouse_id="1", adjustment_type="OUT", quantity="5", reason="Test"),
+            meta=FORM_META,
+        )
+        assert form.validate() is True
+
+
+class TestAccountForm:
+    """AccountForm: validate, apply_to."""
+
+    def test_super_validate_fails(self):
+        from forms import AccountForm
+        from unittest.mock import patch
+        form = AccountForm(_fd(), meta=FORM_META)
+        assert form.validate() is False
+
+    def test_self_parent_rejected(self):
+        from forms import AccountForm
+        form = AccountForm(
+            _fd(code="ACC001", name="Test", type="ASSET", currency="ILS", id="5", parent_id="5"),
+            meta=FORM_META,
+        )
+        assert form.validate() is False
+        assert "parent_id" in form.errors
+
+    def test_valid(self):
+        from forms import AccountForm
+        form = AccountForm(
+            _fd(code="ACC001", name="Test", type="ASSET", currency="ILS"),
+            meta=FORM_META,
+        )
+        assert form.validate() is True
+
+    def test_apply_to(self):
+        from forms import AccountForm
+        form = AccountForm(
+            _fd(code="acc001", name="Test Account", type="LIABILITY", currency="usd",
+                is_active="y", opening_balance="100", notes="Test note"),
+            meta=FORM_META,
+        )
+        acc = mock.MagicMock()
+        result = form.apply_to(acc)
+        assert result.code == "ACC001"
+        assert result.currency == "usd"
+        assert result.is_active is True
+
+
+class TestGeneralLedgerFilterFormValidate:
+    """GeneralLedgerFilterForm.validate()."""
+
+    def test_super_validate_fails(self):
+        from forms import GeneralLedgerFilterForm
+        assert GeneralLedgerFilterForm(_fd(), meta=FORM_META).validate() is True
+
+    def test_start_after_end(self):
+        from forms import GeneralLedgerFilterForm
+        form = GeneralLedgerFilterForm(
+            _fd(start_date="2025-06-01", end_date="2025-05-01"),
+            meta=FORM_META,
+        )
+        assert form.validate() is False
+
+    def test_valid_no_account_ids_sets_hints(self):
+        from forms import GeneralLedgerFilterForm
+        form = GeneralLedgerFilterForm(_fd(), meta=FORM_META)
+        assert form.validate() is True
+        assert len(getattr(form, "hints", [])) > 0
+
+
+class TestTrialBalanceFilterFormValidate:
+    """TrialBalanceFilterForm.validate()."""
+
+    def test_super_validate_fails(self):
+        from forms import TrialBalanceFilterForm
+        form = TrialBalanceFilterForm(_fd(), meta=FORM_META)
+        assert form.validate() is True
+
+    def test_start_after_end(self):
+        from forms import TrialBalanceFilterForm
+        form = TrialBalanceFilterForm(
+            _fd(start_date="2025-06-01", end_date="2025-05-01"),
+            meta=FORM_META,
+        )
+        assert form.validate() is False
+
+    def test_no_currency_sets_hints(self):
+        from forms import TrialBalanceFilterForm
+        form = TrialBalanceFilterForm(_fd(), meta=FORM_META)
+        assert form.validate() is True
+        assert len(getattr(form, "hints", [])) > 0
+
+
+class TestClosingEntryFormValidate:
+    """ClosingEntryForm.validate()."""
+
+    def test_super_validate_fails(self):
+        from forms import ClosingEntryForm
+        assert ClosingEntryForm(_fd(), meta=FORM_META).validate() is False
+
+    def test_start_after_end(self):
+        from forms import ClosingEntryForm
+        form = ClosingEntryForm(
+            _fd(start_date="2025-06-01", end_date="2025-05-01",
+                retained_earnings_account="1"),
+            meta=FORM_META,
+        )
+        assert form.validate() is False
+        assert "end_date" in form.errors
+
+    def test_valid(self):
+        from forms import ClosingEntryForm
+        form = ClosingEntryForm(
+            _fd(start_date="2025-01-01", end_date="2025-01-31",
+                retained_earnings_account="1"),
+            meta=FORM_META,
+        )
+        assert form.validate() is True
+
+
+class TestOnlineCartPaymentFormValidate:
+    """OnlineCartPaymentForm: validate and gateway_payload."""
+
+    def test_super_validate_fails(self):
+        from forms import OnlineCartPaymentForm
+        assert OnlineCartPaymentForm(_fd(), meta=FORM_META).validate() is False
+
+    def test_unsupported_payment_method(self):
+        from forms import OnlineCartPaymentForm
+        form = OnlineCartPaymentForm(
+            _fd(payment_method="paypal", card_holder="Test", card_number="4111111111111111",
+                expiry="12/28", cvv="123"),
+            meta=FORM_META,
+        )
+        assert form.validate() is False
+        assert "payment_method" in form.errors
+
+    def test_card_number_invalid(self, mocker):
+        from forms import OnlineCartPaymentForm
+        mocker.patch.object(OnlineCartPaymentForm, '_validate_card_payload',
+                            side_effect=mock.MagicMock(__class__=ValueError))
+        mocker.patch("forms.PaymentDetailsMixin._validate_card_payload",
+                     side_effect=ValidationError("❌ رقم البطاقة غير صالح"))
+        form = OnlineCartPaymentForm(
+            _fd(payment_method="card", card_number="1234", card_holder="Test",
+                expiry="12/28", cvv="123"),
+            meta=FORM_META,
+        )
+        assert form.validate() is False
+
+    def test_card_holder_missing(self, mocker):
+        from forms import OnlineCartPaymentForm
+        mocker.patch("forms.PaymentDetailsMixin._validate_card_payload",
+                     side_effect=ValidationError("❌ أدخل اسم حامل البطاقة"))
+        form = OnlineCartPaymentForm(
+            _fd(payment_method="card", card_number="4111111111111111",
+                card_holder="", expiry="12/28", cvv="123"),
+            meta=FORM_META,
+        )
+        assert form.validate() is False
+        assert "card_holder" in form.errors
+
+    def test_expiry_invalid(self, mocker):
+        from forms import OnlineCartPaymentForm
+        mocker.patch("forms.PaymentDetailsMixin._validate_card_payload",
+                     side_effect=ValidationError("❌ تاريخ الانتهاء غير صالح (MM/YY)"))
+        form = OnlineCartPaymentForm(
+            _fd(payment_method="card", card_number="4111111111111111",
+                card_holder="Test", expiry="13/28", cvv="123"),
+            meta=FORM_META,
+        )
+        assert form.validate() is False
+        assert "expiry" in form.errors
+
+    def test_card_validation_generic_error(self, mocker):
+        from forms import OnlineCartPaymentForm
+        mocker.patch("forms.PaymentDetailsMixin._validate_card_payload",
+                     side_effect=ValidationError("Card error"))
+        form = OnlineCartPaymentForm(
+            _fd(payment_method="card", card_number="4111111111111111",
+                card_holder="Test", expiry="12/28", cvv="123"),
+            meta=FORM_META,
+        )
+        assert form.validate() is False
+        assert "payment_method" in form.errors
+
+    def test_cvv_invalid(self, mocker):
+        from forms import OnlineCartPaymentForm
+        mocker.patch("forms.PaymentDetailsMixin._validate_card_payload",
+                     return_value="1111")
+        form = OnlineCartPaymentForm(
+            _fd(payment_method="card", card_number="4111111111111111",
+                card_holder="Test", expiry="12/28", cvv="12"),
+            meta=FORM_META,
+        )
+        assert form.validate() is False
+        assert "cvv" in form.errors
+
+    def test_transaction_data_invalid_json(self, mocker):
+        from forms import OnlineCartPaymentForm
+        mocker.patch("forms.PaymentDetailsMixin._validate_card_payload",
+                     return_value="1111")
+        form = OnlineCartPaymentForm(
+            _fd(payment_method="card", card_number="4111111111111111",
+                card_holder="Test", expiry="12/28", cvv="123",
+                transaction_data="{bad}"),
+            meta=FORM_META,
+        )
+        assert form.validate() is False
+        assert "transaction_data" in form.errors
+
+    def test_valid(self, mocker):
+        from forms import OnlineCartPaymentForm
+        mocker.patch("forms.PaymentDetailsMixin._validate_card_payload",
+                     return_value="1111")
+        form = OnlineCartPaymentForm(
+            _fd(payment_method="card", card_number="4111111111111111",
+                card_holder="Test", expiry="12/28", cvv="123"),
+            meta=FORM_META,
+        )
+        assert form.validate() is True
+
+    def test_gateway_payload_with_extra(self, mocker):
+        from forms import OnlineCartPaymentForm
+        mocker.patch("forms.PaymentDetailsMixin._validate_card_payload",
+                     return_value="1111")
+        form = OnlineCartPaymentForm(
+            _fd(payment_method="card", card_number="4111111111111111",
+                card_holder="Test", expiry="12/28", cvv="123",
+                transaction_data='{"order":"123"}'),
+            meta=FORM_META,
+        )
+        form.validate()
+        payload = form.gateway_payload()
+        assert payload["extra"] == {"order": "123"}
+        assert payload["card"]["last4"] == "1111"
+
+    def test_gateway_payload_bad_extra(self, mocker):
+        from forms import OnlineCartPaymentForm
+        mocker.patch("forms.PaymentDetailsMixin._validate_card_payload",
+                     return_value="1111")
+        form = OnlineCartPaymentForm(
+            _fd(payment_method="card", card_number="4111111111111111",
+                card_holder="Test", expiry="12/28", cvv="123",
+                transaction_data="{bad}"),
+            meta=FORM_META,
+        )
+        form.validate()
+        payload = form.gateway_payload()
+        assert payload["extra"] is None
+
+
+class TestImportRunFilterFormValidate:
+    """ImportRunFilterForm.validate()."""
+
+    def test_super_validate_fails(self):
+        from forms import ImportRunFilterForm
+        assert ImportRunFilterForm(_fd(), meta=FORM_META).validate() is True
+
+    def test_date_from_after_date_to(self):
+        from forms import ImportRunFilterForm
+        form = ImportRunFilterForm(
+            _fd(date_from="2025-06-01", date_to="2025-05-01"),
+            meta=FORM_META,
+        )
+        assert form.validate() is False
+        assert "date_to" in form.errors
+
+    def test_valid(self):
+        from forms import ImportRunFilterForm
+        form = ImportRunFilterForm(
+            _fd(date_from="2025-01-01", date_to="2025-01-31"),
+            meta=FORM_META,
+        )
+        assert form.validate() is True
+
+
+class TestGLBatchPostVoidFormValidate:
+    """GLBatchPostVoidForm.validate()."""
+
+    def test_super_validate_fails(self):
+        from forms import GLBatchPostVoidForm
+        assert GLBatchPostVoidForm(_fd(), meta=FORM_META).validate() is False
+
+    def test_invalid_action(self):
+        from forms import GLBatchPostVoidForm
+        form = GLBatchPostVoidForm(
+            _fd(batch_id="1", action="INVALID"),
+            meta=FORM_META,
+        )
+        assert form.validate() is False
+        assert "action" in form.errors
+
+    def test_batch_not_found(self, mocker):
+        from forms import GLBatchPostVoidForm
+        mocker.patch("extensions.db.session.get", return_value=None)
+        form = GLBatchPostVoidForm(
+            _fd(batch_id="99", action="POST"),
+            meta=FORM_META,
+        )
+        assert form.validate() is False
+        assert "batch_id" in form.errors
+
+    def test_already_posted(self, mocker):
+        from forms import GLBatchPostVoidForm
+        batch = mock.MagicMock(status="POSTED")
+        mocker.patch("extensions.db.session.get", return_value=batch)
+        form = GLBatchPostVoidForm(
+            _fd(batch_id="1", action="POST"),
+            meta=FORM_META,
+        )
+        assert form.validate() is False
+        assert "action" in form.errors
+
+    def test_duplicate_source(self, mocker):
+        from forms import GLBatchPostVoidForm
+        from models import GLBatch
+        batch = mock.MagicMock(status="DRAFT", source_type="SALE", source_id=5, purpose="revenue")
+        mocker.patch("extensions.db.session.get", return_value=batch)
+        dup = mock.MagicMock(id=2)
+        mock_q = mock.MagicMock()
+        mock_q.filter_by.return_value.first.return_value = dup
+        mocker.patch.object(GLBatch, "query", mock_q)
+        form = GLBatchPostVoidForm(
+            _fd(batch_id="1", action="POST"),
+            meta=FORM_META,
+        )
+        assert form.validate() is False
+        assert "action" in form.errors
+
+    def test_post_valid(self, mocker):
+        from forms import GLBatchPostVoidForm
+        from models import GLBatch
+        batch = mock.MagicMock(status="DRAFT", source_type="MANUAL", source_id=None, purpose=None)
+        mocker.patch("extensions.db.session.get", return_value=batch)
+        mock_q = mock.MagicMock()
+        mock_q.filter_by.return_value.first.return_value = None
+        mocker.patch.object(GLBatch, "query", mock_q)
+        form = GLBatchPostVoidForm(
+            _fd(batch_id="1", action="POST"),
+            meta=FORM_META,
+        )
+        assert form.validate() is True
+
+    def test_void_valid(self, mocker):
+        from forms import GLBatchPostVoidForm
+        batch = mock.MagicMock(status="POSTED")
+        mocker.patch("extensions.db.session.get", return_value=batch)
+        form = GLBatchPostVoidForm(
+            _fd(batch_id="1", action="VOID"),
+            meta=FORM_META,
+        )
+        assert form.validate() is True
+
+    def test_db_exception(self, mocker):
+        from forms import GLBatchPostVoidForm
+        mocker.patch("extensions.db.session.get", side_effect=Exception("DB down"))
+        form = GLBatchPostVoidForm(
+            _fd(batch_id="1", action="POST"),
+            meta=FORM_META,
+        )
+        assert form.validate() is True
+
+
+class TestGLBatchFormValidate:
+    """GLBatchForm.validate() — delegates to super()."""
+
+    def test_super_validate_fails(self):
+        from forms import GLBatchForm
+        form = GLBatchForm(_fd(), meta=FORM_META)
+        result = form.validate()
+        assert result is False
+
+    def test_valid(self):
+        from forms import GLBatchForm
+        form = GLBatchForm(_fd(status="DRAFT", currency="ILS"), meta=FORM_META)
+        assert form.validate() is True
+
+    def test_apply_to(self):
+        from forms import GLBatchForm
+        form = GLBatchForm(
+            _fd(source_type="SALE", source_id="5", purpose="Rev",
+                currency="usd", memo="Test memo", status="POSTED"),
+            meta=FORM_META,
+        )
+        b = mock.MagicMock()
+        result = form.apply_to(b)
+        assert result.currency == "USD"
+        assert result.source_type == "SALE"
+
+
+class TestGLEntryFormValidate:
+    """GLEntryForm.validate()."""
+
+    def test_super_validate_fails(self):
+        from forms import GLEntryForm
+        assert GLEntryForm(_fd(), meta=FORM_META).validate() is False
+
+    def test_both_zero(self):
+        from forms import GLEntryForm
+        form = GLEntryForm(
+            _fd(account_id="1", currency="ILS", debit="0", credit="0"),
+            meta=FORM_META,
+        )
+        assert form.validate() is False
+        assert "debit" in form.errors
+
+    def test_both_positive(self):
+        from forms import GLEntryForm
+        form = GLEntryForm(
+            _fd(account_id="1", currency="ILS", debit="100", credit="50"),
+            meta=FORM_META,
+        )
+        assert form.validate() is False
+        assert "credit" in form.errors
+
+    def test_valid_debit(self):
+        from forms import GLEntryForm
+        form = GLEntryForm(
+            _fd(account_id="1", currency="ILS", debit="100", credit="0"),
+            meta=FORM_META,
+        )
+        assert form.validate() is True
+
+    def test_apply_to(self):
+        from forms import GLEntryForm
+        form = GLEntryForm(
+            _fd(account_id="1", currency="ils", debit="200", credit="0", reference="REF-001"),
+            meta=FORM_META,
+        )
+        ge = mock.MagicMock()
+        result = form.apply_to(ge)
+        assert result.debit == 200
+        assert result.credit == 0
+        assert result.currency == "ILS"
+
+
+class TestExchangeRateFormValidate:
+    """ExchangeRateForm.validate() — base != quote."""
+
+    @staticmethod
+    def _patch_currencies(mocker):
+        mock_q = mocker.patch("models.Currency.query")
+        ils = mock.MagicMock(code="ILS", name="Shekel")
+        usd = mock.MagicMock(code="USD", name="Dollar")
+        mock_q.filter_by.return_value.order_by.return_value.all.return_value = [ils, usd]
+        return mock_q
+
+    def test_super_validate_fails(self, mocker):
+        self._patch_currencies(mocker)
+        from forms import ExchangeRateForm
+        form = ExchangeRateForm(_fd(), meta=FORM_META)
+        assert form.validate() is False
+
+    def test_base_equals_quote(self, mocker):
+        self._patch_currencies(mocker)
+        from forms import ExchangeRateForm
+        form = ExchangeRateForm(
+            _fd(base_code="ILS", quote_code="ILS", rate="1"),
+            meta=FORM_META,
+        )
+        assert form.validate() is False
+        assert "base_code" in form.errors
+
+    def test_valid(self, mocker):
+        self._patch_currencies(mocker)
+        from forms import ExchangeRateForm
+        form = ExchangeRateForm(
+            _fd(base_code="ILS", quote_code="USD", rate="3.5", valid_from="2025-01-01"),
+            meta=FORM_META,
+        )
+        assert form.validate() is True
+
+
+class TestSaleReturnFormValidate:
+    """SaleReturnForm.validate() — lines check."""
+
+    def test_super_validate_fails(self):
+        from forms import SaleReturnForm
+        mock_q = mock.MagicMock()
+        mock_q.filter_by.return_value.order_by.return_value.limit.return_value.all.return_value = []
+        with mock.patch("forms.Sale.query", mock_q):
+            with mock.patch("forms.Customer.query"):
+                with mock.patch("forms.Warehouse.query"):
+                    with mock.patch("forms.Product.query"):
+                        form = SaleReturnForm(_fd(), meta=FORM_META)
+                        assert form.validate() is False
+
+    @staticmethod
+    def _mock_sale_return_queries():
+        from datetime import datetime
+        s = mock.MagicMock(id=1)
+        s.created_at = datetime(2025, 1, 1, 0, 0)
+        c = mock.MagicMock(id=1)
+        c.name = "Customer1"
+        w = mock.MagicMock(id=1)
+        w.name = "Warehouse1"
+        p = mock.MagicMock(id=1)
+        p.name = "Product1"
+        p.barcode = "12345"
+        return (
+            mock.patch("forms.Sale.query", mock.MagicMock(**{
+                "filter_by.return_value.order_by.return_value.limit.return_value.all.return_value": [s]
+            })),
+            mock.patch("forms.Customer.query", mock.MagicMock(**{
+                "filter_by.return_value.order_by.return_value.all.return_value": [c]
+            })),
+            mock.patch("forms.Warehouse.query", mock.MagicMock(**{
+                "filter_by.return_value.order_by.return_value.all.return_value": [w]
+            })),
+            mock.patch("forms.Product.query", mock.MagicMock(**{
+                "filter_by.return_value.order_by.return_value.limit.return_value.all.return_value": [p]
+            })),
+        )
+
+    def test_no_lines(self):
+        from forms import SaleReturnForm
+        patches = self._mock_sale_return_queries()
+        with patches[0], patches[1], patches[2], patches[3]:
+            form = SaleReturnForm(
+                _fd(sale_id="1", customer_id="1", reason="Defect", currency="ILS"),
+                meta=FORM_META,
+            )
+            assert form.validate() is False
+            assert "lines" in form.errors
+
+    def test_invalid_line_quantity(self):
+        from forms import SaleReturnForm
+        patches = self._mock_sale_return_queries()
+        with patches[0], patches[1], patches[2], patches[3]:
+            fd = MultiDict([
+                ("sale_id", "1"), ("customer_id", "1"), ("reason", "Defect"),
+                ("currency", "ILS"),
+                ("lines-0-product_id", "1"), ("lines-0-quantity", "0"),
+                ("lines-0-unit_price", "100"),
+            ])
+            form = SaleReturnForm(fd, meta=FORM_META)
+            assert form.validate() is False
+            assert "lines" in form.errors
+
+    def test_valid(self):
+        from forms import SaleReturnForm
+        patches = self._mock_sale_return_queries()
+        with patches[0], patches[1], patches[2], patches[3]:
+            fd = MultiDict([
+                ("sale_id", "1"), ("customer_id", "1"), ("reason", "Defect"),
+                ("currency", "ILS"),
+                ("lines-0-product_id", "1"), ("lines-0-quantity", "2"),
+                ("lines-0-unit_price", "100"),
+            ])
+            form = SaleReturnForm(fd, meta=FORM_META)
+            assert form.validate() is True
