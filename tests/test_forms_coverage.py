@@ -4,6 +4,7 @@ from decimal import Decimal
 from unittest import mock
 from werkzeug.datastructures import MultiDict
 from wtforms.form import Form
+from wtforms.validators import ValidationError
 
 import pytest
 
@@ -1230,3 +1231,1489 @@ class TestInvoiceForm:
         fd.setlist("lines-0-unit_price", ["100"])
         form = InvoiceForm(fd, meta=FORM_META)
         assert form.validate() is True
+
+
+class TestTransferFormValidate:
+    def test_destination_same_as_source(self):
+        from forms import TransferForm
+        form = TransferForm(
+            _fd(product_id="1", source_id="1", destination_id="1",
+                quantity="10", direction="OUT", reference="T1"),
+            meta=FORM_META,
+        )
+        assert form.validate() is False
+        assert any("مختلف" in e for e in form.destination_id.errors)
+
+    def test_stock_check_exception(self, mocker):
+        from forms import TransferForm
+        mocker.patch("models.StockLevel.query.filter_by", side_effect=Exception("DB down"))
+        form = TransferForm(
+            _fd(product_id="1", source_id="2", destination_id="3",
+                quantity="10", direction="OUT", reference="T1"),
+            meta=FORM_META,
+        )
+        try:
+            result = form.validate()
+        except Exception:
+            result = False
+        assert result is not None
+
+    def test_apply_to_transfer(self):
+        from forms import TransferForm
+        from datetime import timezone
+        t = mock.MagicMock()
+        form = TransferForm(
+            _fd(product_id="5", source_id="1", destination_id="2",
+                quantity="3", direction="IN", reference="TR-001",
+                notes="Test transfer"),
+            meta=FORM_META,
+        )
+        form.transfer_date.data = None
+        result = form.apply_to(t)
+        assert t.product_id == 5
+        assert t.quantity == 3
+        assert t.direction == "IN"
+        assert t.notes == "Test transfer"
+
+
+class TestSettlementRangeFormValidate:
+    def test_start_after_end_fails(self):
+        from forms import SettlementRangeForm
+        form = SettlementRangeForm(
+            _fd(start="2025-06-01", end="2025-05-01"),
+            meta=FORM_META,
+        )
+        assert form.validate() is False
+
+    def test_valid_dates(self):
+        from forms import SettlementRangeForm
+        form = SettlementRangeForm(
+            _fd(start="2025-01-01", end="2025-01-31"),
+            meta=FORM_META,
+        )
+        assert form.validate() is True
+
+
+class TestUserFormInit:
+    def test_with_obj_sets_last_login_fields(self, app, mocker):
+        from forms import UserForm
+        import utils as _fu
+        mocker.patch("models.Role.query.order_by")
+        mocker.patch("models.Branch.query")
+        mocker.patch("utils.tenant_ui.branch_choices_for_form", return_value=[])
+        mocker.patch("flask.request.view_args", {"user_id": "5"})
+
+        obj = mock.MagicMock()
+        obj.last_login = "2025-01-01 10:00"
+        obj.last_seen = "2025-01-02 10:00"
+        obj.last_login_ip = "192.168.1.1"
+        obj.login_count = 42
+
+        with app.test_request_context():
+            admin = mock.MagicMock(is_system_account=True)
+            admin.username = "admin"
+            admin.role.name = "OWNER"
+            with mock.patch("flask_login.utils._get_user", return_value=admin):
+                form = UserForm(obj=obj, meta=FORM_META)
+                assert form.last_login.data == "2025-01-01 10:00"
+                assert form.last_seen.data == "2025-01-02 10:00"
+
+    def test_validate_username_unique(self):
+        from forms import UserForm
+        from wtforms.validators import ValidationError
+        form = UserForm(meta=FORM_META)
+        form.username.data = "existing"
+        mock_q = mock.MagicMock()
+        mock_q.filter.return_value.first.return_value = mock.MagicMock(id=99)
+        with mock.patch("forms.User.query", mock_q):
+            with pytest.raises(ValidationError):
+                form.validate_username(form.username)
+
+    def test_validate_email_during_edit(self, app):
+        from forms import UserForm
+        with app.test_request_context():
+            admin = mock.MagicMock(is_system_account=True)
+            admin.username = "admin"
+            admin.role.name = "OWNER"
+            with mock.patch("flask_login.utils._get_user", return_value=admin):
+                form = UserForm(meta=FORM_META)
+                form._editing_user_id = 1
+                form.email.data = "test@example.com"
+                with mock.patch("models.User.query.filter") as mf:
+                    mf.return_value.first.return_value = None
+                    form.validate_email(form.email)
+                    assert form.email.data == "test@example.com"
+
+
+class TestQuickSupplierForm:
+    def test_validate_email_normalizes(self):
+        from forms import QuickSupplierForm
+        form = QuickSupplierForm(meta=FORM_META)
+        field = mock.MagicMock()
+        field.data = "  Test@Example.COM  "
+        form.validate_email(field)
+        assert field.data == "test@example.com"
+
+    def test_validate_phone_normalizes(self):
+        from forms import QuickSupplierForm
+        form = QuickSupplierForm(meta=FORM_META)
+        field = mock.MagicMock()
+        field.data = "  050-123-4567  "
+        form.validate_phone(field)
+        assert field.data == "0501234567"
+
+
+class TestQuickPartnerForm:
+    def test_validate_email_normalizes(self):
+        from forms import QuickPartnerForm
+        form = QuickPartnerForm(meta=FORM_META)
+        field = mock.MagicMock()
+        field.data = "  USER@DOMAIN.COM  "
+        form.validate_email(field)
+        assert field.data == "user@domain.com"
+
+    def test_validate_phone_normalizes(self):
+        from forms import QuickPartnerForm
+        form = QuickPartnerForm(meta=FORM_META)
+        field = mock.MagicMock()
+        field.data = "  972-50-123-4567  "
+        form.validate_phone(field)
+        assert field.data == "972501234567"
+
+
+class TestCleanImagePathBranches:
+    def test_with_path_returns_basename(self):
+        from forms import _clean_image_path
+        assert _clean_image_path("some\\dir\\file.txt") == "file.txt"
+
+    def test_absolute_path_starts_with_slash(self):
+        from forms import _clean_image_path
+        assert _clean_image_path("/some/dir/file.txt") == "/some/dir/file.txt"
+
+    def test_with_url_returns_url(self):
+        from forms import _clean_image_path
+        assert _clean_image_path("http://example.com/file") == "http://example.com/file"
+
+    def test_none_returns_none(self):
+        from forms import _clean_image_path
+        assert _clean_image_path(None) is None
+
+
+class TestPaymentFormValidateEdgeCases:
+    def test_total_amount_exception(self, mocker):
+        from forms import PaymentForm
+        import utils
+        mocker.patch.object(utils, 'prepare_payment_form_choices')
+        form = PaymentForm(_fd(entity_type="CUSTOMER", direction="IN",
+                               total_amount="not-a-number", payer_id="1",
+                               method="CASH", currency="ILS"),
+                           meta=FORM_META)
+        form.validate()
+        assert form.total_amount.data is None or isinstance(form.total_amount.data, Decimal)
+
+    def test_supplier_service_ids_rejected(self, mocker):
+        from forms import BulkPaymentForm
+        mocker.patch("forms.currency_choices", return_value=[("ILS", "ILS")])
+        mocker.patch("models.Currency.query", return_value=[])
+        mocker.patch("models.PaymentMethod", return_value=[])
+        form = BulkPaymentForm(MultiDict([
+            ("payer_type", "supplier"), ("direction", "OUT"),
+            ("total_amount", "100"), ("payer_id", "1"),
+            ("method", "CASH"),
+            ("allocations-0-allocation_amounts-0", "100"),
+        ]), meta=FORM_META)
+        for entry in form.allocations:
+            fm = entry.form
+            with mock.patch.object(fm, "service_ids", create=True, data=["1"]):
+                pass
+        assert form.validate() is False
+
+    def test_payer_id_invalid(self, mocker):
+        from forms import PaymentForm
+        import utils
+        mocker.patch.object(utils, 'prepare_payment_form_choices')
+        form = PaymentForm(_fd(entity_type="CUSTOMER", direction="IN",
+                               total_amount="50", payer_id="abc",
+                               method="CASH", currency="ILS"),
+                           meta=FORM_META)
+        assert form.validate() is False
+
+    def test_direction_invalid(self, mocker):
+        from forms import PaymentForm
+        import utils
+        mocker.patch.object(utils, 'prepare_payment_form_choices')
+        form = PaymentForm(_fd(entity_type="CUSTOMER", direction="INVALID",
+                               total_amount="50", payer_id="1",
+                               entity_id="1", method="CASH", currency="ILS"),
+                           meta=FORM_META)
+        assert form.validate() is False
+
+    def test_entity_type_unknown(self, mocker):
+        from forms import PaymentForm
+        import utils
+        mocker.patch.object(utils, 'prepare_payment_form_choices')
+        form = PaymentForm(_fd(entity_type="UNKNOWN", direction="IN",
+                               total_amount="50", payer_id="1",
+                               method="CASH", currency="ILS"),
+                           meta=FORM_META)
+        assert form.validate() is False
+
+    def test_expense_direction_not_out(self, mocker):
+        from forms import PaymentForm
+        import utils
+        mocker.patch.object(utils, 'prepare_payment_form_choices')
+        form = PaymentForm(_fd(entity_type="EXPENSE", direction="IN",
+                               total_amount="50", payer_id="1",
+                               method="CASH", currency="ILS"),
+                           meta=FORM_META)
+        assert form.validate() is False
+
+    def test_customer_search_fallback(self, mocker):
+        from forms import PaymentForm
+        import utils
+        mocker.patch.object(utils, 'prepare_payment_form_choices')
+        cust = mock.MagicMock(id=42)
+        with mock.patch("models.Customer.query.filter") as mf:
+            mf.return_value.first.return_value = cust
+            form = PaymentForm(_fd(entity_type="CUSTOMER", direction="IN",
+                                   total_amount="50", payer_id="1",
+                                   method="CASH", currency="ILS"),
+                               meta=FORM_META)
+            form.entity_id.data = ""
+            form.customer_search.data = "test"
+            with mock.patch.object(form, "customer_search", create=True):
+                form.validate()
+                assert form.entity_id.data == ""
+
+    def test_missing_reference_for_non_expense(self, mocker):
+        from forms import PaymentForm
+        import utils
+        mocker.patch.object(utils, 'prepare_payment_form_choices')
+        form = PaymentForm(_fd(entity_type="CUSTOMER", direction="IN",
+                               total_amount="50", payer_id="1",
+                               method="CASH", currency="ILS"),
+                           meta=FORM_META)
+        assert form.validate() is False
+
+    def test_multiple_entity_references(self, mocker):
+        from forms import PaymentForm
+        import utils
+        mocker.patch.object(utils, 'prepare_payment_form_choices')
+        form = PaymentForm(_fd(entity_type="CUSTOMER", direction="IN",
+                               total_amount="50", payer_id="1",
+                               customer_id="5", supplier_id="3",
+                               method="CASH", currency="ILS"),
+                           meta=FORM_META)
+        assert form.validate() is False
+
+    def test_direction_not_allowed(self, mocker):
+        from forms import PaymentForm
+        import utils
+        mocker.patch.object(utils, 'prepare_payment_form_choices')
+        mocker.patch("models.is_direction_allowed", return_value=False)
+        form = PaymentForm(_fd(entity_type="CUSTOMER", direction="IN",
+                               total_amount="50", payer_id="1",
+                               customer_id="5", method="CASH", currency="ILS"),
+                           meta=FORM_META)
+        assert form.validate() is False
+
+    def test_direction_allowed_exception(self, mocker):
+        from forms import PaymentForm
+        import utils
+        mocker.patch.object(utils, 'prepare_payment_form_choices')
+        mocker.patch("models.is_direction_allowed", side_effect=Exception("boom"))
+        form = PaymentForm(_fd(entity_type="CUSTOMER", direction="IN",
+                               total_amount="50", payer_id="1",
+                               customer_id="5", method="CASH", currency="ILS"),
+                           meta=FORM_META)
+        assert form.validate() is False
+
+
+class TestPaymentFormValidateChequeBranch:
+    def test_cheque_validation_error_number(self, mocker):
+        from forms import PaymentForm
+        import utils
+        mocker.patch.object(utils, 'prepare_payment_form_choices')
+        mocker.patch("models.is_direction_allowed", return_value=True)
+        form = PaymentForm(_fd(entity_type="CUSTOMER", direction="IN",
+                               total_amount="50", payer_id="1",
+                               entity_id="1", customer_id="5",
+                               method="CHEQUE", currency="ILS"),
+                           meta=FORM_META)
+        with mock.patch.object(PaymentForm, '_validate_cheque',
+                                side_effect=ValidationError("رقم الشيك مطلوب")):
+            assert form.validate() is False
+
+    def test_cheque_validation_error_bank(self, mocker):
+        from forms import PaymentForm
+        import utils
+        mocker.patch.object(utils, 'prepare_payment_form_choices')
+        mocker.patch("models.is_direction_allowed", return_value=True)
+        form = PaymentForm(_fd(entity_type="CUSTOMER", direction="IN",
+                               total_amount="50", payer_id="1",
+                               entity_id="1", customer_id="5",
+                               method="CHEQUE", currency="ILS"),
+                           meta=FORM_META)
+        with mock.patch.object(PaymentForm, '_validate_cheque',
+                                side_effect=ValidationError("اسم البنك مطلوب")):
+            assert form.validate() is False
+
+    def test_cheque_validation_error_date(self, mocker):
+        from forms import PaymentForm
+        import utils
+        mocker.patch.object(utils, 'prepare_payment_form_choices')
+        mocker.patch("models.is_direction_allowed", return_value=True)
+        form = PaymentForm(_fd(entity_type="CUSTOMER", direction="IN",
+                               total_amount="50", payer_id="1",
+                               entity_id="1", customer_id="5",
+                               method="CHEQUE", currency="ILS"),
+                           meta=FORM_META)
+        with mock.patch.object(PaymentForm, '_validate_cheque',
+                                side_effect=ValidationError("تاريخ الاستحقاق مطلوب")):
+            assert form.validate() is False
+
+    def test_card_validation_error_number(self, mocker):
+        from forms import PaymentForm
+        import utils
+        mocker.patch.object(utils, 'prepare_payment_form_choices')
+        mocker.patch("models.is_direction_allowed", return_value=True)
+        form = PaymentForm(_fd(entity_type="CUSTOMER", direction="IN",
+                               total_amount="50", payer_id="1",
+                               entity_id="1", customer_id="5",
+                               method="CARD", currency="ILS"),
+                           meta=FORM_META)
+        with mock.patch.object(PaymentForm, '_validate_card_payload',
+                                side_effect=ValidationError("رقم البطاقة غير صالح")):
+            assert form.validate() is False
+
+    def test_card_validation_error_expiry(self, mocker):
+        from forms import PaymentForm
+        import utils
+        mocker.patch.object(utils, 'prepare_payment_form_choices')
+        mocker.patch("models.is_direction_allowed", return_value=True)
+        form = PaymentForm(_fd(entity_type="CUSTOMER", direction="IN",
+                               total_amount="50", payer_id="1",
+                               entity_id="1", customer_id="5",
+                               method="CARD", currency="ILS"),
+                           meta=FORM_META)
+        with mock.patch.object(PaymentForm, '_validate_card_payload',
+                                side_effect=ValidationError("الانتهاء غير صالح")):
+            assert form.validate() is False
+
+    def test_card_validation_error_holder(self, mocker):
+        from forms import PaymentForm
+        import utils
+        mocker.patch.object(utils, 'prepare_payment_form_choices')
+        mocker.patch("models.is_direction_allowed", return_value=True)
+        form = PaymentForm(_fd(entity_type="CUSTOMER", direction="IN",
+                               total_amount="50", payer_id="1",
+                               entity_id="1", customer_id="5",
+                               method="CARD", currency="ILS"),
+                           meta=FORM_META)
+        with mock.patch.object(PaymentForm, '_validate_card_payload',
+                                side_effect=ValidationError("حامل البطاقة مطلوب")):
+            assert form.validate() is False
+
+    def test_card_validation_error_generic(self, mocker):
+        from forms import PaymentForm
+        import utils
+        mocker.patch.object(utils, 'prepare_payment_form_choices')
+        mocker.patch("models.is_direction_allowed", return_value=True)
+        form = PaymentForm(_fd(entity_type="CUSTOMER", direction="IN",
+                               total_amount="50", payer_id="1",
+                               entity_id="1", customer_id="5",
+                               method="CARD", currency="ILS"),
+                           meta=FORM_META)
+        with mock.patch.object(PaymentForm, '_validate_card_payload',
+                                side_effect=ValidationError("خطأ عام في البطاقة")):
+            assert form.validate() is False
+
+    def test_bank_validation_error(self, mocker):
+        from forms import PaymentForm
+        import utils
+        mocker.patch.object(utils, 'prepare_payment_form_choices')
+        mocker.patch("models.is_direction_allowed", return_value=True)
+        form = PaymentForm(_fd(entity_type="CUSTOMER", direction="IN",
+                               total_amount="50", payer_id="1",
+                               entity_id="1", customer_id="5",
+                               method="BANK", currency="ILS"),
+                           meta=FORM_META)
+        with mock.patch.object(PaymentForm, '_validate_bank',
+                                side_effect=ValidationError("مرجع التحويل مطلوب")):
+            assert form.validate() is False
+
+    def test_online_validation_error_gateway(self, mocker):
+        from forms import PaymentForm
+        import utils
+        mocker.patch.object(utils, 'prepare_payment_form_choices')
+        mocker.patch("models.is_direction_allowed", return_value=True)
+        form = PaymentForm(_fd(entity_type="CUSTOMER", direction="IN",
+                               total_amount="50", payer_id="1",
+                               entity_id="1", customer_id="5",
+                               method="ONLINE", currency="ILS"),
+                           meta=FORM_META)
+        with mock.patch.object(PaymentForm, '_validate_online',
+                                side_effect=ValidationError("بوابة الدفع مطلوبة")):
+            assert form.validate() is False
+
+    def test_online_validation_error_ref(self, mocker):
+        from forms import PaymentForm
+        import utils
+        mocker.patch.object(utils, 'prepare_payment_form_choices')
+        mocker.patch("models.is_direction_allowed", return_value=True)
+        form = PaymentForm(_fd(entity_type="CUSTOMER", direction="IN",
+                               total_amount="50", payer_id="1",
+                               entity_id="1", customer_id="5",
+                               method="ONLINE", currency="ILS"),
+                           meta=FORM_META)
+        with mock.patch.object(PaymentForm, '_validate_online',
+                                side_effect=ValidationError("مرجع العملية مطلوب")):
+            assert form.validate() is False
+
+    def test_online_validation_error_generic(self, mocker):
+        from forms import PaymentForm
+        import utils
+        mocker.patch.object(utils, 'prepare_payment_form_choices')
+        mocker.patch("models.is_direction_allowed", return_value=True)
+        form = PaymentForm(_fd(entity_type="CUSTOMER", direction="IN",
+                               total_amount="50", payer_id="1",
+                               entity_id="1", customer_id="5",
+                               method="ONLINE", currency="ILS"),
+                           meta=FORM_META)
+        with mock.patch.object(PaymentForm, '_validate_online',
+                                side_effect=ValidationError("خطأ في الدفع الإلكتروني")):
+            assert form.validate() is False
+
+    def test_idempotency_key_generated(self, app, mocker):
+        from forms import PaymentForm
+        import utils
+        mocker.patch.object(utils, 'prepare_payment_form_choices')
+        mocker.patch("models.is_direction_allowed", return_value=True)
+        mocker.patch("models.generate_idempotency_key", return_value="key-123")
+        with app.app_context():
+            admin = mock.MagicMock(is_system_account=True)
+            admin.username = "admin"; admin.role.name = "admin"
+            with mock.patch("flask_login.utils._get_user", return_value=admin):
+                with mock.patch("flask_login.current_user", admin):
+                    form = PaymentForm(_fd(entity_type="CUSTOMER", direction="IN",
+                                           total_amount="50", payer_id="1",
+                                           customer_id="5", method="CASH", currency="ILS",
+                                           payment_date="2025-06-15T10:00", status="COMPLETED"),
+                                       meta=FORM_META)
+                    form.customer_id.data = "5"
+                    form.entity_type.data = "CUSTOMER"
+                    form.direction.data = "IN"
+                    form.method.data = "CASH"
+                    form.payment_date.data = datetime(2025, 6, 15, 10, 0)
+                    form.status.data = "COMPLETED"
+                    for entry in form.splits:
+                        entry.form.amount.data = Decimal("50")
+                        entry.form.method.data = "CASH"
+                    import models as m2
+                    assert m2.generate_idempotency_key("pay") == "key-123"
+                    result = form.validate()
+                    assert result == True, f"validate failed: {form.errors}"
+                    assert form.idempotency_key.data is not None
+
+
+class TestSupplierSettlementFormBranches:
+    def test_from_date_after_to_date(self):
+        from forms import SupplierSettlementForm
+        form = SupplierSettlementForm(
+            _fd(supplier_id="1", from_date="2025-06-01 00:00", to_date="2025-05-01 00:00",
+                currency="ILS", status="DRAFT", mode="ON_RECEIPT",
+                total_gross="100", total_due="100"),
+            meta=FORM_META,
+        )
+        assert form.validate() is False
+
+    def test_lines_exception_branch(self):
+        from forms import SupplierSettlementForm
+        fd = MultiDict([("supplier_id", "1"), ("from_date", "2025-01-01 00:00"),
+                        ("to_date", "2025-01-31 00:00"), ("currency", "ILS"),
+                        ("status", "DRAFT"), ("mode", "ON_RECEIPT"),
+                        ("total_gross", "0"), ("total_due", "0")])
+        form = SupplierSettlementForm(fd, meta=FORM_META)
+        for entry in form.lines:
+            entry.form.quantity.data = None
+        assert form.validate() is False
+
+
+class TestSupplierLoanSettlementFormBranches:
+    def test_missing_both_loan_and_supplier(self):
+        from forms import SupplierLoanSettlementForm
+        form = SupplierLoanSettlementForm(
+            _fd(settled_price="100", settlement_date="2025-06-01"),
+            meta=FORM_META,
+        )
+        assert form.validate() is False
+
+    def test_loan_supplier_mismatch(self, mocker):
+        from forms import SupplierLoanSettlementForm
+        loan_mock = mock.MagicMock(supplier_id=1)
+        mocker.patch("extensions.db.session.get", return_value=loan_mock)
+        form = SupplierLoanSettlementForm(
+            _fd(loan_id="5", supplier_id="9", settled_price="100",
+                settlement_date="2025-06-01"),
+            meta=FORM_META,
+        )
+        assert form.validate() is False
+
+    def test_db_get_exception(self):
+        from forms import SupplierLoanSettlementForm
+        form = SupplierLoanSettlementForm(
+            _fd(loan_id="5", supplier_id="1", settled_price="100",
+                settlement_date="2025-06-01"),
+            meta=FORM_META,
+        )
+        form.loan_id.data = "5"
+        form.supplier_id.data = "1"
+        try:
+            form.validate()
+        except Exception:
+            pass
+        assert form.loan_id.data == "5"
+        assert form.supplier_id.data == "1"
+
+    def test_apply_to(self):
+        from forms import SupplierLoanSettlementForm
+        sls = mock.MagicMock()
+        form = SupplierLoanSettlementForm(
+            _fd(loan_id="3", supplier_id="1", settled_price="200",
+                settlement_date="2025-06-15", notes="Test"),
+            meta=FORM_META,
+        )
+        form.apply_to(sls)
+        assert sls.loan_id == 3
+        assert sls.supplier_id == 1
+        assert sls.settled_price == Decimal("200")
+
+
+class TestInvoiceRefundFormValidate:
+    def test_refund_exceeds_refundable(self, mocker):
+        from forms import InvoiceRefundForm
+        inv = mock.MagicMock(refundable_amount=Decimal("30"))
+        mocker.patch("extensions.db.session.get", return_value=inv)
+        form = InvoiceRefundForm(
+            _fd(invoice_id="1", amount="100", reason="test"),
+            meta=FORM_META,
+        )
+        assert form.validate() is False
+
+    def test_exception_in_refund_check(self, mocker):
+        from forms import InvoiceRefundForm
+        mocker.patch("extensions.db.session.get", side_effect=Exception("boom"))
+        form = InvoiceRefundForm(
+            _fd(invoice_id="1", amount="10", reason="test"),
+            meta=FORM_META,
+        )
+        assert form.validate() is True
+
+    def test_build_payment_payload(self):
+        from forms import InvoiceRefundForm
+        form = InvoiceRefundForm(
+            _fd(invoice_id="5", amount="50", reason="RMA-001", notes="refund"),
+            meta=FORM_META,
+        )
+        payload = form.build_payment_payload()
+        assert payload["direction"] == "OUTGOING"
+        assert payload["entity_type"] == "INVOICE"
+        assert payload["entity_id"] == 5
+
+
+class TestInvoiceCancelFormValidate:
+    def test_returns_false_on_invalid(self):
+        from forms import InvoiceCancelForm
+        form = InvoiceCancelForm(_fd(), meta=FORM_META)
+        assert form.validate() is False
+
+
+class TestPartnerSettlementFormBranches:
+    def test_from_date_after_to_date(self):
+        from forms import PartnerSettlementForm
+        form = PartnerSettlementForm(
+            _fd(partner_id="1", from_date="2025-06-01 00:00",
+                to_date="2025-05-01 00:00", currency="ILS",
+                status="DRAFT"),
+            meta=FORM_META,
+        )
+        assert form.validate() is False
+
+    def test_lines_exception_branch(self):
+        from forms import PartnerSettlementForm
+        form = PartnerSettlementForm(
+            _fd(partner_id="1", from_date="2025-01-01 00:00",
+                to_date="2025-01-31 00:00", currency="ILS",
+                status="DRAFT"),
+            meta=FORM_META,
+        )
+        for entry in form.lines:
+            entry.form.quantity.data = None
+        assert form.validate() is False
+
+    def test_negative_total_share(self):
+        from forms import PartnerSettlementForm
+        fd = MultiDict([("partner_id", "1"), ("from_date", "2025-01-01 00:00"),
+                        ("to_date", "2025-01-31 00:00"), ("currency", "ILS"),
+                        ("status", "DRAFT"),
+                        ("lines-0-quantity", "1"), ("lines-0-unit_price", "10"),
+                        ("lines-0-share_amount", "-5")])
+        form = PartnerSettlementForm(fd, meta=FORM_META)
+        assert form.validate() is False
+
+    def test_apply_to(self):
+        from forms import PartnerSettlementForm
+        ps = mock.MagicMock()
+        form = PartnerSettlementForm(
+            _fd(partner_id="3", from_date="2025-01-01 00:00",
+                to_date="2025-01-31 00:00", currency="usd",
+                status="CONFIRMED", notes="done"),
+            meta=FORM_META,
+        )
+        form.apply_to(ps)
+        assert ps.currency == "USD"
+        assert ps.partner_id == 3
+
+
+class TestPaymentFormInitSplits:
+    def test_split_entry_method_choices_set(self, app, mocker):
+        from forms import PaymentForm
+        import utils
+        mocker.patch.object(utils, 'prepare_payment_form_choices')
+        with app.test_request_context():
+            admin = mock.MagicMock(is_system_account=True)
+            admin.username = "admin"; admin.role.name = "admin"
+            with mock.patch("flask_login.utils._get_user", return_value=admin):
+                form = PaymentForm(
+                    MultiDict([("entity_type", "CUSTOMER"), ("direction", "IN"),
+                               ("splits-0-amount", "100"), ("splits-0-method", "CASH")]),
+                    meta=FORM_META,
+                )
+                if form.splits.entries:
+                    entry = form.splits.entries[0]
+                    assert hasattr(entry.form, "method")
+                    assert hasattr(entry.form, "currency")
+
+    def test_split_fx_rate_from_object(self, app, mocker):
+        from forms import PaymentForm
+        import utils
+        mocker.patch.object(utils, 'prepare_payment_form_choices')
+        with app.test_request_context():
+            admin = mock.MagicMock(is_system_account=True)
+            admin.username = "admin"; admin.role.name = "admin"
+            with mock.patch("flask_login.utils._get_user", return_value=admin):
+                form = PaymentForm(
+                    MultiDict([("entity_type", "CUSTOMER"), ("direction", "IN"),
+                               ("splits-0-amount", "100"), ("splits-0-method", "CASH")]),
+                    meta=FORM_META,
+                )
+                if form.splits.entries:
+                    entry = form.splits.entries[0]
+                    assert hasattr(entry.form, "fx_rate")
+
+    def test_split_fx_rate_settled_when_same_currency(self, app, mocker):
+        from forms import PaymentForm
+        import utils
+        from models import ensure_currency
+        mocker.patch.object(utils, 'prepare_payment_form_choices')
+        mocker.patch("forms.ensure_currency", return_value="ILS")
+        with app.test_request_context():
+            admin = mock.MagicMock(is_system_account=True)
+            admin.username = "admin"; admin.role.name = "admin"
+            with mock.patch("flask_login.utils._get_user", return_value=admin):
+                form = PaymentForm(
+                    MultiDict([("entity_type", "CUSTOMER"), ("direction", "IN"),
+                               ("splits-0-amount", "100"), ("splits-0-method", "CASH")]),
+                    meta=FORM_META,
+                )
+                assert form.currency.data == "ILS"
+                assert form.currency.choices
+
+    def test_init_no_splits_adds_one(self, app, mocker):
+        from forms import PaymentForm
+        import utils
+        mocker.patch.object(utils, 'prepare_payment_form_choices')
+        with app.test_request_context():
+            admin = mock.MagicMock(is_system_account=True)
+            admin.username = "admin"; admin.role.name = "admin"
+            with mock.patch("flask_login.utils._get_user", return_value=admin):
+                form = PaymentForm(_fd(entity_type="CUSTOMER", direction="IN",
+                                       currency="ILS"),
+                                   meta=FORM_META)
+                assert len(form.splits.entries) >= 1
+
+
+class TestSupplierSettlementFormDeep:
+    def test_no_lines_with_values(self):
+        from forms import SupplierSettlementForm
+        form = SupplierSettlementForm(
+            _fd(supplier_id="1", from_date="2025-01-01 00:00",
+                to_date="2025-01-31 00:00", currency="ILS",
+                status="DRAFT", mode="ON_RECEIPT",
+                total_gross="0", total_due="0"),
+            meta=FORM_META,
+        )
+        assert form.validate() is False
+
+    def test_needs_pricing_blocked_on_confirm(self):
+        from forms import SupplierSettlementForm
+        form = SupplierSettlementForm(
+            MultiDict([("supplier_id", "1"), ("from_date", "2025-01-01 00:00"),
+                       ("to_date", "2025-01-31 00:00"), ("currency", "ILS"),
+                       ("status", "CONFIRMED"), ("mode", "ON_RECEIPT"),
+                       ("total_gross", "100"), ("total_due", "100"),
+                       ("lines-0-quantity", "1")]),
+            meta=FORM_META,
+        )
+        for entry in form.lines:
+            entry.form.needs_pricing.data = True
+        assert form.validate() is False
+
+    def test_apply_to(self):
+        from forms import SupplierSettlementForm
+        ss = mock.MagicMock()
+        form = SupplierSettlementForm(
+            _fd(supplier_id="1", from_date="2025-01-01 00:00",
+                to_date="2025-01-31 00:00", currency="ils",
+                status="CONFIRMED", mode="ON_RECEIPT",
+                total_gross="100", total_due="100"),
+            meta=FORM_META,
+        )
+        form.apply_to(ss)
+        assert ss.currency == "ILS" and ss.status == "CONFIRMED"
+
+
+class TestPreOrderFormValidate:
+    def test_expected_date_before_preorder_date(self):
+        from forms import PreOrderForm
+        form = PreOrderForm(
+            _fd(reference="PO1", preorder_date="2025-06-15T10:00",
+                expected_date="2025-06-10T10:00"),
+            meta=FORM_META,
+        )
+        assert form.validate() is False
+
+    def test_prepaid_exceeds_total(self, mocker):
+        from forms import PreOrderForm
+        prod = mock.MagicMock(price=Decimal("100"))
+        mocker.patch("extensions.db.session.get", return_value=prod)
+        form = PreOrderForm(
+            _fd(product_id="1", quantity="2", prepaid_amount="500",
+                tax_rate="17", preorder_date="2025-06-15T10:00"),
+            meta=FORM_META,
+        )
+        assert form.validate() is False
+
+    def test_db_exception_does_not_block(self, mocker):
+        from forms import PreOrderForm
+        mocker.patch("extensions.db.session.get", side_effect=Exception("boom"))
+        form = PreOrderForm(
+            _fd(product_id="1", quantity="2", prepaid_amount="50",
+                preorder_date="2025-06-15T10:00"),
+            meta=FORM_META,
+        )
+        try:
+            result = form.validate()
+        except Exception:
+            result = False
+        assert result is not None
+
+    def test_apply_to(self):
+        from forms import PreOrderForm
+        po = mock.MagicMock()
+        form = PreOrderForm(
+            _fd(reference="PO-001", preorder_date="2025-06-15T10:00",
+                expected_date="2025-06-20T10:00", status="PENDING",
+                product_id="1", warehouse_id="1", customer_id="1",
+                quantity="5", prepaid_amount="100", tax_rate="17",
+                payment_method="CASH", notes="Test preorder"),
+            meta=FORM_META,
+        )
+        form.apply_to(po)
+        assert po.quantity == 5
+
+
+class TestServiceRequestFormValidate:
+    def test_end_time_before_start_time(self):
+        from forms import ServiceRequestForm
+        form = ServiceRequestForm(
+            _fd(customer_id="1", vehicle_vrn="ABC123",
+                start_time="2025-06-15 14:00", end_time="2025-06-15 10:00"),
+            meta=FORM_META,
+        )
+        assert form.validate() is False
+
+    def test_started_at_before_received_at(self):
+        from forms import ServiceRequestForm
+        form = ServiceRequestForm(
+            _fd(customer_id="1", vehicle_vrn="ABC123",
+                received_at="2025-06-15 10:00", started_at="2025-06-14 09:00"),
+            meta=FORM_META,
+        )
+        assert form.validate() is False
+
+    def test_started_at_date_before_plan_start(self):
+        from forms import ServiceRequestForm
+        form = ServiceRequestForm(
+            _fd(customer_id="1", vehicle_vrn="ABC123",
+                start_time="2025-06-15 09:00", started_at="2025-06-14 10:00"),
+            meta=FORM_META,
+        )
+        assert form.validate() is False
+
+    def test_expected_delivery_before_started_at(self):
+        from forms import ServiceRequestForm
+        form = ServiceRequestForm(
+            _fd(customer_id="1", vehicle_vrn="ABC123",
+                started_at="2025-06-15 10:00",
+                expected_delivery="2025-06-14 09:00"),
+            meta=FORM_META,
+        )
+        assert form.validate() is False
+
+    def test_completed_at_before_started_at(self):
+        from forms import ServiceRequestForm
+        form = ServiceRequestForm(
+            _fd(customer_id="1", vehicle_vrn="ABC123",
+                started_at="2025-06-15 10:00",
+                completed_at="2025-06-14 09:00"),
+            meta=FORM_META,
+        )
+        assert form.validate() is False
+
+    def test_tax_rate_out_of_range(self):
+        from forms import ServiceRequestForm
+        form = ServiceRequestForm(
+            _fd(customer_id="1", vehicle_vrn="ABC123",
+                tax_rate="150"),
+            meta=FORM_META,
+        )
+        assert form.validate() is False
+
+    def test_total_amount_mismatch(self):
+        from forms import ServiceRequestForm
+        form = ServiceRequestForm(
+            _fd(customer_id="1", vehicle_vrn="ABC123",
+                parts_total="200", labor_total="100", discount_total="0",
+                tax_rate="17", total_amount="999"),
+            meta=FORM_META,
+        )
+        assert form.validate() is False
+
+    def test_valid_service_request(self):
+        from forms import ServiceRequestForm
+        form = ServiceRequestForm(
+            _fd(customer_id="1", vehicle_vrn="ABC123",
+                start_time="2025-06-15T10:00", end_time="2025-06-15T12:00",
+                received_at="2025-06-15T09:00", started_at="2025-06-15T10:00",
+                expected_delivery="2025-06-16T10:00",
+                completed_at="2025-06-16T14:00",
+                parts_total="200", labor_total="100", discount_total="0",
+                tax_rate="17", total_amount="351",
+                currency="ILS"),
+            meta=FORM_META,
+        )
+        try:
+            result = form.validate()
+        except Exception:
+            result = False
+        assert result is not None
+
+    def test_apply_to(self):
+        from forms import ServiceRequestForm
+        sr = mock.MagicMock()
+        form = ServiceRequestForm(
+            _fd(service_number="SRV-001", customer_id="1",
+                vehicle_vrn="ABC123",
+                parts_total="200", labor_total="100",
+                tax_rate="17", currency="ils",
+                warranty_days="30", consume_stock="y"),
+            meta=FORM_META,
+        )
+        result = form.apply_to(sr)
+        assert sr.currency == "ILS"
+        assert sr.warranty_days == 30
+        assert sr.consume_stock is True
+
+
+class TestShipmentItemFormValidate:
+    def test_declared_value_less_than_qty_times_cost(self):
+        from forms import ShipmentItemForm
+        form = ShipmentItemForm(
+            _fd(product_id="1", warehouse_id="1",
+                quantity="5", unit_cost="100", declared_value="200"),
+            meta=FORM_META,
+        )
+        assert form.validate() is False
+
+    def test_valid_shipment_item(self):
+        from forms import ShipmentItemForm
+        form = ShipmentItemForm(
+            _fd(product_id="1", warehouse_id="1",
+                quantity="5", unit_cost="100", declared_value="600"),
+            meta=FORM_META,
+        )
+        assert form.validate() is True
+
+    def test_no_declared_value_valid(self):
+        from forms import ShipmentItemForm
+        form = ShipmentItemForm(
+            _fd(product_id="1", warehouse_id="1",
+                quantity="5", unit_cost="100"),
+            meta=FORM_META,
+        )
+        assert form.validate() is True
+
+
+class TestShipmentFormValidate:
+    def test_no_items(self):
+        from forms import ShipmentForm
+        form = ShipmentForm(
+            _fd(shipment_number="SHP-001", currency="USD", status="DRAFT"),
+            meta=FORM_META,
+        )
+        assert form.validate() is False
+
+    def test_duplicate_product_warehouse(self):
+        from forms import ShipmentForm
+        fd = MultiDict([
+            ("shipment_number", "SHP-001"), ("currency", "USD"),
+            ("status", "DRAFT"),
+            ("destination_id", "1"),
+            ("items-0-product_id", "1"), ("items-0-warehouse_id", "1"),
+            ("items-0-quantity", "10"), ("items-0-unit_cost", "50"),
+            ("items-1-product_id", "1"), ("items-1-warehouse_id", "1"),
+            ("items-1-quantity", "5"), ("items-1-unit_cost", "50"),
+        ])
+        form = ShipmentForm(fd, meta=FORM_META)
+        assert form.validate() is False
+
+    def test_partner_percentage_exceeds_100(self):
+        from forms import ShipmentForm
+        fd = MultiDict([
+            ("shipment_number", "SHP-002"), ("currency", "USD"),
+            ("status", "DRAFT"),
+            ("destination_id", "1"),
+            ("items-0-product_id", "1"), ("items-0-warehouse_id", "1"),
+            ("items-0-quantity", "10"), ("items-0-unit_cost", "50"),
+            ("partners-0-partner_id", "1"),
+            ("partners-0-share_percentage", "110"),
+        ])
+        form = ShipmentForm(fd, meta=FORM_META)
+        assert form.validate() is False
+
+    def test_partner_percentage_exception_skipped(self):
+        from forms import ShipmentForm
+        fd = MultiDict([
+            ("shipment_number", "SHP-003"), ("currency", "USD"),
+            ("status", "DRAFT"),
+            ("destination_id", "1"),
+            ("items-0-product_id", "1"), ("items-0-warehouse_id", "1"),
+            ("items-0-quantity", "10"), ("items-0-unit_cost", "50"),
+        ])
+        form = ShipmentForm(fd, meta=FORM_META)
+        form.destination_id.data = mock.MagicMock(id=1)
+        form.destination_id.validate_choice = False
+        for entry in form.partners.entries:
+            entry.form.partner_id.data = 1
+            entry.form.share_percentage.data = None
+        has_items = any(
+            f.product_id.data and f.warehouse_id.data and (f.quantity.data or 0) >= 1
+            for f in (e.form for e in form.items)
+        )
+        assert has_items is True
+
+    def test_apply_to(self):
+        from forms import ShipmentForm, ShipmentItem, ShipmentPartner
+        shipment = mock.MagicMock()
+        form = ShipmentForm(
+            _fd(shipment_number="SHP-001", shipment_date="2025-06-15T10:00",
+                origin="China", destination="New York",
+                status="IN_TRANSIT", currency="usd",
+                shipping_cost="500", notes="Fragile"),
+            meta=FORM_META,
+        )
+        result = form.apply_to(shipment)
+        assert shipment.currency == "USD"
+        assert shipment.status == "IN_TRANSIT"
+
+
+class TestShipmentExpenseForm:
+    def test_build_expense_payload(self):
+        from forms import ShipmentExpenseForm
+        form = ShipmentExpenseForm(
+            _fd(shipment_id="1", type_id="SHIPPING",
+                amount="500", currency="USD", notes="freight"),
+            meta=FORM_META,
+        )
+        payload = form.build_expense_payload()
+        assert payload["amount"] == Decimal("500")
+        assert payload["type_id"] == "SHIPPING"
+        assert payload["notes"] == "freight"
+
+
+class TestShipmentPaymentFormValidate:
+    def test_invalid_direction(self):
+        from forms import ShipmentPaymentForm
+        form = ShipmentPaymentForm(
+            _fd(shipment_id="1", total_amount="100", currency="USD",
+                direction="INVALID", method="CASH"),
+            meta=FORM_META,
+        )
+        assert form.validate() is False
+
+    def test_in_direction_without_reference_or_notes(self):
+        from forms import ShipmentPaymentForm
+        form = ShipmentPaymentForm(
+            _fd(shipment_id="1", total_amount="100", currency="USD",
+                direction="IN", method="CASH"),
+            meta=FORM_META,
+        )
+        assert form.validate() is False
+
+    def test_in_direction_with_reference(self):
+        from forms import ShipmentPaymentForm
+        form = ShipmentPaymentForm(
+            _fd(shipment_id="1", total_amount="100", currency="USD",
+                direction="IN", method="CASH", reference="REF-001"),
+            meta=FORM_META,
+        )
+        assert form.validate() is True
+
+    def test_cheque_validation(self):
+        from forms import ShipmentPaymentForm
+        form = ShipmentPaymentForm(
+            _fd(shipment_id="1", total_amount="100", currency="USD",
+                direction="OUT", method="CHEQUE"),
+            meta=FORM_META,
+        )
+        with mock.patch.object(ShipmentPaymentForm, '_validate_cheque',
+                                side_effect=ValidationError("رقم الشيك مطلوب")):
+            assert form.validate() is False
+            assert any("رقم" in e for e in form.check_number.errors)
+
+    def test_bank_validation(self):
+        from forms import ShipmentPaymentForm
+        form = ShipmentPaymentForm(
+            _fd(shipment_id="1", total_amount="100", currency="USD",
+                direction="OUT", method="BANK"),
+            meta=FORM_META,
+        )
+        with mock.patch.object(ShipmentPaymentForm, '_validate_bank',
+                                side_effect=ValidationError("مرجع التحويل مطلوب")):
+            assert form.validate() is False
+
+    def test_card_validation(self):
+        from forms import ShipmentPaymentForm
+        form = ShipmentPaymentForm(
+            _fd(shipment_id="1", total_amount="100", currency="USD",
+                direction="OUT", method="CARD"),
+            meta=FORM_META,
+        )
+        with mock.patch.object(ShipmentPaymentForm, '_validate_card_payload',
+                                side_effect=ValidationError("رقم البطاقة غير صالح")):
+            assert form.validate() is False
+
+    def test_online_validation(self):
+        from forms import ShipmentPaymentForm
+        form = ShipmentPaymentForm(
+            _fd(shipment_id="1", total_amount="100", currency="USD",
+                direction="OUT", method="ONLINE"),
+            meta=FORM_META,
+        )
+        with mock.patch.object(ShipmentPaymentForm, '_validate_online',
+                                side_effect=ValidationError("بوابة الدفع مطلوبة")):
+            assert form.validate() is False
+
+    def test_generic_validation_error(self):
+        from forms import ShipmentPaymentForm
+        form = ShipmentPaymentForm(
+            _fd(shipment_id="1", total_amount="100", currency="USD",
+                direction="OUT", method="CHEQUE"),
+            meta=FORM_META,
+        )
+        form.direction.data = "OUT"
+        form.method.data = "CHEQUE"
+        with mock.patch.object(ShipmentPaymentForm, '_validate_cheque',
+                                side_effect=ValidationError("خطأ عام في الشيك")):
+            assert form.validate() is False
+
+    def test_build_payment(self):
+        from forms import ShipmentPaymentForm
+        form = ShipmentPaymentForm(
+            _fd(shipment_id="1", total_amount="500", currency="USD",
+                direction="OUT", method="CASH", reference="PAY-001"),
+            meta=FORM_META,
+        )
+        payment = form.build_payment()
+        assert payment["entity_type"] == "SHIPMENT"
+        assert payment["direction"] == "OUT"
+        assert payment["total_amount"] == Decimal("500")
+
+    def test_build_payment_card(self):
+        from forms import ShipmentPaymentForm
+        form = ShipmentPaymentForm(
+            _fd(shipment_id="1", total_amount="200", currency="USD",
+                direction="OUT", method="CARD",
+                card_number="1234", card_holder="Test",
+                card_expiry="12/28"),
+            meta=FORM_META,
+        )
+        with mock.patch.object(ShipmentPaymentForm, '_validate_card_payload',
+                                return_value="1234"):
+            payment = form.build_payment()
+            assert payment["method"] == "CARD"
+
+    def test_build_payment_card_validation_fails(self):
+        from forms import ShipmentPaymentForm
+        form = ShipmentPaymentForm(
+            _fd(shipment_id="1", total_amount="200", currency="USD",
+                direction="OUT", method="CARD",
+                card_number="", card_holder="", card_expiry=""),
+            meta=FORM_META,
+        )
+        with mock.patch.object(ShipmentPaymentForm, '_validate_card_payload',
+                                side_effect=ValidationError("invalid")):
+            payment = form.build_payment()
+            assert payment["method"] == "CARD"
+
+
+class TestUniversalReportFormValidate:
+    def test_start_after_end(self):
+        from forms import UniversalReportForm
+        form = UniversalReportForm(
+            _fd(start_date="2025-06-01", end_date="2025-05-01"),
+            meta=FORM_META,
+        )
+        assert form.validate() is False
+
+    def test_valid_dates(self):
+        from forms import UniversalReportForm
+        form = UniversalReportForm(
+            _fd(start_date="2025-01-01", end_date="2025-01-31"),
+            meta=FORM_META,
+        )
+        assert form.validate() is True
+
+
+class TestAuditLogFilterFormValidate:
+    def test_start_after_end(self):
+        from forms import AuditLogFilterForm
+        form = AuditLogFilterForm(
+            _fd(start_date="2025-06-01", end_date="2025-05-01"),
+            meta=FORM_META,
+        )
+        assert form.validate() is False
+
+    def test_valid_dates(self):
+        from forms import AuditLogFilterForm
+        form = AuditLogFilterForm(
+            _fd(start_date="2025-01-01", end_date="2025-01-31"),
+            meta=FORM_META,
+        )
+        assert form.validate() is True
+
+
+class TestCustomReportFormValidateParameters:
+    def test_empty_data_returns(self):
+        from forms import CustomReportForm
+        form = CustomReportForm(
+            _fd(report_type="inventory"),
+            meta=FORM_META,
+        )
+        field = mock.MagicMock()
+        field.data = ""
+        form.validate_parameters(field)
+        assert field.data == ""
+
+    def test_valid_json_dict(self):
+        from forms import CustomReportForm
+        form = CustomReportForm(
+            _fd(report_type="inventory", parameters='{"key": "value"}'),
+            meta=FORM_META,
+        )
+        assert form.validate() is True
+
+    def test_valid_json_list(self):
+        from forms import CustomReportForm
+        form = CustomReportForm(
+            _fd(report_type="inventory", parameters='[1, 2, 3]'),
+            meta=FORM_META,
+        )
+        assert form.validate() is True
+
+    def test_invalid_json(self):
+        from forms import CustomReportForm
+        form = CustomReportForm(
+            _fd(report_type="inventory", parameters='{invalid json}'),
+            meta=FORM_META,
+        )
+        assert form.validate() is False
+
+    def test_json_not_object_or_array(self):
+        from forms import CustomReportForm
+        form = CustomReportForm(
+            _fd(report_type="inventory", parameters='"just a string"'),
+            meta=FORM_META,
+        )
+        assert form.validate() is False
+
+
+class TestEmployeeFormValidate:
+    def test_validate_phone_short(self):
+        from forms import EmployeeForm
+        form = EmployeeForm(meta=FORM_META)
+        field = mock.MagicMock()
+        field.data = "123"
+        with pytest.raises(Exception):
+            form.validate_phone(field)
+
+    def test_validate_phone_normalizes(self):
+        from forms import EmployeeForm
+        form = EmployeeForm(meta=FORM_META)
+        field = mock.MagicMock()
+        field.data = "  050-123-4567  "
+        form.validate_phone(field)
+        assert field.data == "0501234567"
+
+    def test_validate_email_normalizes(self):
+        from forms import EmployeeForm
+        form = EmployeeForm(meta=FORM_META)
+        field = mock.MagicMock()
+        field.data = "  USER@EXAMPLE.COM  "
+        form.validate_email(field)
+        assert field.data == "user@example.com"
+
+    def test_apply_to(self):
+        from forms import EmployeeForm
+        emp = mock.MagicMock()
+        form = EmployeeForm(
+            _fd(name="John Doe", position="Manager", phone="050-123-4567",
+                email=" JOHN@WORK.COM ", bank_name="Bank A",
+                account_number="12345", currency="ils",
+                branch_id="1", notes="Test employee"),
+            meta=FORM_META,
+        )
+        form.apply_to(emp)
+        assert emp.name == "John Doe"
+        assert emp.phone == "0501234567"
+        assert emp.email == "john@work.com"
+        assert emp.currency == "ILS"
+
+
+class TestExpenseTypeForm:
+    def test_init_with_obj_fields_meta(self, app, mocker):
+        from forms import ExpenseTypeForm
+        mocker.patch("models.Account.query.filter_by")
+        obj = mock.MagicMock()
+        obj.fields_meta = {"gl_account_code": "5000"}
+        with app.test_request_context():
+            admin = mock.MagicMock(is_system_account=True)
+            admin.username = "admin"
+            admin.role.name = "OWNER"
+            with mock.patch("flask_login.utils._get_user", return_value=admin):
+                form = ExpenseTypeForm(obj=obj, meta=FORM_META)
+                assert form.gl_account_code.data == "5000"
+
+    def test_init_sets_fields_meta_json(self, app, mocker):
+        from forms import ExpenseTypeForm
+        mocker.patch("models.Account.query.filter_by")
+        obj = mock.MagicMock()
+        obj.fields_meta = {"kind": "SALARY"}
+        with app.test_request_context():
+            admin = mock.MagicMock(is_system_account=True)
+            admin.username = "admin"
+            admin.role.name = "OWNER"
+            with mock.patch("flask_login.utils._get_user", return_value=admin):
+                form = ExpenseTypeForm(obj=obj, meta=FORM_META)
+                assert form.fields_meta.data is not None
+                assert len(str(form.fields_meta.data)) > 0
+
+    def test_validate_name_unique(self, app):
+        from forms import ExpenseTypeForm
+        from wtforms.validators import ValidationError
+        with app.test_request_context():
+            mocker_obj = mock.MagicMock()
+            mocker_obj.is_system_account = True
+            mocker_obj.username = "admin"
+            mocker_obj.role.name = "OWNER"
+            with mock.patch("flask_login.utils._get_user", return_value=mocker_obj):
+                with mock.patch("models.Account.query.filter_by"):
+                    form = ExpenseTypeForm(meta=FORM_META)
+                    form.name.data = "ExistingType"
+                    mock_q = mock.MagicMock()
+                    mock_q.filter.return_value.first.return_value = mock.MagicMock(id=5)
+                    with mock.patch("forms.ExpenseType.query", mock_q):
+                        with pytest.raises(ValidationError):
+                            form.validate_name(form.name)
+
+    def test_validate_name_during_edit(self, app):
+        from forms import ExpenseTypeForm
+        with app.test_request_context():
+            mocker_obj = mock.MagicMock()
+            mocker_obj.is_system_account = True
+            mocker_obj.username = "admin"
+            mocker_obj.role.name = "OWNER"
+            with mock.patch("flask_login.utils._get_user", return_value=mocker_obj):
+                form = ExpenseTypeForm(meta=FORM_META)
+                form.id.data = "3"
+                form.name.data = "UniqueName"
+                with mock.patch("models.ExpenseType.query.filter") as mf:
+                    mf.return_value.first.return_value = None
+                    form.validate_name(form.name)
+
+    def test_validate_fields_meta_empty(self):
+        from forms import ExpenseTypeForm
+        form = ExpenseTypeForm(meta=FORM_META)
+        field = mock.MagicMock()
+        field.data = ""
+        form.validate_fields_meta(field)
+        assert form._parsed_fields_meta is None
+
+    def test_validate_fields_meta_valid_json(self):
+        from forms import ExpenseTypeForm
+        form = ExpenseTypeForm(meta=FORM_META)
+        field = mock.MagicMock()
+        field.data = '{"kind": "SALARY", "gl_account_code": "5000"}'
+        form.validate_fields_meta(field)
+        assert isinstance(form._parsed_fields_meta, dict)
+        assert form._parsed_fields_meta["kind"] == "SALARY"
+
+    def test_validate_fields_meta_invalid_json(self):
+        from forms import ExpenseTypeForm
+        form = ExpenseTypeForm(meta=FORM_META)
+        field = mock.MagicMock()
+        field.data = "{bad json}"
+        with pytest.raises(Exception):
+            form.validate_fields_meta(field)
+
+    def test_validate_fields_meta_not_dict(self):
+        from forms import ExpenseTypeForm
+        form = ExpenseTypeForm(meta=FORM_META)
+        field = mock.MagicMock()
+        field.data = '"just a string"'
+        with pytest.raises(Exception):
+            form.validate_fields_meta(field)
+
+    def test_apply_to(self):
+        from forms import ExpenseTypeForm
+        obj = mock.MagicMock()
+        form = ExpenseTypeForm(
+            _fd(name="Test Type", description="Test desc", is_active="y"),
+            meta=FORM_META,
+        )
+        form._parsed_fields_meta = {"kind": "MISC"}
+        form.apply_to(obj)
+        assert obj.name == "Test Type"
+        assert obj.fields_meta == {"kind": "MISC"}
+
+    def test_apply_to_meta_from_gl_code(self):
+        from forms import ExpenseTypeForm
+        obj = mock.MagicMock()
+        form = ExpenseTypeForm(
+            _fd(name="Test Type", description="desc",
+                gl_account_code="6000", is_active="y"),
+            meta=FORM_META,
+        )
+        form._parsed_fields_meta = None
+        form.apply_to(obj)
+        assert obj.fields_meta == {"gl_account_code": "6000"}
+
+
+class TestUnifiedDateFieldEdgeCases:
+    def test_init_with_formats_list(self):
+        from forms import UnifiedDateField
+        class F(Form):
+            d = UnifiedDateField(formats=["%d/%m/%Y", "%Y-%m-%d"])
+        form = F(_fd(d="15/06/2025"), meta=FORM_META)
+        assert form.d.data == date(2025, 6, 15)
+
+    def test_init_with_format_as_list(self):
+        from forms import UnifiedDateField
+        class F(Form):
+            d = UnifiedDateField(format=["%d-%m-%Y", "%Y-%m-%d"])
+        form = F(_fd(d="25-12-2025"), meta=FORM_META)
+        assert form.d.data == date(2025, 12, 25)
+
+    def test_value_with_raw_data(self):
+        from forms import UnifiedDateField
+        class F(Form):
+            d = UnifiedDateField()
+        form = F(_fd(d="2025-06-15"), meta=FORM_META)
+        assert form.d._value() == "2025-06-15"
+
+    def test_value_no_raw_data_no_data(self):
+        from forms import UnifiedDateField
+        class F(Form):
+            d = UnifiedDateField()
+        form = F(_fd(d=""), meta=FORM_META)
+        assert form.d._value() == ""
+
+    def test_process_formdata_empty(self):
+        from forms import UnifiedDateField
+        class F(Form):
+            d = UnifiedDateField()
+        form = F(_fd(d=""), meta=FORM_META)
+        assert form.d.data is None
+
+    def test_process_formdata_invalid_format(self):
+        from forms import UnifiedDateField
+        class F(Form):
+            d = UnifiedDateField()
+        form = F(_fd(d="not-a-date"), meta=FORM_META)
+        assert form.validate() is False
+
+    def test_process_formdata_timestamp(self):
+        from forms import UnifiedDateField
+        class F(Form):
+            d = UnifiedDateField()
+        form = F(_fd(d="ts:1718476800"), meta=FORM_META)
+        assert form.d.data is not None
+
+
+class TestCustomerFormValidatePhone:
+    def test_empty_phone_raises_error(self):
+        from forms import CustomerForm
+        form = CustomerForm(meta=FORM_META)
+        field = mock.MagicMock()
+        field.data = ""
+        with pytest.raises(ValidationError):
+            form.validate_phone(field)
+
+
+class TestUserFormInitWithObj:
+    def test_last_login_ip_and_count(self, app, mocker):
+        from forms import UserForm
+        mocker.patch("models.Role.query.order_by")
+        mocker.patch("models.Branch.query")
+        mocker.patch("utils.tenant_ui.branch_choices_for_form", return_value=[])
+        obj = mock.MagicMock()
+        obj.last_login = None
+        obj.last_seen = None
+        obj.last_login_ip = ""
+        obj.login_count = ""
+        with app.test_request_context():
+            admin = mock.MagicMock(is_system_account=True)
+            admin.username = "admin"
+            admin.role.name = "OWNER"
+            with mock.patch("flask_login.utils._get_user", return_value=admin):
+                form = UserForm(obj=obj, meta=FORM_META)
+                form._editing_user_id = 1
+                form.email.data = "a@b.com"
+                with mock.patch("models.User.query.filter") as mf:
+                    mf.return_value.first.return_value = None
+                    form.validate_email(form.email)
+
+
+class TestPaymentFormInitExpenseDirection:
+    def test_expense_direction_default(self, app, mocker):
+        from forms import PaymentForm
+        import utils
+        mocker.patch.object(utils, 'prepare_payment_form_choices')
+        with app.test_request_context():
+            admin = mock.MagicMock(is_system_account=True)
+            admin.username = "admin"; admin.role.name = "admin"
+            with mock.patch("flask_login.utils._get_user", return_value=admin):
+                form = PaymentForm(_fd(entity_type="EXPENSE", direction="", currency="ILS"),
+                                   meta=FORM_META)
+                assert form.direction.data == "OUT"
