@@ -62,9 +62,12 @@ class TestCurrencyChoices:
         from forms import currency_choices
         assert len(currency_choices(include_blank=True)) >= 1
 
-    def test_db_exception(self, mocker):
+    def test_db_exception(self, app, mocker):
         from forms import currency_choices, CURRENCY_CHOICES
-        mocker.patch("models.Currency.query.filter", side_effect=Exception("DB down"))
+        from models import Currency as CurrencyModel
+        mock_q = mock.MagicMock()
+        mock_q.filter.side_effect = Exception("DB down")
+        mocker.patch.object(CurrencyModel, 'query', mock_q)
         assert currency_choices(include_blank=False) == CURRENCY_CHOICES
 
     def test_no_blank(self, app):
@@ -482,7 +485,7 @@ class TestSupplierLoanSettlementForm:
         )
         assert form.validate() is False
 
-    def test_supplier_mismatch_with_loan(self, mocker):
+    def test_supplier_mismatch_with_loan(self, app, mocker):
         from forms import SupplierLoanSettlementForm
         from datetime import datetime
         loan_mock = mock.MagicMock(supplier_id=2)
@@ -504,7 +507,7 @@ class TestSupplierLoanSettlementForm:
 
 
 class TestInvoiceRefundForm:
-    def test_refund_amount_exceeds_refundable(self, mocker):
+    def test_refund_amount_exceeds_refundable(self, app, mocker):
         from forms import InvoiceRefundForm
         mocker.patch("extensions.db.session.get", return_value=mock.MagicMock(refundable_amount=Decimal("50")))
         form = InvoiceRefundForm(_fd(invoice_id="1", amount="100", reason="Test"), meta=FORM_META)
@@ -519,21 +522,21 @@ class TestInvoiceRefundForm:
 
 
 class TestInvoiceCancelForm:
-    def test_invoice_not_found(self, mocker):
+    def test_invoice_not_found(self, app, mocker):
         from forms import InvoiceCancelForm
         mocker.patch("extensions.db.session.get", return_value=None)
         form = InvoiceCancelForm(_fd(invoice_id="99", cancel_reason="Duplicate"), meta=FORM_META)
         assert form.validate() is False
         assert "invoice_id" in form.errors
 
-    def test_invoice_already_cancelled(self, mocker):
+    def test_invoice_already_cancelled(self, app, mocker):
         from forms import InvoiceCancelForm
         mocker.patch("extensions.db.session.get", return_value=mock.MagicMock(status="CANCELLED"))
         form = InvoiceCancelForm(_fd(invoice_id="1", cancel_reason="Duplicate"), meta=FORM_META)
         assert form.validate() is False
         assert "invoice_id" in form.errors
 
-    def test_db_exception_graceful(self, mocker):
+    def test_db_exception_graceful(self, app, mocker):
         from forms import InvoiceCancelForm
         mocker.patch("extensions.db.session.get", side_effect=Exception("DB down"))
         form = InvoiceCancelForm(_fd(invoice_id="1", cancel_reason="Duplicate"), meta=FORM_META)
@@ -1048,7 +1051,7 @@ class TestWarehouseForm:
         assert form.partner_id.data is None
         assert form.supplier_id.data is None
 
-    def test_online_warehouse_requires_unique_slug(self, mocker):
+    def test_online_warehouse_requires_unique_slug(self, app, mocker):
         from forms import WarehouseForm
         from models import Warehouse as W
         mock_q = mock.MagicMock()
@@ -1059,7 +1062,7 @@ class TestWarehouseForm:
         assert form.validate() is False
         assert "online_slug" in form.errors
 
-    def test_online_warehouse_unique_slug_ok(self, mocker):
+    def test_online_warehouse_unique_slug_ok(self, app, mocker):
         from forms import WarehouseForm
         from models import Warehouse as W
         mock_q = mock.MagicMock()
@@ -1069,7 +1072,7 @@ class TestWarehouseForm:
         form = WarehouseForm(fd, meta=FORM_META)
         assert form.validate() is True
 
-    def test_online_is_default_unique(self, mocker):
+    def test_online_is_default_unique(self, app, mocker):
         from forms import WarehouseForm
         from models import Warehouse as W
         mock_q = mock.MagicMock()
@@ -1124,7 +1127,7 @@ class TestWarehouseForm:
         assert form.validate() is False
         assert "parent_id" in form.errors
 
-    def test_circular_parent_detected(self, mocker):
+    def test_circular_parent_detected(self, app, mocker):
         from forms import WarehouseForm
         parent = mock.MagicMock(id=2, parent_id=1)
         mocker.patch("extensions.db.session.get", return_value=parent)
