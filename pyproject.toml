@@ -12,19 +12,15 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["models.py", "forms.py", "config.py", "app.py", "extensions.py", "notifications.py", "custom_validators.py", "barcodes.py", "acl.py", "utils", "services", "helpers", "middleware", "permissions_config", "translations"]
+source = ["."]
 omit = [
     "tests/*",
+    "scripts/*",
     "instance/*",
     "migrations/*",
     ".venv/*",
     "env/*",
     "venv/*",
-    "AI/*",
-    "routes/*",
-    "cli.py",
-    "stock_audit_system.py",
-    "reports.py",
 ]
 
 [tool.coverage.report]
