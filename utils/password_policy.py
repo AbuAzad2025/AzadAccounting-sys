@@ -22,7 +22,11 @@ def validate_password(password: str) -> tuple[bool, str]:
         if len(password) >= 6:
             return True, ""
         return False, "كلمة المرور قصيرة جداً (6 أحرف على الأقل)"
-    min_len = int(SystemSettings.get_setting("password_min_length", DEFAULT_MIN_LEN) or DEFAULT_MIN_LEN)
+    raw = SystemSettings.get_setting("password_min_length", DEFAULT_MIN_LEN) or DEFAULT_MIN_LEN
+    try:
+        min_len = int(raw)
+    except (ValueError, TypeError):
+        min_len = DEFAULT_MIN_LEN
     if len(password) < min_len:
         return False, f"كلمة المرور يجب أن تكون {min_len} أحرف على الأقل"
     if not re.search(r"[A-Za-z]", password):

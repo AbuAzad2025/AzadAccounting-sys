@@ -24,7 +24,9 @@ def create_from_purchase_order(po: PurchaseOrder, *, vat_rate: float = 16.0) -> 
     if po.status not in ("PARTIAL", "RECEIVED"):
         raise ValueError("أمر الشراء يجب أن يكون مستلماً جزئياً أو كلياً")
     existing = SupplierInvoice.query.filter_by(
-        purchase_order_id=po.id, status="POSTED"
+        purchase_order_id=po.id
+    ).filter(
+        SupplierInvoice.status.in_(["DRAFT", "POSTED"])
     ).first()
     if existing:
         return existing

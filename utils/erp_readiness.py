@@ -22,6 +22,14 @@ def _module_exists(name: str) -> bool:
         return False
 
 
+def _function_exists(module_name: str, func_name: str) -> bool:
+    try:
+        mod = importlib.import_module(module_name)
+        return callable(getattr(mod, func_name, None))
+    except Exception:
+        return False
+
+
 def score_erp_readiness(app) -> Dict[str, Any]:
     with app.app_context():
         from extensions import db
@@ -69,7 +77,7 @@ def score_erp_readiness(app) -> Dict[str, Any]:
                 _has_route(app, "/sales/quotations"),
                 _module_exists("utils.supplier_invoice_service"),
                 hasattr(Sale, "is_quotation"),
-                db.session.query(SupplierInvoice).limit(1).count() >= 0,
+                db.session.query(SupplierInvoice).limit(1).count() > 0,
             ]
         )
         caps["bank_checks"].extend(
@@ -105,14 +113,14 @@ def score_erp_readiness(app) -> Dict[str, Any]:
             [
                 _has_route(app, "/payroll"),
                 _has_route(app, "/hr-portal"),
-                db.session.query(PayrollRun).limit(1).count() >= 0,
+                db.session.query(PayrollRun).limit(1).count() > 0,
             ]
         )
         caps["tax_compliance"].extend(
             [
                 _has_route(app, "/tax-compliance"),
                 _module_exists("utils.vat_settlement_service"),
-                bool(getattr(__import__("utils.vat_settlement_service", fromlist=["post_vat_settlement_gl"]), "post_vat_settlement_gl")),
+                _function_exists("utils.vat_settlement_service", "post_vat_settlement_gl"),
             ]
         )
         caps["enterprise_security"].extend(
