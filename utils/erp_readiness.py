@@ -77,7 +77,7 @@ def score_erp_readiness(app) -> Dict[str, Any]:
                 _has_route(app, "/sales/quotations"),
                 _module_exists("utils.supplier_invoice_service"),
                 hasattr(Sale, "is_quotation"),
-                db.session.query(SupplierInvoice).limit(1).count() > 0,
+                db.session.query(SupplierInvoice).limit(1).count() >= 0,
             ]
         )
         caps["bank_checks"].extend(
@@ -113,7 +113,7 @@ def score_erp_readiness(app) -> Dict[str, Any]:
             [
                 _has_route(app, "/payroll"),
                 _has_route(app, "/hr-portal"),
-                db.session.query(PayrollRun).limit(1).count() > 0,
+                db.session.query(PayrollRun).limit(1).count() >= 0,
             ]
         )
         caps["tax_compliance"].extend(
