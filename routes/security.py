@@ -2245,49 +2245,101 @@ def logo_manager():
     import tempfile
     import time
     from werkzeug.utils import secure_filename
-    from models import SystemSettings
+    from models import Company, SystemSettings
     from utils.branding_assets import (
         LOGO_UPLOAD_MAP,
-        tenant_asset_paths,
-        tenant_slug_for_code,
+        clear_tenant_logo_setting,
+        default_company_code,
+        persist_tenant_logo_settings,
+        resolve_company_logo_assets,
         save_tenant_logo_upload,
+        tenant_rel_path,
+        tenant_slug_for_code,
     )
     from utils.tenant_ui import build_tenant_context
 
-    company_code = ""
-    try:
-        tctx = build_tenant_context()
-        if tctx.get("tenant_company_id"):
-            from models import Company
-            co = Company.query.get(int(tctx["tenant_company_id"]))
-            if co and co.code:
-                company_code = co.code.strip().upper()
-    except Exception:
-        pass
-    if not company_code:
-        from models import Company
-        co = Company.query.filter_by(code="PHE").first() or Company.query.order_by(Company.id).first()
-        if co and co.code:
-            company_code = co.code.strip().upper()
+    def _redirect(company: str):
+        return redirect(url_for('security.logo_manager', company=company))
 
-    slug = tenant_slug_for_code(company_code) or "phe"
-    asset_paths = tenant_asset_paths(slug)
+    def _delete_setting(key: str):
+        SystemSettings.query.filter_by(key=key).delete(synchronize_session=False)
+
+    companies = (
+        Company.query.filter(Company.code.isnot(None), Company.code != '')
+        .order_by(Company.name)
+        .all()
+    )
+    default_code = default_company_code()
+    company_code = ''
+
+    requested = (request.args.get('company') or request.form.get('company_code') or '').strip().upper()
+    if requested:
+        match = next((c for c in companies if (c.code or '').strip().upper() == requested), None)
+        if match:
+            company_code = match.code.strip().upper()
+
+    if not company_code:
+        try:
+            tctx = build_tenant_context()
+            if tctx.get('tenant_company_id'):
+                co = Company.query.get(int(tctx['tenant_company_id']))
+                if co and co.code:
+                    company_code = co.code.strip().upper()
+        except Exception:
+            pass
+
+    if not company_code:
+        company_code = default_code or (
+            (companies[0].code or '').strip().upper() if companies else 'PHE'
+        )
+
+    slug = tenant_slug_for_code(company_code) or 'phe'
+    selected_company = next(
+        (c for c in companies if (c.code or '').strip().upper() == company_code),
+        None,
+    )
 
     if request.method == 'POST':
+        post_code = (request.form.get('company_code') or company_code).strip().upper()
+        if post_code and post_code != company_code:
+            match = next((c for c in companies if (c.code or '').strip().upper() == post_code), None)
+            if match:
+                company_code = match.code.strip().upper()
+                slug = tenant_slug_for_code(company_code) or slug
+
+        logo_type = request.form.get('logo_type', 'main')
+        action = (request.form.get('action') or 'upload').strip().lower()
+
+        if action == 'reset' and logo_type in LOGO_UPLOAD_MAP:
+            try:
+                asset_key = LOGO_UPLOAD_MAP[logo_type][0]
+                clear_tenant_logo_setting(
+                    company_code,
+                    asset_key,
+                    delete_setting=_delete_setting,
+                    default_code=default_code,
+                )
+                SystemSettings.set_setting('assets_version', int(time.time()), data_type='number', commit=False)
+                db.session.commit()
+                flash('✅ تم إعادة تعيين إعداد الشعار — المعاينة تعتمد على الملف في المجلد', 'success')
+            except Exception:
+                db.session.rollback()
+                current_app.logger.exception('logo_manager reset failed')
+                flash('حدث خطأ أثناء إعادة التعيين', 'danger')
+            return _redirect(company_code)
+
         if 'logo_file' in request.files:
             file = request.files['logo_file']
-            logo_type = request.form.get('logo_type', 'main')
-
             if file and file.filename:
                 filename = secure_filename(file.filename)
                 allowed_exts = {'.png', '.jpg', '.jpeg', '.gif', '.webp'}
                 ext = os.path.splitext(filename)[1].lower()
                 if ext not in allowed_exts:
                     flash('⚠️ نوع ملف غير مدعوم (استخدم: png, jpg, jpeg, gif, webp)', 'warning')
-                    return redirect(url_for('security.logo_manager'))
+                    return _redirect(company_code)
                 if logo_type not in LOGO_UPLOAD_MAP:
                     flash('⚠️ نوع شعار غير معروف', 'warning')
-                    return redirect(url_for('security.logo_manager'))
+                    return _redirect(company_code)
 
                 try:
                     with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
@@ -2302,32 +2354,57 @@ def logo_manager():
                     os.unlink(tmp_path)
                     if not result:
                         flash('⚠️ تعذّر حفظ الشعار — تحقق من رمز الشركة', 'warning')
-                        return redirect(url_for('security.logo_manager'))
+                        return _redirect(company_code)
 
-                    rel_path, setting_key = result
-                    SystemSettings.set_setting(setting_key, rel_path, data_type='string', commit=False)
-                    if logo_type == 'main':
-                        SystemSettings.set_setting('custom_logo', rel_path, data_type='string', commit=False)
+                    rel_path, _setting_key = result
+                    asset_key = LOGO_UPLOAD_MAP[logo_type][0]
+                    persist_tenant_logo_settings(
+                        company_code,
+                        rel_path,
+                        asset_key,
+                        set_setting=SystemSettings.set_setting,
+                        default_code=default_code,
+                    )
+                    if logo_type == 'main' and slug:
+                        for asset_key in ('white', 'emblem', 'favicon'):
+                            derived_path = f'static/{tenant_rel_path(slug, asset_key)}'
+                            abs_derived = os.path.join(
+                                current_app.root_path,
+                                derived_path.replace('/', os.sep),
+                            )
+                            if os.path.isfile(abs_derived):
+                                persist_tenant_logo_settings(
+                                    company_code,
+                                    derived_path,
+                                    asset_key,
+                                    set_setting=SystemSettings.set_setting,
+                                    default_code=default_code,
+                                )
                     SystemSettings.set_setting('assets_version', int(time.time()), data_type='number', commit=False)
                     db.session.commit()
-                    flash(f'✅ تم رفع الشعار بنجاح إلى {rel_path}', 'success')
+                    flash(f'✅ تم رفع الشعار بنجاح ({company_code})', 'success')
                 except Exception:
                     db.session.rollback()
                     current_app.logger.exception('logo_manager upload failed')
                     flash('حدث خطأ داخلي', 'danger')
+            return _redirect(company_code)
 
-    logos = {
-        'main': asset_paths['logo'],
-        'emblem': asset_paths['emblem'],
-        'white': asset_paths['white'],
-        'favicon': asset_paths['favicon'],
-    }
+    assets_version = SystemSettings.get_setting('assets_version', int(time.time()))
+    logos = resolve_company_logo_assets(
+        current_app.root_path,
+        company_code,
+        get_setting=SystemSettings.get_setting,
+    )
 
     return render_template(
         'security/logo_manager.html',
         logos=logos,
         company_code=company_code,
+        company_name=(selected_company.name if selected_company else company_code),
         branding_slug=slug,
+        companies=companies,
+        default_company_code=default_code,
+        assets_version=assets_version,
     )
 
 

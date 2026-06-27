@@ -331,8 +331,15 @@ def _save_branding(form, logo_file: Optional[FileStorage]) -> Optional[str]:
             if not result:
                 return "تعذّر حفظ الشعار — تحقق من رمز الشركة"
             rel_path, _setting_key = result
-            _set(_setting_key, rel_path, data_type="string", commit=False)
-            _set("custom_logo", rel_path, data_type="string", commit=False)
+            from utils.branding_assets import default_company_code, persist_tenant_logo_settings
+
+            persist_tenant_logo_settings(
+                company_code,
+                rel_path,
+                "logo",
+                set_setting=_set,
+                default_code=default_company_code(),
+            )
         except Exception:
             current_app.logger.exception("system_settings branding logo upload failed")
             return "حدث خطأ أثناء رفع الشعار"

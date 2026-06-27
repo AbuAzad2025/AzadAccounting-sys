@@ -36,6 +36,13 @@ LOGO_UPLOAD_MAP = {
     "favicon": ("favicon", "favicons/favicon.png"),
 }
 
+CUSTOM_LOGO_KEYS = {
+    "logo": "custom_logo",
+    "emblem": "custom_logo_emblem",
+    "white": "custom_logo_white",
+    "favicon": "custom_favicon",
+}
+
 # مجلدات قديمة → slug الشركة الحالي
 LEGACY_TENANT_DIRS = {
     "phe": ("nasrallah",),
@@ -97,6 +104,110 @@ def ensure_company_branding_dirs(root: str, company_code: str) -> str | None:
 
 def tenant_asset_paths(slug: str) -> dict[str, str]:
     return {key: tenant_rel_path(slug, key) for key in TENANT_SUBPATHS}
+
+
+def normalize_static_rel(value: str | None) -> str:
+    s = str(value or "").strip().replace("\\", "/")
+    if not s:
+        return ""
+    if s.lower().startswith(("http://", "https://", "//")):
+        return ""
+    s = s.lstrip("/")
+    if s.startswith("static/"):
+        s = s[len("static/") :]
+    parts = [p for p in s.split("/") if p and p not in {".", ".."}]
+    return "/".join(parts)
+
+
+def default_company_code() -> str:
+    from models import Company
+
+    co = Company.query.filter_by(code="PHE").first() or Company.query.order_by(Company.id).first()
+    return (co.code or "").strip().upper() if co and co.code else ""
+
+
+def static_file_exists(root: str, rel_path: str) -> bool:
+    rel = normalize_static_rel(rel_path)
+    if not rel:
+        return False
+    return os.path.isfile(_abs(root, "static", rel.replace("/", os.sep)))
+
+
+def resolve_company_logo_assets(
+    root: str,
+    company_code: str,
+    *,
+    get_setting,
+) -> dict[str, dict[str, object]]:
+    """حل مسارات ومعاينة شعارات شركة محددة (DB ثم الملفات)."""
+    slug = tenant_slug_for_code(company_code) or "phe"
+    canonical = tenant_asset_paths(slug)
+    setting_keys = company_setting_keys(company_code)
+    manifest: dict[str, dict[str, object]] = {}
+
+    for logo_type, (asset_key, _subpath) in LOGO_UPLOAD_MAP.items():
+        db_val = normalize_static_rel(get_setting(setting_keys[asset_key], "") or "")
+        candidates = [db_val, canonical[asset_key]] if db_val else [canonical[asset_key]]
+        seen: set[str] = set()
+        static_rel = canonical[asset_key]
+        exists = False
+        for rel in candidates:
+            if not rel or rel in seen:
+                continue
+            seen.add(rel)
+            if static_file_exists(root, rel):
+                static_rel = rel
+                exists = True
+                break
+
+        manifest[logo_type] = {
+            "static_rel": static_rel,
+            "exists": exists,
+            "setting_key": setting_keys[asset_key],
+            "from_db": bool(db_val and db_val == static_rel),
+        }
+    return manifest
+
+
+def persist_tenant_logo_settings(
+    company_code: str,
+    rel_path: str,
+    asset_key: str,
+    *,
+    set_setting,
+    default_code: str | None = None,
+) -> None:
+    """يحدّث company_{CODE}_* و custom_* للشركة الافتراضية."""
+    code = company_code.strip().upper()
+    keys = company_setting_keys(code)
+    setting_key = keys.get(asset_key)
+    if setting_key:
+        set_setting(setting_key, rel_path, data_type="string", commit=False)
+
+    default = (default_code or default_company_code()).strip().upper()
+    custom_key = CUSTOM_LOGO_KEYS.get(asset_key)
+    if custom_key and code == default:
+        set_setting(custom_key, rel_path, data_type="string", commit=False)
+
+
+def clear_tenant_logo_setting(
+    company_code: str,
+    asset_key: str,
+    *,
+    delete_setting,
+    default_code: str | None = None,
+) -> None:
+    """يمسح إعداد الشعار من DB (يبقى الملف على القرص)."""
+    code = company_code.strip().upper()
+    keys = company_setting_keys(code)
+    setting_key = keys.get(asset_key)
+    if setting_key:
+        delete_setting(setting_key)
+
+    default = (default_code or default_company_code()).strip().upper()
+    custom_key = CUSTOM_LOGO_KEYS.get(asset_key)
+    if custom_key and code == default:
+        delete_setting(custom_key)
 
 
 def _save_png(img: Image.Image, path: str, size: tuple[int, int] | None = None) -> None:
@@ -303,7 +414,7 @@ def save_tenant_logo_upload(
     shutil.copy2(source_path, dest)
 
     if regenerate and logo_type == "main" and os.path.isfile(dest):
-        generate_derivatives(dest, tenant_dir(root, slug), force=True, include_white=False)
+        generate_derivatives(dest, tenant_dir(root, slug), force=True, include_white=True)
 
     setting_key = company_setting_keys(company_code)[asset_key]
     static_path = tenant_static_path(slug, asset_key)
