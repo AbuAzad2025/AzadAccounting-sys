@@ -6959,187 +6959,39 @@ def api_maintenance_db_info():
 @security_bp.route('/data-quality-center', methods=['GET', 'POST'])
 @permission_required(SystemPermissions.MANAGE_SYSTEM_HEALTH)
 def data_quality_center():
-    """
-    مركز متقدم لفحص وتحسين جودة البيانات
-    يفحص جميع الحقول الإجبارية والاختيارية ويقترح إصلاحات
-    """
-    from models import (
-        Check, Payment, PaymentSplit, Customer, Supplier, Partner,
-        Sale, Invoice, ServiceRequest, Shipment, Expense, Account, GLEntry,
-        PaymentMethod
-    )
-    from datetime import timedelta
-    from decimal import Decimal
-    
+    """مركز فحص وتحسين جودة البيانات — شيكات، دفعات، أرصدة."""
+    from services.data_quality_service import collect_data_quality_stats, run_data_quality_fix
+
     if request.method == 'GET':
-        # جمع إحصائيات شاملة
-        issues = {
-            'critical': [],
-            'warning': [],
-            'info': []
-        }
-        
-        # فحص الشيكات
-        checks_no_entity = Check.query.filter(
-            Check.customer_id == None,
-            Check.supplier_id == None,
-            Check.partner_id == None
-        ).count()
-        
-        checks_no_bank = Check.query.filter(
-            db.or_(Check.check_bank == None, Check.check_bank == '')
-        ).count()
-        
-        # فحص الدفعات
-        payments_no_bank = Payment.query.filter(
-            Payment.method == PaymentMethod.CHEQUE.value,
-            db.or_(Payment.check_bank == None, Payment.check_bank == '')
-        ).count()
-        
-        payments_no_due_date = Payment.query.filter(
-            Payment.method == PaymentMethod.CHEQUE.value,
-            Payment.check_due_date == None
-        ).count()
-        
-        # فحص الأرصدة
-        customers_null_balance = 0
-        suppliers_null_balance = 0
-        partners_null_balance = 0
-        
-        # الإحصائيات العامة
-        total_checks = Check.query.count()
-        total_payments = Payment.query.count()
-        total_customers = Customer.query.count()
-        total_suppliers = Supplier.query.count()
-        total_partners = Partner.query.count()
-        
-        stats = {
-            'checks': {
-                'total': total_checks,
-                'no_entity': checks_no_entity,
-                'no_bank': checks_no_bank
-            },
-            'payments': {
-                'total': total_payments,
-                'no_bank': payments_no_bank,
-                'no_due_date': payments_no_due_date
-            },
-            'balances': {
-                'customers_null': customers_null_balance,
-                'suppliers_null': suppliers_null_balance,
-                'partners_null': partners_null_balance
-            },
-            'entities': {
-                'customers': total_customers,
-                'suppliers': total_suppliers,
-                'partners': total_partners
-            }
-        }
-        
-        total_issues = (checks_no_entity + checks_no_bank + payments_no_bank + 
-                       payments_no_due_date + customers_null_balance + 
-                       suppliers_null_balance + partners_null_balance)
-        
-        return render_template('security/data_quality_center.html',
-                             stats=stats,
-                             total_issues=total_issues)
-    
-    # POST - تنفيذ الإصلاح
+        scan_balances = request.args.get('scan') == 'balances'
+        stats, total_issues = collect_data_quality_stats(scan_balances=scan_balances)
+        return render_template(
+            'security/data_quality_center.html',
+            stats=stats,
+            total_issues=total_issues,
+            scan_balances=scan_balances,
+        )
+
+    action = (request.form.get('action') or 'all').strip()
+    if action not in ('all', 'checks', 'payments', 'balances'):
+        flash('⚠️ إجراء غير صالح.', 'warning')
+        return redirect(url_for('security.data_quality_center'))
+
     try:
-        action = request.form.get('action', 'all')
-        fixed_count = 0
-        
-        if action in ['all', 'checks']:
-            # إصلاح الشيكات
-            from datetime import timedelta
-            
-            # ربط الشيكات بالجهات
-            checks_without_entity = Check.query.filter(
-                Check.customer_id == None,
-                Check.supplier_id == None,
-                Check.partner_id == None
-            ).all()
-            
-            for check in checks_without_entity:
-                payment = None
-                
-                if check.reference_number:
-                    if check.reference_number.startswith('PMT-SPLIT-'):
-                        split_id = int(check.reference_number.replace('PMT-SPLIT-', ''))
-                        split = db.session.get(PaymentSplit, split_id)
-                        if split:
-                            payment = split.payment
-                    elif check.reference_number.startswith('PMT-'):
-                        try:
-                            payment_id = int(check.reference_number.replace('PMT-', ''))
-                            payment = db.session.get(Payment, payment_id)
-                        except Exception:
-                            current_app.logger.warning('payment processing failed silently in security.py', exc_info=True)
-                
-                if not payment and check.check_number:
-                    payment = Payment.query.filter(
-                        Payment.check_number == check.check_number
-                    ).first()
-                
-                if payment:
-                    if payment.customer_id:
-                        check.customer_id = payment.customer_id
-                        fixed_count += 1
-                    elif payment.supplier_id:
-                        check.supplier_id = payment.supplier_id
-                        fixed_count += 1
-                    elif payment.partner_id:
-                        check.partner_id = payment.partner_id
-                        fixed_count += 1
-                    elif payment.sale_id:
-                        sale = db.session.get(Sale, payment.sale_id)
-                        if sale and sale.customer_id:
-                            check.customer_id = sale.customer_id
-                            fixed_count += 1
-        
-        if action in ['all', 'payments']:
-            # إصلاح الدفعات
-            check_payments = Payment.query.filter(
-                Payment.method == PaymentMethod.CHEQUE.value
-            ).all()
-            
-            for payment in check_payments:
-                if not payment.check_bank:
-                    check_record = Check.query.filter(
-                        Check.reference_number == f'PMT-{payment.id}'
-                    ).first()
-                    if check_record and check_record.check_bank:
-                        payment.check_bank = check_record.check_bank
-                    else:
-                        payment.check_bank = 'غير محدد'
-                    fixed_count += 1
-                
-                if not payment.check_due_date:
-                    check_record = Check.query.filter(
-                        Check.reference_number == f'PMT-{payment.id}'
-                    ).first()
-                    if check_record and check_record.check_due_date:
-                        payment.check_due_date = check_record.check_due_date
-                    else:
-                        payment.check_due_date = (payment.payment_date or datetime.now(timezone.utc)) + timedelta(days=30)
-                    fixed_count += 1
-        
-        if action in ['all', 'balances']:
-            pass
-        
+        fixed_count = run_data_quality_fix(action)
         db.session.commit()
-        
-        utils.log_audit("System", None, "DATA_QUALITY_FIX", 
-                       details=f"تم إصلاح {fixed_count} مشكلة")
-        
+        utils.log_audit(
+            'System',
+            0,
+            'DATA_QUALITY_FIX',
+            new_data={'action': action, 'fixed_count': fixed_count},
+        )
         flash(f'✅ تم إصلاح {fixed_count} مشكلة بنجاح!', 'success')
-        return redirect(url_for('security.data_quality_center'))
-        
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        current_app.logger.exception('internal error')
-        flash('حدث خطأ داخلي', 'danger')
-        return redirect(url_for('security.data_quality_center'))
+        current_app.logger.exception('data_quality_center fix failed')
+        flash('حدث خطأ أثناء الإصلاح', 'danger')
+    return redirect(url_for('security.data_quality_center'))
 
 
 @security_bp.route('/advanced-check-linking', methods=['GET', 'POST'])

@@ -9,6 +9,15 @@
 
 {% endblock %}
 
+{% block security_actions %}
+<a href="{{ url_for('security.advanced_check_linking') }}" class="btn btn-glass btn-sm"><i class="fas fa-link"></i> ربط الشيكات المتقدم</a>
+{% if not scan_balances %}
+<a href="{{ url_for('security.data_quality_center', scan='balances') }}" class="btn btn-glass btn-sm"><i class="fas fa-search-dollar"></i> فحص تباين الأرصدة</a>
+{% else %}
+<a href="{{ url_for('security.data_quality_center') }}" class="btn btn-glass btn-sm"><i class="fas fa-sync"></i> تحديث سريع</a>
+{% endif %}
+{% endblock %}
+
 {% block security_content %}
             <!-- البطاقة الرئيسية -->
             <div class="row mb-4">
@@ -25,8 +34,12 @@
                         <h4 style="margin: 0; font-weight: 300;">
                             {% if total_issues == 0 %}
                                 ممتاز! جميع البيانات ذات جودة عالية
+                            {% elif total_issues == 1 %}
+                                مشكلة واحدة تحتاج إلى إصلاح
+                            {% elif total_issues == 2 %}
+                                مشكلتان تحتاجان إلى إصلاح
                             {% else %}
-                                مشكلة تحتاج إلى إصلاح
+                                {{ total_issues }} مشكلة تحتاج إلى إصلاح
                             {% endif %}
                         </h4>
                     </div>
@@ -96,9 +109,12 @@
                 </div>
 
                 <!-- الأرصدة -->
+                {% set balance_null = stats.balances.customers_null + stats.balances.suppliers_null + stats.balances.partners_null %}
+                {% set balance_drift = stats.balances.customers_drift + stats.balances.suppliers_drift + stats.balances.partners_drift %}
+                {% set balance_issues = balance_null + (balance_drift if scan_balances else 0) %}
                 <div class="col-md-4">
-                    <div class="card quality-card {% if stats.balances.customers_null > 0 or stats.balances.suppliers_null > 0 or stats.balances.partners_null > 0 %}category-card warning{% else %}category-card success{% endif %}">
-                        <div class="card-header erp-card-header-row erp-theme-header--primary {% if stats.balances.customers_null > 0 or stats.balances.suppliers_null > 0 or stats.balances.partners_null > 0 %}bg-warning{% else %}bg-success{% endif %} text-white">
+                    <div class="card quality-card {% if balance_issues > 0 %}category-card warning{% else %}category-card success{% endif %}">
+                        <div class="card-header erp-card-header-row erp-theme-header--primary {% if balance_issues > 0 %}bg-warning{% else %}bg-success{% endif %} text-white">
                             <h5 class="mb-0">
                                 <i class="fas fa-balance-scale ml-2"></i>
                                 الأرصدة
@@ -117,12 +133,40 @@
                                     {{ stats.balances.suppliers_null }}
                                 </span>
                             </div>
-                            <div class="d-flex justify-content-between align-items-center">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
                                 <span>شركاء برصيد NULL:</span>
                                 <span class="badge {% if stats.balances.partners_null > 0 %}bg-warning{% else %}bg-success{% endif %} issue-badge">
                                     {{ stats.balances.partners_null }}
                                 </span>
                             </div>
+                            {% if scan_balances %}
+                            <hr class="my-2">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span>تباين زبائن:</span>
+                                <span class="badge {% if stats.balances.customers_drift > 0 %}bg-danger{% else %}bg-success{% endif %} issue-badge">
+                                    {{ stats.balances.customers_drift }}
+                                </span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span>تباين موردين:</span>
+                                <span class="badge {% if stats.balances.suppliers_drift > 0 %}bg-danger{% else %}bg-success{% endif %} issue-badge">
+                                    {{ stats.balances.suppliers_drift }}
+                                </span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span>تباين شركاء:</span>
+                                <span class="badge {% if stats.balances.partners_drift > 0 %}bg-danger{% else %}bg-success{% endif %} issue-badge">
+                                    {{ stats.balances.partners_drift }}
+                                </span>
+                            </div>
+                            {% if stats.balances.scan_truncated %}
+                            <p class="small text-muted mt-2 mb-0">* الفحص على أول 300 سجل لكل نوع — قد يوجد المزيد.</p>
+                            {% endif %}
+                            {% else %}
+                            <p class="small text-muted mt-2 mb-0">
+                                <a href="{{ url_for('security.data_quality_center', scan='balances') }}">فحص تباين الأرصدة</a> (مقارنة المخزن مع الحساب الفعلي)
+                            </p>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
@@ -172,7 +216,7 @@
                             <form method="POST" style="display: inline;">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <input type="hidden" name="action" value="balances">
-                                <button type="submit" class="btn btn-primary fix-btn w-100" onclick="return confirm('إصلاح مشاكل الأرصدة؟')">
+                                <button type="submit" class="btn btn-primary fix-btn w-100" onclick="return confirm('إصلاح مشاكل الأرصدة؟\n\nسيتم:\n• تعيين NULL إلى 0\n• إعادة حساب الأرصدة المتباينة')" {% if balance_null == 0 and scan_balances and balance_drift == 0 %}disabled{% endif %}>
                                     <i class="fas fa-balance-scale ml-2"></i>
                                     إصلاح الأرصدة فقط
                                 </button>
@@ -228,7 +272,8 @@
                             <ul>
                                 <li>البنوك: من سجلات Check أو قيمة افتراضية</li>
                                 <li>تواريخ الاستحقاق: من Check أو +30 يوم افتراضي</li>
-                                <li>الأرصدة NULL: تعيين 0.00 كقيمة ابتدائية</li>
+                                <li>الأرصدة NULL: تعيين 0 ثم إعادة حساب المكونات</li>
+                                <li>تباين الأرصدة: مزامنة مع حاسبة الحقوق والالتزامات</li>
                                 <li>المزامنة بين Payment و Check</li>
                             </ul>
                         </div>
@@ -281,6 +326,15 @@
                                 <div class="info-box-content">
                                     <span class="info-box-text">الشركاء</span>
                                     <span class="info-box-number">{{ stats.entities.partners }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 col-6">
+                            <div class="info-box bg-info">
+                                <span class="info-box-icon"><i class="fas fa-money-bill-wave"></i></span>
+                                <div class="info-box-content">
+                                    <span class="info-box-text">الدفعات</span>
+                                    <span class="info-box-number">{{ stats.payments.total }}</span>
                                 </div>
                             </div>
                         </div>
