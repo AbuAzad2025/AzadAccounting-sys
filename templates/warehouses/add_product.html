@@ -1,7 +1,12 @@
 {% extends 'warehouses/base.html' %}
-{% block page_title %}إضافة منتج - {{ warehouse.name }}{% endblock %}
+{% block page_title %}<i class="fas fa-box-open ml-1"></i> إضافة منتج — {{ warehouse.name }}{% endblock %}
+{% block breadcrumb_extra %}
+<li class="breadcrumb-item"><a href="{{ url_for('warehouse_bp.detail', warehouse_id=warehouse.id) }}">{{ warehouse.name }}</a></li>
+<li class="breadcrumb-item active">إضافة منتج</li>
+{% endblock %}
 
 {% block content %}
+<div class="warehouse-add-product-page">
 <form method="POST"
       action="{{ url_for('warehouse_bp.add_product', id=warehouse.id) }}"
       novalidate
@@ -33,27 +38,17 @@
 {% endif %}
 
   <div class="alert alert-primary mb-3">
-    <div class="d-flex align-items-center justify-content-between">
-      <div class="d-flex align-items-center">
+    <div class="d-flex align-items-center justify-content-between flex-wrap">
+      <div class="d-flex align-items-center mb-2 mb-md-0">
         <i class="fas fa-warehouse fa-2x ml-3"></i>
         <div>
           <strong>نوع المستودع: {{ wtype }}</strong>
           <div class="small">الحقول المعلّمة بـ <span class="text-danger">*</span> إلزامية</div>
         </div>
       </div>
-      <div class="d-flex gap-2">
-         <div class="btn-group shadow-sm rounded-pill overflow-hidden bg-white">
-            <button type="button" onclick="window.history.back()" class="btn btn-sm text-primary fw-bold border-end">
-                <i class="fas fa-arrow-right" style="pointer-events: none;"></i>
-            </button>
-            <button type="button" onclick="window.history.forward()" class="btn btn-sm text-primary fw-bold">
-                <i class="fas fa-arrow-left" style="pointer-events: none;"></i>
-            </button>
-         </div>
-         <a href="{{ url_for('warehouse_bp.detail', warehouse_id=warehouse.id) }}" class="btn btn-light btn-sm shadow-sm text-primary fw-bold">
-            <i class="fas fa-arrow-right ml-1"></i> رجوع للمستودع
-         </a>
-      </div>
+      <a href="{{ url_for('warehouse_bp.detail', warehouse_id=warehouse.id) }}" class="btn btn-light btn-sm">
+        <i class="fas fa-arrow-right ml-1"></i> رجوع للمستودع
+      </a>
     </div>
   </div>
 
@@ -672,6 +667,7 @@
   </div>
 </template>
 
+</div>
 {% endblock %}
 
 {% block scripts %}

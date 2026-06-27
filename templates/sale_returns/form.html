@@ -1,33 +1,25 @@
 {% extends "base.html" %}
 
 {% block title %}{{ title }}{% endblock %}
+{% block page_title %}<i class="fas fa-undo-alt ml-1"></i> {{ title }}{% endblock %}
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('returns.list_returns') }}">المرتجعات</a></li>
+<li class="breadcrumb-item active">{{ 'تعديل' if sale_return is defined and sale_return else 'جديد' }}</li>
+{% endblock %}
 
-{% block head_extra %}
-
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/sale-returns-form.css', v=1) }}">
 {% endblock %}
 
 {% block content %}
-<div class="content-header">
-  <div class="container-fluid">
-    <div class="row mb-2">
-      <div class="col-sm-6">
-        <h1><i class="fas fa-undo-alt"></i> {{ title }}</h1>
-      </div>
-      <div class="col-sm-6">
-        <div class="float-left">
-          <a href="{{ url_for('returns.list_returns') }}" class="btn btn-secondary">
-            <i class="fas fa-arrow-right"></i> إلغاء
-          </a>
-        </div>
-      </div>
-    </div>
+<div class="sale-return-form-page">
+  <div class="d-flex justify-content-end mb-3">
+    <a href="{{ url_for('returns.list_returns') }}" class="btn btn-light btn-sm">
+      <i class="fas fa-arrow-right ml-1"></i> رجوع للقائمة
+    </a>
   </div>
-</div>
 
-<section class="content">
-  <div class="container-fluid">
-    
-    <form method="POST" id="returnForm">
+  <form method="POST" id="returnForm">
       {{ form.hidden_tag() }}
       
       <!-- Legend -->
@@ -228,9 +220,7 @@
       </div>
       
     </form>
-    
-  </div>
-</section>
+</div>
 
 <!-- Line Template -->
 <template id="line-template">

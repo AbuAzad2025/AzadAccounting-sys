@@ -16,10 +16,11 @@
 {% endblock %}
 
 {% block content %}
-<div class="container my-4">
-  <div class="alert alert-info border-0 shadow-sm mb-4">
-    <h4 class="mb-0"><i class="fas fa-tools"></i> {{ edit_mode and 'تعديل' or 'إضافة' }} طلب صيانة</h4>
-    <p class="mb-0">أدخل تفاصيل طلب الصيانة بدقة</p>
+<div class="service-form-page">
+  <div class="d-flex justify-content-end mb-3">
+    <a href="{{ url_for('service.list_requests') }}" class="btn btn-light btn-sm">
+      <i class="fas fa-arrow-right ml-1"></i> رجوع للقائمة
+    </a>
   </div>
 
   <form method="POST" id="serviceForm" autocomplete="off" action="{{ url_for('service.create_request') }}">
@@ -148,8 +149,11 @@
     </div>
 
     {% if form.parts %}
-    <div class="mb-3">
-      <div class="form-label fw-bold">القطع المستخدمة</div>
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header erp-card-header-row erp-theme-header--primary">
+        <h5 class="mb-0"><i class="fas fa-cogs"></i> القطع المستخدمة</h5>
+      </div>
+      <div class="card-body">
       <div id="parts-list">
         {% for part in form.parts %}
         <div class="row g-2 mb-2 part-line">
@@ -174,12 +178,16 @@
       <button type="button" class="btn btn-outline-success btn-sm mt-2" id="addPartBtn">
         <i class="fa fa-plus"></i> إضافة قطعة
       </button>
+      </div>
     </div>
     {% endif %}
 
     {% if form.tasks %}
-    <div class="mb-3">
-      <div class="form-label fw-bold">المهام المنفذة</div>
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header erp-card-header-row erp-theme-header--primary">
+        <h5 class="mb-0"><i class="fas fa-tasks"></i> المهام المنفذة</h5>
+      </div>
+      <div class="card-body">
       <div id="tasks-list">
         {% for task in form.tasks %}
         <div class="row g-2 mb-2 task-line">
@@ -193,11 +201,16 @@
         {% endfor %}
       </div>
       <button type="button" class="btn btn-outline-success btn-sm" id="addTaskBtn"><i class="fa fa-plus"></i> إضافة مهمة</button>
+      </div>
     </div>
     {% endif %}
 
-    <button type="submit" class="btn btn-primary">{{ edit_mode and 'تحديث' or 'حفظ' }}</button>
-    <a href="{{ url_for('service.list_requests') }}" class="btn btn-secondary ms-2">إلغاء</a>
+    <div class="d-flex flex-wrap pt-3 border-top">
+      <button type="submit" class="btn btn-primary btn-modern">
+        <i class="fas fa-save ml-1"></i> {{ edit_mode and 'تحديث' or 'حفظ' }}
+      </button>
+      <a href="{{ url_for('service.list_requests') }}" class="btn btn-secondary btn-modern ml-2">إلغاء</a>
+    </div>
   </form>
 </div>
 

@@ -426,3 +426,81 @@ table.dataTable thead .dt-orderable-desc span.dt-column-order {
   display: table-cell !important;
 }
 
+/* ── transfers_form.html ── */
+.warehouse-transfer-page .stock-info-card {
+  background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);
+  color: #fff;
+  border-radius: 0.5rem;
+  padding: 1.25rem;
+  margin-bottom: 1.25rem;
+  display: none;
+}
+
+.warehouse-transfer-page .stock-info-card.show {
+  display: block;
+}
+
+.warehouse-transfer-page .stock-available {
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+.warehouse-transfer-page .stock-warning {
+  background: #fff3cd;
+  border-right: 4px solid #ffc107;
+  padding: 0.75rem;
+  border-radius: 0.35rem;
+  margin-top: 0.75rem;
+  display: none;
+}
+
+.warehouse-transfer-page .stock-warning.show {
+  display: block;
+}
+
+.warehouse-transfer-page .stock-warning.stock-danger {
+  background: #f8d7da;
+  border-right-color: #dc3545;
+}
+
+.warehouse-transfer-page .card-section {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  padding-bottom: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.warehouse-transfer-page .card-section:last-child {
+  border-bottom: 0;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.warehouse-transfer-page .card-section-title {
+  font-weight: 700;
+  margin-bottom: 1rem;
+}
+
+.warehouse-transfer-page .reference-preview {
+  font-size: 0.875rem;
+  color: #6c757d;
+  margin-top: 0.35rem;
+}
+
+.warehouse-transfer-page .btn-submit .btn-loading {
+  display: none;
+}
+
+.warehouse-transfer-page .btn-submit.loading .btn-text {
+  display: none;
+}
+
+.warehouse-transfer-page .btn-submit.loading .btn-loading {
+  display: inline;
+}
+
+.warehouse-transfer-page .form-actions-bar {
+  padding-top: 1rem;
+  margin-top: 0.5rem;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
