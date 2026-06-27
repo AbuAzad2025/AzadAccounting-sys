@@ -22,7 +22,7 @@
 {% set analytics_charts = analytics_charts|default({'success_pie': {'labels': ['ناجح', 'فاشل'], 'values': [0, 0]}, 'query_types': {'labels': [], 'values': []}, 'daily_line': {'labels': [], 'values': []}}) %}
 {% set analytics_metrics = analytics_metrics|default([]) %}
 {% set api_providers = api_providers|default([]) %}
-{% set system_map_summary = system_map_summary|default({'exists': false, 'total_routes': 0, 'total_templates': 0, 'linked_routes': 0, 'blueprints_count': 0}) %}
+{% set knowledge_summary = knowledge_summary|default({'total_sources': 0, 'total_chunks': 0, 'sources': []}) %}
 <div class="container-fluid">
   
   {# تم حذف include 'security/_navigation.html' لأسباب أمنية - لا يجب إظهار روابط اللوحة السرية في المساعد #}
@@ -33,10 +33,11 @@
       <div>
         <i class="fas fa-brain fa-2x mb-2"></i>
         <h5 class="mb-1"><strong>AI Control Center - مركز التحكم الذكي</strong></h5>
-        <p class="mb-0 opacity-75">نظام ذكاء اصطناعي متقدم مع قدرات تعلم ذاتي وتدريب تفاعلي</p>
+        <p class="mb-0 opacity-75">للمالك/المطور فقط — المساعد، التدريب، ومصادر المعرفة بنفس صلاحيات الوصول</p>
       </div>
       <div class="text-end">
-        <div class="badge bg-white text-primary fs-6 mb-2">6 أدوات قوية</div>
+        <div class="badge bg-warning text-dark fs-6 mb-2"><i class="fas fa-crown"></i> مالك المنصة</div>
+        <div class="badge bg-white text-primary fs-6 mb-2 ms-1">6 أدوات</div>
         <div><small class="opacity-75">مساعد • تحليل • تنبؤ • تدريب • خرائط • مفاتيح</small></div>
       </div>
     </div>
@@ -91,6 +92,7 @@
              href="#tab-training"
              role="tab">
             <i class="fas fa-graduation-cap"></i> تدريب
+            <span class="badge bg-warning text-dark ms-1" style="font-size:0.65rem">👑</span>
           </a>
         </li>
         {% if has_perm('manage_ai') %}
@@ -465,16 +467,24 @@
              role="tabpanel">
         <div class="container-fluid">
           <div class="alert alert-info ai-card mb-4">
-            <i class="fas fa-info-circle"></i>
-            <strong>تدريب حقيقي:</strong> المهام تُشغّل <code>AITrainingEngine</code> و<code>SystemDeepTrainer</code> وتُسجَّل في
-            <code>training_jobs.json</code> — الدقة تظهر فقط إذا أرجع التدريب metric فعلي.
+            <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+              <div>
+                <i class="fas fa-crown text-warning"></i>
+                <strong>تدريب النظام + مصادر المعرفة (RAG)</strong>
+                <span class="badge bg-warning text-dark ms-1">للمالك/المطور فقط</span>
+                <p class="mb-0 mt-2 small">
+                  نفس صلاحية المساعد الذكي. الخطوات الموصى بها:
+                  <strong>①</strong> ارفع كتب/JSON/PDF →
+                  <strong>②</strong> أعد الفهرسة →
+                  <strong>③</strong> شغّل التدريب لمسح ERP — البحث هجين (كلمات + TF-IDF).
+                </p>
+              </div>
+              <div class="text-end">
+                <span class="badge bg-primary">{{ knowledge_summary.total_sources|default(0) }} مصدر</span>
+                <span class="badge bg-secondary">{{ knowledge_summary.total_chunks|default(0) }} مقطع</span>
+              </div>
+            </div>
           </div>
-
-          {% if not can_train_ai %}
-          <div class="alert alert-warning ai-card mb-4">
-            <i class="fas fa-lock"></i> لديك صلاحية العرض فقط. بدء التدريب يتطلب صلاحية <strong>train_ai</strong>.
-          </div>
-          {% endif %}
 
           <!-- KPIs -->
           <div class="row g-3 mb-4">
@@ -571,7 +581,7 @@
                   
                   <button class="btn btn-{{ 'primary' if st in ['pending', 'failed'] else 'outline-primary' }} btn-sm w-100"
                           onclick="trainModel('{{ model.name }}')"
-                          {% if not can_train_ai %}disabled title="يتطلب صلاحية train_ai"{% endif %}>
+                          {% if not can_train_ai %}disabled title="للمالك/المطور فقط — نفس صلاحية المساعد"{% endif %}>
                     <i class="fas fa-{{ 'play' if st in ['pending', 'failed'] else 'sync-alt' }}"></i>
                     {% if st in ['pending', 'failed'] %}بدء التدريب{% else %}إعادة التدريب{% endif %}
                   </button>
@@ -581,10 +591,74 @@
             {% endfor %}
           </div>
           
-          <!-- Training Settings -->
+          <!-- ① مصادر المعرفة (RAG) -->
+          <div class="card ai-card mb-4">
+            <div class="card-header bg-light d-flex justify-content-between align-items-center flex-wrap gap-2">
+              <span><i class="fas fa-book-open text-primary"></i> <strong>① مصادر المعرفة الخارجية</strong> <small class="text-muted">(RAG محلي)</small></span>
+              <span class="badge bg-primary">{{ knowledge_summary.total_sources|default(0) }} مصدر · {{ knowledge_summary.total_chunks|default(0) }} مقطع</span>
+            </div>
+            <div class="card-body">
+              <div class="row g-3 mb-3">
+                <div class="col-lg-7">
+                  <label class="form-label fw-bold">رفع ملف للفهرسة</label>
+                  <div class="input-group">
+                    <input type="file" class="form-control" id="knowledgeFile" accept=".pdf,.md,.markdown,.txt,.json,.csv">
+                    <input type="text" class="form-control" id="knowledgeTitle" placeholder="عنوان (اختياري)">
+                  </div>
+                  <small class="text-muted">PDF · MD · TXT · JSON · CSV — حتى 25MB</small>
+                </div>
+                <div class="col-lg-5 d-flex align-items-end gap-2 flex-wrap">
+                  <button type="button" class="btn btn-primary" id="knowledgeUploadBtn" {% if not can_train_ai %}disabled{% endif %}>
+                    <i class="fas fa-upload"></i> رفع وفهرسة
+                  </button>
+                  <button type="button" class="btn btn-outline-secondary" id="knowledgeReindexBtn" {% if not can_train_ai %}disabled{% endif %}>
+                    <i class="fas fa-sync"></i> إعادة فهرسة
+                  </button>
+                </div>
+              </div>
+              <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                  <thead class="table-light">
+                    <tr>
+                      <th>العنوان</th>
+                      <th>النوع</th>
+                      <th>مقاطع</th>
+                      <th>الحجم</th>
+                      <th>تاريخ الرفع</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="knowledgeSourcesBody">
+                    {% for src in knowledge_summary.sources or [] %}
+                    <tr data-source-id="{{ src.source_id }}">
+                      <td><strong>{{ src.title or src.filename }}</strong><br><small class="text-muted">{{ src.filename }}</small></td>
+                      <td><span class="badge bg-secondary">{{ src.type }}</span></td>
+                      <td>{{ src.chunks_count|default(0) }}</td>
+                      <td>{{ ((src.size_bytes|default(0)) / 1024)|round(1) }} KB</td>
+                      <td><small>{{ format_timestamp(src.uploaded_at) if src.uploaded_at else '—' }}</small></td>
+                      <td>
+                        {% if can_train_ai %}
+                        <button type="button" class="btn btn-sm btn-outline-danger knowledge-delete-btn" data-id="{{ src.source_id }}">
+                          <i class="fas fa-trash"></i>
+                        </button>
+                        {% endif %}
+                      </td>
+                    </tr>
+                    {% else %}
+                    <tr id="knowledgeEmptyRow">
+                      <td colspan="6" class="text-center text-muted py-3">لا توجد مصادر بعد — ارفع كتاب محاسبة أو JSON.</td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- ② إعدادات التدريب -->
           <div class="card ai-card">
             <div class="card-header bg-light">
-              <i class="fas fa-cogs"></i> إعدادات التدريب
+              <i class="fas fa-cogs"></i> <strong>② تدريب النظام على بيانات ERP</strong>
             </div>
             <div class="card-body">
               <div class="row g-3">
@@ -1424,6 +1498,79 @@ if (document.getElementById('performanceChart')) {
     }
   });
 }
+
+// Knowledge sources (RAG)
+async function uploadKnowledgeSource() {
+  const fileInput = document.getElementById('knowledgeFile');
+  const titleInput = document.getElementById('knowledgeTitle');
+  const btn = document.getElementById('knowledgeUploadBtn');
+  if (!fileInput?.files?.length) {
+    alert('اختر ملفاً أولاً');
+    return;
+  }
+  const form = new FormData();
+  form.append('file', fileInput.files[0]);
+  if (titleInput?.value.trim()) form.append('title', titleInput.value.trim());
+  const original = btn?.innerHTML;
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
+  try {
+    const res = await fetch('{{ url_for("ai.knowledge_upload") }}', {
+      method: 'POST',
+      headers: { 'X-CSRFToken': csrfToken },
+      credentials: 'same-origin',
+      body: form
+    });
+    const data = await res.json();
+    if (data.success) {
+      alert(`✅ تمت الفهرسة: ${data.source?.title || ''} (${data.source?.chunks_count || 0} مقطع)`);
+      window.location.href = '{{ url_for("ai.hub", tab="training") }}';
+    } else {
+      alert('❌ ' + (data.error || 'فشل الرفع'));
+    }
+  } catch (e) {
+    alert('❌ ' + e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = original; }
+  }
+}
+
+async function reindexKnowledgeSources() {
+  if (!confirm('إعادة فهرسة كل المصادر واستيراد الكتب القديمة؟')) return;
+  const btn = document.getElementById('knowledgeReindexBtn');
+  const original = btn?.innerHTML;
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
+  try {
+    const res = await fetch('{{ url_for("ai.knowledge_reindex") }}', {
+      method: 'POST',
+      headers: { 'X-CSRFToken': csrfToken },
+      credentials: 'same-origin'
+    });
+    const data = await res.json();
+    alert(data.success ? `✅ أُعيدت فهرسة ${data.reindexed || 0} مصدر` : '❌ ' + (data.error || 'فشل'));
+    if (data.success) window.location.reload();
+  } catch (e) {
+    alert('❌ ' + e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = original; }
+  }
+}
+
+document.getElementById('knowledgeUploadBtn')?.addEventListener('click', uploadKnowledgeSource);
+document.getElementById('knowledgeReindexBtn')?.addEventListener('click', reindexKnowledgeSources);
+document.querySelectorAll('.knowledge-delete-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const id = btn.getAttribute('data-id');
+    if (!id || !confirm('حذف هذا المصدر؟')) return;
+    const res = await fetch('{{ url_for("ai.knowledge_source_delete", source_id="__ID__") }}'.replace('__ID__', encodeURIComponent(id)), {
+      method: 'DELETE',
+      headers: { 'X-CSRFToken': csrfToken },
+      credentials: 'same-origin'
+    });
+    const data = await res.json();
+    if (data.success) window.location.reload();
+    else alert('❌ ' + (data.error || 'فشل الحذف'));
+  });
+});
 </script>
 
 {% endblock %}

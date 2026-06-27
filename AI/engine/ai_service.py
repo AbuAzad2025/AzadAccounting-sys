@@ -616,7 +616,23 @@ def check_groq_health():
 
 def get_system_identity():
     company = get_company_profile()
-    return {"name": "المساعد الذكي في نظام أزاد", "version": _setting("AI_SERVICE_VERSION", "stable"), "mode": _system_state, "company": company, "capabilities": {"local_analysis": True, "database_access": True, "knowledge_base": True, "finance_calculations": True, "auto_discovery": True, "self_training": True}, "status": {"groq_api": "offline" if _local_fallback_mode else "online", "groq_failures_24h": len(_groq_failures), "local_mode_active": _local_fallback_mode}, "data_sources": ["AI/data عبر ai_storage", "قاعدة البيانات المحلية SQLAlchemy", "خريطة النظام عند توفرها"]}
+    llm_cfg = _active_llm_config()
+    provider = str((llm_cfg or {}).get("provider") or "local")
+    api_online = bool(llm_cfg) and not _local_fallback_mode
+    return {
+        "name": "المساعد الذكي في نظام أزاد",
+        "version": _setting("AI_SERVICE_VERSION", "stable"),
+        "mode": _system_state,
+        "company": company,
+        "capabilities": {"local_analysis": True, "database_access": True, "knowledge_base": True, "finance_calculations": True, "auto_discovery": True, "self_training": True, "hybrid_rag": True},
+        "status": {
+            "llm_provider": provider,
+            "llm_api": "online" if api_online else "offline",
+            "groq_failures_24h": len(_groq_failures),
+            "local_mode_active": _local_fallback_mode,
+        },
+        "data_sources": ["AI/data عبر ai_storage", "قاعدة البيانات المحلية SQLAlchemy", "خريطة النظام", "مصادر RAG هجينة"],
+    }
 
 
 def log_local_mode_usage():
@@ -711,9 +727,18 @@ def get_local_fallback_response(message, search_results):
 def _active_llm_config() -> Optional[Dict[str, Any]]:
     try:
         from AI.engine.ai_management import get_api_key_decrypted
-        key = get_api_key_decrypted("groq")
-        if key:
-            return {"provider": "groq", "key": key, "model": _setting("GROQ_MODEL", "llama-3.3-70b-versatile")}
+        preferred = str(_setting("AI_LLM_PROVIDER", "") or "").strip().lower()
+        providers = [
+            ("groq", _setting("GROQ_MODEL", "llama-3.3-70b-versatile")),
+            ("openai", _setting("OPENAI_MODEL", "gpt-4o-mini")),
+            ("anthropic", _setting("ANTHROPIC_MODEL", "claude-3-5-haiku-latest")),
+        ]
+        if preferred:
+            providers = sorted(providers, key=lambda p: 0 if p[0] == preferred else 1)
+        for name, model in providers:
+            key = get_api_key_decrypted(name)
+            if key:
+                return {"provider": name, "key": key, "model": model}
     except Exception:
         pass
     keys_json = _setting("AI_API_KEYS", "[]")
@@ -727,33 +752,70 @@ def _active_llm_config() -> Optional[Dict[str, Any]]:
     return None
 
 
+def _call_llm(messages: List[Dict[str, str]], config: Dict[str, Any]) -> Optional[str]:
+    provider = str(config.get("provider") or "groq").lower()
+    model = config.get("model") or "llama-3.3-70b-versatile"
+    key = config.get("key")
+    if not key:
+        return None
+    try:
+        if provider == "anthropic":
+            import anthropic
+            client = anthropic.Anthropic(api_key=key)
+            system = "\n".join(m["content"] for m in messages if m.get("role") == "system")
+            chat_msgs = [{"role": m["role"], "content": m["content"]} for m in messages if m.get("role") in {"user", "assistant"}]
+            resp = client.messages.create(
+                model=model,
+                max_tokens=2000,
+                system=system or None,
+                messages=chat_msgs,
+                temperature=0.2,
+            )
+            parts = [getattr(b, "text", "") for b in getattr(resp, "content", []) if getattr(b, "type", "") == "text"]
+            return "".join(parts).strip() or None
+
+        from openai import OpenAI
+        base_url = "https://api.groq.com/openai/v1" if provider == "groq" else None
+        client = OpenAI(api_key=key, base_url=base_url, timeout=30.0)
+        resp = client.chat.completions.create(
+            model=model,
+            messages=messages,
+            temperature=0.2,
+            max_tokens=2000,
+            top_p=0.9,
+        )
+        return (resp.choices[0].message.content or "").strip() or None
+    except Exception:
+        return None
+
+
 def ai_chat_response(message, search_results=None, session_id="default"):
     config = _active_llm_config()
     if not config:
         return get_local_fallback_response(message, search_results or {})
+    messages = [{"role": "system", "content": build_system_message(gather_system_context())}]
+    memory = get_or_create_session_memory(session_id)
+    for msg in memory["messages"][-10:]:
+        messages.append({"role": msg["role"], "content": msg["content"]})
+    enhanced = str(message or "")
+    if search_results:
+        enhanced += "\n\nنتائج البحث من قاعدة البيانات:\n" + json.dumps(search_results, ensure_ascii=False, default=str)[:12000]
     try:
-        import requests
-        if "groq" not in str(config.get("provider", "groq")).lower():
-            return get_local_fallback_response(message, search_results or {})
-        messages = [{"role": "system", "content": build_system_message(gather_system_context())}]
-        memory = get_or_create_session_memory(session_id)
-        for msg in memory["messages"][-10:]:
-            messages.append({"role": msg["role"], "content": msg["content"]})
-        enhanced = str(message or "")
-        if search_results:
-            enhanced += "\n\nنتائج البحث من قاعدة البيانات:\n" + json.dumps(search_results, ensure_ascii=False, default=str)[:12000]
-        messages.append({"role": "user", "content": enhanced})
-        response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers={"Authorization": f"Bearer {config.get('key')}", "Content-Type": "application/json"}, json={"model": config.get("model", "llama-3.3-70b-versatile"), "messages": messages, "temperature": 0.2, "max_tokens": 2000, "top_p": 0.9}, timeout=30)
-        if response.status_code == 200:
-            answer = response.json()["choices"][0]["message"]["content"]
-            add_to_memory(session_id, "user", message)
-            add_to_memory(session_id, "assistant", answer)
-            global _local_fallback_mode, _system_state
-            _local_fallback_mode = False
-            _system_state = "HYBRID"
-            return answer
+        from AI.engine.ai_knowledge_retriever import build_llm_knowledge_addon
+        knowledge_addon = build_llm_knowledge_addon(message)
+        if knowledge_addon:
+            enhanced += "\n\n" + knowledge_addon[:8000]
     except Exception:
         pass
+    messages.append({"role": "user", "content": enhanced})
+    answer = _call_llm(messages, config)
+    if answer:
+        add_to_memory(session_id, "user", message)
+        add_to_memory(session_id, "assistant", answer)
+        global _local_fallback_mode, _system_state
+        _local_fallback_mode = False
+        _system_state = "HYBRID"
+        return answer
     _groq_failures.append(_now())
     check_groq_health()
     return get_local_fallback_response(message, search_results or {})
@@ -890,6 +952,13 @@ def local_intelligent_response(message, session_id=None):
             return _format_vat_response(amount, calculate_vat(amount, country))
     if any(word in q for word in ["خطأ", "error", "traceback", "exception"]):
         return handle_error_question(message).get("formatted_response")
+    try:
+        from AI.engine.ai_knowledge_retriever import try_knowledge_answer
+        knowledge_answer = try_knowledge_answer(message)
+        if knowledge_answer:
+            return knowledge_answer
+    except Exception:
+        pass
     search_results = search_database_for_query(message)
     validation = validate_search_results(message, search_results)
     if validation.get("has_data") and _should_use_data_fallback(message, search_results):
@@ -913,6 +982,11 @@ def ai_chat_with_search(user_id: int = None, query: str = None, message: str = N
     context = context or {}
     context["user_id"] = user_id
     context["search_results"] = search_database_for_query(query)
+    try:
+        from AI.engine.ai_knowledge_retriever import retrieve_knowledge_context
+        context["knowledge_context"] = retrieve_knowledge_context(query)
+    except Exception:
+        context["knowledge_context"] = {}
     try:
         from AI.engine.ai_master_controller import get_master_controller
         result = get_master_controller().process_intelligent_query(query, context)
@@ -953,15 +1027,31 @@ def _ai_chat_original(message, session_id="default"):
     elif intent.get("type") == "troubleshooting":
         response = handle_error_question(message).get("formatted_response", "")
     else:
-        search_results = search_database_for_query(message)
-        validation = validate_search_results(message, search_results)
-        confidence = calculate_confidence_score(search_results, validation)
-        if validation.get("has_data") and _should_use_data_fallback(message, search_results):
-            response = ai_chat_response(message, search_results, session_id)
-        else:
-            response = local_intelligent_response(message, session_id=session_id)
-        if confidence < 70 and "درجة الثقة" not in response and _should_use_data_fallback(message, search_results):
-            response += f"\n\n⚠️ درجة الثقة التقريبية: {confidence}%"
+        try:
+            from AI.engine.ai_knowledge_retriever import try_knowledge_answer
+            knowledge_answer = try_knowledge_answer(message)
+            if knowledge_answer:
+                response = knowledge_answer
+            else:
+                search_results = search_database_for_query(message)
+                validation = validate_search_results(message, search_results)
+                confidence = calculate_confidence_score(search_results, validation)
+                if validation.get("has_data") and _should_use_data_fallback(message, search_results):
+                    response = ai_chat_response(message, search_results, session_id)
+                else:
+                    response = local_intelligent_response(message, session_id=session_id)
+                if confidence < 70 and "درجة الثقة" not in response and _should_use_data_fallback(message, search_results):
+                    response += f"\n\n⚠️ درجة الثقة التقريبية: {confidence}%"
+        except Exception:
+            search_results = search_database_for_query(message)
+            validation = validate_search_results(message, search_results)
+            confidence = calculate_confidence_score(search_results, validation)
+            if validation.get("has_data") and _should_use_data_fallback(message, search_results):
+                response = ai_chat_response(message, search_results, session_id)
+            else:
+                response = local_intelligent_response(message, session_id=session_id)
+            if confidence < 70 and "درجة الثقة" not in response and _should_use_data_fallback(message, search_results):
+                response += f"\n\n⚠️ درجة الثقة التقريبية: {confidence}%"
     add_to_memory(session_id, "assistant", response)
     current = _now()
     if _last_audit_time is None or (current - _last_audit_time) > timedelta(hours=1):

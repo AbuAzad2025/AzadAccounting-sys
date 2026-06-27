@@ -94,6 +94,14 @@ def _norm_path(value: str) -> str:
     return str(value or "").replace("\\", "/").lstrip("/")
 
 
+def _blueprint_folder(blueprint: str) -> str:
+    name = str(blueprint or "").replace("\\", "/").strip("/")
+    for suffix in ("_bp", "_blueprint"):
+        if name.endswith(suffix):
+            name = name[: -len(suffix)]
+    return name
+
+
 def link_routes_to_templates(routes: List[Dict[str, Any]], templates: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     template_names = {_norm_path(t.get("name")) for t in templates if t.get("name")}
     linked: List[Dict[str, Any]] = []
@@ -101,18 +109,24 @@ def link_routes_to_templates(routes: List[Dict[str, Any]], templates: List[Dict[
         item = dict(route)
         blueprint = route.get("blueprint") or ""
         function = route.get("function_name") or ""
+        folder = _blueprint_folder(blueprint)
         candidates: List[str] = []
-        if blueprint:
-            guesses = [f"{blueprint}/{function}.html"]
+        if folder and function:
+            guesses = [f"{folder}/{function}.html"]
             if function == "index":
-                guesses.append(f"{blueprint}/index.html")
+                guesses.append(f"{folder}/index.html")
             for common in ("list", "detail", "edit", "create", "delete", "view", "show", "new"):
                 if common in function:
-                    guesses.append(f"{blueprint}/{common}.html")
+                    guesses.append(f"{folder}/{common}.html")
             for guess in guesses:
                 norm_guess = _norm_path(guess)
                 if norm_guess in template_names and norm_guess not in candidates:
                     candidates.append(norm_guess)
+        if function:
+            suffix = f"/{function}.html"
+            for tname in template_names:
+                if (tname.endswith(suffix) or tname == f"{function}.html") and tname not in candidates:
+                    candidates.append(tname)
         item["linked_templates"] = candidates
         item["has_template"] = bool(candidates)
         linked.append(item)

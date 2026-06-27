@@ -347,10 +347,10 @@ class MasterController:
             denied = require_any_permission(("manage_ai", "access_owner_dashboard"), permission_context, module="ai")
             return denied if denied else self._diagnose_system_health()
         if command == "start_learning_session":
-            denied = require_any_permission(("train_ai", "manage_ai", "access_owner_dashboard"), permission_context, module="ai")
+            denied = require_any_permission(("access_ai_assistant", "access_owner_dashboard"), permission_context, module="ai")
             return denied if denied else self._start_learning_session()
         if command == "read_book":
-            denied = require_any_permission(("manage_ai", "train_ai", "access_owner_dashboard"), permission_context, module="ai")
+            denied = require_any_permission(("access_ai_assistant", "access_owner_dashboard"), permission_context, module="ai")
             return denied if denied else self._read_book(params.get("file_path"), params.get("format", "markdown"))
         if command == "comprehend_concept":
             return self._comprehend_concept(params.get("concept"))

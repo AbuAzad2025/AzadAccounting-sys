@@ -118,8 +118,8 @@ ACTION_PERMISSIONS: Dict[str, str] = {
     "read_users": "manage_users",
     "read_settings": "access_owner_dashboard",
 
-    # AI
-    "training": "train_ai",
+    # AI — التدريب بنفس بوابة المساعد (مالك/مطور)
+    "training": "access_ai_assistant",
 }
 
 
@@ -197,12 +197,33 @@ def _has_permission(user: Any, permission: Any) -> bool:
 
 
 def _is_owner_like(user: Any) -> bool:
+    role = str(getattr(user, "role_name_l", "") or "").lower()
     return bool(
         getattr(user, "is_system_account", False)
         or getattr(user, "is_system", False)
         or getattr(user, "username", None) == "__OWNER__"
+        or role in {"owner", "developer"}
         or _has_permission(user, SystemPermissions.ACCESS_OWNER_DASHBOARD)
     )
+
+
+def is_ai_owner_like(user: Any | None = None) -> bool:
+    user = user or current_user
+    if not getattr(user, "is_authenticated", False):
+        return False
+    return _is_owner_like(user)
+
+
+def can_access_ai(user: Any | None = None) -> bool:
+    """نفس بوابة المساعد: مالك/مطور + access_ai_assistant + AI مفعّل."""
+    user = user or current_user
+    if not getattr(user, "is_authenticated", False):
+        return False
+    if not is_ai_enabled() and not _has_permission(user, SystemPermissions.ACCESS_OWNER_DASHBOARD):
+        return False
+    if not _is_owner_like(user):
+        return False
+    return _has_permission(user, SystemPermissions.ACCESS_AI_ASSISTANT)
 
 
 def is_ai_visible_to_role(role_name: str) -> bool:
@@ -220,6 +241,9 @@ def can_ai_execute_action(action_type: str, user_role: str | None = None) -> boo
     normalized = str(action_type or "").strip().lower()
     if not normalized or normalized in AI_NEVER_EXECUTE:
         return False
+
+    if normalized == "training":
+        return can_access_ai()
 
     required_perm = ACTION_PERMISSIONS.get(normalized)
     if not required_perm:
@@ -258,6 +282,8 @@ __all__ = [
     "AI_NEVER_EXECUTE",
     "get_ai_permission_setting",
     "is_ai_enabled",
+    "is_ai_owner_like",
+    "can_access_ai",
     "is_ai_visible_to_role",
     "can_ai_execute_action",
     "get_ai_access_level",

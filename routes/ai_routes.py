@@ -11,6 +11,7 @@ API_PROVIDER_CARDS = (
 
 from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
+from werkzeug.utils import secure_filename
 
 from utils import permission_required
 from permissions_config.enums import SystemPermissions
@@ -48,6 +49,19 @@ def _has_permission(permission: Any) -> bool:
     return False
 
 
+def _is_ai_owner_user() -> bool:
+    from AI.engine.ai_permissions import is_ai_owner_like
+
+    return is_ai_owner_like()
+
+
+def _can_train_ai() -> bool:
+    """التدريب ورفع المصادر — نفس صلاحية المساعد (مالك/مطور)."""
+    from AI.engine.ai_permissions import can_access_ai
+
+    return can_access_ai()
+
+
 def _normalize_ai_response(response: Any) -> Dict[str, Any]:
     if isinstance(response, dict):
         text = response.get("response") or response.get("answer") or response.get("message") or ""
@@ -71,30 +85,20 @@ def _chat_for_current_user(message: str) -> Dict[str, Any]:
 def ai_access(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
+        from AI.engine.ai_permissions import can_access_ai, is_ai_enabled
+
         if not current_user.is_authenticated:
             flash("⛔ يجب تسجيل الدخول", "danger")
             return redirect(url_for("auth.login"))
-
-        from AI.engine.ai_permissions import is_ai_enabled
 
         if not is_ai_enabled() and not _has_permission(SystemPermissions.ACCESS_OWNER_DASHBOARD):
             flash("⛔ المساعد الذكي معطّل حالياً", "warning")
             return redirect(url_for("main.dashboard"))
 
-        is_owner_like = bool(
-            getattr(current_user, "is_system", False)
-            or getattr(current_user, "is_system_account", False)
-            or getattr(current_user, "role_name_l", "") in {"owner", "developer"}
-            or _has_permission(SystemPermissions.ACCESS_OWNER_DASHBOARD)
-        )
-        if not is_owner_like:
-            flash("⛔ غير مصرح لك بالوصول للمساعد الذكي", "danger")
-            return redirect(url_for("main.dashboard"))
-
-        if _has_permission(SystemPermissions.ACCESS_AI_ASSISTANT):
+        if can_access_ai():
             return f(*args, **kwargs)
 
-        flash("⛔ غير مصرح لك بالوصول للمساعد الذكي", "danger")
+        flash("⛔ المساعد الذكي والتدريب متاحان للمالك/المطور فقط", "danger")
         return redirect(url_for("main.dashboard"))
 
     return decorated_function
@@ -131,8 +135,10 @@ def _ai_hub_page_context(tab: str) -> Dict[str, Any]:
             (job for job in training_jobs if job.get("status") == "running"),
             None,
         ),
-        "can_train_ai": _has_permission(SystemPermissions.TRAIN_AI),
+        "can_train_ai": _can_train_ai(),
+        "is_ai_owner": _is_ai_owner_user(),
         "can_manage_ai": _has_permission(SystemPermissions.MANAGE_AI),
+        "knowledge_summary": _get_knowledge_summary(),
         "format_timestamp": format_timestamp,
     }
 
@@ -201,7 +207,7 @@ def system_map():
 
 
 @ai_bp.route("/training/start", methods=["POST"])
-@permission_required(SystemPermissions.TRAIN_AI)
+@ai_access
 def start_training():
     try:
         data = request.get_json(silent=True) or {}
@@ -218,6 +224,68 @@ def training_status(training_id):
     if job:
         return jsonify({"success": True, "job": job})
     return jsonify({"success": False, "error": "التدريب غير موجود"}), 404
+
+
+@ai_bp.route("/knowledge/sources", methods=["GET"])
+@ai_access
+def knowledge_sources_list():
+    try:
+        from AI.engine.ai_knowledge_ingestor import get_sources_summary
+        return jsonify({"success": True, **get_sources_summary()})
+    except Exception as exc:
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@ai_bp.route("/knowledge/upload", methods=["POST"])
+@ai_access
+def knowledge_upload():
+    try:
+        from AI.engine.ai_knowledge_ingestor import ingest_bytes, ALLOWED_EXTENSIONS
+        if "file" not in request.files:
+            return jsonify({"success": False, "error": "لم يُرفع ملف"}), 400
+        f = request.files["file"]
+        if not f or not f.filename:
+            return jsonify({"success": False, "error": "لم يُحدد ملف"}), 400
+        filename = secure_filename(f.filename)
+        ext = ("." + filename.rsplit(".", 1)[-1].lower()) if "." in filename else ""
+        if ext not in ALLOWED_EXTENSIONS:
+            return jsonify({"success": False, "error": f"امتداد غير مدعوم. المسموح: {', '.join(sorted(ALLOWED_EXTENSIONS))}"}), 400
+        title = (request.form.get("title") or "").strip() or None
+        result = ingest_bytes(f.read(), filename, uploaded_by=current_user.id, title=title)
+        return jsonify(result), 200 if result.get("success") else 400
+    except Exception as exc:
+        current_app.logger.exception("knowledge upload failed")
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@ai_bp.route("/knowledge/sources/<source_id>", methods=["DELETE"])
+@ai_access
+def knowledge_source_delete(source_id):
+    try:
+        from AI.engine.ai_knowledge_ingestor import delete_source
+        result = delete_source(source_id)
+        return jsonify(result), 200 if result.get("success") else 404
+    except Exception as exc:
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@ai_bp.route("/knowledge/reindex", methods=["POST"])
+@ai_access
+def knowledge_reindex():
+    try:
+        from AI.engine.ai_knowledge_ingestor import reindex_all, import_legacy_books
+        legacy = import_legacy_books()
+        result = reindex_all()
+        result["legacy_import"] = legacy
+        try:
+            from AI.engine.ai_auto_discovery import build_system_map
+            build_system_map()
+            result["system_map"] = "rebuilt"
+        except Exception:
+            result["system_map"] = "skipped"
+        return jsonify(result)
+    except Exception as exc:
+        return jsonify({"success": False, "error": str(exc)}), 500
 
 
 @ai_bp.route("/models/status", methods=["GET"])
@@ -292,6 +360,14 @@ def evolution_report():
     except Exception:
         report_data = {"labels": [], "gii_scores": [], "error_rates": [], "skills": {}, "stats": {}, "improvements": []}
     return render_template("ai/evolution_report.html", report=report_data)
+
+
+def _get_knowledge_summary() -> Dict[str, Any]:
+    try:
+        from AI.engine.ai_knowledge_ingestor import get_sources_summary
+        return get_sources_summary()
+    except Exception:
+        return {"total_sources": 0, "total_chunks": 0, "sources": []}
 
 
 def _get_training_jobs_newest_first(limit: int = 20) -> List[Dict[str, Any]]:
@@ -590,6 +666,36 @@ def _get_hub_predictions(force_refresh: bool = False) -> List[Dict[str, Any]]:
     except Exception:
         current_app.logger.debug("stock prediction failed", exc_info=True)
 
+    try:
+        from extensions import db
+        from models import Sale
+        from sqlalchemy import func
+
+        now = datetime.now(timezone.utc)
+        daily: List[float] = []
+        for i in range(14, 0, -1):
+            day = now - timedelta(days=i)
+            day_end = day + timedelta(days=1)
+            amt = (
+                db.session.query(func.coalesce(func.sum(Sale.total_amount), 0))
+                .filter(Sale.sale_date >= day, Sale.sale_date < day_end)
+                .scalar()
+            ) or 0
+            daily.append(float(amt))
+        if sum(daily) > 0:
+            recent_avg = sum(daily[-7:]) / 7.0
+            predictions.append(
+                {
+                    "type": "توقع مبيعات",
+                    "period": "7 أيام قادمة",
+                    "value": f"₪{recent_avg * 7:,.0f} (متوسط متحرك)",
+                    "confidence": 70,
+                    "source": "moving_avg",
+                }
+            )
+    except Exception:
+        current_app.logger.debug("sales forecast failed", exc_info=True)
+
     return predictions
 
 
@@ -721,10 +827,13 @@ def _assistant_page_context() -> Dict[str, Any]:
 
     ai_stats = _get_ai_stats()
     company = get_company_profile()
+    knowledge = _get_knowledge_summary()
     return {
         "ai_stats": ai_stats,
         "company": company,
+        "knowledge_summary": knowledge,
         "api_keys_configured": _check_api_keys(),
+        "active_llm_provider": _get_active_llm_provider(),
         "quick_prompts": _get_assistant_prompts(),
         "chat_history": _get_assistant_history(limit=20),
         "history_snippets": list(reversed(_get_assistant_history(limit=6))),
@@ -733,8 +842,33 @@ def _assistant_page_context() -> Dict[str, Any]:
     }
 
 
+def _get_active_llm_provider() -> str:
+    try:
+        from AI.engine.ai_service import _active_llm_config
+        cfg = _active_llm_config()
+        if cfg:
+            return str(cfg.get("provider") or "local")
+    except Exception:
+        pass
+    return "local"
+
+
 def _get_ai_suggestions():
     suggestions = [{"type": "info", "title": "💡 تلميح", "action": "اسأل عن صفحة أو زبون أو منتج أو قيد، وسأستخدم البيانات المفهرسة والمتاحة فقط."}]
+    try:
+        summary = _get_knowledge_summary()
+        total = int(summary.get("total_sources") or 0)
+        chunks = int(summary.get("total_chunks") or 0)
+        if total > 0:
+            suggestions.append(
+                {
+                    "type": "success",
+                    "title": "📚 مصادر معرفة",
+                    "action": f"لديك {total} مصدر ({chunks} مقطع) مفهرس — اسأل عن محاسبة أو ERP وسأستخدمها.",
+                }
+            )
+    except Exception:
+        pass
     try:
         live = get_live_ai_stats()
         training = live.get("training", {}) if isinstance(live, dict) else {}

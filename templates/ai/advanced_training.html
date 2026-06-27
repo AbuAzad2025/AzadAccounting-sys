@@ -197,12 +197,12 @@ async function uploadAndReadBook() {
   
   const file = fileInput.files[0];
   const formData = new FormData();
-  formData.append('book_file', file);
+  formData.append('file', file);
   
   statusDiv.innerHTML = '<div class="alert alert-info">جاري الرفع والقراءة...</div>';
   
   try {
-    const response = await fetch('/ai-admin/upload_book', {
+    const response = await fetch('{{ url_for("ai.knowledge_upload") }}', {
       method: 'POST',
       headers: {'X-CSRFToken': '{{ csrf_token() }}'},
       body: formData
@@ -211,17 +211,11 @@ async function uploadAndReadBook() {
     const data = await response.json();
     
     if (data.success) {
+      const src = data.source || {};
       let html = '<div class="alert alert-success">';
-      html += `<h6>تم قراءة الكتاب بنجاح!</h6>`;
-      html += `<p>العنوان: ${data.title}</p>`;
-      
-      if (data.chapters) {
-        html += `<p>الفصول: ${data.chapters}</p>`;
-      }
-      if (data.pages) {
-        html += `<p>الصفحات: ${data.pages}</p>`;
-      }
-      
+      html += `<h6>تمت الفهرسة بنجاح!</h6>`;
+      html += `<p>العنوان: ${src.title || data.title || '—'}</p>`;
+      html += `<p>المقاطع: ${src.chunks_count || data.chunks || '—'}</p>`;
       html += '</div>';
       statusDiv.innerHTML = html;
     } else {

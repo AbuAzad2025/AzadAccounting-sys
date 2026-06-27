@@ -539,54 +539,34 @@ def execute_command(command_name):
 @ai_admin_bp.route('/upload_book', methods=['POST'])
 @permission_required(SystemPermissions.TRAIN_AI)
 def upload_book():
-    """رفع وقراءة كتاب"""
+    """رفع كتاب — يُوجَّه إلى فهرسة RAG الموحّدة."""
     try:
         if 'book_file' not in request.files:
             return jsonify({'success': False, 'error': 'No file uploaded'})
-        
         file = request.files['book_file']
-        
-        if file.filename == '':
+        if not file or file.filename == '':
             return jsonify({'success': False, 'error': 'No file selected'})
-        
+
+        from AI.engine.ai_knowledge_ingestor import ingest_bytes, ALLOWED_EXTENSIONS
         filename = secure_filename(file.filename)
-        allowed_exts = {'.pdf', '.md', '.txt'}
-        ext = os.path.splitext(filename)[1].lower()
-        if ext not in allowed_exts:
-            return jsonify({'success': False, 'error': 'نوع الملف غير مدعوم (يسمح فقط بـ pdf, md, txt)'}), 400
-        books_dir = Path('AI/data/books')
-        books_dir.mkdir(parents=True, exist_ok=True)
-        
-        file_path = books_dir / filename
-        file.save(file_path)
-        
-        file_format = 'pdf' if filename.lower().endswith('.pdf') else 'markdown'
-        
-        from AI.engine.ai_master_controller import get_master_controller
-        
-        controller = get_master_controller()
-        result = controller.execute_system_command('read_book', {
-            'file_path': str(file_path),
-            'format': file_format
-        })
-        
+        ext = ('.' + filename.rsplit('.', 1)[-1].lower()) if '.' in filename else ''
+        if ext not in ALLOWED_EXTENSIONS:
+            return jsonify({'success': False, 'error': f'نوع غير مدعوم. المسموح: {", ".join(sorted(ALLOWED_EXTENSIONS))}'}), 400
+
+        title = (request.form.get('title') or '').strip() or None
+        result = ingest_bytes(file.read(), filename, uploaded_by=current_user.id, title=title)
         if result.get('success'):
+            src = result.get('source') or {}
             return jsonify({
                 'success': True,
-                'title': result.get('title'),
-                'chapters': result.get('chapters'),
-                'pages': result.get('pages'),
-                'key_concepts': result.get('key_concepts'),
-                'key_terms': result.get('key_terms')
+                'title': src.get('title'),
+                'chunks': src.get('chunks_count'),
+                'source_id': src.get('source_id'),
+                'type': src.get('type'),
             })
-        else:
-            return jsonify(result)
-    
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': 'حدث خطأ داخلي'
-        }), 500
+        return jsonify(result), 400
+    except Exception:
+        return jsonify({'success': False, 'error': 'حدث خطأ داخلي'}), 500
 
 
 @ai_admin_bp.route('/memory_stats', methods=['GET'])

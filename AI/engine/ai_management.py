@@ -109,7 +109,43 @@ def test_api_key(api_name: str) -> dict:
         return {"success": False, "message": "المفتاح غير موجود"}
     if provider == "groq":
         return _test_groq_key(api_key)
+    if provider == "openai":
+        return _test_openai_key(api_key)
+    if provider == "anthropic":
+        return _test_anthropic_key(api_key)
     return {"success": True, "message": "المفتاح موجود ومقروء", "provider": provider}
+
+
+def _test_openai_key(api_key: str) -> dict:
+    try:
+        from openai import OpenAI
+        client = OpenAI(api_key=api_key, timeout=10.0)
+        resp = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": "test"}],
+            max_tokens=5,
+        )
+        if resp.choices:
+            return {"success": True, "message": "OpenAI يعمل", "model": "gpt-4o-mini"}
+        return {"success": False, "message": "لا رد من OpenAI"}
+    except Exception as exc:
+        return {"success": False, "message": str(exc)}
+
+
+def _test_anthropic_key(api_key: str) -> dict:
+    try:
+        import anthropic
+        client = anthropic.Anthropic(api_key=api_key)
+        resp = client.messages.create(
+            model="claude-3-5-haiku-latest",
+            max_tokens=5,
+            messages=[{"role": "user", "content": "test"}],
+        )
+        if resp.content:
+            return {"success": True, "message": "Anthropic يعمل", "model": "claude-3-5-haiku-latest"}
+        return {"success": False, "message": "لا رد من Anthropic"}
+    except Exception as exc:
+        return {"success": False, "message": str(exc)}
 
 
 def _test_groq_key(api_key: str) -> dict:
@@ -183,6 +219,13 @@ def start_training_job(model_name: str, training_type: str = "quick", data_range
                     deep_result = get_system_deep_trainer().train_system_comprehensive()
                 job.update({"progress": 55, "current_step": "تشغيل محرك التدريب..."})
                 _save_training_job(job)
+                if training_type in {"deep", "custom"}:
+                    try:
+                        from AI.engine.ai_knowledge_ingestor import import_legacy_books, reindex_all
+                        import_legacy_books()
+                        reindex_all()
+                    except Exception:
+                        pass
                 training_result = AITrainingEngine().run_full_training(force=training_type in {"deep", "custom"})
                 job.update({"progress": 100, "status": "completed", "completed_at": utc_now(), "current_step": "اكتمل التدريب بنجاح", "result": {"deep_training": deep_result, "detailed_training": training_result}})
                 _update_model_status(model_name, "completed", deep_result, training_result, job["job_id"])

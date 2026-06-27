@@ -17,7 +17,8 @@
 {% set chat_history = chat_history|default([]) %}
 {% set history_snippets = history_snippets|default([]) %}
 {% set system_alerts = system_alerts|default([]) %}
-{% set company = company|default({}) %}
+{% set knowledge_summary = knowledge_summary|default({'total_sources': 0, 'total_chunks': 0}) %}
+{% set active_llm_provider = active_llm_provider|default('local') %}
 
 <div class="container-fluid ai-assistant-page">
 
@@ -89,9 +90,14 @@
       </div>
       <div class="ai-app-actions">
         {% if api_keys_configured %}
-        <span class="badge bg-success"><i class="fas fa-circle"></i> متصل</span>
+        <span class="badge bg-success"><i class="fas fa-circle"></i> {{ active_llm_provider|upper }}</span>
         {% else %}
         <span class="badge bg-warning text-dark">محلي</span>
+        {% endif %}
+        {% if knowledge_summary.total_sources|default(0) > 0 %}
+        <span class="badge bg-info text-dark" title="مصادر RAG مفهرسة">
+          <i class="fas fa-book"></i> {{ knowledge_summary.total_sources }} مصدر
+        </span>
         {% endif %}
         <button type="button" class="btn btn-light btn-sm" id="openDrawerBtn">
           <i class="fas fa-bars"></i> مساعدة
@@ -118,6 +124,12 @@
           <div class="ai-welcome-icon"><i class="fas fa-robot"></i></div>
           <h2>مرحباً، كيف أساعدك؟</h2>
           <p>اسأل عن المبيعات، المخزون، الصفحات، أو الحسابات — الجواب يظهر هنا في منتصف الشاشة</p>
+          {% if knowledge_summary.total_sources|default(0) > 0 %}
+          <p class="small text-muted mb-2">
+            <i class="fas fa-book-open text-primary"></i>
+            {{ knowledge_summary.total_sources }} مصدر معرفة ({{ knowledge_summary.total_chunks|default(0) }} مقطع) — بحث هجين keyword + TF-IDF
+          </p>
+          {% endif %}
           {% if quick_prompts %}
           <div class="ai-welcome-chips">
             {% for prompt in quick_prompts[:6] %}
