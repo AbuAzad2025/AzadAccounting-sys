@@ -22,7 +22,7 @@ body.erp-app .main-footer.erp-footer {
   color: rgba(255, 255, 255, 0.95);
 }
 
-body.erp-app:not(.security-body) .main-footer.erp-footer {
+body.erp-app .main-footer.erp-footer {
   position: fixed;
   bottom: 0;
   left: 0;
@@ -206,7 +206,7 @@ body.erp-app:not(.security-body).layout-navbar-fixed .content-wrapper {
 }
 
 @media (min-width: 992px) {
-  html[dir="rtl"] body.erp-app:not(.security-body) .main-footer.erp-footer {
+  html[dir="rtl"] body.erp-app .main-footer.erp-footer {
     right: 0;
     left: 0;
     width: auto;

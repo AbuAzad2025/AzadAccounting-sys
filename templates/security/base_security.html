@@ -355,10 +355,8 @@
             {% block security_content %}{% endblock %}
         </div>
         </div>
-        <div class="security-footer-unified">
-          {% include 'partials/footer.html' %}
-        </div>
     </main>
+    {% block security_modals %}{% endblock %}
 </div>
 <div class="modal fade" id="commandPaletteModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">

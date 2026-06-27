@@ -3,11 +3,11 @@
     <div class="erp-footer__brand-row">
       <img
         class="erp-footer__azad-logo"
-        src="{{ system_settings.platform_logo_url or url_for('static', filename='img/branding/platform/logos/primary.png') }}"
+        src="{{ system_settings.platform_logo_white_url or system_settings.platform_logo_url or url_for('static', filename='img/branding/platform/logos/primary.png') }}"
         alt="{{ system_settings.platform_company_name or 'شركة أزاد للأنظمة الذكية' }}"
         loading="lazy"
         decoding="async"
-        onerror="this.hidden=true">
+        onerror="if(!this.dataset.fallback){this.dataset.fallback='1';this.src='{{ url_for('static', filename='img/branding/platform/logos/primary.png') }}';}else{this.hidden=true;}">
       <span class="erp-footer__azad-name">{{ system_settings.platform_company_name or 'شركة أزاد للأنظمة الذكية' }}</span>
     </div>
 

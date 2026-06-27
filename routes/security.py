@@ -3999,32 +3999,21 @@ def user_control():
     user_ids = [u.id for u in users]
     
     if user_ids:
-        sales_counts = db.session.query(
-            Sale.seller_id,
-            func.count(Sale.id).label('count'),
-            func.sum(Sale.total_amount).label('total')
-        ).filter(
-            Sale.seller_id.in_(user_ids),
-            Sale.status == 'CONFIRMED'
-        ).group_by(Sale.seller_id).all()
-        
         sales_dict = {uid: {'count': 0, 'total': Decimal('0.00')} for uid in user_ids}
-        for seller_id, count, total in sales_counts:
-            sales_dict[seller_id] = {'count': count, 'total': Decimal(str(total or 0))}
-        
-        all_user_sales = db.session.query(Sale).filter(
+        confirmed_sales = db.session.query(Sale).filter(
             Sale.seller_id.in_(user_ids),
             Sale.status == 'CONFIRMED'
         ).all()
-        
-        for sale in all_user_sales:
+        for sale in confirmed_sales:
+            uid = sale.seller_id
+            sales_dict[uid]['count'] += 1
             amt = Decimal(str(sale.total_amount or 0))
             if sale.currency != "ILS":
                 try:
                     amt = convert_amount(amt, sale.currency, "ILS", sale.sale_date)
                 except Exception:
                     amt = Decimal('0.00')
-            sales_dict[sale.seller_id]['total'] += amt
+            sales_dict[uid]['total'] += amt
         
         services_counts = db.session.query(
             ServiceRequest.mechanic_id,
@@ -4079,7 +4068,15 @@ def user_control():
         audits_dict = {}
     
     threshold = datetime.now(timezone.utc) - timedelta(minutes=15)
-    
+
+    def _is_user_online(u):
+        if not u.last_seen:
+            return False
+        last_seen = u.last_seen
+        if last_seen.tzinfo is None:
+            last_seen = last_seen.replace(tzinfo=timezone.utc)
+        return last_seen >= threshold
+
     for user in users:
         user_data = sales_dict.get(user.id, {'count': 0, 'total': Decimal('0.00')})
         user.sales_count = user_data['count']
@@ -4099,15 +4096,19 @@ def user_control():
         else:
             user.is_online = False
     
-    # إحصائيات عامة
+    all_users = User.query.options(db.joinedload(User.role)).all()
     stats = {
-        'total_users': len(users),
-        'active_users': len([u for u in users if u.is_active]),
-        'inactive_users': len([u for u in users if not u.is_active]),
-        'online_users': len([u for u in users if u.is_online]),
-        'system_accounts': len([u for u in users if u.is_system_account]),
-        'total_sales': sum(u.sales_total for u in users),
-        'total_operations': sum(u.sales_count + u.services_count + u.payments_count for u in users)
+        'total_users': len(all_users),
+        'active_users': sum(1 for u in all_users if u.is_active),
+        'inactive_users': sum(1 for u in all_users if not u.is_active),
+        'online_users': sum(1 for u in all_users if _is_user_online(u)),
+        'system_accounts': sum(1 for u in all_users if u.is_system_account),
+        'total_sales': sum(getattr(u, 'sales_total', 0) for u in users),
+        'total_operations': sum(
+            getattr(u, 'sales_count', 0) + getattr(u, 'services_count', 0) + getattr(u, 'payments_count', 0)
+            for u in users
+        ),
+        'filtered_count': len(users),
     }
     
     # جميع الأدوار
@@ -4357,10 +4358,9 @@ def api_user_details(user_id):
             abort(404)
         
         # إحصائيات
-        sales_count = Sale.query.filter_by(seller_id=user.id).count()
+        sales_count = Sale.query.filter_by(seller_id=user.id, status='CONFIRMED').count()
         
-        # حساب إجمالي المبيعات مع تحويل العملات
-        user_sales = Sale.query.filter_by(seller_id=user.id).all()
+        user_sales = Sale.query.filter_by(seller_id=user.id, status='CONFIRMED').all()
         sales_total = Decimal('0.00')
         for s in user_sales:
             amt = Decimal(str(s.total_amount or 0))
