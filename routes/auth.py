@@ -82,6 +82,31 @@ BLOCK_TIME = timedelta(minutes=10)
 _login_attempts_mem: dict[tuple[str, str], tuple[int, datetime]] = {}
 
 
+def _max_login_attempts() -> int:
+    try:
+        from models import SystemSettings
+        return int(SystemSettings.get_setting("MAX_LOGIN_ATTEMPTS", MAX_ATTEMPTS))
+    except Exception:
+        return MAX_ATTEMPTS
+
+
+def _password_min_length() -> int:
+    try:
+        from models import SystemSettings
+        return int(SystemSettings.get_setting("PASSWORD_MIN_LENGTH", 8))
+    except Exception:
+        return 8
+
+
+def _registration_enabled() -> bool:
+    try:
+        from models import SystemSettings
+        val = SystemSettings.get_setting("registration_enabled", True)
+        return str(val).strip().lower() in ("true", "1", "yes", "on")
+    except Exception:
+        return True
+
+
 def _norm_ident(s: Optional[str]) -> str:
     return (s or "").strip().lower()
 
@@ -101,7 +126,7 @@ def is_blocked(ip: str, identifier: Optional[str]) -> bool:
                 attempts = int(val)
             except Exception:
                 attempts = 0
-            return attempts >= MAX_ATTEMPTS
+            return attempts >= _max_login_attempts()
     except Exception:
         current_app.logger.debug('numeric conversion failed in auth.py', exc_info=True)
     key_mem = (ip, _norm_ident(identifier))
@@ -110,7 +135,7 @@ def is_blocked(ip: str, identifier: Optional[str]) -> bool:
         return False
     attempts, last_time = info
     now = datetime.now(timezone.utc)
-    if attempts >= MAX_ATTEMPTS and now - last_time < BLOCK_TIME:
+    if attempts >= _max_login_attempts() and now - last_time < BLOCK_TIME:
         return True
     if now - last_time >= BLOCK_TIME:
         _login_attempts_mem.pop(key_mem, None)
@@ -323,6 +348,9 @@ def logout():
 def customer_register():
     if current_user.is_authenticated:
         return redirect(url_for("shop.catalog"))
+    if not _registration_enabled():
+        flash("التسجيل مغلق حالياً. تواصل مع الإدارة.", "warning")
+        return redirect(url_for("auth.login"))
     form = CustomerFormOnline()
     if form.validate_on_submit():
         phone_val = (form.phone.data or "").strip()
@@ -335,8 +363,9 @@ def customer_register():
             flash("❌ هذا البريد الإلكتروني مستخدم بالفعل. الرجاء استخدام بريد آخر أو تسجيل الدخول.", "danger")
             return render_template("auth/customer_register.html", form=form)
         raw_pwd = (form.password.data or "").strip()
-        if not raw_pwd:
-            flash("❌ كلمة المرور مطلوبة ولا يسمح بإنشاء حساب بكلمة افتراضية.", "danger")
+        min_len = _password_min_length()
+        if not raw_pwd or len(raw_pwd) < min_len:
+            flash(f"❌ كلمة المرور مطلوبة (الحد الأدنى {min_len} أحرف).", "danger")
             return render_template("auth/customer_register.html", form=form)
         customer = Customer(
             name=form.name.data,

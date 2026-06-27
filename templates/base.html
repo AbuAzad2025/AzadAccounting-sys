@@ -192,11 +192,14 @@
     }
     
     .content-wrapper {
-        min-height: calc(100vh - var(--erp-header-h, 56px));
         transition: margin 0.3s ease-in-out, width 0.3s ease-in-out;
         overflow-x: hidden !important;
         padding-top: 0 !important;
         box-sizing: border-box;
+    }
+
+    body.erp-app:not(.security-body) .content-wrapper {
+        min-height: 0;
     }
 
     body.gm-compact-app .content-wrapper {

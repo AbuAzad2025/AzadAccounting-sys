@@ -1,5 +1,9 @@
 {% extends 'security/base_security.html' %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="{{ static_url('css/database-manager.css') }}">
+{% endblock %}
+
 {% block tour_name %}database_manager{% endblock %}
 
 {% block security_title %}مركز التحكم بقواعد البيانات{% endblock %}
@@ -7,28 +11,41 @@
 {% block security_description %}إدارة وصيانة قاعدة البيانات{% endblock %}
 
 {% block security_breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('security.index') }}">الأمان</a></li>
 <li class="breadcrumb-item active">إدارة قواعد البيانات</li>
 {% if active_tab %}
-<li class="breadcrumb-item active">{{ active_tab_label|default(active_tab)|title }}</li>
+{% set tab_labels = {
+  'browse': 'تصفح البيانات',
+  'edit': 'التحرير المباشر',
+  'sql': 'محرر SQL',
+  'schema': 'المخطط الهيكلي',
+  'indexes': 'فهارس الأداء',
+  'maintenance': 'الصيانة',
+  'logs': 'سجلات النظام',
+  'restore': 'الاستعادة',
+  'python': 'محرر Python',
+  'tools': 'أدوات متقدمة',
+  'archive': 'الأرشيف'
+} %}
+<li class="breadcrumb-item active">{{ tab_labels.get(active_tab, active_tab) }}</li>
 {% endif %}
 {% endblock %}
 
 {% block security_actions %}
-<div class="d-flex gap-2">
-  <span class="badge bg-success fs-6">{{ tables|length }} جدول</span>
+<div class="d-flex flex-wrap align-items-center">
+  <span class="badge badge-success mr-1 mb-1">{{ tables|length }} جدول</span>
   {% if indexes_stats %}
-  <span class="badge bg-info fs-6">{{ indexes_stats.total_indexes }} فهرس</span>
+  <span class="badge badge-info mb-1">{{ indexes_stats.total_indexes }} فهرس</span>
   {% endif %}
 </div>
 {% endblock %}
 
 {% block security_content %}
-
-
-  <div class="card shadow-lg border-0">
+<div class="db-manager-page">
+  <div class="card shadow-sm border-0">
     <div class="card-body p-3">
-      
-      <ul class="nav nav-pills nav-fill mb-4 p-2 bg-light rounded" id="dbTabs" role="tablist">
+      <div class="db-tabs-scroll">
+      <ul class="nav nav-pills mb-0" id="dbTabs" role="tablist">
         <li class="nav-item">
           <a class="nav-link {% if active_tab == 'browse' %}active{% endif %}" 
              id="tab-trigger-browse"
@@ -176,6 +193,7 @@
           </a>
         </li>
       </ul>
+      </div>
 
       <!-- Tab panes -->
       <div class="tab-content" id="dbTabContent">
@@ -186,18 +204,21 @@
              role="tabpanel" aria-labelledby="tab-trigger-browse">
           
           <div class="row">
-            <div class="col-md-3">
+            <div class="col-lg-3 col-md-12 db-table-sidebar">
               <div class="card border-primary">
                 <div class="card-header erp-card-header-row erp-theme-header--primary">
                   <strong><i class="fas fa-list"></i> الجداول ({{ tables|length }})</strong>
                 </div>
                 <div class="card-body p-0">
-                  <div class="list-group list-group-flush" style="max-height: 600px; overflow-y: auto;">
+                  <div class="p-2 border-bottom">
+                    <input type="search" class="form-control form-control-sm db-table-filter" placeholder="بحث في الجداول..." aria-label="بحث في الجداول">
+                  </div>
+                  <div class="list-group list-group-flush db-table-list">
                     {% for table in tables %}
                     <a href="{{ url_for('security.database_manager', tab='browse', table=table) }}" 
                        class="list-group-item list-group-item-action {% if selected_table == table %}active{% endif %}">
                       <i class="fas fa-table"></i> {{ table }}
-                      <span class="badge bg-secondary float-end">{{ table_counts.get(table, 0) }}</span>
+                      <span class="badge badge-secondary float-left">{{ table_counts.get(table, 0) }}</span>
                     </a>
                     {% endfor %}
                   </div>
@@ -205,7 +226,7 @@
               </div>
             </div>
             
-            <div class="col-md-9">
+            <div class="col-lg-9 col-md-12 db-data-panel">
               {% if selected_table %}
               <div class="card">
                 <div class="card-header bg-light">
@@ -254,13 +275,16 @@
              role="tabpanel" aria-labelledby="tab-trigger-edit">
           
           <div class="row">
-            <div class="col-md-3">
+            <div class="col-lg-3 col-md-12 db-table-sidebar">
               <div class="card border-success">
                 <div class="card-header erp-card-header-row erp-theme-header--primary bg-success text-white">
                   <strong><i class="fas fa-list"></i> الجداول</strong>
                 </div>
                 <div class="card-body p-0">
-                  <div class="list-group list-group-flush">
+                  <div class="p-2 border-bottom">
+                    <input type="search" class="form-control form-control-sm db-table-filter" placeholder="بحث في الجداول..." aria-label="بحث في الجداول">
+                  </div>
+                  <div class="list-group list-group-flush db-table-list">
                     {% for table in tables %}
                     <a href="{{ url_for('security.database_manager', tab='edit', table=table) }}" 
                        class="list-group-item list-group-item-action {% if selected_table == table %}active{% endif %}">
@@ -272,7 +296,7 @@
               </div>
             </div>
             
-            <div class="col-md-9">
+            <div class="col-lg-9 col-md-12 db-data-panel">
               {% if selected_table %}
               <div class="alert alert-success">
                 <i class="fas fa-edit"></i> <strong>تحرير جدول:</strong> {{ selected_table }}
@@ -289,9 +313,6 @@
                   </button>
                   <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#addRowModal">
                     <i class="fas fa-plus-circle"></i> صف
-                  </button>
-                  <button type="button" class="btn btn-warning btn-sm" data-toggle="modal" data-target="#renameTableModal">
-                    <i class="fas fa-i-cursor"></i> تسمية
                   </button>
                 </div>
               </div>
@@ -340,18 +361,7 @@
                           </button>
                           <button class="btn btn-sm btn-outline-danger rounded-circle" title="حذف السجل"
                                   style="width: 32px; height: 32px; padding: 0;"
-                                  onclick="if(confirm('هل أنت متأكد من حذف هذا السجل نهائياً؟')) {
-                                    const row = this.closest('tr');
-                                    const firstCell = row.querySelector('.editable-cell');
-                                    const primaryKey = firstCell ? firstCell.dataset.rowPrimaryKey : '';
-                                    fetch('/security/db-editor/delete-row/{{ selected_table }}/' + encodeURIComponent(primaryKey), {
-                                      method: 'POST',
-                                      headers: {
-                                        'Content-Type': 'application/x-www-form-urlencoded',
-                                        'X-CSRFToken': getCsrfToken()
-                                      }
-                                    }).then(() => location.reload());
-                                  }">
+                                  onclick="deleteDbRow(this, '{{ selected_table }}')">
                             <i class="fas fa-trash-alt"></i>
                           </button>
                         </div>
@@ -380,19 +390,59 @@
              role="tabpanel" aria-labelledby="tab-trigger-schema">
           
           <div class="mb-3">
-            <button class="btn btn-primary" onclick="showVisualSchema()">
-              <i class="fas fa-project-diagram"></i> عرض المخطط البصري (ER Diagram)
+            <button type="button" class="btn btn-primary" onclick="toggleSchemaRelations()">
+              <i class="fas fa-project-diagram"></i> عرض علاقات الجداول (FK)
             </button>
+            {% if db_relations %}
+            <span class="badge badge-info mr-2">{{ db_relations|length }} علاقة</span>
+            {% endif %}
+          </div>
+
+          <div id="schemaRelationsPanel" class="card mb-3" style="display: none;">
+            <div class="card-header bg-primary text-white">
+              <strong><i class="fas fa-link"></i> علاقات المفاتيح الأجنبية في قاعدة البيانات</strong>
+            </div>
+            <div class="card-body p-0">
+              {% if db_relations %}
+              <div class="table-responsive" style="max-height: 320px; overflow-y: auto;">
+                <table class="table table-sm table-striped mb-0">
+                  <thead class="table-header-primary text-white">
+                    <tr>
+                      <th>من جدول</th>
+                      <th>الأعمدة</th>
+                      <th>إلى جدول</th>
+                      <th>الأعمدة المرجعية</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for rel in db_relations %}
+                    <tr class="{% if selected_table and (rel.from_table == selected_table or rel.to_table == selected_table) %}table-info{% endif %}">
+                      <td><code>{{ rel.from_table }}</code></td>
+                      <td>{% for c in rel.from_columns %}<code>{{ c }}</code>{% if not loop.last %}, {% endif %}{% endfor %}</td>
+                      <td><code>{{ rel.to_table }}</code></td>
+                      <td>{% for c in rel.to_columns %}<code>{{ c }}</code>{% if not loop.last %}, {% endif %}{% endfor %}</td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+              {% else %}
+              <div class="p-3 text-muted">لا توجد علاقات مفاتيح أجنبية مسجّلة.</div>
+              {% endif %}
+            </div>
           </div>
           
           <div class="row">
-            <div class="col-md-3">
+            <div class="col-lg-3 col-md-12 db-table-sidebar">
               <div class="card border-warning">
                 <div class="card-header erp-card-header-row erp-theme-header--primary bg-warning text-dark">
                   <strong><i class="fas fa-list"></i> الجداول</strong>
                 </div>
                 <div class="card-body p-0">
-                  <div class="list-group list-group-flush">
+                  <div class="p-2 border-bottom">
+                    <input type="search" class="form-control form-control-sm db-table-filter" placeholder="بحث في الجداول..." aria-label="بحث في الجداول">
+                  </div>
+                  <div class="list-group list-group-flush db-table-list">
                     {% for table in tables %}
                     <a href="{{ url_for('security.database_manager', tab='schema', table=table) }}" 
                        class="list-group-item list-group-item-action {% if selected_table == table %}active{% endif %}">
@@ -404,7 +454,7 @@
               </div>
             </div>
             
-            <div class="col-md-9">
+            <div class="col-lg-9 col-md-12 db-data-panel">
               {% if selected_table and table_info %}
               <div class="card">
                 <div class="card-header erp-card-header-row erp-theme-header--primary bg-warning text-dark">
@@ -441,7 +491,7 @@
                             {% if col.primary_key %}
                             <span class="badge bg-warning text-dark">PRI</span>
                             {% elif col.foreign_keys %}
-                            <span class="badge bg-info">FOR</span>
+                            <span class="badge bg-info" title="→ {{ col.fk_references or '' }}">FK</span>
                             {% endif %}
                           </td>
                           <td>{{ col.default or '-' }}</td>
@@ -455,6 +505,21 @@
                       </tbody>
                     </table>
                   </div>
+                  {% set table_fks = table_info|selectattr('foreign_keys')|list %}
+                  {% if table_fks %}
+                  <div class="mt-3">
+                    <h6 class="text-muted"><i class="fas fa-link"></i> المفاتيح الأجنبية في هذا الجدول</h6>
+                    <ul class="list-group list-group-flush border rounded">
+                      {% for col in table_fks %}
+                      <li class="list-group-item py-2">
+                        <code>{{ col.name }}</code>
+                        <i class="fas fa-arrow-left mx-1 text-muted"></i>
+                        <code>{{ col.fk_references or '?' }}</code>
+                      </li>
+                      {% endfor %}
+                    </ul>
+                  </div>
+                  {% endif %}
                 </div>
               </div>
               {% else %}
@@ -531,7 +596,10 @@
               <div class="card shadow-sm">
                 <div class="card-header bg-light d-flex justify-content-between align-items-center">
                   <strong><i class="fas fa-table text-primary"></i> {{ table.name }}</strong>
-                  <div>
+                  <div class="d-flex align-items-center flex-wrap">
+                    <button type="button" class="btn btn-outline-secondary btn-xs btn-sm mr-1 mb-1" onclick="analyzeTableIndexes('{{ table.name }}')" title="اقتراح فهارس">
+                      <i class="fas fa-search"></i>
+                    </button>
                     <span class="badge bg-primary me-1">{{ table.indexes_count }} فهرس</span>
                     <span class="badge bg-info">{{ table.columns_count }} عمود</span>
                     {% if table.fk_count > 0 %}
@@ -776,24 +844,23 @@
              id="sql" 
              role="tabpanel" aria-labelledby="tab-trigger-sql">
         <div class="container-fluid p-4">
-          <form method="POST" action="{{ url_for('security.database_manager', tab='sql') }}">
+          <form method="POST" action="{{ url_for('security.database_manager', tab='sql') }}" id="sqlConsoleForm">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="mb-3">
               <label class="form-label d-flex justify-content-between align-items-center">
                 <span><i class="fas fa-code"></i> <strong>SQL Console</strong></span>
-                <span class="text-muted small">Use Ctrl+Enter to execute</span>
+                <span class="text-muted small">Ctrl+Enter للتنفيذ</span>
               </label>
-              <textarea name="sql_query" class="form-control code-editor" rows="12" 
-                        placeholder="SELECT * FROM customers LIMIT 10;"></textarea>
+              <textarea name="sql_query" id="sql_query" class="form-control code-editor" rows="12" 
+                        placeholder="SELECT * FROM customers LIMIT 10;">{{ request.form.get('sql_query', '') }}</textarea>
             </div>
             <div class="d-flex justify-content-end">
               <button type="submit" class="btn btn-success px-4">
-                <i class="fas fa-play me-2"></i> تنفيذ الاستعلام
+                <i class="fas fa-play ml-1"></i> تنفيذ الاستعلام
               </button>
             </div>
           </form>
-        </div>
-        
+
         {% if sql_result %}
         <div class="alert alert-success mt-3">
           <i class="fas fa-check-circle"></i> 
@@ -804,9 +871,9 @@
           {% endif %}
         </div>
         {% if sql_result.columns %}
-        <div class="table-responsive">
-          <table class="table table-bordered table-sm">
-            <thead class="table-header-primary text-white ">
+        <div class="table-responsive db-data-panel">
+          <table class="table table-bordered table-sm table-hover mb-0">
+            <thead class="table-header-primary text-white">
               <tr>
                 {% for col in sql_result.columns %}
                 <th>{{ col }}</th>
@@ -825,12 +892,14 @@
           </table>
         </div>
         {% endif %}
-        
+        {% endif %}
+
         {% if sql_error %}
         <div class="alert alert-danger mt-3">
           <i class="fas fa-times-circle"></i> <strong>خطأ:</strong> {{ sql_error }}
         </div>
         {% endif %}
+        </div>
         </div>
         
         <!-- تبويب 7: Python Console -->
@@ -838,36 +907,35 @@
              id="python" 
              role="tabpanel" aria-labelledby="tab-trigger-python">
         <div class="container-fluid p-4">
-          <form method="POST" action="{{ url_for('security.database_manager', tab='python') }}">
+          <form method="POST" action="{{ url_for('security.database_manager', tab='python') }}" id="pythonConsoleForm">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="mb-3">
               <label class="form-label d-flex justify-content-between align-items-center">
                 <span><i class="fab fa-python"></i> <strong>Python Console</strong></span>
-                <span class="text-muted small">Access 'models' context directly</span>
+                <span class="text-muted small">Ctrl+Enter للتنفيذ</span>
               </label>
-              <textarea name="python_code" class="form-control code-editor" rows="12" 
-                        placeholder="# مثال&#10;from models import Customer&#10;customers = Customer.query.limit(5).all()&#10;output = f'عدد الزبائن: {len(customers)}'"></textarea>
+              <textarea name="python_code" id="python_code" class="form-control code-editor" rows="12" 
+                        placeholder="# مثال&#10;from models import Customer&#10;customers = Customer.query.limit(5).all()&#10;output = f'عدد الزبائن: {len(customers)}'">{{ request.form.get('python_code', '') }}</textarea>
             </div>
             <div class="d-flex justify-content-end">
               <button type="submit" class="btn btn-success px-4">
-                <i class="fas fa-play me-2"></i> تنفيذ الكود
+                <i class="fas fa-play ml-1"></i> تنفيذ الكود
               </button>
             </div>
           </form>
-        </div>
-        
+
         {% if python_result %}
         <div class="alert alert-success mt-3">
           <i class="fas fa-check-circle"></i> <strong>النتيجة:</strong> {{ python_result }}
         </div>
         {% endif %}
-        
+
         {% if python_error %}
         <div class="alert alert-danger mt-3">
           <i class="fas fa-times-circle"></i> <strong>خطأ:</strong> {{ python_error }}
         </div>
         {% endif %}
-        {% endif %}
+        </div>
         </div>
         
         <!-- تبويب 8: الصيانة -->
@@ -1166,8 +1234,81 @@
       
     </div>
   </div>
-
 </div>
+
+{% if selected_table %}
+<!-- إضافة عمود -->
+<div class="modal fade" id="addColumnModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" action="{{ url_for('security.db_add_column', table_name=selected_table) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="modal-header bg-success text-white">
+          <h5 class="modal-title"><i class="fas fa-plus"></i> إضافة عمود — {{ selected_table }}</h5>
+          <button type="button" class="close text-white" data-dismiss="modal" aria-label="إغلاق"><span aria-hidden="true">&times;</span></button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label>اسم العمود</label>
+            <input type="text" class="form-control" name="column_name" required pattern="[A-Za-z_][A-Za-z0-9_]*" placeholder="column_name">
+          </div>
+          <div class="form-group">
+            <label>النوع</label>
+            <select class="form-control" name="column_type">
+              <option value="TEXT">TEXT</option>
+              <option value="INTEGER">INTEGER</option>
+              <option value="BIGINT">BIGINT</option>
+              <option value="NUMERIC">NUMERIC</option>
+              <option value="BOOLEAN">BOOLEAN</option>
+              <option value="DATE">DATE</option>
+              <option value="TIMESTAMP">TIMESTAMP</option>
+              <option value="UUID">UUID</option>
+            </select>
+          </div>
+          <div class="form-group mb-0">
+            <label>القيمة الافتراضية (اختياري)</label>
+            <input type="text" class="form-control" name="default_value" placeholder="">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">إلغاء</button>
+          <button type="submit" class="btn btn-success">إضافة</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- إضافة صف -->
+<div class="modal fade" id="addRowModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <form method="post" action="{{ url_for('security.db_add_row', table_name=selected_table) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title"><i class="fas fa-plus-circle"></i> إضافة صف — {{ selected_table }}</h5>
+          <button type="button" class="close text-white" data-dismiss="modal" aria-label="إغلاق"><span aria-hidden="true">&times;</span></button>
+        </div>
+        <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
+          {% for col in columns %}
+          <div class="form-group">
+            <label>{{ col }}</label>
+            <input type="text" class="form-control" name="{{ col }}" placeholder="{{ col }}">
+          </div>
+          {% endfor %}
+          {% if not columns %}
+          <p class="text-muted mb-0">لا توجد أعمدة معروفة لهذا الجدول.</p>
+          {% endif %}
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">إلغاء</button>
+          <button type="submit" class="btn btn-primary" {% if not columns %}disabled{% endif %}>حفظ</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
 
 <!-- Create Index Modal -->
 <div class="modal fade" id="createIndexModal" tabindex="-1" aria-hidden="true">
@@ -1227,6 +1368,77 @@
 </div>
 
 <script>
+function toggleSchemaRelations() {
+  const panel = document.getElementById('schemaRelationsPanel');
+  if (!panel) return;
+  const show = panel.style.display === 'none' || !panel.style.display;
+  panel.style.display = show ? 'block' : 'none';
+  if (show) panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function deleteDbRow(btn, tableName) {
+  if (!confirm('هل أنت متأكد من حذف هذا السجل نهائياً؟')) return;
+  const row = btn.closest('tr');
+  const firstCell = row.querySelector('.editable-cell');
+  const primaryKey = firstCell ? firstCell.dataset.rowPrimaryKey : '';
+  if (!primaryKey) {
+    alert('تعذر تحديد المفتاح الأساسي للسجل');
+    return;
+  }
+  btn.disabled = true;
+  fetch('/security/db-editor/delete-row/' + encodeURIComponent(tableName) + '/' + encodeURIComponent(primaryKey), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'X-CSRFToken': getCsrfToken(),
+      'Accept': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest'
+    }
+  })
+  .then(function(r) { return r.json().then(function(data) { return { ok: r.ok, data: data }; }); })
+  .then(function(res) {
+    if (res.ok && res.data.success) {
+      location.reload();
+    } else {
+      btn.disabled = false;
+      alert(res.data.error || res.data.message || 'فشل حذف السجل');
+    }
+  })
+  .catch(function() {
+    btn.disabled = false;
+    alert('فشل الاتصال بالخادم');
+  });
+}
+
+function analyzeTableIndexes(tableName) {
+  fetch('/security/api/indexes/analyze-table', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': getCsrfToken()
+    },
+    body: JSON.stringify({ table: tableName })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (!data.success) {
+      alert(data.message || 'فشل التحليل');
+      return;
+    }
+    var lines = ['تحليل جدول: ' + data.table, 'أعمدة: ' + data.total_columns + ' | مفهرسة: ' + data.indexed_columns, ''];
+    if (data.suggestions && data.suggestions.length) {
+      lines.push('اقتراحات الفهارس:');
+      data.suggestions.forEach(function(s) {
+        lines.push('- [' + s.priority + '] ' + s.column + ': ' + s.reason);
+      });
+    } else {
+      lines.push('لا توجد اقتراحات إضافية حالياً.');
+    }
+    alert(lines.join('\n'));
+  })
+  .catch(function() { alert('فشل الاتصال بالخادم'); });
+}
+
 function showCreateIndexModal() {
   $('#createIndexModal').modal('show');
 }
@@ -1323,14 +1535,14 @@ function getCsrfToken() {
 // تفعيل التبويب من URL
 document.addEventListener('DOMContentLoaded', function() {
   function switchTab(tabName) {
-    document.querySelectorAll('.nav-link').forEach(link => {
+    document.querySelectorAll('#dbTabs .nav-link').forEach(link => {
       link.classList.remove('active');
       if (link.dataset.tab === tabName) {
         link.classList.add('active');
       }
     });
     
-    document.querySelectorAll('.tab-pane').forEach(pane => {
+    document.querySelectorAll('#dbTabContent > .tab-pane').forEach(pane => {
       pane.classList.remove('show', 'active');
       if (pane.id === tabName) {
         pane.classList.add('show', 'active');
@@ -1351,11 +1563,49 @@ document.addEventListener('DOMContentLoaded', function() {
       const targetTab = this.dataset.tab;
       const newUrl = new URL(window.location);
       newUrl.searchParams.set('tab', targetTab);
+      const currentTable = urlParams.get('table');
+      if (currentTable && ['browse', 'edit', 'schema'].includes(targetTab)) {
+        newUrl.searchParams.set('table', currentTable);
+      } else {
+        newUrl.searchParams.delete('table');
+      }
       if (targetTab === 'logs') {
+        newUrl.searchParams.delete('log_type');
+      } else {
         newUrl.searchParams.delete('log_type');
       }
       window.location.href = newUrl.toString();
     });
+  });
+
+  document.querySelectorAll('.db-table-filter').forEach(function(input) {
+    input.addEventListener('input', function() {
+      const q = this.value.trim().toLowerCase();
+      const list = this.closest('.card-body').querySelector('.db-table-list');
+      if (!list) return;
+      list.querySelectorAll('.list-group-item').forEach(function(item) {
+        const text = (item.textContent || '').toLowerCase();
+        item.style.display = !q || text.indexOf(q) !== -1 ? '' : 'none';
+      });
+    });
+  });
+
+  document.querySelectorAll('[data-tab-count][data-count]').forEach(function(el) {
+    const n = el.getAttribute('data-count');
+    if (n) el.textContent = n;
+  });
+
+  [['sql_query', 'sqlConsoleForm'], ['python_code', 'pythonConsoleForm']].forEach(function(pair) {
+    const ta = document.getElementById(pair[0]);
+    const form = document.getElementById(pair[1]);
+    if (ta && form) {
+      ta.addEventListener('keydown', function(e) {
+        if (e.ctrlKey && e.key === 'Enter') {
+          e.preventDefault();
+          form.submit();
+        }
+      });
+    }
   });
   
   const rowChanges = new Map();
@@ -1564,17 +1814,6 @@ document.addEventListener('DOMContentLoaded', function() {
       if (row) { row.classList.add('table-warning'); }
     });
   });
-
-  const logContentStyle = document.createElement('style');
-  logContentStyle.textContent = `
-    .log-pane {
-      display: none;
-    }
-    .log-pane.show {
-      display: block;
-    }
-  `;
-  document.head.appendChild(logContentStyle);
 });
 
 function executeVacuum() {
@@ -1643,28 +1882,45 @@ function executeCheckpoint() {
 
 function getDBInfo() {
   document.getElementById('db-info-result').innerHTML = '<div class="spinner-border spinner-border-sm"></div>';
-  fetch('/security/api/maintenance/db-info')
-  .then(r => r.json())
-  .then(data => {
+  fetch('/security/api/maintenance/db-info', { headers: { 'Accept': 'application/json' } })
+  .then(function(r) {
+    if (!r.ok) {
+      return r.json().catch(function() { return {}; }).then(function(data) {
+        throw new Error(data.message || (r.status === 403 ? 'ليست لديك صلاحية لعرض التفاصيل' : 'فشل تحميل المعلومات'));
+      });
+    }
+    return r.json();
+  })
+  .then(function(data) {
     const div = document.getElementById('db-info-result');
+    if (!data.success) {
+      div.innerHTML = '<div class="alert alert-warning small mb-0">' + (data.message || 'تعذر التحميل') + '</div>';
+      return;
+    }
     div.innerHTML = '';
     const wrap = document.createElement('div');
     wrap.className = 'mt-2';
-    const s1 = document.createElement('small');
-    const b1 = document.createElement('strong');
-    b1.textContent = 'حجم DB:';
-    s1.appendChild(b1);
-    s1.appendChild(document.createTextNode(' ' + String(data.db_size || 'N/A')));
-    const br = document.createElement('br');
-    const s2 = document.createElement('small');
-    const b2 = document.createElement('strong');
-    b2.textContent = 'Page size:';
-    s2.appendChild(b2);
-    s2.appendChild(document.createTextNode(' ' + String(data.page_size || 'N/A')));
-    wrap.appendChild(s1);
-    wrap.appendChild(br);
-    wrap.appendChild(s2);
+    const fields = [
+      ['حجم DB', data.db_size],
+      ['Page size', data.page_size],
+      ['WAL mode', data.wal_mode],
+      ['Tables', data.table_count],
+    ];
+    fields.forEach(function(pair, i) {
+      if (pair[1] === undefined || pair[1] === null) return;
+      if (i > 0) wrap.appendChild(document.createElement('br'));
+      const s = document.createElement('small');
+      const b = document.createElement('strong');
+      b.textContent = pair[0] + ':';
+      s.appendChild(b);
+      s.appendChild(document.createTextNode(' ' + String(pair[1])));
+      wrap.appendChild(s);
+    });
     div.appendChild(wrap);
+  })
+  .catch(function(err) {
+    document.getElementById('db-info-result').innerHTML =
+      '<div class="alert alert-danger small mb-0">' + (err.message || 'خطأ') + '</div>';
   });
 }
 </script>

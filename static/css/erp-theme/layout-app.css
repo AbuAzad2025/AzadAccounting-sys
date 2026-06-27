@@ -7,11 +7,8 @@
   --erp-sidebar-mini-w: 4.6rem;
 }
 
-/* ── Navbar: أزرار التحكم قابلة للنقر ── */
+/* ── Navbar: أزرار التحكم — يكمّل erp-topbar.css ── */
 body.erp-app:not(.security-body) .main-header.navbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
   min-height: var(--erp-header-h);
 }
 
@@ -20,7 +17,11 @@ body.erp-app:not(.security-body) .main-header .navbar-nav.erp-nav-controls {
   z-index: 1062;
   flex: 0 0 auto;
   gap: 0.15rem;
-  order: 1;
+}
+
+body.erp-app:not(.security-body) .main-header .navbar-nav.erp-nav-user {
+  flex: 0 0 auto;
+  z-index: 1062;
 }
 
 body.erp-app:not(.security-body) .main-header .erp-pushmenu-btn {
@@ -88,46 +89,6 @@ body.erp-app:not(.security-body) .erp-sidebar-pos-active {
   z-index: 1039;
   display: none;
   pointer-events: auto;
-}
-
-body.erp-app:not(.security-body) .navbar-info-center {
-  flex: 1 1 auto;
-  min-width: 0;
-  max-width: 100%;
-  pointer-events: none;
-  order: 2;
-  padding-inline: 0.5rem;
-}
-
-body.erp-app:not(.security-body) .navbar-info-center > * {
-  pointer-events: auto;
-}
-
-body.erp-app:not(.security-body) .erp-tenant-brand {
-  flex: 0 0 auto;
-  z-index: 1061;
-  order: 3;
-  margin-inline-start: auto;
-  max-width: min(220px, 28vw);
-}
-
-body.erp-app:not(.security-body) .erp-tenant-brand .company-logo-text {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 12rem;
-}
-
-body.erp-app:not(.security-body) .main-header .navbar-nav.ml-auto {
-  flex: 0 0 auto;
-  z-index: 1062;
-  order: 4;
-}
-
-@media (max-width: 1199.98px) {
-  body.erp-app:not(.security-body) .erp-tenant-brand {
-    max-width: min(160px, 34vw);
-  }
 }
 
 /* ── Sidebar RTL — موضع يمين/يسار (ديسكتوب) ── */
@@ -215,15 +176,18 @@ html[dir="rtl"] body.erp-app:not(.security-body).sidebar-hidden .main-sidebar {
   }
 
   html[dir="rtl"] body.erp-app:not(.security-body).layout-navbar-fixed .content-wrapper {
-    margin-top: calc(
-      var(--gm-navbar-height, var(--erp-header-h, 56px)) + env(safe-area-inset-top, 0px)
-    ) !important;
     padding-top: 0 !important;
-    min-height: calc(100vh - var(--gm-navbar-height, var(--erp-header-h, 56px)));
   }
 
-  html[dir="rtl"] body.erp-app:not(.security-body) .main-footer.erp-footer {
-    padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  body.erp-app:not(.security-body) .content-header:has(h1:empty) {
+    display: none;
+    padding: 0;
+    margin: 0;
+    min-height: 0;
+  }
+
+  body.erp-app:not(.security-body) .content-wrapper > .content {
+    padding-top: 0.75rem;
   }
 }
 
@@ -269,15 +233,6 @@ html[dir="rtl"] body.erp-app:not(.security-body).sidebar-hidden .main-sidebar {
   body.erp-app:not(.security-body) .navbar-info-center .tenant-scope-badge,
   body.erp-app:not(.security-body) .navbar-info-center .tenant-branch-switch-form {
     display: none !important;
-  }
-
-  body.erp-app:not(.security-body) .erp-tenant-brand {
-    max-width: min(120px, 32vw);
-    margin-inline-start: 0;
-  }
-
-  body.erp-app:not(.security-body) .erp-tenant-brand .company-logo-image {
-    max-height: 34px;
   }
 
   body.erp-app:not(.security-body) .gm-navbar-info-dropdown .dropdown-menu {

@@ -1,9 +1,18 @@
 <aside class="main-sidebar sidebar-dark-primary elevation-4" dir="rtl">
   <div class="garage-brand-area">
-    <a href="{{ url_for('main.dashboard') }}" class="garage-brand-link">
-      <img src="{{ system_settings.tenant_logo_white_url or system_settings.tenant_logo_url }}" alt="" class="garage-brand-image garage-brand-image--full" loading="lazy" decoding="async" onerror="this.hidden=true">
-      <img src="{{ system_settings.tenant_logo_emblem_url or system_settings.tenant_logo_url }}" alt="" class="garage-brand-image garage-brand-image--emblem" loading="lazy" decoding="async" onerror="this.hidden=true">
+    <a href="{{ url_for('main.dashboard') }}" class="garage-brand-link" title="{{ tenant_company_name or system_settings.tenant_company_name or system_settings.system_name or 'النظام' }}">
       <span class="garage-brand-text">{{ tenant_company_name or system_settings.tenant_company_name or system_settings.system_name or 'النظام' }}</span>
+      {% if tenant_show_nav_scope and tenant_branch_name %}
+      <span class="garage-brand-branch">{{ tenant_branch_name }}</span>
+      {% endif %}
+      <img
+        src="{{ system_settings.tenant_logo_url }}"
+        data-fallback="{{ system_settings.tenant_logo_white_url or system_settings.tenant_logo_url }}"
+        alt="{{ tenant_company_name or system_settings.tenant_company_name or 'شعار الشركة' }}"
+        class="garage-brand-image garage-brand-image--tenant"
+        loading="eager"
+        decoding="async"
+        onerror="if(this.dataset.fallback && this.src !== this.dataset.fallback){this.src = this.dataset.fallback;}">
     </a>
     <button type="button" class="gm-sidebar-close" aria-label="إغلاق القائمة">
       <i class="fas fa-times"></i>
@@ -11,20 +20,6 @@
   </div>
   
   <div class="sidebar">
-    <div class="user-panel mt-3 pb-3 mb-3 d-flex align-items-center justify-content-end px-3">
-      <div class="info text-right flex-grow-1 ml-2">
-        <a href="{{ url_for('users_bp.profile') }}" class="d-block erp-header-user-name text-white">{{ current_user.display_name or current_user.username if current_user.is_authenticated else 'ضيف' }}</a>
-        <small class="d-block erp-header-user-role">{{ current_user.role.name if current_user.is_authenticated and current_user.role else 'مستخدم' }}</small>
-      </div>
-      <div class="image">
-        {% if current_user.is_authenticated and current_user.avatar_url %}
-        <img src="{{ current_user.avatar_url }}" class="erp-user-avatar rounded-circle" width="40" height="40" alt="">
-        {% else %}
-        <div class="erp-user-avatar rounded-circle d-flex align-items-center justify-content-center">{{ current_user.avatar_or_initials if current_user.is_authenticated else '?' }}</div>
-        {% endif %}
-      </div>
-    </div>
-
     <nav class="mt-2">
       <ul class="nav nav-pills nav-sidebar flex-column text-right" data-widget="treeview" role="menu" data-accordion="false">
 

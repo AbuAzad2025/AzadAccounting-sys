@@ -21,10 +21,40 @@
   function updateNavbarHeight() {
     var navbar = document.querySelector(".main-header.navbar");
     if (navbar) {
-      var h = navbar.offsetHeight + "px";
+      var h = Math.ceil(navbar.getBoundingClientRect().height) + "px";
       document.documentElement.style.setProperty("--gm-navbar-height", h);
       document.documentElement.style.setProperty("--erp-header-h", h);
     }
+  }
+
+  function bindNavbarResizeObserver() {
+    var navbar = document.querySelector(".main-header.navbar");
+    if (!navbar || typeof ResizeObserver === "undefined") return;
+    if (navbar.dataset.erpNavbarRoBound === "1") return;
+    var ro = new ResizeObserver(function () {
+      updateNavbarHeight();
+    });
+    ro.observe(navbar);
+    navbar.dataset.erpNavbarRoBound = "1";
+  }
+
+  function updateFooterHeight() {
+    var footer = document.querySelector(".main-footer.erp-footer");
+    if (footer) {
+      var h = Math.ceil(footer.getBoundingClientRect().height) + "px";
+      document.documentElement.style.setProperty("--erp-footer-height", h);
+    }
+  }
+
+  function bindFooterResizeObserver() {
+    var footer = document.querySelector(".main-footer.erp-footer");
+    if (!footer || typeof ResizeObserver === "undefined") return;
+    if (footer.dataset.erpFooterRoBound === "1") return;
+    var ro = new ResizeObserver(function () {
+      updateFooterHeight();
+    });
+    ro.observe(footer);
+    footer.dataset.erpFooterRoBound = "1";
   }
 
   function setDrawerOpen(open) {
@@ -328,6 +358,7 @@
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(function () {
       updateNavbarHeight();
+      updateFooterHeight();
       if (isCompactLayout()) {
         initCompactLayout();
       } else {
@@ -347,10 +378,15 @@
     initCompactLayout: initCompactLayout,
     closeCompactSidebar: closeCompactSidebar,
     updateNavbarHeight: updateNavbarHeight,
+    updateFooterHeight: updateFooterHeight,
   };
 
   document.addEventListener("DOMContentLoaded", function () {
     bindPushmenu();
+    updateNavbarHeight();
+    updateFooterHeight();
+    bindNavbarResizeObserver();
+    bindFooterResizeObserver();
     initCompactLayout();
     updateExchangeRates();
     window.addEventListener("resize", onLayoutChange);

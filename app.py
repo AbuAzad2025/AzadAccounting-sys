@@ -1797,6 +1797,35 @@ def create_app(config_object=Config) -> Flask:
         return dict(system_settings=settings, system_appearance=system_appearance)
     
     @app.before_request
+    def apply_runtime_system_settings():
+        """تطبيق إعدادات الجلسة وAPI من قاعدة البيانات."""
+        from datetime import timedelta
+        from flask import session, jsonify
+
+        if request.path.startswith("/api"):
+            try:
+                val = SystemSettings.get_setting("api_enabled", True)
+                if str(val).strip().lower() not in ("true", "1", "yes", "on"):
+                    if current_user.is_authenticated and (
+                        getattr(current_user, "has_permission", None)
+                        and current_user.has_permission("access_owner_dashboard")
+                    ):
+                        return None
+                    return jsonify({"success": False, "error": "API معطّل من إعدادات النظام"}), 503
+            except Exception:
+                pass
+
+        if current_user.is_authenticated and not request.path.startswith("/static/"):
+            try:
+                secs = int(SystemSettings.get_setting("SESSION_TIMEOUT", 3600))
+                if secs > 0:
+                    app.permanent_session_lifetime = timedelta(seconds=secs)
+                    session.permanent = True
+            except Exception:
+                pass
+        return None
+
+    @app.before_request
     def check_maintenance_mode():
         """فحص وضع الصيانة - المنطق المحسّن"""
         if request.path.startswith('/static/'):

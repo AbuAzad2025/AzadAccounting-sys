@@ -1,54 +1,46 @@
-<nav class="main-header navbar navbar-expand navbar-primary navbar-dark" dir="rtl">
-  
+<nav class="main-header navbar navbar-expand navbar-primary navbar-dark erp-topbar" dir="rtl">
+  <div class="erp-topbar__nav">
   <ul class="navbar-nav erp-nav-controls align-items-center">
     <li class="nav-item">
       <a class="nav-link nav-strong erp-pushmenu-btn" id="erp-sidebar-toggle" data-erp-pushmenu href="#" role="button" title="القائمة الجانبية" aria-label="فتح أو إغلاق القائمة" aria-expanded="false">
         <i class="fas fa-bars" aria-hidden="true"></i>
       </a>
     </li>
-    
-    <li class="nav-item d-none d-lg-block">
-      <button class="nav-link btn btn-link text-white nav-strong erp-nav-icon-btn" onclick="toggleSidebarFull()" title="إخفاء/إظهار القائمة بالكامل">
-        <i class="fas fa-expand-arrows-alt" id="sidebar-full-toggle-icon"></i>
-      </button>
-    </li>
-    
-    <li class="nav-item d-none d-lg-block">
-      <button type="button" class="nav-link btn btn-link text-white nav-strong erp-nav-icon-btn" id="sidebar-position-toggle-btn" onclick="toggleSidebarPosition()" title="تبديل موقع القائمة (يمين/يسار)" aria-pressed="true">
-        <i class="fas fa-arrow-alt-circle-left" aria-hidden="true"></i>
-      </button>
-    </li>
 
     <li class="nav-item dropdown d-none d-md-block">
-      <a class="nav-link nav-strong" data-toggle="dropdown" href="#" title="الستايل البصري">
-        <i class="fas fa-palette"></i>
+      <a class="nav-link nav-strong erp-nav-icon-btn" data-toggle="dropdown" href="#" title="أدوات العرض والتخطيط" aria-expanded="false">
+        <i class="fas fa-sliders-h" aria-hidden="true"></i>
       </a>
-      <div class="dropdown-menu dropdown-menu-right p-2 erp-theme-switcher erp-dropdown-panel">
-        <div class="small text-muted px-2 mb-1">الستايل</div>
-        <div class="btn-group btn-group-sm w-100 mb-2" role="group">
-          <button type="button" class="btn btn-outline-light active" data-erp-theme-variant="palestinian">فلسطيني</button>
-          <button type="button" class="btn btn-outline-light" data-erp-theme-variant="gulf">خليجي</button>
+      <div class="dropdown-menu dropdown-menu-right p-2 erp-dropdown-panel erp-topbar-tools-menu">
+        <div class="small text-muted px-2 mb-2">الستايل والعرض</div>
+        <div class="erp-theme-switcher mb-3">
+          <div class="small text-muted mb-1">الستايل</div>
+          <div class="btn-group btn-group-sm w-100 mb-2" role="group">
+            <button type="button" class="btn btn-outline-secondary" data-erp-theme-variant="palestinian">فلسطيني</button>
+            <button type="button" class="btn btn-outline-secondary" data-erp-theme-variant="gulf">خليجي</button>
+          </div>
+          <div class="small text-muted mb-1">الوضع</div>
+          <div class="btn-group btn-group-sm w-100 mb-2" role="group">
+            <button type="button" class="btn btn-outline-secondary" data-erp-theme-mode="light">فاتح</button>
+            <button type="button" class="btn btn-outline-secondary" data-erp-theme-mode="dark">داكن</button>
+          </div>
         </div>
-        <div class="small text-muted px-2 mb-1">الوضع</div>
-        <div class="btn-group btn-group-sm w-100" role="group">
-          <button type="button" class="btn btn-outline-light active" data-erp-theme-mode="light">فاتح</button>
-          <button type="button" class="btn btn-outline-light" data-erp-theme-mode="dark">داكن</button>
+        <div class="d-flex flex-column">
+          <button type="button" class="btn btn-sm btn-outline-secondary text-right mb-1" onclick="toggleErpThemeMode()" id="darkModeToggleNavbar">
+            <i class="fas fa-moon ml-2"></i> تبديل الوضع الليلي
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-secondary text-right mb-1" onclick="toggleUIMode()" id="ui-mode-toggle-btn">
+            <i class="fas fa-magic ml-2" id="ui-mode-toggle-icon"></i> وضع العرض
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-secondary text-right mb-1 d-none d-lg-block" onclick="toggleSidebarFull()">
+            <i class="fas fa-expand-arrows-alt ml-2" id="sidebar-full-toggle-icon"></i> إخفاء/إظهار القائمة
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-secondary text-right d-none d-lg-block" id="sidebar-position-toggle-btn" onclick="toggleSidebarPosition()">
+            <i class="fas fa-arrow-alt-circle-left ml-2"></i> موقع القائمة
+          </button>
         </div>
       </div>
     </li>
-
-    <li class="nav-item d-none d-sm-block">
-      <button class="nav-link btn btn-link text-white nav-strong erp-nav-icon-btn" onclick="toggleErpThemeMode()" title="تبديل الوضع الليلي" id="darkModeToggleNavbar">
-        <i class="fas fa-moon"></i>
-      </button>
-    </li>
-
-    <li class="nav-item d-none d-sm-block">
-      <button class="nav-link btn btn-link text-white nav-strong erp-nav-icon-btn" onclick="toggleUIMode()" id="ui-mode-toggle-btn" title="وضع العرض: تلقائي">
-        <i class="fas fa-magic" id="ui-mode-toggle-icon"></i>
-      </button>
-    </li>
-
     {% if current_user.is_authenticated %}
     <li class="nav-item dropdown d-lg-none gm-navbar-info-dropdown">
       <a class="nav-link nav-strong" data-toggle="dropdown" href="#" title="معلومات سريعة" aria-expanded="false">
@@ -76,10 +68,15 @@
             <i class="fas fa-calculator"></i> حاسبة
           </button>
         </div>
-        {% if tenant_show_nav_scope and tenant_company_name %}
+        {% if tenant_show_nav_scope and tenant_branch_name %}
         <div class="mb-2">
-          <span class="badge badge-primary tenant-scope-badge"><i class="fas fa-building"></i> {{ tenant_company_name }}{% if tenant_branch_name %} — {{ tenant_branch_name }}{% endif %}</span>
+          <span class="badge badge-light tenant-scope-badge"><i class="fas fa-code-branch"></i> {{ tenant_branch_name }}</span>
         </div>
+        {% elif tenant_show_nav_scope and tenant_company_name %}
+        <div class="mb-2">
+          <span class="badge badge-primary tenant-scope-badge"><i class="fas fa-building"></i> {{ tenant_company_name }}</span>
+        </div>
+        {% endif %}
         {% if tenant_can_switch_branch and tenant_branches %}
         <form method="post" action="{{ url_for('main.switch_active_branch') }}" class="tenant-branch-switch-form mb-2">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -89,7 +86,6 @@
             {% endfor %}
           </select>
         </form>
-        {% endif %}
         {% endif %}
         <div class="position-relative w-100">
           <div class="input-group input-group-sm">
@@ -134,81 +130,68 @@
       {% endif %}
     {% endif %}
   </ul>
-  
-  <div class="navbar-info-center d-flex align-items-center justify-content-center flex-grow-1 flex-wrap gap-2">
-    <div class="erp-topbar-meta d-none d-lg-flex flex-wrap align-items-center justify-content-center">
+  </div>
+
+  <div class="erp-topbar__meta navbar-info-center">
+    <div class="erp-topbar-meta-strip d-none d-lg-flex align-items-center">
       <span class="erp-meta-chip erp-meta-chip--time"><i class="fas fa-clock" aria-hidden="true"></i><span id="current-time">--:--:--</span></span>
       <span class="erp-meta-chip erp-meta-chip--date"><i class="fas fa-calendar" aria-hidden="true"></i><span id="current-date-gregorian">--/--/----</span></span>
-      <span class="erp-meta-chip erp-meta-chip--date"><i class="fas fa-moon" aria-hidden="true"></i><span id="current-date-hijri">--</span></span>
-      <span class="erp-meta-chip erp-meta-chip--rates erp-fx-chip erp-fx-rates erp-fx-rates--loading" data-fx="USD" title="سعر الدولار — يوم/أسبوع">
+      <span class="erp-meta-chip erp-meta-chip--date erp-meta-chip--hijri d-none d-xxl-inline-flex"><i class="fas fa-moon" aria-hidden="true"></i><span id="current-date-hijri">--</span></span>
+      <span class="erp-meta-chip erp-meta-chip--rates erp-fx-chip erp-fx-rates erp-fx-rates--loading d-none d-xl-inline-flex" data-fx="USD" title="سعر الدولار">
         <i class="fas fa-dollar-sign" aria-hidden="true"></i>
         <span class="erp-fx-main">USD <strong class="erp-fx-rate" id="usd-rate">--</strong></span>
-        <span class="erp-fx-range-mini d-none d-xl-inline-flex"><span class="erp-fx-day" data-fx-day="USD"></span><span class="erp-fx-week" data-fx-week="USD"></span></span>
       </span>
-      <span class="erp-meta-chip erp-meta-chip--rates erp-fx-chip erp-fx-rates erp-fx-rates--loading" data-fx="JOD" title="سعر الدينار — يوم/أسبوع">
+      <span class="erp-meta-chip erp-meta-chip--rates erp-fx-chip erp-fx-rates erp-fx-rates--loading d-none d-xl-inline-flex" data-fx="JOD" title="سعر الدينار">
         <i class="fas fa-coins" aria-hidden="true"></i>
         <span class="erp-fx-main">د.أ <strong class="erp-fx-rate" id="jod-rate">--</strong></span>
-        <span class="erp-fx-range-mini d-none d-xl-inline-flex"><span class="erp-fx-day" data-fx-day="JOD"></span><span class="erp-fx-week" data-fx-week="JOD"></span></span>
       </span>
       {% include 'partials/erp_nav_calculator.html' %}
     </div>
-    {% if current_user.is_authenticated and tenant_show_nav_scope and tenant_company_name %}
-    <span class="badge badge-primary tenant-scope-badge d-none d-lg-inline-flex" title="سياق العمل الحالي">
-      <i class="fas fa-building"></i>
-      {{ tenant_company_name }}{% if tenant_branch_name %} — {{ tenant_branch_name }}{% endif %}
+    {% if current_user.is_authenticated and tenant_show_nav_scope and tenant_branch_name %}
+    <span class="badge badge-light tenant-scope-badge d-none d-lg-inline-flex" title="الفرع النشط">
+      <i class="fas fa-code-branch"></i> {{ tenant_branch_name }}
     </span>
+    {% endif %}
     {% if tenant_can_switch_branch and tenant_branches %}
     <form method="post" action="{{ url_for('main.switch_active_branch') }}" class="d-none d-lg-inline tenant-branch-switch-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <select name="branch_id" class="custom-select custom-select-sm tenant-branch-select" onchange="this.form.submit()" title="تبديل الفرع النشط">
         {% for b in tenant_branches %}
-        <option value="{{ b.id }}" {% if tenant_branch_id == b.id %}selected{% endif %}>
-          {{ b.name }}{% if b.company %} ({{ b.company.name }}){% endif %}
-        </option>
+        <option value="{{ b.id }}" {% if tenant_branch_id == b.id %}selected{% endif %}>{{ b.name }}</option>
         {% endfor %}
       </select>
     </form>
     {% endif %}
-    {% endif %}
-    {% if current_user.is_authenticated %}
-    <div class="position-relative erp-topbar-search-wrap erp-topbar-search d-none d-xl-block">
+  </div>
+
+  <div class="erp-topbar__actions">
+  {% if current_user.is_authenticated %}
+    <div class="position-relative erp-topbar-search-wrap erp-topbar-search d-none d-lg-block">
       <div class="input-group input-group-sm">
         <div class="input-group-prepend">
           <span class="input-group-text"><i class="fas fa-search"></i></span>
         </div>
-        <input type="search" class="form-control" name="gm_search_global" placeholder="بحث سريع..." data-search="global" data-search-autofill="off" autocomplete="new-password" autocapitalize="off" spellcheck="false" inputmode="search" readonly>
+        <input type="search" class="form-control" name="gm_search_global" placeholder="بحث..." data-search="global" data-search-autofill="off" autocomplete="new-password" autocapitalize="off" spellcheck="false" inputmode="search" readonly>
       </div>
       <div class="list-group erp-search-results shadow" data-search-target="global"></div>
     </div>
-    {% endif %}
-  </div>
-  
-  <div class="navbar-brand ml-auto d-flex align-items-center erp-tenant-brand">
-    <a href="{{ url_for('main.dashboard') }}" class="company-logo-link d-flex align-items-center">
-      <img src="{{ system_settings.tenant_logo_url }}" alt="" class="company-logo-image" loading="lazy" decoding="async" onerror="this.hidden=true">
-      <span class="company-logo-text d-none d-md-inline">{{ tenant_company_name or system_settings.tenant_company_name or system_settings.system_name or 'النظام' }}</span>
-    </a>
-  </div>
-  
-
-  {% if current_user.is_authenticated %}
-  <ul class="navbar-nav ml-auto align-items-center">
+  <ul class="navbar-nav erp-nav-user align-items-center">
     <li class="nav-item dropdown">
-      <a class="nav-link d-flex align-items-center" data-toggle="dropdown" href="#" aria-expanded="false">
-        <div class="user-avatar mr-2">
+      <a class="nav-link d-flex align-items-center erp-nav-user-trigger" data-toggle="dropdown" href="#" aria-expanded="false" title="{{ current_user.display_name or current_user.username }}">
+        <div class="user-avatar">
           {% if current_user.avatar_url %}
-            <img src="{{ current_user.avatar_url }}" class="rounded-circle" width="32" height="32" alt="صورة المستخدم" loading="lazy" decoding="async">
+            <img src="{{ current_user.avatar_url }}" class="rounded-circle" width="34" height="34" alt="" loading="lazy" decoding="async">
           {% else %}
             <div class="avatar-placeholder erp-user-avatar rounded-circle d-flex align-items-center justify-content-center">
               {{ current_user.avatar_or_initials }}
             </div>
           {% endif %}
         </div>
-        <span class="d-none d-md-inline text-right mr-1">
+        <span class="d-none d-xl-inline text-right mr-2 erp-nav-user-label">
           <span class="d-block erp-header-user-name">{{ current_user.display_name or current_user.username }}</span>
           <span class="d-block erp-header-user-role">{{ current_user.role.name if current_user.role else 'مستخدم' }}</span>
         </span>
-        <i class="fas fa-chevron-down ml-2"></i>
+        <i class="fas fa-chevron-down erp-nav-user-chevron d-none d-md-inline"></i>
       </a>
       <div class="dropdown-menu dropdown-menu-right gm-navbar-dropdown">
         <div class="dropdown-header bg-light text-center py-3">
@@ -262,6 +245,7 @@
     </li>
   </ul>
   {% endif %}
+  </div>
 </nav>
 
 <div class="modal fade" id="logoutModalNavbar" tabindex="-1" role="dialog" aria-labelledby="logoutModalLabel" aria-hidden="true">

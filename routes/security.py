@@ -191,6 +191,61 @@ def _get_table_columns_safe(table_name: str) -> list[str]:
         return []
 
 
+def _wants_json_response() -> bool:
+    accept = request.accept_mimetypes.best_match(['application/json', 'text/html'])
+    return (
+        accept == 'application/json'
+        or request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+    )
+
+
+def _get_fast_table_counts(tables: list[str]) -> dict[str, int]:
+    """تقدير سريع لعدد الصفوف دون COUNT(*) على كل جدول."""
+    counts = {t: 0 for t in tables}
+    try:
+        dialect = (getattr(db.engine.dialect, 'name', '') or '').lower()
+        if dialect == 'postgresql':
+            rows = db.session.execute(text(
+                "SELECT relname, COALESCE(n_live_tup, 0)::bigint FROM pg_stat_user_tables"
+            )).fetchall()
+            stat_map = {r[0]: int(r[1] or 0) for r in rows}
+            for t in tables:
+                counts[t] = stat_map.get(t, 0)
+            return counts
+    except Exception:
+        current_app.logger.warning('fast table counts failed, using per-table COUNT', exc_info=True)
+    for table in tables:
+        try:
+            if not _is_safe_identifier(table):
+                continue
+            result = db.session.execute(text(f"SELECT COUNT(*) FROM {table}")).scalar()
+            counts[table] = int(result or 0)
+        except Exception:
+            counts[table] = 0
+    return counts
+
+
+def _get_all_foreign_key_relations() -> list[dict]:
+    relations = []
+    try:
+        from sqlalchemy import inspect
+        inspector = inspect(db.engine)
+        for table in inspector.get_table_names():
+            if not _is_safe_identifier(table):
+                continue
+            for fk in inspector.get_foreign_keys(table) or []:
+                relations.append({
+                    'name': fk.get('name') or '',
+                    'from_table': table,
+                    'from_columns': fk.get('constrained_columns') or [],
+                    'to_table': fk.get('referred_table') or '',
+                    'to_columns': fk.get('referred_columns') or [],
+                })
+    except Exception as e:
+        current_app.logger.error('Error loading FK relations: %s', e)
+    return relations
+
+
 def _assert_valid_table(table_name: str):
     tables = _get_all_tables()
     if not _is_safe_identifier(table_name) or table_name not in tables:
@@ -1235,17 +1290,8 @@ def database_manager():
     
     # ==== البيانات الأساسية (للجميع) ====
     tables = _get_all_tables()
-    table_counts = {}
-    for table in tables:
-        try:
-            if not _is_safe_identifier(table):
-                table_counts[table] = 0
-                continue
-            count_query = text(f"SELECT COUNT(*) as count FROM {table}")
-            result = db.session.execute(count_query).fetchone()
-            table_counts[table] = result[0] if result else 0
-        except Exception:
-            table_counts[table] = 0
+    table_counts = _get_fast_table_counts(tables) if tab == 'browse' else {}
+    db_relations = _get_all_foreign_key_relations() if tab == 'schema' else []
     
     # ==== بيانات خاصة بكل تبويب ====
     data = []
@@ -1271,13 +1317,10 @@ def database_manager():
     if tab in ['browse', 'edit', 'schema'] and selected_table:
         data, columns = _browse_table(selected_table, limit=1000 if tab == 'edit' else 100)
         table_info = _get_table_info(selected_table)
-        
-        for col_info in table_info:
-            if col_info.get('pk', 0) == 1:
-                primary_key_column = col_info.get('name', 'id')
-                break
-        if not primary_key_column or primary_key_column == 'id':
-            primary_key_column = columns[0] if columns else 'id'
+        primary_key_column = (
+            _get_primary_key_column(selected_table)
+            or (columns[0] if columns else 'id')
+        )
     
     # === 2) Indexes ===
     if tab == 'indexes':
@@ -1553,6 +1596,7 @@ def database_manager():
                           # عام
                           tables=tables,
                           table_counts=table_counts,
+                          db_relations=db_relations,
                           active_tab=tab,
                           selected_table=selected_table,
                           # Browse/Edit/Schema
@@ -4624,282 +4668,33 @@ def update_user_extra_permissions(user_id):
 @security_bp.route('/system-settings', methods=['GET', 'POST'])  # Backward compatibility
 @permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def system_settings():
-    """إعدادات النظام الموحدة - 4 في 1 (عامة + متقدمة + شركة + ثوابت أعمال)"""
-    from models import SystemSettings
-    
-    tab = request.args.get('tab', 'general')  # general, advanced, company, business
-    
+    """إعدادات النظام الموحدة — تبويبات حقيقية مربوطة بقاعدة البيانات."""
+    from utils.system_settings_page import (
+        load_system_settings_page_data,
+        normalize_tab,
+        save_system_settings_tab,
+    )
+
+    tab = normalize_tab(request.args.get('tab', 'general'))
+
     if request.method == 'POST':
-        tab = request.form.get('active_tab', 'general')
-        
-        if tab == 'general':
-            # حفظ الإعدادات العامة
-            settings = {
-                'maintenance_mode': request.form.get('maintenance_mode') == 'on',
-                'registration_enabled': request.form.get('registration_enabled') == 'on',
-                'api_enabled': request.form.get('api_enabled') == 'on',
+        tab = normalize_tab(request.form.get('active_tab', tab))
+        ok, err = save_system_settings_tab(tab, request.form, request.files)
+        if ok:
+            flash_messages = {
+                'general': '✅ تم حفظ الإعدادات العامة',
+                'advanced': '✅ تم تحديث التكوين المتقدم',
+                'company': '✅ تم تحديث بيانات الشركة',
+                'business': '✅ تم حفظ ثوابت الأعمال',
+                'branding': '✅ تم تحديث هوية النظام',
             }
-            for key, value in settings.items():
-                _set_system_setting(key, value)
-            flash('✅ تم حفظ الإعدادات العامة', 'success')
-            
-        elif tab == 'advanced':
-            # حفظ التكوينات المتقدمة
-            config = {
-                'SESSION_TIMEOUT': request.form.get('session_timeout', 3600),
-                'MAX_LOGIN_ATTEMPTS': request.form.get('max_login_attempts', 5),
-                'PASSWORD_MIN_LENGTH': request.form.get('password_min_length', 8),
-                'AUTO_BACKUP_ENABLED': request.form.get('auto_backup_enabled') == 'on',
-                'BACKUP_INTERVAL_HOURS': request.form.get('backup_interval_hours', 24),
-                'ENABLE_EMAIL_NOTIFICATIONS': request.form.get('enable_email_notifications') == 'on',
-                'ENABLE_SMS_NOTIFICATIONS': request.form.get('enable_sms_notifications') == 'on',
-            }
-            for key, value in config.items():
-                _set_system_setting(key, value)
-            flash('✅ تم تحديث التكوين المتقدم', 'success')
-            
-        elif tab == 'company':
-            # حفظ بيانات الشركة
-            constants = {
-                'COMPANY_NAME': request.form.get('company_name', ''),
-                'COMPANY_ADDRESS': request.form.get('company_address', ''),
-                'COMPANY_PHONE': request.form.get('company_phone', ''),
-                'COMPANY_EMAIL': request.form.get('company_email', ''),
-                'TAX_NUMBER': request.form.get('tax_number', ''),
-                'CURRENCY_SYMBOL': request.form.get('currency_symbol', '$'),
-                'TIMEZONE': request.form.get('timezone', 'UTC'),
-                'DATE_FORMAT': request.form.get('date_format', '%Y-%m-%d'),
-                'TIME_FORMAT': request.form.get('time_format', '%H:%M:%S'),
-            }
-            for key, value in constants.items():
-                if value:
-                    _set_system_setting(key, value)
-            flash('✅ تم تحديث بيانات الشركة', 'success')
-            
-        elif tab == 'branding':
-            # حفظ الهوية والمظهر
-            system_name = request.form.get('system_name')
-            company_name = request.form.get('company_name')
-            
-            if system_name: 
-                _set_system_setting('system_name', system_name)
-            if company_name: 
-                _set_system_setting('company_name', company_name)
-            
-            # معالجة الشعار
-            if 'custom_logo' in request.files:
-                file = request.files['custom_logo']
-                if file and file.filename:
-                    from werkzeug.utils import secure_filename
-                    import os
-                    import time
-                    filename = secure_filename(file.filename)
-                    allowed_exts = {'.png', '.jpg', '.jpeg', '.gif', '.webp'}
-                    ext = os.path.splitext(filename)[1].lower()
-                    if ext not in allowed_exts:
-                        flash('⚠️ نوع ملف الشعار غير مدعوم (استخدم: png, jpg, jpeg, gif, webp)', 'warning')
-                        return redirect(url_for('security.settings_center', tab='branding'))
-                    upload_path = os.path.join(current_app.root_path, 'static', 'img')
-                    target_name = 'logo_main.png'
-                    filepath = os.path.join(upload_path, target_name)
-                    try:
-                        file.save(filepath)
-                        _set_system_setting('custom_logo', f'static/img/{target_name}')
-                        _set_system_setting('assets_version', int(time.time()))
-                    except Exception:
-                        current_app.logger.exception('branding logo upload failed')
-                        flash('حدث خطأ أثناء رفع الشعار', 'danger')
-                        return redirect(url_for('security.settings_center', tab='branding'))
-            
-            flash('✅ تم تحديث هوية النظام بنجاح', 'success')
-            
-        elif tab == 'business':
-            # حفظ ثوابت الأعمال (Business Constants)
-            try:
-                group_flags = {
-                    'tax': request.form.get('enable_tax_constants') == 'on',
-                    'payroll': request.form.get('enable_payroll_constants') == 'on',
-                    'assets': request.form.get('enable_asset_constants') == 'on',
-                    'accounting': request.form.get('enable_accounting_constants') == 'on',
-                    'notifications': request.form.get('enable_notification_constants') == 'on',
-                    'business_rules': request.form.get('enable_business_rules_constants') == 'on',
-                    'multi_tenancy': request.form.get('enable_multi_tenancy_constants') == 'on',
-                }
-                
-                descriptions = {
-                    'tax': 'تفعيل ثوابت الضرائب',
-                    'payroll': 'تفعيل ثوابت الرواتب',
-                    'assets': 'تفعيل ثوابت الأصول الثابتة',
-                    'accounting': 'تفعيل ثوابت المحاسبة',
-                    'notifications': 'تفعيل ثوابت الإشعارات',
-                    'business_rules': 'تفعيل ثوابت قواعد العمل',
-                    'multi_tenancy': 'تفعيل ثوابت التعددية',
-                }
-                
-                for group, enabled in group_flags.items():
-                    SystemSettings.set_setting(
-                        f'enable_{group}_constants',
-                        enabled,
-                        descriptions.get(group),
-                        'boolean'
-                    )
-                
-                # Tax Settings
-                if group_flags['tax']:
-                    SystemSettings.set_setting('default_vat_rate', request.form.get('default_vat_rate', 16.0), 
-                                               'نسبة VAT الافتراضية', 'number')
-                    SystemSettings.set_setting('vat_enabled', request.form.get('vat_enabled') == 'on', 
-                                               'تفعيل VAT', 'boolean')
-                    SystemSettings.set_setting('income_tax_rate', request.form.get('income_tax_rate', 15.0), 
-                                               'ضريبة دخل الشركات', 'number')
-                    SystemSettings.set_setting('withholding_tax_rate', request.form.get('withholding_tax_rate', 5.0), 
-                                               'الخصم من المنبع', 'number')
-                
-                # Payroll Settings
-                if group_flags['payroll']:
-                    SystemSettings.set_setting('social_insurance_enabled', request.form.get('social_insurance_enabled') == 'on', 
-                                               'تفعيل التأمينات', 'boolean')
-                    SystemSettings.set_setting('social_insurance_company', request.form.get('social_insurance_company', 7.5), 
-                                               'نسبة التأمين - الشركة', 'number')
-                    SystemSettings.set_setting('social_insurance_employee', request.form.get('social_insurance_employee', 7.0), 
-                                               'نسبة التأمين - الموظف', 'number')
-                    SystemSettings.set_setting('overtime_rate_normal', request.form.get('overtime_rate_normal', 1.5), 
-                                               'معدل العمل الإضافي', 'number')
-                    SystemSettings.set_setting('working_hours_per_day', request.form.get('working_hours_per_day', 8), 
-                                               'ساعات العمل اليومية', 'number')
-                
-                # Fixed Assets Settings
-                if group_flags['assets']:
-                    SystemSettings.set_setting('asset_auto_depreciation', request.form.get('asset_auto_depreciation') == 'on', 
-                                               'استهلاك تلقائي', 'boolean')
-                    SystemSettings.set_setting('asset_threshold_amount', request.form.get('asset_threshold_amount', 500), 
-                                               'حد مبلغ الأصول', 'number')
-                
-                # Accounting Settings
-                if group_flags['accounting']:
-                    SystemSettings.set_setting('cost_centers_enabled', request.form.get('cost_centers_enabled') == 'on', 
-                                               'تفعيل مراكز التكلفة', 'boolean')
-                    SystemSettings.set_setting('budgeting_enabled', request.form.get('budgeting_enabled') == 'on', 
-                                               'تفعيل الموازنات', 'boolean')
-                    SystemSettings.set_setting('fiscal_year_start_month', request.form.get('fiscal_year_start_month', 1), 
-                                               'بداية السنة المالية', 'number')
-                
-                # Notification Settings
-                if group_flags['notifications']:
-                    SystemSettings.set_setting('notify_on_service_complete', request.form.get('notify_on_service_complete') == 'on', 
-                                               'إشعار اكتمال الصيانة', 'boolean')
-                    SystemSettings.set_setting('notify_on_payment_due', request.form.get('notify_on_payment_due') == 'on', 
-                                               'إشعار استحقاق الدفعات', 'boolean')
-                    SystemSettings.set_setting('notify_on_low_stock', request.form.get('notify_on_low_stock') == 'on', 
-                                               'تنبيه انخفاض المخزون', 'boolean')
-                    SystemSettings.set_setting('payment_reminder_days', request.form.get('payment_reminder_days', 3), 
-                                               'التذكير قبل الاستحقاق', 'number')
-                
-                # Business Rules
-                if group_flags['business_rules']:
-                    SystemSettings.set_setting('allow_negative_stock', request.form.get('allow_negative_stock') == 'on', 
-                                               'السماح بالمخزون السالب', 'boolean')
-                    SystemSettings.set_setting('require_approval_for_sales_above', request.form.get('require_approval_for_sales_above', 10000), 
-                                               'طلب موافقة للمبيعات الكبيرة', 'number')
-                    SystemSettings.set_setting('discount_max_percent', request.form.get('discount_max_percent', 50), 
-                                               'الحد الأقصى للخصم', 'number')
-                    SystemSettings.set_setting('credit_limit_check', request.form.get('credit_limit_check') == 'on', 
-                                               'فحص حد الائتمان', 'boolean')
-                
-                # Multi-Tenancy Settings  
-                if group_flags['multi_tenancy']:
-                    SystemSettings.set_setting('multi_tenancy_enabled', request.form.get('multi_tenancy_enabled') == 'on', 
-                                               'تفعيل تعدد المستأجرين', 'boolean')
-                    SystemSettings.set_setting('trial_period_days', request.form.get('trial_period_days', 30), 
-                                               'مدة التجريبي', 'number')
-                
-                db.session.commit()
-                flash('✅ تم حفظ ثوابت الأعمال', 'success')
-                
-            except Exception as e:
-                db.session.rollback()
-                current_app.logger.exception('internal error')
-                flash('حدث خطأ داخلي', 'danger')
-        
+            flash(flash_messages.get(tab, '✅ تم الحفظ'), 'success')
+        else:
+            flash(f'⚠️ {err or "حدث خطأ أثناء الحفظ"}', 'danger')
         return redirect(url_for('security.system_settings', tab=tab))
-    
-    # قراءة جميع الإعدادات
-    data = {
-        'general': {
-            'maintenance_mode': _get_system_setting('maintenance_mode', False),
-            'registration_enabled': _get_system_setting('registration_enabled', True),
-            'api_enabled': _get_system_setting('api_enabled', True),
-        },
-        'advanced': {
-            'SESSION_TIMEOUT': _get_system_setting('SESSION_TIMEOUT', 3600),
-            'MAX_LOGIN_ATTEMPTS': _get_system_setting('MAX_LOGIN_ATTEMPTS', 5),
-            'PASSWORD_MIN_LENGTH': _get_system_setting('PASSWORD_MIN_LENGTH', 8),
-            'AUTO_BACKUP_ENABLED': _get_system_setting('AUTO_BACKUP_ENABLED', True),
-            'BACKUP_INTERVAL_HOURS': _get_system_setting('BACKUP_INTERVAL_HOURS', 24),
-            'ENABLE_EMAIL_NOTIFICATIONS': _get_system_setting('ENABLE_EMAIL_NOTIFICATIONS', True),
-            'ENABLE_SMS_NOTIFICATIONS': _get_system_setting('ENABLE_SMS_NOTIFICATIONS', False),
-        },
-        'company': {
-            'COMPANY_NAME': _get_system_setting('COMPANY_NAME', 'اسم الشركة'),
-            'COMPANY_ADDRESS': _get_system_setting('COMPANY_ADDRESS', ''),
-            'COMPANY_PHONE': _get_system_setting('COMPANY_PHONE', ''),
-            'COMPANY_EMAIL': _get_system_setting('COMPANY_EMAIL', ''),
-            'TAX_NUMBER': _get_system_setting('TAX_NUMBER', ''),
-            'CURRENCY_SYMBOL': _get_system_setting('CURRENCY_SYMBOL', '$'),
-            'TIMEZONE': _get_system_setting('TIMEZONE', 'UTC'),
-            'DATE_FORMAT': _get_system_setting('DATE_FORMAT', '%Y-%m-%d'),
-            'TIME_FORMAT': _get_system_setting('TIME_FORMAT', '%H:%M:%S'),
-        },
-        'business': {
-            'enable_tax_constants': SystemSettings.get_setting('enable_tax_constants', True),
-            'enable_payroll_constants': SystemSettings.get_setting('enable_payroll_constants', True),
-            'enable_asset_constants': SystemSettings.get_setting('enable_asset_constants', True),
-            'enable_accounting_constants': SystemSettings.get_setting('enable_accounting_constants', True),
-            'enable_notification_constants': SystemSettings.get_setting('enable_notification_constants', True),
-            'enable_business_rules_constants': SystemSettings.get_setting('enable_business_rules_constants', True),
-            'enable_multi_tenancy_constants': SystemSettings.get_setting('enable_multi_tenancy_constants', True),
-            # Tax
-            'default_vat_rate': SystemSettings.get_setting('default_vat_rate', 16.0),
-            'vat_enabled': SystemSettings.get_setting('vat_enabled', True),
-            'income_tax_rate': SystemSettings.get_setting('income_tax_rate', 15.0),
-            'withholding_tax_rate': SystemSettings.get_setting('withholding_tax_rate', 5.0),
-            # Payroll
-            'social_insurance_enabled': SystemSettings.get_setting('social_insurance_enabled', False),
-            'social_insurance_company': SystemSettings.get_setting('social_insurance_company', 7.5),
-            'social_insurance_employee': SystemSettings.get_setting('social_insurance_employee', 7.0),
-            'overtime_rate_normal': SystemSettings.get_setting('overtime_rate_normal', 1.5),
-            'working_hours_per_day': SystemSettings.get_setting('working_hours_per_day', 8),
-            # Assets
-            'asset_auto_depreciation': SystemSettings.get_setting('asset_auto_depreciation', True),
-            'asset_threshold_amount': SystemSettings.get_setting('asset_threshold_amount', 500),
-            # Accounting
-            'cost_centers_enabled': SystemSettings.get_setting('cost_centers_enabled', False),
-            'budgeting_enabled': SystemSettings.get_setting('budgeting_enabled', False),
-            'fiscal_year_start_month': SystemSettings.get_setting('fiscal_year_start_month', 1),
-            # Notifications
-            'notify_on_service_complete': SystemSettings.get_setting('notify_on_service_complete', True),
-            'notify_on_payment_due': SystemSettings.get_setting('notify_on_payment_due', True),
-            'notify_on_low_stock': SystemSettings.get_setting('notify_on_low_stock', True),
-            'payment_reminder_days': SystemSettings.get_setting('payment_reminder_days', 3),
-            # Business Rules
-            'allow_negative_stock': SystemSettings.get_setting('allow_negative_stock', False),
-            'require_approval_for_sales_above': SystemSettings.get_setting('require_approval_for_sales_above', 10000),
-            'discount_max_percent': SystemSettings.get_setting('discount_max_percent', 50),
-            'credit_limit_check': SystemSettings.get_setting('credit_limit_check', True),
-            # Multi-Tenancy
-            'multi_tenancy_enabled': SystemSettings.get_setting('multi_tenancy_enabled', False),
-            'trial_period_days': SystemSettings.get_setting('trial_period_days', 30),
-        },
-        'branding': {
-            'system_name': _get_system_setting('system_name', 'نظام الحازم'),
-            'company_name': _get_system_setting('company_name', 'شركة الحازم للأنظمة الذكية'),
-            'company_logo': _get_system_setting('custom_logo', ''),
-        }
-    }
-    
-    # 🔄 إضافة إحصائيات ديناميكية
+
+    data = load_system_settings_page_data()
     stats = get_cached_security_stats()
-    
     return render_template('security/system_settings.html', data=data, active_tab=tab, stats=stats)
 
 
@@ -4959,7 +4754,13 @@ def kill_all_sessions():
 def data_export():
     """تصدير البيانات"""
     tables = _get_all_tables()
-    return render_template('security/data_export.html', tables=tables)
+    table_counts = _get_fast_table_counts(tables)
+    return render_template(
+        'security/data_export.html',
+        tables=tables,
+        table_counts=table_counts,
+        export_row_limit=10000,
+    )
 
 
 @security_bp.route('/export-table/<table_name>')
@@ -4968,13 +4769,19 @@ def export_table_csv(table_name):
     """تصدير جدول كـ CSV"""
     import csv
     from io import StringIO
-    
+
+    _assert_valid_table(table_name)
     data, columns = _browse_table(table_name, limit=10000)
+    if not columns:
+        columns = _get_table_columns_safe(table_name)
     
     si = StringIO()
-    writer = csv.DictWriter(si, fieldnames=columns)
-    writer.writeheader()
-    writer.writerows(data)
+    if columns:
+        writer = csv.DictWriter(si, fieldnames=columns, extrasaction='ignore')
+        writer.writeheader()
+        writer.writerows(data)
+    else:
+        si.write('')
     
     output = si.getvalue()
     
@@ -5216,10 +5023,14 @@ def db_edit_row(table_name, row_id):
             updates.append((key, value))
         
         if updates:
+            primary_key = _get_primary_key_column(table_name) or 'id'
+            if not _is_safe_identifier(primary_key):
+                flash('مفتاح أساسي غير صالح', 'danger')
+                return redirect(url_for('security.database_manager', tab='edit', table=table_name))
             set_parts = [f"{col} = :val_{i}" for i, (col, _) in enumerate(updates)]
             params = {f"val_{i}": v for i, (_, v) in enumerate(updates)}
             params['row_id'] = row_id
-            sql = text(f"UPDATE {table_name} SET {', '.join(set_parts)} WHERE id = :row_id")
+            sql = text(f"UPDATE {table_name} SET {', '.join(set_parts)} WHERE {primary_key} = :row_id")
             db.session.execute(sql, params)
             db.session.commit()
             flash('تم التحديث بنجاح', 'success')
@@ -5239,24 +5050,40 @@ def db_edit_row(table_name, row_id):
 @limiter.limit("10/minute")
 def db_delete_row(table_name, row_id):
     """حذف صف من الجدول"""
+    wants_json = _wants_json_response()
     try:
         _assert_valid_table(table_name)
         primary_key = _get_primary_key_column(table_name) or 'id'
-        
-        # حذف الصف
+
         if not _is_safe_identifier(primary_key):
-            flash('❌ مفتاح أساسي غير صالح', 'danger')
+            msg = 'مفتاح أساسي غير صالح'
+            if wants_json:
+                return jsonify({'success': False, 'error': msg}), 400
+            flash(f'❌ {msg}', 'danger')
             return redirect(url_for('security.database_manager', tab='edit', table=table_name))
+
         sql = text(f"DELETE FROM {table_name} WHERE {primary_key} = :row_id")
-        
         result = db.session.execute(sql, {'row_id': row_id})
         db.session.commit()
-        flash(f'✅ تم حذف الصف #{row_id} بنجاح', 'success')
+
+        if result.rowcount == 0:
+            msg = 'لم يتم العثور على السجل'
+            if wants_json:
+                return jsonify({'success': False, 'error': msg}), 404
+            flash(msg, 'warning')
+            return redirect(url_for('security.database_manager', tab='edit', table=table_name))
+
+        msg = f'تم حذف السجل بنجاح'
+        if wants_json:
+            return jsonify({'success': True, 'message': msg, 'rows_affected': result.rowcount})
+        flash(f'✅ {msg}', 'success')
     except Exception as e:
         db.session.rollback()
         current_app.logger.error("DB delete row error: %s", e)
+        if wants_json:
+            return jsonify({'success': False, 'error': 'خطأ في حذف الصف'}), 500
         flash('خطأ في حذف الصف', 'danger')
-    
+
     return redirect(url_for('security.database_manager', tab='edit', table=table_name))
 
 @security_bp.route('/db-editor/delete-column/<table_name>', methods=['POST'])
@@ -5793,16 +5620,29 @@ def _get_table_info(table_name):
         columns = inspector.get_columns(table_name)
         pk_constraint = inspector.get_pk_constraint(table_name)
         pk_cols = pk_constraint.get('constrained_columns', [])
-        
+        fk_map = {}
+        for fk in inspector.get_foreign_keys(table_name) or []:
+            ref_table = fk.get('referred_table') or ''
+            for col_name in fk.get('constrained_columns') or []:
+                fk_map[col_name] = ref_table
+
         info = []
         for i, col in enumerate(columns):
+            col_name = col['name']
+            is_pk = col_name in pk_cols
+            is_fk = col_name in fk_map
             info.append({
                 'cid': i,
-                'name': col['name'],
+                'name': col_name,
                 'type': str(col['type']),
                 'notnull': 1 if not col['nullable'] else 0,
-                'default': str(col['default']) if col['default'] else None,
-                'pk': 1 if col['name'] in pk_cols else 0
+                'nullable': bool(col.get('nullable', True)),
+                'default': str(col['default']) if col['default'] is not None else None,
+                'pk': 1 if is_pk else 0,
+                'primary_key': is_pk,
+                'foreign_keys': is_fk,
+                'fk_references': fk_map.get(col_name),
+                'autoincrement': bool(col.get('autoincrement', False)),
             })
         return info
     except Exception as e:
@@ -6914,7 +6754,7 @@ def api_maintenance_analyze():
 
 
 @security_bp.route('/api/maintenance/checkpoint', methods=['POST'])
-@permission_required(SystemPermissions.MANAGE_SYSTEM_HEALTH)
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def api_maintenance_checkpoint():
     """تنفيذ Checkpoint لدمج WAL"""
     try:
@@ -6943,7 +6783,7 @@ def api_maintenance_checkpoint():
 
 
 @security_bp.route('/api/maintenance/db-info', methods=['GET'])
-@permission_required(SystemPermissions.MANAGE_SYSTEM_HEALTH)
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def api_maintenance_db_info():
     """الحصول على معلومات قاعدة البيانات"""
     try:
