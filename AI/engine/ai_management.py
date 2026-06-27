@@ -15,7 +15,7 @@ from typing import Any, Dict, Optional
 
 from cryptography.fernet import Fernet
 
-from AI.engine.ai_storage import file_metadata, read_json, sync_training_manifest, utc_now, write_json
+from AI.engine.ai_storage import data_path, file_metadata, read_json, sync_training_manifest, utc_now, write_json
 
 TRAINING_JOBS_FILE = "training_jobs.json"
 MODEL_STATUS_FILE = "model_training_status.json"
@@ -406,4 +406,79 @@ def calculate_eta(progress: float, started_at: str) -> str:
         return "غير معروف"
 
 
-__all__ = ["save_api_key_encrypted", "get_api_key_decrypted", "test_api_key", "list_configured_apis", "start_training_job", "get_training_job_status", "list_training_jobs", "get_live_ai_stats", "get_available_models", "get_model_info", "get_model_status", "format_timestamp", "calculate_eta"]
+FINETUNE_EXPORT_FILE = "finetune_export.jsonl"
+FINETUNE_SYSTEM = "مساعد ERP محاسبي لنظام أزاد — أجب بدقة من سياق النظام والمعرفة المفهرسة."
+
+
+def export_finetune_dataset(max_samples: int = 400) -> dict:
+    """JSONL جاهز لـ OpenAI fine-tune / LoRA خارجي — بدون تدريب داخل التطبيق."""
+    import json
+
+    from AI.engine.ai_knowledge_ingestor import load_all_chunks
+
+    lines: List[Dict[str, Any]] = []
+    seen = set()
+
+    def _add(user: str, assistant: str) -> None:
+        u, a = str(user or "").strip(), str(assistant or "").strip()
+        if len(u) < 4 or len(a) < 8:
+            return
+        key = u[:120]
+        if key in seen or len(lines) >= max_samples:
+            return
+        seen.add(key)
+        lines.append(
+            {
+                "messages": [
+                    {"role": "system", "content": FINETUNE_SYSTEM},
+                    {"role": "user", "content": u[:2000]},
+                    {"role": "assistant", "content": a[:4000]},
+                ]
+            }
+        )
+
+    for item in read_json("conversations.json", [])[-max_samples:]:
+        if isinstance(item, dict):
+            _add(item.get("query") or item.get("question"), item.get("response") or item.get("answer"))
+
+    for item in read_json(INTERACTIONS_FILE, [])[-max_samples:]:
+        if isinstance(item, dict):
+            _add(item.get("query") or item.get("question"), item.get("response") or item.get("answer"))
+
+    for chunk in load_all_chunks()[: min(80, max(0, max_samples - len(lines)))]:
+        text = str(chunk.get("text") or "").strip()
+        title = str(chunk.get("title") or "مصدر").strip()
+        if len(text) >= 80:
+            _add(f"اشرح من {title}", text[:3500])
+
+    out_path = data_path(FINETUNE_EXPORT_FILE)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as handle:
+        for row in lines:
+            handle.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+    return {
+        "success": True,
+        "samples": len(lines),
+        "file": FINETUNE_EXPORT_FILE,
+        "hint": "ارفع الملف إلى OpenAI Fine-tuning أو استخدمه مع LoRA خارجياً",
+    }
+
+
+__all__ = [
+    "save_api_key_encrypted",
+    "get_api_key_decrypted",
+    "test_api_key",
+    "list_configured_apis",
+    "start_training_job",
+    "get_training_job_status",
+    "list_training_jobs",
+    "get_live_ai_stats",
+    "get_available_models",
+    "get_model_info",
+    "get_model_status",
+    "format_timestamp",
+    "calculate_eta",
+    "export_finetune_dataset",
+    "FINETUNE_EXPORT_FILE",
+]

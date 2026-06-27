@@ -9,7 +9,7 @@ API_PROVIDER_CARDS = (
     {"slug": "anthropic", "name": "Anthropic", "icon": "fa-robot", "color": "info", "model": "claude-3-5-sonnet"},
 )
 
-from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, url_for
+from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, send_file, url_for
 from flask_login import current_user, login_required
 from werkzeug.utils import secure_filename
 
@@ -288,6 +288,36 @@ def knowledge_reindex():
         return jsonify({"success": False, "error": str(exc)}), 500
 
 
+@ai_bp.route("/training/export-dataset", methods=["POST"])
+@ai_access
+def export_training_dataset():
+    try:
+        from AI.engine.ai_management import export_finetune_dataset
+
+        return jsonify(export_finetune_dataset())
+    except Exception as exc:
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@ai_bp.route("/training/download-dataset", methods=["GET"])
+@ai_access
+def download_training_dataset():
+    try:
+        from AI.engine.ai_management import FINETUNE_EXPORT_FILE, export_finetune_dataset
+        from AI.engine.ai_storage import data_path
+
+        path = data_path(FINETUNE_EXPORT_FILE)
+        if not path.exists():
+            export_finetune_dataset()
+        if not path.exists():
+            flash("لا يوجد مجموعة بيانات للتصدير بعد", "warning")
+            return redirect(url_for("ai.hub", tab="training"))
+        return send_file(path, as_attachment=True, download_name="azad_finetune.jsonl", mimetype="application/jsonl")
+    except Exception as exc:
+        flash(f"خطأ في التحميل: {exc}", "danger")
+        return redirect(url_for("ai.hub", tab="training"))
+
+
 @ai_bp.route("/models/status", methods=["GET"])
 @ai_access
 def models_status():
@@ -365,9 +395,13 @@ def evolution_report():
 def _get_knowledge_summary() -> Dict[str, Any]:
     try:
         from AI.engine.ai_knowledge_ingestor import get_sources_summary
-        return get_sources_summary()
+        from AI.engine.ai_knowledge_vectors import get_index_status
+
+        summary = get_sources_summary()
+        summary.update(get_index_status())
+        return summary
     except Exception:
-        return {"total_sources": 0, "total_chunks": 0, "sources": []}
+        return {"total_sources": 0, "total_chunks": 0, "sources": [], "search_mode": "tfidf"}
 
 
 def _get_training_jobs_newest_first(limit: int = 20) -> List[Dict[str, Any]]:

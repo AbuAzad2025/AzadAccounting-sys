@@ -482,6 +482,9 @@
               <div class="text-end">
                 <span class="badge bg-primary">{{ knowledge_summary.total_sources|default(0) }} مصدر</span>
                 <span class="badge bg-secondary">{{ knowledge_summary.total_chunks|default(0) }} مقطع</span>
+                {% if knowledge_summary.search_mode == 'semantic+tfidf' %}
+                <span class="badge bg-success">semantic</span>
+                {% endif %}
               </div>
             </div>
           </div>
@@ -679,11 +682,22 @@
                     <option value="1year">آخر سنة</option>
                   </select>
                 </div>
-                <div class="col-12">
+                <div class="col-12 d-flex flex-wrap gap-2">
                   <button class="btn btn-gradient btn-lg" onclick="startBulkTraining()"
                           {% if not can_train_ai %}disabled{% endif %}>
                     <i class="fas fa-graduation-cap"></i> بدء التدريب الشامل
                   </button>
+                  <button type="button" class="btn btn-outline-dark btn-lg" id="exportFinetuneBtn"
+                          {% if not can_train_ai %}disabled{% endif %}>
+                    <i class="fas fa-file-export"></i> تصدير JSONL للـ Fine-tune
+                  </button>
+                  <a href="{{ url_for('ai.download_training_dataset') }}" class="btn btn-outline-secondary btn-lg"
+                     {% if not can_train_ai %}tabindex="-1" aria-disabled="true" onclick="return false;"{% endif %}>
+                    <i class="fas fa-download"></i> تحميل
+                  </a>
+                </div>
+                <div class="col-12">
+                  <small class="text-muted">Semantic RAG: أضف مفتاح OpenAI ثم «إعادة فهرسة». JSONL: محادثات + معرفة لـ LoRA/OpenAI خارجياً.</small>
                 </div>
               </div>
             </div>
@@ -1557,6 +1571,31 @@ async function reindexKnowledgeSources() {
 
 document.getElementById('knowledgeUploadBtn')?.addEventListener('click', uploadKnowledgeSource);
 document.getElementById('knowledgeReindexBtn')?.addEventListener('click', reindexKnowledgeSources);
+document.getElementById('exportFinetuneBtn')?.addEventListener('click', async () => {
+  const btn = document.getElementById('exportFinetuneBtn');
+  if (!btn || !confirm('تصدير JSONL من المحادثات والمعرفة؟')) return;
+  const original = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+  try {
+    const res = await fetch('{{ url_for("ai.export_training_dataset") }}', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+      credentials: 'same-origin'
+    });
+    const data = await res.json();
+    if (data.success) {
+      alert(`✅ ${data.samples} عينة جاهزة — اضغط «تحميل»`);
+    } else {
+      alert('❌ ' + (data.error || 'فشل التصدير'));
+    }
+  } catch (e) {
+    alert('❌ ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = original;
+  }
+});
 document.querySelectorAll('.knowledge-delete-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
     const id = btn.getAttribute('data-id');
