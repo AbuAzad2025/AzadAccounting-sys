@@ -1,0 +1,100 @@
+/* AI Hub — shared styles */
+.ai-hub-page .ai-card {
+  border: 1px solid var(--bs-border-color, #e2e8f0);
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.ai-hub-page .ai-card:hover {
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.1);
+}
+
+.ai-hub-page .ai-header-banner {
+  background: var(--gradient-primary);
+  color: #fff;
+}
+
+.ai-hub-page .ai-panel-header {
+  background: var(--gradient-primary);
+}
+
+.ai-hub-page .stat-card--primary { background: var(--gradient-primary); }
+.ai-hub-page .stat-card--success { background: var(--gradient-success); }
+.ai-hub-page .stat-card--info { background: var(--gradient-info); }
+.ai-hub-page .stat-card--warning { background: var(--gradient-warning); }
+
+.ai-hub-page .quick-action-btn {
+  cursor: pointer;
+  padding: 1.25rem;
+  border: 1px solid var(--bs-border-color, #e2e8f0);
+  border-radius: 12px;
+  background: #fff;
+  transition: all 0.2s ease;
+  height: 100%;
+}
+
+.ai-hub-page .quick-action-btn:hover {
+  border-color: #6366f1;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(99, 102, 241, 0.15);
+}
+
+.ai-hub-page .training-progress {
+  height: 8px;
+  background: #e2e8f0;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.ai-hub-page .training-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #6366f1, #8b5cf6);
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+.ai-hub-page .notification-badge {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  font-size: 0.65rem;
+  line-height: 18px;
+  text-align: center;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+}
+
+.ai-hub-page .badge-owner-tab {
+  font-size: 0.65rem;
+}
+
+.ai-hub-page .scroll-panel-sm {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.ai-hub-page .training-logs {
+  max-height: 200px;
+  overflow-y: auto;
+  font-family: ui-monospace, monospace;
+  font-size: 0.85rem;
+}
+
+.ai-hub-page .progress-tall {
+  height: 25px;
+}
+
+.ai-hub-page .switch-lg {
+  width: 60px;
+  height: 30px;
+  cursor: pointer;
+}
+
+.ai-hub-page .tab-denied {
+  min-height: 200px;
+}

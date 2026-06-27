@@ -8,9 +8,15 @@
       
       <!-- Header -->
       <div class="card bg-gradient-primary text-white mb-4">
-        <div class="card-body">
-          <h3><i class="fas fa-robot"></i> إعدادات المساعد الذكي</h3>
-          <p class="mb-0">التحكم الكامل بصلاحيات وظهور المساعد - للمالك فقط</p>
+        <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-2">
+          <div>
+            <h3 class="mb-1"><i class="fas fa-robot"></i> إعدادات المساعد الذكي</h3>
+            <p class="mb-0">التحكم بصلاحيات وظهور المساعد — للمالك فقط</p>
+          </div>
+          <div class="d-flex flex-wrap gap-2">
+            <a href="{{ url_for('ai.hub') }}" class="btn btn-light btn-sm"><i class="fas fa-brain"></i> AI Hub</a>
+            <a href="{{ url_for('ai.hub', tab='training') }}" class="btn btn-light btn-sm"><i class="fas fa-book"></i> RAG / تدريب</a>
+          </div>
         </div>
       </div>
       

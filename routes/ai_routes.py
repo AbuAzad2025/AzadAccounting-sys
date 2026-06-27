@@ -147,6 +147,9 @@ def _ai_hub_page_context(tab: str) -> Dict[str, Any]:
 @ai_access
 def hub():
     tab = request.args.get("tab", "assistant")
+    if tab in {"config", "maps"} and not _has_permission(SystemPermissions.MANAGE_AI):
+        flash("⛔ تبويب الإعدادات والخرائط يتطلب صلاحية manage_ai", "warning")
+        return redirect(url_for("ai.hub", tab="assistant"))
     return render_template("ai/ai_hub.html", **_ai_hub_page_context(tab))
 
 
@@ -871,6 +874,7 @@ def _assistant_page_context() -> Dict[str, Any]:
         "ai_stats": ai_stats,
         "company": company,
         "knowledge_summary": knowledge,
+        "can_manage_ai": _has_permission(SystemPermissions.MANAGE_AI),
         "api_keys_configured": _check_api_keys(),
         "active_llm_provider": _get_active_llm_provider(),
         "quick_prompts": _get_assistant_prompts(),

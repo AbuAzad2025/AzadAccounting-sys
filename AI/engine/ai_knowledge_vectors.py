@@ -221,13 +221,19 @@ def get_index_status() -> Dict[str, Any]:
         mode = "openai+tfidf"
     else:
         mode = "tfidf"
+    pipeline_parts = ["keyword"]
+    if local_n:
+        pipeline_parts.append("LSA-local")
+    pipeline_parts.append("TF-IDF")
+    if openai_n:
+        pipeline_parts.append("OpenAI")
     return {
         "semantic_chunks": local_n or openai_n,
         "local_semantic_chunks": local_n,
         "openai_semantic_chunks": openai_n,
         "semantic_model": index.get("local_model") or index.get("openai_model"),
         "search_mode": mode,
-        "search_pipeline": "keyword → LSA-local → TF-IDF" + (" → OpenAI" if openai_n else ""),
+        "search_pipeline": " → ".join(pipeline_parts),
     }
 
 

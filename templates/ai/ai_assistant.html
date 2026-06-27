@@ -17,8 +17,10 @@
 {% set chat_history = chat_history|default([]) %}
 {% set history_snippets = history_snippets|default([]) %}
 {% set system_alerts = system_alerts|default([]) %}
-{% set knowledge_summary = knowledge_summary|default({'total_sources': 0, 'total_chunks': 0}) %}
+{% set knowledge_summary = knowledge_summary|default({'total_sources': 0, 'total_chunks': 0, 'search_mode': 'tfidf'}) %}
 {% set active_llm_provider = active_llm_provider|default('local') %}
+{% set company = company|default({}) %}
+{% set can_manage_ai = can_manage_ai|default(false) %}
 
 <div class="container-fluid ai-assistant-page">
 
@@ -71,10 +73,10 @@
         <div class="ai-drawer-panel" id="panel-links">
           <a href="{{ url_for('ai.hub') }}" class="ai-drawer-link"><i class="fas fa-home"></i> AI Hub</a>
           <a href="{{ url_for('ai.hub', tab='analytics') }}" class="ai-drawer-link"><i class="fas fa-chart-line"></i> تحليلات</a>
-          {% if has_perm('manage_ai') %}
+          {% if can_manage_ai %}
           <a href="{{ url_for('ai.system_map') }}" class="ai-drawer-link"><i class="fas fa-map"></i> خريطة النظام</a>
-          {% endif %}
           <a href="{{ url_for('ai.hub', tab='config') }}" class="ai-drawer-link"><i class="fas fa-key"></i> مفاتيح API</a>
+          {% endif %}
         </div>
       </div>
     </aside>
