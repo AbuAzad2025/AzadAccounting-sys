@@ -278,6 +278,11 @@ def knowledge_reindex():
         result = reindex_all()
         result["legacy_import"] = legacy
         try:
+            from AI.engine.ai_knowledge_vectors import get_index_status
+            result["vector_index"] = get_index_status()
+        except Exception:
+            pass
+        try:
             from AI.engine.ai_auto_discovery import build_system_map
             build_system_map()
             result["system_map"] = "rebuilt"

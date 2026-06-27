@@ -137,7 +137,7 @@ def try_knowledge_answer(query: str, top_k: int = 4) -> Optional[str]:
         if len(snippet) > 600:
             snippet = snippet[:600] + "…"
         lines.append(f"\n**{title}**\n{snippet}")
-    lines.append("\n\n_مصدر: RAG هجين (semantic إن وُجد مفتاح OpenAI + TF-IDF)._")
+    lines.append("\n\n_مصدر: RAG هجين (LSA محلي + TF-IDF + OpenAI اختياري)._")
     return "\n".join(lines)
 
 

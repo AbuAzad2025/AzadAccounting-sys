@@ -473,17 +473,24 @@
                 <strong>تدريب النظام + مصادر المعرفة (RAG)</strong>
                 <span class="badge bg-warning text-dark ms-1">للمالك/المطور فقط</span>
                 <p class="mb-0 mt-2 small">
-                  نفس صلاحية المساعد الذكي. الخطوات الموصى بها:
-                  <strong>①</strong> ارفع كتب/JSON/PDF →
-                  <strong>②</strong> أعد الفهرسة →
-                  <strong>③</strong> شغّل التدريب لمسح ERP — البحث هجين (كلمات + TF-IDF).
+                  <strong>①</strong> ارفع مصادر → <strong>②</strong> أعد الفهرسة (LSA محلي) → <strong>③</strong> درّب ERP.
                 </p>
+                {% if knowledge_summary.search_pipeline %}
+                <p class="mb-0 mt-1 small text-muted"><i class="fas fa-project-diagram"></i> {{ knowledge_summary.search_pipeline }}</p>
+                {% endif %}
               </div>
               <div class="text-end">
                 <span class="badge bg-primary">{{ knowledge_summary.total_sources|default(0) }} مصدر</span>
                 <span class="badge bg-secondary">{{ knowledge_summary.total_chunks|default(0) }} مقطع</span>
-                {% if knowledge_summary.search_mode == 'semantic+tfidf' %}
-                <span class="badge bg-success">semantic</span>
+                {% if knowledge_summary.local_semantic_chunks|default(0) > 0 %}
+                <span class="badge bg-success" title="{{ knowledge_summary.semantic_model }}">
+                  <i class="fas fa-brain"></i> LSA ×{{ knowledge_summary.local_semantic_chunks }}
+                </span>
+                {% elif knowledge_summary.search_mode == 'tfidf' %}
+                <span class="badge bg-warning text-dark">TF-IDF فقط — أعد الفهرسة</span>
+                {% endif %}
+                {% if knowledge_summary.openai_semantic_chunks|default(0) > 0 %}
+                <span class="badge bg-dark">OpenAI +{{ knowledge_summary.openai_semantic_chunks }}</span>
                 {% endif %}
               </div>
             </div>
@@ -697,7 +704,7 @@
                   </a>
                 </div>
                 <div class="col-12">
-                  <small class="text-muted">Semantic RAG: أضف مفتاح OpenAI ثم «إعادة فهرسة». JSONL: محادثات + معرفة لـ LoRA/OpenAI خارجياً.</small>
+                  <small class="text-muted">Semantic: LSA محلي (sklearn) تلقائياً. OpenAI embeddings اختياري للتعزيز.</small>
                 </div>
               </div>
             </div>
@@ -1560,7 +1567,9 @@ async function reindexKnowledgeSources() {
       credentials: 'same-origin'
     });
     const data = await res.json();
-    alert(data.success ? `✅ أُعيدت فهرسة ${data.reindexed || 0} مصدر` : '❌ ' + (data.error || 'فشل'));
+    alert(data.success
+      ? `✅ فهرسة ${data.reindexed || 0} مصدر` + (data.vector_index ? `\n🧠 ${data.vector_index.search_pipeline || data.vector_index.search_mode}` : '')
+      : '❌ ' + (data.error || 'فشل'));
     if (data.success) window.location.reload();
   } catch (e) {
     alert('❌ ' + e.message);

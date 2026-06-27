@@ -94,6 +94,9 @@
         {% else %}
         <span class="badge bg-warning text-dark">محلي</span>
         {% endif %}
+        {% if knowledge_summary.local_semantic_chunks|default(0) > 0 %}
+        <span class="badge bg-success" title="{{ knowledge_summary.semantic_model }}"><i class="fas fa-brain"></i> LSA</span>
+        {% endif %}
         {% if knowledge_summary.total_sources|default(0) > 0 %}
         <span class="badge bg-info text-dark" title="مصادر RAG مفهرسة">
           <i class="fas fa-book"></i> {{ knowledge_summary.total_sources }} مصدر
@@ -114,6 +117,16 @@
       <span class="ai-stat-pill"><i class="fas fa-calendar-day"></i> اليوم: <strong id="statToday">{% if ai_stats.today is not none %}{{ ai_stats.today }}{% else %}0{% endif %}</strong></span>
       <span class="ai-stat-pill"><i class="fas fa-check"></i> نجاح: <strong id="statSuccess">{% if ai_stats.success_rate is not none %}{{ ai_stats.success_rate }}%{% else %}—{% endif %}</strong></span>
       <span class="ai-stat-pill"><i class="fas fa-bolt"></i> استجابة: <strong id="statLatency">{% if ai_stats.avg_response_time is not none %}{{ ai_stats.avg_response_time }}s{% else %}—{% endif %}</strong></span>
+      {% if knowledge_summary.total_sources|default(0) > 0 %}
+      <span class="ai-stat-pill ai-rag-pill" title="{{ knowledge_summary.search_pipeline|default('') }}">
+        <i class="fas fa-brain"></i> RAG:
+        {% if knowledge_summary.local_semantic_chunks|default(0) > 0 %}
+        <strong>LSA</strong> · {{ knowledge_summary.total_sources }} مصدر
+        {% else %}
+        <strong>{{ knowledge_summary.search_mode|default('tfidf') }}</strong>
+        {% endif %}
+      </span>
+      {% endif %}
     </div>
 
     <!-- Messages (centered thread) -->
@@ -127,8 +140,10 @@
           {% if knowledge_summary.total_sources|default(0) > 0 %}
           <p class="small text-muted mb-2">
             <i class="fas fa-book-open text-primary"></i>
-            {{ knowledge_summary.total_sources }} مصدر ({{ knowledge_summary.total_chunks|default(0) }} مقطع)
-            {% if knowledge_summary.search_mode == 'semantic+tfidf' %}— semantic + TF-IDF{% else %}— TF-IDF{% endif %}
+            {{ knowledge_summary.total_sources }} مصدر · {{ knowledge_summary.total_chunks|default(0) }} مقطع
+            {% if knowledge_summary.local_semantic_chunks|default(0) > 0 %}
+            · <span class="ai-rag-tag">LSA semantic</span>
+            {% endif %}
           </p>
           {% endif %}
           {% if quick_prompts %}
