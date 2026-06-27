@@ -49,6 +49,7 @@ logs/
 .coverage
 htmlcov/
 *.cover
+*,cover
 .hypothesis/
 
 .mypy_cache/
@@ -120,4 +121,3 @@ PERFORMANCE_PLAN.md
 PRODUCTION_MIGRATION_RUNBOOK_*.md
 READ_DEPLOY.md
 UPDATE_PRODUCTION.md
-*.cover
