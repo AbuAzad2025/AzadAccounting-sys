@@ -395,10 +395,15 @@
         document.body.classList.remove('sec-sidebar-open');
     }
 
+    function syncSecSidebarBodyClass() {
+        document.body.classList.toggle('sec-sidebar-collapsed', !isSecMobile() && sidebar.classList.contains('collapsed'));
+    }
+
     if (!isSecMobile() && localStorage.getItem('secSidebarCollapsed') === 'true') {
         sidebar.classList.add('collapsed');
         main.classList.add('expanded');
     }
+    syncSecSidebarBodyClass();
 
     toggle.addEventListener('click', () => {
         if (isSecMobile()) {
@@ -409,6 +414,7 @@
         sidebar.classList.toggle('collapsed');
         main.classList.toggle('expanded');
         localStorage.setItem('secSidebarCollapsed', sidebar.classList.contains('collapsed'));
+        syncSecSidebarBodyClass();
     });
 
     document.addEventListener('click', (e) => {
@@ -423,6 +429,7 @@
             sidebar.classList.remove('collapsed');
             main.classList.remove('expanded');
         }
+        syncSecSidebarBodyClass();
     });
     document.addEventListener('keydown', (e) => {
         if (e.ctrlKey && e.key === 'k') {

@@ -852,7 +852,7 @@ def index():
     
     مع Caching للإحصائيات (5 دقائق)
     """
-    return render_template('security/index.html', stats=get_cached_security_stats(), recent=get_recent_audit_events())
+    return render_template('security/index.html', stats=get_cached_security_stats(), recent=get_recent_auth_audit_snapshot())
 
 
 @security_bp.route('/index-old')
@@ -3078,13 +3078,39 @@ def inject_security_stats():
 
 
 @cache.memoize(timeout=120)
-def get_recent_audit_events():
-    """آخر أحداث سجل التدقيق (جميع الأنواع)."""
+def get_recent_auth_audit_snapshot():
+    """آخر أحداث auth_audit كـ dict (آمن للكاش — بدون lazy load)."""
     try:
         from models import AuthAudit
-        return AuthAudit.query.order_by(AuthAudit.created_at.desc()).limit(10).all()
+        from sqlalchemy.orm import joinedload
+
+        rows = (
+            AuthAudit.query.options(joinedload(AuthAudit.user))
+            .order_by(AuthAudit.created_at.desc())
+            .limit(10)
+            .all()
+        )
+        return [
+            {
+                'id': row.id,
+                'event': row.event,
+                'success': bool(row.success),
+                'ip': row.ip or '',
+                'username': (row.user.username if row.user else None),
+                'created_at_display': (
+                    row.created_at.strftime('%Y-%m-%d %H:%M') if row.created_at else ''
+                ),
+            }
+            for row in rows
+        ]
     except Exception:
+        current_app.logger.debug('get_recent_auth_audit_snapshot failed', exc_info=True)
         return []
+
+
+def get_recent_audit_events():
+    """Alias for backward compatibility."""
+    return get_recent_auth_audit_snapshot()
 
 
 AUTH_EVENT_LABELS = {

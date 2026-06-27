@@ -125,7 +125,7 @@
               {% for audit in recent %}
               <tr>
                 <td class="fw-semibold">{{ auth_event_labels.get(audit.event, audit.event) }}</td>
-                <td>{{ audit.user.username if audit.user else '—' }}</td>
+                <td>{{ audit.username or '—' }}</td>
                 <td class="font-monospace small">{{ audit.ip or '—' }}</td>
                 <td>
                   {% if audit.success %}
@@ -134,7 +134,7 @@
                   <span class="badge bg-danger">فشل</span>
                   {% endif %}
                 </td>
-                <td class="text-muted small">{{ audit.created_at.strftime('%Y-%m-%d %H:%M') if audit.created_at else '—' }}</td>
+                <td class="text-muted small">{{ audit.created_at_display or '—' }}</td>
               </tr>
               {% endfor %}
             {% else %}

@@ -508,10 +508,15 @@ function applySidebarPosition(position) {
       navbar.style.setProperty('margin-right', '0', 'important');
       navbar.style.setProperty('width', '100%', 'important');
     }
-    if (footer) {
+    if (footer && !body.classList.contains('security-body')) {
       footer.style.setProperty('margin-left', '0', 'important');
       footer.style.setProperty('margin-right', '0', 'important');
       footer.style.setProperty('width', '100%', 'important');
+    }
+    if (footer && body.classList.contains('security-body')) {
+      footer.style.removeProperty('margin-left');
+      footer.style.removeProperty('margin-right');
+      footer.style.removeProperty('width');
     }
     return;
   }

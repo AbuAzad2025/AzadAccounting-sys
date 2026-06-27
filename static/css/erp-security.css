@@ -19,13 +19,38 @@ body.security-body.erp-app #gm-open-in-app-banner {
   display: none !important;
 }
 
-/* فوتر موحّد من base.html — كامل العرض بدون هوامش السايدبار */
+/* فوتر موحّد — يظهر تحت منطقة المحتوى فقط (لا يغطي السايدبار) */
 body.security-body.erp-app > .wrapper > .main-footer.erp-footer {
   display: block !important;
   margin: 0 !important;
   left: 0 !important;
   right: 0 !important;
-  width: 100% !important;
+  width: auto !important;
+  z-index: 1010;
+}
+
+@media (min-width: 992px) {
+  html[dir="rtl"] body.security-body.erp-app:not(.sec-sidebar-collapsed) > .wrapper > .main-footer.erp-footer,
+  html[dir="rtl"] body.security-body.erp-app:has(.security-sidebar:not(.collapsed)) > .wrapper > .main-footer.erp-footer {
+    right: var(--sidebar-width, 260px) !important;
+    left: 0 !important;
+    width: auto !important;
+  }
+
+  html[dir="ltr"] body.security-body.erp-app:not(.sec-sidebar-collapsed) > .wrapper > .main-footer.erp-footer,
+  html[dir="ltr"] body.security-body.erp-app:has(.security-sidebar:not(.collapsed)) > .wrapper > .main-footer.erp-footer {
+    left: var(--sidebar-width, 260px) !important;
+    right: 0 !important;
+    width: auto !important;
+  }
+}
+
+@media (max-width: 991.98px) {
+  body.security-body.erp-app > .wrapper > .main-footer.erp-footer {
+    right: 0 !important;
+    left: 0 !important;
+    width: auto !important;
+  }
 }
 
 body.security-body.erp-app .content-wrapper {
@@ -50,6 +75,10 @@ body.security-body.erp-app .security-wrapper {
 body.security-body.erp-app .security-sidebar {
   top: 0 !important;
   height: 100vh !important;
+  height: 100dvh !important;
+  z-index: 1050;
+  display: flex;
+  flex-direction: column;
 }
 
 body.security-body.erp-app .security-main {
