@@ -1118,7 +1118,9 @@ def _safe_start_scheduler(app):
 
 def init_extensions(app):
     db.init_app(app)
-    migrate.init_app(app, db)
+    from migrations.schema_compare import get_configure_args
+
+    migrate.init_app(app, db, **get_configure_args())
 
     login_manager.init_app(app)
     login_manager.login_view = app.config.get("LOGIN_VIEW", "auth.login")
@@ -1922,13 +1924,24 @@ def ensure_performance_indexes(app):
                     all_tables = inspector.get_table_names()
                     for table in all_tables:
                         fks = inspector.get_foreign_keys(table) or []
+                        existing_indexes = {
+                            idx.get("name")
+                            for idx in (inspector.get_indexes(table) or [])
+                        }
+                        indexed_cols = set()
+                        for idx in inspector.get_indexes(table) or []:
+                            for col in idx.get("column_names") or []:
+                                indexed_cols.add(col)
                         for fk in fks:
                             for col in fk.get("constrained_columns") or []:
-                                if not col:
+                                if not col or col in indexed_cols:
                                     continue
-                                idx_name = f"ix_{table}_{col}_fk_auto"
+                                idx_name = f"ix_{table}_{col}"
+                                if idx_name in existing_indexes:
+                                    continue
                                 fk_sql = f"CREATE INDEX IF NOT EXISTS {idx_name} ON {table} ({col})"
-                                _run(fk_sql)
+                                if _run(fk_sql):
+                                    indexed_cols.add(col)
                 except Exception:
                     # في أسوأ الأحوال، إذا فشل فهرسة FK لا نعطّل التطبيق
                     pass

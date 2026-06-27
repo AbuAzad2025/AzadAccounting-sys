@@ -106,10 +106,11 @@
 .sales-form .section-title { font-weight: 700; color: var(--text-dark, #334155); margin: 0 0 .5rem; display: flex; align-items: center; gap: .4rem; }
 .sales-form .section-title i { opacity: .8; }
 .sales-form .section-subtitle { font-weight: 600; color: var(--text-muted, #64748b); font-size: .9rem; margin: .15rem 0 0; }
-.sales-form .advanced-toggle { display: flex; flex-direction: column; justify-content: flex-end; }
-.sales-form .advanced-toggle-btn { width: 100%; white-space: normal; text-align: right; }
-@media (min-width: 992px) {
-  .sales-form .advanced-toggle-btn { width: auto; white-space: nowrap; }
+.sales-form .advanced-toggle-btn { white-space: nowrap; }
+
+.sales-form .sale-head-fields .form-group { margin-bottom: 0.75rem; }
+.sales-form .sale-head-fields > [class*="col-"]:last-child .advanced-toggle-btn {
+  min-height: var(--erp-field-h, 46px);
 }
 
 .sales-form .totals-hero { 
@@ -182,14 +183,21 @@
 
 /* Sale Lines Grid — shared column template */
 .sales-form {
-  --sale-line-cols: 125px minmax(190px, 2.4fr) 78px 96px 72px 110px minmax(120px, 1.4fr) minmax(108px, auto);
+  --sale-line-cols: 120px minmax(170px, 2.2fr) 72px 92px 68px 100px minmax(110px, 1.2fr) 96px;
+}
+
+.sale-lines-scroll {
+  overflow-x: auto;
+  overflow-y: visible;
+  min-width: 100%;
 }
 
 .sale-line {
   display: grid;
   grid-template-columns: var(--sale-line-cols);
-  gap: 10px;
+  gap: 8px;
   align-items: end;
+  min-width: 860px;
 }
 
 .line-actions {
@@ -206,9 +214,9 @@
   margin-bottom: 0.15rem;
 }
 
-@media (min-width: 992px) {
+@media (min-width: 768px) {
   .sale-line {
-    padding: 0.65rem 0;
+    padding: 0.55rem 0;
     margin-bottom: 0;
     border: none;
     border-bottom: 1px solid var(--border-glass, #e9ecef);
@@ -223,30 +231,33 @@
   .line-actions .stock-badge {
     flex: 0 1 auto;
     margin-bottom: 0;
-    min-width: 58px;
+    min-width: 52px;
   }
 
   .sale-lines-header {
     display: grid;
     grid-template-columns: var(--sale-line-cols);
-    gap: 10px;
+    gap: 8px;
     font-weight: 700;
     color: var(--text-muted, #495057);
     margin-bottom: 0;
     padding-top: 0.75rem;
     padding-bottom: 0.5rem;
-    font-size: 0.88rem;
+    font-size: 0.85rem;
     border-bottom: 2px solid var(--border-glass, #dee2e6);
     position: sticky;
     top: 0;
     z-index: 2;
     background: var(--bg-dark-card, #fff);
+    min-width: 860px;
   }
 }
 
-@media (max-width: 991.98px) {
+@media (max-width: 767.98px) {
+  .sale-lines-scroll { overflow-x: visible; }
   .sale-lines-header { display: none; }
   .sale-line {
+    min-width: 0;
     grid-template-columns: 1fr 1fr;
     padding: 1rem;
     margin-bottom: 0.75rem;
@@ -271,7 +282,7 @@
 .totals-table td, .totals-table th { vertical-align: middle; font-size: 1rem; }
 .totals-table .grand { font-size: 1.15rem; }
 .sales-form .btn { border-radius: 10px; }
-.lines-wrap { max-height: min(62vh, 640px); overflow: auto; }
+.lines-wrap { max-height: min(58vh, 560px); overflow-y: auto; overflow-x: hidden; }
 .lines-header { border-bottom: 1px solid var(--border-glass, #e9ecef); font-size: 1.05rem; }
 .sortable-ghost { opacity: .5; background: #c8ebfb; }
 
@@ -280,5 +291,7 @@
 .sales-form .select2-container { width: 100% !important; max-width: 100%; }
 
 @media (min-width: 1200px) {
-  .sales-form { --sale-line-cols: 130px minmax(220px, 2.6fr) 82px 100px 76px 120px minmax(140px, 1.6fr) minmax(112px, auto); }
+  .sales-form { --sale-line-cols: 125px minmax(200px, 2.5fr) 76px 98px 72px 110px minmax(130px, 1.4fr) 100px; }
+  .sale-line,
+  .sale-lines-header { min-width: 920px; }
 }

@@ -156,7 +156,7 @@
   <script src="{{ static_url('js/performance-utils.js') }}" defer></script>
   <script src="{{ static_url('js/safe-enhancements.js') }}" defer></script>
   <script src="{{ static_url('vendor/nprogress/nprogress.min.js') }}" defer></script>
-  {% block styles %}{% endblock %}
+  {% block styles %}{% block head_extra %}{% endblock %}{% endblock %}
   {% block extra_head %}{% endblock %}
   {# إعادة طبقة البطاقات بعد CSS الصفحة لتفادي تعارض sales.css / service.css #}
   <link rel="stylesheet" href="{{ static_url('css/erp-theme/kpi-cards-global.css') }}" id="erp-kpi-cards-final">
