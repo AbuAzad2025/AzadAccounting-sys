@@ -1584,6 +1584,12 @@ document.addEventListener('DOMContentLoaded', function() {
         }
       });
     }
+
+    var hash = window.location.hash;
+    if (hash) {
+      var hashLink = document.querySelector('#controlTabs a[href="' + hash + '"]');
+      if (hashLink) { hashLink.click(); }
+    }
 });
 
 </script>

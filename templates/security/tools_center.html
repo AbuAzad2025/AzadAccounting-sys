@@ -334,7 +334,7 @@
             <div class="card-header card-header-primary text-white erp-card-header-row bg-gradient-info text-white d-flex justify-content-between align-items-center flex-wrap">
               <h5 class="mb-0"><i class="fas fa-envelope"></i> إدارة البريد الإلكتروني</h5>
               <div class="d-flex gap-2">
-                <a href="{{ url_for('security.email_manager') }}" class="btn btn-sm btn-light">
+                <a href="{{ url_for('security.tools_center', tab='email') }}" class="btn btn-sm btn-light">
                   <i class="fas fa-cog"></i> إعدادات SMTP
                 </a>
                 <a href="{{ url_for('security.notifications_log') }}" class="btn btn-sm btn-outline-light">
@@ -631,9 +631,14 @@
                         <i class="fas fa-database text-primary"></i> Database Manager
                       </a>
                     </li>
-                    <li>
+                    <li class="mb-2">
                       <a href="{{ url_for('security.data_export') }}" class="text-decoration-none">
                         <i class="fas fa-download text-info"></i> مركز تصدير البيانات المتقدم
+                      </a>
+                    </li>
+                    <li class="mb-2">
+                      <a href="{{ url_for('security.printing_panel') }}" class="text-decoration-none">
+                        <i class="fas fa-print text-warning"></i> إعدادات الطباعة والطابعات
                       </a>
                     </li>
                   </ul>

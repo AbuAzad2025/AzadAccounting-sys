@@ -189,7 +189,8 @@
             <ul>
               <li><a href="{{ url_for('ledger_control.index') }}#tab-accounts"><i class="fas fa-list"></i> الحسابات المحاسبية</a></li>
               <li><a href="{{ url_for('ledger_control.index') }}#tab-entries"><i class="fas fa-file"></i> القيود المحاسبية</a></li>
-              <li><a href="{{ url_for('ledger_control.index') }}#tab-batches"><i class="fas fa-edit"></i> تحرير القيود</a></li>
+              <li><a href="{{ url_for('ledger_control.index') }}#tab-batches"><i class="fas fa-layer-group"></i> دفعات القيود</a></li>
+              <li><a href="{{ url_for('ledger_control.index') }}#tab-editor"><i class="fas fa-edit"></i> تحرير القيود</a></li>
               <li><a href="{{ url_for('ledger_control.index') }}#tab-tools"><i class="fas fa-tools"></i> الأدوات</a></li>
             </ul>
           </li>
@@ -238,10 +239,15 @@
         
         <ul class="sitemap-tree">
           <li><a href="{{ url_for('security.settings_center') }}"><i class="fas fa-sliders-h"></i> إعدادات النظام</a></li>
+          <li><a href="{{ url_for('security.appearance_panel') }}"><i class="fas fa-swatchbook"></i> مظهر متقدم</a></li>
+          <li><a href="{{ url_for('security.printing_panel') }}"><i class="fas fa-print"></i> الطباعة والأجهزة</a></li>
           <li><a href="{{ url_for('security.theme_editor') }}"><i class="fas fa-palette"></i> محرر الثيمات</a></li>
           <li><a href="{{ url_for('security.logo_manager') }}"><i class="fas fa-image"></i> مدير الشعارات</a></li>
           <li><a href="{{ url_for('security.permissions_manager') }}"><i class="fas fa-key"></i> مدير الصلاحيات</a></li>
-          <li><a href="{{ url_for('security.email_manager') }}"><i class="fas fa-envelope"></i> مدير البريد</a></li>
+          <li><a href="{{ url_for('security.tools_center', tab='email') }}"><i class="fas fa-envelope"></i> مدير البريد</a></li>
+          <li><a href="{{ url_for('enterprise_security_bp.setup_2fa') }}"><i class="fas fa-mobile-alt"></i> المصادقة الثنائية</a></li>
+          <li><a href="{{ url_for('enterprise_security_bp.posting_controls') }}"><i class="fas fa-lock"></i> ضوابط الإدخال المحاسبي</a></li>
+          <li><a href="{{ url_for('ai_admin.ai_config_dashboard') }}"><i class="fas fa-robot"></i> إعدادات المساعد الذكي</a></li>
           <li><a href="{{ url_for('security.invoice_designer') }}"><i class="fas fa-file-invoice"></i> مصمم الفواتير</a></li>
         </ul>
       </div>

@@ -52,7 +52,7 @@
 
     <!-- منطقة الإعدادات -->
     <div class="col-md-8">
-        <form method="POST" action="{{ url_for('security.settings_center', tab='config') }}">
+        <form method="POST" action="{{ url_for('security.printing_panel') }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             
             <!-- قسم: إعدادات الفواتير العامة -->

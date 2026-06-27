@@ -297,7 +297,37 @@ def saas_manager():
     from models import SaaSPlan, SaaSSubscription, SaaSInvoice
     from sqlalchemy import func
     from decimal import Decimal
-    
+    import csv
+    import io
+    from flask import Response
+
+    export = request.args.get('export', '').strip()
+    if export == 'invoices':
+        rows = SaaSInvoice.query.order_by(SaaSInvoice.created_at.desc()).all()
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow([
+            'invoice_number', 'subscription_id', 'amount', 'currency',
+            'status', 'due_date', 'paid_at', 'created_at',
+        ])
+        for inv in rows:
+            writer.writerow([
+                inv.invoice_number,
+                inv.subscription_id,
+                float(inv.amount or 0),
+                inv.currency or '',
+                inv.status or '',
+                inv.due_date.strftime('%Y-%m-%d') if inv.due_date else '',
+                inv.paid_at.strftime('%Y-%m-%d') if inv.paid_at else '',
+                inv.created_at.strftime('%Y-%m-%d %H:%M:%S') if inv.created_at else '',
+            ])
+        filename = f'saas_invoices_{datetime.now().strftime("%Y%m%d")}.csv'
+        return Response(
+            '\ufeff' + output.getvalue(),
+            mimetype='text/csv; charset=utf-8',
+            headers={'Content-Disposition': f'attachment; filename={filename}'},
+        )
+
     try:
         plans = SaaSPlan.query.order_by(SaaSPlan.sort_order, SaaSPlan.price_monthly).all()
     except Exception:
@@ -1145,31 +1175,11 @@ def security_center():
     - التنبيهات (Notifications)
     - النشاط (Activity Timeline)
     """
+    allowed_tabs = {'monitoring', 'firewall', 'notifications', 'activity'}
     tab = request.args.get('tab', 'monitoring')
-    
-    try:
-        from models import User
-        active_users = User.query.filter(User.last_seen >= datetime.now(timezone.utc) - timedelta(minutes=30)).count()
-    except Exception:
-        active_users = 0
-    
-    try:
-        failed_login_count = AuditLog.query.filter(
-            AuditLog.action.like('%failed%'),
-            AuditLog.created_at >= datetime.now(timezone.utc) - timedelta(hours=24)
-        ).count()
-    except Exception:
-        failed_login_count = 0
-    
-    security_stats = {
-        'online_users': active_users,
-        'blocked_ips': BlockedIP.query.count() if 'BlockedIP' in dir() else 0,
-        'failed_logins': failed_login_count,
-        'active_sessions': User.query.filter(User.last_seen.isnot(None)).count() if 'User' in dir() else 1,
-        'threats_detected': 0,
-        'patterns_found': 0,
-        'notifications': 0
-    }
+    if tab not in allowed_tabs:
+        flash('⚠️ تبويب غير صالح، تم تحويلك للمراقبة الفورية.', 'warning')
+        return redirect(url_for('security.security_center', tab='monitoring'))
     
     recent_activities = []
     blocked_ips = []
@@ -1180,8 +1190,6 @@ def security_center():
     
     if tab == 'firewall':
         blocked_ips = BlockedIP.query.order_by(BlockedIP.created_at.desc()).limit(50).all() if 'BlockedIP' in dir() else []
-    elif tab == 'patterns':
-        patterns = _detect_suspicious_patterns()
     elif tab == 'activity':
         recent_audit_logs = AuditLog.query.order_by(AuditLog.created_at.desc()).limit(20).all()
     elif tab == 'notifications':
@@ -1202,16 +1210,24 @@ def security_center():
         }
 
     stats = get_cached_security_stats()
+
+    notifications_count = 0
+    try:
+        from models import NotificationLog
+        notifications_count = NotificationLog.query.filter(
+            NotificationLog.created_at >= datetime.now(timezone.utc) - timedelta(hours=24)
+        ).count()
+    except Exception:
+        pass
     
-    # Map stats to security_stats expected format
     security_stats = {
         'online_users': stats.get('online_users', 0),
         'blocked_ips': stats.get('blocked_ips', 0),
         'failed_logins': stats.get('failed_logins_24h', 0),
         'active_sessions': stats.get('active_sessions', 0),
-        'threats_detected': 0,
-        'patterns_found': 0,
-        'notifications': 0
+        'threats_detected': stats.get('failed_logins_24h', 0),
+        'patterns_found': len(patterns),
+        'notifications': notifications_count,
     }
     
     return render_template('security/security_center.html',
@@ -1277,7 +1293,14 @@ def database_manager():
         - Full audit trail
         - CSRF protection
     """
+    allowed_tabs = {
+        'browse', 'edit', 'schema', 'indexes', 'logs', 'sql', 'python',
+        'maintenance', 'restore', 'tools', 'archive',
+    }
     tab = request.args.get('tab', 'browse')
+    if tab not in allowed_tabs:
+        flash('⚠️ تبويب غير صالح، تم تحويلك لتصفح الجداول.', 'warning')
+        return redirect(url_for('security.database_manager', tab='browse'))
     selected_table = request.args.get('table')
     log_type = request.args.get('log_type', 'audit')
 
@@ -1688,6 +1711,9 @@ def users_center():
             return redirect(url_for('security.users_center', tab='users'))
 
     tab = request.args.get('tab', 'users')
+    if tab not in ('users', 'permissions'):
+        flash('⚠️ تبويب غير صالح، تم تحويلك لقسم المستخدمين.', 'warning')
+        return redirect(url_for('security.users_center', tab='users'))
     
     users_data = {
         'total': User.query.count(),
@@ -1793,35 +1819,12 @@ def settings_center():
             if sidebar_text:
                 SystemSettings.set_setting('sidebar_text', sidebar_text)
 
+            _apply_appearance_settings(request.form)
             flash('✅ تم تحديث مظهر وهوية النظام بنجاح', 'success')
 
-        # 2. Handle tab-based bulk updates (from system_settings.html)
-        elif active_tab == 'general':
-            SystemSettings.set_setting('maintenance_mode', request.form.get('maintenance_mode') == 'on', data_type='boolean')
-            SystemSettings.set_setting('registration_enabled', request.form.get('registration_enabled') == 'on', data_type='boolean')
-            SystemSettings.set_setting('api_enabled', request.form.get('api_enabled') == 'on', data_type='boolean')
-            flash('✅ تم حفظ الإعدادات العامة بنجاح', 'success')
-            
-        elif active_tab == 'advanced':
-            SystemSettings.set_setting('SESSION_TIMEOUT', request.form.get('session_timeout'), data_type='integer')
-            SystemSettings.set_setting('MAX_LOGIN_ATTEMPTS', request.form.get('max_login_attempts'), data_type='integer')
-            SystemSettings.set_setting('PASSWORD_MIN_LENGTH', request.form.get('password_min_length'), data_type='integer')
-            
-            SystemSettings.set_setting('AUTO_BACKUP_ENABLED', request.form.get('auto_backup_enabled') == 'on', data_type='boolean')
-            SystemSettings.set_setting('BACKUP_INTERVAL_HOURS', request.form.get('backup_interval_hours'), data_type='integer')
-            
-            SystemSettings.set_setting('ENABLE_EMAIL_NOTIFICATIONS', request.form.get('enable_email_notifications') == 'on', data_type='boolean')
-            SystemSettings.set_setting('ENABLE_SMS_NOTIFICATIONS', request.form.get('enable_sms_notifications') == 'on', data_type='boolean')
-            flash('✅ تم حفظ التكوينات المتقدمة بنجاح', 'success')
-            
-        elif active_tab == 'company':
-            SystemSettings.set_setting('COMPANY_ADDRESS', request.form.get('company_address'))
-            SystemSettings.set_setting('COMPANY_PHONE', request.form.get('company_phone'))
-            SystemSettings.set_setting('COMPANY_EMAIL', request.form.get('company_email'))
-            SystemSettings.set_setting('TAX_NUMBER', request.form.get('tax_number'))
-            SystemSettings.set_setting('CURRENCY_SYMBOL', request.form.get('currency_symbol'))
-            SystemSettings.set_setting('TIMEZONE', request.form.get('timezone'))
-            flash('✅ تم حفظ بيانات الشركة بنجاح', 'success')
+        elif action == 'update_printing':
+            _apply_printing_settings(request.form)
+            flash('✅ تم حفظ إعدادات الطباعة والأجهزة بنجاح', 'success')
 
         elif action == 'repair_user_branch_links':
             from services.user_branch_service import repair_missing_user_branch_links
@@ -1852,7 +1855,14 @@ def settings_center():
             db.session.rollback()
             current_app.logger.exception('commit error')
             flash('حدث خطأ أثناء الحفظ', 'danger')
-        return redirect(url_for('security.settings_center', tab=tab))
+        redirect_tab = tab
+        if active_tab in allowed_tabs:
+            redirect_tab = active_tab
+        elif action == 'update_branding':
+            redirect_tab = 'branding'
+        elif action == 'update_printing':
+            redirect_tab = 'config'
+        return redirect(url_for('security.settings_center', tab=redirect_tab))
     
     settings_list = SystemSettings.query.order_by(SystemSettings.key).limit(50).all()
     
@@ -2448,9 +2458,8 @@ def permissions_manager():
 @security_bp.route('/email-manager', methods=['GET', 'POST'])
 @permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
 def email_manager():
-    """إدارة البريد - SMTP + قوالب (Deprecated -> Integrations)"""
-    flash('ℹ️ تم نقل إعدادات البريد إلى صفحة التكاملات الموحدة.', 'info')
-    return redirect(url_for('security.integrations'))
+    """إدارة البريد — أُعيد توجيهه إلى مركز الأدوات (تبويب البريد)."""
+    return redirect(url_for('security.tools_center', tab='email'))
 
 
 @security_bp.route('/invoice-designer', methods=['GET', 'POST'])
@@ -3034,6 +3043,88 @@ def _save_setting(key, value):
     """حفظ إعداد في SystemSettings"""
     # Use the model method for consistency and cache clearing
     SystemSettings.set_setting(key, value, commit=False)
+
+
+def _load_appearance_settings():
+    return {
+        'primary_color': _get_setting('primary_color', '#4e73df'),
+        'sidebar_bg': _get_setting('sidebar_bg', '#224abe'),
+        'success_color': _get_setting('success_color', '#1cc88a'),
+        'danger_color': _get_setting('danger_color', '#e74a3b'),
+        'font_family': _get_setting('font_family', "'Tajawal', sans-serif"),
+        'default_language': _get_setting('default_language', 'ar'),
+    }
+
+
+def _apply_appearance_settings(form):
+    color_fields = (
+        'primary_color', 'secondary_color', 'sidebar_bg', 'sidebar_text',
+        'success_color', 'danger_color',
+    )
+    for field in color_fields:
+        value = (form.get(field) or '').strip()
+        if value:
+            SystemSettings.set_setting(field, value)
+    font_family = (form.get('font_family') or '').strip()
+    if font_family:
+        SystemSettings.set_setting('font_family', font_family)
+    default_language = (form.get('default_language') or '').strip()
+    if default_language in ('ar', 'en'):
+        SystemSettings.set_setting('default_language', default_language)
+    for text_key in ('system_name', 'company_name', 'login_title', 'login_subtitle', 'footer_text'):
+        value = (form.get(text_key) or '').strip()
+        if value:
+            SystemSettings.set_setting(text_key, value)
+
+
+def _printing_bool(key, default=False):
+    value = _get_setting(key, default)
+    if isinstance(value, bool):
+        return value
+    return str(value or '').lower() in ('true', '1', 'on', 'yes')
+
+
+def _load_printing_settings():
+    try:
+        logo_height = int(_get_setting('invoice_logo_height', 120) or 120)
+    except (TypeError, ValueError):
+        logo_height = 120
+    return {
+        'invoice_logo_visibility': _get_setting('invoice_logo_visibility', 'show'),
+        'invoice_logo_height': logo_height,
+        'invoice_show_qr': _printing_bool('invoice_show_qr', True),
+        'invoice_show_barcode': _printing_bool('invoice_show_barcode', False),
+        'invoice_footer_text': _get_setting('invoice_footer_text', '') or '',
+        'thermal_paper_size': _get_setting('thermal_paper_size', '80mm'),
+        'thermal_font_size': _get_setting('thermal_font_size', 'normal'),
+        'thermal_auto_print': _printing_bool('thermal_auto_print', False),
+        'thermal_show_sku': _printing_bool('thermal_show_sku', False),
+        'barcode_label_size': _get_setting('barcode_label_size', '50x25'),
+        'barcode_show_price': _printing_bool('barcode_show_price', True),
+        'barcode_show_name': _printing_bool('barcode_show_name', True),
+    }
+
+
+def _apply_printing_settings(form):
+    visibility = (form.get('invoice_logo_visibility') or 'show').strip()
+    if visibility in ('show', 'hide'):
+        SystemSettings.set_setting('invoice_logo_visibility', visibility)
+    try:
+        height = int(form.get('invoice_logo_height') or 120)
+        SystemSettings.set_setting('invoice_logo_height', str(max(50, min(300, height))))
+    except (TypeError, ValueError):
+        pass
+    for key in (
+        'invoice_show_qr', 'invoice_show_barcode', 'thermal_auto_print',
+        'thermal_show_sku', 'barcode_show_price', 'barcode_show_name',
+    ):
+        SystemSettings.set_setting(key, form.get(key) == 'true', data_type='boolean')
+    if form.get('invoice_footer_text') is not None:
+        SystemSettings.set_setting('invoice_footer_text', form.get('invoice_footer_text', ''))
+    for key in ('thermal_paper_size', 'thermal_font_size', 'barcode_label_size'):
+        value = (form.get(key) or '').strip()
+        if value:
+            SystemSettings.set_setting(key, value)
 
 
 def _test_stripe():
@@ -4935,6 +5026,48 @@ def system_branding():
 
 
 
+
+
+@security_bp.route('/appearance-panel', methods=['GET', 'POST'])
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
+def appearance_panel():
+    """مظهر النظام المتقدم — ألوان، خطوط، لغة، معاينة حية."""
+    if request.method == 'POST':
+        _apply_appearance_settings(request.form)
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            current_app.logger.exception('appearance_panel save failed')
+            flash('حدث خطأ أثناء الحفظ', 'danger')
+            return redirect(url_for('security.appearance_panel'))
+        flash('✅ تم حفظ إعدادات المظهر بنجاح', 'success')
+        return redirect(url_for('security.appearance_panel'))
+    return render_template(
+        'security/appearance_panel.html',
+        appearance=_load_appearance_settings(),
+    )
+
+
+@security_bp.route('/printing-panel', methods=['GET', 'POST'])
+@permission_required(SystemPermissions.ACCESS_OWNER_DASHBOARD)
+def printing_panel():
+    """إعدادات الطباعة — فواتير A4، طابعات حرارية، ملصقات باركود."""
+    if request.method == 'POST':
+        _apply_printing_settings(request.form)
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            current_app.logger.exception('printing_panel save failed')
+            flash('حدث خطأ أثناء الحفظ', 'danger')
+            return redirect(url_for('security.printing_panel'))
+        flash('✅ تم حفظ إعدادات الطباعة بنجاح', 'success')
+        return redirect(url_for('security.printing_panel'))
+    return render_template(
+        'security/printing_panel.html',
+        settings=_load_printing_settings(),
+    )
 
 
 @security_bp.route('/db-editor/add-column/<table_name>', methods=['POST'])
@@ -7204,18 +7337,19 @@ def sitemap():
     """
     sitemap_data = {
         'centers': [
-            {'name': 'مدير قاعدة البيانات', 'url': 'security.database_manager', 'tabs': 0},
+            {'name': 'مدير قاعدة البيانات', 'url': 'security.database_manager', 'tabs': 11},
             {'name': 'مركز المستخدمين', 'url': 'security.users_center', 'tabs': 2},
             {'name': 'مركز العمليات', 'url': 'security.settings_center', 'tabs': 8},
             {'name': 'مركز التقارير', 'url': 'security.reports_center', 'tabs': 3},
             {'name': 'مركز الأدوات', 'url': 'security.tools_center', 'tabs': 4},
             {'name': 'مركز الأمان', 'url': 'security.security_center', 'tabs': 4},
+            {'name': 'مراقبة الدفاتر', 'url': 'ledger_control.index', 'tabs': 6},
         ],
         'total_routes': len([
             r for r in current_app.url_map.iter_rules()
             if r.endpoint and r.endpoint.startswith('security.')
         ]),
-        'total_tabs': 8 + 3 + 4 + 4 + 2,
+        'total_tabs': 11 + 2 + 8 + 3 + 4 + 4 + 6,
     }
     return render_template('security/sitemap.html', sitemap_data=sitemap_data)
 
