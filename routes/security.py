@@ -822,7 +822,7 @@ def index():
     
     مع Caching للإحصائيات (5 دقائق)
     """
-    return render_template('security/index.html', stats=get_cached_security_stats(), recent=get_recent_suspicious_activities())
+    return render_template('security/index.html', stats=get_cached_security_stats(), recent=get_recent_audit_events())
 
 
 @security_bp.route('/index-old')
@@ -2977,7 +2977,7 @@ def get_cached_security_stats():
         # 🔄 إحصائيات ديناميكية
         'total_services': total_tables,
         'system_version': system_version,
-        'total_modules': f'{total_tables}+',
+        'total_modules': total_tables,
         'total_apis': total_apis,
         'total_indexes': total_indexes,
         'total_relations': total_relations
@@ -2991,23 +2991,32 @@ def inject_security_stats():
     }
 
 
-@cache.memoize(timeout=300)  # 5 دقائق
-def get_recent_suspicious_activities():
-    """
-    📋 جلب آخر الأنشطة المشبوهة مع Caching
-    """
-    from datetime import datetime, timedelta, timezone
-    from models import AuthAudit, AuthEvent
-    
-    day_ago = datetime.now(timezone.utc) - timedelta(hours=24)
-    
+@cache.memoize(timeout=120)
+def get_recent_audit_events():
+    """آخر أحداث سجل التدقيق (جميع الأنواع)."""
     try:
-        return AuthAudit.query.filter(
-            AuthAudit.event == AuthEvent.LOGIN_FAIL.value,
-            AuthAudit.created_at >= day_ago
-        ).order_by(AuthAudit.created_at.desc()).limit(10).all()
+        from models import AuthAudit
+        return AuthAudit.query.order_by(AuthAudit.created_at.desc()).limit(10).all()
     except Exception:
         return []
+
+
+AUTH_EVENT_LABELS = {
+    'LOGIN_SUCCESS': 'دخول ناجح',
+    'LOGIN_FAIL': 'فشل دخول',
+    'PASSWORD_SET': 'تعيين كلمة مرور',
+    'PASSWORD_CHANGE': 'تغيير كلمة مرور',
+    'USER_ACTIVATE': 'تفعيل مستخدم',
+    'USER_DEACTIVATE': 'تعطيل مستخدم',
+    'ROLE_CHANGE': 'تغيير دور',
+    'PERM_GRANT': 'منح صلاحية',
+    'PERM_REVOKE': 'سحب صلاحية',
+}
+
+
+@security_bp.app_context_processor
+def inject_auth_event_labels():
+    return {'auth_event_labels': AUTH_EVENT_LABELS}
 
 
 def _get_setting(key, default=None):
@@ -7171,10 +7180,12 @@ def help_page():
     - حل المشاكل
     """
     help_data = {
-        'total_centers': 7,
-        'total_features': 41,
-        'total_routes': 97,
-        'version': '5.0.0'
+        'total_centers': 6,
+        'total_routes': len([
+            r for r in current_app.url_map.iter_rules()
+            if r.endpoint and r.endpoint.startswith('security.')
+        ]),
+        'version': str(SystemSettings.get_setting('system_version', '1.0.0') or '1.0.0').strip(),
     }
     return render_template('security/help.html', help_data=help_data)
 
@@ -7193,16 +7204,18 @@ def sitemap():
     """
     sitemap_data = {
         'centers': [
-            {'name': 'Database Control Center', 'url': 'security.database_manager', 'tabs': 11},
-            {'name': 'Users & Permissions Center', 'url': 'security.users_center', 'tabs': 2},
-            {'name': 'Settings & Customization Center', 'url': 'security.settings_center', 'tabs': 8},
-            {'name': 'Reports & Performance Center', 'url': 'security.reports_center', 'tabs': 4},
-            {'name': 'Tools & Integration Center', 'url': 'security.tools_center', 'tabs': 5},
-            {'name': 'Security & Monitoring Center', 'url': 'security.security_center', 'tabs': 4},
-            {'name': 'Ledger Control', 'url': 'ledger_control.index', 'tabs': 0},
+            {'name': 'مدير قاعدة البيانات', 'url': 'security.database_manager', 'tabs': 0},
+            {'name': 'مركز المستخدمين', 'url': 'security.users_center', 'tabs': 2},
+            {'name': 'مركز العمليات', 'url': 'security.settings_center', 'tabs': 8},
+            {'name': 'مركز التقارير', 'url': 'security.reports_center', 'tabs': 3},
+            {'name': 'مركز الأدوات', 'url': 'security.tools_center', 'tabs': 4},
+            {'name': 'مركز الأمان', 'url': 'security.security_center', 'tabs': 4},
         ],
-        'total_routes': 97,
-        'total_tabs': 34
+        'total_routes': len([
+            r for r in current_app.url_map.iter_rules()
+            if r.endpoint and r.endpoint.startswith('security.')
+        ]),
+        'total_tabs': 8 + 3 + 4 + 4 + 2,
     }
     return render_template('security/sitemap.html', sitemap_data=sitemap_data)
 
@@ -8204,11 +8217,13 @@ def api_chart_data():
         total_users = User.query.filter_by(is_active=True).count()
         blocked_users = User.query.filter_by(is_active=False).count()
 
+        ar_weekdays = ['إث', 'ث', 'أر', 'خ', 'ج', 'س', 'ح']
+
         for i in range(6, -1, -1):
             day = now - timedelta(days=i)
             day_start = day.replace(hour=0, minute=0, second=0, microsecond=0)
             day_end = day.replace(hour=23, minute=59, second=59, microsecond=999999)
-            days_labels.append(day.strftime('%a'))
+            days_labels.append(ar_weekdays[day.weekday()])
 
             failed = AuthAudit.query.filter(
                 AuthAudit.event == AuthEvent.LOGIN_FAIL.value,
@@ -8230,7 +8245,7 @@ def api_chart_data():
             'active_users': active_users_data,
             'failed_logins': failed_logins_data,
             'activity': activity_data,
-            'total_users': total_users,
+            'active_users_total': total_users,
             'blocked_users': blocked_users
         })
     except Exception as e:

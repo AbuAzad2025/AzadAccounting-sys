@@ -117,9 +117,25 @@ body.security-body {
 .security-main {
   margin-right: var(--sidebar-width);
   min-height: 100vh;
+  height: 100vh;
   transition: margin-right 0.3s ease-in-out;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+}
+
+.security-main__scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.security-footer-unified {
+  flex-shrink: 0;
+  margin-top: auto;
+  width: 100%;
 }
 
 .security-main.expanded {
@@ -128,6 +144,8 @@ body.security-body {
 
 .security-header {
   height: var(--header-height);
+  min-height: var(--header-height);
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -135,12 +153,27 @@ body.security-body {
   position: sticky;
   top: 0;
   z-index: 1030;
-  gap: 0.5rem;
-  flex-wrap: wrap;
+  gap: 0.75rem;
+  flex-wrap: nowrap;
+}
+
+.security-header > div:first-child {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.security-header > div:last-child {
+  flex: 0 0 auto;
+  max-width: 100%;
+}
+
+.security-header__actions {
+  flex-wrap: nowrap;
 }
 
 .security-wrapper {
-  min-height: 100vh;
+  min-height: 100%;
+  height: 100%;
 }
 
 .dropdown-menu-end {
@@ -159,6 +192,20 @@ body.security-body {
 
   .security-main {
     margin-right: 0 !important;
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  .security-header {
+    flex-wrap: wrap;
+    height: auto;
+    min-height: var(--header-height);
+    padding: 0.5rem 0.75rem;
+  }
+
+  .security-header__actions {
+    flex-wrap: wrap;
+    justify-content: flex-start !important;
   }
 }
 

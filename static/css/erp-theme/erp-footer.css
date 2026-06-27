@@ -5,12 +5,7 @@
   --erp-footer-height: 72px;
 }
 
-body.erp-app:not(.security-body) .main-footer.erp-footer {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 1018;
+body.erp-app .main-footer.erp-footer {
   margin: 0 !important;
   float: none;
   padding: 0;
@@ -27,7 +22,15 @@ body.erp-app:not(.security-body) .main-footer.erp-footer {
   color: rgba(255, 255, 255, 0.95);
 }
 
-body.erp-app:not(.security-body) .erp-footer__inner {
+body.erp-app:not(.security-body) .main-footer.erp-footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 1018;
+}
+
+body.erp-app .erp-footer__inner {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -38,7 +41,7 @@ body.erp-app:not(.security-body) .erp-footer__inner {
   font-family: var(--erp-font);
 }
 
-body.erp-app:not(.security-body) .erp-footer__brand-row {
+body.erp-app .erp-footer__brand-row {
   display: inline-flex;
   align-items: center;
   gap: 0.65rem;
@@ -46,7 +49,7 @@ body.erp-app:not(.security-body) .erp-footer__brand-row {
   flex: 0 1 auto;
 }
 
-body.erp-app:not(.security-body) .erp-footer__azad-logo {
+body.erp-app .erp-footer__azad-logo {
   max-height: 36px;
   width: auto;
   max-width: 120px;
@@ -54,7 +57,7 @@ body.erp-app:not(.security-body) .erp-footer__azad-logo {
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.25));
 }
 
-body.erp-app:not(.security-body) .erp-footer__azad-name {
+body.erp-app .erp-footer__azad-name {
   font-weight: 800;
   font-size: 0.92rem;
   letter-spacing: 0.01em;
@@ -65,7 +68,7 @@ body.erp-app:not(.security-body) .erp-footer__azad-name {
   max-width: min(240px, 28vw);
 }
 
-body.erp-app:not(.security-body) .erp-footer__dev {
+body.erp-app .erp-footer__dev {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -76,18 +79,18 @@ body.erp-app:not(.security-body) .erp-footer__dev {
   text-align: center;
 }
 
-body.erp-app:not(.security-body) .erp-footer__dev-text {
+body.erp-app .erp-footer__dev-text {
   font-size: 0.84rem;
   color: rgba(255, 255, 255, 0.92);
   line-height: 1.45;
 }
 
-body.erp-app:not(.security-body) .erp-footer__dev-text strong {
+body.erp-app .erp-footer__dev-text strong {
   font-weight: 800;
   color: #fff;
 }
 
-body.erp-app:not(.security-body) .erp-footer__dev-actions {
+body.erp-app .erp-footer__dev-actions {
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
@@ -95,7 +98,7 @@ body.erp-app:not(.security-body) .erp-footer__dev-actions {
   gap: 0.4rem;
 }
 
-body.erp-app:not(.security-body) .erp-footer__contact {
+body.erp-app .erp-footer__contact {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
@@ -110,21 +113,21 @@ body.erp-app:not(.security-body) .erp-footer__contact {
   transition: background 0.15s ease, transform 0.15s ease;
 }
 
-body.erp-app:not(.security-body) .erp-footer__contact:hover {
+body.erp-app .erp-footer__contact:hover {
   background: rgba(255, 255, 255, 0.2);
   transform: translateY(-1px);
 }
 
-body.erp-app:not(.security-body) .erp-footer__contact--wa {
+body.erp-app .erp-footer__contact--wa {
   background: rgba(37, 211, 102, 0.22);
   border-color: rgba(37, 211, 102, 0.45);
 }
 
-body.erp-app:not(.security-body) .erp-footer__contact--wa:hover {
+body.erp-app .erp-footer__contact--wa:hover {
   background: rgba(37, 211, 102, 0.35);
 }
 
-body.erp-app:not(.security-body) .erp-footer__meta {
+body.erp-app .erp-footer__meta {
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
@@ -138,7 +141,7 @@ body.erp-app:not(.security-body) .erp-footer__meta {
   border: none;
 }
 
-body.erp-app:not(.security-body) .erp-footer__version {
+body.erp-app .erp-footer__version {
   opacity: 0.85;
 }
 
@@ -185,19 +188,19 @@ body.erp-app:not(.security-body).layout-navbar-fixed .content-wrapper {
     ) !important;
   }
 
-  body.erp-app:not(.security-body) .erp-footer__inner {
+  body.erp-app .erp-footer__inner {
     flex-direction: column;
     align-items: center;
     text-align: center;
     padding: 0.5rem 0.75rem;
   }
 
-  body.erp-app:not(.security-body) .erp-footer__azad-name {
+  body.erp-app .erp-footer__azad-name {
     max-width: 100%;
     white-space: normal;
   }
 
-  body.erp-app:not(.security-body) .erp-footer__meta {
+  body.erp-app .erp-footer__meta {
     justify-content: center;
   }
 }

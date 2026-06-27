@@ -16,9 +16,6 @@
             <div>
                 <h5>{{ system_settings.tenant_company_name or system_settings.system_name or 'إدارة النظام' }}</h5>
                 <span class="brand-badge">لوحة الأمان والإعدادات</span>
-                {% if system_settings and system_settings.maintenance_mode %}
-                <div class="mt-1"><span class="badge badge-danger">وضع الصيانة مفعّل</span></div>
-                {% endif %}
             </div>
         </div>
         
@@ -113,7 +110,7 @@
                             </a>
                         {% endif %}
                         <a href="{{ url_for('security.saas_manager') }}" class="nav-link {% if ep == 'security.saas_manager' %}active{% endif %}">
-                            <i class="fas fa-money-check-alt"></i> <span>SaaS Manager</span>
+                            <i class="fas fa-money-check-alt"></i> <span>إدارة SaaS</span>
                         </a>
                     </div>
                 </div>
@@ -163,11 +160,11 @@
                         </a>
                         {% if current_app and ('ledger_control.index' in current_app.view_functions) %}
                             <a href="{{ url_for('ledger_control.index') }}" class="nav-link {% if ep.startswith('ledger_control.') %}active{% endif %}">
-                                <i class="fas fa-book"></i> <span>Ledger Control</span>
+                                <i class="fas fa-book"></i> <span>مراقبة الدفاتر</span>
                             </a>
                         {% endif %}
                         <a href="{{ url_for('security.advanced_analytics') }}" class="nav-link {% if ep == 'security.advanced_analytics' %}active{% endif %}">
-                            <i class="fas fa-chart-pie"></i> <span>Advanced Analytics</span>
+                            <i class="fas fa-chart-pie"></i> <span>تحليلات متقدمة</span>
                         </a>
                         <a href="{{ url_for('security.dark_mode_settings') }}" class="nav-link {% if ep == 'security.dark_mode_settings' %}active{% endif %}">
                             <i class="fas fa-moon"></i> <span>إعدادات الوضع الداكن</span>
@@ -202,7 +199,7 @@
                             <i class="fas fa-flag"></i> <span>دول محظورة</span>
                         </a>
                         <a href="{{ url_for('security.ultimate_control') }}" class="nav-link danger-link {% if ep == 'security.ultimate_control' %}active{% endif %}">
-                            <i class="fas fa-skull-crossbones"></i> <span>Ultimate Control</span>
+                            <i class="fas fa-skull-crossbones"></i> <span>تحكم شامل</span>
                         </a>
                     </div>
                 </div>
@@ -216,7 +213,7 @@
         </div>
     </aside>
     <main class="security-main" id="securityMain">
-        <header class="security-header d-flex align-items-center justify-content-between px-4">
+        <header class="security-header d-flex align-items-center justify-content-between">
             <!-- Right Side: Sidebar Toggle & Breadcrumb -->
             <div class="d-flex align-items-center gap-3">
                 <button class="btn btn-glass btn-sm border-0" id="sidebarToggle" title="إظهار/إخفاء القائمة">
@@ -236,7 +233,7 @@
             </div>
 
             <!-- Left Side: Theme, Actions, User -->
-            <div class="d-flex align-items-center gap-2 flex-wrap justify-content-end">
+            <div class="d-flex align-items-center gap-2 justify-content-end security-header__actions">
                 <div class="dropdown d-none d-md-block">
                     <button class="btn btn-glass btn-sm" data-toggle="dropdown" title="الستايل"><i class="fas fa-palette"></i></button>
                     <div class="dropdown-menu dropdown-menu-left p-2 erp-theme-switcher" style="min-width: 220px;">
@@ -262,9 +259,7 @@
                 <div class="vr h-50 my-auto mx-1 sec-header-divider"></div>
                 
                 {% if system_settings and system_settings.maintenance_mode %}
-                    <a href="{{ url_for('security.emergency_tools') }}" class="badge badge-danger text-decoration-none">
-                        وضع الصيانة مفعّل
-                    </a>
+                    <a href="{{ url_for('security.emergency_tools') }}" class="badge bg-danger text-decoration-none">وضع الصيانة</a>
                 {% endif %}
 
                 {% block security_actions %}{% endblock %}
@@ -293,6 +288,7 @@
                 </div>
             </div>
         </header>
+        <div class="security-main__scroll">
         <div class="p-4">
             <div class="mb-4 d-flex align-items-end justify-content-between animate-fade-in">
                 <div>
@@ -315,6 +311,7 @@
                 {% endif %}
             {% endwith %}
             {% block security_content %}{% endblock %}
+        </div>
         </div>
         <div class="security-footer-unified">
           {% include 'partials/footer.html' %}

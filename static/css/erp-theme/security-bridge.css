@@ -1,5 +1,5 @@
 /**
- * وحدة الأمان — نفس tokens
+ * وحدة الأمان — tokens فقط (التفاصيل في erp-security.css)
  */
 body.security-body.erp-app {
   background: var(--erp-bg) !important;
@@ -10,32 +10,9 @@ body.security-body.erp-app .security-sidebar {
   background: var(--erp-sidebar-bg) !important;
 }
 
-body.security-body.erp-app .security-header {
-  background: var(--erp-surface) !important;
-  border-bottom: 1px solid var(--erp-border);
-}
-
-body.security-body.erp-app .sec-card,
-body.security-body.erp-app .card:not([class*="bg-"]) {
-  background: var(--erp-surface) !important;
-  border: 1px solid var(--erp-border) !important;
-  color: var(--erp-text) !important;
-}
-
 body.security-body.erp-app .security-sidebar .nav-link.active {
   background: var(--erp-sidebar-active) !important;
   color: #fff !important;
-}
-
-body.security-body.erp-app .btn-glass {
-  border: 1px solid color-mix(in srgb, var(--erp-primary) 35%, transparent);
-  color: var(--erp-primary);
-  background: color-mix(in srgb, var(--erp-primary) 8%, var(--erp-surface));
-}
-
-body.security-body.erp-app .btn-glass:hover {
-  background: color-mix(in srgb, var(--erp-primary) 16%, var(--erp-surface));
-  color: var(--erp-primary-dark);
 }
 
 body.security-body.erp-app .badge.bg-primary,

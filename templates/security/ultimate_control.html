@@ -1,9 +1,9 @@
 {% extends 'security/base_security.html' %}
 {% block tour_name %}ultimate_control{% endblock %}
-{% block security_title %}Ultimate Control{% endblock %}
+{% block security_title %}التحكم الشامل{% endblock %}
 {% block security_icon %}<i class="fas fa-crown"></i>{% endblock %}
 {% block security_description %}قيادة موحدة للمالك{% endblock %}
-{% block security_breadcrumb %}<li class="breadcrumb-item active">Ultimate Control</li>{% endblock %}
+{% block security_breadcrumb %}<li class="breadcrumb-item active">التحكم الشامل</li>{% endblock %}
 {% block security_content %}
   
   {% if session.get('impersonating') %}
@@ -24,7 +24,7 @@
   {% endif %}
 
   <div class="alert alert-danger border-0 shadow-sm">
-    <i class="fas fa-crown"></i> <strong>صلاحيات خارقة:</strong> أنت المالك (__OWNER__) - لديك سيطرة كاملة!
+    <i class="fas fa-crown"></i> <strong>صلاحيات خارقة:</strong> أنت المالك ({{ current_user.display_name or current_user.username }}) — سيطرة كاملة على النظام.
     <div class="mt-2">
       <span class="badge bg-light text-dark">7 مراكز موحدة</span>
       <span class="badge bg-light text-dark">41 وظيفة مدمجة</span>

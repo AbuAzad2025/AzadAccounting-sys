@@ -2,32 +2,20 @@
 
 {% block tour_name %}help{% endblock %}
 
-{% block security_title %}Help Center{% endblock %}
+{% block security_title %}مركز المساعدة{% endblock %}
 {% block security_icon %}<i class="fas fa-question-circle"></i>{% endblock %}
 {% block security_description %}دليل وحدة الأمان{% endblock %}
 
 {% block security_breadcrumb %}
-<li class="breadcrumb-item active">Help Center</li>
+<li class="breadcrumb-item active">مركز المساعدة</li>
 {% endblock %}
 
 {% block styles %}
 {% endblock %}
 
-{% block content %}
+{% block security_content %}
 <div class="container-fluid">
  
-  <!-- عنوان رئيسي -->
-  <div class="alert erp-advanced-nav border-0 shadow-sm mb-4">
-    <div class="d-flex justify-content-between align-items-center">
-      <div>
-        <i class="fas fa-question-circle"></i>
-        <strong>مركز المساعدة:</strong>
-        <span class="badge bg-white text-primary ms-2">دليل شامل للوحدة السرية</span>
-      </div>
-      <small class="opacity-75">7 مراكز • 38 تبويب • 121 وظيفة</small>
-    </div>
-  </div>
-  
   <!-- بحث في المساعدة -->
   <div class="mb-4">
     <div class="input-group">
@@ -64,33 +52,27 @@
       <div class="help-section" id="overview">
         <h4><i class="fas fa-info-circle"></i> نظرة عامة</h4>
         <p>
-          <strong>الوحدة السرية</strong> هي مركز التحكم الكامل للنظام، مخصصة للمالك (__OWNER__) فقط.
-          تحتوي على 7 مراكز موحدة + أدوات إضافية لإدارة كل جوانب النظام.
+          <strong>لوحة المالك</strong> مركز التحكم الكامل للنظام، مخصصة للمالك ومدير النظام.
+          تحتوي على مراكز موحّدة وأدوات لإدارة الأمان والإعدادات والبيانات.
         </p>
         
         <div class="row g-3 mt-3">
           <div class="col-md-4">
-            <div class="card text-center border-primary">
-              <div class="card-body">
-                <h2 class="text-primary mb-0">7</h2>
-                <small>مراكز موحدة</small>
-              </div>
+            <div class="erp-sec-stat">
+              <span class="erp-sec-stat__value">{{ help_data.total_centers }}</span>
+              <span class="erp-sec-stat__label">مراكز رئيسية</span>
             </div>
           </div>
           <div class="col-md-4">
-            <div class="card text-center border-success">
-              <div class="card-body">
-                <h2 class="text-success mb-0">38</h2>
-                <small>تبويب</small>
-              </div>
+            <div class="erp-sec-stat">
+              <span class="erp-sec-stat__value">{{ help_data.total_routes }}</span>
+              <span class="erp-sec-stat__label">مسار في لوحة الأمان</span>
             </div>
           </div>
           <div class="col-md-4">
-            <div class="card text-center border-info">
-              <div class="card-body">
-                <h2 class="text-info mb-0">121</h2>
-                <small>وظيفة</small>
-              </div>
+            <div class="erp-sec-stat">
+              <span class="erp-sec-stat__value">{{ help_data.version }}</span>
+              <span class="erp-sec-stat__label">إصدار التطبيق</span>
             </div>
           </div>
         </div>

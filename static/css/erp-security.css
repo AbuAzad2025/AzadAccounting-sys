@@ -46,6 +46,9 @@ body.security-body.erp-app .security-sidebar {
 
 body.security-body.erp-app .security-main {
   min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
+  background: var(--erp-bg, #f5f7fb);
 }
 
 body.security-body.erp-app .security-header {
@@ -179,14 +182,6 @@ body.security-body.erp-app .security-header .erp-header-user-role {
   color: var(--erp-muted) !important;
 }
 
-body.security-body.erp-app .security-header .erp-header-user-name {
-  color: var(--erp-text) !important;
-}
-
-body.security-body.erp-app .security-header .erp-header-user-role {
-  color: var(--erp-muted) !important;
-}
-
 body.security-body.erp-app .security-header .dropdown-menu {
   background: var(--erp-surface) !important;
   border: 1px solid var(--erp-border) !important;
@@ -221,9 +216,9 @@ body.security-body.erp-app .security-brand h5 {
 }
 
 body.security-body.erp-app .security-brand .brand-badge {
-  background: rgba(34, 197, 94, 0.2);
-  color: #bbf7d0;
-  border-color: rgba(34, 197, 94, 0.35);
+  background: rgba(34, 197, 94, 0.25);
+  color: #fff;
+  border: 1px solid rgba(34, 197, 94, 0.45);
   font-size: 0.7rem;
   letter-spacing: 0;
 }
@@ -523,12 +518,6 @@ body.security-body.erp-app .timeline-item .text-white {
   color: var(--erp-text, #1f2937) !important;
 }
 
-body.security-body.erp-app footer {
-  background: #fff !important;
-  border-top: 1px solid var(--erp-border, #e5e7eb) !important;
-  color: var(--erp-muted, #6b7280) !important;
-}
-
 body.security-body.erp-app .alert {
   background: #fff !important;
   color: var(--erp-text, #1f2937) !important;
@@ -620,19 +609,6 @@ body.security-body.erp-app .card:not([class*="bg-"]) .card-text {
   color: var(--erp-text, #1f2937) !important;
 }
 
-body.security-body.erp-app .btn-glass {
-  background: #fff !important;
-  border: 1px solid var(--erp-border, #e5e7eb) !important;
-  color: var(--erp-navy, #062a5a) !important;
-}
-
-body.security-body.erp-app .btn-glass:hover {
-  background: var(--erp-blue, #0b68ff) !important;
-  border-color: var(--erp-blue, #0b68ff) !important;
-  color: #fff !important;
-  box-shadow: none !important;
-}
-
 body.security-body.erp-app .modal-content {
   background: #fff !important;
   color: var(--erp-text, #1f2937) !important;
@@ -648,16 +624,6 @@ body.security-body.erp-app .modal-footer {
 body.security-body.erp-app .modal .form-control {
   background: #fff !important;
   border: 1px solid var(--erp-border, #e5e7eb) !important;
-  color: var(--erp-text, #1f2937) !important;
-}
-
-body.security-body.erp-app .sec-card {
-  background: #fff !important;
-  border: 1px solid var(--erp-border, #e5e7eb) !important;
-  color: var(--erp-text, #1f2937) !important;
-}
-
-body.security-body.erp-app .sec-card-body {
   color: var(--erp-text, #1f2937) !important;
 }
 
@@ -702,3 +668,205 @@ body.security-body.erp-app .security-sidebar .sec-nav-section .collapsing {
   padding: 0 !important;
   margin: 0 !important;
 }
+
+/* ── لوحة التحكم (index) ── */
+body.security-body.erp-app .erp-sec-kpi-card {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1rem 1.1rem;
+  min-height: 132px;
+  background: var(--erp-surface, #fff);
+  border: 1px solid var(--erp-border, #e5e7eb);
+  border-radius: var(--erp-radius-lg, 16px);
+  box-shadow: var(--erp-shadow-sm);
+  overflow: hidden;
+}
+
+body.security-body.erp-app .erp-sec-kpi-card::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--erp-primary);
+}
+
+body.security-body.erp-app .erp-sec-kpi-card--success::before { background: var(--erp-success, #22c55e); }
+body.security-body.erp-app .erp-sec-kpi-card--danger::before { background: var(--erp-danger, #ef4444); }
+body.security-body.erp-app .erp-sec-kpi-card--warning::before { background: var(--erp-warning, #f59e0b); }
+
+body.security-body.erp-app .erp-sec-kpi-card__body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+body.security-body.erp-app .erp-sec-kpi-card__value {
+  font-size: 1.75rem;
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--erp-primary-dark);
+}
+
+body.security-body.erp-app .erp-sec-kpi-card__label {
+  font-size: 0.82rem;
+  color: #4b5563;
+  margin-top: 0.15rem;
+}
+
+body.security-body.erp-app .erp-sec-kpi-card__chart {
+  height: 40px;
+  margin-top: auto;
+  padding-top: 0.35rem;
+}
+
+body.security-body.erp-app .erp-sec-kpi-card__icon {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.15rem;
+  background: color-mix(in srgb, var(--erp-primary) 12%, transparent);
+  color: var(--erp-primary);
+  align-self: flex-start;
+}
+
+body.security-body.erp-app .erp-sec-kpi-card--success .erp-sec-kpi-card__icon {
+  background: color-mix(in srgb, var(--erp-success) 12%, transparent);
+  color: var(--erp-success);
+}
+
+body.security-body.erp-app .erp-sec-kpi-card--danger .erp-sec-kpi-card__icon {
+  background: color-mix(in srgb, var(--erp-danger) 12%, transparent);
+  color: var(--erp-danger);
+}
+
+body.security-body.erp-app .erp-sec-kpi-card--warning .erp-sec-kpi-card__icon {
+  background: color-mix(in srgb, var(--erp-warning) 12%, transparent);
+  color: var(--erp-warning);
+}
+
+body.security-body.erp-app .erp-sec-stat-link {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  height: 100%;
+}
+
+body.security-body.erp-app .erp-sec-stat-link:hover {
+  text-decoration: none;
+  color: inherit;
+}
+
+body.security-body.erp-app .erp-sec-stat {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 96px;
+  padding: 1rem 1.1rem;
+  padding-inline-end: 3rem;
+  background: var(--erp-surface, #fff);
+  border: 1px solid var(--erp-border);
+  border-radius: var(--erp-radius-lg, 16px);
+  box-shadow: var(--erp-shadow-sm);
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+}
+
+body.security-body.erp-app .erp-sec-stat-link:hover .erp-sec-stat {
+  border-color: color-mix(in srgb, var(--erp-primary) 35%, var(--erp-border));
+  box-shadow: var(--erp-shadow);
+  transform: translateY(-1px);
+}
+
+body.security-body.erp-app .erp-sec-stat__value {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--erp-primary-dark);
+  line-height: 1.2;
+}
+
+body.security-body.erp-app .erp-sec-stat__value--sm {
+  font-size: 1.05rem;
+}
+
+body.security-body.erp-app .erp-sec-stat__label {
+  font-size: 0.82rem;
+  color: #4b5563;
+  margin-top: 0.2rem;
+}
+
+body.security-body.erp-app .erp-sec-stat__icon {
+  position: absolute;
+  inset-inline-end: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 1.35rem;
+  color: color-mix(in srgb, var(--erp-primary) 55%, transparent);
+  opacity: 0.85;
+}
+
+body.security-body.erp-app .erp-sec-stat__icon--live {
+  color: var(--erp-success);
+  font-size: 0.65rem;
+  top: 1rem;
+  transform: none;
+}
+
+body.security-body.erp-app .erp-sec-table thead th {
+  font-size: 0.82rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+body.security-body.erp-app .nav-tabs {
+  border-bottom: 2px solid var(--erp-border);
+  background: var(--erp-surface-alt, #f8fafc);
+  padding: 0.35rem 0.5rem 0;
+  gap: 0.25rem;
+}
+
+body.security-body.erp-app .nav-tabs .nav-link {
+  border: none;
+  border-radius: 10px 10px 0 0;
+  color: var(--erp-primary-dark, #062a5a);
+  font-weight: 600;
+  font-size: 0.88rem;
+  padding: 0.65rem 1rem;
+  margin-bottom: -2px;
+  background: transparent;
+}
+
+body.security-body.erp-app .nav-tabs .nav-link:hover {
+  color: var(--erp-primary-dark);
+  background: color-mix(in srgb, var(--erp-primary) 6%, transparent);
+}
+
+body.security-body.erp-app .nav-tabs .nav-link.active {
+  color: var(--erp-primary-dark) !important;
+  background: var(--erp-surface) !important;
+  border-bottom: 2px solid var(--erp-primary) !important;
+  font-weight: 700;
+}
+
+/* توافق شارات Bootstrap 4 — تباين كافٍ */
+body.security-body.erp-app .badge.badge-success,
+body.security-body.erp-app .badge.bg-success { background-color: var(--erp-success, #22c55e) !important; color: #fff !important; }
+body.security-body.erp-app .badge.badge-danger,
+body.security-body.erp-app .badge.bg-danger { background-color: var(--erp-danger, #ef4444) !important; color: #fff !important; }
+body.security-body.erp-app .badge.badge-warning,
+body.security-body.erp-app .badge.bg-warning { background-color: var(--erp-warning, #f59e0b) !important; color: #1f2937 !important; }
+body.security-body.erp-app .badge.badge-info,
+body.security-body.erp-app .badge.bg-info { background-color: var(--erp-info, #0ea5e9) !important; color: #fff !important; }
+body.security-body.erp-app .badge.badge-primary,
+body.security-body.erp-app .badge.bg-primary { background-color: var(--erp-primary) !important; color: #fff !important; }
+body.security-body.erp-app .badge.badge-secondary,
+body.security-body.erp-app .badge.bg-secondary { background-color: #6b7280 !important; color: #fff !important; }

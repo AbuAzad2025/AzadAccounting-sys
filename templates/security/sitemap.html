@@ -2,12 +2,12 @@
 
 {% block tour_name %}sitemap{% endblock %}
 
-{% block security_title %}Sitemap{% endblock %}
+{% block security_title %}خريطة الموقع{% endblock %}
 {% block security_icon %}<i class="fas fa-sitemap"></i>{% endblock %}
 {% block security_description %}خريطة تفصيلية لجميع صفحات ووحدات النظام{% endblock %}
 
 {% block security_breadcrumb %}
-<li class="breadcrumb-item active">Sitemap</li>
+<li class="breadcrumb-item active">خريطة الموقع</li>
 {% endblock %}
 
 {% block styles %}
@@ -15,7 +15,7 @@
 
 {% endblock %}
 
-{% block content %}
+{% block security_content %}
 <div class="container-fluid">
  
   <!-- عنوان رئيسي -->
@@ -26,7 +26,7 @@
         <strong>خريطة الموقع:</strong>
         <span class="badge bg-white text-primary ms-2">جميع الروابط في مكان واحد</span>
       </div>
-      <small class="opacity-75">7 مراكز • 38 تبويب • 121 وظيفة</small>
+      <small class="opacity-75">{{ sitemap_data.total_routes }} مسار • {{ sitemap_data.centers|length }} مراكز</small>
     </div>
   </div>
   
@@ -272,35 +272,26 @@
     
   </div>
   
-  <!-- إحصائيات سريعة -->
+  <!-- إحصائيات -->
   <div class="row mt-4">
     <div class="col-12">
-      <div class="alert alert-light border text-center">
-        <h5 class="mb-3"><i class="fas fa-chart-pie"></i> إحصائيات الوحدة السرية</h5>
-        <div class="row">
-          <div class="col-md-3">
-            <div class="p-3 bg-primary text-white rounded">
-              <h3 class="mb-0">7</h3>
-              <small>مراكز موحدة</small>
-            </div>
+      <div class="row g-3">
+        <div class="col-md-4">
+          <div class="erp-sec-stat">
+            <span class="erp-sec-stat__value">{{ sitemap_data.centers|length }}</span>
+            <span class="erp-sec-stat__label">مراكز</span>
           </div>
-          <div class="col-md-3">
-            <div class="p-3 bg-success text-white rounded">
-              <h3 class="mb-0">38</h3>
-              <small>تبويب</small>
-            </div>
+        </div>
+        <div class="col-md-4">
+          <div class="erp-sec-stat">
+            <span class="erp-sec-stat__value">{{ sitemap_data.total_routes }}</span>
+            <span class="erp-sec-stat__label">مسارات لوحة الأمان</span>
           </div>
-          <div class="col-md-3">
-            <div class="p-3 bg-info text-white rounded">
-              <h3 class="mb-0">121</h3>
-              <small>راوتر</small>
-            </div>
-          </div>
-          <div class="col-md-3">
-            <div class="p-3 bg-warning text-dark rounded">
-              <h3 class="mb-0">45</h3>
-              <small>قالب</small>
-            </div>
+        </div>
+        <div class="col-md-4">
+          <div class="erp-sec-stat">
+            <span class="erp-sec-stat__value">{{ sitemap_data.total_tabs }}</span>
+            <span class="erp-sec-stat__label">تبويبات في المراكز</span>
           </div>
         </div>
       </div>

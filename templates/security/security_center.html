@@ -2,19 +2,20 @@
 
 {% block tour_name %}security_center{% endblock %}
 
-{% block security_title %}Security & Monitoring Center{% endblock %}
+{% block security_title %}مركز الأمان والمراقبة{% endblock %}
 {% block security_icon %}<i class="fas fa-shield-alt"></i>{% endblock %}
 {% block security_description %}جدار حماية وتنبيهات{% endblock %}
 
 {% block security_breadcrumb %}
-<li class="breadcrumb-item active">Security Center</li>
+<li class="breadcrumb-item active">مركز الأمان</li>
 {% if active_tab %}
-<li class="breadcrumb-item active">{{ active_tab|title }}</li>
+{% set sec_tab_labels = {'monitoring': 'مراقبة فورية', 'firewall': 'جدار الحماية', 'alerts': 'التنبيهات', 'audit': 'سجل التدقيق'} %}
+<li class="breadcrumb-item active">{{ sec_tab_labels.get(active_tab, active_tab) }}</li>
 {% endif %}
 {% endblock %}
 
 {% block security_actions %}
-<span class="badge bg-success fs-6">4 أدوات</span>
+<span class="badge bg-primary">4 أقسام</span>
 {% endblock %}
 
 {% block security_content %}

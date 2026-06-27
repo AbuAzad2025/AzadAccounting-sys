@@ -11,8 +11,8 @@ html[data-ui-mode="tablet"] body.security-body.erp-unified .security-main {
   margin-right: 0 !important;
 }
 
-html[data-ui-mode="mobile"] body.security-body.erp-unified .security-main > .p-4,
-html[data-ui-mode="tablet"] body.security-body.erp-unified .security-main > .p-4 {
+html[data-ui-mode="mobile"] body.security-body.erp-unified .security-main__scroll .p-4,
+html[data-ui-mode="tablet"] body.security-body.erp-unified .security-main__scroll .p-4 {
   padding: 1rem !important;
 }
 

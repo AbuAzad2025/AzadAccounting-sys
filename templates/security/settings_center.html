@@ -2,12 +2,12 @@
 
 {% block tour_name %}settings_center{% endblock %}
 
-{% block security_title %}مركز الإعدادات والتخصيص{% endblock %}
-{% block security_icon %}<i class="fas fa-cogs"></i>{% endblock %}
-{% block security_description %}إعدادات ومظهر وفروع{% endblock %}
+{% block security_title %}مركز العمليات{% endblock %}
+{% block security_icon %}<i class="fas fa-satellite-dish"></i>{% endblock %}
+{% block security_description %}إعدادات النظام والمظهر والفروع{% endblock %}
 
 {% block security_breadcrumb %}
-<li class="breadcrumb-item active">مركز الإعدادات</li>
+<li class="breadcrumb-item active">مركز العمليات</li>
 {% if active_tab %}
 {% set tab_titles = {
   'system': 'إعدادات النظام',
@@ -24,7 +24,7 @@
 {% endblock %}
 
 {% block security_actions %}
-<span class="badge badge-warning">8 أدوات</span>
+<span class="badge bg-primary">8 أقسام</span>
 {% endblock %}
 
 {% block security_content %}
